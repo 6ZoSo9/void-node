@@ -960,9 +960,11 @@ async function main() {
   assert.match(rpc.text, /not_public/);
 
   const submitGet = await json(`${mutationBase}/wc/public-earning-pilot-v1/submit-result`);
-  assert.equal(submitGet.response.status, 404);
+  assert.equal(submitGet.response.status, 405);
+  assert.equal(submitGet.response.headers.get("allow"), "POST");
   const claimGet = await json(`${mutationBase}/wc/public-earning-pilot-v1/claim-ticket`);
-  assert.equal(claimGet.response.status, 404);
+  assert.equal(claimGet.response.status, 405);
+  assert.equal(claimGet.response.headers.get("allow"), "POST");
 
   console.log("VOID_PUBLIC_EARN_GATEWAY_V1_GREEN");
   console.log("shared_mutation_routes_disabled=true");
