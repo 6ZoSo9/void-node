@@ -200,6 +200,15 @@ function connectDownstream(socket, dispatch) {
       fn(value);
     };
 
+    // readDispatchPrefix() removes its temporary error listener after
+    // classification. Keep relay-phase client errors connection-scoped and
+    // tear down only the paired downstream socket.
+    socket.once("error", (error) => {
+      if (!downstream.destroyed) downstream.destroy();
+      if (!socket.destroyed) socket.destroy();
+      finish(reject, error);
+    });
+
     downstream.setTimeout(CONNECT_TIMEOUT_MS);
     downstream.once("timeout", () => {
       downstream.destroy(
@@ -248,7 +257,10 @@ const server = net.createServer(
   { allowHalfOpen: true },
   (socket) => {
     socket.setNoDelay(true);
-  void (async () => {
+    // Never let a peer TCP reset become an unhandled EventEmitter error during
+    // the narrow classification -> relay handoff window.
+    socket.on("error", () => {});
+    void (async () => {
     let dispatch;
     try {
       dispatch = await readDispatchPrefix(socket);

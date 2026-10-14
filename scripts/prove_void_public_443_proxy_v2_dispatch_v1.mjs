@@ -243,7 +243,10 @@ for (const [key, expected] of Object.entries({
 
 async function makeBackend(name) {
   const calls = [];
+  const state = { accepted: 0 };
   const server = net.createServer((socket) => {
+    state.accepted += 1;
+    socket.on("error", () => {});
     const chunks = [];
     socket.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
     socket.once("end", () => {
@@ -276,6 +279,7 @@ async function makeBackend(name) {
     server,
     port: address.port,
     calls,
+    state,
   });
 }
 
@@ -360,6 +364,38 @@ async function sendRaw(port, bytes) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+async function waitForAccepted(backend, count) {
+  for (let index = 0; index < 160; index += 1) {
+    if (backend.state.accepted >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(
+    "backend accept timeout: " +
+      backend.name +
+      " expected=" +
+      String(count) +
+      " actual=" +
+      String(backend.state.accepted),
+  );
+}
+
+async function abruptResetAfterDispatch(port, bytes, backend) {
+  const socket = net.createConnection({
+    host: "127.0.0.1",
+    port,
+  });
+  socket.setNoDelay(true);
+  socket.on("error", () => {});
+  await once(socket, "connect");
+  const expectedAccepted = backend.state.accepted + 1;
+  socket.write(bytes);
+  await waitForAccepted(backend, expectedAccepted);
+  assert.equal(typeof socket.resetAndDestroy, "function");
+  const closed = new Promise((resolve) => socket.once("close", resolve));
+  socket.resetAndDestroy();
+  await closed;
+}
+
 async function stop(runtime) {
   if (runtime.child.exitCode !== null) return;
   const exit = once(runtime.child, "exit");
@@ -423,6 +459,26 @@ try {
   assert.equal(frontdoorBackend.calls.length, 2);
   assert.deepEqual(frontdoorBackend.calls[1], ordinaryPost.http);
 
+  await abruptResetAfterDispatch(
+    info.listen_port,
+    ordinary.all,
+    frontdoorBackend,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    runtime.child.exitCode,
+    null,
+    "client reset terminated dispatcher: " + runtime.logs.join(""),
+  );
+  const callsBeforeResetRecovery = frontdoorBackend.calls.length;
+  response = await sendRaw(info.listen_port, ordinary.all);
+  assert.match(response, /^HTTP\/1\.1 200 OK/u);
+  assert.equal(
+    frontdoorBackend.calls.length,
+    callsBeforeResetRecovery + 1,
+  );
+  assert.deepEqual(frontdoorBackend.calls.at(-1), ordinary.http);
+
   const beforeRejects = Object.freeze({
     credential: credentialBackend.calls.length,
     earn: earnBackend.calls.length,
@@ -473,6 +529,7 @@ try {
   console.log("sensitive_proxy_preface_preserved=true");
   console.log("frontdoor_proxy_preface_stripped=true");
   console.log("client_half_close_response_preserved=true");
+  console.log("client_reset_after_classification_process_survives=true");
   console.log("sensitive_aliases_fail_closed=true");
   console.log("generic_sensitive_mutation_route_authorized=false");
   console.log("source_port_in_dispatch_identity=false");
