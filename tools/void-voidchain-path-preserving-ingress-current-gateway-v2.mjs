@@ -69,9 +69,9 @@ const PLAN_ID=/^voidvci2_[0-9a-f]{64}$/u;
 
 const SOURCE_BLOBS=Object.freeze({
   "ops/public/void-public-frontdoor-v1.mjs":
-    "b1513ea822e32fe5df55c00ab635128b07aaf170",
+    "176f4a99c42ac3432d5797efaebf851cc0503737",
   "scripts/prove_void_public_frontdoor_v1.mjs":
-    "05b04307e8839b0de9aaef3fd0882ec9e298a965",
+    "99274c5f9fc320c207ae5b0707b1d457d21c9be1",
   // Reviewed source-generation successor #2631: exact private operator ingress deny.
   // Historical predecessor gateway: e97ce051405d5b19a363eaf0834838a0ecef3a10.
   "ops/public/void-public-app-composition-gateway-v1.mjs":
@@ -337,6 +337,10 @@ function validateFrontdoorSourceSemantics(sources){
       "VOIDCHAIN_INGRESS_FRONTDOOR_READY_NOT_UPSTREAM_BOUND"],
     ['if (BIND !== "127.0.0.1")',
       "VOIDCHAIN_INGRESS_FRONTDOOR_LOOPBACK_GUARD_MISSING"],
+    ['const SENSITIVE_EDGE_PATHS = Object.freeze([',
+      "VOIDCHAIN_INGRESS_FRONTDOOR_SENSITIVE_DENY_SET_MISSING"],
+    ['isSensitiveEdgeBypassV1(requestUrl)',
+      "VOIDCHAIN_INGRESS_FRONTDOOR_SENSITIVE_DENY_WALL_MISSING"],
   ]){
     requireText(frontdoor,needle,code);
   }
