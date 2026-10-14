@@ -9,6 +9,10 @@ on:
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs"
       - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
       - "scripts/prove_buy_void_enforcement_post2865_candidate_v1.mjs"
+      - "ops/security/buy-void-enforcement-post2865-candidate-v1.json"
+      - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
+      - "scripts/prove_buy_void_enforcement_post2865_lock_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-post2865-lock-v1.md"
       - "docs/architecture/buy-void-enforcement-post2865-candidate-v1.md"
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
       - "src/economic/**"
@@ -25,6 +29,10 @@ on:
       - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
       - "scripts/prove_buy_void_enforcement_post2865_candidate_v1.mjs"
       - "docs/architecture/buy-void-enforcement-post2865-candidate-v1.md"
+      - "ops/security/buy-void-enforcement-post2865-candidate-v1.json"
+      - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
+      - "scripts/prove_buy_void_enforcement_post2865_lock_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-post2865-lock-v1.md"
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
       - "src/economic/**"
       - "package.json"
@@ -137,6 +145,18 @@ jobs:
           console.log("VOID_BUY_VOID_ENFORCEMENT_POST2865_CANDIDATE_NODE_GREEN");
           NODE
 
+      - name: Lock exact audited whole-enforcement identity
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/enforcement-post2865-${{ matrix.node }}.json"
+          cmp "$candidate" ops/security/buy-void-enforcement-post2865-candidate-v1.json
+          node --check scripts/prove_buy_void_enforcement_post2865_lock_v1.mjs
+          node scripts/prove_buy_void_enforcement_post2865_lock_v1.mjs --self-test
+          node scripts/prove_buy_void_enforcement_post2865_lock_v1.mjs --derive \
+            > "$RUNNER_TEMP/enforcement-post2865-lock-${{ matrix.node }}.json"
+          cmp "$RUNNER_TEMP/enforcement-post2865-lock-${{ matrix.node }}.json" \
+            ops/security/buy-void-enforcement-post2865-lock-v1.json
+
       - name: Diff hygiene
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -156,6 +176,7 @@ jobs:
           path: |
             ${{ runner.temp }}/provider-closure-lock-${{ matrix.node }}.json
             ${{ runner.temp }}/enforcement-post2865-${{ matrix.node }}.json
+            ${{ runner.temp }}/enforcement-post2865-lock-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
 
@@ -183,7 +204,11 @@ jobs:
           for node in 22 24 26; do test -s "receipts/enforcement-post2865-$node.json"; done
           cmp receipts/enforcement-post2865-22.json receipts/enforcement-post2865-24.json
           cmp receipts/enforcement-post2865-22.json receipts/enforcement-post2865-26.json
+          for node in 22 24 26; do test -s "receipts/enforcement-post2865-lock-$node.json"; done
+          cmp receipts/enforcement-post2865-lock-22.json receipts/enforcement-post2865-lock-24.json
+          cmp receipts/enforcement-post2865-lock-22.json receipts/enforcement-post2865-lock-26.json
           sha256sum receipts/provider-closure-lock-22.json
+          sha256sum receipts/enforcement-post2865-lock-22.json
           sha256sum receipts/enforcement-post2865-22.json
           node --input-type=module - <<'NODE'
           import assert from "node:assert/strict";
@@ -215,4 +240,17 @@ jobs:
           console.log("candidate_enforcement_identity_accepted=false");
           console.log("production_source_finality_authority_ready=false");
           console.log("funds_movement=false");
+          NODE
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const l=JSON.parse(fs.readFileSync("receipts/enforcement-post2865-lock-22.json","utf8"));
+          assert.equal(l.complete_executable_closure_verified,true);
+          assert.equal(l.candidate_enforcement_identity_accepted,true);
+          assert.equal(l.deployed_artifact_generation_verified,false);
+          assert.equal(l.runtime_mount_authority,false);
+          assert.equal(l.production_source_finality_authority_ready,false);
+          assert.equal(l.public_presale_activation,false);
+          assert.equal(l.funds_movement,false);
+          console.log("VOID_BUY_VOID_ENFORCEMENT_POST2865_LOCK_CROSS_NODE_GREEN");
           NODE
