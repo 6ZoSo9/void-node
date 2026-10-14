@@ -7,13 +7,13 @@ import {
   VOID_PUBLIC_EARN_CLAIM_PATH_V1,
   VOID_PUBLIC_EARN_SUBMIT_PATH_V1,
   classifyVoidPublicEarnProxyV2EdgeContractV1,
-} from "../tools/void-public-earn-proxy-v2-edge-contract-v1.mjs";
+} from "../../tools/void-public-earn-proxy-v2-edge-contract-v1.mjs";
 import {
   parseVoidAgentCredentialRequestProxyV2SourceV1,
-} from "../tools/void-agent-paid-work-credential-request-proxy-v2-source-v1.mjs";
+} from "../../tools/void-agent-paid-work-credential-request-proxy-v2-source-v1.mjs";
 import {
   createVoidPublicEarnProxyV2RateStateV1,
-} from "../tools/void-public-earn-proxy-v2-rate-state-v1.mjs";
+} from "../../tools/void-public-earn-proxy-v2-rate-state-v1.mjs";
 
 const MARKER = "VOID_PUBLIC_EARN_PROXY_V2_EDGE_RUNTIME_V1";
 const HOST = "127.0.0.1";
