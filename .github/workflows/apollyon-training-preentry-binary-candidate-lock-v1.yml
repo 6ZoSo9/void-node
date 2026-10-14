@@ -44,9 +44,8 @@ jobs:
       - name: Prove parent candidate validator and lock
         run: |
           set -euo pipefail
-          python3 -m py_compile \
-            scripts/prove_apollyon_training_preentry_binary_candidate_v1.py \
-            scripts/prove_apollyon_training_preentry_binary_candidate_lock_v1.py
+          python3 -I -B -c 'compile(open("scripts/prove_apollyon_training_preentry_binary_candidate_v1.py",encoding="utf-8").read(),"scripts/prove_apollyon_training_preentry_binary_candidate_v1.py","exec")'
+          python3 -I -B -c 'compile(open("scripts/prove_apollyon_training_preentry_binary_candidate_lock_v1.py",encoding="utf-8").read(),"scripts/prove_apollyon_training_preentry_binary_candidate_lock_v1.py","exec")'
           python3 -I -B scripts/prove_apollyon_training_preentry_binary_candidate_v1.py \
             --self-test
           python3 -I -B scripts/prove_apollyon_training_preentry_binary_candidate_lock_v1.py
