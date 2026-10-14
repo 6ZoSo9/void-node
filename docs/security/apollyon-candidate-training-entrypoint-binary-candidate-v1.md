@@ -84,7 +84,20 @@ A compare job requires all three raw report byte strings to be identical and
 then revalidates the closed report schema, current source identity, compiler
 identity and content-addressed candidate ID.
 
-Validation also requires the JSON `version` field to be an actual integer; Python boolean or floating-point values that compare equal to 1 are rejected.\n\nThe candidate ID is:
+Three equal reports are not accepted as proof of the binary digest by
+themselves. The compare job independently recompiles the exact checked-out
+source with the same reviewed recipe, performs the same two-build byte-equality
+and ELF/self-test checks, and requires the locally re-derived ELF byte count and
+SHA-256 to equal the hosted reports before emitting
+`_THREE_RUN_GREEN`. The self-test includes three byte-identical,
+schema-valid reports with one consistently forged binary SHA-256 and recomputed
+candidate ID; comparison must reject them.
+
+Validation also requires the JSON `version` field and binary byte-count field
+to be actual integers; Python boolean or floating-point values that compare
+equal to integers are rejected where applicable.
+
+The candidate ID is:
 
 ```text
 apollyon_candidate_training_entrypoint_binary_candidate_v1:<sha256>
