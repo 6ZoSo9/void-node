@@ -177,8 +177,8 @@ function providerIdentity(){
 function deltaIdentity(){
   pin(V7_DELTA_PROOF,V7_DELTA_PROOF_BLOB,128*1024);
   const r=run(process.execPath,[path.join(ROOT,V7_DELTA_PROOF)]),v=JSON.parse(String(r.stdout||""));
-  assert.equal(v.module_count,5);assert.equal(v.candidate_generation_sha256,"2316526ff2366b785972f4fd11f49440a859704f57fcdc047f3edab623d39e4b");
-  assert.equal(v.artifact_inventory_sha256,"d70b35d87ec85adbe6f98b60e28304bf38fdb29b8b78ba4ff14b56eabdc722e9");
+  assert.equal(v.module_count,5);assert.equal(v.candidate_generation_sha256,"17e70d5f6fe47f7eda87aabfa79ead574ecadeec4eb44470b774f020c997006e");
+  assert.equal(v.artifact_inventory_sha256,"9ddb6e6b9ed47313bec79b20accc26c36be386ce862db8f2f771d871dd7c6fae");
   assert.equal(v.complete_executable_closure_verified,false);return v;
 }
 function sagaEdge(){
