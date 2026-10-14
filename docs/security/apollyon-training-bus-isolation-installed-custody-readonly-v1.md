@@ -34,8 +34,11 @@ The pre-entry must be a direct root:root single-link mode-`0755` regular
 file. Every retained ancestor from `/` through the immediate parent must be a
 direct root:root directory with no group/world write bits.
 
-Both files are opened with `O_NOFOLLOW`; path and descriptor identities are
-checked before, during and after the bounded read.
+Both files are opened with `O_NOFOLLOW`; any raced open failure is converted
+to a machine-readable HOLD. Path and descriptor identities are checked before,
+during and after the bounded read. The complete retained ancestor chain is then
+revalidated after the file read and required to keep the same
+device/inode/owner/group/mode/link identity before success may be emitted.
 
 ## Exact reviewed identities
 
@@ -60,24 +63,42 @@ preentry_sha256=
 preentry_bytes=17352
 ```
 
-The focused proof reads the merged candidate-lock fixture, compiles the exact
+The focused proof reads the merged candidate-lock fixture and executes the
+merged #2932 canonical lock validator from its pinned Git blob. That validator
+in turn executes the reviewed #2930 candidate validator from pinned bytes,
+validates the complete closed lock schema and nested candidate report, and
+recomputes the content-addressed lock ID. The proof also compiles the exact
 reviewed #2918 C source with the exact #2930 recipe, reproduces those 17,352
 bytes, and exercises the real observer against disposable installed-path
 fixtures.
 
-Negative proofs cover unit-byte drift, ELF-byte drift, permission drift and
-symlinked-ancestor substitution.
+Negative proofs cover unit-byte drift, ELF-byte drift, permission drift,
+symlinked-ancestor substitution, and a raced `O_NOFOLLOW` open failure that
+must become a deterministic HOLD rather than an uncaught traceback.
 
 ## Truth boundary
 
-A successful observation may state:
+The observer carries an explicit closed observation scope.
+
+Hosted/synthetic qualification uses:
 
 ```text
+observation_scope=synthetic_fixture
+synthetic_fixture_unit_identity_observed=true
+synthetic_fixture_preentry_binary_identity_observed=true
+installed_unit_identity_observed=false
+installed_preentry_binary_identity_observed=false
+```
+
+Only a real fixed-path Xiphos `--observe` invocation may emit:
+
+```text
+observation_scope=live_installed
 installed_unit_identity_observed=true
 installed_preentry_binary_identity_observed=true
 ```
 
-It deliberately **cannot** promote those observations to production proof yet:
+Neither scope may promote those observations to production proof yet:
 
 ```text
 trusted_observer_proven=false
@@ -103,9 +124,11 @@ The #2918 native pre-entry executes only this fixed target:
 /opt/void-apollyon-training-v1/apollyon_candidate_training_entrypoint_v1
 ```
 
-No reviewed source or accepted binary identity for that target currently exists
-in `void-node`. Therefore this observer does not try to infer live service
-enforcement from the pre-entry bytes alone.
+Draft #2937 now supplies a qualification-only reviewed source candidate for
+that fixed target, and stacked Draft #2939 is deriving its compiled candidate
+identity. Neither is merged or accepted installed authority yet. Therefore this
+observer still does not infer live service enforcement from the pre-entry bytes
+alone.
 
 A future canonical qualification must additionally bind:
 
