@@ -31,6 +31,35 @@ The deployment receipt must prove:
 The provider-pair receipt then carries the enforcement set from that verified
 deployment receipt. It does not compare it to the historical V7 constant.
 
+## Operation-bound apply
+
+Plan mode prints the exact content-addressed `provider_pair_receipt_id`. Apply
+must supply that value again as
+`--expected-provider-pair-receipt-id <voidbsfpp1_...>` in addition to the
+fixed confirmation token. Immediately before publication, apply re-reads and
+reverifies the deployment receipt, rebuilds the provider-pair receipt from the
+current deployment binding and provider inputs, and requires both the expected
+receipt ID and canonical bytes to match the reviewed invocation. Any provider
+identity/fingerprint drift or deployment/enforcement drift HOLDS before the
+create-once filesystem mutation.
+
+## Root custody
+
+The provider receipt is published only inside the already-existing trusted
+directory that contains the required deployment receipt. Apply retains that
+root-owned, non-group/world-writable directory by
+`O_DIRECTORY|O_NOFOLLOW` descriptor and performs temp creation, hard-link
+no-clobber publication, cleanup, directory fsync, and final readback through
+`/proc/self/fd/<parentfd>/...`.
+
+The temporary inode identity is captured immediately after exclusive creation
+and cleanup may unlink only that exact inode. A substituted foreign temp is
+preserved. Non-ENOENT unlink/fsync/close cleanup failures are surfaced together
+with any primary failure as `provider_pair_receipt_cleanup_failed`. Final
+receipt bytes are read from an `O_NOFOLLOW` retained file descriptor after
+visible/opened identity checks; there is no metadata-check followed by pathname
+reopen.
+
 ## Fresh regression
 
 The focused proof uses the current recursion-free V7 candidate set:

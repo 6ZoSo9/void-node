@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  assertProviderPairApplyBindingV1,
   buildProviderPairReceiptV1,
   installProviderPairReceiptCreateOnceV1,
   readDeploymentBindingV1,
@@ -95,6 +96,34 @@ assert.equal(receipt_id,buyVoidSourceFinalityProviderPairBindingReceiptIdV1(mate
 assert.equal(built.bytes.toString("utf8"),canonical(built.receipt)+"\n");
 assert.equal(built.receipt.deployment_receipt_id,deployment.deployment_receipt_id);
 assert.equal(built.receipt.accepted_enforcement_set_sha256,FRESH_SET);
+
+assert.doesNotThrow(()=>assertProviderPairApplyBindingV1({
+  expected_receipt_id:built.receipt_id,
+  built_receipt_id:built.receipt_id,
+  initial_deployment:deployment,
+  current_deployment:deployment,
+}));
+assert.throws(()=>assertProviderPairApplyBindingV1({
+  expected_receipt_id:"",
+  built_receipt_id:built.receipt_id,
+  initial_deployment:deployment,
+  current_deployment:deployment,
+}),/expected_provider_pair_receipt_id_required/u);
+assert.throws(()=>assertProviderPairApplyBindingV1({
+  expected_receipt_id:"voidbsfpp1_"+"0".repeat(64),
+  built_receipt_id:built.receipt_id,
+  initial_deployment:deployment,
+  current_deployment:deployment,
+}),/provider_pair_expected_receipt_id_mismatch/u);
+assert.throws(()=>assertProviderPairApplyBindingV1({
+  expected_receipt_id:built.receipt_id,
+  built_receipt_id:built.receipt_id,
+  initial_deployment:deployment,
+  current_deployment:Object.freeze({
+    ...deployment,
+    accepted_enforcement_set_sha256:"f".repeat(64),
+  }),
+}),/deployment_receipt_changed_before_apply/u);
 assert.notEqual(FRESH_SET,
   "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b");
 
@@ -144,6 +173,195 @@ if(rootCapable){
     fs.chmodSync(deploymentPath,0o444);
     assert.deepEqual(readDeploymentBindingV1(deploymentPath),deployment);
 
+    const tempPrefix=(receiptPath:string)=>
+      "."+path.basename(receiptPath)+".tmp-";
+    const tempEntries=(receiptPath:string)=>{
+      const parent=path.dirname(receiptPath);
+      const prefix=tempPrefix(receiptPath);
+      return fs.readdirSync(parent).filter(name=>name.startsWith(prefix)).sort();
+    };
+    const proveTempFailureCleanup=(
+      label:string,
+      method:"fchownSync"|"writeSync"|"fsyncSync"|"fchmodSync",
+    )=>{
+      const receipt=path.join(root,"provider-"+label+".json");
+      const originalOpen=(fs as any).openSync;
+      const originalTarget=(fs as any)[method];
+      let tempFd=-1;
+      let injected=false;
+      try{
+        (fs as any).openSync=function(...args:any[]){
+          const fd=originalOpen.apply(fs,args);
+          if(String(args[0]).includes(tempPrefix(receipt)))tempFd=fd;
+          return fd;
+        };
+        (fs as any)[method]=function(...args:any[]){
+          if(!injected&&tempFd>=0&&Number(args[0])===tempFd){
+            injected=true;
+            throw Object.assign(
+              new Error("synthetic_provider_temp_"+label+"_failure"),
+              {code:"EIO"},
+            );
+          }
+          return originalTarget.apply(fs,args);
+        };
+        assert.throws(
+          ()=>installProviderPairReceiptCreateOnceV1({
+            absolute_path:receipt,bytes:built.bytes,
+          }),
+          new RegExp("synthetic_provider_temp_"+label+"_failure","u"),
+        );
+      }finally{
+        (fs as any).openSync=originalOpen;
+        (fs as any)[method]=originalTarget;
+      }
+      assert.equal(injected,true,label+"_failure_not_injected");
+      assert.equal(fs.existsSync(receipt),false,label+"_published_receipt");
+      assert.deepEqual(tempEntries(receipt),[],label+"_temp_survived");
+    };
+
+    proveTempFailureCleanup("fchown","fchownSync");
+    proveTempFailureCleanup("write","writeSync");
+    proveTempFailureCleanup("fsync","fsyncSync");
+    proveTempFailureCleanup("fchmod","fchmodSync");
+
+    {
+      const receipt=path.join(root,"provider-foreign.json");
+      const originalOpen=(fs as any).openSync;
+      const originalFchown=(fs as any).fchownSync;
+      let tempFd=-1;
+      let tempPath="";
+      let foreignVisible="";
+      let foreignIdentity:fs.Stats|undefined;
+      try{
+        (fs as any).openSync=function(...args:any[]){
+          const fd=originalOpen.apply(fs,args);
+          if(String(args[0]).includes(tempPrefix(receipt))){
+            tempFd=fd;
+            tempPath=String(args[0]);
+            foreignVisible=path.join(path.dirname(receipt),path.basename(tempPath));
+          }
+          return fd;
+        };
+        (fs as any).fchownSync=function(fd:number,uid:number,gid:number){
+          if(tempFd>=0&&fd===tempFd&&!foreignIdentity){
+            fs.unlinkSync(tempPath);
+            fs.writeFileSync(tempPath,"foreign\n",{mode:0o600});
+            fs.chownSync(tempPath,0,0);
+            foreignIdentity=fs.lstatSync(tempPath);
+            throw Object.assign(
+              new Error("synthetic_provider_foreign_substitution"),
+              {code:"EIO"},
+            );
+          }
+          return originalFchown.call(fs,fd,uid,gid);
+        };
+        assert.throws(
+          ()=>installProviderPairReceiptCreateOnceV1({
+            absolute_path:receipt,bytes:built.bytes,
+          }),
+          /synthetic_provider_foreign_substitution/u,
+        );
+      }finally{
+        (fs as any).openSync=originalOpen;
+        (fs as any).fchownSync=originalFchown;
+      }
+      assert.ok(foreignIdentity);
+      const after=fs.lstatSync(foreignVisible);
+      assert.equal(after.dev,foreignIdentity!.dev);
+      assert.equal(after.ino,foreignIdentity!.ino);
+      assert.equal(fs.readFileSync(foreignVisible,"utf8"),"foreign\n");
+      fs.unlinkSync(foreignVisible);
+    }
+
+    const proveCleanupFailureObservable=(
+      label:"unlink"|"parent-fsync",
+    )=>{
+      const receipt=path.join(root,"provider-cleanup-"+label+".json");
+      const originalOpen=(fs as any).openSync;
+      const originalFchown=(fs as any).fchownSync;
+      const originalUnlink=(fs as any).unlinkSync;
+      const originalFsync=(fs as any).fsyncSync;
+      let tempFd=-1;
+      let injectedPrimary=false;
+      let injectedCleanup=false;
+      try{
+        (fs as any).openSync=function(...args:any[]){
+          const fd=originalOpen.apply(fs,args);
+          if(String(args[0]).includes(tempPrefix(receipt)))tempFd=fd;
+          return fd;
+        };
+        (fs as any).fchownSync=function(fd:number,...args:any[]){
+          if(!injectedPrimary&&tempFd>=0&&fd===tempFd){
+            injectedPrimary=true;
+            throw Object.assign(
+              new Error("synthetic_provider_cleanup_primary_"+label),
+              {code:"EIO"},
+            );
+          }
+          return originalFchown.call(fs,fd,...args);
+        };
+        if(label==="unlink"){
+          (fs as any).unlinkSync=function(target:string,...args:any[]){
+            if(!injectedCleanup&&String(target).includes(tempPrefix(receipt))){
+              injectedCleanup=true;
+              throw Object.assign(
+                new Error("synthetic_provider_cleanup_unlink_failure"),
+                {code:"EIO"},
+              );
+            }
+            return originalUnlink.call(fs,target,...args);
+          };
+        }else{
+          (fs as any).fsyncSync=function(fd:number){
+            if(!injectedCleanup&&tempFd>=0&&fd!==tempFd){
+              injectedCleanup=true;
+              throw Object.assign(
+                new Error("synthetic_provider_cleanup_parent_fsync_failure"),
+                {code:"EIO"},
+              );
+            }
+            return originalFsync.call(fs,fd);
+          };
+        }
+        assert.throws(
+          ()=>installProviderPairReceiptCreateOnceV1({
+            absolute_path:receipt,bytes:built.bytes,
+          }),
+          (error:any)=>{
+            assert.ok(error instanceof AggregateError,"cleanup_failure_not_aggregate");
+            assert.equal(error.message,"provider_pair_receipt_cleanup_failed");
+            const messages=Array.from(
+              error.errors||[],
+              (entry:any)=>String(entry?.message||entry),
+            );
+            assert.ok(messages.includes(
+              "synthetic_provider_cleanup_primary_"+label,
+            ));
+            assert.ok(messages.includes(
+              label==="unlink"
+                ?"synthetic_provider_cleanup_unlink_failure"
+                :"synthetic_provider_cleanup_parent_fsync_failure",
+            ));
+            return true;
+          },
+        );
+      }finally{
+        (fs as any).openSync=originalOpen;
+        (fs as any).fchownSync=originalFchown;
+        (fs as any).unlinkSync=originalUnlink;
+        (fs as any).fsyncSync=originalFsync;
+        for(const name of tempEntries(receipt)){
+          fs.unlinkSync(path.join(path.dirname(receipt),name));
+        }
+      }
+      assert.equal(injectedPrimary,true,label+"_primary_failure_not_injected");
+      assert.equal(injectedCleanup,true,label+"_cleanup_failure_not_injected");
+    };
+
+    proveCleanupFailureObservable("unlink");
+    proveCleanupFailureObservable("parent-fsync");
+
     const first=installProviderPairReceiptCreateOnceV1({
       absolute_path:pairPath,bytes:built.bytes,
     });
@@ -155,6 +373,17 @@ if(rootCapable){
       absolute_path:pairPath,bytes:built.bytes,
     });
     assert.equal(second.already_matching,true);
+
+    const symlinkTarget=path.join(root,"provider-symlink-target");
+    const symlinkParent=path.join(root,"provider-symlink-parent");
+    fs.mkdirSync(symlinkTarget,{mode:0o755});
+    fs.symlinkSync(symlinkTarget,symlinkParent);
+    assert.throws(()=>installProviderPairReceiptCreateOnceV1({
+      absolute_path:path.join(symlinkParent,"provider-pair.json"),
+      bytes:built.bytes,
+    }),/provider_pair_install_ancestor_not_direct_directory/u);
+    assert.deepEqual(fs.readdirSync(symlinkTarget),[]);
+    fs.unlinkSync(symlinkParent);
     fs.chmodSync(pairPath,0o644);
     assert.throws(()=>installProviderPairReceiptCreateOnceV1({
       absolute_path:pairPath,bytes:built.bytes,
@@ -175,6 +404,10 @@ assert.equal(
 );
 for(const required of [
   "buyVoidSourceFinalityEnforcementLockIdV7",
+  "O_NOFOLLOW",
+  "/proc/self/fd/",
+  "provider_pair_receipt_cleanup_failed",
+  "fs.readFileSync(fd)",
   "candidate_enforcement_identity_accepted",
   "complete_executable_closure_verified",
   "deployment_receipt_enforcement_lock_identity_mismatch",
@@ -188,6 +421,13 @@ console.log("fresh_enforcement_set="+FRESH_SET);
 console.log("historical_enforcement_constant_dependency=false");
 console.log("current_deployment_receipt_schema_bound=true");
 console.log("accepted_enforcement_lock_identity_bound=true");
+console.log("apply_expected_receipt_id_required=true");
+console.log("deployment_receipt_reverified_before_apply=true");
+console.log("descriptor_relative_provider_publication=true");
+console.log("provider_temp_identity_cleanup_exact="+String(rootCapable));
+console.log("provider_cleanup_failure_observable="+String(rootCapable));
+console.log("provider_foreign_temp_preserved="+String(rootCapable));
+console.log("provider_final_read_descriptor_bound=true");
 console.log("current_reviewed_source_digest_crossbinding=true");
 console.log("provider_pair_dynamic_enforcement_crossbinding=true");
 console.log("root_custody_positive_exercised="+String(rootCapable));

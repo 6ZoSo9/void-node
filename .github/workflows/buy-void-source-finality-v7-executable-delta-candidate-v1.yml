@@ -21,12 +21,12 @@ on:
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
-      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
-      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
-      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-current-enforcement-v2.md"
       - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-current-enforcement-v2.md"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -43,15 +43,21 @@ on:
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_enforcement_post2933_artifact_census_v1.mjs"
       - "scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_post2933_candidate_v2.mjs"
+      - "docs/architecture/buy-void-enforcement-post2933-candidate-v2.md"
+      - "ops/security/buy-void-enforcement-post2933-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-post2933-lock-v2.json"
+      - "scripts/prove_buy_void_enforcement_post2933_lock_v2.mjs"
+      - "docs/architecture/buy-void-enforcement-post2933-lock-v2.md"
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
-      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
-      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
-      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-current-enforcement-v2.md"
       - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-current-enforcement-v2.md"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -550,6 +556,10 @@ jobs:
           grep -Fx 'historical_enforcement_constant_dependency=false'             "provider-pair-current-${{ matrix.node }}.log"
           grep -Fx 'current_deployment_receipt_schema_bound=true'             "provider-pair-current-${{ matrix.node }}.log"
           grep -Fx 'accepted_enforcement_lock_identity_bound=true'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'apply_expected_receipt_id_required=true'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'deployment_receipt_reverified_before_apply=true'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'descriptor_relative_provider_publication=true'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'provider_final_read_descriptor_bound=true'             "provider-pair-current-${{ matrix.node }}.log"
           grep -Fx 'public_presale_activation=false'             "provider-pair-current-${{ matrix.node }}.log"
           grep -Fx 'funds_movement=false'             "provider-pair-current-${{ matrix.node }}.log"
       - name: Diff hygiene
@@ -584,9 +594,11 @@ jobs:
           set -euo pipefail
           sudo --preserve-env=PATH ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts             | tee "$RUNNER_TEMP/provider-pair-current-root.log"
           grep -Fx 'root_custody_positive_exercised=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'provider_temp_identity_cleanup_exact=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'provider_cleanup_failure_observable=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'provider_foreign_temp_preserved=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
           grep -Fx 'fresh_enforcement_set=f1f3fbdd0a015fdabf8da924a53a87174663d38cdde182cdc036cf0f9a3407bd'             "$RUNNER_TEMP/provider-pair-current-root.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/provider-pair-current-root.log"
-
   deployment-receipt-current-enforcement:
     needs: [provider-pair-current-enforcement-root]
     runs-on: ubuntu-24.04
@@ -617,12 +629,18 @@ jobs:
         run: |
           set -euo pipefail
           npm run typecheck
-          ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts             | tee "deployment-current-${{ matrix.node }}.log"
-          grep -Fx 'current_enforcement_lock_v2_verified=true'             "deployment-current-${{ matrix.node }}.log"
-          grep -Fx 'accepted_enforcement_set_sha256=f1f3fbdd0a015fdabf8da924a53a87174663d38cdde182cdc036cf0f9a3407bd'             "deployment-current-${{ matrix.node }}.log"
-          grep -Fx 'unprivileged_proof_stack_safe=true'             "deployment-current-${{ matrix.node }}.log"
-          grep -Fx 'presale_activation=false' "deployment-current-${{ matrix.node }}.log"
-          grep -Fx 'funds_movement=false' "deployment-current-${{ matrix.node }}.log"
+          receipt="$RUNNER_TEMP/deployment-current-${{ matrix.node }}.log"
+          ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts             | tee "$receipt"
+          grep -Fx 'current_enforcement_lock_v2_verified=true'             "$receipt"
+          grep -Fx 'whole_enforcement_candidate_rederived_exact=true'             "$receipt"
+          grep -Fx 'deployment_plan_content_addressed=true'             "$receipt"
+          grep -Fx 'stale_lock_newer_enforcement_member_rejected=true'             "$receipt"
+          grep -Fx 'apply_phase_git_or_candidate_derivation=false'             "$receipt"
+          grep -Fx 'accepted_enforcement_set_sha256=f1f3fbdd0a015fdabf8da924a53a87174663d38cdde182cdc036cf0f9a3407bd'             "$receipt"
+          grep -Fx 'unprivileged_proof_stack_safe=true'             "$receipt"
+          grep -Fx 'presale_activation=false' "$receipt"
+          grep -Fx 'funds_movement=false' "$receipt"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
   deployment-receipt-current-enforcement-root:
     needs: [deployment-receipt-current-enforcement]
@@ -644,11 +662,13 @@ jobs:
         run: |
           set -euo pipefail
           sudo --preserve-env=PATH ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts             | tee "$RUNNER_TEMP/deployment-current-root.log"
-          grep -Fx 'current_enforcement_lock_v2_verified=true'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'root_custody_positive_exercised=true'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'descriptor_relative_parent_publication=true'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'symlink_parent_no_collateral_mutation=true'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'new_parent_grandparent_fsync_required=true'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'post_create_temp_failure_cleanup_exact=true'             "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'cleanup_failure_observable=true'             "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'apply_phase_git_or_candidate_derivation=false'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'foreign_temp_inode_preserved=true'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/deployment-current-root.log"
+

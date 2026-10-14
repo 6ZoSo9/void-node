@@ -22,6 +22,30 @@ const SHA40=/^[0-9a-f]{40}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
 const SAFE_LOCK_PATH=/^ops\/security\/[A-Za-z0-9._\/-]+\.json$/u;
 
+const SAFE_REPOSITORY_PATH=/^[A-Za-z0-9._\/-]+$/u;
+const CANDIDATE_PROOF_PATH=
+  "scripts/prove_buy_void_enforcement_post2933_candidate_v2.mjs";
+const CANDIDATE_PROOF_BLOB=
+  "ba52cc06c952fb3885811da2a532ec50eece66f0";
+const CANDIDATE_PATH=
+  "ops/security/buy-void-enforcement-post2933-candidate-v2.json";
+const CANDIDATE_BLOB=
+  "622807eaf246cae558186bbd1922aebda9025f72";
+const CANDIDATE_BYTES=5004;
+const CANDIDATE_SHA256=
+  "1472ac34b6bd6b2bcf24ef3934e95121fa95b3b8406e20c7e0160d3faabc0b6f";
+const CANDIDATE_SET=
+  "f1f3fbdd0a015fdabf8da924a53a87174663d38cdde182cdc036cf0f9a3407bd";
+const CANDIDATE_SOURCE_INVENTORY_SHA256=
+  "4e86bb6f22dbd0e8908697291b78309c295cd316603532a3eb7ccfcc877749d5";
+const CANDIDATE_ARTIFACT_INVENTORY_SHA256=
+  "cf36522638c099f7b8c5036fb32d943d6fe543329a36519e69cf2d9fb0105dd0";
+const ACCEPTED_V2_LOCK_BLOB=
+  "af89fe4f852a1480da4e5e72ddf2ccd3be46aed3";
+const PLAN_SCHEMA="void_buy_void_source_finality_v7_deployment_plan_v1";
+const PLAN_MARKER="VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_PLAN_V1";
+const PLAN_ID_PREFIX="voidbsfdplan1_";
+
 function git(repositoryRoot:string,args:string[]):string{
   const root=path.resolve(repositoryRoot);
   assert.equal(root,repositoryRoot,"repository_root_not_canonical");
@@ -74,28 +98,130 @@ const gitBlobSha1=(bytes:Buffer)=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
   .update(bytes).digest("hex");
 
+function readTrackedRepositoryFileV1(
+  repositoryRoot:string,
+  relative:string,
+  maxBytes=1024*1024,
+){
+  assert.match(relative,SAFE_REPOSITORY_PATH,"repository_file_path_invalid");
+  assert.equal(path.posix.normalize(relative),relative,
+    "repository_file_path_not_normalized");
+  assert.equal(relative.split("/").includes(".."),false,
+    "repository_file_path_escape");
+  const absolute=path.join(repositoryRoot,...relative.split("/"));
+  const visible=fs.lstatSync(absolute);
+  assert.ok(visible.isFile()&&!visible.isSymbolicLink()&&visible.nlink===1&&
+    visible.size>0&&visible.size<=maxBytes,
+    "repository_file_shape_invalid:"+relative);
+  const fd=fs.openSync(
+    absolute,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try{
+    const before=fs.fstatSync(fd);
+    assert.equal(before.dev,visible.dev,"repository_file_device_drift:"+relative);
+    assert.equal(before.ino,visible.ino,"repository_file_inode_drift:"+relative);
+    assert.equal(before.size,visible.size,"repository_file_size_drift:"+relative);
+    const buffer=Buffer.alloc(before.size+1);
+    let total=0;
+    while(total<buffer.length){
+      const count=fs.readSync(fd,buffer,total,buffer.length-total,total);
+      if(count===0)break;
+      total+=count;
+    }
+    assert.equal(total,before.size,"repository_file_growth_or_short_read:"+relative);
+    const after=fs.fstatSync(fd);
+    const visibleAfter=fs.lstatSync(absolute);
+    for(const key of ["dev","ino","size","mtimeMs","ctimeMs","nlink"] as const){
+      assert.equal(after[key],before[key],"repository_file_changed_"+key+":"+relative);
+      assert.equal(visibleAfter[key],after[key],"repository_file_rebound_"+key+":"+relative);
+    }
+    const bytes=buffer.subarray(0,total);
+    const blob=gitBlobSha1(bytes);
+    assert.equal(git(repositoryRoot,["rev-parse","HEAD:"+relative]),blob,
+      "repository_file_not_exact_head:"+relative);
+    return Object.freeze({bytes,git_blob_sha1:blob,sha256:sha256(bytes)});
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+
 function readTrackedFileV1(repositoryRoot:string,relative:string,maxBytes=1024*1024){
   assert.match(relative,SAFE_LOCK_PATH,"accepted_enforcement_lock_path_invalid");
-  assert.equal(path.posix.normalize(relative),relative,
-    "accepted_enforcement_lock_path_not_normalized");
-  assert.equal(relative.split("/").includes(".."),false,
-    "accepted_enforcement_lock_path_escape");
-  const absolute=path.join(repositoryRoot,...relative.split("/"));
-  const before=fs.lstatSync(absolute);
-  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
-    before.size>0&&before.size<=maxBytes,
-    "accepted_enforcement_file_shape_invalid:"+relative);
-  const bytes=fs.readFileSync(absolute);
-  const after=fs.lstatSync(absolute);
-  assert.equal(after.dev,before.dev,"accepted_enforcement_file_device_drift");
-  assert.equal(after.ino,before.ino,"accepted_enforcement_file_inode_drift");
-  assert.equal(after.size,before.size,"accepted_enforcement_file_size_drift");
-  assert.equal(after.mtimeMs,before.mtimeMs,"accepted_enforcement_file_mtime_drift");
-  assert.equal(after.ctimeMs,before.ctimeMs,"accepted_enforcement_file_ctime_drift");
-  const blob=gitBlobSha1(bytes);
-  assert.equal(git(repositoryRoot,["rev-parse","HEAD:"+relative]),blob,
-    "accepted_enforcement_file_not_exact_head");
-  return Object.freeze({bytes,git_blob_sha1:blob,sha256:sha256(bytes)});
+  return readTrackedRepositoryFileV1(repositoryRoot,relative,maxBytes);
+}
+
+export function rederiveAcceptedEnforcementCandidateV2(
+  repositoryRoot:string=ROOT,
+){
+  const proofFile=readTrackedRepositoryFileV1(
+    repositoryRoot,CANDIDATE_PROOF_PATH,512*1024,
+  );
+  assert.equal(proofFile.git_blob_sha1,CANDIDATE_PROOF_BLOB,
+    "candidate_proof_git_blob_mismatch");
+  const candidateFile=readTrackedFileV1(
+    repositoryRoot,CANDIDATE_PATH,1024*1024,
+  );
+  assert.equal(candidateFile.git_blob_sha1,CANDIDATE_BLOB,
+    "candidate_git_blob_mismatch");
+  assert.equal(candidateFile.bytes.length,CANDIDATE_BYTES,
+    "candidate_bytes_mismatch");
+  assert.equal(candidateFile.sha256,CANDIDATE_SHA256,
+    "candidate_sha256_mismatch");
+
+  const derived=execFileSync(
+    process.execPath,
+    [path.join(repositoryRoot,...CANDIDATE_PROOF_PATH.split("/")),"--derive"],
+    {
+      cwd:repositoryRoot,
+      encoding:null,
+      timeout:240_000,
+      maxBuffer:4*1024*1024,
+      stdio:["ignore","pipe","pipe"],
+      env:{
+        PATH:"/usr/bin:/bin",
+        HOME:"/nonexistent",
+        LANG:"C",
+        LC_ALL:"C",
+        TZ:"UTC",
+        NODE_ENV:"test",
+        GIT_CONFIG_NOSYSTEM:"1",
+        GIT_CONFIG_GLOBAL:"/dev/null",
+        GIT_CONFIG_SYSTEM:"/dev/null",
+        GIT_OPTIONAL_LOCKS:"0",
+        GIT_NO_REPLACE_OBJECTS:"1",
+        GIT_TERMINAL_PROMPT:"0",
+      },
+    },
+  );
+  assert.ok(Buffer.isBuffer(derived),"candidate_derivation_output_not_buffer");
+  assert.ok(derived.equals(candidateFile.bytes),
+    "accepted_enforcement_candidate_not_current_generation");
+
+  const candidate=JSON.parse(
+    new TextDecoder("utf-8",{fatal:true}).decode(candidateFile.bytes),
+  );
+  assert.equal(candidate?.candidate_enforcement_set_sha256,CANDIDATE_SET,
+    "candidate_set_mismatch");
+  assert.equal(candidate?.complete_executable_closure_verified,true,
+    "candidate_closure_not_verified");
+  assert.equal(candidate?.candidate_enforcement_identity_accepted,false,
+    "candidate_must_remain_unaccepted");
+  assert.equal(candidate?.hosted_census_evidence?.source_inventory_sha256,
+    CANDIDATE_SOURCE_INVENTORY_SHA256,"candidate_source_inventory_mismatch");
+  assert.equal(candidate?.hosted_census_evidence?.artifact_inventory_sha256,
+    CANDIDATE_ARTIFACT_INVENTORY_SHA256,"candidate_artifact_inventory_mismatch");
+  return Object.freeze({
+    path:CANDIDATE_PATH,
+    proof_path:CANDIDATE_PROOF_PATH,
+    proof_git_blob_sha1:CANDIDATE_PROOF_BLOB,
+    git_blob_sha1:candidateFile.git_blob_sha1,
+    bytes:candidateFile.bytes.length,
+    sha256:candidateFile.sha256,
+    candidate_enforcement_set_sha256:CANDIDATE_SET,
+    source_inventory_sha256:CANDIDATE_SOURCE_INVENTORY_SHA256,
+    artifact_inventory_sha256:CANDIDATE_ARTIFACT_INVENTORY_SHA256,
+  });
 }
 
 export function inspectAcceptedEnforcementLockV1(
@@ -151,6 +277,14 @@ export function inspectAcceptedEnforcementLockV1(
     accepted_enforcement_lock_git_blob_sha1:lockFile.git_blob_sha1,
     accepted_enforcement_lock_sha256:lockFile.sha256,
     accepted_enforcement_lock_id,
+    candidate_path:candidatePath,
+    candidate_git_blob_sha1:candidateFile.git_blob_sha1,
+    candidate_sha256:candidateFile.sha256,
+    candidate_bytes:candidateFile.bytes.length,
+    candidate_source_inventory_sha256:
+      String(candidate?.hosted_census_evidence?.source_inventory_sha256||""),
+    candidate_artifact_inventory_sha256:
+      String(candidate?.hosted_census_evidence?.artifact_inventory_sha256||""),
   });
 }
 
@@ -209,6 +343,183 @@ export function buildBuyVoidSourceFinalityV7DeploymentReceiptV1(input:{
     reviewed_source_files_sha256:sources.reviewed_source_files_sha256,
     reviewed_source_file_count:sources.reviewed_source_file_count,
     receipt_id,
+  });
+}
+
+function canonicalJsonV1(value:any):string{
+  if(value===null||typeof value==="string"||typeof value==="number"||
+    typeof value==="boolean")return JSON.stringify(value);
+  if(Array.isArray(value))return "["+value.map(canonicalJsonV1).join(",")+"]";
+  assert.ok(value&&typeof value==="object","canonical_value_invalid");
+  const keys=Object.keys(value).sort();
+  return "{"+keys.map(
+    key=>JSON.stringify(key)+":"+canonicalJsonV1(value[key]),
+  ).join(",")+"}";
+}
+
+export function buildBuyVoidSourceFinalityV7DeploymentPlanV1(input:{
+  process_source_commit:string;
+  process_source_tree:string;
+  accepted_enforcement_lock:ReturnType<typeof inspectAcceptedEnforcementLockV1>;
+  current_candidate:ReturnType<typeof rederiveAcceptedEnforcementCandidateV2>;
+}){
+  const lock=input.accepted_enforcement_lock;
+  const candidate=input.current_candidate;
+  assert.equal(lock.accepted_enforcement_lock_git_blob_sha1,ACCEPTED_V2_LOCK_BLOB,
+    "accepted_v2_lock_blob_required");
+  assert.equal(lock.accepted_enforcement_set_sha256,CANDIDATE_SET,
+    "accepted_v2_lock_set_required");
+  assert.equal(lock.candidate_path,candidate.path,"accepted_lock_candidate_path_mismatch");
+  assert.equal(lock.candidate_git_blob_sha1,candidate.git_blob_sha1,
+    "accepted_lock_candidate_blob_mismatch");
+  assert.equal(lock.candidate_sha256,candidate.sha256,
+    "accepted_lock_candidate_sha256_mismatch");
+  assert.equal(lock.candidate_bytes,candidate.bytes,
+    "accepted_lock_candidate_bytes_mismatch");
+  assert.equal(lock.candidate_source_inventory_sha256,candidate.source_inventory_sha256,
+    "accepted_lock_source_inventory_mismatch");
+  assert.equal(lock.candidate_artifact_inventory_sha256,candidate.artifact_inventory_sha256,
+    "accepted_lock_artifact_inventory_mismatch");
+
+  const built=buildBuyVoidSourceFinalityV7DeploymentReceiptV1({
+    process_source_commit:input.process_source_commit,
+    process_source_tree:input.process_source_tree,
+    accepted_enforcement_lock:lock,
+  });
+  const body={
+    schema:PLAN_SCHEMA,
+    marker:PLAN_MARKER,
+    version:1,
+    repository:"6ZoSo9/void-node",
+    process_source_branch:"main",
+    process_source_commit:input.process_source_commit,
+    process_source_tree:input.process_source_tree,
+    enforcement_candidate:Object.freeze({
+      path:candidate.path,
+      proof_path:candidate.proof_path,
+      proof_git_blob_sha1:candidate.proof_git_blob_sha1,
+      git_blob_sha1:candidate.git_blob_sha1,
+      bytes:candidate.bytes,
+      sha256:candidate.sha256,
+      candidate_enforcement_set_sha256:candidate.candidate_enforcement_set_sha256,
+      source_inventory_sha256:candidate.source_inventory_sha256,
+      artifact_inventory_sha256:candidate.artifact_inventory_sha256,
+      exact_current_generation_rederived:true,
+    }),
+    accepted_enforcement_lock:Object.freeze({
+      path:lock.path,
+      git_blob_sha1:lock.accepted_enforcement_lock_git_blob_sha1,
+      sha256:lock.accepted_enforcement_lock_sha256,
+      lock_id:lock.accepted_enforcement_lock_id,
+    }),
+    reviewed_source_file_count:built.reviewed_source_file_count,
+    reviewed_source_files_sha256:built.reviewed_source_files_sha256,
+    receipt_destination:DEFAULT_RECEIPT_PATH,
+    receipt_id:built.receipt_id,
+    receipt_bytes_sha256:sha256(built.bytes),
+    receipt:built.receipt,
+    authority:Object.freeze({
+      deployment_receipt_publication_authorized:false,
+      runtime_mount_authority:false,
+      production_source_finality_authority_ready:false,
+      public_presale_activation:false,
+      funds_movement:false,
+    }),
+  };
+  const plan_id=PLAN_ID_PREFIX+
+    sha256(Buffer.from(canonicalJsonV1(body),"utf8"));
+  const plan=Object.freeze({...body,plan_id});
+  const bytes=Buffer.from(JSON.stringify(plan,null,2)+"\n","utf8");
+  return Object.freeze({
+    plan,
+    bytes,
+    plan_id,
+    plan_sha256:sha256(bytes),
+    receipt_bytes:built.bytes,
+  });
+}
+
+function stablePlanFileBytesV1(absolute:string):Buffer{
+  assert.equal(path.resolve(absolute),absolute,"deployment_plan_path_not_canonical");
+  const visible=fs.lstatSync(absolute);
+  assert.ok(visible.isFile()&&!visible.isSymbolicLink()&&visible.nlink===1&&
+    visible.size>0&&visible.size<=256*1024,"deployment_plan_file_shape_invalid");
+  const fd=fs.openSync(
+    absolute,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try{
+    const before=fs.fstatSync(fd);
+    assert.equal(before.dev,visible.dev,"deployment_plan_device_drift");
+    assert.equal(before.ino,visible.ino,"deployment_plan_inode_drift");
+    const bytes=fs.readFileSync(fd);
+    const after=fs.fstatSync(fd);
+    const visibleAfter=fs.lstatSync(absolute);
+    for(const key of ["dev","ino","size","mtimeMs","ctimeMs","nlink"] as const){
+      assert.equal(after[key],before[key],"deployment_plan_changed_"+key);
+      assert.equal(visibleAfter[key],after[key],"deployment_plan_rebound_"+key);
+    }
+    assert.equal(bytes.length,before.size,"deployment_plan_short_read");
+    return bytes;
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+
+export function validateBuyVoidSourceFinalityV7DeploymentPlanFileV1(input:{
+  absolute_path:string;
+  expected_plan_id:string;
+  expected_plan_sha256:string;
+}){
+  const bytes=stablePlanFileBytesV1(input.absolute_path);
+  assert.match(input.expected_plan_id,
+    /^voidbsfdplan1_[0-9a-f]{64}$/u,"expected_plan_id_invalid");
+  assert.match(input.expected_plan_sha256,SHA256,"expected_plan_sha256_invalid");
+  assert.equal(sha256(bytes),input.expected_plan_sha256,"deployment_plan_sha256_mismatch");
+  const plan=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
+  assert.equal(plan?.schema,PLAN_SCHEMA,"deployment_plan_schema_invalid");
+  assert.equal(plan?.marker,PLAN_MARKER,"deployment_plan_marker_invalid");
+  assert.equal(plan?.version,1,"deployment_plan_version_invalid");
+  const {plan_id,...body}=plan;
+  const recomputed=PLAN_ID_PREFIX+
+    sha256(Buffer.from(canonicalJsonV1(body),"utf8"));
+  assert.equal(plan_id,recomputed,"deployment_plan_id_invalid");
+  assert.equal(plan_id,input.expected_plan_id,"deployment_plan_id_mismatch");
+  assert.equal(plan?.repository,"6ZoSo9/void-node","deployment_plan_repository_invalid");
+  assert.equal(plan?.process_source_branch,"main","deployment_plan_branch_invalid");
+  assert.match(String(plan?.process_source_commit||""),SHA40,"deployment_plan_commit_invalid");
+  assert.match(String(plan?.process_source_tree||""),SHA40,"deployment_plan_tree_invalid");
+  assert.equal(plan?.enforcement_candidate?.candidate_enforcement_set_sha256,
+    CANDIDATE_SET,"deployment_plan_candidate_set_invalid");
+  assert.equal(plan?.enforcement_candidate?.sha256,CANDIDATE_SHA256,
+    "deployment_plan_candidate_sha256_invalid");
+  assert.equal(plan?.enforcement_candidate?.git_blob_sha1,CANDIDATE_BLOB,
+    "deployment_plan_candidate_blob_invalid");
+  assert.equal(plan?.enforcement_candidate?.source_inventory_sha256,
+    CANDIDATE_SOURCE_INVENTORY_SHA256,"deployment_plan_source_inventory_invalid");
+  assert.equal(plan?.enforcement_candidate?.artifact_inventory_sha256,
+    CANDIDATE_ARTIFACT_INVENTORY_SHA256,"deployment_plan_artifact_inventory_invalid");
+  assert.equal(plan?.accepted_enforcement_lock?.git_blob_sha1,
+    ACCEPTED_V2_LOCK_BLOB,"deployment_plan_lock_blob_invalid");
+  assert.equal(plan?.receipt_destination,DEFAULT_RECEIPT_PATH,
+    "deployment_plan_destination_invalid");
+  assert.equal(plan?.receipt?.receipt_id,plan?.receipt_id,
+    "deployment_plan_receipt_id_mismatch");
+  assert.equal(buyVoidSourceFinalityDeploymentReceiptIdV7(plan.receipt),
+    plan.receipt_id,"deployment_plan_receipt_content_id_invalid");
+  const receiptBytes=Buffer.from(JSON.stringify(plan.receipt,null,2)+"\n","utf8");
+  assert.equal(sha256(receiptBytes),plan.receipt_bytes_sha256,
+    "deployment_plan_receipt_sha256_invalid");
+  for(const key of [
+    "deployment_receipt_publication_authorized",
+    "runtime_mount_authority",
+    "production_source_finality_authority_ready",
+    "public_presale_activation",
+    "funds_movement",
+  ])assert.equal(plan?.authority?.[key],false,
+    "deployment_plan_authority_overclaim:"+key);
+  return Object.freeze({
+    plan,bytes,plan_id,plan_sha256:sha256(bytes),receipt_bytes:receiptBytes,
   });
 }
 
@@ -421,6 +732,7 @@ export function installRootCustodiedReceiptV1(input:{
   let tempCreatedIdentity:Readonly<{dev:number;ino:number}>|undefined;
   let tempIdentity:fs.Stats|undefined;
   let tempVia="";
+  let primaryError:unknown;
   try{
     binding=bindReceiptParentV1(absolute);
     assertReceiptParentStableV1(binding);
@@ -499,8 +811,15 @@ export function installRootCustodiedReceiptV1(input:{
     fs.fsyncSync(binding.parent_fd);
     verifyFinalBoundV1(binding,leaf,input.bytes);
     return Object.freeze({created:true,already_matching:false});
+  }catch(error:unknown){
+    primaryError=error;
+    throw error;
   }finally{
-    if(tempFd>=0)fs.closeSync(tempFd);
+    const cleanupErrors:unknown[]=[];
+    if(tempFd>=0){
+      try{fs.closeSync(tempFd);}
+      catch(error:unknown){cleanupErrors.push(error);}
+    }
     if(binding&&tempCreatedIdentity&&tempVia){
       try{
         const visible=fs.lstatSync(tempVia);
@@ -508,14 +827,25 @@ export function installRootCustodiedReceiptV1(input:{
           visible.dev===tempCreatedIdentity.dev&&
           visible.ino===tempCreatedIdentity.ino
         ){
-          fs.unlinkSync(tempVia);
-          fs.fsyncSync(binding.parent_fd);
+          try{fs.unlinkSync(tempVia);}
+          catch(error:any){
+            if(error?.code!=="ENOENT")cleanupErrors.push(error);
+          }
+          try{fs.fsyncSync(binding.parent_fd);}
+          catch(error:unknown){cleanupErrors.push(error);}
         }
       }catch(error:any){
-        if(error?.code!=="ENOENT"){void error;}
+        if(error?.code!=="ENOENT")cleanupErrors.push(error);
       }
     }
-    closeReceiptParentV1(binding);
+    try{closeReceiptParentV1(binding);}
+    catch(error:unknown){cleanupErrors.push(error);}
+    if(cleanupErrors.length>0){
+      throw new AggregateError(
+        primaryError===undefined?cleanupErrors:[primaryError,...cleanupErrors],
+        "deployment_receipt_cleanup_failed",
+      );
+    }
   }
 }
 
@@ -526,6 +856,9 @@ function parseArgs(argv:string[]){
     expected_tree:"",
     receipt_path:DEFAULT_RECEIPT_PATH,
     accepted_enforcement_lock_path:"",
+    plan_file:"",
+    expected_plan_id:"",
+    expected_plan_sha256:"",
     confirm:false,
   };
   for(let i=0;i<argv.length;i+=1){
@@ -536,30 +869,38 @@ function parseArgs(argv:string[]){
     else if(a==="--receipt-path")out.receipt_path=String(argv[++i]||"");
     else if(a==="--accepted-enforcement-lock-path")
       out.accepted_enforcement_lock_path=String(argv[++i]||"");
+    else if(a==="--plan-file")out.plan_file=String(argv[++i]||"");
+    else if(a==="--expected-plan-id")out.expected_plan_id=String(argv[++i]||"");
+    else if(a==="--expected-plan-sha256")
+      out.expected_plan_sha256=String(argv[++i]||"");
     else if(a==="--confirm-create-v7-deployment-receipt")out.confirm=true;
     else throw Error("unknown_argument:"+a);
   }
   assert.ok(out.mode,"mode_required");
-  assert.match(out.expected_commit,SHA40,"expected_commit_required");
-  assert.match(out.expected_tree,SHA40,"expected_tree_required");
-  assert.match(out.accepted_enforcement_lock_path,SAFE_LOCK_PATH,
-    "accepted_enforcement_lock_path_required");
+  if(out.mode==="--plan"){
+    assert.match(out.expected_commit,SHA40,"expected_commit_required");
+    assert.match(out.expected_tree,SHA40,"expected_tree_required");
+    assert.match(out.accepted_enforcement_lock_path,SAFE_LOCK_PATH,
+      "accepted_enforcement_lock_path_required");
+    assert.equal(out.plan_file,"","plan_mode_plan_file_forbidden");
+    assert.equal(out.expected_plan_id,"","plan_mode_expected_plan_id_forbidden");
+    assert.equal(out.expected_plan_sha256,"",
+      "plan_mode_expected_plan_sha256_forbidden");
+    assert.equal(out.confirm,false,"plan_mode_confirmation_forbidden");
+  }else{
+    assert.equal(out.expected_commit,"","apply_expected_commit_forbidden");
+    assert.equal(out.expected_tree,"","apply_expected_tree_forbidden");
+    assert.equal(out.accepted_enforcement_lock_path,"","apply_lock_path_forbidden");
+    assert.ok(path.isAbsolute(out.plan_file),"apply_plan_file_absolute_required");
+    assert.match(out.expected_plan_id,
+      /^voidbsfdplan1_[0-9a-f]{64}$/u,"expected_plan_id_required");
+    assert.match(out.expected_plan_sha256,SHA256,"expected_plan_sha256_required");
+  }
   return out;
 }
 
 function main(){
   const args=parseArgs(process.argv.slice(2));
-  const repo=inspectRepositoryIdentityV1();
-  assert.equal(repo.commit,args.expected_commit,"expected_commit_mismatch");
-  assert.equal(repo.tree,args.expected_tree,"expected_tree_mismatch");
-  const acceptedLock=inspectAcceptedEnforcementLockV1(
-    args.accepted_enforcement_lock_path,
-  );
-  const built=buildBuyVoidSourceFinalityV7DeploymentReceiptV1({
-    process_source_commit:repo.commit,
-    process_source_tree:repo.tree,
-    accepted_enforcement_lock:acceptedLock,
-  });
 
   console.log("marker="+MARKER);
   console.log("mode="+args.mode);
@@ -572,33 +913,62 @@ function main(){
   console.log("chain2050_mutation=false");
   console.log("presale_activation=false");
   console.log("funds_movement=false");
-  console.log("process_source_commit="+repo.commit);
-  console.log("process_source_tree="+repo.tree);
-  console.log("reviewed_source_file_count="+built.reviewed_source_file_count);
-  console.log("reviewed_source_files_sha256="+built.reviewed_source_files_sha256);
-  console.log("accepted_enforcement_lock_path="+acceptedLock.path);
-  console.log("accepted_enforcement_lock_id="+
-    acceptedLock.accepted_enforcement_lock_id);
-  console.log("accepted_enforcement_lock_git_blob_sha1="+
-    acceptedLock.accepted_enforcement_lock_git_blob_sha1);
-  console.log("accepted_enforcement_lock_sha256="+
-    acceptedLock.accepted_enforcement_lock_sha256);
-  console.log("accepted_enforcement_set_sha256="+
-    acceptedLock.accepted_enforcement_set_sha256);
-  console.log("receipt_id="+built.receipt_id);
-  console.log("receipt_path="+args.receipt_path);
 
   if(args.mode==="--plan"){
+    const repo=inspectRepositoryIdentityV1();
+    assert.equal(repo.commit,args.expected_commit,"expected_commit_mismatch");
+    assert.equal(repo.tree,args.expected_tree,"expected_tree_mismatch");
+    const candidate=rederiveAcceptedEnforcementCandidateV2();
+    const acceptedLock=inspectAcceptedEnforcementLockV1(
+      args.accepted_enforcement_lock_path,
+    );
+    const planned=buildBuyVoidSourceFinalityV7DeploymentPlanV1({
+      process_source_commit:repo.commit,
+      process_source_tree:repo.tree,
+      accepted_enforcement_lock:acceptedLock,
+      current_candidate:candidate,
+    });
+    console.log("process_source_commit="+repo.commit);
+    console.log("process_source_tree="+repo.tree);
+    console.log("accepted_enforcement_set_sha256="+
+      candidate.candidate_enforcement_set_sha256);
+    console.log("candidate_sha256="+candidate.sha256);
+    console.log("candidate_git_blob_sha1="+candidate.git_blob_sha1);
+    console.log("source_inventory_sha256="+candidate.source_inventory_sha256);
+    console.log("artifact_inventory_sha256="+candidate.artifact_inventory_sha256);
+    console.log("accepted_enforcement_lock_id="+
+      acceptedLock.accepted_enforcement_lock_id);
+    console.log("plan_id="+planned.plan_id);
+    console.log("plan_sha256="+planned.plan_sha256);
+    console.log("receipt_id="+planned.plan.receipt_id);
+    console.log("receipt_path="+planned.plan.receipt_destination);
+    console.log("plan_base64="+planned.bytes.toString("base64"));
     console.log("filesystem_mutation=false");
     console.log("status=PLAN_GREEN");
     return;
   }
+
+  const planned=validateBuyVoidSourceFinalityV7DeploymentPlanFileV1({
+    absolute_path:path.resolve(args.plan_file),
+    expected_plan_id:args.expected_plan_id,
+    expected_plan_sha256:args.expected_plan_sha256,
+  });
+  console.log("plan_id="+planned.plan_id);
+  console.log("plan_sha256="+planned.plan_sha256);
+  console.log("process_source_commit="+planned.plan.process_source_commit);
+  console.log("process_source_tree="+planned.plan.process_source_tree);
+  console.log("accepted_enforcement_set_sha256="+
+    planned.plan.enforcement_candidate.candidate_enforcement_set_sha256);
+  console.log("receipt_id="+planned.plan.receipt_id);
+  console.log("receipt_path="+planned.plan.receipt_destination);
   if(!args.confirm)throw Error("explicit_receipt_create_confirmation_required");
   assert.equal(path.resolve(args.receipt_path),DEFAULT_RECEIPT_PATH,
     "production_receipt_path_must_be_default");
+  assert.equal(planned.plan.receipt_destination,DEFAULT_RECEIPT_PATH,
+    "deployment_plan_production_destination_required");
   const result=installRootCustodiedReceiptV1({
     absolute_path:DEFAULT_RECEIPT_PATH,
-    bytes:built.bytes,
+    bytes:planned.receipt_bytes,
   });
   console.log("filesystem_mutation="+String(result.created));
   console.log("receipt_created="+String(result.created));
