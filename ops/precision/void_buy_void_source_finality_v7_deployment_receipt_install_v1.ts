@@ -217,6 +217,75 @@ export function inspectRepositoryIdentityV1(repositoryRoot:string=ROOT){
   return Object.freeze({commit,tree,branch:"main" as const});
 }
 
+export const VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1 =
+  "VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1";
+const VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT_V1 =
+  "/opt/void-buy-void-v7-reviewed-v1";
+const VOID_BUY_VOID_V7_DEPLOYMENT_TOOL_REL_V1 =
+  "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
+
+function assertProtectedDispatchCustodyV1(
+  absolute:string,
+  directory:boolean,
+):void{
+  const resolved=path.resolve(absolute);
+  assert.equal(resolved,absolute,"protected_dispatch_path_not_canonical");
+  const leaf=fs.lstatSync(absolute);
+  assert.equal(leaf.isSymbolicLink(),false,"protected_dispatch_symlink_forbidden");
+  assert.equal(directory?leaf.isDirectory():leaf.isFile(),true,
+    "protected_dispatch_path_type_invalid");
+  assert.equal(leaf.uid,0,"protected_dispatch_path_not_root_owned");
+  assert.equal(leaf.mode&0o022,0,"protected_dispatch_path_writable");
+  if(!directory)assert.equal(leaf.nlink,1,"protected_dispatch_tool_link_count_invalid");
+  let cursor=directory?absolute:path.dirname(absolute);
+  for(;;){
+    const st=fs.lstatSync(cursor);
+    assert.ok(st.isDirectory()&&!st.isSymbolicLink(),
+      "protected_dispatch_ancestor_invalid:"+cursor);
+    assert.equal(st.uid,0,"protected_dispatch_ancestor_not_root_owned:"+cursor);
+    assert.equal(st.mode&0o022,0,"protected_dispatch_ancestor_writable:"+cursor);
+    if(cursor==="/")break;
+    cursor=path.dirname(cursor);
+  }
+}
+
+export function assertBuyVoidV7ProtectedDeploymentDispatchV1(
+  env:NodeJS.ProcessEnv=process.env,
+):void{
+  assert.equal(process.geteuid?.(),0,"protected_dispatch_root_required");
+  assert.equal(ROOT,VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT_V1,
+    "protected_dispatch_fixed_source_root_required");
+  assert.equal(env.VOID_BUY_VOID_V7_PROTECTED_DISPATCH,
+    VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1,
+    "protected_dispatch_marker_required");
+  assert.equal(env.VOID_BUY_VOID_V7_PROTECTED_NATIVE_PREENTRY,
+    "VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1",
+    "protected_dispatch_native_preentry_marker_required");
+  assert.equal(env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT,ROOT,
+    "protected_dispatch_source_root_mismatch");
+  const expectedCommit=String(env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT||"");
+  const expectedTree=String(env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE||"");
+  const expectedToolPath=String(env.VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH||"");
+  const expectedToolBlob=String(env.VOID_BUY_VOID_V7_PROTECTED_TOOL_BLOB_SHA1||"");
+  assert.match(expectedCommit,SHA40,"protected_dispatch_commit_invalid");
+  assert.match(expectedTree,SHA40,"protected_dispatch_tree_invalid");
+  assert.equal(expectedToolPath,VOID_BUY_VOID_V7_DEPLOYMENT_TOOL_REL_V1,
+    "protected_dispatch_tool_path_mismatch");
+  assert.match(expectedToolBlob,SHA40,"protected_dispatch_tool_blob_invalid");
+  assertProtectedDispatchCustodyV1(ROOT,true);
+  const toolAbsolute=path.join(ROOT,...expectedToolPath.split("/"));
+  assert.equal(fileURLToPath(import.meta.url),toolAbsolute,
+    "protected_dispatch_module_path_mismatch");
+  assertProtectedDispatchCustodyV1(toolAbsolute,false);
+  const repo=inspectRepositoryIdentityV1(ROOT);
+  assert.equal(repo.commit,expectedCommit,"protected_dispatch_commit_mismatch");
+  assert.equal(repo.tree,expectedTree,"protected_dispatch_tree_mismatch");
+  const tracked=git(ROOT,["rev-parse","--verify","HEAD:"+expectedToolPath]);
+  const visible=currentSourceBlobV1(fs.readFileSync(toolAbsolute));
+  assert.equal(tracked,expectedToolBlob,"protected_dispatch_tracked_blob_mismatch");
+  assert.equal(visible,expectedToolBlob,"protected_dispatch_visible_blob_mismatch");
+}
+
 const sha256=(bytes:Buffer)=>crypto.createHash("sha256").update(bytes).digest("hex");
 const gitBlobSha1=(bytes:Buffer)=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
@@ -492,6 +561,9 @@ function parseArgs(argv:string[]){
 
 function main(){
   const args=parseArgs(process.argv.slice(2));
+  if(args.mode==="--apply"){
+    assertBuyVoidV7ProtectedDeploymentDispatchV1();
+  }
   const repo=inspectRepositoryIdentityV1();
   assert.equal(repo.commit,args.expected_commit,"expected_commit_mismatch");
   assert.equal(repo.tree,args.expected_tree,"expected_tree_mismatch");
