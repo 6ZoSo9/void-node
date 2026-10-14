@@ -46,6 +46,20 @@ config suppressed, and repository-local execution surfaces such as fsmonitor,
 hooks, attributes, preload/untracked-cache, and recursive submodules explicitly
 disabled.
 
+Persistent mutation has one supported entry: the root-owned native V7 pre-entry
+launcher. The TypeScript module may still be invoked directly for `--plan`,
+but direct `--apply` requires the launcher's protected-dispatch handoff and
+fails closed without it.
+
+The handoff is deliberately not described as a secret or as authentication
+against arbitrary malicious root. It is an operational provenance contract
+created only after native pre-entry has authenticated the exact launcher bytes,
+fixed root-owned source tree, commit/tree, selected tool blob, and reviewed
+TSX/esbuild runtime. Before its first persistent write, this module independently
+requires the fixed protected source root, same-process dispatch PID, exact
+current `main` commit/tree, clean worktree, its own exact tracked/visible Git
+blob, and the matching launcher-bound context.
+
 `--apply` additionally requires root and the explicit
 `--confirm-create-v7-deployment-receipt` token. Production application is
 restricted to:

@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
@@ -26,6 +28,8 @@ on:
     branches: [main]
     paths:
       - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
@@ -126,6 +130,50 @@ jobs:
           grep -Fx 'privileged_launcher_package_runtime_verified=true' "$RUNNER_TEMP/protected-v2-launcher.log"
           grep -Fx 'persistent_host_mutation=false' "$RUNNER_TEMP/protected-v2-launcher.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/protected-v2-launcher.log"
+      - name: Prove deployment inventory and protected dispatch contract
+        run: |
+          set -euo pipefail
+          node --import "file://$PWD/node_modules/tsx/dist/loader.mjs" \
+            scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts |
+            tee "$RUNNER_TEMP/v7-deployment-receipt.log"
+          grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1_PROOF_GREEN' "$RUNNER_TEMP/v7-deployment-receipt.log"
+          grep -Fx 'current_enforcement_tracked_source_inventory_verified=true' "$RUNNER_TEMP/v7-deployment-receipt.log"
+          grep -Fx 'current_enforcement_tracked_source_file_count=49' "$RUNNER_TEMP/v7-deployment-receipt.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v7-deployment-receipt.log"
+
+      - name: Reject direct root mutation CLI bypass
+        if: matrix.node == 24
+        run: |
+          set -euo pipefail
+          nodebin="$(command -v node)"
+          loader="file://$PWD/node_modules/tsx/dist/loader.mjs"
+          expect_hold() {
+            label="$1"
+            shift
+            out="$RUNNER_TEMP/direct-root-$label.log"
+            set +e
+            sudo /usr/bin/env -i \
+              PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C TZ=UTC \
+              "$nodebin" --import "$loader" "$@" >"$out" 2>&1
+            rc=$?
+            set -e
+            test "$rc" -ne 0
+            grep -Fq 'protected_dispatch_context_required' "$out"
+          }
+          expect_hold deployment \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --apply \
+            --expected-commit 0000000000000000000000000000000000000000 \
+            --expected-tree 0000000000000000000000000000000000000000 \
+            --accepted-enforcement-lock-path ops/security/buy-void-enforcement-post2865-lock-v1.json
+          expect_hold provider-pair \
+            ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts \
+            --apply
+          expect_hold live-process-v2 \
+            ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts \
+            --apply --runtime-uid 1000 --runtime-gid 1000
+          echo VOID_BUY_VOID_V7_DIRECT_ROOT_MUTATION_CLI_REFUSAL_GREEN
+
       - name: Prove current-generation provider-pair installer
         run: |
           set -euo pipefail
