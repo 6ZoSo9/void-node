@@ -15,7 +15,7 @@ MARKER = "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_V1_PROOF_GREEN"
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
 
-EXPECTED_SOURCE_BLOB = "caac8932ac8fd6f2f9339404b5703bda969b96a6"
+EXPECTED_SOURCE_BLOB = "73c6f623200b493dce3e1f138df1a1ade81e5350"
 PR_SET_NO_NEW_PRIVS = 38
 
 COMPILE = (
@@ -185,9 +185,11 @@ def prove_source_boundary(source: str) -> None:
     required = (
         '#define MARKER "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_HOLD_V1"',
         "#define QUALIFICATION_WINDOW_SECONDS 300U",
-        "CLOCK_MONOTONIC",
+        "CLOCK_BOOTTIME",
         "TIMER_ABSTIME",
         "clock_nanosleep(",
+        "arm_qualification_deadline()",
+        "qualification_hold(&qualification_deadline)",
         "PR_GET_NO_NEW_PRIVS",
         'opendir("/proc/self/fd")',
         "apollyon_candidate_training_entrypoint_inherited_fd_present",
@@ -204,6 +206,14 @@ def prove_source_boundary(source: str) -> None:
     for value in required:
         if value not in source:
             raise AssertionError("source missing: " + value)
+
+    deadline_index = source.index(
+        "struct timespec qualification_deadline = arm_qualification_deadline();"
+    )
+    ready_index = source.index("emit_ready();")
+    hold_index = source.index("qualification_hold(&qualification_deadline);")
+    if not (deadline_index < ready_index < hold_index):
+        raise AssertionError("absolute deadline is not armed before readiness")
 
     forbidden = (
         "socket(",

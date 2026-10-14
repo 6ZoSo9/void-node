@@ -49,12 +49,15 @@ wallet_or_funds_action=false
 void_chain_mutation=false
 ```
 
-It then remains alive only until one absolute `CLOCK_MONOTONIC` deadline
-300 seconds after admission. The hold uses `clock_nanosleep(..., TIMER_ABSTIME)`
-so suspension, CPU contention, and time spent between waits cannot extend the
-documented observation lifetime. A later, separately authorized installed/live
-qualification can observe the exact systemd cgroup and descriptor boundary
-during that interval. SIGTERM or SIGINT ends the observation window early.
+After identity/descriptor checks and signal setup, it captures one absolute
+`CLOCK_BOOTTIME` deadline **before publishing readiness**. The deadline is
+exactly 300 seconds after that admission point. The hold then uses
+`clock_nanosleep(..., TIMER_ABSTIME)`; CLOCK_BOOTTIME includes host suspend
+time, while the pre-ready arm means blocked output, descheduling, or suspension
+after readiness cannot extend the documented window. A later, separately
+authorized installed/live qualification can observe the exact systemd cgroup
+and descriptor boundary during that interval. SIGTERM or SIGINT ends the
+observation window early.
 
 Every normal exit is fail-closed:
 
@@ -84,7 +87,7 @@ weights can change.
 
 ```text
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
-Git blob caac8932ac8fd6f2f9339404b5703bda969b96a6
+Git blob 73c6f623200b493dce3e1f138df1a1ade81e5350
 ```
 
 The source file is repository evidence only. No executable identity is accepted
@@ -100,7 +103,7 @@ by this lane.
 - runs the source self-test;
 - proves direct execution without no-new-privileges HOLDS;
 - passes an inherited descriptor and proves it HOLDS;
-- requires the source to use an absolute monotonic 300-second deadline;
+- requires a suspend-aware absolute CLOCK_BOOTTIME 300-second deadline to be armed before readiness;
 - starts the qualification target with no-new-privileges, proves it stays alive
   for observation, sends SIGTERM, and requires the durable-claim HOLD; and
 - statically rejects network, subprocess/exec, filesystem-mutation and ML

@@ -135,19 +135,22 @@ static void emit_ready(void) {
   }
 }
 
-static void qualification_hold(void) {
+static struct timespec arm_qualification_deadline(void) {
   struct timespec deadline;
-  if (clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) {
+  if (clock_gettime(CLOCK_BOOTTIME, &deadline) != 0) {
     hold("apollyon_candidate_training_entrypoint_clock_unavailable");
   }
   if (deadline.tv_sec > (time_t)(LONG_MAX - QUALIFICATION_WINDOW_SECONDS)) {
     hold("apollyon_candidate_training_entrypoint_deadline_overflow");
   }
   deadline.tv_sec += (time_t)QUALIFICATION_WINDOW_SECONDS;
+  return deadline;
+}
 
+static void qualification_hold(const struct timespec *deadline) {
   while (!stop_requested) {
     int rc = clock_nanosleep(
-        CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL);
+        CLOCK_BOOTTIME, TIMER_ABSTIME, deadline, NULL);
     if (rc == 0) {
       break;
     }
@@ -171,8 +174,9 @@ int main(int argc, char **argv) {
   assert_no_new_privileges();
   assert_no_inherited_fds();
   install_signal_handlers();
+  struct timespec qualification_deadline = arm_qualification_deadline();
   emit_ready();
-  qualification_hold();
+  qualification_hold(&qualification_deadline);
 
   hold("apollyon_candidate_training_entrypoint_durable_claim_gate_required");
   return 2;
