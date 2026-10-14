@@ -128,6 +128,9 @@ jobs:
           sudo env PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C TZ=UTC             "$nodebin" --import "file://$PWD/node_modules/tsx/dist/loader.mjs"             scripts/prove_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts             --root-fixture |
             tee "$RUNNER_TEMP/v2-publisher-root.log"
           grep -Fx 'root_create_once_and_exact_rollback=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'root_stale_receipt_rotation=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'rotation_rollback_leaves_missing_fail_closed=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'malformed_existing_receipt_preserved=true' "$RUNNER_TEMP/v2-publisher-root.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v2-publisher-root.log"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
