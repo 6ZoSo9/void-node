@@ -63,6 +63,5 @@ jobs:
           set -euo pipefail
           if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
           git fetch --no-tags --depth=1 origin "$BASE" || true
-          merge_base="$(git merge-base "$BASE" "$HEAD")"
-          test -n "$merge_base"
-          git diff --check "$merge_base" "$HEAD"
+          git cat-file -e "$BASE^{commit}"
+          git diff --check "$BASE" "$HEAD"
