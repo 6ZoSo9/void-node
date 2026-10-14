@@ -14,11 +14,14 @@ UID rename/unlink denial through the socket parent's immediate parent.
 V2 additionally requires explicit service-control denial evidence before the
 historical `runtime_can_control_service=false` field can be admitted. The
 evidence is bound to the exact training PID, Linux process start-time ticks and
-UID. It inventories the complete live process set touching the training UID
-twice and requires that set to remain stable. For every admitted process it then
-enumerates `/proc/<pid>/task/<tid>`, reads every thread's UID slots,
-capability sets, `NoNewPrivs`, and start-time identity twice, and requires the
-thread set plus credential transcript to remain unchanged. Every thread must
+UID. Process discovery itself scans every `/proc/<tgid>/task/<tid>/status`
+rather than trusting only each thread-group leader, so a process is admitted for
+inspection if **any** thread touches the training UID. It then inventories that
+complete process set twice and requires the set to remain stable. For every
+admitted process it enumerates `/proc/<pid>/task/<tid>`, reads every thread's
+UID slots, capability sets, `NoNewPrivs`, and start-time identity twice, and
+requires the thread set plus credential transcript to remain unchanged. Every
+thread must
 have all four UID slots equal to the training UID, zero
 inherited/permitted/effective/ambient capabilities, and `NoNewPrivs: 1`.
 The evidence stores bounded per-process thread counts and SHA-256 inventory
@@ -44,6 +47,19 @@ details cannot turn a denied operation into an allow. Non-interactive
 `manage-units` action, every reviewed unit-control verb for the protected
 custody unit, `manage-unit-files`, `reload-daemon`, and `set-environment`.
 Any authorized, interactive/challenge, dismissed, or error result HOLDS.
+
+The collector also inventories the live unique names on the **system bus**.
+Any bus sender whose authenticated Unix UID is the training UID or whose
+authenticated Unix PID belongs to the admitted training-process set must match
+**both** dimensions exactly; a sender with a training PID but foreign
+authenticated UID, or training UID but unadmitted PID, HOLDS. Each admitted
+sender is then probed through `pkcheck --system-bus-name` over the same exact
+reviewed systemd control surface. The sender set is collected again afterward
+and must remain stable. V2 requires a bounded list of those sender identities,
+the exact denial-check count, and the SHA-256 of the canonical all-denied
+transcript for each sender. The earlier PID/start/UID process probes remain
+defense-in-depth; they are no longer the sole Polkit subject evidence.
+
 The V1 classifier remains byte-for-byte unchanged; V2 strips
 the successor-only service-control block before delegating to V1.
 
