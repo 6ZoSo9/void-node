@@ -518,6 +518,28 @@ def nft_snapshot() -> dict[str, Any]:
     }
 
 
+def reviewed_checkout_blobs() -> dict[str, Any]:
+    rows: dict[str, Any] = {}
+    all_match = True
+    for role, evidence in SOURCE_BLOBS.items():
+        target = ROOT / evidence["path"]
+        try:
+            data = read_bounded(target, 4 * 1024 * 1024)
+            blob = git_blob_sha1(data)
+            match = blob == evidence["git_blob_sha1"]
+        except (OSError, CensusError):
+            blob = None
+            match = False
+        rows[role] = {
+            "path": evidence["path"],
+            "expected_git_blob_sha1": evidence["git_blob_sha1"],
+            "observed_git_blob_sha1": blob,
+            "matches_reviewed_blob": match,
+        }
+        all_match = all_match and match
+    return {"all_match": all_match, "files": rows}
+
+
 def checkout_head() -> str | None:
     try:
         code, stdout, _stderr = run_read_only(
@@ -623,6 +645,7 @@ def collect() -> dict[str, Any]:
         services["earn_edge"].get("effective_uid"),
     )
     nft = nft_snapshot()
+    checkout_blobs = reviewed_checkout_blobs()
 
     policy_candidate_observed = (
         hostname == EXPECTED_HOSTNAME
@@ -636,11 +659,16 @@ def collect() -> dict[str, Any]:
         and topology["all_no_new_privileges"]
         and topology["all_cap_net_admin_absent"]
         and topology["all_reviewed_source_blobs_match"]
+        and checkout_blobs["all_match"]
         and services["earn_edge"]["listener"]["exact_ipv4_loopback_owned"]
+        and services["gateway"]["listener"]["exact_ipv4_loopback_owned"]
         and services["gateway"]["dedicated_listener"]["exact_ipv4_loopback_owned"]
         and state["custody_shape_observed"]
         and nft["table_present"]
     )
+
+    for service in services.values():
+        service.pop("environment", None)
 
     return {
         "marker": MARKER,
@@ -667,6 +695,7 @@ def collect() -> dict[str, Any]:
             "complete_privileged_visibility": os.geteuid() == 0,
         },
         "source_checkout_head": checkout_head(),
+        "reviewed_checkout_blobs": checkout_blobs,
         "reviewed_source_blobs": SOURCE_BLOBS,
         "services": services,
         "topology": topology,
