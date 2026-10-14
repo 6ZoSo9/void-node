@@ -198,6 +198,7 @@ function v1Fixture(){
 function v2Fixture(){
   const x=structuredClone(v1Fixture());
   x.marker=VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2;x.version=2;
+  x.identities.training_user="zoso";
   Object.assign(x.socket_parent,{
     retained_ancestor_count:3,retained_ancestors_root_owned:true,
     retained_ancestors_direct:true,retained_ancestors_symlink_free:true,
@@ -257,6 +258,14 @@ for(const mutate of [
 {
   const bad=v2Fixture();bad.service_control.polkit_deny_rule.lexically_first=false;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.identities.training_user="otheruser";
+  assert.throws(
+    ()=>qualifyApollyonCustodyHostPolicyV2(bad),
+    /service_control_invalid/u,
+  );
 }
 {
   const bad=v2Fixture();
@@ -410,6 +419,7 @@ console.log("socket_parent_training_rename_unlink_denied_required=true");
 console.log("explicit_training_pid_service_control_denial_required=true");
 console.log("exact_lexically_first_action_id_only_polkit_deny_rule_required=true");
 console.log("canonical_polkit_rule_bytes_and_sha256_required=true");
+console.log("polkit_runtime_user_bound_to_training_identity=true");
 console.log("polkit_details_can_change_result=false");
 console.log("reviewed_systemd_major=255");
 console.log("running_systemd_manager_version_bound=true");
