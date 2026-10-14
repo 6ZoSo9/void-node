@@ -16,6 +16,13 @@ const FROZEN_V1_PROFILE_BLOB="87b650e28366acfea3d140ea7778f41f57e5b0c3";
 const V2_PROFILE_BLOB="a09f47596fdf66afef64e82200f23966664a7d2c";
 const V2_PROFILE_ID="voidrnpr1_7cfd6b67e6c2bde498196fa8bc880031ea24f95942c194ee7e6f553054c08451";
 const PACKAGES_AGGREGATE="5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
+const V5_MARKER="VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V5";
+const V5_SOURCE_STACK_HEAD="22a30e3ffad6047a472488104c769140bd050878";
+const V5_TYPESCRIPT_VERSION="5.9.3";
+const V5_TSCONFIG_BUILD_BLOB="d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb";
+const V5_REVIEWED_SOURCE_MARKER="VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6";
+const V5_REVIEWED_SOURCE_FILES_SHA256=
+  "35691ec1fe0c19f08e9d1c256ce160c1f47139877832b97c0686d93ab42560f8";
 const MAX_BYTES=16*1024*1024;
 const GIT="/usr/bin/git";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
@@ -60,6 +67,21 @@ function gitBlob(bytes){
     .update(bytes).digest("hex");
 }
 function sha256(bytes){ return crypto.createHash("sha256").update(bytes).digest("hex"); }
+function canonical(value){
+  if(value===null)return "null";
+  if(typeof value==="string"||typeof value==="boolean")return JSON.stringify(value);
+  if(typeof value==="number"){
+    if(!Number.isSafeInteger(value))fail("non_canonical_number");
+    return String(value);
+  }
+  if(Array.isArray(value))return "["+value.map(canonical).join(",")+"]";
+  if(value&&typeof value==="object"){
+    return "{"+Object.keys(value).sort().map(
+      key=>JSON.stringify(key)+":"+canonical(value[key]),
+    ).join(",")+"}";
+  }
+  fail("non_canonical_value");
+}
 function read(root,relative,maxBytes=MAX_BYTES){
   const absolute=path.join(root,...relative.split("/"));
   const st=fs.lstatSync(absolute);
@@ -185,6 +207,30 @@ assert.equal(v2.package_count,9);
 
 const baselineCandidate=JSON.parse(fs.readFileSync(baselineCandidatePath,"utf8"));
 assert.equal(baselineCandidate.schema,"void_buy_void_source_finality_compiled_artifact_attestation_v5");
+assert.equal(baselineCandidate.marker,V5_MARKER);
+assert.equal(baselineCandidate.version,5);
+assert.equal(baselineCandidate.repository,"6ZoSo9/void-node");
+assert.equal(baselineCandidate.source_stack_head,V5_SOURCE_STACK_HEAD);
+assert.equal(baselineCandidate.compiler?.typescript_version,V5_TYPESCRIPT_VERSION);
+assert.equal(baselineCandidate.compiler?.package_lock_git_blob_sha1,OLD_LOCK_BLOB);
+assert.equal(baselineCandidate.build?.command,"npm run build");
+assert.equal(baselineCandidate.build?.package_json_git_blob_sha1,OLD_PACKAGE_BLOB);
+assert.equal(baselineCandidate.build?.tsconfig_build_git_blob_sha1,V5_TSCONFIG_BUILD_BLOB);
+assert.equal(
+  baselineCandidate.reviewed_source_generation?.marker,
+  V5_REVIEWED_SOURCE_MARKER,
+);
+assert.equal(
+  baselineCandidate.reviewed_source_generation?.reviewed_source_files_sha256,
+  V5_REVIEWED_SOURCE_FILES_SHA256,
+);
+assert.equal(
+  baselineCandidate.reviewed_source_generation?.verified_source_file_count,
+  5,
+);
+assert.equal(baselineCandidate.entry_artifact,ARTIFACT_PATHS[0]);
+assert.equal(baselineCandidate.artifact_count,ARTIFACT_PATHS.length);
+assert.deepEqual(baselineCandidate.derivation_node_majors,[22,24,26]);
 assert.equal(baselineCandidate.compiled_artifact_generation_verified,false);
 assert.equal(baselineCandidate.deployed_artifact_generation_verified,false);
 assert.equal(baselineCandidate.runtime_mount_authority,false);
@@ -209,6 +255,24 @@ for(const relative of ARTIFACT_PATHS){
     sha256:sha256(after),
   }));
 }
+
+const recomputedBaselineGeneration=sha256(Buffer.from(canonical({
+  marker:V5_MARKER,
+  source_stack_head:V5_SOURCE_STACK_HEAD,
+  typescript_version:V5_TYPESCRIPT_VERSION,
+  reviewed_source_files_sha256_v6:V5_REVIEWED_SOURCE_FILES_SHA256,
+  artifacts,
+}),"utf8"));
+assert.match(
+  String(baselineCandidate.compiled_artifact_generation_sha256||""),
+  /^[0-9a-f]{64}$/u,
+  "baseline V5 generation shape invalid",
+);
+assert.equal(
+  baselineCandidate.compiled_artifact_generation_sha256,
+  recomputedBaselineGeneration,
+  "baseline V5 generation digest mismatch",
+);
 
 const receipt=Object.freeze({
   schema:"void_buy_void_source_finality_dependency_build_equivalence_v1",
