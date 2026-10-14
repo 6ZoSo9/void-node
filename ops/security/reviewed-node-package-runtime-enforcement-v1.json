@@ -3,7 +3,7 @@
   "version": 1,
   "status": "REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_IDENTITY",
   "repository": "6ZoSo9/void-node",
-  "candidate_parent": "ed25d1e85a9d1e4893061b4b0665be9525d6f2ef",
+  "candidate_parent": "53cdbf01cd7f32410af1b102ee674198bf6278e5",
   "root_packages": [
     "ethers",
     "express"

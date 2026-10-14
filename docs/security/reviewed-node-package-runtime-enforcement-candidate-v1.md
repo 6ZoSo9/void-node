@@ -29,6 +29,12 @@ This candidate is explicitly bound to the current pre-#2865 metadata:
 The collector recursively derives all required/installed optional dependencies
 from lockfile v3. No transitive package list or hash is hand-authored.
 
+The candidate is self-authenticating for its declared source parent. It pins
+the reviewed absolute-Git helper and requires
+`21773007311f63c7a2e5d288e8bfa1e2243d49b6` to be an ancestor of the exact
+current HEAD before emitting `source_parent`. The package collector separately
+requires a canonical clean repository and exact HEAD metadata blobs.
+
 Dependency Draft #2865 is an Amber semantic neighbor and proposes a different
 package generation, including Express 4.22.3. If #2865 lands, this candidate
 becomes historical and must not be relabeled as current package authority.

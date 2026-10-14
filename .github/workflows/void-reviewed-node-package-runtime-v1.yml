@@ -12,6 +12,7 @@ on:
       - "scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs"
       - "docs/security/reviewed-node-package-runtime-enforcement-v1.md"
       - "scripts/prove_void_reviewed_node_package_runtime_enforcement_candidate_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
       - "docs/security/reviewed-node-package-runtime-enforcement-candidate-v1.md"
       - "package.json"
       - "package-lock.json"

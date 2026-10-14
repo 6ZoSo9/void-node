@@ -3,7 +3,8 @@
 ## Outcome
 
 Accept the exact combined package-runtime identity derived byte-for-byte on
-Node 22, 24 and 26 by #2912.
+Node 22, 24 and 26 by #2912. The accepted candidate lineage includes the
+source-parent authentication repair at exact #2912 head `53cdbf01cd7f32410af1b102ee674198bf6278e5`.
 
 Accepted identity:
 

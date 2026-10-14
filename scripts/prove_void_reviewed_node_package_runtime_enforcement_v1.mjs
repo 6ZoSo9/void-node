@@ -20,7 +20,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const MANIFEST_PATH="ops/security/reviewed-node-package-runtime-enforcement-v1.json";
 const CANDIDATE_SCRIPT=
   "scripts/prove_void_reviewed_node_package_runtime_enforcement_candidate_v1.mjs";
-const CANDIDATE_SCRIPT_BLOB="4bffcce6088175f030c899d115b19c8b48482160";
+const CANDIDATE_SCRIPT_BLOB="2c60865ed19148e5c95beaef53eb03528f10b3da";
 const EXPECTED_CANDIDATE_SOURCE_PARENT=
   "21773007311f63c7a2e5d288e8bfa1e2243d49b6";
 const EXPECTED={
@@ -28,7 +28,7 @@ const EXPECTED={
   version:1,
   status:"REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_IDENTITY",
   repository:"6ZoSo9/void-node",
-  candidate_parent:"ed25d1e85a9d1e4893061b4b0665be9525d6f2ef",
+  candidate_parent:"53cdbf01cd7f32410af1b102ee674198bf6278e5",
   root_packages:["ethers","express"],
   package_json_git_blob_sha1:"f28c3e9446c7623ef203da36a9642d046e5f34ee",
   package_lock_git_blob_sha1:"b2671f0149f522b2489247016df0a5ec4bb72b8b",
