@@ -472,6 +472,7 @@ try {
   console.log("ordinary_public_routes_to_frontdoor=true");
   console.log("sensitive_proxy_preface_preserved=true");
   console.log("frontdoor_proxy_preface_stripped=true");
+  console.log("client_half_close_response_preserved=true");
   console.log("sensitive_aliases_fail_closed=true");
   console.log("generic_sensitive_mutation_route_authorized=false");
   console.log("source_port_in_dispatch_identity=false");
