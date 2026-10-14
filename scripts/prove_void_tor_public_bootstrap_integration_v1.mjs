@@ -106,12 +106,13 @@ let adapter = null;
 
 try {
   const now = Date.now();
+  const issuedAt = now - 3 * 60 * 60 * 1000;
   const manifestBody = {
     schema: "void_public_bootstrap_v1",
     network: "VOID Network",
     chain_id: 2050,
     status: "stable_tor_seed",
-    generated_at: new Date(now - 60_000).toISOString(),
+    generated_at: new Date(issuedAt).toISOString(),
     expires_at: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
     sync_endpoints: [],
     onion_endpoints: [
@@ -122,7 +123,7 @@ try {
         enabled: true,
         temporary: false,
         qualification_id: QUALIFICATION,
-        qualified_at: new Date(now - 60_000).toISOString(),
+        qualified_at: new Date(issuedAt - 60_000).toISOString(),
         qualified_head: 1856587,
       },
     ],
@@ -142,6 +143,10 @@ try {
     ...manifestBody,
     manifest_id: contentId("voidpbm1_", manifestBody, "manifest_id"),
   };
+  assert(
+    now - Date.parse(manifest.onion_endpoints[0].qualified_at) > 2 * 60 * 60 * 1000,
+    "fixture qualification must be older than the historical runtime age limit",
+  );
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
 
   const stringChainManifestBody = {
@@ -272,6 +277,9 @@ try {
   console.log("adapter_numeric_parameters_bounded=true");
   console.log("local_status_query_rejected=true");
   console.log("resolver_adapter_composed=true");
+  console.log("qualification_fresh_at_manifest_issuance=true");
+  console.log("runtime_qualification_age_gt_two_hours_proven=true");
+  console.log("runtime_live_health_probe_required=true");
   console.log("block_range_contiguous=true");
   console.log("dns_resolution_required=false");
   console.log("domain_registrar_required=false");
