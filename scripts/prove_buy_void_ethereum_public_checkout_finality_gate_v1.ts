@@ -543,7 +543,7 @@ assert.equal(preAttemptCurrent.ok, false);
 if (preAttemptCurrent.ok === false) {
   assert.equal(
     preAttemptCurrent.reason,
-    "ethereum_pre_attempt_source_finality_capability_not_ready",
+    "ethereum_pre_attempt_latest_payment_payment_observer_rpc_call_failed",
   );
   assert.equal(
     preAttemptCurrent.canonical_payment_identity,
