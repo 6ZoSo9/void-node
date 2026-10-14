@@ -20,6 +20,11 @@ not claim the broader source-custody receipt proof; that remains a final
 protected-collector responsibility. Only then does it send `VERIFY`; the selector must re-prove the
 same kernel generation and exit GREEN.
 
+Collection is read-only but sensitive: it executes the locked selector and reads
+the selected service's kernel-exposed initial environment. Unrelated
+environment values are not returned or persisted. No filesystem or network
+write is performed.
+
 Output is a content-addressed `voidbsv2colplan1_` collection plan only. It
 does not contain a deployment receipt ID and cannot be published as
 `live-process-binding-v2.json`.
