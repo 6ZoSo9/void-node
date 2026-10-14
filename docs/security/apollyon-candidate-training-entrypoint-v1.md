@@ -49,12 +49,17 @@ wallet_or_funds_action=false
 void_chain_mutation=false
 ```
 
-After identity/descriptor checks and signal setup, it captures one absolute
-`CLOCK_BOOTTIME` deadline **before publishing readiness**. The deadline is
-exactly 300 seconds after that admission point. The hold then uses
-`clock_nanosleep(..., TIMER_ABSTIME)`; CLOCK_BOOTTIME includes host suspend
-time, while the pre-ready arm means blocked output, descheduling, or suspension
-after readiness cannot extend the documented window. A later, separately
+After identity/descriptor checks and signal setup, the target first marks both
+stdout and stderr `O_NONBLOCK`, then captures one absolute
+`CLOCK_BOOTTIME` deadline **before publishing readiness**. The readiness
+record is emitted as one bounded `write(2)` payload rather than buffered
+stdio. If the sink cannot accept that payload immediately, the process HOLDS
+instead of waiting for output capacity.
+
+The deadline is exactly 300 seconds after the admission point. The hold then
+uses `clock_nanosleep(..., TIMER_ABSTIME)`; CLOCK_BOOTTIME includes host
+suspend time. CPU descheduling, suspension, or a blocked readiness sink
+therefore cannot extend the admitted observation lifetime. A later, separately
 authorized installed/live qualification can observe the exact systemd cgroup
 and descriptor boundary during that interval. SIGTERM or SIGINT ends the
 observation window early.
@@ -87,7 +92,7 @@ weights can change.
 
 ```text
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
-Git blob 73c6f623200b493dce3e1f138df1a1ade81e5350
+Git blob 85f496585cc71eb04e7e028b36f767b94f92fb41
 ```
 
 The source file is repository evidence only. No executable identity is accepted
@@ -103,7 +108,10 @@ by this lane.
 - runs the source self-test;
 - proves direct execution without no-new-privileges HOLDS;
 - passes an inherited descriptor and proves it HOLDS;
-- requires a suspend-aware absolute CLOCK_BOOTTIME 300-second deadline to be armed before readiness;
+- requires stdout/stderr to become nonblocking before the suspend-aware
+  absolute CLOCK_BOOTTIME 300-second deadline is armed;
+- fills a pipe to capacity and proves readiness fails closed promptly rather
+  than blocking beyond the observation window;
 - starts the qualification target with no-new-privileges, proves it stays alive
   for observation, sends SIGTERM, and requires the durable-claim HOLD; and
 - statically rejects network, subprocess/exec, filesystem-mutation and ML
