@@ -31,7 +31,7 @@ const built=buildBuyVoidSourceFinalityV7DeploymentReceiptV1({
   process_source_commit:commit,
   process_source_tree:tree,
 });
-assert.equal(built.reviewed_source_file_count,"7");
+assert.equal(built.reviewed_source_file_count,"8");
 assert.equal(built.reviewed_source_files_sha256,
   sources.reviewed_source_files_sha256);
 assert.match(built.receipt_id,/^voidbsfdep1_[0-9a-f]{64}$/u);
@@ -41,7 +41,7 @@ const classified=classifyBuyVoidSourceFinalityDeploymentReceiptV7({
   receipt:built.receipt,
   process_source_identity:processIdentity,
   reviewed_source_files_sha256:sources.reviewed_source_files_sha256,
-  reviewed_source_file_count:"7",
+  reviewed_source_file_count:"8",
 });
 assert.equal(classified.ok,true);
 
@@ -57,7 +57,7 @@ for(const mutate of [
     receipt,
     process_source_identity:processIdentity,
     reviewed_source_files_sha256:sources.reviewed_source_files_sha256,
-    reviewed_source_file_count:"7",
+    reviewed_source_file_count:"8",
   });
   assert.equal(out.ok,false);
 }
