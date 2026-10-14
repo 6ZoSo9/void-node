@@ -228,6 +228,10 @@ function sameDataNetChunkIdentityV1(a: fs.Stats, b: fs.Stats): boolean {
   );
 }
 
+function sameDataNetChunkInodeV1(a: fs.Stats, b: fs.Stats): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+
 function openVerifiedDataNetChunkV1(
   file: string,
   expectedLeaf: string,
@@ -326,6 +330,7 @@ function publishDataNetChunkCreateOnlyV1(
       crypto.randomBytes(12).toString("hex"),
   );
   let fd: number | null = null;
+  let retainedStagingIdentity: fs.Stats | null = null;
   try {
     fd = fs.openSync(
       temporary,
@@ -335,6 +340,7 @@ function publishDataNetChunkCreateOnlyV1(
         noFollow,
       0o600,
     );
+    retainedStagingIdentity = fs.fstatSync(fd);
     let position = 0;
     while (position < body.length) {
       const written = fs.writeSync(
@@ -370,12 +376,22 @@ function publishDataNetChunkCreateOnlyV1(
       published.isSymbolicLink() ||
       !sameDataNetChunkIdentityV1(stagedAfterLink, published)
     ) {
-      fs.unlinkSync(file);
+      // Do not unlink a mismatched pathname: it may now name a foreign inode.
+      // The content-addressed GET path will independently hash-reject it.
       throw new Error("datanet_chunk_publish_identity_mismatch");
     }
   } finally {
     if (fd !== null) fs.closeSync(fd);
-    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+    if (retainedStagingIdentity !== null) {
+      try {
+        const visibleTemporary = fs.lstatSync(temporary);
+        if (sameDataNetChunkInodeV1(retainedStagingIdentity, visibleTemporary)) {
+          fs.unlinkSync(temporary);
+        }
+      } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+      }
+    }
   }
 
   const opened = openVerifiedDataNetChunkV1(file, expectedLeaf);

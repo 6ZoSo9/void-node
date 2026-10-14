@@ -158,6 +158,9 @@ try {
   const raceRoute = "/datanet/v1/chunks/" + raceLeaf;
   const raceFinal = path.join(chunksDir, raceLeaf + ".bin");
   const realLinkSync = fs.linkSync;
+  const foreignStagingBody = Buffer.from("foreign-staging-generation", "utf8");
+  let substitutedTemporary = "";
+  let retainedOriginal = "";
   let stagingSwapExercised = false;
   try {
     fs.linkSync = function injectedLinkSync(existingPath, newPath) {
@@ -165,11 +168,12 @@ try {
         !stagingSwapExercised &&
         path.resolve(String(newPath)) === path.resolve(raceFinal)
       ) {
-        const original = String(existingPath) + ".retained-original";
-        fs.renameSync(String(existingPath), original);
+        substitutedTemporary = String(existingPath);
+        retainedOriginal = substitutedTemporary + ".retained-original";
+        fs.renameSync(substitutedTemporary, retainedOriginal);
         fs.writeFileSync(
-          String(existingPath),
-          Buffer.from("foreign-staging-generation", "utf8"),
+          substitutedTemporary,
+          foreignStagingBody,
           { mode: 0o600 },
         );
         stagingSwapExercised = true;
@@ -181,7 +185,18 @@ try {
     const race = await request(port, "PUT", raceRoute, raceBody);
     assert.equal(race.status, 500);
     assert.equal(stagingSwapExercised, true);
-    assert.equal(fs.existsSync(raceFinal), false);
+    assert.equal(fs.existsSync(raceFinal), true);
+    assert.equal(fs.readFileSync(raceFinal).equals(foreignStagingBody), true);
+    assert.equal(fs.existsSync(substitutedTemporary), true);
+    assert.equal(
+      fs.readFileSync(substitutedTemporary).equals(foreignStagingBody),
+      true,
+    );
+    assert.equal(fs.existsSync(retainedOriginal), true);
+
+    const rejectedForeign = await request(port, "GET", raceRoute);
+    assert.equal(rejectedForeign.status, 500);
+    assert.equal(rejectedForeign.body.includes(foreignStagingBody), false);
   } finally {
     fs.linkSync = realLinkSync;
     syncBuiltinESMExports();
@@ -236,7 +251,8 @@ try {
   console.log("chunk_put_create_only=true");
   console.log("staging_descriptor_retained_through_publish=true");
   console.log("staging_path_substitution_rejected=true");
-  console.log("foreign_final_not_published=true");
+  console.log("foreign_substitution_preserved_not_accepted=true");
+  console.log("path_cleanup_atomic_same_uid_race_proven=false");
   console.log("symlink_put_target_unchanged=true");
   console.log("existing_valid_chunk_idempotent=true");
   console.log("chunk_route_bound_self_contained=true");

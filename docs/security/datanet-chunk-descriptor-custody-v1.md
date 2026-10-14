@@ -20,7 +20,7 @@ Chunk GET now:
 
 - requires the visible leaf to be a regular non-symlink file;
 - opens it with `O_NOFOLLOW` and retains that exact descriptor;
-- bounds size to the repository-owned pack chunk ceiling;
+- bounds size to the route-owned 64 MiB chunk ceiling;
 - recomputes SHA-256 from the retained descriptor and requires the request leaf;
 - rechecks descriptor identity after hashing; and
 - streams through that retained descriptor rather than reopening the pathname.
@@ -33,16 +33,24 @@ Chunk PUT now:
 - stages new bytes in a private create-exclusive file;
 - fsyncs and validates the staged bytes;
 - publishes with create-only hard-link semantics so an existing destination is
-  never overwritten; and
+  never overwritten;
+- preserves a mismatched substituted pathname instead of deleting a foreign
+  inode after publication identity failure; and
 - reopens/revalidates the published object before reporting success.
 
 The adversarial proof replaces the visible GET pathname after descriptor
 verification and proves the retained generation is served. It also proves GET
-does not disclose a symlink target and PUT cannot overwrite a symlink target.
+does not disclose a symlink target, PUT cannot overwrite a symlink target, and
+a substituted staging/final inode is rejected without deleting or serving the
+foreign bytes.
 
 ## Non-claims
 
 This does not prove every DataNet manifest, receipt, MVP2, or site-bundle path
-has equivalent descriptor custody. It does not deploy or mutate a production
+has equivalent descriptor custody. The cleanup identity check is fail-closed
+for substitutions observed before cleanup, but Node's pathname `lstat` ->
+`unlink` sequence is not an atomic inode-conditional unlink primitive; this
+lane does not claim closure against an actor that can replace the same pathname
+between those two syscalls. It does not deploy or mutate a production
 runtime, wallet, signer, validator, Work Credit ledger, transaction, presale,
 treasury, liquidity, or funds state.
