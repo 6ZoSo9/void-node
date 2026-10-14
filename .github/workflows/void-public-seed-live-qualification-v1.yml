@@ -90,7 +90,7 @@ jobs:
             --output "$qualification_dir/qualification.json"
           node scripts/build_void_public_bootstrap_manifest_v1.mjs \
             --receipt "$qualification_dir/qualification.json" \
-            --validity-hours 72 \
+            --validity-hours 168 \
             --output "$qualification_dir/public-bootstrap-v1.json"
 
       - name: Verify qualification artifact boundary
