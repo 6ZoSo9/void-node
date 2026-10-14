@@ -38,8 +38,15 @@ jobs:
       - name: Self-test collector
         run: |
           set -euo pipefail
-          python3 -I -B ops/public/void_public_earn_designated_host_census_v1.py --self-test
-          python3 -I -B scripts/prove_void_public_earn_designated_host_census_v1.py
+          proof="$RUNNER_TEMP/public-earn-designated-host-census-proof.txt"
+          {
+            python3 -I -B ops/public/void_public_earn_designated_host_census_v1.py --self-test
+            python3 -I -B scripts/prove_void_public_earn_designated_host_census_v1.py
+          } | tee "$proof"
+          grep -Fx 'VOID_PUBLIC_EARN_DESIGNATED_HOST_CENSUS_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'process_generation_stability_required=true' "$proof"
+          grep -Fx 'pid_reuse_or_restart_fails_candidate=true' "$proof"
+          grep -Fx 'live_host_acceptance_claimed=false' "$proof"
       - name: Prove inert plan
         run: |
           set -euo pipefail
