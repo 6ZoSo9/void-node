@@ -81,7 +81,7 @@ const SOURCE_BLOBS=Object.freeze({
   "ops/systemd/user/void-public-app-composition-gateway-v1.service.example":
     "d7add3da6d34bece418084c877cd4be667495ffb",
   "ops/public/public-seed-adapter-v1.mjs":
-    "60158fa63c7fafc55738d4b5a021cc021983812a",
+    "22251e87b3541aa55b4dffe98d63d57dc2c4d6bc",
   "ops/public/run-public-seed-adapter-v1.sh":
     "bc5f5d8c277c114b007a5676015729ec25fc09dd",
   // Precision plan successor retains the exact reviewed-generation guard.
