@@ -162,6 +162,8 @@ def main()->int:
         )
         if result["observation_scope"]!="synthetic_fixture":
             raise AssertionError("synthetic observation scope mismatch")
+        if result["joint_material_identity_stable"] is not True:
+            raise AssertionError("joint material identity not stable")
         if result["synthetic_fixture_unit_identity_observed"] is not True:
             raise AssertionError("synthetic unit identity not observed")
         if result["synthetic_fixture_preentry_binary_identity_observed"] is not True:
@@ -244,6 +246,10 @@ def main()->int:
             expect_hold(
                 module,
                 "apollyon_training_installed_custody_file_open_failed",
+        "apollyon_training_installed_custody_descriptor_io_failed",
+        "joint_material_identity_stable",
+        "revalidate_retained_file(",
+        "close_descriptor(",
                 lambda: module.read_stable_regular_file(
                     preentry,
                     owner_uid=os.getuid(),
@@ -256,6 +262,27 @@ def main()->int:
             )
         finally:
             module.os.open=original_open
+
+        original_read=module.os.read
+        def failed_read(fd,count):
+            raise OSError("synthetic descriptor read failure")
+        module.os.read=failed_read
+        try:
+            expect_hold(
+                module,
+                "apollyon_training_installed_custody_descriptor_io_failed",
+                lambda: module.read_stable_regular_file(
+                    preentry,
+                    owner_uid=os.getuid(),
+                    owner_gid=os.getgid(),
+                    mode=module.EXPECTED_PREENTRY_MODE,
+                    maximum_bytes=module.MAX_PREENTRY_BYTES,
+                    exact_bytes=module.EXPECTED_PREENTRY_BYTES,
+                    trusted_root=trusted,
+                ),
+            )
+        finally:
+            module.os.read=original_read
 
         real_dir=trusted/"real-bin"
         real_dir.mkdir(mode=0o755)
@@ -318,6 +345,9 @@ def main()->int:
     print("stable_no_follow_reads=true")
     print("trusted_ancestry_required=true")
     print("ancestor_custody_revalidated_after_read=true")
+    print("joint_material_identity_revalidated=true")
+    print("retained_unit_and_preentry_descriptors=true")
+    print("descriptor_io_failures_translate_to_hold=true")
     print("nofollow_open_race_translated_to_hold=true")
     print("unit_tamper_rejected=true")
     print("binary_tamper_rejected=true")
