@@ -50,7 +50,7 @@ const material={
   network_contact_performed:false as const,receipt_publication_authorized:false as const,
   production_source_finality_authority_ready:false as const,public_presale_activation:false as const,
   funds_movement:false as const,
-};
+} as const;
 const plan=buildBuyVoidV2LiveProcessCollectionPlanV1(material);
 const receipt=buildBuyVoidV2LiveProcessReceiptFromPlanV1({
   plan,deployment_receipt_id:"voidbsfdep1_"+"7".repeat(64),
