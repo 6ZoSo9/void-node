@@ -24,7 +24,6 @@ const REQUIRED_ARTIFACTS=Object.freeze([
   "dist/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.js",
   "dist/economic/buy_void_erc20_chain2050_broadcaster_v1.js",
   "dist/economic/buy_void_delivery_submission_guard_v1.js",
-  "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js",
 ]);
 const FORBIDDEN_IDENTIFIERS=new Set(["require","createRequire","eval","Function"]);
 const FORBIDDEN_PROPERTIES=new Set(["getBuiltinModule","_load"]);
