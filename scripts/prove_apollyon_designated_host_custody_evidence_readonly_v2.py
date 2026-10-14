@@ -34,6 +34,7 @@ for value in [
  "'--system-bus-name'","parse_busctl_unique_names","system_bus_sender_snapshot",
  "system_bus_sender_evidence","actual_system_bus_sender_checks_required",
  "actual_system_bus_sender_set_stable","denial_transcript_sha256",
+ "MAX_SYSTEM_BUS_UNIQUE_NAMES=256","system_bus_list_oversize",
  "POLKIT_DENY_RULE_PATH=Path('/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules')",
  "POLKIT_RULE_DIRECTORIES=(Path('/etc/polkit-1/rules.d'),Path('/usr/share/polkit-1/rules.d'))",
  "expected_polkit_deny_rule","'action_id_only':True","'details_can_change_result':False",
@@ -95,6 +96,14 @@ assert mod.parse_busctl_unique_names(
  ':1.42 4242 python zoso :1.42 user@1000.service - - fixture\n'
  ':1.7  7 dbus root :1.7 dbus.service - - fixture\n'
 )==[':1.42',':1.7']
+try:
+ mod.parse_busctl_unique_names(
+  ''.join(f':1.{i} 1 proc user :1.{i} unit - - fixture\n' for i in range(257))
+ )
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('oversize system-bus census unexpectedly admitted')
 synthetic_status='''Name:\tfixture
 Uid:\t1000\t1000\t1000\t1000
 CapInh:\t0000000000000000
@@ -288,6 +297,7 @@ print('service_control_bound_subject_execution_test=true')
 print('training_uid_discovery_scans_every_thread=true')
 print('actual_system_bus_sender_subject_test=true')
 print('actual_system_bus_sender_set_stability_required=true')
+print('system_bus_unique_name_census_bounded=true')
 print('training_uid_process_set_stability_required=true')
 print('systemd_bus_owner_pid_is_pid1_required=true')
 print('reviewed_systemd_package_version=255.4-1ubuntu8.11')
