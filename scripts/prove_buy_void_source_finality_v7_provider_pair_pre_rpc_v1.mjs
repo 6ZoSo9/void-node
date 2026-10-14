@@ -43,8 +43,9 @@ function canonicalJson(value){
 
 function stablePolicy(url,identity){
   const sourceFinalityPolicy={
+    enabled:true,
     source_chain:"base",
-    evm_chain_id:"8453",
+    chain_id:"8453",
     rpc_url:url,
     rpc_identity:identity,
     rpc_url_fingerprint_sha256:hash(new URL(url).toString()),
