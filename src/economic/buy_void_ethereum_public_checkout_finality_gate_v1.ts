@@ -140,6 +140,7 @@ export type BuyVoidEthereumPublicCheckoutPaymentReadyV1 = {
   payment_key_sha256: string;
   source_finality_marker:
     typeof VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1;
+  same_live_process_binding_proven: true;
   production_source_finality_authority_ready: true;
   payment_verified_finality_gate_ready: true;
   inventory_reservation_authorized: false;
@@ -159,6 +160,7 @@ export type BuyVoidEthereumPublicCheckoutPaymentHeldV1 = {
   reason: string;
   attempt_id: string | null;
   source_chain: "ethereum";
+  same_live_process_binding_proven: false;
   production_source_finality_authority_ready: false;
   payment_verified_finality_gate_ready: false;
   inventory_reservation_authorized: false;
@@ -202,6 +204,7 @@ export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityReadyV1 = {
   remote_provider_identity_verified: false;
   ancestry_verified: true;
   provider_quorum_verified: true;
+  same_live_process_binding_proven: true;
   production_source_finality_authority_ready: true;
   payment_verified_transition_ready: true;
   filesystem_write_performed: false;
@@ -222,6 +225,7 @@ export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityHeldV1 = {
   source_chain: "ethereum";
   canonical_payment_identity: string | null;
   process_source_identity_verified: boolean;
+  same_live_process_binding_proven: false;
   production_source_finality_authority_ready: false;
   payment_verified_transition_ready: false;
   filesystem_write_performed: false;
@@ -256,6 +260,7 @@ function productionSourceFinalityCapabilityReadyV1(
     value.runtime_source_filesystem_write === false &&
     value.caller_generation_assertion_accepted === false &&
     value.operator_deployment_receipt_required === true &&
+    value.same_live_process_binding_required === true &&
     value.immutable_process_source_identity_required === true &&
     value.reviewed_source_files_verified_on_success === true &&
     value.source_generation_verified_on_success === true &&
@@ -267,6 +272,7 @@ function productionSourceFinalityCapabilityReadyV1(
     value.observation_generated_in_composition === true &&
     value.ancestry_verified_by_two_provider_finality_agreement === true &&
     value.provider_quorum_verified === true &&
+    value.same_live_process_binding_verified_on_success === true &&
     value.production_source_finality_authority_ready_on_success === true &&
     value.rpc_read === true &&
     value.rpc_write === false &&
@@ -311,6 +317,7 @@ function preAttemptHeld(
     source_chain: "ethereum",
     canonical_payment_identity: canonicalPaymentIdentity,
     process_source_identity_verified: processSourceIdentityVerified,
+    same_live_process_binding_proven: false,
     production_source_finality_authority_ready: false,
     payment_verified_transition_ready: false,
     filesystem_write_performed: false,
@@ -587,6 +594,10 @@ function classifyEthereumPreAttemptObservationV1(input: {
     observation.remote_provider_identity_verified !== false ||
     observation.ancestry_verified !== true ||
     observation.provider_quorum_verified !== true ||
+    observation.same_live_process_binding_proven !== true ||
+    !/^voidbsflp1_[0-9a-f]{64}$/u.test(
+      String(observation.live_process_binding_receipt_id || ""),
+    ) ||
     observation.production_source_finality_authority_ready !== true ||
     observation.wallet_access !== false ||
     observation.signing !== false ||
@@ -706,6 +717,7 @@ function paymentHeld(
     reason,
     attempt_id: attemptId,
     source_chain: "ethereum",
+    same_live_process_binding_proven: false,
     production_source_finality_authority_ready: false,
     payment_verified_finality_gate_ready: false,
     inventory_reservation_authorized: false,
@@ -830,6 +842,7 @@ function classifyEthereumFinalityDecision(
     decision.deployed_artifact_generation_verified !== true ||
     decision.ancestry_verified !== true ||
     decision.provider_quorum_verified !== true ||
+    decision.same_live_process_binding_proven !== true ||
     decision.production_source_finality_authority_ready !== true ||
     decision.wallet_access_performed !== false ||
     decision.signing_performed !== false ||
@@ -915,6 +928,7 @@ export async function runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(
     payment_key_sha256: classified.payment_key_sha256,
     source_finality_marker:
       VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
+    same_live_process_binding_proven: true,
     production_source_finality_authority_ready: true,
     payment_verified_finality_gate_ready: true,
     inventory_reservation_authorized: false,
@@ -1112,6 +1126,8 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
           total_timeout_ms: String(finalityBudget.remaining_ms),
         },
         deployment_receipt_path: policy.policy.deployment_receipt_path,
+        live_process_binding_receipt_path:
+          policy.policy.live_process_binding_receipt_path,
         process_source_identity: processIdentity,
         total_timeout_ms: String(finalityBudget.remaining_ms),
       },
@@ -1186,6 +1202,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
     remote_provider_identity_verified: false,
     ancestry_verified: true,
     provider_quorum_verified: true,
+    same_live_process_binding_proven: true,
     production_source_finality_authority_ready: true,
     payment_verified_transition_ready: true,
     filesystem_write_performed: false,
