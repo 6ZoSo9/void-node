@@ -89,6 +89,8 @@ jobs:
           grep -Fx 'VOID_PUBLIC_FRONTDOOR_V1_PROOF_GREEN' "$proof"
           grep -Fx 'non_root_proxy_behavior_executed=true' "$proof"
           grep -Fx 'post_passthrough_executed=true' "$proof"
+          grep -Fx 'sensitive_edge_bypass_blocked=true' "$proof"
+          grep -Fx 'pipelined_sensitive_bypass_blocked=true' "$proof"
           grep -Fx 'frontdoor_ready_bound_to_composition_runtime_truth=true' "$proof"
           grep -Fx 'node_runtime_mutated=false' "$proof"
 
