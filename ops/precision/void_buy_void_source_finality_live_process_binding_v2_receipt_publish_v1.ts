@@ -31,6 +31,12 @@ export const VOID_BUY_VOID_V7_DEPLOYMENT_RECEIPT_PATH_V1 =
 const SHA40=/^[0-9a-f]{40}$/u;
 const PLAN_ID=/^voidbsv2colplan1_[0-9a-f]{64}$/u;
 const MAX_RECEIPT_BYTES=64*1024;
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
+const PROTECTED_DISPATCH_MARKER_V1="VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1";
+const PROTECTED_NATIVE_PREENTRY_MARKER_V1="VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1";
+const PROTECTED_SOURCE_ROOT_V1="/opt/void-buy-void-v7-reviewed-v1";
+const PROTECTED_TOOL_PATH_V1=
+  "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts";
 
 function fail(code:string):never{throw new Error(code);}
 function sha256(value:Buffer|string):string{
@@ -84,6 +90,90 @@ function exactTrackedBlob(cwd:string,commit:string,relative:string):void{
   const tracked=runGit(cwd,["rev-parse","--verify",commit+":"+relative]);
   if(visible!==tracked)fail("publisher_tracked_blob_mismatch:"+relative);
 }
+
+export function assertBuyVoidV7ProtectedDispatchAdmissionV1(
+  expectedToolPath:string,
+  repositoryRoot:string=ROOT,
+):void{
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_DISPATCH,
+    PROTECTED_DISPATCH_MARKER_V1,
+    "protected_dispatch_context_required",
+  );
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_NATIVE_PREENTRY,
+    PROTECTED_NATIVE_PREENTRY_MARKER_V1,
+    "protected_dispatch_native_preentry_required",
+  );
+  assert.ok(
+    typeof process.getuid==="function"&&process.getuid()===0,
+    "protected_dispatch_root_required",
+  );
+  const dispatchPid=Number(process.env.VOID_BUY_VOID_V7_PROTECTED_DISPATCH_PID||"");
+  assert.ok(
+    Number.isSafeInteger(dispatchPid)&&dispatchPid>0&&dispatchPid===process.pid,
+    "protected_dispatch_process_identity_mismatch",
+  );
+  const root=path.resolve(repositoryRoot);
+  assert.equal(root,repositoryRoot,"protected_dispatch_repository_root_not_canonical");
+  assert.equal(root,PROTECTED_SOURCE_ROOT_V1,"protected_dispatch_source_root_mismatch");
+  assert.equal(fs.realpathSync.native(root),root,"protected_dispatch_source_root_alias");
+  proveRootCustodyPath(root,true);
+  const commit=runGit(root,["rev-parse","--verify","HEAD^{commit}"]).toLowerCase();
+  const tree=runGit(root,["rev-parse","--verify","HEAD^{tree}"]).toLowerCase();
+  const branch=runGit(root,["symbolic-ref","--short","-q","HEAD"]);
+  const status=runGit(root,["status","--porcelain=v1","--untracked-files=all"]);
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT,
+    root,
+    "protected_dispatch_source_root_binding_mismatch",
+  );
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT,
+    commit,
+    "protected_dispatch_source_commit_mismatch",
+  );
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE,
+    tree,
+    "protected_dispatch_source_tree_mismatch",
+  );
+  assert.equal(branch,"main","protected_dispatch_source_branch_mismatch");
+  assert.equal(status,"","protected_dispatch_source_tree_dirty");
+  assert.equal(expectedToolPath,"ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts","protected_dispatch_tool_contract_mismatch");
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH,
+    expectedToolPath,
+    "protected_dispatch_tool_path_mismatch",
+  );
+  const toolAbsolute=path.join(root,...expectedToolPath.split("/"));
+  assert.equal(
+    fs.realpathSync.native(toolAbsolute),
+    toolAbsolute,
+    "protected_dispatch_tool_path_alias",
+  );
+  const toolStat=fs.lstatSync(toolAbsolute);
+  assert.ok(
+    toolStat.isFile()&&!toolStat.isSymbolicLink()&&toolStat.nlink===1&&
+    toolStat.uid===0&&(toolStat.mode&0o022)===0,
+    "protected_dispatch_tool_custody_invalid",
+  );
+  const invoked=path.resolve(String(process.argv[1]||""));
+  assert.equal(
+    fs.realpathSync.native(invoked),
+    toolAbsolute,
+    "protected_dispatch_invoked_tool_mismatch",
+  );
+  const trackedBlob=runGit(root,["rev-parse","--verify","HEAD:"+expectedToolPath]);
+  const visibleBlob=runGit(root,["hash-object","--",expectedToolPath]);
+  assert.equal(visibleBlob,trackedBlob,"protected_dispatch_tool_worktree_blob_mismatch");
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_TOOL_GIT_BLOB_SHA1,
+    trackedBlob,
+    "protected_dispatch_tool_blob_binding_mismatch",
+  );
+}
+
 export function requalifyBuyVoidV2LiveSourceCustodyV1(
   plan:BuyVoidV2LiveProcessCollectionPlanV1,
 ):Readonly<{source_custody_proven:true;reviewed_service_contract_proven:true}>{
@@ -466,6 +556,9 @@ function parseArgs(argv:string[]){
 
 async function main():Promise<void>{
   const args=parseArgs(process.argv.slice(2));
+  if(args.mode==="apply"){
+    assertBuyVoidV7ProtectedDispatchAdmissionV1(PROTECTED_TOOL_PATH_V1);
+  }
   console.log(VOID_BUY_VOID_V2_LIVE_PROCESS_RECEIPT_PUBLISHER_V1);
   console.log("mode="+args.mode);
   console.log("selector_pidfd_collection=true");

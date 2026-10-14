@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +30,134 @@ const SHA256=/^[0-9a-f]{64}$/u;
 const DEPLOYMENT_ID=/^voidbsfdep1_[0-9a-f]{64}$/u;
 const ENFORCEMENT_LOCK_ID=/^voidbenfl1_[0-9a-f]{64}$/u;
 const MAX_BYTES=64*1024;
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
+const PROTECTED_DISPATCH_MARKER_V1="VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1";
+const PROTECTED_NATIVE_PREENTRY_MARKER_V1="VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1";
+const PROTECTED_SOURCE_ROOT_V1="/opt/void-buy-void-v7-reviewed-v1";
+const PROTECTED_TOOL_PATH_V1=
+  "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts";
+
+function protectedDispatchGitV1(repositoryRoot:string,args:string[]):string{
+  const root=path.resolve(repositoryRoot);
+  assert.equal(root,repositoryRoot,"protected_dispatch_repository_root_not_canonical");
+  return execFileSync("/usr/bin/git",[
+    "--no-replace-objects",
+    "-c","core.hooksPath=/dev/null",
+    "-c","core.attributesFile=/dev/null",
+    "-c","core.fsmonitor=false",
+    "-c","core.untrackedCache=false",
+    "-c","core.preloadIndex=false",
+    "-c","submodule.recurse=false",
+    "-c","safe.directory="+root,
+    "-C",root,...args,
+  ],{
+    encoding:"utf8",timeout:15_000,maxBuffer:1024*1024,
+    stdio:["ignore","pipe","pipe"],
+    env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",
+      GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",GIT_CONFIG_SYSTEM:"/dev/null",
+      GIT_OPTIONAL_LOCKS:"0",GIT_NO_REPLACE_OBJECTS:"1",GIT_TERMINAL_PROMPT:"0"},
+  }).trim();
+}
+
+
+function assertProtectedSourceRootCustodyV1(root:string):void{
+  let cursor=root;
+  for(;;){
+    const st=fs.lstatSync(cursor);
+    assert.ok(st.isDirectory()&&!st.isSymbolicLink(),
+      "protected_dispatch_source_ancestor_not_directory:"+cursor);
+    assert.equal(st.uid,0,"protected_dispatch_source_ancestor_not_root_owned:"+cursor);
+    assert.equal(st.mode&0o022,0,
+      "protected_dispatch_source_ancestor_group_or_world_writable:"+cursor);
+    if(cursor==="/")break;
+    const next=path.dirname(cursor);
+    assert.notEqual(next,cursor,"protected_dispatch_source_ancestor_walk_stalled");
+    cursor=next;
+  }
+}
+
+export function assertBuyVoidV7ProtectedDispatchAdmissionV1(
+  expectedToolPath:string,
+  repositoryRoot:string=ROOT,
+):void{
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_DISPATCH,
+    PROTECTED_DISPATCH_MARKER_V1,
+    "protected_dispatch_context_required",
+  );
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_NATIVE_PREENTRY,
+    PROTECTED_NATIVE_PREENTRY_MARKER_V1,
+    "protected_dispatch_native_preentry_required",
+  );
+  assert.ok(
+    typeof process.getuid==="function"&&process.getuid()===0,
+    "protected_dispatch_root_required",
+  );
+  const dispatchPid=Number(process.env.VOID_BUY_VOID_V7_PROTECTED_DISPATCH_PID||"");
+  assert.ok(
+    Number.isSafeInteger(dispatchPid)&&dispatchPid>0&&dispatchPid===process.pid,
+    "protected_dispatch_process_identity_mismatch",
+  );
+  const root=path.resolve(repositoryRoot);
+  assert.equal(root,repositoryRoot,"protected_dispatch_repository_root_not_canonical");
+  assert.equal(root,PROTECTED_SOURCE_ROOT_V1,"protected_dispatch_source_root_mismatch");
+  assert.equal(fs.realpathSync.native(root),root,"protected_dispatch_source_root_alias");
+  assertProtectedSourceRootCustodyV1(root);
+  const commit=protectedDispatchGitV1(root,["rev-parse","--verify","HEAD^{commit}"]).toLowerCase();
+  const tree=protectedDispatchGitV1(root,["rev-parse","--verify","HEAD^{tree}"]).toLowerCase();
+  const branch=protectedDispatchGitV1(root,["symbolic-ref","--short","-q","HEAD"]);
+  const status=protectedDispatchGitV1(root,["status","--porcelain=v1","--untracked-files=all"]);
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT,
+    root,
+    "protected_dispatch_source_root_binding_mismatch",
+  );
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT,
+    commit,
+    "protected_dispatch_source_commit_mismatch",
+  );
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE,
+    tree,
+    "protected_dispatch_source_tree_mismatch",
+  );
+  assert.equal(branch,"main","protected_dispatch_source_branch_mismatch");
+  assert.equal(status,"","protected_dispatch_source_tree_dirty");
+  assert.equal(expectedToolPath,"ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts","protected_dispatch_tool_contract_mismatch");
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH,
+    expectedToolPath,
+    "protected_dispatch_tool_path_mismatch",
+  );
+  const toolAbsolute=path.join(root,...expectedToolPath.split("/"));
+  assert.equal(
+    fs.realpathSync.native(toolAbsolute),
+    toolAbsolute,
+    "protected_dispatch_tool_path_alias",
+  );
+  const toolStat=fs.lstatSync(toolAbsolute);
+  assert.ok(
+    toolStat.isFile()&&!toolStat.isSymbolicLink()&&toolStat.nlink===1&&
+    toolStat.uid===0&&(toolStat.mode&0o022)===0,
+    "protected_dispatch_tool_custody_invalid",
+  );
+  const invoked=path.resolve(String(process.argv[1]||""));
+  assert.equal(
+    fs.realpathSync.native(invoked),
+    toolAbsolute,
+    "protected_dispatch_invoked_tool_mismatch",
+  );
+  const trackedBlob=protectedDispatchGitV1(root,["rev-parse","--verify","HEAD:"+expectedToolPath]);
+  const visibleBlob=protectedDispatchGitV1(root,["hash-object","--",expectedToolPath]);
+  assert.equal(visibleBlob,trackedBlob,"protected_dispatch_tool_worktree_blob_mismatch");
+  assert.equal(
+    process.env.VOID_BUY_VOID_V7_PROTECTED_TOOL_GIT_BLOB_SHA1,
+    trackedBlob,
+    "protected_dispatch_tool_blob_binding_mismatch",
+  );
+}
 
 type PairInput = Readonly<{
   base_primary_identity:string;
@@ -549,6 +678,9 @@ function parseArgs(argv:string[]){
 
 function main():void{
   const args=parseArgs(process.argv.slice(2));
+  if(args.mode==="apply"){
+    assertBuyVoidV7ProtectedDispatchAdmissionV1(PROTECTED_TOOL_PATH_V1);
+  }
   console.log(MARKER);
   console.log("mode="+args.mode);
   console.log("raw_rpc_url_input=false");
