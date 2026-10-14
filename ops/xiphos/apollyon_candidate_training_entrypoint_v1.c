@@ -106,6 +106,14 @@ static void require_nonblocking_fd(int fd, const char *reason) {
 }
 
 static void prepare_process_safety(void) {
+  if (sigemptyset(&qualification_wait_set) != 0 ||
+      sigaddset(&qualification_wait_set, SIGTERM) != 0 ||
+      sigaddset(&qualification_wait_set, SIGINT) != 0 ||
+      sigaddset(&qualification_wait_set, QUALIFICATION_TIMER_SIGNAL) != 0 ||
+      sigprocmask(SIG_BLOCK, &qualification_wait_set, NULL) != 0) {
+    _exit(2);
+  }
+
   struct sigaction action;
   memset(&action, 0, sizeof(action));
   action.sa_handler = SIG_IGN;
@@ -118,14 +126,6 @@ static void prepare_process_safety(void) {
   if (stderr_flags < 0 ||
       fcntl(STDERR_FILENO, F_SETFL, stderr_flags | O_NONBLOCK) != 0) {
     _exit(2);
-  }
-
-  if (sigemptyset(&qualification_wait_set) != 0 ||
-      sigaddset(&qualification_wait_set, SIGTERM) != 0 ||
-      sigaddset(&qualification_wait_set, SIGINT) != 0 ||
-      sigaddset(&qualification_wait_set, QUALIFICATION_TIMER_SIGNAL) != 0 ||
-      sigprocmask(SIG_BLOCK, &qualification_wait_set, NULL) != 0) {
-    hold("apollyon_candidate_training_entrypoint_signal_mask_setup_failed");
   }
 
   require_nonblocking_fd(
@@ -196,6 +196,41 @@ static timer_t arm_qualification_timer(void) {
   return timer_id;
 }
 
+static void delete_qualification_timer(timer_t timer_id) {
+  if (timer_delete(timer_id) != 0) {
+    hold("apollyon_candidate_training_entrypoint_timer_delete_failed");
+  }
+}
+
+static void reject_pending_signal_before_ready(timer_t timer_id) {
+  const struct timespec zero_timeout = {0, 0};
+  for (;;) {
+    siginfo_t information;
+    memset(&information, 0, sizeof(information));
+    int signal_number = sigtimedwait(
+        &qualification_wait_set, &information, &zero_timeout);
+    if (signal_number < 0 && errno == EAGAIN) {
+      return;
+    }
+    if (signal_number < 0 && errno == EINTR) {
+      continue;
+    }
+    if (signal_number == SIGTERM || signal_number == SIGINT) {
+      delete_qualification_timer(timer_id);
+      hold("apollyon_candidate_training_entrypoint_stop_requested_before_ready");
+    }
+    if (signal_number == QUALIFICATION_TIMER_SIGNAL) {
+      delete_qualification_timer(timer_id);
+      if (information.si_code != SI_TIMER) {
+        hold("apollyon_candidate_training_entrypoint_timer_signal_origin_invalid");
+      }
+      hold("apollyon_candidate_training_entrypoint_deadline_expired_before_ready");
+    }
+    delete_qualification_timer(timer_id);
+    hold("apollyon_candidate_training_entrypoint_signal_wait_failed");
+  }
+}
+
 static void qualification_hold(timer_t timer_id) {
   for (;;) {
     siginfo_t information;
@@ -206,7 +241,7 @@ static void qualification_hold(timer_t timer_id) {
     }
     if (signal_number == QUALIFICATION_TIMER_SIGNAL) {
       if (information.si_code != SI_TIMER) {
-        (void)timer_delete(timer_id);
+        delete_qualification_timer(timer_id);
         hold("apollyon_candidate_training_entrypoint_timer_signal_origin_invalid");
       }
       break;
@@ -214,13 +249,11 @@ static void qualification_hold(timer_t timer_id) {
     if (signal_number < 0 && errno == EINTR) {
       continue;
     }
-    (void)timer_delete(timer_id);
+    delete_qualification_timer(timer_id);
     hold("apollyon_candidate_training_entrypoint_signal_wait_failed");
   }
 
-  if (timer_delete(timer_id) != 0) {
-    hold("apollyon_candidate_training_entrypoint_timer_delete_failed");
-  }
+  delete_qualification_timer(timer_id);
 }
 
 int main(int argc, char **argv) {
@@ -237,6 +270,7 @@ int main(int argc, char **argv) {
   assert_no_new_privileges();
   assert_no_inherited_fds();
   timer_t qualification_timer = arm_qualification_timer();
+  reject_pending_signal_before_ready(qualification_timer);
   emit_ready();
   qualification_hold(qualification_timer);
 
