@@ -24,6 +24,9 @@ assert.match(
   /const bodyStart=headerEnd\+HTTP_HEADER_TERMINATOR_BYTES;/u,
 );
 assert.doesNotMatch(adapterSource,/const bodyStart=headerEnd\+4;/u);
+assert.match(adapterSource,/socket\.on\("error",onClientError\)/u);
+assert.match(adapterSource,/clientSocket\.once\("close",onClientClose\)/u);
+assert.match(adapterSource,/edge_client_disconnected/u);
 const SIGNATURE=Buffer.from([0x0d,0x0a,0x0d,0x0a,0x00,0x0d,0x0a,0x51,0x55,0x49,0x54,0x0a]);
 
 function proxy4(a,b,c,d,sourcePort=50000){
@@ -85,6 +88,29 @@ async function sendRawChunks(port,writes){
 }
 async function sendRaw(port,bytes){
   return sendRawChunks(port,[bytes]);
+}
+async function resetAfterGatewayAdmission(port,bytes,expectedGatewayCalls){
+  const socket=net.createConnection({host:"127.0.0.1",port});
+  socket.setNoDelay(true);
+  socket.on("error",()=>{});
+  await once(socket,"connect");
+  socket.write(bytes);
+  for(let i=0;i<160&&gatewayCalls.length<expectedGatewayCalls;i+=1){
+    await new Promise(resolve=>setTimeout(resolve,5));
+  }
+  assert.equal(
+    gatewayCalls.length>=expectedGatewayCalls,
+    true,
+    "reset fixture must reach delayed gateway before reset",
+  );
+  assert.equal(
+    typeof socket.resetAndDestroy,
+    "function",
+    "supported Node runtimes must expose resetAndDestroy",
+  );
+  const closed=once(socket,"close");
+  socket.resetAndDestroy();
+  await closed;
 }
 function maxHeaderRequestParts(proxy,body){
   const digest=crypto.createHash("sha256").update(body).digest("hex");
@@ -159,11 +185,16 @@ async function stop(runtime){
 }
 
 const gatewayCalls=[];
+let delayNextGatewayResponse=false;
 const gateway=http.createServer(async(req,res)=>{
   const chunks=[];
   for await(const chunk of req)chunks.push(Buffer.from(chunk));
   const body=Buffer.concat(chunks);
   gatewayCalls.push({method:req.method,url:req.url,headers:req.headers,body});
+  if(delayNextGatewayResponse){
+    delayNextGatewayResponse=false;
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
   const payload=Buffer.from(JSON.stringify({ok:true,accepted_for_review:true})+"\n");
   res.writeHead(202,{"content-type":"application/json","content-length":String(payload.length),"cache-control":"no-store"});
   res.end(payload);
@@ -252,6 +283,26 @@ try{
   assert.equal(oversized.status,413);
   assert.equal(gatewayCalls.length,3);
 
+  delayNextGatewayResponse=true;
+  const callsBeforeReset=gatewayCalls.length;
+  await resetAfterGatewayAdmission(
+    info.port,
+    requestBytes(proxy4(203,0,113,15),body),
+    callsBeforeReset+1,
+  );
+  await new Promise(resolve=>setTimeout(resolve,100));
+  assert.equal(
+    runtime.child.exitCode,
+    null,
+    "client reset after request admission must not terminate edge process",
+  );
+  const afterReset=await sendRaw(
+    info.port,
+    requestBytes(proxy4(203,0,113,16),body),
+  );
+  assert.equal(afterReset.status,202);
+  assert.equal(gatewayCalls.length,callsBeforeReset+2);
+
   await stop(runtime);
   runtime=startAdapter({port:0,gatewayPort,stateFile,maxRequests:1});
   info=await ready(runtime);
@@ -282,6 +333,7 @@ try{
   console.log("caller_a_exhaustion_does_not_deny_caller_b=true");
   console.log("spoofable_source_headers_forwarded=false");
   console.log("restart_rate_state_preserved=true");
+  console.log("post_admission_client_reset_process_survives=true");
   console.log("local_transport_trust_proven=false");
   console.log("tailscale_funnel_configuration_verified=false");
   console.log("runtime_integration=false");
