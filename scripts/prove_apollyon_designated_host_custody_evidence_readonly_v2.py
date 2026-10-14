@@ -52,6 +52,7 @@ for value in [
  "training_process_subject","training_process_capabilities","all_systemd_control_actions_explicitly_denied",
  "process_has_training_uid_thread","/task/","collect_training_uid_processes","training_uid_process_inventory",
  "all_training_uid_processes_capability_free",
+ "'training_user':tr.pw_name",
  "training_thread_subject","training_process_thread_inventory",
  "all_training_uid_threads_capability_free","training_uid_thread_count",
  "training_uid_thread_sets_stable","thread_inventory_sha256",
