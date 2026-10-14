@@ -11,6 +11,7 @@ import socket
 import stat
 import subprocess
 import sys
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -670,9 +671,17 @@ def collect() -> dict[str, Any]:
     for service in services.values():
         service.pop("environment", None)
 
+    observed_at_utc = (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
     return {
         "marker": MARKER,
         "version": 1,
+        "observed_at_utc": observed_at_utc,
         "read_only": True,
         "service_mutation": False,
         "systemd_mutation": False,
