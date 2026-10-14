@@ -398,39 +398,56 @@ async function abruptResetAfterDispatch(port, bytes, backend) {
   await closed;
 }
 
-async function proveRejectedHalfOpenCleanup(port, bytes) {
-  const socket = net.createConnection({
-    host: "127.0.0.1",
-    port,
-    allowHalfOpen: true,
-  });
-  socket.setNoDelay(true);
-  socket.on("error", () => {});
-  const chunks = [];
-  socket.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-  const closed = new Promise((resolve) => socket.once("close", resolve));
-  await once(socket, "connect");
-  // The client deliberately withholds FIN even after receiving the 400.
-  socket.write(bytes);
-  let deadline;
+async function proveRejectedHalfOpenCleanup(port, bytes, healthyBytes) {
+  const heldClients = [];
   try {
-    await Promise.race([
-      closed,
-      new Promise((_, reject) => {
-        deadline = setTimeout(
-          () => reject(new Error("rejected half-open socket remained open")),
-          3500,
-        );
-      }),
-    ]);
+    // A peer can receive a server FIN but deliberately keep its write half
+    // open. Client "close" is NOT a proof that the server freed its descriptor.
+    // Keep the server's entire 256-connection budget occupied on the peer side;
+    // one more healthy request must still be accepted and answered.
+    for (let index = 0; index < 256; index += 1) {
+      const socket = net.createConnection({
+        host: "127.0.0.1",
+        port,
+        allowHalfOpen: true,
+      });
+      heldClients.push(socket);
+      socket.setNoDelay(true);
+      socket.on("error", () => {});
+      const chunks = [];
+      socket.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      const remoteEnd = new Promise((resolve) => socket.once("end", resolve));
+      await once(socket, "connect");
+      socket.write(bytes);
+      let deadline;
+      try {
+        await Promise.race([
+          remoteEnd,
+          new Promise((_, reject) => {
+            deadline = setTimeout(
+              () => reject(new Error("rejection response deadline exceeded")),
+              3500,
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(deadline);
+      }
+      assert.match(
+        Buffer.concat(chunks).toString("utf8"),
+        /^HTTP\/1\.1 400 Bad Request/u,
+      );
+    }
+
+    const healthyResponse = await sendRaw(port, healthyBytes);
+    assert.match(
+      healthyResponse,
+      /^HTTP\/1\.1 200 OK/u,
+      "dispatcher exhausted by rejected half-open peers",
+    );
   } finally {
-    clearTimeout(deadline);
-    socket.destroy();
+    for (const socket of heldClients) socket.destroy();
   }
-  assert.match(
-    Buffer.concat(chunks).toString("utf8"),
-    /^HTTP\/1\.1 400 Bad Request/u,
-  );
 }
 
 async function proveRelayIdleCleanup(port, bytes, backend) {
@@ -564,6 +581,23 @@ try {
   response = await sendRaw(info.listen_port, ordinary.all);
   assert.match(response, /^HTTP\/1\.1 200 OK/u);
 
+  const beforeHalfOpenProof = frontdoorBackend.calls.length;
+  const beforeHalfOpenEarn = earnBackend.calls.length;
+  await proveRejectedHalfOpenCleanup(
+    info.listen_port,
+    request({
+      method: "GET",
+      target: VOID_PUBLIC_EARN_CLAIM_PATH_V1,
+    }).all,
+    ordinary.all,
+  );
+  assert.equal(earnBackend.calls.length, beforeHalfOpenEarn);
+  assert.equal(
+    frontdoorBackend.calls.length,
+    beforeHalfOpenProof + 1,
+  );
+  assert.deepEqual(frontdoorBackend.calls.at(-1), ordinary.http);
+
   const beforeRejects = Object.freeze({
     credential: credentialBackend.calls.length,
     earn: earnBackend.calls.length,
@@ -595,14 +629,6 @@ try {
     assert.match(response, /^HTTP\/1\.1 400 Bad Request/u);
   }
 
-  await proveRejectedHalfOpenCleanup(
-    info.listen_port,
-    request({
-      method: "GET",
-      target: VOID_PUBLIC_EARN_CLAIM_PATH_V1,
-    }).all,
-  );
-
   assert.equal(
     credentialBackend.calls.length,
     beforeRejects.credential,
@@ -625,7 +651,7 @@ try {
   console.log("client_reset_after_classification_process_survives=true");
   console.log("relay_idle_socket_pair_closed=true");
   console.log("relay_idle_cleanup_dispatcher_survives=true");
-  console.log("rejected_half_open_socket_closed=true");
+  console.log("rejected_half_open_server_capacity_preserved=true");
   console.log("sensitive_aliases_fail_closed=true");
   console.log("generic_sensitive_mutation_route_authorized=false");
   console.log("source_port_in_dispatch_identity=false");

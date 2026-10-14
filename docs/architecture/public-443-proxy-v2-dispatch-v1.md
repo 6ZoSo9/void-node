@@ -106,8 +106,10 @@ connection lifetime; periodic traffic can keep a connection active.
 Early classification rejections flush the bounded error response and then
 explicitly destroy the socket, because an HTTP-rejected peer that deliberately
 withholds TCP FIN would otherwise retain a live readable half even after
-`socket.end()`. The proof includes a rejected half-open peer using
-`allowHalfOpen: true` and requires it to close.
+`socket.end()`. The proof holds 256 deliberately half-open client write halves using
+`allowHalfOpen: true` and requires a new healthy request to succeed. This
+checks that the **server** releases descriptors; a malicious client need not
+close its own socket to do so.
 
 The runtime does not authorize any concrete production port values.
 
