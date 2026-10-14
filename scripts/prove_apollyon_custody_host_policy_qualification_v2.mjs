@@ -409,6 +409,7 @@ console.log("socket_parent_retained_ancestor_binding=true");
 console.log("socket_parent_training_rename_unlink_denied_required=true");
 console.log("explicit_training_pid_service_control_denial_required=true");
 console.log("exact_lexically_first_action_id_only_polkit_deny_rule_required=true");
+console.log("canonical_polkit_rule_bytes_and_sha256_required=true");
 console.log("polkit_details_can_change_result=false");
 console.log("reviewed_systemd_major=255");
 console.log("running_systemd_manager_version_bound=true");
