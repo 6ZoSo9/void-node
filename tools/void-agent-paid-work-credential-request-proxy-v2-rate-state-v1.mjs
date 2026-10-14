@@ -48,28 +48,142 @@ function currentUid(){
   if(typeof process.getuid!=="function") fail("rate_state_uid_unavailable");
   return process.getuid();
 }
-function requirePrivateParent(stateFile){
+function sameMeta(a,b){
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode&&a.nlink===b.nlink&&a.size===b.size&&
+    a.mtimeMs===b.mtimeMs&&a.ctimeMs===b.ctimeMs;
+}
+function sameDirectoryIdentity(a,b){
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode;
+}
+function openPrivateParent(stateFile){
   if(typeof stateFile!=="string"||!path.isAbsolute(stateFile)||path.resolve(stateFile)!==stateFile){
     fail("rate_state_path_invalid");
   }
   const parent=path.dirname(stateFile);
-  let real,meta;
+  const leaf=path.basename(stateFile);
+  if(!leaf||leaf==="."||leaf===".."||leaf.includes("/")||leaf.includes("\\0")){
+    fail("rate_state_leaf_invalid");
+  }
+  let real,visible,fd;
   try{
     real=fs.realpathSync.native(parent);
-    meta=fs.lstatSync(parent);
+    visible=fs.lstatSync(parent);
   }catch{fail("rate_state_parent_unavailable");}
   if(
     real!==parent||
-    !meta.isDirectory()||
-    meta.isSymbolicLink()||
-    meta.uid!==currentUid()||
-    (meta.mode&0o077)!==0
+    !visible.isDirectory()||
+    visible.isSymbolicLink()||
+    visible.uid!==currentUid()||
+    (visible.mode&0o077)!==0
   ) fail("rate_state_parent_invalid");
-  return parent;
+  try{
+    fd=fs.openSync(
+      parent,
+      fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW,
+    );
+  }catch{fail("rate_state_parent_open_failed");}
+  try{
+    const opened=fs.fstatSync(fd);
+    if(!sameDirectoryIdentity(visible,opened)) fail("rate_state_parent_open_identity_mismatch");
+    const visibleAfter=fs.lstatSync(parent);
+    if(
+      !sameDirectoryIdentity(opened,visibleAfter)||
+      fs.realpathSync.native(parent)!==parent
+    ) fail("rate_state_parent_visible_identity_changed");
+    return Object.freeze({
+      parent,
+      leaf,
+      fd,
+      dev:opened.dev,
+      ino:opened.ino,
+      uid:opened.uid,
+      gid:opened.gid,
+      mode:opened.mode,
+    });
+  }catch(error){
+    fs.closeSync(fd);
+    throw error;
+  }
 }
-function sameMeta(a,b){
-  return a.dev===b.dev&&a.ino===b.ino&&a.size===b.size&&
-    a.mtimeMs===b.mtimeMs&&a.ctimeMs===b.ctimeMs;
+function closePrivateParent(binding){
+  fs.closeSync(binding.fd);
+}
+function assertPrivateParentStable(binding){
+  const opened=fs.fstatSync(binding.fd);
+  if(
+    opened.dev!==binding.dev||
+    opened.ino!==binding.ino||
+    opened.uid!==binding.uid||
+    opened.gid!==binding.gid||
+    opened.mode!==binding.mode||
+    !opened.isDirectory()
+  ) fail("rate_state_parent_descriptor_changed");
+  let visible,real;
+  try{
+    visible=fs.lstatSync(binding.parent);
+    real=fs.realpathSync.native(binding.parent);
+  }catch{fail("rate_state_parent_visible_identity_changed");}
+  if(
+    real!==binding.parent||
+    visible.isSymbolicLink()||
+    !visible.isDirectory()||
+    !sameDirectoryIdentity(opened,visible)
+  ) fail("rate_state_parent_visible_identity_changed");
+}
+function viaPrivateParent(binding,leaf=binding.leaf){
+  if(typeof leaf!=="string"||!leaf||leaf.includes("/")||leaf.includes("\\0")){
+    fail("rate_state_leaf_invalid");
+  }
+  return "/proc/self/fd/"+String(binding.fd)+"/"+leaf;
+}
+function inspectExistingFile(binding){
+  const stateVia=viaPrivateParent(binding);
+  let meta;
+  try{meta=fs.lstatSync(stateVia);}catch(error){
+    if(error&&error.code==="ENOENT") return null;
+    fail("rate_state_path_lstat_failed");
+  }
+  if(
+    !meta.isFile()||meta.isSymbolicLink()||meta.nlink!==1||
+    meta.uid!==currentUid()||(meta.mode&0o077)!==0||
+    meta.size<2||meta.size>MAX_STATE_BYTES
+  ) fail("rate_state_file_invalid");
+  return meta;
+}
+function readBoundRateState(binding){
+  assertPrivateParentStable(binding);
+  const existing=inspectExistingFile(binding);
+  if(!existing) return Object.freeze([]);
+  const stateVia=viaPrivateParent(binding);
+  const flags=fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW;
+  let fd;
+  try{fd=fs.openSync(stateVia,flags);}catch{fail("rate_state_open_failed");}
+  try{
+    const before=fs.fstatSync(fd);
+    if(
+      !before.isFile()||before.nlink!==1||before.uid!==currentUid()||
+      (before.mode&0o077)!==0||before.size<2||before.size>MAX_STATE_BYTES||
+      !sameMeta(existing,before)
+    ) fail("rate_state_descriptor_invalid");
+    const bytes=fs.readFileSync(fd);
+    const after=fs.fstatSync(fd);
+    let visibleAfter;
+    try{visibleAfter=fs.lstatSync(stateVia);}catch{fail("rate_state_visible_changed_during_read");}
+    if(
+      !sameMeta(before,after)||
+      !sameMeta(after,visibleAfter)||
+      bytes.length!==before.size
+    ) fail("rate_state_changed_during_read");
+    assertPrivateParentStable(binding);
+    return decodeState(bytes);
+  }finally{fs.closeSync(fd);}
+}
+export function readVoidAgentCredentialRequestProxyV2RateStateV1(stateFile){
+  const binding=openPrivateParent(stateFile);
+  try{return readBoundRateState(binding);}
+  finally{closePrivateParent(binding);}
 }
 function validateEvents(events){
   if(!Array.isArray(events)||events.length>MAX_RATE_EVENTS) fail("rate_state_events_invalid");
@@ -105,67 +219,54 @@ function encodeState(events){
   if(bytes.length>MAX_STATE_BYTES) fail("rate_state_bytes_exceeded");
   return bytes;
 }
-function inspectExistingFile(stateFile){
-  let meta;
-  try{meta=fs.lstatSync(stateFile);}catch(error){
-    if(error&&error.code==="ENOENT") return null;
-    fail("rate_state_path_lstat_failed");
-  }
-  if(
-    !meta.isFile()||meta.isSymbolicLink()||meta.nlink!==1||
-    meta.uid!==currentUid()||(meta.mode&0o077)!==0||
-    meta.size<2||meta.size>MAX_STATE_BYTES
-  ) fail("rate_state_file_invalid");
-  return meta;
-}
-export function readVoidAgentCredentialRequestProxyV2RateStateV1(stateFile){
-  requirePrivateParent(stateFile);
-  const existing=inspectExistingFile(stateFile);
-  if(!existing) return Object.freeze([]);
-  const flags=fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW;
-  let fd;
-  try{fd=fs.openSync(stateFile,flags);}catch{fail("rate_state_open_failed");}
-  try{
-    const before=fs.fstatSync(fd);
-    if(
-      !before.isFile()||before.nlink!==1||before.uid!==currentUid()||
-      (before.mode&0o077)!==0||before.size<2||before.size>MAX_STATE_BYTES
-    ) fail("rate_state_descriptor_invalid");
-    const bytes=fs.readFileSync(fd);
-    const after=fs.fstatSync(fd);
-    if(!sameMeta(before,after)||bytes.length!==before.size) fail("rate_state_changed_during_read");
-    return decodeState(bytes);
-  }finally{fs.closeSync(fd);}
-}
-function fsyncParent(parent){
-  const flags=fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW;
-  let fd;
-  try{fd=fs.openSync(parent,flags);}catch{fail("rate_state_parent_open_failed");}
-  try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
-}
 function writeStateAtomic(stateFile,events){
-  const parent=requirePrivateParent(stateFile);
-  inspectExistingFile(stateFile);
+  const binding=openPrivateParent(stateFile);
   const bytes=encodeState(events);
   tempSequence+=1;
-  const temp=stateFile+".tmp."+String(process.pid)+"."+String(Date.now())+"."+String(tempSequence);
+  const tempName="."+binding.leaf+".tmp."+String(process.pid)+"."+
+    String(Date.now())+"."+String(tempSequence);
+  const tempVia=viaPrivateParent(binding,tempName);
+  const stateVia=viaPrivateParent(binding);
   let fd;
   let created=false;
+  let tempIdentity=null;
   try{
+    assertPrivateParentStable(binding);
+    inspectExistingFile(binding);
     fd=fs.openSync(
-      temp,
+      tempVia,
       fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,
       0o600,
     );
     created=true;
+    tempIdentity=fs.fstatSync(fd);
+    if(
+      !tempIdentity.isFile()||tempIdentity.isSymbolicLink()||
+      tempIdentity.nlink!==1||tempIdentity.uid!==currentUid()||
+      (tempIdentity.mode&0o077)!==0
+    ) fail("rate_state_temp_descriptor_invalid");
     fs.writeFileSync(fd,bytes);
     fs.fsyncSync(fd);
+    const written=fs.fstatSync(fd);
+    if(
+      written.dev!==tempIdentity.dev||written.ino!==tempIdentity.ino||
+      written.uid!==tempIdentity.uid||written.gid!==tempIdentity.gid
+    ) fail("rate_state_temp_descriptor_changed");
     fs.closeSync(fd);
     fd=undefined;
-    fs.renameSync(temp,stateFile);
+    const tempVisible=fs.lstatSync(tempVia);
+    if(
+      tempVisible.dev!==tempIdentity.dev||
+      tempVisible.ino!==tempIdentity.ino||
+      tempVisible.uid!==tempIdentity.uid||
+      tempVisible.gid!==tempIdentity.gid
+    ) fail("rate_state_temp_visible_identity_changed");
+    assertPrivateParentStable(binding);
+    fs.renameSync(tempVia,stateVia);
     created=false;
-    fsyncParent(parent);
-    const reread=readVoidAgentCredentialRequestProxyV2RateStateV1(stateFile);
+    fs.fsyncSync(binding.fd);
+    assertPrivateParentStable(binding);
+    const reread=readBoundRateState(binding);
     if(JSON.stringify(reread)!==JSON.stringify(validateEvents(events))) fail("rate_state_postwrite_mismatch");
   }catch(error){
     const cleanupErrors=[];
@@ -173,9 +274,16 @@ function writeStateAtomic(stateFile,events){
       try{fs.closeSync(fd);}
       catch(cleanupError){cleanupErrors.push(cleanupError);}
     }
-    if(created){
-      try{fs.rmSync(temp,{force:true});}
-      catch(cleanupError){cleanupErrors.push(cleanupError);}
+    if(created&&tempIdentity){
+      try{
+        const visible=fs.lstatSync(tempVia);
+        if(visible.dev===tempIdentity.dev&&visible.ino===tempIdentity.ino){
+          fs.unlinkSync(tempVia);
+          fs.fsyncSync(binding.fd);
+        }
+      }catch(cleanupError){
+        if(cleanupError?.code!=="ENOENT") cleanupErrors.push(cleanupError);
+      }
     }
     if(cleanupErrors.length){
       throw new AggregateError(
@@ -184,6 +292,8 @@ function writeStateAtomic(stateFile,events){
       );
     }
     throw error;
+  }finally{
+    closePrivateParent(binding);
   }
 }
 function integer(value,min,max,code){
@@ -196,7 +306,8 @@ export function createVoidAgentCredentialRequestProxyV2RateStateV1({
   window_ms,
   max_requests_per_source,
 }={}){
-  requirePrivateParent(state_file);
+  const initialParentBinding=openPrivateParent(state_file);
+  closePrivateParent(initialParentBinding);
   integer(window_ms,1000,3600000,"rate_state_window_invalid");
   integer(max_requests_per_source,1,1000,"rate_state_limit_invalid");
   let queue=Promise.resolve();

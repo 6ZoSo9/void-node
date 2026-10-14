@@ -111,6 +111,104 @@ try{
     /rate_state_file_invalid/u,
   );
 
+  const parentRaceRoot=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-credential-rate-parent-race-v1-"),
+  );
+  fs.chmodSync(parentRaceRoot,0o700);
+  try{
+    const parent=path.join(parentRaceRoot,"state");
+    const detached=path.join(parentRaceRoot,"state-detached");
+    const redirect=path.join(parentRaceRoot,"redirect");
+    fs.mkdirSync(parent,{mode:0o700});
+    fs.mkdirSync(redirect,{mode:0o700});
+    const raceState=path.join(parent,"rate-state.json");
+    const raceStore=createVoidAgentCredentialRequestProxyV2RateStateV1({
+      state_file:raceState,window_ms:60_000,max_requests_per_source:2,
+    });
+    const originalOpen=fs.openSync;
+    const originalRename=fs.renameSync;
+    const originalSymlink=fs.symlinkSync;
+    let swapped=false;
+    fs.openSync=function(file,...args){
+      const fd=originalOpen.call(fs,file,...args);
+      if(
+        !swapped&&typeof file==="string"&&
+        file.includes("/proc/self/fd/")&&file.includes(".rate-state.json.tmp.")
+      ){
+        swapped=true;
+        originalRename.call(fs,parent,detached);
+        originalSymlink.call(fs,redirect,parent,"dir");
+      }
+      return fd;
+    };
+    try{
+      await assert.rejects(
+        ()=>raceStore.admit(sourceA,80_000),
+        /rate_state_parent_visible_identity_changed/u,
+      );
+    }finally{
+      fs.openSync=originalOpen;
+    }
+    assert.equal(swapped,true);
+    assert.equal(fs.existsSync(path.join(redirect,"rate-state.json")),false);
+    assert.equal(
+      fs.readdirSync(detached).some(name=>name.includes(".tmp.")),
+      false,
+      "bound-parent failure must clean its own temp inode",
+    );
+  }finally{
+    fs.rmSync(parentRaceRoot,{recursive:true,force:true});
+  }
+
+  const tempRaceRoot=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-credential-rate-temp-race-v1-"),
+  );
+  fs.chmodSync(tempRaceRoot,0o700);
+  try{
+    const tempState=path.join(tempRaceRoot,"rate-state.json");
+    const tempStore=createVoidAgentCredentialRequestProxyV2RateStateV1({
+      state_file:tempState,window_ms:60_000,max_requests_per_source:2,
+    });
+    const originalOpen=fs.openSync;
+    const originalWriteFile=fs.writeFileSync;
+    const originalRename=fs.renameSync;
+    let tempPath="";
+    let injected=false;
+    fs.openSync=function(file,...args){
+      const fd=originalOpen.call(fs,file,...args);
+      if(
+        typeof file==="string"&&file.includes("/proc/self/fd/")&&
+        file.includes(".rate-state.json.tmp.")
+      ) tempPath=file;
+      return fd;
+    };
+    fs.writeFileSync=function(file,...args){
+      const result=originalWriteFile.call(fs,file,...args);
+      if(!injected&&typeof file==="number"&&tempPath){
+        injected=true;
+        originalRename.call(fs,tempPath,tempPath+".created");
+        originalWriteFile.call(fs,tempPath,Buffer.from("foreign\n","utf8"),{mode:0o600});
+        throw new Error("synthetic_rate_state_temp_postcreate_failure");
+      }
+      return result;
+    };
+    try{
+      await assert.rejects(
+        ()=>tempStore.admit(sourceB,90_000),
+        /synthetic_rate_state_temp_postcreate_failure/u,
+      );
+    }finally{
+      fs.openSync=originalOpen;
+      fs.writeFileSync=originalWriteFile;
+    }
+    assert.equal(injected,true);
+    assert.equal(fs.readFileSync(tempPath,"utf8"),"foreign\n",
+      "cleanup must not unlink substituted foreign temp inode");
+    assert.equal(fs.existsSync(tempPath+".created"),true);
+  }finally{
+    fs.rmSync(tempRaceRoot,{recursive:true,force:true});
+  }
+
   const target=path.join(root,"target.json");
   fs.writeFileSync(target,JSON.stringify({
     marker:VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_RATE_STATE_V1,
@@ -145,6 +243,9 @@ try{
   console.log("restart_replay_preserved=true");
   console.log("expired_events_compacted_on_next_admission=true");
   console.log("private_descriptor_checked_state=true");
+  console.log("retained_parent_descriptor_bound=true");
+  console.log("parent_namespace_substitution_rejected=true");
+  console.log("foreign_temp_inode_not_unlinked=true");
   console.log("multi_process_lock_proven=false");
   console.log("live_state_custody_proven=false");
   console.log("runtime_integration=false");
