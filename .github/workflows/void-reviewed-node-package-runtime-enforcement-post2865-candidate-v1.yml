@@ -1,0 +1,150 @@
+name: VOID reviewed Node enforcement package post-2865 candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs"
+      - "docs/security/reviewed-node-package-runtime-enforcement-post2865-candidate-v1.md"
+      - ".github/workflows/void-reviewed-node-package-runtime-enforcement-post2865-candidate-v1.yml"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs"
+      - "docs/security/reviewed-node-package-runtime-enforcement-post2865-candidate-v1.md"
+      - ".github/workflows/void-reviewed-node-package-runtime-enforcement-post2865-candidate-v1.yml"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install exact audited lock
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Derive post-2865 combined package candidate
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs
+          node scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs --self-test
+          node scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs --derive \
+            > "enforcement-package-post2865-${{ matrix.node }}.json"
+          node --input-type=module - "enforcement-package-post2865-${{ matrix.node }}.json" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const value=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(value.marker,"VOID_REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_POST2865_CANDIDATE_V1");
+          assert.equal(value.post_2865_dependency_generation,true);
+          assert.deepEqual(value.required_third_party_packages,["ethers","express"]);
+          assert.deepEqual(value.root_versions,{ethers:"6.17.0",express:"4.22.3"});
+          assert.deepEqual(value.profile.root_packages,["ethers","express"]);
+          assert.equal(value.profile.package_json_source.git_blob_sha1,"14fbdf5717b07fd4c734f5da7a8e84ed59bee93f");
+          assert.equal(value.profile.package_lock_source.git_blob_sha1,"15b5c82ea36f13079a2f9e8863722f654eb3f201");
+          assert.equal(value.profile.packages.find(x=>x.name==="ethers")?.version,"6.17.0");
+          assert.equal(value.profile.packages.find(x=>x.name==="express")?.version,"4.22.3");
+          assert.equal(value.profile_candidate_accepted,false);
+          assert.equal(value.enforcement_candidate_identity_accepted,false);
+          assert.equal(value.provider_closure_composed,false);
+          assert.equal(value.complete_executable_closure_verified,false);
+          assert.equal(value.production_source_finality_authority_ready,false);
+          assert.equal(value.public_presale_activation,false);
+          assert.equal(value.funds_movement,false);
+          console.log("VOID_ENFORCEMENT_PACKAGE_POST2865_CANDIDATE_NODE_GREEN");
+          NODE
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+      - name: Upload candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-enforcement-package-post2865-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: enforcement-package-post2865-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node-major candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-enforcement-package-post2865-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: candidate
+
+      - name: Require exact Node 22 24 26 identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "candidate/enforcement-package-post2865-$node.json"
+          done
+          cmp candidate/enforcement-package-post2865-22.json candidate/enforcement-package-post2865-24.json
+          cmp candidate/enforcement-package-post2865-22.json candidate/enforcement-package-post2865-26.json
+          node --input-type=module - <<'NODE'
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const bytes=fs.readFileSync("candidate/enforcement-package-post2865-22.json");
+          const value=JSON.parse(bytes);
+          console.log("VOID_ENFORCEMENT_PACKAGE_POST2865_CROSS_NODE_GREEN");
+          console.log("candidate_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+          console.log("profile_id="+value.profile.profile_id);
+          console.log("packages_aggregate_sha256="+value.profile.packages_aggregate_sha256);
+          console.log("package_count="+value.profile.package_count);
+          console.log("total_file_count="+value.profile.total_file_count);
+          console.log("total_bytes="+value.profile.total_bytes);
+          console.log("profile_candidate_accepted=false");
+          console.log("complete_executable_closure_verified=false");
+          console.log("funds_movement=false");
+          NODE
