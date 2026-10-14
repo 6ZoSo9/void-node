@@ -32,12 +32,18 @@ policy and remains a separate #2984 designated-host gate.
 
 ## Service identity
 
-The policy accepts operator-selected service-unit names and numeric identities;
-it does not invent production UIDs/GIDs.
+The policy fixes the intended reviewed service-unit identities:
+
+- `void-public-443-proxy-v2-dispatch-v1.service`;
+- `void-public-earn-proxy-v2-edge-v1.service`;
+- `void-public-earn-gateway-v1.service`.
+
+Numeric UIDs/GIDs remain operator-selected and are not invented by this source
+contract.
 
 The dispatcher, Earn edge, and Public Earn gateway must:
 
-- be three distinct service units;
+- use the exact canonical service units above;
 - use three distinct non-root effective UIDs;
 - use non-root effective GIDs;
 - have `NoNewPrivileges=true`; and
