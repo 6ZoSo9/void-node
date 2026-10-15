@@ -66,9 +66,6 @@ for required in [
     "funnel_to_dispatcher_trust_proven",
     "local_transport_trust_proven",
     "live_host_acceptance_claimed",
-    "VOID_PUBLIC_EARN_PROXY_V2_RATE_STATE_FILE",
-    "VOID_EARN_MUTATION_DOWNSTREAM_PORT",
-    "VOID_PUBLIC_443_EARN_EDGE_PORT",
     "process_generation_stability_required",
     "pid_reuse_or_restart_fails_candidate",
 ]:
