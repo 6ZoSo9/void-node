@@ -205,8 +205,10 @@ def trace_link_inputs(raw:bytes,object_path:Path)->list[dict[str,str|int]]:
     text=raw.decode("utf-8","replace")
     for line in text.splitlines():
         token=line.strip()
-        if not token or not os.path.isabs(token):
+        if not token:
             continue
+        if not os.path.isabs(token):
+            raise AssertionError("traced linker input is not absolute: "+token)
         candidate=Path(token)
         try:
             real=os.path.realpath(os.fspath(candidate))
@@ -779,6 +781,14 @@ def self_test()->None:
             raise
     else:
         raise AssertionError("boolean version unexpectedly admitted")
+
+    try:
+        trace_link_inputs(b"relative-link-input.a\n",Path("/tmp/own.o"))
+    except AssertionError as exc:
+        if "traced linker input is not absolute" not in str(exc):
+            raise
+    else:
+        raise AssertionError("relative traced linker input unexpectedly skipped")
 
     with tempfile.TemporaryDirectory(prefix="void-epoch2-link-trace-negative-") as td:
         missing=os.path.join(td,"missing-link-input.a")
