@@ -1,0 +1,101 @@
+name: Buy VOID Epoch-2 live fee chain qualification v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs"
+      - "scripts/prove_buy_void_epoch2_live_fee_chain_qualification_v1.mjs"
+      - "docs/operators/buy-void-epoch2-live-fee-chain-qualification-v1.md"
+      - ".github/workflows/buy-void-epoch2-live-fee-chain-qualification-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v1.mjs"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json"
+      - "src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts"
+      - "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs"
+      - "scripts/prove_buy_void_epoch2_live_fee_chain_qualification_v1.mjs"
+      - "docs/operators/buy-void-epoch2-live-fee-chain-qualification-v1.md"
+      - ".github/workflows/buy-void-epoch2-live-fee-chain-qualification-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v1.mjs"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json"
+      - "src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts"
+      - "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact reviewed source generation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs)" =             "4382a49ff2be854220cf738966521c628914f9be"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_fee_chain_qualification_v1.mjs)" =             "c032490fb5fb339275a8a198e7becb1434283c0b"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v1.mjs)" =             "6d68b52ec036e422a151239f9c8f3ee7faa28055"
+          test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json)" =             "6a0159e516d30ca8a4b9af4dcace79a4fcddfbb1"
+          test "$(git rev-parse HEAD:src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts)" =             "aa2f60c57c4cb8fed280d67397636ddd08a415cc"
+          test "$(git rev-parse HEAD:src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts)" =             "158cbf14fa2b566632c096a22e484b651cd44f6d"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          node --check ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs
+          node --check scripts/prove_buy_void_epoch2_live_fee_chain_qualification_v1.mjs
+
+      - name: Prove inert fee and chain qualification
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e2-fee-chain-proof.log"
+          node scripts/prove_buy_void_epoch2_live_fee_chain_qualification_v1.mjs |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_LIVE_FEE_CHAIN_QUALIFICATION_V1_PROOF_GREEN"
+            "candidate_v2_fee_policy_bound=true"
+            "production_eth_gasPrice_semantics_mirrored=true"
+            "zero_fee_envelope_proven_inert=true"
+            "bounded_nonzero_fee_envelope_proven_inert=true"
+            "fee_multiplier_bps=20000"
+            "accepted_max_gas_limit=320000"
+            "max_fee_per_gas_wei=3000000000"
+            "configured_priority_fee_per_gas_wei=0"
+            "accepted_history_bound=true"
+            "exact_validator_roster_before_after_required=true"
+            "contract_code_identity_bound=true"
+            "chain_progress_required=true"
+            "final_block_hash_revalidated=true"
+            "native_fee_funding_required=true"
+            "forged_fee_receipt_rejected=true"
+            "transaction_calldata_constructed=false"
+            "nonce_reserved=false"
+            "transaction=false"
+            "customer_payment_record_access=false"
+            "customer_safe_to_pay=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
