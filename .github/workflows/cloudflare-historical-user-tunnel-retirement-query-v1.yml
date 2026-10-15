@@ -75,6 +75,10 @@ jobs:
             exit 1
           fi
           file "$preexec" | grep -F "statically linked"
+          echo "VOID_CLOUDFLARE_RETIREMENT_PREEXEC_BYTES=$(stat -Lc '%s' "$preexec")"
+          echo "VOID_CLOUDFLARE_RETIREMENT_PREEXEC_SHA256=$(sha256sum "$preexec" | awk '{print $1}')"
+          echo "VOID_CLOUDFLARE_RETIREMENT_QUERY_BYTES=$(stat -Lc '%s' "$query")"
+          echo "VOID_CLOUDFLARE_RETIREMENT_QUERY_SHA256=$(sha256sum "$query" | awk '{print $1}')"
 
       - name: Prove caller preload cannot cross static preexec
         run: |
