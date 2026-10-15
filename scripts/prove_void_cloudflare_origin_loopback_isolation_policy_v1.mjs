@@ -502,6 +502,7 @@ console.log("sensitive_origin_http_host_header_bound=true");
 console.log("sensitive_origin_chunked_encoding_disabled_required=true");
 console.log("ordinary_tunnel_routes_preserved_required=true");
 console.log("cloudflare_control_plane_evidence_required=true");
+console.log("pseudo_ipv4_mode_off_required=true");
 console.log("cloudflared_to_adapter_policy_shape_qualified=true");
 console.log("adapter_to_dispatcher_policy_shape_qualified=true");
 console.log("closed_world_listener_sets_required=true");
