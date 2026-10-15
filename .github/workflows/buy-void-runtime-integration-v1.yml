@@ -228,6 +228,12 @@ jobs:
                 echo "VOID_HISTORICAL_WITNESS_BUNDLE_V3_PROOF_PRESERVED_CURRENT_FIRST_ORIGINAL_GENERATION=$proof"
                 continue
                 ;;
+              scripts/prove_buy_void_request_custody_read_visibility_v1.ts)
+                VOID_BUY_REQUEST_CUSTODY_READ_GID="$(id -g)" \
+                  ./node_modules/.bin/tsx "$proof"
+                echo "VOID_BUY_VOID_PROOF_STACK_GREEN=$proof"
+                continue
+                ;;
               scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts|scripts/prove_buy_void_allocation_custody_qualification_v1.ts)
                 # Historical source/custody generations remain covered by
                 # dedicated preservation workflows. Current source-finality is
