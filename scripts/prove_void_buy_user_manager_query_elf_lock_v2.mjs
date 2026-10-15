@@ -153,6 +153,26 @@ function verifyBranch(){
   ])assert.equal(git(["rev-parse","HEAD:"+relative]),expected,"source_blob_drift:"+relative);
   assert.equal(git(["rev-parse","HEAD:ops/security/buy-void-user-manager-query-elf-lock-v1.json"]),
     "4f255dbc98ac4b65fb4e6433f4e7aee7b86351db");
+  const workflowText=read(WORKFLOW,64*1024).toString("utf8");
+  for(const relative of [
+    PREEXEC_SOURCE,
+    QUERY_SOURCE,
+    PEER_SOURCE,
+    CANDIDATE_WORKFLOW,
+    CANDIDATE_FILE,
+    "ops/security/buy-void-user-manager-query-elf-lock-v1.json",
+    LOCK_FILE,
+    SELF,
+    DOC,
+    WORKFLOW,
+  ]){
+    const token='      - "'+relative+'"';
+    assert.equal(
+      workflowText.split(token).length-1,
+      2,
+      "workflow must trigger for PR and main push: "+relative,
+    );
+  }
 }
 function rederiveBinaries(){
   assert.equal(sha256(fs.readFileSync("/usr/bin/cc")),CANDIDATE.cc_sha256,"cc_identity_drift");
