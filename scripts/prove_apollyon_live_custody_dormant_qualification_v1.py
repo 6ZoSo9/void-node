@@ -9,7 +9,7 @@ source=Q.read_text();ast.parse(source)
 for required in (
     'TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"',
     'SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"',
-    'HELPER_BLOB="6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5"',
+    'HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
     'LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"',
     'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
     'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',
@@ -18,6 +18,9 @@ for required in (
     'assert_socket_parent_empty()',
     'target_maybe_started=True',
     'active not in ("inactive","failed")',
+    'expected_unit_file_state="disabled"',
+    'expected_unit_file_state="static"',
+    'unit_file_state_mismatch:',
     'consumed_state_unchanged',
     'first_generation=(observations[0]["live"]["pid"],observations[0]["live"]["start_ticks"])',
     'second_generation=(observations[1]["live"]["pid"],observations[1]["live"]["start_ticks"])',
