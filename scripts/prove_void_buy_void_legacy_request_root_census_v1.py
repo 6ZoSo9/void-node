@@ -13,7 +13,7 @@ V2=ROOT/"ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 AUTH=ROOT/"ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py"
 EXPECTED_DEPENDENCY_BLOBS={
     V1:"9ca9cb948a08973d0d874c5473ad2743de14140c",
-    V2:"3c99359bf4ae020ce29c871d0bfcbf8043a44150",
+    V2:"305737478025e22ddc8f56da29f2a2dfde251d8b",
     AUTH:"e0d3a583030a5465cc793f740c04f4b33f84eba6",
 }
 
