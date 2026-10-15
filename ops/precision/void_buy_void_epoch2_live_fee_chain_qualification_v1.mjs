@@ -1171,6 +1171,12 @@ function validateObservation(policy,observation){
   }
 }
 
+export function testOnlyValidateFeeChainObservation(policy,observation){
+  validateObservation(policy,observation);
+  return true;
+}
+
+
 export function buildReceipt(
   expectedHead,childBefore,childAfter,policy,observation,
   rpcHostBefore=null,rpcHostAfter=null
