@@ -1,0 +1,54 @@
+name: VOID Buy allocation custody Polkit deny profile v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/polkit/00-void-buy-allocation-custody-runtime-deny-v1.rules"
+      - "tools/void-buy-allocation-custody-polkit-deny-profile-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_polkit_deny_profile_v1.mjs"
+      - "docs/operators/buy-void-allocation-custody-polkit-deny-profile-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-polkit-deny-profile-v1.yml"
+      - "tools/void-buy-allocation-custody-host-evidence-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/polkit/00-void-buy-allocation-custody-runtime-deny-v1.rules"
+      - "tools/void-buy-allocation-custody-polkit-deny-profile-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_polkit_deny_profile_v1.mjs"
+      - "docs/operators/buy-void-allocation-custody-polkit-deny-profile-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-polkit-deny-profile-v1.yml"
+      - "tools/void-buy-allocation-custody-host-evidence-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22,24,26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove exact canonical deny rule
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_buy_allocation_custody_polkit_deny_profile_v1.mjs |
+            tee "$RUNNER_TEMP/polkit-profile.log"
+          grep -Fx 'VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_DENY_PROFILE_V1_GREEN' "$RUNNER_TEMP/polkit-profile.log"
+          grep -Fx 'runtime_user=zoso' "$RUNNER_TEMP/polkit-profile.log"
+          grep -Fx 'denied_action_count=4' "$RUNNER_TEMP/polkit-profile.log"
+          grep -Fx 'installed_rule_verified=false' "$RUNNER_TEMP/polkit-profile.log"
+          grep -Fx 'runtime_control_denial_live_verified=false' "$RUNNER_TEMP/polkit-profile.log"
+          grep -Fx 'filesystem_write=false' "$RUNNER_TEMP/polkit-profile.log"
+          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/polkit-profile.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/polkit-profile.log"
+      - run: git diff --check
