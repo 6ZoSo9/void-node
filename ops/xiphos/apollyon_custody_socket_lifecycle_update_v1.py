@@ -16,10 +16,10 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-socket-lifecycle-update-v1.json"
-MANIFEST_BLOB="36f3d7b9228486364afa31b13b7aa6a228963389"
+MANIFEST_BLOB="2d8381ceea5ef4cceab3b36250bb340eedd0a8a6"
 SERVICE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"
-NEW_SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
+NEW_SERVICE_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 HELPER_REL="ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py"
@@ -35,6 +35,9 @@ EXPECTED_EXEC_STOP_POST=(
     "/usr/bin/python3 -I -B "
     "/opt/void-apollyon-custody-lifecycle-v1/"
     "apollyon_custody_stale_socket_cleanup_v1.py --cleanup"
+)
+EXPECTED_UNSET_ENVIRONMENT=(
+    "LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH",
 )
 
 class Hold(RuntimeError): pass
@@ -63,6 +66,7 @@ def load_manifest()->dict:
         value.get("target_blob_sha1")!=TARGET_BLOB or
         value.get("cleanup_blob_sha1")!=HELPER_BLOB or
         value.get("exec_stop_post")!=EXPECTED_EXEC_STOP_POST or
+        value.get("unset_environment")!=list(EXPECTED_UNSET_ENVIRONMENT) or
         value.get("cleanup_custody_uid_process_exclusivity_required") is not True or
         value.get("target_unit_file_state_required")!="disabled" or
         value.get("service_unit_file_state_required")!="static"
@@ -139,6 +143,7 @@ def verify_loaded_service()->None:
     r=run([
         "/usr/bin/systemctl","show",SERVICE_UNIT,"--no-pager",
         "-p","RefuseManualStart","-p","RefuseManualStop","-p","ExecStopPost",
+        "-p","UnsetEnvironment",
     ])
     props={}
     for line in r.stdout.splitlines():
@@ -146,6 +151,12 @@ def verify_loaded_service()->None:
             k,v=line.split("=",1);props[k]=v
     if props.get("RefuseManualStart")!="yes" or props.get("RefuseManualStop")!="yes":
         hold("service_manual_refusal_missing")
+    unset=props.get("UnsetEnvironment","").split()
+    if (
+        len(unset)!=len(EXPECTED_UNSET_ENVIRONMENT) or
+        set(unset)!=set(EXPECTED_UNSET_ENVIRONMENT)
+    ):
+        hold("loaded_unset_environment_invalid")
     command=props.get("ExecStopPost","")
     for required in (
         "/usr/bin/python3","-I","-B",
@@ -259,8 +270,13 @@ def self_test()->None:
     assert m["new_service_blob_sha1"]==NEW_SERVICE_BLOB
     assert m["target_blob_sha1"]==TARGET_BLOB
     assert m["exec_stop_post"]==EXPECTED_EXEC_STOP_POST
+    assert m["unset_environment"]==list(EXPECTED_UNSET_ENVIRONMENT)
     service=read_source(SERVICE_REL,NEW_SERVICE_BLOB).decode()
     assert "ExecStopPost="+EXPECTED_EXEC_STOP_POST in service
+    assert (
+        "UnsetEnvironment=LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH"
+        in service
+    )
     own=Path(__file__).read_text(encoding="utf-8")
     assert 'exact_dormant(TARGET_UNIT,"disabled")' in own
     assert own.count('exact_dormant(SERVICE_UNIT,"static")')>=2
@@ -283,6 +299,7 @@ def self_test()->None:
     print("target_stop_control_required=true")
     print("target_unit_file_state_disabled_required=true")
     print("service_unit_file_state_static_required=true")
+    print("manager_environment_influence_unset=true")
     print("service_action=false")
     print("target_action=false")
     print("socket_mutation=false")

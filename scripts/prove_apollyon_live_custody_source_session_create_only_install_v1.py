@@ -26,7 +26,7 @@ for required in (
     'NODE_VERSION="v24.21.0"',
     'NODE_BYTES=126595440',
     'NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"',
-    'UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"',
+    'UNIT_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"',
     'LIFECYCLE_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
     'custody_uid_process_exclusivity_required',
     'custody_uid_process_census_uid_slots',
@@ -83,6 +83,7 @@ for line in (
     "public_key_retained_generation=true",
     "public_key_path_swap_rejected=true",
     "exact_post_install_unit_states_required=true",
+    "manager_environment_influence_unset=true",
     "service_start=false","service_enable=false","training_execution=false",
     "durable_attempt_claim=false","funds_movement=false",
 ):
@@ -94,6 +95,7 @@ print("preentry_static_rederived=true")
 print("public_key_retained_generation=true")
 print("public_key_path_swap_rejected=true")
 print("exact_post_install_unit_states_required=true")
+print("manager_environment_influence_unset=true")
 print("create_only=true")
 print("service_start=false")
 print("service_enable=false")
