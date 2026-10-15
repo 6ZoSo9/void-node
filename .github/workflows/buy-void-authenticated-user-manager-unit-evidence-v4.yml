@@ -32,12 +32,12 @@ jobs:
       - name: Preserve V4 authenticated evidence on exact V5 successor
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "ddca2c544ce14261dffb80a202c0a4ae2979ec1e"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "fc1f640689b7da7278ff013669ef8a10cd8f6659"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-host-evidence-v4.mjs)" = "223a8acf32f8c7961d61222b83c0db17075f86c6"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_host_evidence_v4.mjs)" = "5359de58ece074d937bc7c3a1b99b358afff0f31"
           test "$(git rev-parse HEAD:docs/architecture/buy-void-authenticated-user-manager-unit-evidence-v4.md)" = "2b554518e9c585f64a7386723e5a80ff82030af6"
           echo VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V4_HISTORICAL_PRESERVED
-          echo v5_control_group_service_interface_successor=true
+          echo v6_kernel_cap_last_cap_projection_successor=true
           echo complete_host_evidence_collector=false
           echo public_presale_activation=false
           echo funds_movement=false

@@ -63,7 +63,7 @@ jobs:
             echo "superseded3114=true" >> "$GITHUB_OUTPUT"
           else
             case "$query_blob" in
-            6aefc385bcc4212d3c45e36871bfde0da3529baa|ddca2c544ce14261dffb80a202c0a4ae2979ec1e) ;;
+            6aefc385bcc4212d3c45e36871bfde0da3529baa|ddca2c544ce14261dffb80a202c0a4ae2979ec1e|fc1f640689b7da7278ff013669ef8a10cd8f6659) ;;
             *) echo "unknown canonical query successor: $query_blob" >&2; exit 2 ;;
           esac
             test "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
