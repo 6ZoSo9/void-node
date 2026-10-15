@@ -32,9 +32,9 @@ export const
     caller_timestamp_input: false,
     caller_prior_receipt_input: false,
     one_host_binding_capture_per_operation: true,
-    preview_before_durable_observe: true,
-    same_bound_sample_preview_and_observe: true,
-    durable_receipt_matches_preview_candidate_required: true,
+    one_store_clock_read_per_operation: true,
+    preview_zero_durable_growth: true,
+    durable_result_bound_to_same_host_sample: true,
     production_host_sample_collected_in_ci: false,
     trusted_clock_runtime_authority: false,
     live_durable_receipt_storage_proven: false,
@@ -346,7 +346,6 @@ function previewSuccess(binding, result, productionExpected, clockReads) {
 
 function observeSuccess(
   binding,
-  preview,
   observed,
   productionExpected,
   clockReads,
@@ -360,7 +359,6 @@ function observeSuccess(
     host_trusted_clock_binding_id: binding.binding_id,
     host_time_sync_evidence_id: binding.host_time_sync_evidence_id,
     store_marker: VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_V1,
-    preview_candidate_receipt_sha256: preview.candidate_receipt_sha256,
     durable_head_receipt_sha256: observed.head_receipt_sha256,
     generation: observed.generation,
     durable_receipt_count: observed.durable_receipt_count,
@@ -371,8 +369,7 @@ function observeSuccess(
     store_clock_read_count: clockReads,
     mutation_performed: observed.mutation_performed === true,
     durable_time_authority_advanced: true,
-    same_bound_sample_preview_and_observe: true,
-    durable_receipt_matches_preview_candidate: true,
+    durable_result_bound_to_same_host_sample: true,
     trusted_clock_source_proven: productionExpected,
     trusted_clock_host_binding_proven: productionExpected,
     trusted_clock_runtime_authority: false,
@@ -518,33 +515,6 @@ function createBinding({ root_dir, collectBinding, productionExpected }) {
       let observed = null;
       try {
         captured = capture();
-        const preview = captured.store.preview();
-        if (!preview.ok) {
-          return held(preview.reason, {
-            productionExpected,
-            hostBinding: captured.normalized.binding,
-            storeResult: preview,
-            clockReads: captured.clockReads(),
-          });
-        }
-        if (
-          captured.clockReads() !== 1 ||
-          preview.mutation_performed !== false ||
-          preview.accepted_observed_at_ms !==
-            captured.normalized.binding.wall_time_ms ||
-          !RECEIPT_SHA.test(String(preview.candidate_receipt_sha256 || ""))
-        ) {
-          return held(
-            "SPONSORED_HOST_DURABLE_TIME_PREVIEW_BINDING_MISMATCH",
-            {
-              productionExpected,
-              hostBinding: captured.normalized.binding,
-              storeResult: preview,
-              clockReads: captured.clockReads(),
-            },
-          );
-        }
-
         observed = await captured.store.observe();
         if (!observed.ok) {
           return held(observed.reason, {
@@ -555,16 +525,13 @@ function createBinding({ root_dir, collectBinding, productionExpected }) {
           });
         }
         if (
-          captured.clockReads() !== 2 ||
+          captured.clockReads() !== 1 ||
           observed.accepted_observed_at_ms !==
             captured.normalized.binding.wall_time_ms ||
-          observed.head_receipt_sha256 !==
-            preview.candidate_receipt_sha256 ||
-          observed.generation !== preview.candidate_generation ||
           !RECEIPT_SHA.test(String(observed.head_receipt_sha256 || ""))
         ) {
           return held(
-            "SPONSORED_HOST_DURABLE_TIME_PREVIEW_PERSIST_MISMATCH",
+            "SPONSORED_HOST_DURABLE_TIME_OBSERVE_BINDING_MISMATCH",
             {
               productionExpected,
               hostBinding: captured.normalized.binding,
@@ -575,7 +542,6 @@ function createBinding({ root_dir, collectBinding, productionExpected }) {
         }
         return observeSuccess(
           captured.normalized.binding,
-          preview,
           observed,
           productionExpected,
           captured.clockReads(),
