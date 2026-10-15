@@ -214,10 +214,12 @@ def trace_link_inputs(raw:bytes,object_path:Path)->list[dict[str,str|int]]:
                 continue
             p=Path(real)
             if not p.is_file():
-                continue
+                raise AssertionError("traced absolute linker input is not a regular file: "+token)
             identity=regular_file_identity(p,"link input")
-        except (OSError,AssertionError):
-            continue
+        except OSError as exc:
+            raise AssertionError(
+                "traced absolute linker input identity failed: "+token
+            ) from exc
         discovered[identity["path"]]=identity
     if not discovered:
         raise AssertionError("static linker trace did not yield regular inputs")
@@ -719,6 +721,7 @@ def derive_to(output:Path)->None:
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
     print("static_toolchain_closure_bound=true")
+    print("traced_absolute_link_inputs_fail_closed=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
@@ -773,6 +776,16 @@ def self_test()->None:
             raise
     else:
         raise AssertionError("boolean version unexpectedly admitted")
+
+    with tempfile.TemporaryDirectory(prefix="void-epoch2-link-trace-negative-") as td:
+        missing=os.path.join(td,"missing-link-input.a")
+        try:
+            trace_link_inputs((missing+"\n").encode("utf-8"),Path(td)/"own.o")
+        except AssertionError as exc:
+            if "traced absolute linker input" not in str(exc):
+                raise
+        else:
+            raise AssertionError("missing traced absolute linker input unexpectedly skipped")
 
     forged=json.loads(canonical(valid))
     digest=forged["binary"]["sha256"]
