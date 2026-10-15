@@ -34,7 +34,16 @@ It is evidence for a source plan, not permission to replace the target.
 
 ## Bound dependencies
 
-The plan requires the merged accepted archive identity:
+The plan first binds the merged archive-acceptance lock itself:
+
+- path:
+  `ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v1.json`;
+- Git blob: `099e81e1185a1590eb987e4b231889c571af6f49`;
+- bytes: `2185`;
+- SHA-256:
+  `4d0a169bbc1dec33a3ef72fa9b93ff2ae3fd42dae7ae197fda61bd6e91e7791b`.
+
+Only after exact lock-byte identity succeeds does it accept the archive identity:
 
 - ID:
   `voidbuycustodyarchive1_5685b87bba1987b7365909eb4bd684b89695f7d5e1253d59dcd63ff390732333`;
