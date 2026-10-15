@@ -21,8 +21,8 @@
   "authority_added": false,
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "067e4340b964faba7432a6d08cba240618aa4a77754fdd123b21430b234eff11",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "fbf717152c1aa18cb97eafbacae716d1bcb2702b9dcc34d98e22ef8f24ad58f5",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "053c332d77fd2179046ab0c0638e5915e58cf331455134c8f8e1ccfd3e2e6340",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "130d1e3dc7c417edcdc39c77c391f05fb88d71316989f1e515b2eb6b5448d8b7",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
