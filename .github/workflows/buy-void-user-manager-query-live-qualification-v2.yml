@@ -9,8 +9,11 @@ on:
       - ".github/workflows/buy-void-user-manager-query-live-qualification-v2.yml"
       - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
       - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
       - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
   push:
     branches: [main]
@@ -21,8 +24,11 @@ on:
       - ".github/workflows/buy-void-user-manager-query-live-qualification-v2.yml"
       - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
       - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
       - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
 
 permissions:
@@ -31,17 +37,67 @@ permissions:
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        python: [3.12]
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Prove V2 qualifier
+          fetch-depth: 0
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Detect exact live-qualification generation
+        id: generation
+        run: |
+          set -euo pipefail
+          blob() {
+            git rev-parse "HEAD:$1" 2>/dev/null || printf '%s\n' MISSING
+          }
+
+          query_blob="$(blob ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
+          peer_blob="$(blob ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)"
+          preexec_blob="$(blob ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c)"
+          parser_blob="$(blob tools/void-buy-allocation-custody-host-evidence-v4.mjs)"
+          replacement_blob="$(blob ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py)"
+          v2_lock_blob="$(blob ops/security/buy-void-user-manager-query-elf-lock-v2.json)"
+          v4_candidate_blob="$(blob ops/security/buy-void-user-manager-query-elf-candidate-v4.json)"
+          v4_lock_blob="$(blob ops/security/buy-void-user-manager-query-elf-lock-v4.json)"
+
+          if [ "$query_blob" = "5355b7f177574ac4fa173a693605acaf9c5f26e4" ] &&
+             [ "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611" ] &&
+             [ "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff" ] &&
+             [ "$parser_blob" = "7887cacd5481ba70a34dc7316fe8343e928936b5" ] &&
+             [ "$replacement_blob" = "25753737ac7719b0ceddc759904c81db0f7a1cae" ] &&
+             [ "$v2_lock_blob" = "b3abcb408730cf5e79093f6df30733f11324e95c" ]; then
+            echo "kind=historical_v2" >> "$GITHUB_OUTPUT"
+          elif [ "$query_blob" = "6aefc385bcc4212d3c45e36871bfde0da3529baa" ] &&
+               [ "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611" ] &&
+               [ "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff" ] &&
+               [ "$parser_blob" = "223a8acf32f8c7961d61222b83c0db17075f86c6" ] &&
+               [ "$replacement_blob" = "25753737ac7719b0ceddc759904c81db0f7a1cae" ] &&
+               [ "$v2_lock_blob" = "347951dbaa2d9bb5c31c8b718d9965ab3fdf7301" ] &&
+               [ "$v4_candidate_blob" = "988542122028843b2848063dbbaf7a94c32d6cd4" ] &&
+               [ "$v4_lock_blob" = "55ceccf61d59a18809e74979afa518ed150d62a0" ]; then
+            echo "kind=canonical_v4" >> "$GITHUB_OUTPUT"
+          else
+            echo "kind=unknown" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Reject unknown generation
+        if: steps.generation.outputs.kind == 'unknown'
+        run: |
+          echo "UNKNOWN_USER_MANAGER_LIVE_QUALIFICATION_GENERATION" >&2
+          exit 1
+
+      - name: Prove historical V2 qualifier
+        if: steps.generation.outputs.kind == 'historical_v2'
         run: |
           set -euo pipefail
           python3 -I -B ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py --self-test |
@@ -58,7 +114,9 @@ jobs:
           grep -Fx 'double_authenticated_query_required=true' "$RUNNER_TEMP/qual-v2-proof.log"
           grep -Fx 'host_mutation=false' "$RUNNER_TEMP/qual-v2-proof.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/qual-v2-proof.log"
-      - name: Prove inert plan
+
+      - name: Prove historical V2 inert plan
+        if: steps.generation.outputs.kind == 'historical_v2'
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/qual-v2-plan.log"
@@ -70,4 +128,34 @@ jobs:
           grep -Fx 'query_execution=false' "$out"
           grep -Fx 'host_mutation=false' "$out"
           grep -Fx 'funds_movement=false' "$out"
-      - run: git diff --check
+
+      - name: Preserve historical V2 refusal on canonical V4
+        if: steps.generation.outputs.kind == 'canonical_v4'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py)" = "16c75f6f385749283221914c92c968281578dbb3"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_user_manager_query_live_qualification_v2.py)" = "78f9783829f6cbd52befc265e9e327c508fc6eb6"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py)" = "25753737ac7719b0ceddc759904c81db0f7a1cae"
+
+          set +e
+          python3 -I -B ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py --self-test             > "$RUNNER_TEMP/historical-v2-refusal.log" 2>&1
+          status=$?
+          set -e
+
+          test "$status" -eq 2
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_LIVE_QUALIFICATION_V2' "$RUNNER_TEMP/historical-v2-refusal.log"
+          grep -Fx 'status=HOLD' "$RUNNER_TEMP/historical-v2-refusal.log"
+          grep -Fx 'reason=v4_parser_source_blob_mismatch' "$RUNNER_TEMP/historical-v2-refusal.log"
+          grep -Fx 'host_mutation=false' "$RUNNER_TEMP/historical-v2-refusal.log"
+          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/historical-v2-refusal.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/historical-v2-refusal.log"
+
+          echo 'VOID_BUY_VOID_USER_MANAGER_QUERY_LIVE_QUALIFICATION_V2_HISTORICAL_PRESERVED'
+          echo 'canonical_v4_generation_verified=true'
+          echo 'historical_v2_positive_rederived=false'
+          echo 'live_query_executed=false'
+          echo 'public_presale_activation=false'
+          echo 'funds_movement=false'
+
+      - name: Diff hygiene
+        run: git diff --check
