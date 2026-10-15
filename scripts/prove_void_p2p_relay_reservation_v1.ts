@@ -305,6 +305,26 @@ try {
     /no active reservation/,
   );
 
+  const clockState = new VoidRelayServerStateV1();
+  const clockTarget = keypair().nodeId;
+  const overflowTarget = keypair().nodeId;
+  clockState.reserve(clockTarget, 60_000, now);
+  const clockBefore = clockState.snapshot(now);
+  assert.throws(
+    () => clockState.reserve(
+      overflowTarget,
+      1_000,
+      Number.MAX_SAFE_INTEGER,
+    ),
+    /relay reservation expiry is invalid/,
+  );
+  assert.deepEqual(clockState.snapshot(now), clockBefore);
+  assert.throws(
+    () => clockState.sweep(Number.NaN),
+    /relay clock is invalid/,
+  );
+  assert.deepEqual(clockState.snapshot(now), clockBefore);
+
   const loopState = new VoidRelayServerStateV1();
   loopState.reserve(stateTarget, 60_000, now);
   assert.throws(
@@ -575,6 +595,7 @@ try {
   console.log("[PASS] healthy direct path supersedes relayed transport");
   console.log("[PASS] expired reservations, relay loops, and oversized frames fail closed");
   console.log("[PASS] relay reservation TTL is bounded by the local request clock");
+  console.log("[PASS] relay reservation expiry arithmetic fails closed atomically");
   console.log("[PASS] ignored relay requests expire and free pending capacity");
   console.log("[PASS] relay forwarding queue has an explicit byte ceiling");
   console.log("[PASS] incoming streams require the exact active reservation ID");
@@ -594,6 +615,8 @@ try {
   console.log("direct_path_suppressed_by_relay=false");
   console.log("relayed_peer_promoted_to_verified_direct_cache=false");
   console.log("relay_reservation_client_ttl_bounded=true");
+  console.log("relay_reservation_expiry_safe_integer_bound=true");
+  console.log("relay_invalid_clock_mutates_state=false");
   console.log("relay_pending_request_timeout_bounded=true");
   console.log("relay_forwarding_queue_bounded=true");
   console.log("incoming_reservation_id_bound=true");

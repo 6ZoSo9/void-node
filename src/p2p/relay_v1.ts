@@ -100,6 +100,13 @@ function safeInteger(raw: unknown, min: number, max: number): number | undefined
   if (raw < min || raw > max) return;
   return raw;
 }
+
+function relayClock(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) {
+    throw new Error("relay clock is invalid");
+  }
+  return raw;
+}
 function relayId(raw: unknown): string | undefined {
   return typeof raw === "string" && RELAY_ID_RE.test(raw) ? raw : undefined;
 }
@@ -338,8 +345,12 @@ export class VoidRelayServerStateV1 {
       VOID_P2P_RELAY_MAX_RESERVATION_TTL_MS_V1,
     );
     if (ttl === undefined) throw new Error("relay reservation TTL is invalid");
-    if (!Number.isSafeInteger(nowMs) || nowMs < 0) throw new Error("relay clock is invalid");
-    this.sweep(nowMs);
+    const now = relayClock(nowMs);
+    const expiresAtMs = now + ttl;
+    if (!Number.isSafeInteger(expiresAtMs)) {
+      throw new Error("relay reservation expiry is invalid");
+    }
+    this.sweep(now);
     if (!this.reservations.has(nodeIdValue) &&
         this.reservations.size >= VOID_P2P_RELAY_MAX_RESERVATIONS_V1) {
       throw new Error("relay reservation capacity reached");
@@ -348,7 +359,7 @@ export class VoidRelayServerStateV1 {
       node_id: nodeIdValue,
       reservation_id: newVoidRelayIdV1(),
       ttl_ms: ttl,
-      expires_at_ms: nowMs + ttl,
+      expires_at_ms: expiresAtMs,
     });
     this.reservations.set(nodeIdValue, record);
     return record;
@@ -468,14 +479,15 @@ export class VoidRelayServerStateV1 {
   }
 
   sweep(nowMs = Date.now()): readonly VoidRelayStreamRecordV1[] {
+    const now = relayClock(nowMs);
     for (const [nodeIdValue, reservation] of this.reservations) {
-      if (reservation.expires_at_ms <= nowMs) this.reservations.delete(nodeIdValue);
+      if (reservation.expires_at_ms <= now) this.reservations.delete(nodeIdValue);
     }
     const closed: VoidRelayStreamRecordV1[] = [];
     for (const [streamId, stream] of this.streams) {
       const targetReservation = this.reservations.get(stream.target_node_id);
       if (!targetReservation ||
-          nowMs - stream.last_activity_at_ms > VOID_P2P_RELAY_STREAM_IDLE_TIMEOUT_MS_V1) {
+          now - stream.last_activity_at_ms > VOID_P2P_RELAY_STREAM_IDLE_TIMEOUT_MS_V1) {
         closed.push(this.snapshotStream(stream));
         this.streams.delete(streamId);
       }
