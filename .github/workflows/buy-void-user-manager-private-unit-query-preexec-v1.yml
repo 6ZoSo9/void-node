@@ -71,6 +71,16 @@ jobs:
           root=/opt/void-buy-void-user-manager-query-v1
           preexec="$RUNNER_TEMP/private-unit-query-preexec"
           query="$RUNNER_TEMP/private-unit-query"
+          original_opt_mode="$(stat -Lc '%a' /opt)"
+          cleanup() {
+            sudo rm -f \
+              "$root/void_buy_void_user_manager_private_unit_query_preexec_v1" \
+              "$root/void_buy_void_user_manager_private_unit_query_v1" || true
+            sudo rmdir "$root" 2>/dev/null || true
+            sudo chmod "$original_opt_mode" /opt || true
+          }
+          trap cleanup EXIT
+          sudo chmod go-w /opt
           sudo install -d -o root -g root -m 0755 "$root"
           sudo install -o root -g root -m 0755 "$preexec" "$root/void_buy_void_user_manager_private_unit_query_preexec_v1"
           sudo install -o root -g root -m 0755 "$query" "$root/void_buy_void_user_manager_private_unit_query_v1"
@@ -128,8 +138,6 @@ jobs:
           grep -Fx 'reason=query_file_custody_invalid' "$RUNNER_TEMP/mutable-child.log"
           sudo chmod 0755 "$root/void_buy_void_user_manager_private_unit_query_v1"
 
-          sudo rm -f \
-            "$root/void_buy_void_user_manager_private_unit_query_preexec_v1" \
-            "$root/void_buy_void_user_manager_private_unit_query_v1"
-          sudo rmdir "$root"
+          cleanup
+          trap - EXIT
       - run: git diff --check
