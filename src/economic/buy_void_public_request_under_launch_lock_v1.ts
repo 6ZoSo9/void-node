@@ -336,6 +336,44 @@ function assertPrivateOpenLeafV1(
   assertRequestLeafPolicyV1(opened, journal);
   return opened;
 }
+
+function assertCustodyReadableJournalPreprovisionedV1(
+  pinnedDir: string,
+  name: "requests.jsonl" | "operator-events.jsonl",
+): void {
+  if (!VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) return;
+  const pinnedPath = path.join(pinnedDir, name);
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(
+      pinnedPath,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+    );
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      holdHistoryV1("custody_readable_journal_not_preprovisioned");
+    }
+    holdHistoryV1("custody_readable_journal_preflight_unavailable");
+  }
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    assertRequestLeafPolicyV1(opened, true);
+    const visible = fs.lstatSync(pinnedPath, { bigint: true });
+    assertRequestLeafPolicyV1(visible, true);
+    if (
+      opened.dev !== visible.dev ||
+      opened.ino !== visible.ino ||
+      opened.uid !== visible.uid ||
+      opened.gid !== visible.gid ||
+      opened.mode !== visible.mode ||
+      opened.nlink !== visible.nlink
+    ) {
+      holdHistoryV1("custody_readable_journal_preflight_rebound");
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 // An opened request sidecar must remain the visible, single-link private
 // inode that was qualified. Creation is exclusive when preflight was absent.
 // This rejects same-UID replacements instead of truncating a substitute file.
@@ -905,6 +943,18 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     if (typeof assertCurrentAuthority !== "function") {
       throw new Error("buy_void_request_launch_revalidator_missing");
     }
+    // Shared custody-readable mode is explicitly pre-provisioned. Prove both
+    // fixed journal leaves through the retained directory descriptor BEFORE
+    // invoking tolerant/external readers so ENOENT or wrong metadata cannot
+    // escape as callback-specific behavior.
+    assertCustodyReadableJournalPreprovisionedV1(
+      pinnedDir,
+      "requests.jsonl",
+    );
+    assertCustodyReadableJournalPreprovisionedV1(
+      pinnedDir,
+      "operator-events.jsonl",
+    );
     // Recheck reviewed operator/request history inside the EXISTING
     // cross-process authority lock, before any JSONL or sidecar append.
     const requestHistory = await readRequests();
