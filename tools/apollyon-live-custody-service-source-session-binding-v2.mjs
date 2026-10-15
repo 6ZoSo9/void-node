@@ -39,7 +39,7 @@ export const VOID_APOLLYON_LIVE_CUSTODY_SERVICE_SOURCE_SESSION_BINDING_AUTHORITY
     funds_movement:false,
   });
 
-const CLAIM_V2_BLOB_SHA1="722558eca8055cd3b4dd495887e849d7eeb1530c";
+const CLAIM_V2_BLOB_SHA1="b61f2f0982de47c5e11cc1f82e6ea7946ab4a8b2";
 const CUSTODY_LAUNCHER_V2_BLOB_SHA1="d23ff045d8c355401fed499c6bcffd503ba4c7fd";
 const HASH64=/^[0-9a-f]{64}$/u;
 const GIT40=/^[0-9a-f]{40}$/u;
@@ -90,7 +90,7 @@ function validateClaimContract(value){
     value.version!==2||
     value.status!=="current_v2_claim_contract_qualified_unclaimed"||
     value.target_host!=="Xiphos"||
-    value.preclaim_v2_blob_sha1!=="9db6154ba2b6c539ad6462e008024d52f7356d5c"||
+    value.preclaim_v2_blob_sha1!=="33a7f0d51d7ce1ab6e7ee48e4e205c0b639cca82"||
     value.v1_canonicalizer_blob_sha1!=="f97fafb0148527ae3a954e2752faef8c7fc9e88e"||
     !PRECLAIM_ID.test(value.preclaim_id)||
     !CLAIM_ID.test(value.claim_contract_id)||
