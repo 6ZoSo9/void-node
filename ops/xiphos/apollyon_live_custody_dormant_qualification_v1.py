@@ -683,6 +683,9 @@ def qualify()->dict:
             hold("custody_process_generation_not_renewed")
         if consumed_snapshot(ids)!=consumed_before:
             hold("consumed_state_changed")
+        attest_dormant_boundary(ids,"final")
+        if consumed_snapshot(ids)!=consumed_before:
+            hold("final_consumed_state_changed")
     except BaseException as exc:
         error=exc
     finally:
@@ -723,9 +726,6 @@ def qualify()->dict:
             final_dormant_after_failure_proven=
                 final_dormant_after_failure_proven,
         ) from error
-
-    attest_dormant_boundary(ids,"final")
-    if consumed_snapshot(ids)!=consumed_before:hold("final_consumed_state_changed")
 
     return {
         **before,"mode":"--run","cycles_completed":2,
@@ -786,9 +786,16 @@ def self_test()->None:
         'attest_dormant_boundary(ids,"emergency")',
         'attest_dormant_boundary(ids,"failure_recheck")',
         'attest_dormant_boundary(ids,"final")',
+        'final_consumed_state_changed',
         'emergency_cleanup(ids)',
     ):
         assert required in own,required
+    qualify_source=own[own.index("def qualify()->dict:"):own.index("def self_test()->None:")]
+    final_index=qualify_source.index('attest_dormant_boundary(ids,"final")')
+    except_index=qualify_source.index("except BaseException as exc:")
+    lifecycle_raise_index=qualify_source.index("raise LifecycleHold(")
+    assert final_index<except_index<lifecycle_raise_index
+    assert qualify_source.count('attest_dormant_boundary(ids,"final")')==1
 
     assert expected_live_argv({"ipc_gid":321})==[
         os.fspath(NODE_PATH),
@@ -1054,6 +1061,7 @@ def self_test()->None:
     print("alternate_runtime_config_rejected_by_exact_argv=true")
     print("failure_final_dormant_recheck_required=true")
     print("failure_preserves_original_reason=true")
+    print("final_success_attestation_failure_receipt_truthful=true")
     print("consumed_state_unchanged_required=true")
     print("consumed_state_checked_after_each_cycle=true")
     print("consumed_directory_generation_bound=true")

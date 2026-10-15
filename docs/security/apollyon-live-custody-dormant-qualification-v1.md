@@ -70,8 +70,12 @@ state, socket absence, socket-parent emptiness, custody-UID process absence, and
 training-UID process absence. `final_dormant_after_failure_proven` may become
 true only from that final recheck; completed start/stop counts alone are never
 treated as proof of the current dormant state. A failed cleanup or failed final
-recheck is never hidden behind the original qualification error. Focused
-self-tests execute the same emergency-cleanup helper with clean stop, failed
+recheck is never hidden behind the original qualification error. The final
+post-cycle dormant and consumed-state attestations execute inside the same
+lifecycle exception-accounting boundary; if either fails after completed
+cycles, the failure receipt preserves the real target start/stop counts rather
+than reporting a pre-start HOLD. Focused self-tests execute the same
+emergency-cleanup helper with clean stop, failed
 stop, unit-transition timeout and socket-transition timeout fixtures, and require
 each failure to remain visible in the cleanup receipt. Exact argv tests also
 reject alternate state-root, public-key path and key-fingerprint values.

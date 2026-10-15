@@ -98,6 +98,7 @@ for line in (
     "alternate_runtime_config_rejected_by_exact_argv=true",
     "failure_final_dormant_recheck_required=true",
     "failure_preserves_original_reason=true",
+    "final_success_attestation_failure_receipt_truthful=true",
     "consumed_state_unchanged_required=true",
     "consumed_state_checked_after_each_cycle=true",
     "consumed_directory_generation_bound=true",
@@ -129,6 +130,7 @@ print("socket_timeout_cleanup_reported=true")
 print("alternate_runtime_config_rejected_by_exact_argv=true")
 print("failure_final_dormant_recheck_required=true")
 print("failure_preserves_original_reason=true")
+print("final_success_attestation_failure_receipt_truthful=true")
 print("consumed_state_checked_after_each_cycle=true")
 print("consumed_directory_generation_bound=true")
 print("critical_directory_metadata_bound=true")
