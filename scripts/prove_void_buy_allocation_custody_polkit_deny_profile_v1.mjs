@@ -24,6 +24,12 @@ const raw=fs.readFileSync(
 );
 const expected=
   testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1("void-buy-runtime");
+assert.equal(Buffer.byteLength(expected,"utf8"),442,"canonical_rule_bytes_mismatch");
+assert.equal(
+  crypto.createHash("sha256").update(expected,"utf8").digest("hex"),
+  "43ffa6d96236b2f5bb9daedf4ddb74c9ec3a7c93eb60ebfe1b4808f01af1c8d7",
+  "canonical_rule_sha256_mismatch",
+);
 assert.equal(raw,expected,"rule_bytes_mismatch");
 new vm.Script(raw,{
   filename:"00-void-buy-allocation-custody-runtime-deny-v1.rules",
