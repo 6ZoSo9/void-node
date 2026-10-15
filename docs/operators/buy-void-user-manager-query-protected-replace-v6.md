@@ -29,7 +29,7 @@ The installed V2 identity is historical host evidence from lock
 
 Accepted lock:
 
-`voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6`.
+`voidbuyumqelflock6_cede427c177e309cf23364b9092f3cbba63be405ad6458cc0c8ef93bc09abd77`.
 
 V6 query:
 
@@ -38,6 +38,10 @@ V6 query:
   `e791944bfa025a510d3693093668d71a9d122de8c581a924a1b45b4331ab43a6`;
 - source Git blob
   `fc1f640689b7da7278ff013669ef8a10cd8f6659`.
+
+The corrected V6 lock records V5 as superseded by the V6 **candidate generation**
+only. It explicitly records `superseded_by_live_v6=false`; no protected V6
+installation or protected live V6 qualification is claimed by the lock.
 
 The static preexec is not replaced.
 
