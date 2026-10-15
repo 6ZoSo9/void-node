@@ -34,9 +34,12 @@ reviewed command shape:
 - linker build ID disabled;
 - exact `/usr/bin/cc` and `/usr/bin/strip` identities recorded.
 
-Each job runs both source proofs, executes the stripped credential-query
-self-test in a closed environment, and installs the stripped pair into the
-disposable fixed protected tree:
+Each job pins both accepted parent source-proof Git objects byte-for-byte but
+does not rerun their exact-parent branch-scope or predecessor-lock assertions on
+this successor generation. Current successor behavior is instead independently
+compiled and exercised here: the stripped credential-query self-test runs in a
+closed environment, and the stripped pair is installed into the disposable
+fixed protected tree:
 
 `/opt/void-buy-void-user-manager-credential-query-v1`.
 
