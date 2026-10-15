@@ -13,7 +13,7 @@ merged #3200.
 
 It is stacked on the #3204 proof-completeness generation:
 
-`234db8c379e8564f6617b4139085fdce6f2cd56a`
+`a1a4a1b8e7f508dbd13628d28c32514a1632041a`
 
 The candidate binds the unchanged privileged implementation plus the repaired
 proof generation. It does not reuse #3200's weak `cc_sha256 + strip_sha256`
