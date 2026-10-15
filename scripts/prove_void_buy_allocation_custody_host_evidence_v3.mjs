@@ -138,13 +138,17 @@ const nativeSource=fs.readFileSync(
   "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c",
   "utf8",
 );
+const parentGuardSource=fs.readFileSync(
+  "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c",
+  "utf8",
+);
+assert.ok(parentGuardSource.includes("SO_PEERCRED"),"SO_PEERCRED");
+assert.ok(parentGuardSource.includes("/systemd/private"),"/systemd/private");
 for(const needle of [
   "sd_bus_set_fd",
   "sd_bus_set_bus_client",
   "sd_bus_start",
   "sd_bus_get_fd",
-  "SO_PEERCRED",
-  "/systemd/private",
   "same_private_fd_used_for_query=true",
   "org.freedesktop.systemd1.Manager",
   "GetUnit",
