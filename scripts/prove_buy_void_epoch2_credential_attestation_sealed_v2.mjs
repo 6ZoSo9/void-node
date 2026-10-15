@@ -480,6 +480,37 @@ assert.match(
   sealedSource,
   /credential_generation_revalidated_after_final_observation: true/u,
 );
+assert.match(
+  sealedSource,
+  /credential_generation_revalidated_immediately_before_close: true/u,
+);
+const finalObservationAt = sealedSource.indexOf(
+  "const after = observeLiveSystemd();",
+);
+const finalBodyRevalidationAt = sealedSource.indexOf(
+  "credentialGeneration.revalidate();",
+  finalObservationAt,
+);
+const closingCatchAt = sealedSource.indexOf(
+  "} catch (error) {",
+  finalBodyRevalidationAt,
+);
+const closingRevalidationAt = sealedSource.indexOf(
+  "credentialGeneration.revalidate();",
+  closingCatchAt,
+);
+const credentialCloseAt = sealedSource.indexOf(
+  "credentialGeneration.close();",
+  closingRevalidationAt,
+);
+assert.ok(
+  finalObservationAt > 0 &&
+  finalBodyRevalidationAt > finalObservationAt &&
+  closingCatchAt > finalBodyRevalidationAt &&
+  closingRevalidationAt > closingCatchAt &&
+  credentialCloseAt > closingRevalidationAt,
+  "closing credential generation revalidation must occur after final observation and immediately before descriptor close",
+);
 
 // Independent crypto vectors: the sealed probe does not rely on ethers or tsx.
 assert.equal(
@@ -692,6 +723,7 @@ console.log("rpc_call=false");
 console.log("transaction_broadcast=false");
 console.log("privileged_first_entry_authenticated=false");
 console.log("credential_generation_retained_through_signing=true");
+console.log("credential_generation_closing_revalidation_required=true");
 console.log("same_shape_credential_replacement_rejected=true");
 console.log("credential_metadata_drift_rejected=true");
 console.log("credential_directory_replacement_rejected=true");
