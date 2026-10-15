@@ -9,8 +9,13 @@ import {
   canonicalJson,
   sha256,
 } from "../tools/datanet-content-commitment-compiler-profile-v1.mjs";
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "../tools/datanet-content-commitment-production-registry-identity-v1.mjs";
 
-const registry="0x1111111111111111111111111111111111111111";
+const registry=
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1;
+const wrongRegistry="0x3333333333333333333333333333333333333333";
 const publisher="0x2222222222222222222222222222222222222222";
 const txHash="0x"+"5".repeat(64);
 const blockHash="0x"+"6".repeat(64);
@@ -188,6 +193,21 @@ function admission(){
     },
   };
 }
+function recomputeAdmissionId(a){
+  const keys=[
+    "marker","version","status","chain_id","finality_verification_id",
+    "receipt_verification_fingerprint_sha256","checkpoint_attestation_id",
+    "signing_request_id","signed_transaction_hash",
+    "unsigned_transaction_candidate_fingerprint_sha256",
+    "registry_address","publisher_address","commitment","finalized_receipt",
+    "verification","authority","next_gate",
+  ];
+  const material={};
+  for(const key of keys)material[key]=a[key];
+  a.finalized_receipt_admission_id=
+    "voiddccfra1_"+sha256(canonicalJson(material));
+}
+
 function bind(a=admission(),r=receiptInput()){
   return bindDatanetContentCommitmentFinalizedEventMembershipV1({
     finalized_admission:a,
@@ -241,6 +261,29 @@ assert.equal(
   VOID_DATANET_CONTENT_COMMITMENT_FINALIZED_EVENT_MEMBERSHIP_AUTHORITY_V1.canonical_commitment_truth_admitted,
   false,
 );
+assert.equal(
+  VOID_DATANET_CONTENT_COMMITMENT_FINALIZED_EVENT_MEMBERSHIP_AUTHORITY_V1.production_registry_identity_bound,
+  true,
+);
+
+{
+  const a=admission();
+  const r=receiptInput();
+  a.registry_address=wrongRegistry;
+  recomputeAdmissionId(a);
+  r.registry_address=wrongRegistry;
+  for(const key of ["receipt_before","receipt_after"]){
+    r[key].logs[0].address=wrongRegistry;
+  }
+  const out=bind(a,r);
+  assert.equal(out.ok,false);
+  assert.equal(
+    out.reason,
+    "datanet_finalized_event_membership_admission_invalid",
+  );
+  assert.equal(out.event_receipt_membership_verified,false);
+  assert.equal(out.canonical_commitment_truth_admitted,false);
+}
 
 expectHeld(
   "datanet_finalized_event_membership_admission_id_mismatch",
@@ -337,6 +380,8 @@ console.log("VOID_DATANET_CONTENT_COMMITMENT_FINALIZED_EVENT_MEMBERSHIP_V1_PROOF
 console.log("finalized_receipt_admission_id_rederived=true");
 console.log("commitment_receipt_verifier_invoked=true");
 console.log("exact_transaction_hash_bound=true");
+console.log("production_registry_identity_bound=true");
+console.log("alternate_registry_admission_rejected=true");
 console.log("exact_registry_bound=true");
 console.log("exact_finalized_block_bound=true");
 console.log("exact_object_digest_bound=true");
