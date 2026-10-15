@@ -9,10 +9,10 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const BINDER=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs";
-const BINDER_BLOB="e81dd50afe348dd90950b9efe9cde77025c149a9";
+const BINDER_BLOB="2686acdfbed5b3e2c929c896f032b01b94c89cef";
 const OPERATOR_DOC=
   "docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v1.md";
-const OPERATOR_DOC_BLOB="011196a3f594eed808098522d8655d32d1c967cf";
+const OPERATOR_DOC_BLOB="916bfc05303c822f1032f315f7a2d2a02501a819";
 const CHILD=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs";
 const CHILD_BLOB="28d718eb4155e47dbe8d476a4cf45f2d3871e4db";
@@ -53,7 +53,7 @@ for(const required of [
   "branch --show-current",
   "status --porcelain=v1 --untracked-files=all",
   "binder_blob=",
-  "e81dd50afe348dd90950b9efe9cde77025c149a9",
+  "2686acdfbed5b3e2c929c896f032b01b94c89cef",
   "cat-file blob",
 ]){
   assert.ok(operatorDoc.includes(required),"operator_launcher_contract:"+required);
@@ -71,6 +71,7 @@ for(const required of [
   'const candidate=loadCandidate(expectedHead);',
   'systemd_credential_identity_proven:true',
   'active_signing_capability_proven:true',
+  'authenticated_credential_live_receipt:child',
   'signer_offchain_control_proven:false',
   'transaction_signing_proven:false',
   'customer_safe_to_pay:false',
@@ -113,6 +114,7 @@ for(const line of [
   "exact_child_live_composition_required=true",
   "systemd_credential_identity_proven_on_bound_receipt=true",
   "active_signing_capability_proven_on_bound_receipt=true",
+  "full_public_child_receipt_retained=true",
   "launch_operator_signer_control_still_required=true",
   "customer_safe_to_pay=false",
   "transaction=false",
