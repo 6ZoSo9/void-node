@@ -84,11 +84,11 @@ def load_manifest()->dict:
         hold("manifest_invalid")
     if (
         value.get("old_service_blob_sha1")!=OLD_SERVICE_BLOB or
-        value.get("accepted_predecessor_service_blobs")!={{
+        value.get("accepted_predecessor_service_blobs")!={
             "base":OLD_SERVICE_BLOB,
             "env4":ENV4_SERVICE_BLOB,
             "lifecycle":LIFECYCLE_SERVICE_BLOB,
-        }} or
+        } or
         value.get("new_service_blob_sha1")!=NEW_SERVICE_BLOB or
         value.get("target_blob_sha1")!=TARGET_BLOB or
         value.get("cleanup_blob_sha1")!=HELPER_BLOB or
