@@ -1,0 +1,189 @@
+name: Buy VOID Epoch-2 live composition native candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v1.yml"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: [a, b, c]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact accepted source generation
+        run: |
+          set -euo pipefail
+          parent=cf8c4a679ebaa02f2dd7f103b4720a5ec6aabfcc
+          git merge-base --is-ancestor "$parent" HEAD
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs)" =             "8241a7172284381295b70bd55f5af3328b03605a"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c)" =             "525dbf7c6ac36ee24bac75c009c03856feab0fdc"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs)" =             "4928b24eb83be6712c7711cd76caf7b0b5ba98b5"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml)" =             "e83d99ed041514e198264630050bec5ee48c2cbd"
+          test "$(git rev-parse HEAD:scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs)" =             "14cbe81e27d04fee77cbe75225ce308bf8561a7b"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - name: Re-run source trust proof
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs |
+            tee "$RUNNER_TEMP/source-proof.log"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1_PROOF_GREEN' "$RUNNER_TEMP/source-proof.log"
+          grep -Fx 'native_preentry_static=true' "$RUNNER_TEMP/source-proof.log"
+          grep -Fx 'native_preentry_no_pt_interp=true' "$RUNNER_TEMP/source-proof.log"
+          grep -Fx 'native_preentry_ld_preload_blocked_before_main=true' "$RUNNER_TEMP/source-proof.log"
+
+      - name: Derive deterministic static native + runner candidate
+        run: |
+          set -euo pipefail
+          native_src=ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c
+          runner_src=ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs
+          native="$RUNNER_TEMP/epoch2-live-composition-native-preentry-v1"
+          runner="$RUNNER_TEMP/epoch2-live-composition-runner-v2.mjs"
+          meta="$RUNNER_TEMP/epoch2-live-composition-native-candidate-v1.json"
+
+          SOURCE_DATE_EPOCH=0 /usr/bin/cc             -std=c11 -Wall -Wextra -Werror -O2 -fno-ident             -static -fno-pie -no-pie -Wl,--build-id=none             -o "$native" "$native_src"
+          /usr/bin/strip --strip-all "$native"
+          cp -- "$runner_src" "$runner"
+          chmod 0555 "$native"
+          chmod 0444 "$runner"
+
+          file "$native" | grep -F 'statically linked'
+          readelf -l "$native" > "$RUNNER_TEMP/native.readelf"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/native.readelf"; then
+            echo native_preentry_has_dynamic_interpreter >&2
+            exit 1
+          fi
+
+          "$native" --self-test | tee "$RUNNER_TEMP/native-self-test.log"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1_SELF_TEST_GREEN'             "$RUNNER_TEMP/native-self-test.log"
+          grep -Fx 'node_sha256_policy_bound=true' "$RUNNER_TEMP/native-self-test.log"
+
+          node --input-type=module "$runner" --self-test |
+            tee "$RUNNER_TEMP/runner-self-test.log"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V2_SELF_TEST_GREEN'             "$RUNNER_TEMP/runner-self-test.log"
+          node --input-type=module "$runner" --plan |
+            tee "$RUNNER_TEMP/runner-plan.log"
+          grep -Fx 'native_preentry_required_for_live=true' "$RUNNER_TEMP/runner-plan.log"
+          grep -Fx 'stdin_javascript_source_forbidden=true' "$RUNNER_TEMP/runner-plan.log"
+
+          native_sha="$(sha256sum "$native" | awk '{print $1}')"
+          native_bytes="$(stat -Lc '%s' "$native")"
+          runner_sha="$(sha256sum "$runner" | awk '{print $1}')"
+          runner_bytes="$(stat -Lc '%s' "$runner")"
+          cc_sha="$(sha256sum /usr/bin/cc | awk '{print $1}')"
+          strip_sha="$(sha256sum /usr/bin/strip | awk '{print $1}')"
+
+          META="$meta"           NATIVE_SHA="$native_sha" NATIVE_BYTES="$native_bytes"           RUNNER_SHA="$runner_sha" RUNNER_BYTES="$runner_bytes"           CC_SHA="$cc_sha" STRIP_SHA="$strip_sha"           node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const out={
+            marker:"VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_V1",
+            version:1,
+            source_parent:"cf8c4a679ebaa02f2dd7f103b4720a5ec6aabfcc",
+            native_source_git_blob_sha1:"525dbf7c6ac36ee24bac75c009c03856feab0fdc",
+            runner_source_git_blob_sha1:"8241a7172284381295b70bd55f5af3328b03605a",
+            source_proof_git_blob_sha1:"4928b24eb83be6712c7711cd76caf7b0b5ba98b5",
+            source_workflow_git_blob_sha1:"e83d99ed041514e198264630050bec5ee48c2cbd",
+            sealed_v2_git_blob_sha1:"14cbe81e27d04fee77cbe75225ce308bf8561a7b",
+            native_binary_sha256:process.env.NATIVE_SHA,
+            native_binary_bytes:Number(process.env.NATIVE_BYTES),
+            native_static_no_interp:true,
+            runner_sha256:process.env.RUNNER_SHA,
+            runner_bytes:Number(process.env.RUNNER_BYTES),
+            runner_install_mode:"0444",
+            cc_sha256:process.env.CC_SHA,
+            strip_sha256:process.env.STRIP_SHA,
+            policy_expected_head_host_bound_later:true,
+            policy_node_identity_host_bound_later:true,
+            policy_runner_identity_must_equal_candidate:true,
+            candidate_accepted:false,
+            install_authorized:false,
+            live_execution_authorized:false,
+            credential_access:false,
+            private_key_access:false,
+            transaction:false,
+            payment_acceptance:false,
+            public_presale_activation:false,
+            wc_void_market_activation:false,
+            funds_movement:false
+          };
+          fs.writeFileSync(process.env.META,JSON.stringify(out)+"\n");
+          NODE
+
+          echo "native_binary_sha256=$native_sha"
+          echo "native_binary_bytes=$native_bytes"
+          echo "runner_sha256=$runner_sha"
+          echo "runner_bytes=$runner_bytes"
+          echo "native_static_no_interp=true"
+          echo "policy_expected_head_host_bound_later=true"
+          echo "policy_node_identity_host_bound_later=true"
+          echo "candidate_accepted=false"
+          echo "install_authorized=false"
+          echo "live_execution_authorized=false"
+          echo "funds_movement=false"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-live-composition-native-candidate-v1-${{ github.event.pull_request.head.sha || github.sha }}-${{ matrix.slot }}
+          path: |
+            ${{ runner.temp }}/epoch2-live-composition-native-preentry-v1
+            ${{ runner.temp }}/epoch2-live-composition-runner-v2.mjs
+            ${{ runner.temp }}/epoch2-live-composition-native-candidate-v1.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-job:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-epoch2-live-composition-native-candidate-v1-${{ github.event.pull_request.head.sha || github.sha }}-*
+          path: candidates
+
+      - name: Require exact three-job equality
+        run: |
+          set -euo pipefail
+          stem="void-buy-epoch2-live-composition-native-candidate-v1-${{ github.event.pull_request.head.sha || github.sha }}"
+          for slot in a b c; do
+            test -s "candidates/$stem-$slot/epoch2-live-composition-native-preentry-v1"
+            test -s "candidates/$stem-$slot/epoch2-live-composition-runner-v2.mjs"
+            test -s "candidates/$stem-$slot/epoch2-live-composition-native-candidate-v1.json"
+          done
+          for slot in b c; do
+            cmp "candidates/$stem-a/epoch2-live-composition-native-preentry-v1"                 "candidates/$stem-$slot/epoch2-live-composition-native-preentry-v1"
+            cmp "candidates/$stem-a/epoch2-live-composition-runner-v2.mjs"                 "candidates/$stem-$slot/epoch2-live-composition-runner-v2.mjs"
+            cmp "candidates/$stem-a/epoch2-live-composition-native-candidate-v1.json"                 "candidates/$stem-$slot/epoch2-live-composition-native-candidate-v1.json"
+          done
+          sha256sum "candidates/$stem-a/epoch2-live-composition-native-preentry-v1"
+          sha256sum "candidates/$stem-a/epoch2-live-composition-runner-v2.mjs"
+          cat "candidates/$stem-a/epoch2-live-composition-native-candidate-v1.json"
+          grep -F '"native_static_no_interp":true'             "candidates/$stem-a/epoch2-live-composition-native-candidate-v1.json"
+          grep -F '"candidate_accepted":false'             "candidates/$stem-a/epoch2-live-composition-native-candidate-v1.json"
+          grep -F '"install_authorized":false'             "candidates/$stem-a/epoch2-live-composition-native-candidate-v1.json"
+          grep -F '"live_execution_authorized":false'             "candidates/$stem-a/epoch2-live-composition-native-candidate-v1.json"
+          grep -F '"funds_movement":false'             "candidates/$stem-a/epoch2-live-composition-native-candidate-v1.json"
+          echo VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_V1_CROSS_JOB_GREEN
