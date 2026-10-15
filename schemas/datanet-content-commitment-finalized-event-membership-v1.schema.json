@@ -29,7 +29,7 @@
     "finality_verification_id":{"type":"string","pattern":"^voiddccrfv1_[0-9a-f]{64}$"},
     "checkpoint_attestation_id":{"type":"string","pattern":"^voiddccfca1_[0-9a-f]{64}$"},
     "signed_transaction_hash":{"type":"string","pattern":"^0x[0-9a-f]{64}$"},
-    "registry_address":{"type":"string","pattern":"^0x[0-9a-f]{40}$"},
+    "registry_address":{"const":"0xe60b15ed8df7c4ec5334067ead18c924744c2681"},
     "publisher_address":{"type":"string","pattern":"^0x[0-9a-f]{40}$"},
     "object_id":{"type":"string","minLength":1,"maxLength":160},
     "commitment":{
