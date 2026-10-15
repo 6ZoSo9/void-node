@@ -674,7 +674,37 @@ for (const marker of [
 if (commandFilterBlock.includes("toLocaleLowerCase")) {
   fail("command search normalization must not depend on the host locale");
 }
-const normalizeCommandQueryMatch = commandFilterBlock.match(
+const normalizeCommandQueryMarker = "function normalizeCommandQuery(value) {";
+const normalizeCommandQueryStart = appJs.indexOf(normalizeCommandQueryMarker);
+const normalizeCommandQuerySecond = appJs.indexOf(
+  normalizeCommandQueryMarker,
+  normalizeCommandQueryStart + normalizeCommandQueryMarker.length
+);
+if (
+  normalizeCommandQueryStart < 0 ||
+  normalizeCommandQueryStart >= commandFilterStart ||
+  normalizeCommandQuerySecond >= 0
+) {
+  fail("command search normalization helper boundary is invalid");
+}
+const normalizeCommandQueryEnd = appJs.indexOf(
+  "\n}",
+  normalizeCommandQueryStart
+);
+if (
+  normalizeCommandQueryEnd < 0 ||
+  normalizeCommandQueryEnd >= commandFilterStart
+) {
+  fail("command search normalization helper boundary is invalid");
+}
+const normalizeCommandQueryBlock = appJs.slice(
+  normalizeCommandQueryStart,
+  normalizeCommandQueryEnd + 2
+);
+if (normalizeCommandQueryBlock.includes("toLocaleLowerCase")) {
+  fail("command search normalization helper must not depend on the host locale");
+}
+const normalizeCommandQueryMatch = normalizeCommandQueryBlock.match(
   /function normalizeCommandQuery\(value\) \{\n([\s\S]*?)\n\}/
 );
 if (!normalizeCommandQueryMatch) {
@@ -684,6 +714,7 @@ const normalizeCommandQuery = new Function(
   "value",
   normalizeCommandQueryMatch[1]
 ) as (value: string) => string;
+
 for (const [input, expected] of [
   [" VOID ", "void"],
   ["I", "i"],
