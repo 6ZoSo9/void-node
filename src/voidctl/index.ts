@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import { packFile } from "../datanet/pack.js";
+import { MAX_PACK_CHUNK_BYTES, packFile } from "../datanet/pack.js";
 
 function die(msg: string): never {
   console.error(msg);
@@ -27,7 +27,15 @@ async function main() {
 
   const out = arg("--out") || path.resolve("datanet_out");
   const chunkBytes = Number(arg("--chunk-bytes") || (1024 * 1024));
-  if (!Number.isInteger(chunkBytes) || chunkBytes <= 0) die("[ERR] invalid --chunk-bytes");
+  if (
+    !Number.isSafeInteger(chunkBytes) ||
+    chunkBytes <= 0 ||
+    chunkBytes > MAX_PACK_CHUNK_BYTES
+  ) {
+    die(
+      `[ERR] invalid --chunk-bytes: expected a positive safe integer <= ${MAX_PACK_CHUNK_BYTES}`,
+    );
+  }
 
   const man = packFile(infile, { chunkBytes, outDir: out });
   console.log(`[ok] packed -> ${out}`);
