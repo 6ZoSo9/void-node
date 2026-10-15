@@ -171,10 +171,12 @@ metadata are never created, chowned or chmodded by this proof.
 The proof never normalizes or rewrites the host's real `/opt` or `/home`.
 The outer unprivileged process asks fixed `/usr/bin/mktemp` through
 passwordless sudo to create the disposable bootstrap root as root from the
-start, then uses fixed `/usr/bin/install` through sudo to place the selected
+start, then changes only that disposable root to exact mode 0755 so the later
+unprivileged child can traverse it. The root remains root-owned and
+non-group/world-writable. Fixed `/usr/bin/install` then places the selected
 harness Node there as a root-owned, non-group/world-writable executable. The
-delegated child independently revalidates both bootstrap-root and harness
-custody. The root is removed with fixed `/usr/bin/rm` on every later
+delegated child independently revalidates exact bootstrap mode 0755 plus both
+bootstrap-root and harness custody. The root is removed with fixed `/usr/bin/rm` on every later
 success/failure path. This prevents a same-UID process from replacing the
 bootstrap backing generation while the privileged fixture is assembled.
 
