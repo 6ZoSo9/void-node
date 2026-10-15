@@ -166,7 +166,7 @@ function input(census,{
 
 assert.equal(
   PARENT.accepted_source_head,
-  "7f2f2af3e48747a40f215f86cd3646a3f6557779",
+  "a8e3b930a98eeef0f19f3df94822c2c104bfdde8",
 );
 
 const cleanEvidence=evidence();
