@@ -10,6 +10,7 @@ export const VOID_CLOUDFLARE_ORIGIN_LOOPBACK_ISOLATION_POLICY_AUTHORITY_V1 =
     source_contract: true,
     dedicated_system_cloudflared_identity_required: true,
     historical_user_tunnel_retirement_required: true,
+    tunnel_private_file_custody_required: true,
     exact_sensitive_tunnel_routes_required: true,
     ordinary_tunnel_routes_preserved_required: true,
     cloudflare_control_plane_evidence_required: true,
@@ -22,6 +23,8 @@ export const VOID_CLOUDFLARE_ORIGIN_LOOPBACK_ISOLATION_POLICY_AUTHORITY_V1 =
     live_host_evidence_verified: false,
     cloudflared_process_live_verified: false,
     historical_user_tunnel_retired_verified: false,
+    tunnel_private_file_custody_verified: false,
+    credential_content_access: false,
     tunnel_path_ownership_verified: false,
     cloudflare_worker_route_absence_proven: false,
     pseudo_ipv4_mode_off_proven: false,
@@ -284,6 +287,7 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
         "ordinary_routes_preserved",
         "worker_route_absence_required",
         "pseudo_ipv4_mode_off_required",
+        "private_file_custody",
       ],
       "cloudflare_isolation_cloudflared_shape_invalid",
     );
@@ -298,6 +302,33 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
     ) {
       fail("cloudflare_isolation_cloudflared_route_policy_invalid");
     }
+    const custody = exactKeys(
+      cloudflared.private_file_custody,
+      [
+        "config_owner_uid",
+        "credentials_owner_uid",
+        "config_group_other_bits_zero",
+        "credentials_group_other_bits_zero",
+        "config_nlink_one",
+        "credentials_nlink_one",
+        "config_outside_repository",
+        "credentials_outside_repository",
+      ],
+      "cloudflare_isolation_private_file_custody_shape_invalid",
+    );
+    if (
+      custody.config_owner_uid !== cloudflaredBase.effective_uid ||
+      custody.credentials_owner_uid !== cloudflaredBase.effective_uid ||
+      custody.config_group_other_bits_zero !== true ||
+      custody.credentials_group_other_bits_zero !== true ||
+      custody.config_nlink_one !== true ||
+      custody.credentials_nlink_one !== true ||
+      custody.config_outside_repository !== true ||
+      custody.credentials_outside_repository !== true
+    ) {
+      fail("cloudflare_isolation_private_file_custody_invalid");
+    }
+
     const adapterPort = integer(
       cloudflared.sensitive_origin_port,
       1024,
@@ -505,6 +536,7 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
       policy_shape_qualified: true,
       dedicated_system_cloudflared_identity_required: true,
       historical_user_tunnel_retirement_required: true,
+      tunnel_private_file_custody_policy_shape_qualified: true,
       exact_sensitive_tunnel_routes_qualified: true,
       ordinary_tunnel_routes_preserved_required: true,
       cloudflare_control_plane_evidence_required: true,
@@ -529,6 +561,8 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
       live_host_evidence_verified: false,
       cloudflared_process_live_verified: false,
       historical_user_tunnel_retired_verified: false,
+      tunnel_private_file_custody_verified: false,
+      credential_content_access: false,
       tunnel_path_ownership_verified: false,
       cloudflare_worker_route_absence_proven: false,
       pseudo_ipv4_mode_off_proven: false,
