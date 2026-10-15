@@ -255,13 +255,21 @@ for(const required of [
 ]){
   assert.ok(source.includes(required),required);
 }
+assert.ok(
+  source.includes("wallet_or_signer_access: false"),
+  "wallet_or_signer_false_authority_required",
+);
 for(const forbidden of [
   "Date.now(",
   "process.hrtime",
   "exec(",
   "execSync(",
   "systemctl",
-  "wallet",
+  "wallet.",
+  "wallet(",
+  "wallet[",
+  "signer.",
+  "signer(",
   "privateKey",
   "eth_send",
 ]){
