@@ -15,7 +15,7 @@ const V2_CANDIDATE_BLOB="57026c4d8ca6cc9a40a3fa61f8cf4ee2c9df47be";
 const V2_LOCK="ops/security/buy-void-user-manager-query-elf-lock-v2.json";
 const V2_LOCK_BLOB="347951dbaa2d9bb5c31c8b718d9965ab3fdf7301";
 const V2_PROOF="scripts/prove_void_buy_user_manager_query_elf_lock_v2.mjs";
-const V2_PROOF_BLOB="8f0c27e7784e6dc188c35f9efeed04f44b5eaa59";
+const V2_PROOF_BLOB="d5d02261d15f00c05b8f3d0ab2e16c8febaf6cf4";
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
