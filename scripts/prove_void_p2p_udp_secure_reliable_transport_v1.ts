@@ -259,6 +259,30 @@ async function main(): Promise<void> {
     remoteOffer: verifiedB,
   }));
 
+  const failAtomicSender = new VoidUdpSecureReliableSenderV1(keysA);
+  const failAtomicReceiver = new VoidUdpSecureReliableReceiverV1(keysB);
+  assert.throws(() =>
+    failAtomicSender.createData(Buffer.from("rejected-header"), Number.NaN, 0),
+  );
+  assert.equal(failAtomicSender.pendingCount(), 0);
+  const firstAccepted = failAtomicSender.createData(
+    Buffer.from("first-accepted"),
+    -1,
+    0,
+  );
+  assert.equal(firstAccepted.packet_no, 0);
+  assert.equal(firstAccepted.data_seq, 0);
+  assert.throws(() => failAtomicSender.createAck(Number.NaN));
+  const firstAck = failAtomicSender.createAck(-1);
+  assert.equal(firstAck.packet_no, 1);
+  assert.throws(() => failAtomicSender.retransmitDue(0, Number.NaN));
+  assert.equal(failAtomicSender.pendingCount(), 1);
+  assert.deepEqual(
+    failAtomicReceiver.receive(firstAccepted).delivered.map((b) => b.toString()),
+    ["first-accepted"],
+  );
+  assert.equal(failAtomicSender.acknowledge(0), 1);
+
   const senderA = new VoidUdpSecureReliableSenderV1(keysA);
   const receiverB = new VoidUdpSecureReliableReceiverV1(keysB);
 
@@ -420,6 +444,8 @@ async function main(): Promise<void> {
   console.log("out_of_order_delivery_reordered_correctly=true");
   console.log("dropped_packet_retransmission_recovered=true");
   console.log("encrypted_ack_supported=true");
+  console.log("invalid_send_header_failure_atomic=true");
+  console.log("invalid_retransmit_clock_failure_atomic=true");
   console.log("send_window_bounded=true");
   console.log("receive_window_bounded=true");
   console.log("retransmission_retry_limit_bounded=true");
