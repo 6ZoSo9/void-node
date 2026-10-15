@@ -30,7 +30,7 @@ jobs:
       - name: Preserve accepted V4 lock on exact V5 successor
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "ddca2c544ce14261dffb80a202c0a4ae2979ec1e"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "fc1f640689b7da7278ff013669ef8a10cd8f6659"
           test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v4.json)" = "988542122028843b2848063dbbaf7a94c32d6cd4"
           test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_user_manager_query_elf_lock_v4.mjs)" = "e86a1c27186d47e05b1c6292475f71c5d591a44e"
@@ -48,7 +48,7 @@ jobs:
           assert.equal(l.funds_movement,false);
           NODE
           echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V4_HISTORICAL_PRESERVED
-          echo v5_query_source_exact=true
+          echo v6_query_source_exact=true
           echo install_authorized=false
           echo live_query_authorized=false
           echo funds_movement=false

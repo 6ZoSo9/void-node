@@ -11,6 +11,7 @@
 #define NODE_EXE "/usr/bin/node"
 #define LIBSYSTEMD_SONAME "/usr/lib/x86_64-linux-gnu/libsystemd.so.0"
 #define SANITIZED_ENV_MARKER "VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1"
+#define KERNEL_CAP_LAST_CAP_PATH "/proc/sys/kernel/cap_last_cap"
 
 static void query_die(const char *code) { fprintf(stderr, "%s_HOLD\nreason=%s\n", MARKER, code); exit(2); }
 
@@ -215,6 +216,33 @@ static int copy_string(char *dst, size_t cap, const char *src) {
   return 0;
 }
 
+static int capability_mask_for_last_cap(unsigned last_cap, uint64_t *out) {
+  if (!out || last_cap > 63U) return -1;
+  *out = last_cap == 63U
+    ? UINT64_MAX
+    : ((UINT64_C(1) << (last_cap + 1U)) - UINT64_C(1));
+  return 0;
+}
+
+static int kernel_supported_capability_mask(uint64_t *out_mask,
+                                            unsigned *out_last_cap) {
+  if (!out_mask || !out_last_cap) return -1;
+  unsigned char raw[64];
+  size_t len = 0;
+  if (read_bounded(KERNEL_CAP_LAST_CAP_PATH, raw, sizeof(raw) - 1, &len) != 0 ||
+      len == 0) return -1;
+  while (len > 0 && (raw[len - 1] == '\n' || raw[len - 1] == '\r')) --len;
+  if (len == 0 || len >= sizeof(raw)) return -1;
+  raw[len] = '\0';
+  unsigned long long parsed = 0;
+  if (parse_uint((const char *)raw, &parsed) != 0 || parsed > 63ULL) return -1;
+  uint64_t mask = 0;
+  if (capability_mask_for_last_cap((unsigned)parsed, &mask) != 0) return -1;
+  *out_mask = mask;
+  *out_last_cap = (unsigned)parsed;
+  return 0;
+}
+
 struct unit_observation {
   char load_state[32];
   char active_state[32];
@@ -339,7 +367,10 @@ static int same_process_security(const struct process_security *a,
 }
 
 static int unit_security_policy_ok(const struct unit_observation *obs,
-                                   const struct process_security *security) {
+                                   const struct process_security *security,
+                                   uint64_t supported_capability_mask) {
+  const uint64_t configured_supported_bounding_set =
+    obs->capability_bounding_set & supported_capability_mask;
   return obs->no_new_privileges == 1 &&
          obs->private_users == 0 &&
          obs->ambient_capabilities == 0 &&
@@ -348,7 +379,7 @@ static int unit_security_policy_ok(const struct unit_observation *obs,
          security->cap_prm == 0 &&
          security->cap_eff == 0 &&
          security->cap_amb == 0 &&
-         security->cap_bnd == obs->capability_bounding_set;
+         security->cap_bnd == configured_supported_bounding_set;
 }
 
 static int get_string_prop(struct sd_api *api, sd_bus *bus, const char *object,
@@ -402,7 +433,9 @@ static int validate_unit_observation(uid_t uid, const char *unit,
                                      const struct proc_identity *manager,
                                      const struct unit_observation *obs,
                                      struct proc_identity *service,
-                                     struct process_security *security) {
+                                     struct process_security *security,
+                                     uint64_t *configured_supported_bounding_set,
+                                     unsigned *kernel_cap_last_cap) {
   if (strcmp(obs->load_state,"loaded") || strcmp(obs->active_state,"active") || strcmp(obs->sub_state,"running")) return -1;
   if (obs->user[0] != '\0' || obs->group[0] != '\0') return -1;
   if (obs->main_pid <= 1) return -1;
@@ -418,8 +451,16 @@ static int validate_unit_observation(uid_t uid, const char *unit,
   uid_t observed_uid = 0;
   gid_t observed_gid = 0;
   if (parse_status_ids((pid_t)obs->main_pid,uid,&observed_uid,&observed_gid) != 0 || observed_gid != manager->gid) return -1;
+  uint64_t supported_capability_mask = 0;
+  unsigned last_cap = 0;
+  if (kernel_supported_capability_mask(&supported_capability_mask,&last_cap) != 0)
+    return -1;
   if (read_proc_security((pid_t)obs->main_pid,security) != 0 ||
-      !unit_security_policy_ok(obs,security)) return -1;
+      !unit_security_policy_ok(obs,security,supported_capability_mask)) return -1;
+  if (configured_supported_bounding_set)
+    *configured_supported_bounding_set =
+      obs->capability_bounding_set & supported_capability_mask;
+  if (kernel_cap_last_cap) *kernel_cap_last_cap = last_cap;
   if (exact_service_cgroup((pid_t)obs->main_pid,uid,unit) != 0) return -1;
   if (exact_executable_path((pid_t)obs->main_pid,NODE_EXE) != 0) return -1;
   service->pid=(pid_t)obs->main_pid;
@@ -474,7 +515,11 @@ static int live_query(uid_t uid, const char *unit) {
   }
   struct proc_identity service;
   struct process_security security;
-  if (validate_unit_observation(uid,unit,&manager,&obs,&service,&security) != 0) {
+  uint64_t configured_supported_bounding_set = 0;
+  unsigned kernel_cap_last_cap = 0;
+  if (validate_unit_observation(
+        uid,unit,&manager,&obs,&service,&security,
+        &configured_supported_bounding_set,&kernel_cap_last_cap) != 0) {
     api.bus_unref(bus); unload_sd_api(&api); close(manager_pidfd); query_die("unit_property_kernel_binding_failed");
   }
   int service_pidfd=pidfd_open_checked(service.pid);
@@ -518,7 +563,7 @@ static int live_query(uid_t uid, const char *unit) {
   printf("ControlGroup=%s\n",obs.control_group);
   printf("NoNewPrivileges=yes\n");
   printf("PrivateUsers=no\n");
-  printf("CapabilityBoundingSet=%016" PRIx64 "\n",obs.capability_bounding_set);
+  printf("CapabilityBoundingSet=%016" PRIx64 "\n",configured_supported_bounding_set);
   printf("AmbientCapabilities=%016" PRIx64 "\n",obs.ambient_capabilities);
   printf("KernelCapInh=%016" PRIx64 "\n",security.cap_inh);
   printf("KernelCapPrm=%016" PRIx64 "\n",security.cap_prm);
@@ -574,11 +619,18 @@ static int self_test_query(void) {
   memset(&synthetic_obs,0,sizeof(synthetic_obs));
   synthetic_obs.no_new_privileges=1;
   synthetic_obs.private_users=0;
-  synthetic_obs.capability_bounding_set=UINT64_C(0x000001ffffffffff);
+  synthetic_obs.capability_bounding_set=UINT64_MAX;
   synthetic_obs.ambient_capabilities=0;
-  if (!unit_security_policy_ok(&synthetic_obs,&fixture)) return 1;
+  uint64_t supported_mask = 0;
+  if (capability_mask_for_last_cap(40U,&supported_mask) != 0 ||
+      supported_mask != UINT64_C(0x000001ffffffffff)) return 1;
+  if (!unit_security_policy_ok(&synthetic_obs,&fixture,supported_mask)) return 1;
   synthetic_obs.private_users=1;
-  if (unit_security_policy_ok(&synthetic_obs,&fixture)) return 1;
+  if (unit_security_policy_ok(&synthetic_obs,&fixture,supported_mask)) return 1;
+  synthetic_obs.private_users=0;
+  if (capability_mask_for_last_cap(63U,&supported_mask) != 0 ||
+      supported_mask != UINT64_MAX ||
+      capability_mask_for_last_cap(64U,&supported_mask) == 0) return 1;
   printf("%s_SELF_TEST_GREEN\n",MARKER);
   printf("libsystemd_runtime_symbols_available=true\n");
   printf("sanitized_loader_environment=true\n");
@@ -593,6 +645,7 @@ static int self_test_query(void) {
   printf("kernel_capability_status_parser_verified=true\n");
   printf("nonbounding_process_capabilities_zero_required=true\n");
   printf("systemd_kernel_bounding_set_match_required=true\n");
+  printf("kernel_cap_last_cap_projection_verified=true\n");
   printf("kernel_no_new_privileges_required=true\n");
   printf("private_users_false_required=true\n");
   printf("host_mutation=false\n");
