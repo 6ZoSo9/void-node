@@ -910,6 +910,13 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
 
         if current is None:
             continue
+
+        # originRequest child fields are valid only while that exact
+        # four-space mapping remains the active parent. Any sibling transition
+        # ends the scope before a later six-space field can be credited.
+        if in_origin and indent <= 4:
+            in_origin = False
+
         if indent == 4 and line.startswith("hostname:"):
             if current["hostname"] is not None:
                 raise CensusError("tunnel_rule_duplicate_hostname")
