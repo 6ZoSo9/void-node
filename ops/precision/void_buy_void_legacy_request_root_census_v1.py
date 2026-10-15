@@ -169,6 +169,34 @@ def _count_only(path: pathlib.Path) -> dict[str, Any]:
     except OSError as exc:
         return {"ok": False, "reason": f"os_error_{exc.errno}"}
 
+def _release_inventory() -> tuple[list[pathlib.Path], bool]:
+    try:
+        root_meta = _meta(RELEASES_ROOT)
+        if (
+            root_meta.get("exists") is not True
+            or root_meta.get("kind") != "directory"
+            or root_meta.get("symlink") is True
+        ):
+            return [], False
+        paths: list[pathlib.Path] = []
+        complete = True
+        for entry in RELEASES_ROOT.iterdir():
+            if not HEX40.fullmatch(entry.name):
+                continue
+            item = _meta(entry)
+            if (
+                item.get("exists") is not True
+                or item.get("kind") != "directory"
+                or item.get("symlink") is True
+            ):
+                complete = False
+                continue
+            paths.append(entry / DEFAULT_RELATIVE)
+        return sorted(paths, key=str), complete
+    except OSError:
+        return [], False
+
+
 def classify_candidate(path: pathlib.Path, sources: list[str]) -> dict[str, Any]:
     path = pathlib.Path(_absolute(path))
     metadata = _meta(path)
@@ -334,16 +362,10 @@ def collect() -> dict[str, Any]:
     ):
         add(status_before["request_dir"], "live_status_explicit_request_dir")
 
-    release_inventory_complete = True
-    release_count = 0
-    try:
-        if RELEASES_ROOT.is_dir() and not RELEASES_ROOT.is_symlink():
-            for entry in RELEASES_ROOT.iterdir():
-                if HEX40.fullmatch(entry.name) and entry.is_dir() and not entry.is_symlink():
-                    release_count += 1
-                    add(entry / DEFAULT_RELATIVE, "immutable_release_default")
-    except PermissionError:
-        release_inventory_complete = False
+    release_paths_before, release_inventory_complete_before = _release_inventory()
+    for release_path in release_paths_before:
+        add(release_path, "immutable_release_default")
+    release_count = len(release_paths_before)
 
     service_after = _service()
     process_after = v1.read_process_generation(
@@ -386,7 +408,21 @@ def collect() -> dict[str, Any]:
     )
 
     add(STABLE_ROOT, "selected_future_stable_root")
-    rows = [classify_candidate(pathlib.Path(path), sources) for path, sources in sorted(candidates.items())]
+    rows = [
+        classify_candidate(pathlib.Path(path), sources)
+        for path, sources in sorted(candidates.items())
+    ]
+    rows_second = [
+        classify_candidate(pathlib.Path(path), sources)
+        for path, sources in sorted(candidates.items())
+    ]
+    candidate_observations_stable = rows == rows_second
+    release_paths_after, release_inventory_complete_after = _release_inventory()
+    release_inventory_stable = (
+        release_inventory_complete_before
+        and release_inventory_complete_after
+        and release_paths_before == release_paths_after
+    )
     historical = [row for row in rows if "selected_future_stable_root" not in row["sources"]]
     surviving = [row["path"] for row in historical if row["classification"] == "SURVIVING_HISTORY_METADATA_OBSERVED"]
     unverified = [row["path"] for row in historical if row["classification"].startswith(("HOLD_", "UNVERIFIED_"))]
@@ -394,7 +430,8 @@ def collect() -> dict[str, Any]:
     absent = [row["path"] for row in historical if row["classification"] == "ABSENT_OBSERVED"]
 
     candidate_set_complete = (
-        release_inventory_complete
+        release_inventory_stable
+        and candidate_observations_stable
         and runtime_process_generation_stable
         and runtime_listener_stable
         and request_root_status_stable
@@ -417,7 +454,11 @@ def collect() -> dict[str, Any]:
         "confirmed_closeout_request_root_status": status_before,
         "confirmed_closeout_request_root_status_stable": request_root_status_stable,
         "immutable_release_count": release_count,
-        "immutable_release_inventory_complete": release_inventory_complete,
+        "immutable_release_inventory_complete":
+            release_inventory_complete_before
+            and release_inventory_complete_after,
+        "immutable_release_inventory_stable": release_inventory_stable,
+        "candidate_observations_stable": candidate_observations_stable,
         "candidate_set_completeness_proven": False,
         "bounded_current_candidate_set_observed": candidate_set_complete,
         "candidate_count": len(rows),
@@ -470,6 +511,7 @@ def main() -> int:
         "process_environment_access", "external_network_calls", "loopback_get_only",
         "runtime_process_generation_stable", "runtime_http_listener_stable",
         "confirmed_closeout_request_root_status_stable",
+        "immutable_release_inventory_stable", "candidate_observations_stable",
         "request_or_payment_contents_read", "directory_entry_names_output",
         "historical_request_history_disposition_proven", "historical_origin_authenticated",
         "filesystem_rollback_prevention_proven", "migration_authorized",
