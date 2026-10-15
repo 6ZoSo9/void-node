@@ -87,9 +87,11 @@ Every report binds:
   static archive or other file observed by the linker's `-t` trace, excluding
   only the candidate's own temporary object.
 
-Any absolute pathname emitted by the linker trace is fail-closed: inability to
-resolve and hash it as a regular file aborts derivation instead of silently
-omitting an observed link input.
+Every non-empty linker trace line must be an absolute pathname. The candidate's
+own temporary object is the only absolute pathname excluded from the closure.
+Every other pathname is fail-closed: inability to resolve and hash it as a
+regular file aborts derivation instead of silently omitting an observed link
+input.
 
 The source is compiled twice in each derive lane. Binary bytes, ELF inspection,
 compiled-object identity and link-input closure must be identical.
