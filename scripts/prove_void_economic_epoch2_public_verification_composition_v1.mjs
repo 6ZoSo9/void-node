@@ -330,7 +330,7 @@ assert.equal(
   Object.keys(
     VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V1,
   ).length,
-  10,
+  11,
 );
 
 const fresh = evidenceAt(
@@ -366,7 +366,7 @@ assert.equal(result.receipt.final_migration_classifier_status, "SOURCE_READY");
 assert.deepEqual(result.receipt.remaining_migration_gates, []);
 assert.equal(result.receipt.source_binding.git_replacement_objects_disabled, true);
 assert.equal(result.receipt.source_binding.exact_reviewed_git_object_execution_verified, true);
-assert.equal(result.receipt.source_binding.executed_reviewed_files.length, 10);
+assert.equal(result.receipt.source_binding.executed_reviewed_files.length, 11);
 for (const row of result.receipt.source_binding.executed_reviewed_files) {
   assert.equal(
     row.git_blob_sha1,
