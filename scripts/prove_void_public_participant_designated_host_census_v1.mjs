@@ -51,6 +51,10 @@ for (const required of [
   '"/__void/participant/account-read/v1/status.json"',
   '"PARTICIPANT_LOOPBACK_SURFACE_OBSERVED_HOST_GATES_REMAIN"',
   '"PARTICIPANT_SURFACE_DEFAULT_OFF_OR_UNOBSERVED"',
+  '"PARTICIPANT_SURFACE_INVALID_HOLD"',
+  "publicDiscoveryShapeQualified",
+  "body.agent_paid_work_generic_proxy === false",
+  "body.participant_handoff_public === true",
   "running_loaded_source_bytes_proven: false",
   "final_generation_bracket_verified",
   "exactObjectKeys",
@@ -162,6 +166,9 @@ console.log("restart_after_middle_snapshot_fails_closed=true");
 console.log("bounded_file_preallocation_limit=true");
 console.log("exact_session_ttl_required=true");
 console.log("closed_status_schema_required=true");
+console.log("composition_status_values_closed=true");
+console.log("joint_invalid_surface_holds=true");
+console.log("transitive_participant_contracts_bound=true");
 console.log("main_push_trigger_closure=true");
 console.log("continuous_listener_ownership_proven=false");
 console.log("systemd_service_binding_verified=false");
