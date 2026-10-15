@@ -111,27 +111,35 @@ function enterPrivateOptFixtureNamespace() {
   );
   const harnessNode = path.join(bootstrapRoot, "node");
   const safeOpt = path.join(bootstrapRoot, "opt");
-  const proofPath = path.join(
-    ROOT,
-    "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs",
-  );
+  const safeHome = path.join(bootstrapRoot, "home");
+  const safeRepo = path.join(bootstrapRoot, "repo");
+  const proofRelative =
+    "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs";
   fs.copyFileSync(process.execPath, harnessNode);
   fs.chmodSync(harnessNode, 0o755);
 
   const shell = [
     "set -euo pipefail",
     'safe_opt="$1"',
-    'harness_node="$2"',
-    'proof_path="$3"',
-    'runtime_uid="$4"',
-    'runtime_gid="$5"',
-    'runtime_home="$6"',
+    'safe_home="$2"',
+    'safe_repo="$3"',
+    'source_repo="$4"',
+    'harness_node="$5"',
+    'proof_relative="$6"',
+    'runtime_uid="$7"',
+    'runtime_gid="$8"',
+    'runtime_home="$9"',
     "/usr/bin/mount --make-rprivate /",
-    '/usr/bin/install -d -o root -g root -m 0755 "$safe_opt"',
+    '/usr/bin/install -d -o root -g root -m 0755 "$safe_opt" "$safe_home"',
+    '/usr/bin/install -d -o "$runtime_uid" -g "$runtime_gid" -m 0755 "$safe_repo"',
+    '/usr/bin/mount --bind "$source_repo" "$safe_repo"',
+    '/usr/bin/mount -o remount,bind,ro "$safe_repo"',
     '/usr/bin/mount --bind "$safe_opt" /opt',
+    '/usr/bin/mount --bind "$safe_home" /home',
+    'cd "$safe_repo"',
     'exec /usr/bin/setpriv --reuid="$runtime_uid" --regid="$runtime_gid" --clear-groups ' +
       '/usr/bin/env -i PATH=/usr/bin:/bin HOME="$runtime_home" LANG=C LC_ALL=C ' +
-      PRIVATE_OPT_FIXTURE_ENV + '=1 "$harness_node" "$proof_path"',
+      PRIVATE_OPT_FIXTURE_ENV + '=1 "$harness_node" "$safe_repo/$proof_relative"',
   ].join("\n");
 
   let delegated;
@@ -146,8 +154,11 @@ function enterPrivateOptFixtureNamespace() {
       shell,
       "void-e2-private-opt-v1",
       safeOpt,
+      safeHome,
+      safeRepo,
+      ROOT,
       harnessNode,
-      proofPath,
+      proofRelative,
       String(process.getuid()),
       String(process.getgid()),
       String(process.env.HOME || "/home/runner"),
@@ -838,7 +849,11 @@ console.log(
 );
 console.log("host_opt_metadata_mutation=false");
 console.log("host_opt_mount_mutation=false");
+console.log("host_home_metadata_mutation=false");
+console.log("host_home_mount_mutation=false");
+console.log("fixed_checkout_parent_host_mutation=false");
 console.log("private_opt_mount_namespace=true");
+console.log("private_home_mount_namespace=true");
 console.log(
   "private_opt_mount_namespace_fixture=" +
     String(privateOptNamespaceFixture),
