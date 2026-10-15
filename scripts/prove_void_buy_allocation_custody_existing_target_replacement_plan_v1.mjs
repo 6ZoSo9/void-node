@@ -92,6 +92,7 @@ assert.equal(
 assert.equal(positive.plan.existing_target_rollback_preservation_required, true);
 assert.equal(positive.plan.rollback_name_prestate_identity_bound_required, true);
 assert.equal(positive.plan.rollback_content_scan_required, false);
+assert.equal(positive.plan.opaque_legacy_content_read_required, false);
 assert.equal(positive.plan.no_clobber_required, true);
 assert.equal(positive.plan.durable_install_intent_required, true);
 assert.equal(positive.plan.crash_recovery_required, true);
@@ -235,6 +236,14 @@ for (const [key, expected] of Object.entries({
   existing_target_replaced: false,
   rollback_snapshot_created: false,
   rollback_deletion_authorized: false,
+  opaque_legacy_content_read_authorized: false,
+  request_content_access: false,
+  payment_record_access: false,
+  credential_access: false,
+  wallet_or_signer_access: false,
+  rpc_contact: false,
+  transaction_authority: false,
+  wc_void_activation: false,
   filesystem_write: false,
   service_mutation: false,
   systemd_mutation: false,
@@ -285,6 +294,7 @@ console.log("replacement_required=true");
 console.log("replacement_authorized=false");
 console.log("replacement_apply_authorized=false");
 console.log("rollback_content_scan_required=false");
+console.log("opaque_legacy_content_read_authorized=false");
 console.log("durable_install_intent_required=true");
 console.log("crash_recovery_required=true");
 console.log("live_at_use_target_reverification_required=true");
