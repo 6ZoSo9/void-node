@@ -280,6 +280,18 @@ function prepareRequestDirectoryV1(requestDir: string): void {
     if (!path.isAbsolute(requestDir) || path.resolve(requestDir) !== requestDir) {
       fail("buy_void_verified_payment_capacity_request_directory_not_absolute");
     }
+    let canonical: string;
+    try {
+      canonical = fs.realpathSync.native(requestDir);
+    } catch (error: any) {
+      if (String(error?.code || "") === "ENOENT") {
+        fail("buy_void_verified_payment_capacity_request_directory_not_preprovisioned");
+      }
+      fail("buy_void_verified_payment_capacity_request_directory_realpath_unavailable");
+    }
+    if (canonical !== requestDir) {
+      fail("buy_void_verified_payment_capacity_request_directory_alias_forbidden");
+    }
     try {
       fs.lstatSync(requestDir);
     } catch (error: any) {
@@ -297,6 +309,17 @@ function openPinnedRequestDirectoryV1(
   requestDir: string,
 ): PinnedRequestDirectoryV1 {
   requireCapacityDescriptorSafetyV1();
+  if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+    let canonical: string;
+    try {
+      canonical = fs.realpathSync.native(requestDir);
+    } catch {
+      fail("buy_void_verified_payment_capacity_request_directory_realpath_unavailable");
+    }
+    if (canonical !== requestDir) {
+      fail("buy_void_verified_payment_capacity_request_directory_alias_forbidden");
+    }
+  }
   const visible = fs.lstatSync(requestDir, { bigint: true });
   if (
     !visible.isDirectory() ||
