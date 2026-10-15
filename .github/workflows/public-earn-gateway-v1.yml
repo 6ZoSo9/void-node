@@ -35,7 +35,16 @@ jobs:
           node --check tools/void_public_earn_no_node_client_v1.mjs
           bash -n ops/mainnet0/wc-public-earning-participant-v1.sh
       - name: Prove bounded public earn gateway
-        run: node scripts/prove_public_earn_gateway_v1.mjs
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/public-earn-gateway-v1.txt"
+          node scripts/prove_public_earn_gateway_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_PUBLIC_EARN_GATEWAY_V1_GREEN' "$proof"
+          grep -Fx 'shared_mutation_routes_disabled=true' "$proof"
+          grep -Fx 'dedicated_mutation_listener_exact_routes_only=true' "$proof"
+          grep -Fx 'dedicated_mutation_raw_aliases_fail_closed=true' "$proof"
+          grep -Fx 'dedicated_mutation_port_publicly_disclosed=false' "$proof"
+          grep -Fx 'local_transport_trust_proven=false' "$proof"
       - name: Preserve participant earning contracts
         run: |
           npx tsx scripts/prove_wc_public_earning_participant_cli_v1.ts

@@ -71,7 +71,7 @@ jobs:
           status=$?
           set -e
           test "$status" -ne 0
-          grep -F 'VOIDCHAIN_INGRESS_REVIEWED_SOURCE_BLOB_DRIFT:ops/public/void-public-app-composition-gateway-v1.mjs' \
+          grep -F 'VOIDCHAIN_INGRESS_REVIEWED_SOURCE_BLOB_DRIFT:ops/public/void-public-frontdoor-v1.mjs' \
             "$RUNNER_TEMP/ingress-v1.stderr"
           echo "frozen_ingress_v1_refusal=GREEN"
       - name: Prove current gateway V2 successor
