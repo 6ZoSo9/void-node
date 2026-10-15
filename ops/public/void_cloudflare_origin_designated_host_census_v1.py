@@ -501,26 +501,52 @@ def same_generation(first: dict[str, Any], second: dict[str, Any]) -> bool:
         and first.get("process_start_ticks") == second.get("start_ticks")
     )
 
-def historical_user_tunnel_snapshot() -> dict[str, Any]:
+def classify_historical_user_tunnel_query(
+    code: int,
+    values: dict[str, str],
+) -> dict[str, Any]:
     result = {
         "query_observed": False,
-        "loaded": None,
-        "active_running": None,
-        "unit_file_state": None,
+        "query_authenticated": False,
+        "authority": "untrusted_user_bus_shape_only",
+        "reported_loaded": None,
+        "reported_active_running": None,
+        "reported_unit_file_state": None,
         "retired_candidate_observed": False,
+        "retirement_verified": False,
     }
+    if "LoadState" not in values or "ActiveState" not in values:
+        return result
+    result["query_observed"] = True
+    result["reported_loaded"] = (
+        code == 0 and values.get("LoadState") == "loaded"
+    )
+    result["reported_unit_file_state"] = values.get("UnitFileState") or None
+    pid_text = values.get("MainPID", "")
+    pid = int(pid_text) if pid_text.isdigit() else 0
+    result["reported_active_running"] = (
+        code == 0
+        and values.get("LoadState") == "loaded"
+        and values.get("ActiveState") == "active"
+        and values.get("SubState") == "running"
+        and pid > 0
+    )
+    return result
+
+def historical_user_tunnel_snapshot() -> dict[str, Any]:
+    empty = classify_historical_user_tunnel_query(1, {})
     try:
         user = pwd.getpwnam(EXPECTED_USER)
     except KeyError:
-        return result
+        return empty
     runuser = next((p for p in RUNUSER_CANDIDATES if p.exists()), None)
     if runuser is None or not ENV.exists():
-        return result
+        return empty
     try:
         command_identity(ENV)
         command_identity(SYSTEMCTL)
     except CensusError:
-        return result
+        return empty
     args = [
         "-u", EXPECTED_USER, "--", str(ENV), "-i",
         "PATH=/usr/bin:/bin",
@@ -538,25 +564,8 @@ def historical_user_tunnel_snapshot() -> dict[str, Any]:
         code, stdout, _ = run_read_only(runuser, args, allow_failure=True)
         values = parse_key_values(stdout.decode("utf-8", "strict")) if stdout else {}
     except (CensusError, UnicodeDecodeError):
-        return result
-    if "LoadState" not in values or "ActiveState" not in values:
-        return result
-    result["query_observed"] = True
-    result["loaded"] = code == 0 and values.get("LoadState") == "loaded"
-    result["unit_file_state"] = values.get("UnitFileState") or None
-    pid_text = values.get("MainPID", "")
-    pid = int(pid_text) if pid_text.isdigit() else 0
-    active = (
-        code == 0
-        and values.get("LoadState") == "loaded"
-        and values.get("ActiveState") == "active"
-        and values.get("SubState") == "running"
-        and pid > 0
-    )
-    result["active_running"] = active
-    retirement_state = values.get("UnitFileState") in {"disabled", "masked", "not-found"}
-    result["retired_candidate_observed"] = (not active) and retirement_state
-    return result
+        return empty
+    return classify_historical_user_tunnel_query(code, values)
 
 def parse_ss(raw: str) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
@@ -1038,9 +1047,11 @@ def next_action(result: dict[str, Any]) -> str:
         return "REVIEWED_SOURCE_BLOB_HOLD"
     if not result["historical_user_tunnel"]["query_observed"]:
         return "HISTORICAL_USER_TUNNEL_QUERY_HOLD"
-    if result["historical_user_tunnel"]["active_running"] is True:
-        return "HISTORICAL_USER_TUNNEL_RETIREMENT_PLAN_REQUIRED"
-    if not result["historical_user_tunnel"]["retired_candidate_observed"]:
+    if result["historical_user_tunnel"]["reported_active_running"] is True:
+        return "HISTORICAL_USER_TUNNEL_REPORTED_ACTIVE_HOLD"
+    if not result["historical_user_tunnel"]["query_authenticated"]:
+        return "HISTORICAL_USER_TUNNEL_AUTHORITY_HOLD"
+    if not result["historical_user_tunnel"]["retirement_verified"]:
         return "HISTORICAL_USER_TUNNEL_RETIREMENT_STATE_HOLD"
     if not all(result["services"][name]["active_running"] for name in SYSTEM_UNITS):
         return "PROTECTED_SYSTEM_SERVICES_NOT_ACTIVE"
@@ -1184,7 +1195,7 @@ def collect(tunnel_config: pathlib.Path) -> dict[str, Any]:
     }
     result["local_metadata_candidate_observed"] = (
         result["host"]["hostname_matches_precision"]
-        and historical["retired_candidate_observed"]
+        and historical["retirement_verified"]
         and all(services[name]["active_running"] for name in SYSTEM_UNITS)
         and generations_stable
         and identity_shape
