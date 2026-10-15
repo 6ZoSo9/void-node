@@ -66,9 +66,15 @@ jobs:
             ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs
           node --check \
             scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs
-          cc -std=c11 -Wall -Wextra -Werror -O2 \
+          cc -std=c11 -Wall -Wextra -Werror -O2 -static \
             ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c \
             -o "$RUNNER_TEMP/epoch2-native-preentry"
+          file "$RUNNER_TEMP/epoch2-native-preentry" | grep -F 'statically linked'
+          readelf -l "$RUNNER_TEMP/epoch2-native-preentry" > "$RUNNER_TEMP/native-readelf.txt"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/native-readelf.txt"; then
+            echo native_preentry_has_dynamic_interpreter >&2
+            exit 1
+          fi
           "$RUNNER_TEMP/epoch2-native-preentry" --self-test \
             >"$RUNNER_TEMP/native-self-test-${{ matrix.node }}.txt"
           node \
