@@ -1,0 +1,132 @@
+name: VOID sponsored host durable time binding v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-sponsored-host-observation-time-store-binding-v1.yml"
+      - "docs/operators/economic-sponsored-host-observation-time-store-binding-v1.md"
+      - "tools/void-economic-sponsored-host-observation-time-store-binding-v1.mjs"
+      - "scripts/prove_void_economic_sponsored_host_observation_time_store_binding_v1.mjs"
+      - "tools/void-economic-sponsored-host-trusted-clock-binding-v1.mjs"
+      - "scripts/prove_void_economic_sponsored_host_trusted_clock_binding_v1.mjs"
+      - "tools/void-economic-sponsored-host-time-sync-evidence-v1.mjs"
+      - "scripts/prove_void_economic_sponsored_host_time_sync_evidence_v1.mjs"
+      - "tools/void-economic-system-sponsored-observation-time-store-v1.mjs"
+      - "scripts/prove_void_economic_system_sponsored_observation_time_store_v1.mjs"
+      - "tools/void-economic-system-sponsored-observation-time-v1.mjs"
+      - "scripts/prove_void_economic_system_sponsored_observation_time_v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-economic-sponsored-host-observation-time-store-binding-v1.yml"
+      - "docs/operators/economic-sponsored-host-observation-time-store-binding-v1.md"
+      - "tools/void-economic-sponsored-host-observation-time-store-binding-v1.mjs"
+      - "scripts/prove_void_economic_sponsored_host_observation_time_store_binding_v1.mjs"
+      - "tools/void-economic-sponsored-host-trusted-clock-binding-v1.mjs"
+      - "scripts/prove_void_economic_sponsored_host_trusted_clock_binding_v1.mjs"
+      - "tools/void-economic-sponsored-host-time-sync-evidence-v1.mjs"
+      - "scripts/prove_void_economic_sponsored_host_time_sync_evidence_v1.mjs"
+      - "tools/void-economic-system-sponsored-observation-time-store-v1.mjs"
+      - "scripts/prove_void_economic_system_sponsored_observation_time_store_v1.mjs"
+      - "tools/void-economic-system-sponsored-observation-time-v1.mjs"
+      - "scripts/prove_void_economic_system_sponsored_observation_time_v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-sponsored-host-durable-time-binding-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Preserve parent clock and durable-store contracts
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_economic_sponsored_host_time_sync_evidence_v1.mjs
+          node scripts/prove_void_economic_sponsored_host_trusted_clock_binding_v1.mjs
+          node scripts/prove_void_economic_system_sponsored_observation_time_v1.mjs
+          node scripts/prove_void_economic_system_sponsored_observation_time_store_v1.mjs
+
+      - name: Prove fixed host clock durable-time composition
+        run: |
+          set -euo pipefail
+          node --check tools/void-economic-sponsored-host-observation-time-store-binding-v1.mjs
+          node --check scripts/prove_void_economic_sponsored_host_observation_time_store_binding_v1.mjs
+          OUT="$RUNNER_TEMP/sponsored-host-durable-time-${{ matrix.node }}.txt"
+          node scripts/prove_void_economic_sponsored_host_observation_time_store_binding_v1.mjs | tee "$OUT"
+          for marker in \
+            'VOID_ECONOMIC_SPONSORED_HOST_OBSERVATION_TIME_STORE_BINDING_V1_PROOF_GREEN' \
+            'fixed_host_trusted_clock_collector_wired=true' \
+            'production_caller_clock_input=false' \
+            'production_caller_timestamp_input=false' \
+            'production_caller_prior_receipt_input=false' \
+            'one_host_binding_capture_per_operation=true' \
+            'preview_zero_durable_growth=true' \
+            'same_bound_sample_preview_and_observe=true' \
+            'durable_receipt_matches_preview_candidate_required=true' \
+            'malformed_host_binding_rejected_before_durable_growth=true' \
+            'production_host_sample_collected_in_ci=false' \
+            'trusted_clock_runtime_authority=false' \
+            'cross_process_restart_continuity_proven=false' \
+            'cross_boot_restart_continuity_proven=false' \
+            'receipt_store_rollback_resistance_proven=false' \
+            'runtime_route_active=false' \
+            'replay_consume_performed=false' \
+            'gas_sponsorship_performed=false' \
+            'transaction_submission=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$OUT"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1)"
