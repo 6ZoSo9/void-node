@@ -379,9 +379,10 @@ def self_test() -> None:
     for dependency, expected in DEPENDENCY_BLOBS.items():
         assert _git_blob_sha1(_authenticated_source_bytes(dependency)) == expected
     own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
+    plan_marker = "\ndef plan() -> None:"
     production_source = (
         own_source[:own_source.index("def self_test()")]
-        + own_source[own_source.index("def plan()"):]
+        + own_source[own_source.index(plan_marker) + 1:]
     )
     assert "run_systemctl" not in production_source
     assert "systemctl" not in production_source
