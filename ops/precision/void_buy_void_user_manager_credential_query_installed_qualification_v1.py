@@ -608,6 +608,35 @@ def self_test() -> None:
     assert parsed["credential_contents_read"] == "false"
     assert parsed["LoadCredentialId"] == E2_CREDENTIAL_ID
 
+    synthetic_security = {
+        "runtime_uid": 1000,
+        "manager_pid": 2693,
+        "manager_start_ticks": "1409",
+        "main_pid": 4053759,
+        "service_start_ticks": "20191741",
+        "protected_v6_generation_verified": True,
+        "installed_generation_stable": True,
+        "authenticated_private_manager_peer": True,
+        "same_authenticated_connection_unit_query": True,
+        "runtime_main_pid_kernel_bound": True,
+        "private_users_false_verified": True,
+        "kernel_active_capabilities_zero_verified": True,
+        "cap_last_cap_projection_contract_verified": True,
+        "kernel_cap_last_cap_stable": True,
+        "configured_kernel_bounding_set_equal_verified": True,
+        "double_authenticated_query_stable": True,
+        "production_host_evidence_authority": False,
+    }
+    _require_security_composition(parsed, synthetic_security)
+    bad_security = dict(synthetic_security)
+    bad_security["main_pid"] = 4053760
+    try:
+        _require_security_composition(parsed, bad_security)
+    except QualificationError:
+        pass
+    else:
+        raise AssertionError("mismatched V6 MainPID unexpectedly composed")
+
     adversaries = (
         ("CredentialDropInMatchCount=1", "CredentialDropInMatchCount=2"),
         ("LoadCredentialCount=1", "LoadCredentialCount=2"),
