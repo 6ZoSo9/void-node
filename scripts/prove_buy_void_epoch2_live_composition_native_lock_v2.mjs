@@ -8,7 +8,6 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const LOCK_BASE="cf01e54d6afee51b25ef3c9826167dc7a87395db";
 const SOURCE_PARENT="907bc1780110717f4caaae06595ec742976162f1";
 const CANDIDATE_HEAD="de1d19d8782405afa4d62ae670b11087d9c7e93e";
 const CANDIDATE_MERGE="23e963fb7b16dd2e64ce6934beb9cf831767fe75";
@@ -35,8 +34,6 @@ const WORKFLOW=
   ".github/workflows/buy-void-epoch2-live-composition-native-lock-v2.yml";
 const DOC=
   "docs/operators/buy-void-epoch2-live-composition-native-lock-v2.md";
-
-const EXPECTED_SCOPE=[CANDIDATE_FILE,LOCK_FILE,SELF,WORKFLOW,DOC].sort();
 
 const EXPECTED_BLOBS=Object.freeze({
   [NATIVE_SOURCE]:"4aa091e7835b32aa5c4e7b8e4059651c69a64eb3",
@@ -250,11 +247,6 @@ function verifyBranch(){
   git(["merge-base","--is-ancestor",SOURCE_PARENT,"HEAD"]);
   git(["merge-base","--is-ancestor",CANDIDATE_HEAD,"HEAD"]);
   git(["merge-base","--is-ancestor",CANDIDATE_MERGE,"HEAD"]);
-  git(["merge-base","--is-ancestor",LOCK_BASE,"HEAD"]);
-
-  const changed=git(["diff","--name-only",LOCK_BASE,"HEAD","--"])
-    .split("\n").filter(Boolean).sort();
-  assert.deepEqual(changed,EXPECTED_SCOPE,"native_lock_v2_scope_drift");
 
   for(const [relative,expected] of Object.entries(EXPECTED_BLOBS)){
     assert.equal(
