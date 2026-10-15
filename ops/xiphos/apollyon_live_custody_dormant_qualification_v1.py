@@ -70,6 +70,20 @@ REVIEWED_SYSTEMD_MAJOR=255
 REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(
     "255.4-1ubuntu8.11","255.4-1ubuntu8.18",
 )
+SYSTEMD_UNIT_SEARCH_ROOTS=(
+    Path("/etc/systemd/system.control"),
+    Path("/run/systemd/system.control"),
+    Path("/run/systemd/transient"),
+    Path("/run/systemd/generator.early"),
+    Path("/etc/systemd/system"),
+    Path("/etc/systemd/system.attached"),
+    Path("/run/systemd/system"),
+    Path("/run/systemd/system.attached"),
+    Path("/run/systemd/generator"),
+    Path("/usr/local/lib/systemd/system"),
+    Path("/usr/lib/systemd/system"),
+    Path("/run/systemd/generator.late"),
+)
 
 class Hold(RuntimeError): pass
 
@@ -317,6 +331,50 @@ def verify_environment_file(ipc_gid:int)->None:
     if ENV_PATH.read_bytes()!=expected_environment_bytes(ipc_gid):
         hold("custody_environment_file_invalid")
 
+def assert_no_unreviewed_dependency_directories(
+    unit:str,
+    roots:tuple[Path,...]=SYSTEMD_UNIT_SEARCH_ROOTS,
+)->None:
+    for root in roots:
+        try:
+            root_st=os.lstat(root)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise Hold("systemd_unit_search_root_unreadable:"+str(root)) from exc
+        if not stat.S_ISDIR(root_st.st_mode) or stat.S_ISLNK(root_st.st_mode):
+            hold("systemd_unit_search_root_invalid:"+str(root))
+        for suffix in (".wants",".requires"):
+            dependency_root=root/(unit+suffix)
+            try:
+                dependency_st=os.lstat(dependency_root)
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise Hold(
+                    "systemd_dependency_directory_unreadable:"
+                    +unit+":"+suffix
+                ) from exc
+            if (
+                not stat.S_ISDIR(dependency_st.st_mode)
+                or stat.S_ISLNK(dependency_st.st_mode)
+            ):
+                hold("systemd_dependency_directory_invalid:"+unit+":"+suffix)
+            try:
+                with os.scandir(dependency_root) as entries:
+                    if next(entries,None) is not None:
+                        hold(
+                            "unreviewed_systemd_dependency_entry:"
+                            +unit+":"+suffix
+                        )
+            except Hold:
+                raise
+            except OSError as exc:
+                raise Hold(
+                    "systemd_dependency_directory_unreadable:"
+                    +unit+":"+suffix
+                ) from exc
+
 def validate_loaded_relations(
     target:dict[str,str],service:dict[str,str]
 )->None:
@@ -372,6 +430,8 @@ def loaded_relations()->None:
         "ExecStartPost","ExecStop","ExecStopPost",
     ))
     validate_loaded_relations(target,service)
+    assert_no_unreviewed_dependency_directories(TARGET_UNIT)
+    assert_no_unreviewed_dependency_directories(SERVICE_UNIT)
 
 def verify_public_key()->None:
     exact_file(PUBLIC_KEY_PATH,0o644,0,0)
@@ -859,6 +919,10 @@ def self_test()->None:
         'service_needs_daemon_reload',
         'custody_environment_file_invalid',
         'loaded_unset_environment_invalid',
+        'SYSTEMD_UNIT_SEARCH_ROOTS=(',
+        'assert_no_unreviewed_dependency_directories(TARGET_UNIT)',
+        'assert_no_unreviewed_dependency_directories(SERVICE_UNIT)',
+        'unreviewed_systemd_dependency_entry:',
         'REVIEWED_SYSTEMD_MAJOR=255',
         'REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(',
         'verify_systemd_generation()',
@@ -1065,6 +1129,41 @@ def self_test()->None:
         target=dict(good_target);service=dict(good_service)
         (target if which=="target" else service)[key]=value
         expect_hold(lambda t=target,s=service:validate_loaded_relations(t,s),reason)
+    with tempfile.TemporaryDirectory(
+        prefix="apollyon-systemd-dependency-closure-"
+    ) as td:
+        unit_root=Path(td)/"units"
+        unit_root.mkdir()
+        roots=(unit_root,)
+        assert_no_unreviewed_dependency_directories(TARGET_UNIT,roots)
+        assert_no_unreviewed_dependency_directories(SERVICE_UNIT,roots)
+
+        target_requires=unit_root/(TARGET_UNIT+".requires")
+        target_requires.mkdir()
+        os.symlink("/usr/lib/systemd/system/foreign.service",
+                   target_requires/"foreign.service")
+        expect_hold(
+            lambda:assert_no_unreviewed_dependency_directories(
+                TARGET_UNIT,roots
+            ),
+            "unreviewed_systemd_dependency_entry:"
+            +TARGET_UNIT+":.requires",
+        )
+        os.unlink(target_requires/"foreign.service")
+        target_requires.rmdir()
+
+        service_wants=unit_root/(SERVICE_UNIT+".wants")
+        service_wants.mkdir()
+        os.symlink("/usr/lib/systemd/system/foreign.service",
+                   service_wants/"foreign.service")
+        expect_hold(
+            lambda:assert_no_unreviewed_dependency_directories(
+                SERVICE_UNIT,roots
+            ),
+            "unreviewed_systemd_dependency_entry:"
+            +SERVICE_UNIT+":.wants",
+        )
+
     custody_uid=4242
     training_uid=4343
     with tempfile.TemporaryDirectory(prefix="apollyon-child-proc-zero-") as td:
@@ -1174,6 +1273,8 @@ def self_test()->None:
     print("systemd_dropins_rejected=true")
     print("unexpected_systemd_exec_commands_rejected=true")
     print("manager_environment_influence_unset=true")
+    print("systemd_dependency_directories_closed=true")
+    print("unreviewed_systemd_dependency_entries_rejected=true")
     print("failure_cleanup_receipt_truthful=true")
     print("emergency_cleanup_adversaries_executed=true")
     print("failed_stop_cleanup_reported=true")
