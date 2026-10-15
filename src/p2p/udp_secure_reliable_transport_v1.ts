@@ -657,28 +657,37 @@ export class VoidUdpSecureReliableSenderV1 {
     const plaintext = Buffer.from(payload);
     if (plaintext.length < 1 || plaintext.length > VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1) throw new Error("payload size invalid");
     const now = safeInteger(nowMs, 0, Number.MAX_SAFE_INTEGER);
+    const seq = safeInteger(this.nextDataSeq, 0, Number.MAX_SAFE_INTEGER - 1);
+    const packetNo = safeInteger(this.nextPacketNo, 0, Number.MAX_SAFE_INTEGER - 1);
     if (now === undefined) throw new Error("send time invalid");
-    const seq = this.nextDataSeq++;
+    if (seq === undefined) throw new Error("data sequence exhausted");
+    if (packetNo === undefined) throw new Error("packet sequence exhausted");
     const packet = encodeVoidUdpSecurePacketV1({
       keys: this.keys,
       kind: "data",
-      packetNo: this.nextPacketNo++,
+      packetNo,
       dataSeq: seq,
       ackSeq,
       plaintext,
     });
     this.pending.set(seq, { dataSeq: seq, plaintext, lastSentAtMs: now, retries: 0 });
+    this.nextDataSeq = seq + 1;
+    this.nextPacketNo = packetNo + 1;
     return packet;
   }
 
   createAck(ackSeq: number): VoidUdpSecurePacketV1 {
-    return encodeVoidUdpSecurePacketV1({
+    const packetNo = safeInteger(this.nextPacketNo, 0, Number.MAX_SAFE_INTEGER - 1);
+    if (packetNo === undefined) throw new Error("packet sequence exhausted");
+    const packet = encodeVoidUdpSecurePacketV1({
       keys: this.keys,
       kind: "ack",
-      packetNo: this.nextPacketNo++,
+      packetNo,
       dataSeq: null,
       ackSeq,
     });
+    this.nextPacketNo = packetNo + 1;
+    return packet;
   }
 
   acknowledge(ackSeq: number): number {
@@ -695,9 +704,9 @@ export class VoidUdpSecureReliableSenderV1 {
     packets: readonly VoidUdpSecurePacketV1[];
     exhausted_data_seqs: readonly number[];
   }> {
-    this.acknowledge(peerAckSeq);
     const now = safeInteger(nowMs, 0, Number.MAX_SAFE_INTEGER);
     if (now === undefined) throw new Error("retransmit time invalid");
+    this.acknowledge(peerAckSeq);
     const packets: VoidUdpSecurePacketV1[] = [];
     const exhausted: number[] = [];
     for (const [seq, p] of [...this.pending.entries()].sort((a, b) => a[0] - b[0])) {
