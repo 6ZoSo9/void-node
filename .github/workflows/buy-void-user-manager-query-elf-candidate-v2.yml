@@ -59,7 +59,10 @@ jobs:
             exit 1
           fi
 
-          test "$query_blob" = "6aefc385bcc4212d3c45e36871bfde0da3529baa"
+          case "$query_blob" in
+            6aefc385bcc4212d3c45e36871bfde0da3529baa|ddca2c544ce14261dffb80a202c0a4ae2979ec1e) ;;
+            *) echo "unknown canonical query successor: $query_blob" >&2; exit 2 ;;
+          esac
           test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v2.json)" = "57026c4d8ca6cc9a40a3fa61f8cf4ee2c9df47be"
           test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v2.json)" = "347951dbaa2d9bb5c31c8b718d9965ab3fdf7301"
           test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v4.json)" = "988542122028843b2848063dbbaf7a94c32d6cd4"

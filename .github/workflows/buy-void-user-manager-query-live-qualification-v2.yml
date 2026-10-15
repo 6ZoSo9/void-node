@@ -68,7 +68,10 @@ jobs:
              [ "$parser_blob" = "7887cacd5481ba70a34dc7316fe8343e928936b5" ]; then
             echo "superseded3114=true" >> "$GITHUB_OUTPUT"
           else
-            test "$query_blob" = "6aefc385bcc4212d3c45e36871bfde0da3529baa"
+            case "$query_blob" in
+            6aefc385bcc4212d3c45e36871bfde0da3529baa|ddca2c544ce14261dffb80a202c0a4ae2979ec1e) ;;
+            *) echo "unknown canonical query successor: $query_blob" >&2; exit 2 ;;
+          esac
             test "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
             test "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff"
             test "$lock_v2_blob" = "347951dbaa2d9bb5c31c8b718d9965ab3fdf7301"

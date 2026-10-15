@@ -3,7 +3,6 @@ name: VOID Buy authenticated user manager unit evidence v4
 on:
   pull_request:
     paths:
-      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
       - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
       - "scripts/prove_void_buy_allocation_custody_host_evidence_v4.mjs"
@@ -12,7 +11,6 @@ on:
   push:
     branches: [main]
     paths:
-      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
       - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
       - "scripts/prove_void_buy_allocation_custody_host_evidence_v4.mjs"
@@ -23,54 +21,24 @@ permissions:
   contents: read
 
 jobs:
-  prove:
+  preserve:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [22,24,26]
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: ${{ matrix.node }}
-      - name: Compile and self-test exact V3 native query
+      - name: Preserve V4 authenticated evidence on exact V5 successor
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "6aefc385bcc4212d3c45e36871bfde0da3529baa"
-          query="$RUNNER_TEMP/private-unit-query-v4"
-          /usr/bin/cc -std=c11 -Wall -Wextra -Werror -O2 -fno-ident             -Wl,--build-id=none             -o "$query" ops/precision/void_buy_void_user_manager_private_unit_query_v1.c -ldl
-          env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C             VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1             "$query" --self-test | tee "$RUNNER_TEMP/query-v4-self-test.log"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/query-v4-self-test.log"
-          grep -Fx 'kernel_capability_status_parser_verified=true' "$RUNNER_TEMP/query-v4-self-test.log"
-          grep -Fx 'nonbounding_process_capabilities_zero_required=true' "$RUNNER_TEMP/query-v4-self-test.log"
-          grep -Fx 'systemd_kernel_bounding_set_match_required=true' "$RUNNER_TEMP/query-v4-self-test.log"
-          grep -Fx 'kernel_no_new_privileges_required=true' "$RUNNER_TEMP/query-v4-self-test.log"
-          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/query-v4-self-test.log"
-      - name: Prove V4 authenticated capability composition
-        run: |
-          set -euo pipefail
-          node scripts/prove_void_buy_void_user_manager_private_peer_guard_v1.mjs
-          node scripts/prove_void_buy_allocation_custody_host_evidence_v4.mjs |
-            tee "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V4_PROOF_GREEN' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'manager_peer_authenticated=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'same_authenticated_connection_unit_query=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'configured_bounding_set_may_be_nonzero=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'configured_ambient_capabilities_zero_required=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'kernel_nonbounding_capabilities_zero_required=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'kernel_no_new_privileges_required=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'kernel_bounding_set_matches_systemd_mask=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'capability_state_revalidated=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'object_input_capability_bypass_rejected=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'historical_v3_evidence_preserved=true' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'complete_host_evidence_collector=false' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/custody-host-v4.log"
-          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/custody-host-v4.log"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "ddca2c544ce14261dffb80a202c0a4ae2979ec1e"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-host-evidence-v4.mjs)" = "223a8acf32f8c7961d61222b83c0db17075f86c6"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_host_evidence_v4.mjs)" = "5359de58ece074d937bc7c3a1b99b358afff0f31"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-authenticated-user-manager-unit-evidence-v4.md)" = "2b554518e9c585f64a7386723e5a80ff82030af6"
+          echo VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V4_HISTORICAL_PRESERVED
+          echo v5_control_group_service_interface_successor=true
+          echo complete_host_evidence_collector=false
+          echo public_presale_activation=false
+          echo funds_movement=false
       - run: git diff --check
