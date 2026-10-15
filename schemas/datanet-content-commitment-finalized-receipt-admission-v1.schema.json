@@ -48,9 +48,7 @@
     "unsigned_transaction_candidate_fingerprint_sha256":{
       "type":"string","pattern":"^[0-9a-f]{64}$"
     },
-    "registry_address":{
-      "type":"string","pattern":"^0x[0-9a-f]{40}$"
-    },
+    "registry_address":{"const":"0xe60b15ed8df7c4ec5334067ead18c924744c2681"},
     "publisher_address":{
       "type":"string","pattern":"^0x[0-9a-f]{40}$"
     },
