@@ -35,6 +35,62 @@ def valid_socket_meta(st:os.stat_result,uid:int,gid:int)->bool:
         st.st_nlink in (1,2)
     )
 
+def parse_proc_status_uids(raw:str)->tuple[int,int,int,int]:
+    rows=[line for line in raw.splitlines() if line.startswith("Uid:")]
+    if len(rows)!=1:
+        hold("custody_process_status_uid_invalid")
+    parts=rows[0].split()
+    if len(parts)!=5 or parts[0]!="Uid:":
+        hold("custody_process_status_uid_invalid")
+    try:
+        values=tuple(int(value,10) for value in parts[1:])
+    except ValueError as exc:
+        raise Hold("custody_process_status_uid_invalid") from exc
+    if len(values)!=4 or any(value<0 for value in values):
+        hold("custody_process_status_uid_invalid")
+    return values  # type: ignore[return-value]
+
+def exact_self_process_set(observed:set[int],self_pid:int)->bool:
+    return observed=={self_pid}
+
+def custody_uid_process_pids(uid:int,proc_root:Path=Path("/proc"))->set[int]:
+    try:
+        with os.scandir(proc_root) as entries:
+            names=sorted(
+                entry.name for entry in entries
+                if entry.name.isdecimal()
+            )
+    except OSError as exc:
+        raise Hold("custody_process_census_unavailable") from exc
+
+    observed:set[int]=set()
+    for name in names:
+        process_root=proc_root/name
+        status_path=process_root/"status"
+        try:
+            raw=status_path.read_text(encoding="utf-8",errors="strict")
+        except FileNotFoundError:
+            continue
+        except (OSError,UnicodeError) as exc:
+            if not process_root.exists():
+                continue
+            raise Hold("custody_process_status_unreadable:"+name) from exc
+        try:
+            uids=parse_proc_status_uids(raw)
+        except Hold:
+            if not process_root.exists():
+                continue
+            raise
+        if uid in uids:
+            observed.add(int(name,10))
+    return observed
+
+def require_custody_uid_exclusive(uid:int)->set[int]:
+    observed=custody_uid_process_pids(uid)
+    if not exact_self_process_set(observed,os.getpid()):
+        hold("custody_uid_process_exclusivity_failed")
+    return observed
+
 def resolve_identities()->tuple[int,int,int]:
     try:
         user=pwd.getpwnam(CUSTODY_USER)
@@ -114,6 +170,7 @@ def cleanup()->dict:
     current=os.lstat(SOCKET_PATH)
     if not same_inode(before,current) or not valid_socket_meta(current,uid,ipc_gid):
         hold("advertised_socket_changed")
+    require_custody_uid_exclusive(uid)
 
     hidden=matching_hidden(current,uid,ipc_gid)
     if current.st_nlink==1 and hidden:
@@ -123,12 +180,14 @@ def cleanup()->dict:
 
     hidden_removed=False
     if hidden:
+        require_custody_uid_exclusive(uid)
         os.unlink(hidden[0])
         hidden_removed=True
         after_hidden=os.lstat(SOCKET_PATH)
         if not same_inode(current,after_hidden) or after_hidden.st_nlink!=1:
             hold("hidden_socket_unlink_identity_drift")
 
+    require_custody_uid_exclusive(uid)
     os.unlink(SOCKET_PATH)
     dfd=os.open(
         SOCKET_PARENT,
@@ -154,6 +213,12 @@ def self_test()->None:
     assert not HIDDEN_RE.fullmatch(".v00AF")
     assert not HIDDEN_RE.fullmatch(".v00000")
     assert not HIDDEN_RE.fullmatch("custody.sock")
+    assert parse_proc_status_uids(
+        "Name:\ttest\nUid:\t123\t123\t123\t123\n"
+    )==(123,123,123,123)
+    assert exact_self_process_set({123},123)
+    assert not exact_self_process_set(set(),123)
+    assert not exact_self_process_set({123,124},123)
     synthetic=os.stat_result((stat.S_IFSOCK|0o660,0,0,2,123,456,0,0,0,0))
     assert valid_socket_meta(synthetic,123,456)
     wrong=os.stat_result((stat.S_IFSOCK|0o666,0,0,2,123,456,0,0,0,0))
@@ -165,6 +230,8 @@ def self_test()->None:
         "os.unlink(SOCKET_PATH)",
         "os.fsync(dfd)",
         "errno.ECONNREFUSED",
+        "custody_uid_process_exclusivity_failed",
+        "require_custody_uid_exclusive(uid)",
     ):
         assert required in source,required
     print(MARKER+"_SELF_TEST_GREEN")
