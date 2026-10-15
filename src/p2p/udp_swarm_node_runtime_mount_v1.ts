@@ -717,8 +717,17 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
       const result = this.node.promoteUdpSwarmAuthenticatedDirectCandidateV1(
         candidate.session_id,
       );
-      if (result.ok) this.candidatePromotions += 1;
-      else this.candidatePromotionRejects += 1;
+      if (result.ok) {
+        this.candidatePromotions += 1;
+      } else {
+        this.candidatePromotionRejects += 1;
+        if (result.error === "authenticated_control_route_required") {
+          this.runtime?.retireDirectCandidateSession(
+            candidate.session_id,
+            "authenticated control route lost before direct promotion",
+          );
+        }
+      }
     }
   }
 
