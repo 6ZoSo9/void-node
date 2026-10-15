@@ -154,6 +154,7 @@ assert.equal(result.dedicated_system_cloudflared_identity_required, true);
 assert.equal(result.historical_user_tunnel_retirement_required, true);
 assert.equal(result.exact_sensitive_tunnel_routes_qualified, true);
 assert.equal(result.ordinary_tunnel_routes_preserved_required, true);
+assert.equal(result.cloudflare_control_plane_evidence_required, true);
 assert.equal(result.cloudflared_to_adapter_policy_shape_qualified, true);
 assert.equal(result.adapter_to_dispatcher_policy_shape_qualified, true);
 assert.equal(result.closed_world_listener_sets_required, true);
@@ -387,6 +388,7 @@ for (const [key, expected] of Object.entries({
   historical_user_tunnel_retirement_required: true,
   exact_sensitive_tunnel_routes_required: true,
   ordinary_tunnel_routes_preserved_required: true,
+  cloudflare_control_plane_evidence_required: true,
   cloudflared_to_adapter_uid_policy_required: true,
   adapter_to_dispatcher_uid_policy_required: true,
   ipv4_loopback_only_required: true,
@@ -499,6 +501,7 @@ console.log("exact_sensitive_tunnel_routes_qualified=true");
 console.log("sensitive_origin_http_host_header_bound=true");
 console.log("sensitive_origin_chunked_encoding_disabled_required=true");
 console.log("ordinary_tunnel_routes_preserved_required=true");
+console.log("cloudflare_control_plane_evidence_required=true");
 console.log("cloudflared_to_adapter_policy_shape_qualified=true");
 console.log("adapter_to_dispatcher_policy_shape_qualified=true");
 console.log("closed_world_listener_sets_required=true");
