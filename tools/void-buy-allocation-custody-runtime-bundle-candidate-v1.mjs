@@ -422,16 +422,54 @@ export function verifyVoidBuyVoidCustodyRuntimeBundleCandidateV1(candidate) {
   ) {
     fail("custody_bundle_candidate_identity_invalid");
   }
+  if (!Array.isArray(body.runtime_files)) {
+    fail("custody_bundle_candidate_runtime_files_invalid");
+  }
+  const runtimePaths = body.runtime_files
+    .map((record) => record?.path)
+    .sort();
+  const expectedRuntimePaths = [
+    ...VOID_BUY_VOID_CUSTODY_RUNTIME_EXPECTED_FILES_V1,
+  ].sort();
   if (
-    !Array.isArray(body.runtime_files) ||
-    body.runtime_files.length !==
-      VOID_BUY_VOID_CUSTODY_RUNTIME_EXPECTED_FILES_V1.length ||
-    body.runtime_files.some((record) =>
-      !VOID_BUY_VOID_CUSTODY_RUNTIME_EXPECTED_FILES_V1.includes(record.path)
-    )
+    canonicalJsonV1(runtimePaths) !==
+    canonicalJsonV1(expectedRuntimePaths)
   ) {
     fail("custody_bundle_candidate_runtime_files_invalid");
   }
+
+  if (!Array.isArray(body.source_inputs)) {
+    fail("custody_bundle_candidate_source_inputs_invalid");
+  }
+  const expectedSourcePaths = Object.keys(
+    VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_SOURCE_BLOBS_V1,
+  ).sort();
+  const observedSourcePaths = body.source_inputs
+    .map((record) => record?.path)
+    .sort();
+  if (
+    canonicalJsonV1(observedSourcePaths) !==
+    canonicalJsonV1(expectedSourcePaths)
+  ) {
+    fail("custody_bundle_candidate_source_inputs_invalid");
+  }
+  for (const record of body.source_inputs) {
+    if (
+      !record ||
+      record.git_blob_sha1 !==
+        VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_SOURCE_BLOBS_V1[record.path]
+    ) {
+      fail("custody_bundle_candidate_source_pin_invalid");
+    }
+  }
+  if (
+    body.compiler?.typescript_version !== EXPECTED_TYPESCRIPT_VERSION ||
+    !Array.isArray(body.compiler?.compiler_files) ||
+    body.compiler.compiler_files.length !== 2
+  ) {
+    fail("custody_bundle_candidate_compiler_identity_invalid");
+  }
+
   if (
     !Array.isArray(body.third_party_runtime_packages) ||
     body.third_party_runtime_packages.length !== 0 ||
