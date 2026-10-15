@@ -70,10 +70,13 @@ for(const required of [
   'if(process.argv[1]!=="-")throw new Error("runner_git_object_stdin_required")',
   'gitObject(expectedHead,QUALIFIER_REL,QUALIFIER_BLOB)',
   'gitObject(expectedHead,SEALED_REL,SEALED_BLOB)',
-  'const before=runQualification(expectedHead);',
-  'const sealedRecord=runSealedProbe(expectedHead);',
-  'const after=runQualification(expectedHead);',
+  'function runSensitiveSequence({',
+  'const before=qualificationFn(expectedHead);',
+  'const sealedRecord=sealedFn(expectedHead);',
+  'const after=qualificationFn(expectedHead);',
   'qualification_changed_across_sealed_probe',
+  'checkoutFn(expectedHead);',
+  'const receipt=runSensitiveSequence({expectedHead});',
   'main_pid_crosscheck_failed',
   'loadcredential_binding_crosscheck_failed',
   'service_cgroup_hash_crosscheck_failed',
@@ -98,13 +101,19 @@ for(const forbidden of [
     "root_worktree_dependency_forbidden:"+forbidden);
 }
 
-const beforeAt=source.indexOf("const before=runQualification(expectedHead);");
-const sealedAt=source.indexOf("const sealedRecord=runSealedProbe(expectedHead);");
-const afterAt=source.indexOf("const after=runQualification(expectedHead);");
-const stableAt=source.indexOf("qualification_changed_across_sealed_probe");
-const crossAt=source.indexOf("crossCheck(sealedRecord,before);");
-assert.ok(beforeAt>0&&beforeAt<sealedAt&&sealedAt<afterAt&&
-  afterAt<stableAt&&stableAt<crossAt);
+const sequenceAt=source.indexOf("function runSensitiveSequence({");
+const firstCheckoutAt=source.indexOf("checkoutFn(expectedHead);",sequenceAt);
+const beforeAt=source.indexOf("const before=qualificationFn(expectedHead);",sequenceAt);
+const sealedAt=source.indexOf("const sealedRecord=sealedFn(expectedHead);",sequenceAt);
+const afterAt=source.indexOf("const after=qualificationFn(expectedHead);",sequenceAt);
+const stableAt=source.indexOf("qualification_changed_across_sealed_probe",sequenceAt);
+const crossAt=source.indexOf("crossFn(sealedRecord,before);",sequenceAt);
+const closingCheckoutAt=source.indexOf("checkoutFn(expectedHead);",firstCheckoutAt+1);
+const buildAt=source.indexOf("return buildReceipt({",sequenceAt);
+assert.ok(sequenceAt>0&&
+  sequenceAt<firstCheckoutAt&&firstCheckoutAt<beforeAt&&
+  beforeAt<sealedAt&&sealedAt<afterAt&&afterAt<stableAt&&
+  stableAt<crossAt&&crossAt<closingCheckoutAt&&closingCheckoutAt<buildAt);
 
 const self=spawnSync(process.execPath,[
   "--input-type=module","-","--self-test",
@@ -178,6 +187,7 @@ console.log("root_repository_module_imports=false");
 console.log("qualifier_exact_git_object_executed=true");
 console.log("qualifier_worktree_execution=false");
 console.log("qualifier_before_after_sealed_probe=true");
+console.log("closing_checkout_revalidation_before_receipt=true");
 console.log("sealed_probe_exact_git_object_executed=true");
 console.log("sealed_probe_runtime_uid_drop_required=true");
 console.log("supplementary_groups_cleared=true");
