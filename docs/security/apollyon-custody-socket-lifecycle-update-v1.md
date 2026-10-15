@@ -20,8 +20,12 @@ The updater requires:
 - every other target/service unit-file state holds closed; and
 - the helper absent or exact.
 
-It then installs the helper as root:root 0444, atomically replaces the service
-unit when required, performs daemon-reload, and verifies the loaded
+It stages the helper into a private pending file, fsyncs and verifies the full
+bytes/metadata, publishes it with a create-only hardlink, fsyncs the lifecycle
+directory, removes the pending link and fsyncs again. The service unit is staged
+separately and atomically replaced when required. Any pre-replacement service
+temporary file is removed on failure. It then performs daemon-reload and verifies
+the loaded
 `ExecStopPost`, exact `UnsetEnvironment` set, and direct manual start/stop
 refusal.
 
@@ -29,8 +33,12 @@ The apply path is restart-safe across its own partial publication boundary.
 Plan mode classifies the reviewed predecessor generations explicitly. The
 historical base can be initial/helper-only, the installed lifecycle and
 four-variable environment predecessors are `predecessor_ready`, and the new
-generation can be pending daemon-reload or complete. A new exact service file with PID1 still holding
-the exact old generation is therefore a bounded `RESUME_DAEMON_RELOAD` state,
+generation can be pending daemon-reload or complete. Before resuming from a
+helper-only, reviewed-predecessor, or pending-reload state, apply re-fsyncs the
+already-published lifecycle/service directories as applicable so a prior
+directory-fsync failure cannot be skipped. A new exact service file with PID1
+still holding the exact old generation is therefore a bounded
+`RESUME_DAEMON_RELOAD` state,
 not a dead-end collision. Any other file/loaded combination still HOLDs.
 
 If apply fails, the failure receipt records the initial lifecycle/helper/service

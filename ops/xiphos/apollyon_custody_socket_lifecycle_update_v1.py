@@ -10,6 +10,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 
 MARKER="VOID_APOLLYON_CUSTODY_SOCKET_LIFECYCLE_UPDATE_V1"
 TARGET_HOST="Xiphos"
@@ -287,23 +288,113 @@ def ensure_root_dir()->None:
         st.st_uid!=0 or st.st_gid!=0 or stat.S_IMODE(st.st_mode)!=0o755
     ):hold("lifecycle_root_collision")
 
+def fsync_directory(path:Path)->None:
+    fd=os.open(
+        path,
+        os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_CLOEXEC",0),
+    )
+    try:os.fsync(fd)
+    finally:os.close(fd)
+
+def exact_published_file(
+    path:Path,data:bytes,mode:int,uid:int,gid:int
+)->None:
+    st=os.lstat(path)
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_nlink!=1 or st.st_uid!=uid or st.st_gid!=gid or
+        stat.S_IMODE(st.st_mode)!=mode or st.st_size!=len(data) or
+        path.read_bytes()!=data
+    ):
+        hold("published_file_invalid:"+str(path))
+
+def publish_create_only_file(
+    path:Path,data:bytes,mode:int,uid:int,gid:int,
+    *,_before_publish_fn=None,_fsync_dir_fn=fsync_directory,
+)->bool:
+    try:
+        exact_published_file(path,data,mode,uid,gid)
+    except FileNotFoundError:
+        pass
+    else:
+        return False
+
+    pending=path.parent/(
+        "."+path.name+".pending."+str(os.getpid())
+    )
+    fd:int|None=None
+    try:
+        fd=os.open(
+            pending,
+            os.O_RDWR|os.O_CREAT|os.O_EXCL
+            |getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),
+            0o600,
+        )
+        sent=0
+        while sent<len(data):
+            count=os.write(fd,data[sent:])
+            if count<=0:hold("pending_file_write_failed:"+str(path))
+            sent+=count
+        os.fsync(fd)
+        os.fchown(fd,uid,gid)
+        os.fchmod(fd,mode)
+        st=os.fstat(fd)
+        if (
+            not stat.S_ISREG(st.st_mode) or st.st_nlink!=1 or
+            st.st_uid!=uid or st.st_gid!=gid or
+            stat.S_IMODE(st.st_mode)!=mode or st.st_size!=len(data)
+        ):
+            hold("pending_file_metadata_invalid:"+str(path))
+        os.lseek(fd,0,os.SEEK_SET)
+        observed=b""
+        while len(observed)<len(data):
+            chunk=os.read(fd,len(data)-len(observed))
+            if not chunk:break
+            observed+=chunk
+        if observed!=data:hold("pending_file_bytes_invalid:"+str(path))
+        if _before_publish_fn is not None:_before_publish_fn(pending)
+        try:
+            os.link(pending,path,follow_symlinks=False)
+        except FileExistsError:
+            exact_published_file(path,data,mode,uid,gid)
+            return False
+        _fsync_dir_fn(path.parent)
+        os.unlink(pending)
+        _fsync_dir_fn(path.parent)
+        exact_published_file(path,data,mode,uid,gid)
+        return True
+    finally:
+        if fd is not None:
+            try:os.close(fd)
+            except OSError:pass
+        try:
+            os.unlink(pending)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
+
+def stabilize_published_state(stage:str)->None:
+    if stage in (
+        "helper_only","predecessor_ready","new_file_pending_reload",
+    ):
+        if helper_state()!="exact":hold("durability_helper_not_exact")
+        fsync_directory(LIFECYCLE_ROOT)
+    if stage=="new_file_pending_reload":
+        if service_state()!="new_exact":
+            hold("durability_service_not_exact")
+        fsync_directory(SERVICE_PATH.parent)
+
 def install_helper()->bool:
     data=read_source(HELPER_REL,HELPER_BLOB)
     state=helper_state()
     if state=="exact":return False
     ensure_root_dir()
-    fd=os.open(
-        HELPER_PATH,
-        os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),
-        0o444,
+    changed=publish_create_only_file(
+        HELPER_PATH,data,0o444,0,0
     )
-    try:
-        sent=0
-        while sent<len(data):sent+=os.write(fd,data[sent:])
-        os.fsync(fd);os.fchmod(fd,0o444);os.fchown(fd,0,0)
-    finally:os.close(fd)
     if helper_state()!="exact":hold("cleanup_helper_install_failed")
-    return True
+    return changed
 
 def replace_service_unit()->bool:
     before_state=service_state()
@@ -312,23 +403,32 @@ def replace_service_unit()->bool:
         hold("service_unit_predecessor_invalid")
     new=read_source(SERVICE_REL,NEW_SERVICE_BLOB)
     old=os.lstat(SERVICE_PATH)
-    temp=SERVICE_PATH.parent/(".void-apollyon-custody-service.new."+str(os.getpid()))
-    fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),0o600)
+    temp=SERVICE_PATH.parent/(
+        ".void-apollyon-custody-service.new."+str(os.getpid())
+    )
     try:
-        sent=0
-        while sent<len(new):sent+=os.write(fd,new[sent:])
-        os.fsync(fd);os.fchmod(fd,0o644);os.fchown(fd,0,0)
-    finally:os.close(fd)
-    try:
+        fd=os.open(
+            temp,
+            os.O_WRONLY|os.O_CREAT|os.O_EXCL
+            |getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),
+            0o600,
+        )
+        try:
+            sent=0
+            while sent<len(new):
+                count=os.write(fd,new[sent:])
+                if count<=0:hold("service_temp_write_failed")
+                sent+=count
+            os.fsync(fd);os.fchown(fd,0,0);os.fchmod(fd,0o644)
+        finally:
+            os.close(fd)
         current=os.lstat(SERVICE_PATH)
         if (
             current.st_dev!=old.st_dev or current.st_ino!=old.st_ino or
             current.st_size!=old.st_size or service_state()!=before_state
         ):hold("service_unit_changed_before_replace")
         os.replace(temp,SERVICE_PATH)
-        dfd=os.open(SERVICE_PATH.parent,os.O_RDONLY|getattr(os,"O_DIRECTORY",0))
-        try:os.fsync(dfd)
-        finally:os.close(dfd)
+        fsync_directory(SERVICE_PATH.parent)
     finally:
         try:os.unlink(temp)
         except FileNotFoundError:pass
@@ -342,6 +442,7 @@ def apply_transition(
     _replace_service_fn=replace_service_unit,
     _reload_fn=daemon_reload,
     _state_fn=host_lifecycle_state,
+    _stabilize_fn=stabilize_published_state,
 )->dict[str,object]:
     stage=str(before["lifecycle_state"])
     persistent_present_before=stage in (
@@ -363,6 +464,8 @@ def apply_transition(
         "helper_install_returned_success":False,
         "service_unit_replace_attempted":False,
         "service_unit_replace_returned_success":False,
+        "durability_repair_attempted":False,
+        "durability_repair_succeeded":None,
         "daemon_reload_attempted":False,
         "daemon_reload_command_succeeded":None,
         "final_postcheck_attempted":False,
@@ -376,6 +479,12 @@ def apply_transition(
         "recovery_next_action":"not_needed",
     }
     try:
+        if stage in (
+            "helper_only","predecessor_ready","new_file_pending_reload",
+        ):
+            receipt["durability_repair_attempted"]=True
+            _stabilize_fn(stage)
+            receipt["durability_repair_succeeded"]=True
         if stage=="initial":
             receipt["helper_install_attempted"]=True
             receipt["helper_install_returned_success"]=bool(_install_helper_fn())
@@ -562,6 +671,35 @@ def self_test()->None:
         )
     )=="new_loaded"
 
+    with tempfile.TemporaryDirectory(
+        prefix="apollyon-helper-create-only-"
+    ) as td:
+        test_root=Path(td)
+        test_path=test_root/"helper"
+        test_data=b"reviewed-helper\n"
+        uid=os.getuid();gid=os.getgid()
+        def injected_pending_failure(_pending):
+            raise Hold("synthetic_pending_failure")
+        try:
+            publish_create_only_file(
+                test_path,test_data,0o444,uid,gid,
+                _before_publish_fn=injected_pending_failure,
+            )
+        except Hold as exc:
+            assert str(exc)=="synthetic_pending_failure"
+        else:
+            raise AssertionError("pending_failure_not_reported")
+        assert not test_path.exists()
+        assert list(test_root.iterdir())==[]
+        assert publish_create_only_file(
+            test_path,test_data,0o444,uid,gid
+        ) is True
+        assert publish_create_only_file(
+            test_path,test_data,0o444,uid,gid
+        ) is False
+        exact_published_file(test_path,test_data,0o444,uid,gid)
+        assert os.lstat(test_path).st_nlink==1
+
     def synthetic_snapshot(state:dict[str,str])->dict[str,str]:
         return {
             "service_unit_state":state["service"],
@@ -584,6 +722,7 @@ def self_test()->None:
             _replace_service_fn=lambda:False,
             _reload_fn=lambda:None,
             _state_fn=lambda:synthetic_snapshot(state),
+            _stabilize_fn=lambda stage:None,
         )
     except ApplyHold as exc:
         assert str(exc)=="synthetic_after_helper_creation"
@@ -612,6 +751,7 @@ def self_test()->None:
         _replace_service_fn=helper_resume_replace,
         _reload_fn=helper_resume_reload,
         _state_fn=lambda:synthetic_snapshot(state),
+        _stabilize_fn=lambda stage:None,
     )
     assert helper_resumed["lifecycle_state"]=="complete"
 
@@ -631,6 +771,7 @@ def self_test()->None:
         _replace_service_fn=predecessor_replace_success,
         _reload_fn=predecessor_reload_success,
         _state_fn=lambda:synthetic_snapshot(state),
+        _stabilize_fn=lambda stage:None,
     )
     assert upgraded["lifecycle_state"]=="complete"
     assert upgraded["service_unit_replace_returned_success"] is True
@@ -640,6 +781,27 @@ def self_test()->None:
     )
     assert upgraded["persistent_filesystem_mutation_possible"] is True
     assert upgraded["daemon_reload_command_succeeded"] is True
+    assert upgraded["durability_repair_attempted"] is True
+    assert upgraded["durability_repair_succeeded"] is True
+
+    durability_stages=[]
+    state={
+        "service":"new_exact","helper":"exact",
+        "loaded":"new_file_pending_reload",
+    }
+    def durability_probe(stage):
+        durability_stages.append(stage)
+    def durability_reload():
+        state["loaded"]="new_loaded"
+    durable_resume=apply_transition(
+        synthetic_snapshot(state),
+        _reload_fn=durability_reload,
+        _state_fn=lambda:synthetic_snapshot(state),
+        _stabilize_fn=durability_probe,
+    )
+    assert durability_stages==["new_file_pending_reload"]
+    assert durable_resume["lifecycle_state"]=="complete"
+    assert durable_resume["durability_repair_succeeded"] is True
 
     state={"service":"old_exact","helper":"exact","loaded":"old_loaded"}
     before=synthetic_snapshot(state)
@@ -653,6 +815,7 @@ def self_test()->None:
             _replace_service_fn=replace_failure,
             _reload_fn=lambda:None,
             _state_fn=lambda:synthetic_snapshot(state),
+            _stabilize_fn=lambda stage:None,
         )
     except ApplyHold as exc:
         assert str(exc)=="synthetic_after_service_replace_fsync"
@@ -675,6 +838,7 @@ def self_test()->None:
         synthetic_snapshot(state),
         _reload_fn=replace_resume_reload,
         _state_fn=lambda:synthetic_snapshot(state),
+        _stabilize_fn=lambda stage:None,
     )
     assert replace_resumed["lifecycle_state"]=="complete"
 
@@ -690,6 +854,7 @@ def self_test()->None:
             before,
             _reload_fn=reload_failure,
             _state_fn=lambda:synthetic_snapshot(state),
+            _stabilize_fn=lambda stage:None,
         )
     except ApplyHold as exc:
         assert str(exc)=="synthetic_daemon_reload_failure"
@@ -717,6 +882,7 @@ def self_test()->None:
         synthetic_snapshot(state),
         _reload_fn=reload_success,
         _state_fn=lambda:synthetic_snapshot(state),
+        _stabilize_fn=lambda stage:None,
     )
     assert resumed["lifecycle_state"]=="complete"
     assert resumed["daemon_reload_command_succeeded"] is True
@@ -755,6 +921,7 @@ def self_test()->None:
             AssertionError("reload_must_not_run_for_complete_state")
         ),
         _state_fn=lambda:synthetic_snapshot(state),
+        _stabilize_fn=lambda stage:None,
     )
     assert complete["lifecycle_state"]=="complete"
     assert (
@@ -788,6 +955,10 @@ def self_test()->None:
     print("preexisting_persistent_mutation_reported=true")
     print("this_apply_mutation_possibility_reported=true")
     print("successful_apply_mutation_receipt_truthful=true")
+    print("helper_create_only_hardlink_publication=true")
+    print("helper_partial_pending_cleanup_proven=true")
+    print("resume_directory_durability_repair=true")
+    print("service_temp_cleanup_on_prepublication_failure=true")
     print("failure_injection_after_helper_creation=true")
     print("failure_injection_after_service_replace=true")
     print("failure_injection_daemon_reload=true")
@@ -818,6 +989,7 @@ def main()->int:
             "helper_install_attempted","helper_install_returned_success",
             "service_unit_replace_attempted",
             "service_unit_replace_returned_success",
+            "durability_repair_attempted","durability_repair_succeeded",
             "daemon_reload_attempted","daemon_reload_command_succeeded",
             "final_postcheck_attempted",
             "persistent_filesystem_mutation_possible",
