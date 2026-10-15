@@ -11,6 +11,7 @@ on:
       - "ops/security/buy-void-user-manager-query-elf-lock-v1.json"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
       - "tools/void-buy-allocation-custody-host-evidence-v3.mjs"
   push:
     branches: [main]
@@ -23,6 +24,7 @@ on:
       - "ops/security/buy-void-user-manager-query-elf-lock-v1.json"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
       - "tools/void-buy-allocation-custody-host-evidence-v3.mjs"
 
 permissions:
@@ -48,8 +50,10 @@ jobs:
         id: generation
         run: |
           set -euo pipefail
-          blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
-          if [ "$blob" = "ad49cd7f71c41e0f559a561b5a62a00cec60c215" ]; then
+          query_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
+          peer_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)"
+          preexec_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c)"
+          if [ "$query_blob" = "ad49cd7f71c41e0f559a561b5a62a00cec60c215" ] && [ "$peer_blob" = "cab88f4642ab929d1f7a4d2f1511462a94ef34ca" ] && [ "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff" ]; then
             echo "current=true" >> "$GITHUB_OUTPUT"
           else
             echo "current=false" >> "$GITHUB_OUTPUT"
