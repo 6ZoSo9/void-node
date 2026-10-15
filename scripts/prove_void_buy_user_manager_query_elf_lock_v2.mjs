@@ -8,7 +8,8 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const PARENT="6619131d424e4e8e1f589da16e57b454dad7950c";
+const RESTACK_PARENT="452206fbcba494b217158341e1b9195161aea91f";
+const CANDIDATE_HEAD="6619131d424e4e8e1f589da16e57b454dad7950c";
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml";
 const CANDIDATE_WORKFLOW_BLOB="5b21d57c00e5a4d97be1e79356b75e736de949d0";
 const PREEXEC_SOURCE="ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c";
@@ -95,7 +96,7 @@ function expectedLock(){
     marker:"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2",
     version:2,
     repository:"6ZoSo9/void-node",
-    candidate_head:PARENT,
+    candidate_head:CANDIDATE_HEAD,
     candidate_hosted_evidence:{
       workflow_run:38735005407,
       artifact_a:11973295334,
@@ -142,8 +143,8 @@ function expectedLock(){
   return Object.freeze({...body,lock_id:id});
 }
 function verifyBranch(){
-  git(["merge-base","--is-ancestor",PARENT,"HEAD"]);
-  const changed=git(["diff","--name-only",PARENT,"HEAD","--"]).split("\n").filter(Boolean).sort();
+  git(["merge-base","--is-ancestor",RESTACK_PARENT,"HEAD"]);
+  const changed=git(["diff","--name-only",RESTACK_PARENT,"HEAD","--"]).split("\n").filter(Boolean).sort();
   assert.deepEqual(changed,EXPECTED_DELTA,"lock_v2_branch_scope_drift");
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_WORKFLOW]),CANDIDATE_WORKFLOW_BLOB);
   for(const [relative,expected] of [
