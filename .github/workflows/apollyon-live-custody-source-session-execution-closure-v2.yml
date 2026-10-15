@@ -30,7 +30,15 @@ jobs:
       - name: Prove complete execution closure
         run: |
           set -euo pipefail
-          python3 -I -B scripts/prove_apollyon_live_custody_source_session_execution_closure_v2.py
+          proof="$RUNNER_TEMP/apollyon-live-session-execution-closure-v2.txt"
+          python3 -I -B scripts/prove_apollyon_live_custody_source_session_execution_closure_v2.py | tee "$proof"
+          grep -Fx 'VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_EXECUTION_CLOSURE_V2_PROOF_GREEN' "$proof"
+          grep -Fx 'training_stop_attempt_precedes_cleanup=true' "$proof"
+          grep -Fx 'training_stop_nonzero_fails_closed=true' "$proof"
+          grep -Fx 'training_active_after_stop_fails_closed=true' "$proof"
+          grep -Fx 'cleanup_failure_preserves_stop_attempt=true' "$proof"
+          grep -Fx 'stop_failure_still_attempts_all_cleanup=true' "$proof"
+          grep -Fx 'execution_and_recovery_errors_aggregated=true' "$proof"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
         env:
@@ -39,5 +47,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
           git merge-base --is-ancestor "$BASE" "$HEAD"
           git diff --check "$BASE" "$HEAD"
