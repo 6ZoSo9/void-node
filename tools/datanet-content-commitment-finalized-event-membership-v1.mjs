@@ -3,6 +3,9 @@ import {
   sha256,
 } from "./datanet-content-commitment-compiler-profile-v1.mjs";
 import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "./datanet-content-commitment-production-registry-identity-v1.mjs";
+import {
   verifyDatanetChain2050CommitmentReceiptV1,
 } from "../scripts/lib/void_datanet_chain2050_commitment_receipt_v1.mjs";
 
@@ -15,6 +18,7 @@ export const VOID_DATANET_CONTENT_COMMITMENT_FINALIZED_EVENT_MEMBERSHIP_AUTHORIT
   admission_id_rederived:true,
   commitment_receipt_verifier_invoked:true,
   exact_transaction_binding_required:true,
+  production_registry_identity_bound:true,
   exact_registry_binding_required:true,
   exact_finalized_block_binding_required:true,
   exact_object_digest_binding_required:true,
@@ -135,6 +139,8 @@ function validateAdmission(value){
     !ADMISSION_ID.test(String(value.finalized_receipt_admission_id||""))||
     !HASH.test(String(value.signed_transaction_hash||""))||
     !ADDRESS.test(String(value.registry_address||""))||
+    value.registry_address!==
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1||
     !ADDRESS.test(String(value.publisher_address||""))||
     !SHA256.test(String(value.commitment?.object_id_sha256||""))||
     !SHA256.test(String(value.commitment?.content_sha256||""))||
@@ -191,6 +197,8 @@ function validateReceiptResult(value){
     value.version!==1||
     value.chain_id!=="2050"||
     !ADDRESS.test(String(value.registry_address||""))||
+    value.registry_address!==
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1||
     typeof value.object_id!=="string"||
     !SHA256.test(String(value.object_id_sha256||""))||
     !SHA256.test(String(value.content_sha256||""))||
@@ -264,7 +272,8 @@ export function bindDatanetContentCommitmentFinalizedEventMembershipV1(input){
     finality_verification_id:admission.finality_verification_id,
     checkpoint_attestation_id:admission.checkpoint_attestation_id,
     signed_transaction_hash:admission.signed_transaction_hash,
-    registry_address:admission.registry_address,
+    registry_address:
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
     publisher_address:admission.publisher_address,
     object_id:receipt.object_id,
     commitment:{
