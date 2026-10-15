@@ -307,6 +307,31 @@ try {
   let fixedNodeFixtureCreated = false;
   let fixtureInstalled = false;
   try {
+    for (const [target, mode] of [["/opt", "0755"]]) {
+      let normalize = run(SUDO, ["-n", "chown", "root:root", target]);
+      assert.equal(
+        normalize.status,
+        0,
+        "failed to root-own hosted ancestry " + target + ": " + normalize.stderr,
+      );
+      normalize = run(SUDO, ["-n", "chmod", mode, target]);
+      assert.equal(
+        normalize.status,
+        0,
+        "failed to normalize hosted ancestry " + target + ": " + normalize.stderr,
+      );
+    }
+    for (const target of ["/", "/opt"]) {
+      const st = fs.lstatSync(target);
+      assert.equal(st.isDirectory() && !st.isSymbolicLink(), true, target);
+      assert.equal(st.uid, 0, target + " must be root-owned");
+      assert.equal(
+        (st.mode & 0o022) === 0,
+        true,
+        target + " must not be group/world writable",
+      );
+    }
+
     if (!fs.existsSync(FIXED_NODE)) {
       const nodeInstall = run(SUDO, [
         "-n", "install",
@@ -335,6 +360,23 @@ try {
       FIXED_SELF,
     ]);
     assert.equal(install.status, 0, install.stderr);
+    for (const target of [FIXED_ROOT, FIXED_SELF]) {
+      const st = fs.lstatSync(target);
+      if (target === FIXED_ROOT) {
+        assert.equal(st.isDirectory() && !st.isSymbolicLink(), true, target);
+      } else {
+        assert.equal(st.isFile() && !st.isSymbolicLink(), true, target);
+        assert.equal(st.nlink, 1, target + " must have one link");
+        assert.equal((st.mode & 0o111) !== 0, true, target + " must be executable");
+      }
+      assert.equal(st.uid, 0, target + " must be root-owned");
+      assert.equal(
+        (st.mode & 0o022) === 0,
+        true,
+        target + " must not be group/world writable",
+      );
+    }
+
     install = run(SUDO, [
       "-n", "install",
       "-o", "root", "-g", "root", "-m", "0444",
@@ -487,6 +529,8 @@ console.log("loader_environment_sanitized=true");
 console.log("native_preentry_static=true");
 console.log("native_preentry_no_pt_interp=true");
 console.log("native_preentry_ld_preload_blocked_before_main=true");
+console.log("hosted_opt_ancestry_normalized_for_fixture=true");
+console.log("hosted_self_custody_shape_prechecked=true");
 console.log("hosted_fixed_node_fixture_created_only_if_absent=true");
 console.log("live_credential_access=false");
 console.log("live_signing=false");
