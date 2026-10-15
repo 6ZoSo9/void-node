@@ -1,0 +1,96 @@
+name: VOID Buy custody runtime bundle lock v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_bundle_lock_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-runtime-bundle-lock-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-bundle-lock-v1.yml"
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v1.mjs"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: custody bundle lock / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact child ancestry and scope
+        env:
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          parent=b532e1e3214cee298ecbf25f15568b2ee9758399
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$parent" "$HEAD"
+          mapfile -t changed < <(git diff --name-only "$parent" "$HEAD" | sort)
+          expected=(
+            ".github/workflows/buy-void-allocation-custody-runtime-bundle-lock-v1.yml"
+            "docs/architecture/buy-void-allocation-custody-runtime-bundle-lock-v1.md"
+            "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
+            "scripts/prove_void_buy_allocation_custody_runtime_bundle_lock_v1.mjs"
+          )
+          test "${#changed[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do
+            test "${changed[$i]}" = "${expected[$i]}"
+          done
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked compiler
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile exact parent source generation
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - name: Re-derive and verify locked candidate
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_buy_allocation_custody_runtime_bundle_lock_v1.mjs
+          proof="$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          node scripts/prove_void_buy_allocation_custody_runtime_bundle_lock_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_LOCK_V1_GREEN' "$proof"
+          grep -Fx 'candidate_source_head=b532e1e3214cee298ecbf25f15568b2ee9758399' "$proof"
+          grep -Fx 'candidate_id=voidbuycustodybundle1_2339d565cc1c298a3f7ca9cae2ef163831288007bb32d9e7c37c01880aaee704' "$proof"
+          grep -Fx 'candidate_sha256=5ee2b5e5fc25a7cec8313c7cb7c4cd8bb675e3652ab18dc614577a25376f2279' "$proof"
+          grep -Fx 'candidate_bytes=9930' "$proof"
+          grep -Fx 'runtime_bundle_candidate_identity_accepted=true' "$proof"
+          grep -Fx 'immutable_root_install=false' "$proof"
+          grep -Fx 'runtime_integration=false' "$proof"
+          grep -Fx 'public_presale_activation=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+      - name: Diff hygiene
+        run: git diff --check
