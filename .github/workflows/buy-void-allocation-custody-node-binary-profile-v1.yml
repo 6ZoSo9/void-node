@@ -50,6 +50,11 @@ jobs:
           set -euo pipefail
           node --check tools/void-buy-allocation-custody-node-binary-profile-v1.mjs
           node --check scripts/prove_void_buy_allocation_custody_node_binary_profile_v1.mjs
+          cli="$RUNNER_TEMP/custody-node-profile-cli.txt"
+          node tools/void-buy-allocation-custody-node-binary-profile-v1.mjs | tee "$cli"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_NODE_BINARY_PROFILE_V1' "$cli"
+          grep -Fx 'fixed_node_path=/usr/bin/node' "$cli"
+          grep -Fx 'node_binary_identity_verified=false' "$cli"
           out="$RUNNER_TEMP/custody-node-profile.txt"
           node scripts/prove_void_buy_allocation_custody_node_binary_profile_v1.mjs | tee "$out"
           grep -Fx 'VOID_BUY_VOID_CUSTODY_NODE_BINARY_PROFILE_V1_GREEN' "$out"
