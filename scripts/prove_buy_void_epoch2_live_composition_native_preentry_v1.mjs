@@ -222,6 +222,11 @@ function requireDelegatedPrivateNamespace() {
     true,
     "delegated bootstrap root must not be group/world writable",
   );
+  assert.equal(
+    bootstrapStat.mode & 0o7777n,
+    0o755n,
+    "delegated bootstrap root must be exact mode 0755",
+  );
   const harnessStat = fs.lstatSync(process.execPath, { bigint: true });
   assert.equal(
     harnessStat.isFile() && !harnessStat.isSymbolicLink(),
@@ -419,6 +424,7 @@ function enterPrivateOptFixtureNamespace() {
     "/usr/bin/mount",
     "/usr/bin/install",
     "/usr/bin/mktemp",
+    "/usr/bin/chmod",
     "/usr/bin/rm",
     "/usr/bin/setpriv",
     "/usr/bin/env",
@@ -459,6 +465,18 @@ function enterPrivateOptFixtureNamespace() {
     /^\/tmp\/void-e2-private-opt-v1-[A-Za-z0-9]{8}$/u,
     "root bootstrap path invalid",
   );
+  const bootstrapMode = run(SUDO, [
+    "-n",
+    "/usr/bin/chmod",
+    "0755",
+    "--",
+    bootstrapRoot,
+  ]);
+  assert.equal(
+    bootstrapMode.status,
+    0,
+    "failed to make root bootstrap traversable: " + bootstrapMode.stderr,
+  );
 
   let delegated;
   try {
@@ -473,6 +491,11 @@ function enterPrivateOptFixtureNamespace() {
     (bootstrapStat.mode & 0o022) === 0,
     true,
     "root bootstrap must not be group/world writable",
+  );
+  assert.equal(
+    bootstrapStat.mode & 0o7777,
+    0o755,
+    "root bootstrap must be exact mode 0755",
   );
 
   const harnessNode = path.join(bootstrapRoot, "node");
@@ -1171,6 +1194,7 @@ console.log("private_home_mount_namespace=true");
 console.log("private_usr_bin_overlay_namespace=true");
 console.log("private_fixed_node_matches_selected_node=true");
 console.log("root_owned_bootstrap_generation=true");
+console.log("root_bootstrap_traversable_mode_0755=true");
 console.log("same_uid_bootstrap_replacement_blocked=true");
 console.log("host_fixed_mountpoints_preflight_read_only=true");
 console.log("delegated_namespace_kernel_state_verified=true");
