@@ -19,6 +19,8 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_PARENT_V1 =
     marker: "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1",
     version: 1,
     accepted_source_head: "4c9dbe0d05865911ae55db88d1d2c05ce7c5306c",
+    source_path: "ops/precision/void_buy_void_legacy_request_root_census_v1.py",
+    accepted_source_blob_sha1: "be5b0034de608c6803eb09c80491afff89c7bf39",
   });
 
 export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_AUTHORITY_V1 =
@@ -27,6 +29,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_AUTHORITY_V1 =
     human_accounting_disposition_may_be_recorded: true,
     exact_census_evidence_bytes_required: true,
     exact_census_source_head_required: true,
+    exact_census_source_blob_required: true,
     census_sha256_computed_internally: true,
     census_partitions_derived_internally: true,
     bounded_current_candidate_set_required_for_no_liability: true,
@@ -452,6 +455,7 @@ export function classifyVoidBuyVoidLegacyHistoryDispositionCandidateV1(input){
       version:1,
       metadata_census_sha256:derived.metadata_census_sha256,
       metadata_census_source_head:PARENT.accepted_source_head,
+      metadata_census_source_blob_sha1:PARENT.accepted_source_blob_sha1,
       metadata_census_marker:PARENT.marker,
       metadata_census_version:PARENT.version,
       designated_hostname_matches:true,
