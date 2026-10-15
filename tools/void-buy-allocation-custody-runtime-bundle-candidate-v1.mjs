@@ -165,6 +165,21 @@ function readRegular(root, relative, maximum = 32 * 1024 * 1024) {
   return fs.readFileSync(absolute);
 }
 
+function readCandidateArtifact(candidatePath) {
+  if (typeof candidatePath !== "string" || candidatePath.length === 0) {
+    fail("custody_bundle_candidate_path_invalid");
+  }
+  const absolute = path.resolve(candidatePath);
+  const st = fs.lstatSync(absolute);
+  if (!st.isFile() || st.isSymbolicLink() || st.nlink !== 1) {
+    fail("custody_bundle_candidate_file_not_direct_regular");
+  }
+  if (st.size < 1 || st.size > 4 * 1024 * 1024) {
+    fail("custody_bundle_candidate_file_size_invalid");
+  }
+  return fs.readFileSync(absolute);
+}
+
 function verifyPinnedSources(root) {
   const records = [];
   for (const relative of Object.keys(
@@ -458,7 +473,7 @@ function compareCandidates(paths) {
     fail("custody_bundle_compare_requires_three_candidates");
   }
   const bytes = paths.map((candidatePath) =>
-    readRegular(process.cwd(), candidatePath, 4 * 1024 * 1024),
+    readCandidateArtifact(candidatePath),
   );
   if (!bytes[0].equals(bytes[1]) || !bytes[0].equals(bytes[2])) {
     fail("custody_bundle_three_node_candidate_mismatch");
