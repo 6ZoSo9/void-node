@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
@@ -24,6 +25,7 @@ on:
     paths:
       - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
@@ -65,35 +67,30 @@ jobs:
           set -euo pipefail
           npm run typecheck
           npm run build
-      - name: Derive V4 census
+      - name: Verify frozen V4 census against current protected integration
         run: |
           set -euo pipefail
+          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"
           out="$RUNNER_TEMP/final-v7-v2-census-v4-node-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs > "$out"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --self-test
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --receipt > "$out"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(c.schema,"void_buy_void_enforcement_final_v7_artifact_census_v4");
-          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_ARTIFACT_CENSUS_V4");
-          assert.equal(c.version,4);
-          assert.equal(c.source_parent,"16563121f8d6c2a1fa7cd2f99ca4be2f88aa3cca");
-          assert.equal(c.previous_integration_head,"d1e72d53dfb6b6a9b47ffbbc67b8c4c279c2ac86");
-          assert.deepEqual(c.intentional_protected_delta_paths,[
-            "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts",
-          ]);
-          assert.equal(c.economic_artifact_count,28);
-          assert.equal(c.economic_source_file_count,28);
-          assert.equal(c.protected_tracked_source_count,49);
-          assert.equal(c.intentional_semantic_delta_verified,true);
-          assert.equal(c.v1_live_process_receipt_rejected_after_v2_promotion,true);
-          assert.equal(c.complete_executable_closure_verified,false);
-          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v1");
+          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V1");
+          assert.equal(c.protected_path_count,49);
+          assert.equal(c.protected_path_identity_preserved,true);
+          assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
+          assert.equal(c.frozen_v4_census_proof_preserved,true);
+          assert.equal(c.nonprotected_economic_drift_count,3);
+          assert.equal(c.frozen_candidate_rederived_on_current_head,false);
           assert.equal(c.production_source_finality_authority_ready,false);
           assert.equal(c.public_presale_activation,false);
           assert.equal(c.funds_movement,false);
-          assert.match(c.census_id,/^voidbefv7c4_[0-9a-f]{64}$/u);
           NODE
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: final-v7-v2-census-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
@@ -111,7 +108,7 @@ jobs:
           pattern: final-v7-v2-census-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: census
-      - name: Require exact Node 22/24/26 census equality
+      - name: Require exact Node 22/24/26 protected-integration equality
         run: |
           set -euo pipefail
           for node in 22 24 26; do test -s "census/final-v7-v2-census-v4-node-$node.json"; done
@@ -119,13 +116,17 @@ jobs:
           cmp census/final-v7-v2-census-v4-node-22.json census/final-v7-v2-census-v4-node-26.json
           sha256sum census/final-v7-v2-census-v4-node-22.json
           node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync("census/final-v7-v2-census-v4-node-22.json","utf8"));
-          console.log("VOID_BUY_VOID_FINAL_V7_V2_CENSUS_V4_CROSS_NODE_GREEN");
-          console.log("census_id="+c.census_id);
-          console.log("artifact_inventory_sha256="+c.economic_hosted_artifact_inventory_sha256);
-          console.log("source_inventory_sha256="+c.economic_hosted_source_inventory_sha256);
-          console.log("protected_inventory_sha256="+c.protected_tracked_source_inventory_canonical_sha256);
-          console.log("candidate_enforcement_identity_accepted=false");
+          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V1");
+          assert.equal(c.protected_path_count,49);
+          assert.equal(c.protected_path_identity_preserved,true);
+          assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
+          console.log("VOID_BUY_VOID_FROZEN_V4_CURRENT_INTEGRATION_CROSS_NODE_GREEN");
+          console.log("protected_path_count="+c.protected_path_count);
+          console.log("nonprotected_economic_drift_count="+c.nonprotected_economic_drift_count);
+          console.log("frozen_v4_census_proof_preserved="+c.frozen_v4_census_proof_preserved);
           console.log("funds_movement=false");
           NODE
+
