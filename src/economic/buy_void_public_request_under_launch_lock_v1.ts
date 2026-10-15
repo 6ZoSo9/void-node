@@ -213,6 +213,17 @@ function assertPrivateRequestDirV1(dir: string): void {
   if (typeof process.getuid !== "function") {
     holdHistoryV1("private_posix_identity_unavailable");
   }
+  if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+    let canonical: string;
+    try {
+      canonical = fs.realpathSync.native(dir);
+    } catch {
+      holdHistoryV1("custody_readable_directory_realpath_unavailable");
+    }
+    if (canonical !== dir) {
+      holdHistoryV1("custody_readable_directory_alias_forbidden");
+    }
+  }
   let observed: fs.Stats;
   try { observed = fs.lstatSync(dir); }
   catch { holdHistoryV1("private_directory_metadata_unavailable"); }
@@ -231,6 +242,17 @@ function assertPinnedPrivateRequestDirV1(dir: string, fd: number): void {
     visible = fs.lstatSync(dir);
     opened = fs.fstatSync(fd);
   } catch { holdHistoryV1("pinned_directory_identity_unavailable"); }
+  if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+    let canonical: string;
+    try {
+      canonical = fs.realpathSync.native(dir);
+    } catch {
+      holdHistoryV1("custody_readable_directory_realpath_unavailable");
+    }
+    if (canonical !== dir) {
+      holdHistoryV1("custody_readable_directory_alias_forbidden");
+    }
+  }
   assertRequestDirectoryPolicyV1(visible);
   assertRequestDirectoryPolicyV1(opened);
   if (!opened.isDirectory() ||
