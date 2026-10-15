@@ -835,6 +835,17 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
     rules: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     in_origin = False
+
+    def begin_rule() -> dict[str, Any]:
+        return {
+            "hostname": None,
+            "path": None,
+            "service": None,
+            "http_host_header": None,
+            "disable_chunked_encoding": None,
+            "_origin_request_seen": False,
+        }
+
     for raw_line in raw.splitlines():
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
             continue
@@ -848,24 +859,31 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
                 raise CensusError("tunnel_credentials_path_invalid")
             credentials.append(scalar)
             continue
-        if line.startswith("- hostname:"):
-            if indent != 2:
-                raise CensusError("tunnel_hostname_noncanonical_indent")
+
+        if indent == 2 and line.startswith("- "):
             if current is not None:
                 rules.append(current)
-            scalar = yaml_scalar(line.split(":", 1)[1])
-            if scalar is None:
-                raise CensusError("tunnel_hostname_invalid")
-            current = {
-                "hostname": scalar,
-                "path": None,
-                "service": None,
-                "http_host_header": None,
-                "disable_chunked_encoding": None,
-                "_origin_request_seen": False,
-            }
+            current = begin_rule()
             in_origin = False
+            if line.startswith("- hostname:"):
+                scalar = yaml_scalar(line.split(":", 1)[1])
+                if scalar is None:
+                    raise CensusError("tunnel_hostname_invalid")
+                current["hostname"] = scalar
+            elif line.startswith("- service:"):
+                scalar = yaml_scalar(line.split(":", 1)[1])
+                if scalar is None:
+                    raise CensusError("tunnel_service_invalid")
+                current["service"] = scalar
+            elif line.startswith("- path:"):
+                scalar = yaml_scalar(line.split(":", 1)[1])
+                if scalar is None:
+                    raise CensusError("tunnel_path_invalid")
+                current["path"] = scalar
+            else:
+                raise CensusError("tunnel_rule_list_item_invalid")
             continue
+
         if current is None:
             continue
         if indent == 4 and line.startswith("path:"):
@@ -894,6 +912,7 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
             if scalar not in {"true", "false"}:
                 raise CensusError("tunnel_rule_chunked_encoding_invalid")
             current["disable_chunked_encoding"] = scalar == "true"
+
     if current is not None:
         rules.append(current)
     if len(credentials) != 1:
@@ -903,27 +922,48 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         raise CensusError("tunnel_credentials_path_invalid")
     if os.path.normpath(credentials[0]) != credentials[0]:
         raise CensusError("tunnel_credentials_path_not_canonical")
+
     sensitive: list[dict[str, Any]] = []
-    non_sensitive_seed_rules: list[dict[str, Any]] = []
-    for rule in rules:
-        if rule["hostname"] != PUBLIC_HOSTNAME:
+    public_other: list[tuple[int, dict[str, Any]]] = []
+    wildcard_public: list[tuple[int, dict[str, Any]]] = []
+    hostless: list[tuple[int, dict[str, Any]]] = []
+    public_hostname_noncanonical = False
+
+    for index, rule in enumerate(rules):
+        hostname = rule["hostname"]
+        if hostname is None:
+            hostless.append((index, rule))
             continue
-        canonical_path = canonical_sensitive_path(rule["path"])
-        if canonical_path is None:
-            non_sensitive_seed_rules.append(rule)
+        if not isinstance(hostname, str):
             continue
-        service = rule["service"]
-        match = re.fullmatch(r"http://127\.0\.0\.1:([1-9][0-9]*)", service or "")
-        sensitive.append({
-            "path": canonical_path,
-            "adapter_port": int(match.group(1)) if match else None,
-            "http_host_header_bound": rule["http_host_header"] == PUBLIC_HOSTNAME,
-            "disable_chunked_encoding": rule["disable_chunked_encoding"] is True,
-        })
+        if hostname.casefold() == PUBLIC_HOSTNAME.casefold():
+            if hostname != PUBLIC_HOSTNAME:
+                public_hostname_noncanonical = True
+            canonical_path = canonical_sensitive_path(rule["path"])
+            if canonical_path is None:
+                public_other.append((index, rule))
+                continue
+            service = rule["service"]
+            match = re.fullmatch(r"http://127\.0\.0\.1:([1-9][0-9]*)", service or "")
+            sensitive.append({
+                "index": index,
+                "path": canonical_path,
+                "adapter_port": int(match.group(1)) if match else None,
+                "http_host_header_bound": rule["http_host_header"] == PUBLIC_HOSTNAME,
+                "disable_chunked_encoding": rule["disable_chunked_encoding"] is True,
+            })
+            continue
+        if (
+            hostname.startswith("*.")
+            and PUBLIC_HOSTNAME.casefold().endswith(hostname[1:].casefold())
+        ):
+            wildcard_public.append((index, rule))
+
     unique_paths = [row["path"] for row in sensitive]
     ports = [row["adapter_port"] for row in sensitive]
     base_shape = (
-        len(sensitive) == len(SENSITIVE_PATHS)
+        not public_hostname_noncanonical
+        and len(sensitive) == len(SENSITIVE_PATHS)
         and sorted(unique_paths) == sorted(SENSITIVE_PATHS)
         and len(set(unique_paths)) == len(unique_paths)
         and all(isinstance(port, int) for port in ports)
@@ -937,23 +977,70 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         if isinstance(sensitive_port, int)
         else None
     )
+
+    ordinary_seed_rules = [
+        (index, rule)
+        for index, rule in public_other
+        if rule.get("path") is None and isinstance(rule.get("service"), str)
+    ]
+    ordinary_index = (
+        ordinary_seed_rules[0][0]
+        if len(ordinary_seed_rules) == 1
+        else None
+    )
+    sensitive_precede_ordinary = (
+        isinstance(ordinary_index, int)
+        and len(sensitive) == len(SENSITIVE_PATHS)
+        and all(row["index"] < ordinary_index for row in sensitive)
+    )
+    wildcard_shadow_absent = (
+        isinstance(ordinary_index, int)
+        and all(index > ordinary_index for index, _rule in wildcard_public)
+    )
+    global_catchall_last = (
+        len(hostless) == 1
+        and hostless[0][0] == len(rules) - 1
+        and hostless[0][1].get("path") is None
+        and isinstance(hostless[0][1].get("service"), str)
+    )
+    exact_public_rule_set = (
+        len(public_other) == 1
+        and len(ordinary_seed_rules) == 1
+    )
+    ordinary_service_not_adapter = (
+        len(ordinary_seed_rules) == 1
+        and ordinary_seed_rules[0][1].get("service") != adapter_service
+    )
     extra_adapter_seed_rule = any(
-        adapter_service is not None and row.get("service") == adapter_service
-        for row in non_sensitive_seed_rules
+        adapter_service is not None and rule.get("service") == adapter_service
+        for _index, rule in public_other
     )
-    shape = base_shape and not extra_adapter_seed_rule
-    ordinary_seed_rules = sum(
-        1
-        for row in non_sensitive_seed_rules
-        if adapter_service is None or row.get("service") != adapter_service
+    first_match_order_verified = (
+        sensitive_precede_ordinary
+        and wildcard_shadow_absent
+        and global_catchall_last
     )
+    ordinary_preserved = (
+        exact_public_rule_set
+        and ordinary_service_not_adapter
+        and first_match_order_verified
+    )
+    shape = (
+        base_shape
+        and ordinary_preserved
+        and not extra_adapter_seed_rule
+    )
+
     return {
         "credential_path": credential_path,
         "sensitive_route_shape_observed": shape,
         "sensitive_adapter_port": sensitive_port if shape else None,
         "extra_adapter_seed_rule_observed": extra_adapter_seed_rule,
-        "ordinary_seed_route_count": ordinary_seed_rules,
-        "ordinary_routes_preserved_candidate": ordinary_seed_rules > 0,
+        "ordinary_seed_route_count": len(ordinary_seed_rules),
+        "ordinary_routes_preserved_candidate": ordinary_preserved,
+        "first_match_order_verified": first_match_order_verified,
+        "global_catchall_last": global_catchall_last,
+        "public_hostname_wildcard_shadow_absent": wildcard_shadow_absent,
     }
 
 def tunnel_config_snapshot(
