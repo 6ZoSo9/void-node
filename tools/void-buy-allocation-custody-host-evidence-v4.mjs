@@ -124,26 +124,7 @@ function zeroMask(value,key){
   return x;
 }
 
-export function parseBuyVoidAuthenticatedUserManagerUnitQueryV4(text){
-  if(typeof text!=="string"||text.length<2||text.length>64*1024||text.includes("\0")){
-    fail("custody_host_evidence_v4_native_output_invalid");
-  }
-  const lines=text.split("\n");
-  if(lines.at(-1)==="")lines.pop();
-  if(lines.shift()!==MARKER)fail("custody_host_evidence_v4_native_marker_invalid");
-  const out=Object.create(null);
-  for(const line of lines){
-    const at=line.indexOf("=");
-    if(at<=0)fail("custody_host_evidence_v4_native_output_invalid");
-    const key=line.slice(0,at),value=line.slice(at+1);
-    if(!EXACT_KEYS.includes(key)||Object.hasOwn(out,key)){
-      fail("custody_host_evidence_v4_native_output_shape_invalid");
-    }
-    out[key]=value;
-  }
-  if(Object.keys(out).length!==EXACT_KEYS.length||EXACT_KEYS.some(k=>!Object.hasOwn(out,k))){
-    fail("custody_host_evidence_v4_native_output_shape_invalid");
-  }
+function validateNativeV4(out){
   for(const key of TRUE_KEYS){
     if(out[key]!=="true")fail("custody_host_evidence_v4_native_truth_invalid:"+key);
   }
@@ -170,6 +151,30 @@ export function parseBuyVoidAuthenticatedUserManagerUnitQueryV4(text){
   if(out.service_ppid!==out.manager_pid){
     fail("custody_host_evidence_v4_direct_parent_invalid");
   }
+  return out;
+}
+
+export function parseBuyVoidAuthenticatedUserManagerUnitQueryV4(text){
+  if(typeof text!=="string"||text.length<2||text.length>64*1024||text.includes("\0")){
+    fail("custody_host_evidence_v4_native_output_invalid");
+  }
+  const lines=text.split("\n");
+  if(lines.at(-1)==="")lines.pop();
+  if(lines.shift()!==MARKER)fail("custody_host_evidence_v4_native_marker_invalid");
+  const out=Object.create(null);
+  for(const line of lines){
+    const at=line.indexOf("=");
+    if(at<=0)fail("custody_host_evidence_v4_native_output_invalid");
+    const key=line.slice(0,at),value=line.slice(at+1);
+    if(!EXACT_KEYS.includes(key)||Object.hasOwn(out,key)){
+      fail("custody_host_evidence_v4_native_output_shape_invalid");
+    }
+    out[key]=value;
+  }
+  if(Object.keys(out).length!==EXACT_KEYS.length||EXACT_KEYS.some(k=>!Object.hasOwn(out,k))){
+    fail("custody_host_evidence_v4_native_output_shape_invalid");
+  }
+  validateNativeV4(out);
   return Object.freeze({...out});
 }
 
@@ -180,8 +185,11 @@ export function classifyBuyVoidAllocationCustodyAuthenticatedUserServiceV4(raw,c
   const runtimeGroup=safeName(c.runtime_group,"custody_host_evidence_v4_runtime_group_invalid");
   const runtimeUid=positive(c.runtime_uid,"custody_host_evidence_v4_runtime_uid_invalid");
   const unit=safeUnit(c.runtime_service_unit,"custody_host_evidence_v4_runtime_unit_invalid");
-  const n=typeof raw==="string"?parseBuyVoidAuthenticatedUserManagerUnitQueryV4(raw):
-    exactObject(raw,EXACT_KEYS,"custody_host_evidence_v4_native_object_invalid");
+  const n=typeof raw==="string"
+    ? parseBuyVoidAuthenticatedUserManagerUnitQueryV4(raw)
+    : Object.freeze({...validateNativeV4(
+        exactObject(raw,EXACT_KEYS,"custody_host_evidence_v4_native_object_invalid"),
+      )});
   if(Number(n.runtime_uid)!==runtimeUid||n.runtime_service_unit!==unit){
     fail("custody_host_evidence_v4_native_binding_mismatch");
   }
