@@ -56,6 +56,7 @@ jobs:
           grep -Fx 'cloudflared_process_command_line_access=false' "$proof"
           grep -Fx 'operator_tunnel_config_path_required=true' "$proof"
           grep -Fx 'credential_contents_read=false' "$proof"
+          grep -Fx 'tunnel_config_retained_descriptor_binding=true' "$proof"
           grep -Fx 'nftables_exact_ruleset_verified=false' "$proof"
           grep -Fx 'cloudflare_control_plane_evidence_external=true' "$proof"
           grep -Fx 'live_acceptance_claimed=false' "$proof"
