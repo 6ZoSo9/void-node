@@ -23,4 +23,32 @@ target file, performs daemon-reload, and re-verifies exact inactive state plus
 the loaded Wants/PropagatesStopTo relationship. It never starts or stops either
 unit.
 
+## Daemon-reload recovery
+
+The update is restartable across the one source-to-manager split that can occur
+after the target file has been replaced but before systemd successfully reloads
+it.
+
+The planner has exactly three accepted states:
+
+- `old_exact` on disk -> `replace_and_reload`;
+- `new_exact` on disk plus an exact loaded predecessor shape whose only missing
+  field is `PropagatesStopTo` -> `reload_only`;
+- `new_exact` on disk plus the exact loaded stop-propagation contract ->
+  `already_exact`.
+
+The reload-only state performs **no target-file rewrite**. It runs only
+`systemctl daemon-reload`, then rechecks that both units remain inactive and
+that the loaded target has exactly the custody service in both `Wants=` and
+`PropagatesStopTo=`.
+
+This deliberately does not treat an arbitrary stale manager view as recoverable.
+Extra loaded `Wants=` dependencies, a different/nonempty
+`PropagatesStopTo=` set, active/transitional units, malformed systemctl output,
+unknown file bytes, or another target-generation mismatch all HOLD.
+
+Therefore a transient daemon-reload failure after a successful atomic replace
+can be resumed without a second pathname replacement, while every other drift
+continues to fail closed.
+
 No training, claim, private-key/signing, transaction, wallet or funds action.
