@@ -169,23 +169,26 @@ creating any checkout-parent fixture it requires both `/home/zoso` and
 ancestry. It then creates those disposable parents and materializes the fixed
 checkout path as a link to the exact hosted checkout.
 
-The proof never normalizes or rewrites pre-existing `/opt` metadata. It first
-requires host `/opt` itself to be a direct non-symlink directory before any
-privileged fixture action. If that real directory is already root-owned and
-non-group/world-writable, the disposable fixture may use it directly.
+The proof never normalizes, rewrites, or bind-mounts the host's real `/opt`.
+The outer unprivileged process does not use host `/opt` as the positive
+fixture root at all. It copies only its current Node executable into a
+disposable user-private bootstrap directory and invokes fixed
+`/usr/bin/unshare --mount --fork` through passwordless sudo.
 
-If the real directory is direct but its owner/mode does not satisfy the
-production ancestry predicate, the outer unprivileged proof copies only its
-current Node executable into a disposable `/tmp` bootstrap and re-executes the
-proof through root `unshare --mount --fork`. That child mounts a private
-root-owned mode-0755 tmpfs over `/opt` inside the new mount namespace, then
-runs the same proof source there. The mount disappears with the child process;
-the host `/opt` inode, owner, mode and contents are never changed.
+Inside that new mount namespace, the root bootstrap first makes mount
+propagation private, creates one root-owned mode-0755 disposable directory
+under the bootstrap root, and bind-mounts that directory onto namespace-local
+`/opt`. It then drops back to the original runtime UID/GID with
+`/usr/bin/setpriv`, constructs a closed environment, and re-executes the same
+proof source. Only that namespace-local `/opt` is used for protected fixture
+installation. The namespace disappears with the child; the host `/opt`
+inode, owner, mode, contents, and mount table remain unchanged.
 
-A symlink/non-directory `/opt` fails before namespace creation. No
-`GITHUB_ACTIONS`, `CI`, `RUNNER_TEMP`, or other caller-controlled hosted
-marker grants mutation authority. The private namespace is a CI proof fixture
-only and does not weaken the production native ancestry predicate.
+No `GITHUB_ACTIONS`, `CI`, `RUNNER_TEMP`, or other caller-controlled
+hosted marker grants fixture authority. Missing/failed unshare, mount, install,
+setpriv, or sudo support fails the proof closed. The private mount namespace is
+synthetic proof infrastructure only and does not weaken the production native
+ancestry predicate.
 
 A real native `/dev/null` invocation must clear the parent-proof gates,
 execute the real runtime-user transition, and reach the later expected Git
