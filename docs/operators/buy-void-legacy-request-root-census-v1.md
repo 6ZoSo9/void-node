@@ -4,6 +4,22 @@ Marker: `VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1`.
 
 Status: **read-only metadata census; never historical-disposition authority**.
 
+## Current-main dependency reconciliation
+
+This restack runs on main after merged #3068 hardened the V2 request-root
+topology census. The V2 dependency is now pinned to Git blob
+`305737478025e22ddc8f56da29f2a2dfde251d8b`.
+
+That successor only tightens V2 live-binding authority: it keeps
+`authenticated_user_manager_binding_verified=false` until separately
+authenticated user-manager evidence is integrated. The
+`machine_id_sha256()` routine consumed by this legacy census is byte-identical
+to the previously reviewed V2 generation.
+
+The focused proof binds the hardened V2 blob and requires its fail-closed
+manager-auth markers. This is an explicit current-main reconciliation, not a
+claim that every dependency remained byte-for-byte unchanged.
+
 ## Purpose
 
 The accepted stable request-root policy selects
