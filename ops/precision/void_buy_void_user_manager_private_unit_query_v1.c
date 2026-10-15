@@ -316,6 +316,18 @@ static int same_service_security(const struct service_security *a,
          a->cap_amb==b->cap_amb;
 }
 
+static int service_security_policy_ok(const struct unit_observation *obs,
+                                      const struct service_security *security) {
+  return obs->no_new_privileges==1 &&
+         obs->ambient_capabilities==0 &&
+         security->no_new_privileges==1 &&
+         security->cap_inh==0 &&
+         security->cap_prm==0 &&
+         security->cap_eff==0 &&
+         security->cap_amb==0 &&
+         security->cap_bnd==obs->capability_bounding_set;
+}
+
 static int get_string_prop(struct sd_api *api, sd_bus *bus, const char *object,
                            const char *interface, const char *property,
                            char *dst, size_t cap) {
@@ -369,8 +381,7 @@ static int validate_unit_observation(uid_t uid, const char *unit,
                                      struct service_security *security) {
   if (strcmp(obs->load_state,"loaded") || strcmp(obs->active_state,"active") || strcmp(obs->sub_state,"running")) return -1;
   if (obs->user[0] != '\0' || obs->group[0] != '\0') return -1;
-  if (obs->main_pid <= 1 || obs->no_new_privileges != 1 ||
-      obs->ambient_capabilities != 0) return -1;
+  if (obs->main_pid <= 1) return -1;
   char expected_cgroup[512];
   int n = snprintf(expected_cgroup,sizeof(expected_cgroup),
     "/user.slice/user-%lu.slice/user@%lu.service/app.slice/%s",
@@ -385,12 +396,7 @@ static int validate_unit_observation(uid_t uid, const char *unit,
   if (parse_status_ids((pid_t)obs->main_pid,uid,&observed_uid,&observed_gid) != 0 || observed_gid != manager->gid) return -1;
   struct service_security observed_security;
   if (parse_service_security((pid_t)obs->main_pid,&observed_security) != 0) return -1;
-  if (observed_security.no_new_privileges != 1 ||
-      observed_security.cap_inh != 0 ||
-      observed_security.cap_prm != 0 ||
-      observed_security.cap_eff != 0 ||
-      observed_security.cap_amb != 0 ||
-      observed_security.cap_bnd != obs->capability_bounding_set) return -1;
+  if (!service_security_policy_ok(obs,&observed_security)) return -1;
   if (exact_service_cgroup((pid_t)obs->main_pid,uid,unit) != 0) return -1;
   if (exact_executable_path((pid_t)obs->main_pid,NODE_EXE) != 0) return -1;
   service->pid=(pid_t)obs->main_pid;
@@ -548,8 +554,20 @@ static int self_test_query(void) {
     "CapBnd:\t000001ffffffffff\n"
     "CapAmb:\t0000000000000000\n";
   struct service_security bad;
-  if (parse_service_security_text(bad_status,&bad) != 0 ||
-      (bad.no_new_privileges == 1 && bad.cap_eff == 0)) return 1;
+  if (parse_service_security_text(bad_status,&bad) != 0) return 1;
+
+  struct unit_observation synthetic_obs;
+  memset(&synthetic_obs,0,sizeof(synthetic_obs));
+  synthetic_obs.no_new_privileges=1;
+  synthetic_obs.capability_bounding_set=UINT64_C(0x000001ffffffffff);
+  synthetic_obs.ambient_capabilities=0;
+  if (!service_security_policy_ok(&synthetic_obs,&good)) return 1;
+  if (service_security_policy_ok(&synthetic_obs,&bad)) return 1;
+  struct service_security wrong_bnd=good;
+  wrong_bnd.cap_bnd-=1;
+  if (service_security_policy_ok(&synthetic_obs,&wrong_bnd)) return 1;
+  synthetic_obs.ambient_capabilities=1;
+  if (service_security_policy_ok(&synthetic_obs,&good)) return 1;
 
   printf("%s_SELF_TEST_GREEN\n",MARKER);
   printf("kernel_security_status_parser=true\n");
