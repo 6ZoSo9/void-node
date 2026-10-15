@@ -32,6 +32,78 @@ CANDIDATE_ID = "voidbuycustodybundle1_2339d565cc1c298a3f7ca9cae2ef163831288007bb
 CANDIDATE_SHA256 = "5ee2b5e5fc25a7cec8313c7cb7c4cd8bb675e3652ab18dc614577a25376f2279"
 CANDIDATE_BYTES = 9930
 RUNTIME_FILE_COUNT = 10
+EXPECTED_RUNTIME_RECORDS = (
+    {
+        "path": "dist/economic/buy_void_allocation_reservation_high_water_v1.js",
+        "bytes": 12251,
+        "sha256": "1999015c9e0770a5a94b3b4d29f5aa6a47036406754673adb2ed5829c5e406e9",
+        "runtime_kind": "compiled_typescript",
+        "tracked_source_git_blob_sha1": None,
+    },
+    {
+        "path": "dist/economic/buy_void_allocation_reservation_ledger_v1.js",
+        "bytes": 47309,
+        "sha256": "51de81388631ecef2a8c3feea68960040ccbda75fd29ada171cb9c9c7b53188a",
+        "runtime_kind": "compiled_typescript",
+        "tracked_source_git_blob_sha1": None,
+    },
+    {
+        "path": "dist/economic/buy_void_auto_fulfillment_v1.js",
+        "bytes": 26226,
+        "sha256": "119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c",
+        "runtime_kind": "compiled_typescript",
+        "tracked_source_git_blob_sha1": None,
+    },
+    {
+        "path": "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
+        "bytes": 21165,
+        "sha256": "0b4dd188dbbf7658542b1d20c521227fa1fc01d7d79e89a713863b771380da13",
+        "runtime_kind": "compiled_typescript",
+        "tracked_source_git_blob_sha1": None,
+    },
+    {
+        "path": "dist/economic/buy_void_preappend_plain_input_v1.js",
+        "bytes": 6408,
+        "sha256": "8ce2320bd73a83f0dd81cbe248fc2fba0f51112ff9b0411e60bb0209ad0ddea3",
+        "runtime_kind": "compiled_typescript",
+        "tracked_source_git_blob_sha1": None,
+    },
+    {
+        "path": "dist/economic/buy_void_verified_allocation_replay_binding_v1.js",
+        "bytes": 36908,
+        "sha256": "a1ae849202fd5587347602df498687bda3429f7aafd2c5e280b21029471967b9",
+        "runtime_kind": "compiled_typescript",
+        "tracked_source_git_blob_sha1": None,
+    },
+    {
+        "path": "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs",
+        "bytes": 34733,
+        "sha256": "aee698a5fb071fd1bc597bd2ea4844659da803d17dee58810caf83e309422c82",
+        "runtime_kind": "tracked_source",
+        "tracked_source_git_blob_sha1": "a7610b03d394254c760683f0d9061aa0865718db",
+    },
+    {
+        "path": "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs",
+        "bytes": 9917,
+        "sha256": "a2a550f766659235a3e21a6d16003b22f482872e73f31ae23f8dbaf01dbe3979",
+        "runtime_kind": "tracked_source",
+        "tracked_source_git_blob_sha1": "1bf88a403b1012ac00edaf634c5ed237a898043c",
+    },
+    {
+        "path": "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs",
+        "bytes": 9781,
+        "sha256": "e894b9bd7340177cf052a999c0a77b7720ffcb192e09946bce67de09c1f84455",
+        "runtime_kind": "tracked_source",
+        "tracked_source_git_blob_sha1": "79eb8c39529583fffdb083173fb37b1f32075a14",
+    },
+    {
+        "path": "tools/void-buy-allocation-custody-service-v2.mjs",
+        "bytes": 32916,
+        "sha256": "672fbe1dd3468b4b6a252a51a798edac0d8594d176c939ad0f42c2c72e880ab9",
+        "runtime_kind": "tracked_source",
+        "tracked_source_git_blob_sha1": "3afcc450b11f93209253a5cc10b300596942d07d",
+    },
+)
 MAX_MEMBER = 16 * 1024 * 1024
 MAX_ARCHIVE = 8 * 1024 * 1024
 CANDIDATE_TOOL = "tools/void-buy-allocation-custody-runtime-bundle-candidate-v1.mjs"
@@ -287,6 +359,12 @@ def runtime_payloads(candidate: dict[str, Any]) -> tuple[dict[str, bytes], list[
             }
         )
     records.sort(key=lambda row: row["path"])
+    expected_records = sorted(
+        (dict(row) for row in EXPECTED_RUNTIME_RECORDS),
+        key=lambda row: row["path"],
+    )
+    if records != expected_records:
+        hold("runtime_candidate_per_file_identity_mismatch")
     return payloads, records
 
 
@@ -376,6 +454,12 @@ def inspect_manifest(value: object) -> dict[str, Any]:
     records = value.get("runtime_files")
     if type(records) is not list or len(records) != RUNTIME_FILE_COUNT:
         hold("archive_manifest_runtime_files_invalid")
+    expected_records = sorted(
+        (dict(row) for row in EXPECTED_RUNTIME_RECORDS),
+        key=lambda row: row["path"],
+    )
+    if records != expected_records:
+        hold("archive_manifest_runtime_identity_not_accepted")
     wanted = manifest(records)
     if value != wanted:
         hold("archive_manifest_content_invalid")
@@ -494,6 +578,11 @@ def write_create_only(path: Path, raw: bytes) -> None:
         os.fsync(fd)
     finally:
         os.close(fd)
+    parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(parent_fd)
+    finally:
+        os.close(parent_fd)
 
 
 def self_test() -> None:
