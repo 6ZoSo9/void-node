@@ -540,6 +540,7 @@ try {
     "production_service_installed: false",
     "runtime_integration: false",
     "source_identity_forwarded_as_http_header: false",
+    "socket.pause();",
   ]) {
     assert.ok(runtimeSource.includes(required), required);
   }
@@ -583,7 +584,8 @@ try {
   console.log("source_identity_forwarded_as_http_header=false");
   console.log("spoofable_forwarding_headers_forwarded=false");
   console.log("split_request_delivery_preserved=true");
-  console.log("same_connection_trailing_bytes_rejected=true");
+  console.log("buffered_trailing_bytes_rejected=true");
+  console.log("post_classification_read_paused=true");
   console.log("oversize_response_fails_closed=true");
   console.log("dispatcher_unavailable_fails_closed=true");
   console.log("cloudflare_header_transport_trusted=false");
