@@ -9,6 +9,8 @@ on:
       - "src/p2p/udp_swarm_socket_runtime_v1.ts"
       - "src/node_core.ts"
       - "scripts/prove_void_p2p_client_clock_regression_v1.ts"
+      - "scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts"
+      - "scripts/prove_void_p2p_udp_swarm_node_candidate_promotion_v1.ts"
       - "docs/architecture/p2p-client-clock-regression-v1.md"
       - ".github/workflows/void-p2p-client-clock-regression-v1.yml"
   push:
@@ -20,6 +22,8 @@ on:
       - "src/p2p/udp_swarm_socket_runtime_v1.ts"
       - "src/node_core.ts"
       - "scripts/prove_void_p2p_client_clock_regression_v1.ts"
+      - "scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts"
+      - "scripts/prove_void_p2p_udp_swarm_node_candidate_promotion_v1.ts"
       - "docs/architecture/p2p-client-clock-regression-v1.md"
       - ".github/workflows/void-p2p-client-clock-regression-v1.yml"
   workflow_dispatch:
@@ -66,6 +70,11 @@ jobs:
 
       - name: Preserve UDP-swarm authenticated control
         run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts
+
+      - name: Preserve staged UDP candidate integration and promotion
+        run: |
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_promotion_v1.ts
 
       - name: Preserve relay reservation behavior
         run: npx --no-install tsx scripts/prove_void_p2p_relay_reservation_v1.ts
