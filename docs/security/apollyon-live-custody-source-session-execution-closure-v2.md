@@ -36,7 +36,17 @@ The runner performs one bounded live session:
 - reads the exact immutable custody record;
 - qualifies it through #3043;
 - finalizes current-V2 live source/session binding through #3045; and
-- stops the inert training service in `finally`.
+- performs stop-first recovery for the inert training service before any
+  fallible private-tree/descriptors cleanup.
+
+Recovery is fail-closed and ordered. Once a training-service start succeeds,
+the stop attempt is the highest-priority recovery action. A nonzero stop result
+is an error; the runner then independently rechecks `ActiveState` and treats a
+still-active service as an error. Private execution-tree cleanup and retained
+descriptor closes are attempted even when stop or an earlier cleanup action
+fails. If execution and recovery both fail, both errors are preserved in an
+aggregate rather than allowing cleanup failure to hide the primary failure or
+prevent the stop attempt.
 
 It never invokes a trainer and never creates a durable attempt claim.
 
@@ -62,6 +72,11 @@ The runner's nested V2 reviewed tree inherits `TMPDIR` beneath that same
 private parent.
 
 Direct live worktree invocation is unsupported.
+
+The source self-test uses injected fake operations only; it does not contact
+systemd. It proves cleanup failure cannot skip stop, stop failure does not skip
+later cleanup, active-after-stop fails closed, and execution/recovery failures
+are aggregated.
 
 ## Authority boundary
 
