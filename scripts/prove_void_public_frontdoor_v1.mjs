@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import http from "node:http";
+import net from "node:net";
 import { execFileSync, spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -54,6 +55,9 @@ assert.match(source, /if \(BIND !== "127\.0\.0\.1"\) throw new Error/);
 assert.match(source, /UPSTREAM_HOST = "127\.0\.0\.1"/);
 assert.match(source, /VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT/);
 assert.match(source, /req\.pipe\(upstream\)/);
+assert.match(source, /const SENSITIVE_EDGE_PATHS = Object\.freeze/);
+assert.match(source, /isSensitiveEdgeBypassV1\(requestUrl\)/);
+assert.match(source, /"connection": "close"/);
 assert.doesNotMatch(source, /child_process|exec\(|spawn\(|writeFile|appendFile/);
 
 assert.match(cutover, /VOID_PUBLIC_FRONTDOOR_CUTOVER_V1/);
@@ -135,7 +139,9 @@ function runtimeSnapshot(mode = "ready") {
   return value;
 }
 
+let upstreamRequestCount = 0;
 const upstream = http.createServer((req, res) => {
+  upstreamRequestCount += 1;
   if (req.method === "GET" && req.url === "/__void/public-app/network.json") {
     if (upstreamStatusMode === "http_503") {
       res.writeHead(503, { "content-type": "application/json" });
@@ -316,6 +322,82 @@ try {
   assert.equal(rootPostJson.method, "POST");
   assert.equal(rootPostJson.url, "/");
   assert.equal(rootPostJson.body, "root-post");
+
+  const sensitiveUpstreamBefore = upstreamRequestCount;
+  for (const target of [
+    "/__void/agents/paid-work/credential-requests/v1",
+    "/__void/agents/paid-work/credential-requests/v1?bad=1",
+    "/__void/agents/paid-work/credential-requests/v1/",
+    "/__void/agents/paid-work/x/../credential-requests/v1",
+    "/wc/public-earning-pilot-v1/claim-ticket",
+    "/wc/public-earning-pilot-v1/claim-ticket?bad=1",
+    "/wc/public-earning-pilot-v1/claim-ticket/",
+    "/wc/public-earning-pilot-v1/x/../claim-ticket",
+    "/wc/public-earning-pilot-v1/submit-result",
+  ]) {
+    const denied = await fetch(
+      `http://127.0.0.1:${frontdoorPort}${target}`,
+      {
+        method: "POST",
+        body: "bypass-attempt",
+      },
+    );
+    assert.equal(denied.status, 404, target);
+    assert.equal(denied.headers.get("connection"), "close", target);
+    assert.equal(await denied.text(), "not public\n", target);
+  }
+  assert.equal(
+    upstreamRequestCount,
+    sensitiveUpstreamBefore,
+    "sensitive frontdoor bypass must not reach upstream",
+  );
+
+  const pipelineBefore = upstreamRequestCount;
+  const pipelineSocket = net.createConnection({
+    host: "127.0.0.1",
+    port: frontdoorPort,
+  });
+  const pipelineResponse = [];
+  pipelineSocket.on("data", (chunk) =>
+    pipelineResponse.push(Buffer.from(chunk)),
+  );
+  await new Promise((resolvePromise, reject) => {
+    pipelineSocket.once("connect", resolvePromise);
+    pipelineSocket.once("error", reject);
+  });
+  pipelineSocket.setTimeout(5000, () =>
+    pipelineSocket.destroy(new Error("pipeline proof timeout")),
+  );
+  pipelineSocket.write(
+    Buffer.from(
+      [
+        "GET /app/pipeline HTTP/1.1",
+        "Host: public.example",
+        "Content-Length: 0",
+        "",
+        "",
+        "POST /wc/public-earning-pilot-v1/claim-ticket HTTP/1.1",
+        "Host: public.example",
+        "Content-Length: 0",
+        "Connection: close",
+        "",
+        "",
+      ].join("\r\n"),
+      "ascii",
+    ),
+  );
+  await new Promise((resolvePromise, reject) => {
+    pipelineSocket.once("close", resolvePromise);
+    pipelineSocket.once("error", reject);
+  });
+  const pipelineText = Buffer.concat(pipelineResponse).toString("utf8");
+  assert.match(pipelineText, /HTTP\/1\.1 200 OK/u);
+  assert.match(pipelineText, /HTTP\/1\.1 404 Not Found/u);
+  assert.equal(
+    upstreamRequestCount,
+    pipelineBefore + 1,
+    "pipelined sensitive request must not reach upstream",
+  );
 } finally {
   child.kill("SIGTERM");
   await new Promise((r) => child.once("exit", r));
@@ -332,6 +414,8 @@ console.log("auxiliary_8443_funnel_ignored=true");
 console.log("root_static_get_head_only=true");
 console.log("non_root_proxy_behavior_executed=true");
 console.log("post_passthrough_executed=true");
+console.log("sensitive_edge_bypass_blocked=true");
+console.log("pipelined_sensitive_bypass_blocked=true");
 console.log("loopback_only=true");
 console.log("rollback_contract_present=true");
 console.log("frontdoor_ready_bound_to_composition_runtime_truth=true");
