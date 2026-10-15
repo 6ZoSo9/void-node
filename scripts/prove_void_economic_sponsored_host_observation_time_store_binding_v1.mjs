@@ -161,11 +161,10 @@ const source=fs.readFileSync(path.join(ROOT,SOURCE),"utf8");
 for(const required of [
   "collectVoidEconomicSponsoredHostTrustedClockBindingV1",
   '["root_dir"]',
-  "preview.candidate_receipt_sha256",
+  "result.candidate_receipt_sha256",
   "observed.head_receipt_sha256",
-  "preview.candidate_receipt_sha256",
-  "captured.clockReads() !== 2",
-  "SPONSORED_HOST_DURABLE_TIME_PREVIEW_PERSIST_MISMATCH",
+  "captured.clockReads() !== 1",
+  "SPONSORED_HOST_DURABLE_TIME_OBSERVE_BINDING_MISMATCH",
   "trusted_clock_source_proven: productionExpected",
   "trusted_clock_host_binding_proven: productionExpected",
   "receipt_store_rollback_resistance_proven: false",
@@ -209,9 +208,9 @@ for(const [key,value] of Object.entries(
     "fixed_host_trusted_clock_collector_wired",
     "durable_observation_store_reused",
     "one_host_binding_capture_per_operation",
-    "preview_before_durable_observe",
-    "same_bound_sample_preview_and_observe",
-    "durable_receipt_matches_preview_candidate_required",
+    "one_store_clock_read_per_operation",
+    "preview_zero_durable_growth",
+    "durable_result_bound_to_same_host_sample",
   ]);
   assert.equal(value,trueKeys.has(key),key);
 }
@@ -279,16 +278,12 @@ try{
   assert.equal(observed.status,"source_observed_bound");
   assert.equal(observeCollectorCalls,1);
   assert.equal(observed.host_binding_capture_count,1);
-  assert.equal(observed.store_clock_read_count,2);
+  assert.equal(observed.store_clock_read_count,1);
   assert.equal(observed.generation,"0");
   assert.equal(observed.durable_receipt_count,1);
   assert.equal(observed.accepted_observed_at_ms,first.value.wall_time_ms);
-  assert.equal(
-    observed.preview_candidate_receipt_sha256,
-    observed.durable_head_receipt_sha256,
-  );
-  assert.equal(observed.same_bound_sample_preview_and_observe,true);
-  assert.equal(observed.durable_receipt_matches_preview_candidate,true);
+  assert.match(observed.durable_head_receipt_sha256,/^sha256:[0-9a-f]{64}$/u);
+  assert.equal(observed.durable_result_bound_to_same_host_sample,true);
   assert.equal(observed.trusted_clock_source_proven,false);
   assert.equal(observed.trusted_clock_host_binding_proven,false);
   assert.equal(observed.trusted_clock_runtime_authority,false);
@@ -323,10 +318,11 @@ try{
     observed2.accepted_observed_at_ms,
     second.value.wall_time_ms,
   );
-  assert.equal(
-    observed2.preview_candidate_receipt_sha256,
+  assert.match(
     observed2.durable_head_receipt_sha256,
+    /^sha256:[0-9a-f]{64}$/u,
   );
+  assert.equal(observed2.durable_result_bound_to_same_host_sample,true);
 
   const beforeForbidden=records(root).length;
   const forbidden=await secondBinding.observe("caller-input");
@@ -376,9 +372,9 @@ console.log("production_caller_clock_input=false");
 console.log("production_caller_timestamp_input=false");
 console.log("production_caller_prior_receipt_input=false");
 console.log("one_host_binding_capture_per_operation=true");
+console.log("one_store_clock_read_per_operation=true");
 console.log("preview_zero_durable_growth=true");
-console.log("same_bound_sample_preview_and_observe=true");
-console.log("durable_receipt_matches_preview_candidate_required=true");
+console.log("durable_result_bound_to_same_host_sample=true");
 console.log("malformed_host_binding_rejected_before_durable_growth=true");
 console.log("production_host_sample_collected_in_ci=false");
 console.log("trusted_clock_runtime_authority=false");
