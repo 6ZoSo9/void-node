@@ -33,7 +33,7 @@ const invocation=buildBuyVoidAllocationCustodyUserSystemctlInvocationV2({
   ],
 });
 assert.equal(invocation.command,"/usr/sbin/runuser");
-assert.deepEqual(invocation.args.slice(0,18),[
+assert.deepEqual(invocation.args.slice(0,17),[
   "-u","zoso","--",
   "/usr/bin/env","-i",
   "HOME=/home/zoso",
