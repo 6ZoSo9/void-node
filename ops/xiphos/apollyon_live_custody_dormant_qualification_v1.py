@@ -34,7 +34,7 @@ CONSUMED=Path("/var/lib/void-apollyon-custody-v1/consumed")
 
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
-HELPER_BLOB="6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5"
+HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"
 LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"
 NODE_BYTES=126595440
 NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"
@@ -71,7 +71,11 @@ def exact_file(path:Path,mode:int,uid:int=0,gid:int=0,blob:str|None=None)->os.st
         hold("file_blob_invalid:"+str(path))
     return st
 
-def exact_dormant(unit:str,allow_failed:bool=False)->dict[str,str]:
+def exact_dormant(
+    unit:str,
+    allow_failed:bool=False,
+    expected_unit_file_state:str|None=None,
+)->dict[str,str]:
     r=run([
         "/usr/bin/systemctl","show",unit,"--no-pager",
         "-p","LoadState","-p","ActiveState","-p","SubState",
@@ -91,7 +95,12 @@ def exact_dormant(unit:str,allow_failed:bool=False)->dict[str,str]:
             hold("unit_not_safely_dormant:"+unit)
     elif active!="inactive":
         hold("unit_not_inactive:"+unit)
-    if props.get("UnitFileState")=="enabled":hold("unit_enabled:"+unit)
+    unit_file_state=props.get("UnitFileState")
+    if expected_unit_file_state is not None:
+        if unit_file_state!=expected_unit_file_state:
+            hold("unit_file_state_mismatch:"+unit)
+    elif unit_file_state=="enabled":
+        hold("unit_enabled:"+unit)
     if props.get("MainPID") not in ("","0",None):hold("unit_mainpid_nonzero:"+unit)
     return props
 
@@ -296,8 +305,8 @@ def stop_and_attest(ids:dict[str,int])->dict[str,object]:
 def plan()->dict:
     if socket.gethostname().casefold()!=TARGET_HOST.casefold():hold("wrong_host")
     ids=verify_static_install()
-    exact_dormant(TARGET_UNIT)
-    exact_dormant(SERVICE_UNIT)
+    exact_dormant(TARGET_UNIT,expected_unit_file_state="disabled")
+    exact_dormant(SERVICE_UNIT,expected_unit_file_state="static")
     exact_dormant(TRAINING_UNIT,allow_failed=True)
     if SOCKET_PATH.exists():hold("preexisting_socket_path")
     assert_socket_parent_empty()
@@ -352,7 +361,8 @@ def qualify()->dict:
                 error=Hold("emergency_target_stop_failed")
     if error is not None:raise error
 
-    exact_dormant(TARGET_UNIT);exact_dormant(SERVICE_UNIT)
+    exact_dormant(TARGET_UNIT,expected_unit_file_state="disabled")
+    exact_dormant(SERVICE_UNIT,expected_unit_file_state="static")
     if SOCKET_PATH.exists():hold("final_socket_present")
     assert_socket_parent_empty()
     if consumed_snapshot()!=consumed_before:hold("final_consumed_state_changed")
@@ -378,6 +388,9 @@ def self_test()->None:
         'assert_socket_parent_empty()',
         'target_maybe_started=True',
         'active not in ("inactive","failed")',
+        'expected_unit_file_state="disabled"',
+        'expected_unit_file_state="static"',
+        'unit_file_state_mismatch:',
         'st.st_nlink!=2',
         'consumed_snapshot()!=consumed_before',
         'custody_process_generation_not_renewed',
