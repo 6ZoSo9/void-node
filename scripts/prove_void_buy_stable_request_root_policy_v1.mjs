@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
@@ -60,6 +61,29 @@ held(x=>{x.private_sidecar_mode="0640";},
   "stable_request_root_private_sidecar_mode_invalid");
 held(x=>{x.runtime_user="void-buy-runtime";},
   "stable_request_root_runtime_user_invalid");
+
+const PARENT_SOURCE_BLOBS=Object.freeze({
+  "src/economic/buy_void_request_custody_read_policy_v1.ts":
+    "8885957e3f9ff983724c7944e0d4f181e6e834c1",
+  "src/economic/buy_void_public_request_under_launch_lock_v1.ts":
+    "bf5942cc1a832cefcdee1bf8d4147d0c83a2a5ed",
+  "src/economic/buy_void_verified_payment_capacity_admission_v1.ts":
+    "ac8bf352979e0e24d2cab45c3b23949e1bd2b026",
+});
+function gitBlobSha1(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+bytes.length+"\\0","utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+for(const [relative,expected] of Object.entries(PARENT_SOURCE_BLOBS)){
+  const bytes=fs.readFileSync(relative);
+  assert.equal(
+    gitBlobSha1(bytes),
+    expected,
+    "accepted_parent_source_blob_drift:"+relative,
+  );
+}
 
 const readPolicy=fs.readFileSync(
   "src/economic/buy_void_request_custody_read_policy_v1.ts","utf8",
@@ -130,6 +154,7 @@ console.log("private_sidecar_mode=0600");
 console.log("runtime_user=zoso");
 console.log("ipc_group=void-buy-custody-ipc");
 console.log("immutable_release_root_forbidden=true");
+console.log("accepted_parent_source_generation_bound=true");
 console.log("legacy_history_disposition_required_before_apply=true");
 console.log("request_history_migration_authorized=false");
 console.log("service_mutation=false");
