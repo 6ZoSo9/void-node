@@ -896,7 +896,7 @@ static int self_test_credential_query(void) {
 
   printf("%s_SELF_TEST_GREEN\n", MARKER);
   printf("accepted_v4_peer_guard_embedded=true\n");
-  printf("accepted_v5_unit_query_pinned_as_integration_peer=true\n");
+  printf("accepted_v6_unit_query_pinned_as_integration_peer=true\n");
   printf("systemd_private_socket_required=true\n");
   printf("public_user_bus_used=false\n");
   printf("need_daemon_reload_queried_same_connection=true\n");
