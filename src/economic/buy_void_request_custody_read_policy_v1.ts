@@ -4,7 +4,7 @@ export const VOID_BUY_VOID_REQUEST_CUSTODY_READ_POLICY_V1 =
 export const VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_ENV_V1 =
   "VOID_BUY_REQUEST_CUSTODY_READ_GID";
 
-export const VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1 = 0o2750;
+export const VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1 = 0o750;
 export const VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1 = 0o640;
 
 export const VOID_BUY_VOID_REQUEST_CUSTODY_READ_POLICY_AUTHORITY_V1 =
@@ -13,7 +13,8 @@ export const VOID_BUY_VOID_REQUEST_CUSTODY_READ_POLICY_AUTHORITY_V1 =
     absolute_preprovisioned_request_root_required: true,
     runtime_uid_remains_owner: true,
     dedicated_ipc_gid_required: true,
-    request_directory_setgid_required: true,
+    request_directory_group_read_execute_required: true,
+    fixed_journals_preprovisioned_required: true,
     fixed_journals_group_readable_only: true,
     customer_sidecars_group_readable: false,
     operator_sidecars_group_readable: false,
