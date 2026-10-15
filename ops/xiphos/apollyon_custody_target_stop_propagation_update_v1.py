@@ -16,7 +16,7 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-target-stop-propagation-update-v1.json"
-MANIFEST_BLOB="@UPDATE_MANIFEST_BLOB@"
+MANIFEST_BLOB="a515adddc24791a5f8e0fba555b62f80eb3079cc"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 OLD_TARGET_BLOB="d37ffefddb747d4c49f3ee70ea94a3612307a696"
 NEW_TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"

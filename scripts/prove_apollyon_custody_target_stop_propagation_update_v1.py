@@ -10,6 +10,10 @@ TARGET=ROOT/"ops/xiphos/void-apollyon-authorization-custody-v1.target"
 
 manifest=json.loads(MANIFEST.read_text())
 assert manifest["marker"]=="VOID_APOLLYON_CUSTODY_TARGET_STOP_PROPAGATION_UPDATE_V1"
+def git_blob(path:Path)->str:
+    import hashlib
+    data=path.read_bytes();h=hashlib.sha1();h.update(f"blob {len(data)}\\0".encode("ascii"));h.update(data);return h.hexdigest()
+assert git_blob(MANIFEST)=="a515adddc24791a5f8e0fba555b62f80eb3079cc"
 assert manifest["old_blob_sha1"]=="d37ffefddb747d4c49f3ee70ea94a3612307a696"
 assert manifest["new_blob_sha1"]=="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 assert manifest["propagates_stop_to_service"] is True
@@ -25,6 +29,7 @@ assert "After=void-apollyon-authorization-custody-v1.service\n" in target
 source=INSTALLER.read_text()
 ast.parse(source)
 for required in (
+    'MANIFEST_BLOB="a515adddc24791a5f8e0fba555b62f80eb3079cc"',
     'OLD_TARGET_BLOB="d37ffefddb747d4c49f3ee70ea94a3612307a696"',
     'NEW_TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"',
     '"PropagatesStopTo"',
