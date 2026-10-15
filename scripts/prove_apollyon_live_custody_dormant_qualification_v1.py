@@ -45,6 +45,11 @@ for required in (
     'assert_no_unreviewed_dependency_directories(TARGET_UNIT)',
     'assert_no_unreviewed_dependency_directories(SERVICE_UNIT)',
     'unreviewed_systemd_dependency_entry:',
+    'require_trusted_ancestor_chain(',
+    'verify_path_custody(ids)',
+    'custody_group_closure_invalid',
+    'custody_supplementary_groups_unreviewed',
+    'exact_runtime_supplementary_groups(',
     'REVIEWED_SYSTEMD_MAJOR=255',
     'REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(',
     'verify_systemd_generation()',
@@ -106,6 +111,10 @@ for line in (
     "manager_environment_influence_unset=true",
     "systemd_dependency_directories_closed=true",
     "unreviewed_systemd_dependency_entries_rejected=true",
+    "retained_ancestor_custody_required=true",
+    "world_writable_execution_parent_rejected=true",
+    "custody_group_closure_required=true",
+    "extra_custody_supplementary_group_rejected=true",
     "failure_cleanup_receipt_truthful=true",
     "emergency_cleanup_adversaries_executed=true",
     "failed_stop_cleanup_reported=true",
@@ -143,6 +152,10 @@ print("unexpected_systemd_exec_commands_rejected=true")
 print("manager_environment_influence_unset=true")
 print("systemd_dependency_directories_closed=true")
 print("unreviewed_systemd_dependency_entries_rejected=true")
+print("retained_ancestor_custody_required=true")
+print("world_writable_execution_parent_rejected=true")
+print("custody_group_closure_required=true")
+print("extra_custody_supplementary_group_rejected=true")
 print("failure_cleanup_receipt_truthful=true")
 print("emergency_cleanup_adversaries_executed=true")
 print("failed_stop_cleanup_reported=true")
