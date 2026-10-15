@@ -234,7 +234,12 @@ assert.equal(
 const incompleteHold=classify(input(incompleteEvidence,{decision:D.UNRESOLVED_HOLD}));
 assert.equal(incompleteHold.ok,true);
 
-const unavailableEvidence=evidence(cleanRows(),{
+const unavailableRows=cleanRows()
+  .filter(item=>!item.sources.includes("live_process_cwd_default"))
+  .map(item=>item.sources.includes("unit_working_directory_default")
+    ?{...item,sources:["repo_default"]}
+    :item);
+const unavailableEvidence=evidence(unavailableRows,{
   service:{
     status:3,
     load_state:"loaded",
