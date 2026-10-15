@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import {readFileSync} from "node:fs";
 import {
   VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_AUTHORITY_V1 as AUTH,
   VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_DECISIONS_V1 as D,
@@ -27,6 +28,13 @@ function canonical(value){
 }
 const sha256=(raw)=>
   "sha256:"+crypto.createHash("sha256").update(raw,"utf8").digest("hex");
+
+function gitBlobSha1(raw){
+  const prefix=Buffer.from("blob "+String(raw.length)+"\0","utf8");
+  return crypto.createHash("sha1").update(prefix).update(raw).digest("hex");
+}
+const acceptedParentSource=readFileSync(PARENT.source_path);
+assert.equal(gitBlobSha1(acceptedParentSource),PARENT.accepted_source_blob_sha1);
 
 function row(path,sources,classification){
   return {
@@ -168,6 +176,10 @@ assert.equal(clean.ok,true);
 assert.match(clean.candidate_id,/^voidblrhdc1_[0-9a-f]{64}$/u);
 assert.equal(clean.metadata_census_sha256,sha256(cleanRaw));
 assert.equal(clean.metadata_census_source_head,PARENT.accepted_source_head);
+assert.equal(
+  clean.metadata_census_source_blob_sha1,
+  PARENT.accepted_source_blob_sha1,
+);
 assert.equal(clean.bounded_current_candidate_set_observed,true);
 assert.equal(clean.human_accounting_disposition_declared,true);
 assert.equal(clean.technical_historical_origin_proven,false);
@@ -281,6 +293,7 @@ for(const [key,expected] of Object.entries({
   human_accounting_disposition_may_be_recorded:true,
   exact_census_evidence_bytes_required:true,
   exact_census_source_head_required:true,
+  exact_census_source_blob_required:true,
   census_sha256_computed_internally:true,
   census_partitions_derived_internally:true,
   bounded_current_candidate_set_required_for_no_liability:true,
@@ -310,6 +323,7 @@ for(const [key,expected] of Object.entries({
 console.log("VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_CANDIDATE_V1_PROOF_GREEN");
 console.log("exact_census_evidence_bytes_required=true");
 console.log("exact_census_source_head_required=true");
+console.log("exact_census_source_blob_required=true");
 console.log("census_sha256_computed_internally=true");
 console.log("census_partitions_derived_internally=true");
 console.log("fabricated_summary_rejected=true");
