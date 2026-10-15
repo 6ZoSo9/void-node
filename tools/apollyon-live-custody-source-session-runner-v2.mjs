@@ -61,7 +61,7 @@ const ISOLATION_OBSERVER_REL=
   "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py";
 const CUSTODY_LAUNCHER_V2_BLOB_SHA1=
   "d23ff045d8c355401fed499c6bcffd503ba4c7fd";
-const NODE_BIN="/usr/bin/node";
+const NODE_BIN="/opt/void-apollyon-node-runtime-v1/node";
 const PYTHON_BIN="/usr/bin/python3";
 const ED25519_SPKI_PREFIX=Buffer.from("302a300506032b6570032100","hex");
 const AUTH_ID=/^apollyon_authz_v1:([0-9a-f]{64})$/u;

@@ -27,9 +27,9 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="995e326af8e69df4f96aaa615bb610b07dd4c7be"
+MANIFEST_BLOB="cd8e207331c09520c5bf82263e13b13c10ce665b"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
-UNIT_BLOB="c78bb50e1c2b70fb31a637fdb701e80abfa0f7af"
+UNIT_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 TARGET_BLOB="d37ffefddb747d4c49f3ee70ea94a3612307a696"
 ENV_TEMPLATE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.env.template"
@@ -39,11 +39,15 @@ POLKIT_BLOB="9d9e6890a35b6ae3bdc8e7a2f97abc61cff5360f"
 TMPFILES_REL="ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf"
 TMPFILES_BLOB="5d3443c03821b403d52d10629571374325dc5598"
 LIVE_LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
-LIVE_LAUNCHER_BLOB="069b049e55db0c30cbd43daca996509274db1b46"
+LIVE_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"
 PREENTRY_SOURCE_REL="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 PREENTRY_SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 
 EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"
+NODE_RUNTIME=Path("/opt/void-apollyon-node-runtime-v1/node")
+NODE_VERSION="v24.21.0"
+NODE_BYTES=126595440
+NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"
 PREENTRY_BYTES=798736
 PREENTRY_SHA256="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"
 SPKI_PREFIX=bytes.fromhex("302a300506032b6570032100")
@@ -134,6 +138,72 @@ def run(argv:list[str],*,check:bool=True,timeout:int=30)->subprocess.CompletedPr
     if check and result.returncode!=0:
         hold("command_failed:"+Path(argv[0]).name)
     return result
+
+def verify_node_runtime()->dict[str,Any]:
+    before=os.lstat(NODE_RUNTIME)
+    if (
+        not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or
+        before.st_nlink!=1 or before.st_uid!=0 or before.st_gid!=0 or
+        stat.S_IMODE(before.st_mode)!=0o755 or before.st_size!=NODE_BYTES
+    ):
+        hold("node_runtime_metadata_invalid")
+    fd=os.open(
+        NODE_RUNTIME,
+        os.O_RDONLY|getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),
+    )
+    try:
+        opened=os.fstat(fd)
+        if not same_file_identity(before,opened):
+            hold("node_runtime_open_generation_mismatch")
+        h=hashlib.sha256()
+        total=0
+        while True:
+            chunk=os.read(fd,1024*1024)
+            if not chunk:
+                break
+            total+=len(chunk)
+            h.update(chunk)
+        after=os.fstat(fd)
+        visible=os.lstat(NODE_RUNTIME)
+        if (
+            total!=NODE_BYTES or h.hexdigest()!=NODE_SHA256 or
+            not same_file_identity(opened,after) or
+            not same_file_identity(after,visible)
+        ):
+            hold("node_runtime_identity_mismatch")
+    finally:
+        os.close(fd)
+    env={"PATH":"/usr/sbin:/usr/bin:/sbin:/bin","LC_ALL":"C"}
+    version=subprocess.run(
+        [os.fspath(NODE_RUNTIME),"--version"],
+        stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        text=True,check=False,timeout=15,env=env,
+    )
+    if version.returncode!=0 or version.stdout.strip()!=NODE_VERSION:
+        hold("node_runtime_version_mismatch")
+    builtin=subprocess.run(
+        [
+            os.fspath(NODE_RUNTIME),"-e",
+            "const c=require('node:crypto');"
+            "process.stdout.write(c.createHash('sha256').update('void').digest('hex')+'\\n')",
+        ],
+        stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        text=True,check=False,timeout=15,env=env,
+    )
+    if (
+        builtin.returncode!=0 or
+        builtin.stdout.strip()!="445be54d48a2e6294369c84c61cd0929209d4e1084536159bdf7002bddfe094b"
+    ):
+        hold("node_runtime_builtin_probe_failed")
+    return {
+        "path":os.fspath(NODE_RUNTIME),
+        "version":version.stdout.strip(),
+        "bytes":NODE_BYTES,
+        "sha256":NODE_SHA256,
+        "owner_uid":0,
+        "owner_gid":0,
+        "mode":"0755",
+    }
 
 def verify_public_key(path:Path)->bytes:
     absolute=Path(os.path.abspath(os.fspath(path)))
@@ -391,6 +461,7 @@ def verify_source_contract()->dict[str,Any]:
 
 def plan(public_key:Path)->dict[str,Any]:
     manifest=verify_source_contract()
+    node_runtime=verify_node_runtime()
     verify_public_key(public_key)
     if socket.gethostname().casefold()!=TARGET_HOST.casefold():
         hold("wrong_host")
@@ -417,6 +488,11 @@ def plan(public_key:Path)->dict[str,Any]:
         "preentry_sha256":PREENTRY_SHA256,
         "existing":existing,
         "source_contract_verified":True,
+        "node_runtime_verified":True,
+        "node_runtime_path":node_runtime["path"],
+        "node_runtime_version":node_runtime["version"],
+        "node_runtime_bytes":node_runtime["bytes"],
+        "node_runtime_sha256":node_runtime["sha256"],
         "create_only":True,
         "daemon_reload_on_apply":True,
         "tmpfiles_create_on_apply":True,
@@ -538,6 +614,10 @@ def self_test()->None:
     assert manifest["required_operator_input"]["expected_operator_public_key_raw_sha256"]==EXPECTED_PUBLIC_RAW_SHA256
     assert manifest["preentry_lock"]["bytes"]==PREENTRY_BYTES
     assert manifest["preentry_lock"]["sha256"]==PREENTRY_SHA256
+    assert manifest["paths"]["node_runtime"]==os.fspath(NODE_RUNTIME)
+    assert manifest["node_runtime_contract"]["version"]==NODE_VERSION
+    assert manifest["node_runtime_contract"]["bytes"]==NODE_BYTES
+    assert manifest["node_runtime_contract"]["sha256"]==NODE_SHA256
     compiled=compile_preentry()
     assert len(compiled)==PREENTRY_BYTES
     assert sha256(compiled)==PREENTRY_SHA256
@@ -622,6 +702,9 @@ def self_test()->None:
     print("source_contract_verified=true")
     print("public_key_raw_sha256="+EXPECTED_PUBLIC_RAW_SHA256)
     print("preentry_sha256="+PREENTRY_SHA256)
+    print("node_runtime_required=true")
+    print("node_runtime_path="+os.fspath(NODE_RUNTIME))
+    print("node_runtime_sha256="+NODE_SHA256)
     print("preentry_static_rederived=true")
     print("public_key_retained_generation=true")
     print("public_key_path_swap_rejected=true")

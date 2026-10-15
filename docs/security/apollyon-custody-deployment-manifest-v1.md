@@ -74,6 +74,30 @@ The deployment contract therefore requires:
 These checks are source-contract requirements only in this PR; the installer and
 installed-host attestation must enforce and revalidate them separately.
 
+## Root-custodied Node runtime
+
+The Xiphos Node 24.21.0 distribution currently resolves through a user-owned
+binary and is not directly admitted as custody runtime authority.
+
+The custody service and live-session process-identity checks are fixed instead
+to:
+
+`/opt/void-apollyon-node-runtime-v1/node`
+
+with exact identity:
+
+```text
+version=v24.21.0
+bytes=126595440
+sha256=7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c
+owner=root:root
+mode=0755
+```
+
+The separate Node custody lane verifies the user-owned source only by stable
+open generation plus exact content hash, then creates a root-custodied copy.
+No package manager is involved.
+
 ## Service activation model
 
 `void-apollyon-authorization-custody-v1.service` carries

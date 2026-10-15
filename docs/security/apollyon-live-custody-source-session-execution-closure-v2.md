@@ -54,6 +54,14 @@ private parent.
 
 Direct live worktree invocation is unsupported.
 
+The closure also fixes Node execution and custody-process identity to the
+root-custodied runtime:
+
+`/opt/void-apollyon-node-runtime-v1/node`
+
+The user-owned Xiphos Node distribution is never accepted directly as custody
+runtime authority.
+
 ## Authority boundary
 
 This source PR performs no Xiphos contact, installation or service action.

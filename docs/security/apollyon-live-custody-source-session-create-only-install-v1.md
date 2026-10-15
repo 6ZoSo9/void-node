@@ -28,6 +28,25 @@ deployment:
 The installer runs `systemd-tmpfiles --create` and `systemctl daemon-reload`
 after installing exact bytes.
 
+## Root-custodied Node prerequisite
+
+Before `--plan` or `--apply`, the installer requires:
+
+```text
+/opt/void-apollyon-node-runtime-v1/node
+owner=root:root
+mode=0755
+version=v24.21.0
+bytes=126595440
+sha256=7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c
+```
+
+It reopens and hashes that runtime, verifies stable path/descriptor identity,
+executes the exact installed binary for version and built-in crypto probes, and
+HOLDS before any custody mutation if the prerequisite is absent or mismatched.
+
+The custody installer does not install or repair Node itself.
+
 ## Public-key boundary
 
 The installer accepts only an Ed25519 PUBLIC PEM whose raw-key SHA-256 is:

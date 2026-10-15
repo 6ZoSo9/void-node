@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py"
+      - "ops/xiphos/apollyon-node-runtime-custody-v1.json"
+      - "ops/xiphos/apollyon_node_runtime_create_only_install_v1.py"
       - "scripts/prove_apollyon_live_custody_source_session_create_only_install_v1.py"
       - "docs/security/apollyon-live-custody-source-session-create-only-install-v1.md"
       - ".github/workflows/apollyon-live-custody-source-session-create-only-install-v1.yml"

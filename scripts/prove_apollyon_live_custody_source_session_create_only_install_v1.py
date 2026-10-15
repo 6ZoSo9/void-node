@@ -16,12 +16,16 @@ def git_blob(path:Path)->str:
     h.update(f"blob {len(data)}\0".encode("ascii"));h.update(data)
     return h.hexdigest()
 
-assert git_blob(MANIFEST)=="995e326af8e69df4f96aaa615bb610b07dd4c7be"
+assert git_blob(MANIFEST)=="cd8e207331c09520c5bf82263e13b13c10ce665b"
 source=INSTALLER.read_text(encoding="utf-8")
 ast.parse(source)
 for required in (
     'MARKER="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_CREATE_ONLY_INSTALL_V1"',
     'EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"',
+    'NODE_RUNTIME=Path("/opt/void-apollyon-node-runtime-v1/node")',
+    'NODE_VERSION="v24.21.0"',
+    'NODE_BYTES=126595440',
+    'NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"',
     'PREENTRY_BYTES=798736',
     'PREENTRY_SHA256="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"',
     '"/usr/sbin/groupadd","--system",name',
@@ -60,6 +64,9 @@ for line in (
     "create_only=true","source_contract_verified=true",
     "public_key_raw_sha256=c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134",
     "preentry_sha256=2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d",
+    "node_runtime_required=true",
+    "node_runtime_path=/opt/void-apollyon-node-runtime-v1/node",
+    "node_runtime_sha256=7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
     "preentry_static_rederived=true",
     "public_key_retained_generation=true",
     "public_key_path_swap_rejected=true",
