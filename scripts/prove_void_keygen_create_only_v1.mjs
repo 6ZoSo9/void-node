@@ -1,0 +1,68 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const keygen = path.join(root, "scripts", "keygen.js");
+const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "void-keygen-create-only-"));
+
+function run(...args) {
+  return spawnSync(process.execPath, [keygen, ...args], {
+    cwd: fixture,
+    encoding: "utf8",
+    env: { PATH: process.env.PATH || "/usr/bin:/bin" },
+  });
+}
+
+try {
+  const target = path.join(fixture, "node-key.pem");
+  const created = run(target);
+  assert.equal(created.status, 0, created.stderr);
+  const original = fs.readFileSync(target);
+  assert.equal(fs.statSync(target).mode & 0o777, 0o600);
+  assert.doesNotThrow(() => crypto.createPrivateKey(original));
+  assert.ok(!created.stdout.includes("PRIVATE KEY"));
+
+  const repeated = run(target);
+  assert.notEqual(repeated.status, 0);
+  assert.match(repeated.stderr, /keygen_refused_existing_target/);
+  assert.deepEqual(fs.readFileSync(target), original);
+
+  const victim = path.join(fixture, "victim.txt");
+  const link = path.join(fixture, "linked-key.pem");
+  fs.writeFileSync(victim, "preserve-me\n", { mode: 0o600 });
+  fs.symlinkSync(victim, link);
+  const linked = run(link);
+  assert.notEqual(linked.status, 0);
+  assert.equal(fs.readFileSync(victim, "utf8"), "preserve-me\n");
+  assert.equal(fs.readlinkSync(link), victim);
+
+  const directory = path.join(fixture, "directory-target");
+  fs.mkdirSync(directory);
+  const directoryResult = run(directory);
+  assert.notEqual(directoryResult.status, 0);
+  assert.ok(fs.statSync(directory).isDirectory());
+
+  const defaultDir = path.join(fixture, "default-output");
+  fs.mkdirSync(defaultDir);
+  const defaultResult = spawnSync(process.execPath, [keygen], {
+    cwd: defaultDir,
+    encoding: "utf8",
+    env: { PATH: process.env.PATH || "/usr/bin:/bin" },
+  });
+  assert.equal(defaultResult.status, 0, defaultResult.stderr);
+  assert.equal(fs.statSync(path.join(defaultDir, ".nodekey")).mode & 0o777, 0o600);
+
+  const usage = run("one", "two");
+  assert.notEqual(usage.status, 0);
+  assert.match(usage.stderr, /usage: node scripts\/keygen\.js/);
+
+  console.log("VOID_KEYGEN_CREATE_ONLY_V1_PROOF_GREEN");
+} finally {
+  fs.rmSync(fixture, { recursive: true, force: true });
+}
