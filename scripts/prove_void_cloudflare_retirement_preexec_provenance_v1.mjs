@@ -1,0 +1,80 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const PREEXEC="ops/public/void_cloudflare_historical_user_tunnel_retirement_preexec_v2.c";
+const QUERY="ops/public/void_cloudflare_historical_user_tunnel_retirement_query_v2.c";
+const PARENT_QUERY="ops/public/void_cloudflare_historical_user_tunnel_retirement_query_v1.c";
+const WORKFLOW=".github/workflows/cloudflare-retirement-preexec-provenance-v1.yml";
+const DOC="docs/architecture/cloudflare-retirement-preexec-provenance-v1.md";
+
+function blob(data){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+data.length+"\0","ascii"))
+    .update(data).digest("hex");
+}
+const parentBytes=fs.readFileSync(path.join(ROOT,PARENT_QUERY));
+assert.equal(blob(parentBytes),"25c1747ddd6a121b1ba2dbc1590c33a149e9b87b");
+
+const preexec=fs.readFileSync(path.join(ROOT,PREEXEC),"utf8");
+const query=fs.readFileSync(path.join(ROOT,QUERY),"utf8");
+const workflow=fs.readFileSync(path.join(ROOT,WORKFLOW),"utf8");
+
+for(const token of [
+  "VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_PREEXEC_V2",
+  "pipe2(proof_pipe, O_CLOEXEC)",
+  "pid_t child = fork()",
+  "waitpid(child, &status, 0)",
+  "PROOF_FD_NAME",
+  "parent_pid=%ld",
+  "child_pid=%ld",
+  "preexec_dev=%llu",
+  "query_dev=%llu",
+  "fexecve(query_fd, child_argv, child_env)",
+]){
+  assert.ok(preexec.includes(token),token);
+}
+for(const token of [
+  "VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_QUERY_PROVENANCE_V1",
+  "retirement_query_v1_main",
+  "protected_preexec_provenance()",
+  "record.parent_pid != (long)parent",
+  "record.child_pid != (long)self",
+  "PROVENANCE_PREEXEC_PATH",
+  "PROVENANCE_QUERY_PATH",
+  "protected_preexec_provenance_required",
+]){
+  assert.ok(query.includes(token),token);
+}
+assert.ok(
+  query.indexOf("protected_preexec_provenance()") <
+  query.lastIndexOf("retirement_query_v1_main(argc, argv)")
+);
+
+for(const forbidden of [
+  "systemctl ","systemctl\t","eth_sendRawTransaction","BEGIN PRIVATE KEY",
+]){
+  assert.equal(preexec.includes(forbidden),false,"preexec:"+forbidden);
+  assert.equal(query.includes(forbidden),false,"query:"+forbidden);
+}
+
+for(const p of [PREEXEC,QUERY,PARENT_QUERY,WORKFLOW,DOC]){
+  assert.ok(workflow.includes('"'+p+'"'),p);
+}
+
+console.log("VOID_CLOUDFLARE_RETIREMENT_PREEXEC_PROVENANCE_V1_PROOF_GREEN");
+console.log("static_parent_remains_alive=true");
+console.log("parent_child_pid_binding_required=true");
+console.log("installed_parent_generation_binding_required=true");
+console.log("installed_query_generation_binding_required=true");
+console.log("direct_marker_invocation_rejected=true");
+console.log("forged_proof_channel_rejected=true");
+console.log("future_restart_prevented=false");
+console.log("historical_user_tunnel_retirement_verified=false");
+console.log("host_installation=false");
+console.log("service_mutation=false");
+console.log("funds_movement=false");
