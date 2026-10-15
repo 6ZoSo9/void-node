@@ -25,8 +25,8 @@ PREEXEC_SOURCE_REL = (
 PEER_SOURCE_REL = "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
 
 EXPECTED_BLOBS = {
-    SOURCE_REL: "1d5501d883a82202834629d8112d4b20a165fb8b",
-    LOCK_REL: "0cda9daecb2aa294f0a10041d81be7673705f1d8",
+    SOURCE_REL: "f81d9fbead60593258d17dbb8720e1efc867b20f",
+    LOCK_REL: "772945b639d138284fc18cc312f7b9115b10c748",
     CANDIDATE_REL: "a341112695b1abbc61e0b4d88db9675b4fa15d83",
     HISTORICAL_REPLACE_REL: "25753737ac7719b0ceddc759904c81db0f7a1cae",
     QUERY_SOURCE_REL: "fc1f640689b7da7278ff013669ef8a10cd8f6659",
@@ -35,7 +35,7 @@ EXPECTED_BLOBS = {
 }
 
 LOCK_ID = (
-    "voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6"
+    "voidbuyumqelflock6_3627a98945579452b01c79b4d114c54d858122496f2b20a20ddfd7fae6b0307c"
 )
 INSTALLED_V2_LOCK_ID = (
     "voidbuyumqelflock2_c643213ce46d6f2b4dfe04675a7fbbcaad2b6aea40418cb921586362a054f474"
@@ -90,6 +90,9 @@ for token in (
     "_renameat2(dir_fd, STAGING_NAME, QUERY_NAME, RENAME_EXCHANGE)",
     "V2_PREDECESSOR_NAME,\n            RENAME_NOREPLACE",
     "automatic_rollback_attempted=true",
+    "live_diagnostic_observed",
+    "disposable_live_probe_observed",
+    "superseded_by_v6_candidate_generation",
     "v1_predecessor_retained=true",
     "v2_predecessor_retained=true",
     "preexec_replacement=false",
@@ -203,6 +206,7 @@ assert "reason=explicit_rollback_confirmation_required" in (
 
 print("VOID_BUY_VOID_USER_MANAGER_QUERY_PROTECTED_REPLACE_V6_PROOF_GREEN")
 print("accepted_v6_lock_bound=true")
+print("corrected_v6_lock_truth_bound=true")
 print("installed_v2_identity_bound=true")
 print("fixed_preexec_unchanged=true")
 print("v1_predecessor_preserved=true")
