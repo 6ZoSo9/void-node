@@ -33,7 +33,7 @@ For the credential/V6 qualification it:
 1. uses the runtime UID to obtain the exact qualifier bytes from
    `git show <expected-head>:<qualifier-path>`;
 2. requires exact qualifier Git blob
-   `5dec0f9534c3b2d6c8d4a0647e69d3c89ab91cd6`;
+   `8dc5d53dfcc52c261a3da0ee692f3a4fcc0bfc4c`;
 3. embeds those exact bytes in an isolated Python stdin bootstrap;
 4. sets the qualifier's canonical `__file__` path so its existing source-root
    and dependency-blob verification operate unchanged;
