@@ -270,23 +270,39 @@ def _create_installed_file(
     expected_sha256: str,
 ) -> None:
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
+    created = False
+    fd = -1
     try:
-        fd = os.open(name, flags, 0o500, dir_fd=dir_fd)
-    except OSError as exc:
-        raise InstallError("create_only_file_create_failed:" + name) from exc
-    try:
+        try:
+            fd = os.open(name, flags, 0o500, dir_fd=dir_fd)
+            created = True
+        except OSError as exc:
+            raise InstallError("create_only_file_create_failed:" + name) from exc
         _write_all(fd, raw)
         os.fchmod(fd, 0o555)
         os.fchown(fd, 0, 0)
         os.fsync(fd)
-    finally:
         os.close(fd)
-    _installed_file_ok(
-        dir_fd,
-        name,
-        expected_bytes=expected_bytes,
-        expected_sha256=expected_sha256,
-    )
+        fd = -1
+        _installed_file_ok(
+            dir_fd,
+            name,
+            expected_bytes=expected_bytes,
+            expected_sha256=expected_sha256,
+        )
+    except BaseException:
+        if fd >= 0:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        if created:
+            try:
+                os.unlink(name, dir_fd=dir_fd)
+                os.fsync(dir_fd)
+            except OSError:
+                pass
+        raise
 
 
 def inspect_sources(preexec: pathlib.Path, query: pathlib.Path) -> tuple[bytes, bytes]:
