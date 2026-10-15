@@ -39,7 +39,7 @@ Modes:
 
     python3 -I -B ops/public/void_cloudflare_origin_designated_host_census_v1.py --self-test
     python3 -I -B ops/public/void_cloudflare_origin_designated_host_census_v1.py --plan
-    sudo python3 -I -B ops/public/void_cloudflare_origin_designated_host_census_v1.py --run
+    sudo python3 -I -B ops/public/void_cloudflare_origin_designated_host_census_v1.py --run --tunnel-config /reviewed/private/cloudflared-config.yml
 
 A later operator bundle should pin the exact reviewed source generation and its
 SHA-256 before using `--run`.
@@ -101,8 +101,10 @@ read.
 
 ## Tunnel config and credential metadata
 
-The system cloudflared command line is read only to discover one canonical
-`--config` path. Raw argv is never emitted.
+The census does **not** read cloudflared's process command line. Live `--run`
+requires one operator-reviewed absolute canonical Tunnel config path through
+`--tunnel-config`. This avoids ingesting a possible cloudflared `--token`
+or other credential-bearing argv merely to discover the config location.
 
 The config text may be read, bounded to 1 MiB, to classify the fixed
 `seed.nullfeed.org` route shape. The emitted evidence contains only a SHA-256
