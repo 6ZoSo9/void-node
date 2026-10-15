@@ -336,7 +336,47 @@ try {
   let fixedRepoFixtureCreated = false;
   let fixedRepoParentsCreated = false;
   let fixtureInstalled = false;
+  let hostedOptMetadataChanged = false;
+  let hostedOptRestorationVerified = false;
+  const optBefore = fs.lstatSync("/opt");
   try {
+    const optUnsafe =
+      !optBefore.isDirectory() ||
+      optBefore.isSymbolicLink() ||
+      optBefore.uid !== 0 ||
+      (optBefore.mode & 0o022) !== 0;
+    if (optUnsafe) {
+      assert.equal(
+        process.env.GITHUB_ACTIONS,
+        "true",
+        "unsafe /opt ancestry may be normalized only on GitHub-hosted CI",
+      );
+      assert.equal(
+        process.env.CI,
+        "true",
+        "unsafe /opt ancestry requires CI=true",
+      );
+      const runnerTempRaw = String(process.env.RUNNER_TEMP || "");
+      assert.match(
+        runnerTempRaw,
+        /^\/home\/runner\/work\/_temp(?:\/|$)/u,
+        "unsafe /opt ancestry requires the GitHub-hosted runner temp boundary",
+      );
+      const rootOwn = run(SUDO, ["-n", "chown", "root:root", "/opt"]);
+      assert.equal(
+        rootOwn.status,
+        0,
+        "failed to temporarily root-own hosted /opt: " + rootOwn.stderr,
+      );
+      hostedOptMetadataChanged = true;
+      const normalizeMode = run(SUDO, ["-n", "chmod", "0755", "/opt"]);
+      assert.equal(
+        normalizeMode.status,
+        0,
+        "failed to temporarily normalize hosted /opt mode: " +
+          normalizeMode.stderr,
+      );
+    }
     for (const target of ["/", "/opt"]) {
       const st = fs.lstatSync(target);
       assert.equal(st.isDirectory() && !st.isSymbolicLink(), true, target);
@@ -601,6 +641,39 @@ try {
         "failed to remove fixed Node fixture: " + nodeCleanup.stderr,
       );
     }
+    if (hostedOptMetadataChanged) {
+      const restoreOwner = run(SUDO, [
+        "-n", "chown",
+        String(optBefore.uid) + ":" + String(optBefore.gid),
+        "/opt",
+      ]);
+      assert.equal(
+        restoreOwner.status,
+        0,
+        "failed to restore hosted /opt owner: " + restoreOwner.stderr,
+      );
+      const originalMode =
+        (optBefore.mode & 0o7777).toString(8).padStart(4, "0");
+      const restoreMode = run(SUDO, [
+        "-n", "chmod", originalMode, "/opt",
+      ]);
+      assert.equal(
+        restoreMode.status,
+        0,
+        "failed to restore hosted /opt mode: " + restoreMode.stderr,
+      );
+      const optAfter = fs.lstatSync("/opt");
+      assert.equal(optAfter.dev, optBefore.dev, "hosted /opt device drift");
+      assert.equal(optAfter.ino, optBefore.ino, "hosted /opt inode drift");
+      assert.equal(optAfter.uid, optBefore.uid, "hosted /opt uid restore failed");
+      assert.equal(optAfter.gid, optBefore.gid, "hosted /opt gid restore failed");
+      assert.equal(
+        optAfter.mode & 0o7777,
+        optBefore.mode & 0o7777,
+        "hosted /opt mode restore failed",
+      );
+    }
+    hostedOptRestorationVerified = true;
   }
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
@@ -625,7 +698,14 @@ console.log("loader_environment_sanitized=true");
 console.log("native_preentry_static=true");
 console.log("native_preentry_no_pt_interp=true");
 console.log("native_preentry_ld_preload_blocked_before_main=true");
-console.log("hosted_opt_ancestry_preflight_read_only=true");
+console.log(
+  "hosted_opt_ancestry_unchanged_or_restored=" +
+    String(hostedOptRestorationVerified),
+);
+console.log(
+  "hosted_opt_ci_normalization_performed=" +
+    String(hostedOptMetadataChanged),
+);
 console.log("hosted_self_custody_shape_prechecked=true");
 console.log("hosted_fixed_node_fixture_created_only_if_absent=true");
 console.log("live_credential_access=false");
