@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { types as utilTypes } from "node:util";
 
 export const VOID_BUY_VOID_RUNTIME_IPC_GROUP_REFRESH_POLICY_V1 =
   "VOID_BUY_VOID_RUNTIME_IPC_GROUP_REFRESH_POLICY_V1";
@@ -79,7 +80,11 @@ function hold(reason){
   });
 }
 function exactObject(value){
-  if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("runtime_ipc_group_refresh_shape_invalid");
+  if(
+    !value||typeof value!=="object"||
+    utilTypes.isProxy(value)||
+    Array.isArray(value)
+  )throw new Error("runtime_ipc_group_refresh_shape_invalid");
   const proto=Object.getPrototypeOf(value);
   if(proto!==Object.prototype&&proto!==null)throw new Error("runtime_ipc_group_refresh_shape_invalid");
   const descriptors=Object.getOwnPropertyDescriptors(value);
