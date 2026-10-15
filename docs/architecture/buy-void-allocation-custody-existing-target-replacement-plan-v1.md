@@ -91,7 +91,10 @@ A future separately reviewed root installer must, at minimum:
 13. postverify the exact installed tree;
 14. leave Polkit installation/live denial and service start as separate gates.
 
-The plan does not authorize deleting the rollback generation.
+The plan does not authorize deleting the rollback generation. It also does not
+authorize recursively reading opaque legacy subtree contents. Replacement must
+remain content-blind outside the bounded expected-file checks needed for fresh
+target classification.
 
 ## Authority boundary
 
@@ -105,6 +108,14 @@ replacement_authorized=false
 replacement_apply_authorized=false
 existing_target_replaced=false
 rollback_snapshot_created=false
+opaque_legacy_content_read_authorized=false
+request_content_access=false
+payment_record_access=false
+credential_access=false
+wallet_or_signer_access=false
+rpc_contact=false
+transaction_authority=false
+wc_void_activation=false
 filesystem_write=false
 service_mutation=false
 systemd_mutation=false
