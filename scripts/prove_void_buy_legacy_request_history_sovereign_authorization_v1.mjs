@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
 
 import {
   VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_AUTHORITY_V1,
@@ -21,6 +22,26 @@ import {
 } from "../dist/security/void_sovereign_emergency_control_v1.js";
 
 const D=VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_DECISIONS_V1;
+const workflow=fs.readFileSync(
+  ".github/workflows/buy-void-legacy-request-history-sovereign-authorization-v1.yml",
+  "utf8"
+);
+for(const relative of [
+  "src/security/void_alignment_layer_v1.ts",
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "tsconfig.build.json",
+  "scripts/copy_void_runtime_js_v1.mjs",
+  "scripts/retire_saveblock_periodic_rewriters_v1.mjs",
+]){
+  const token='      - "'+relative+'"';
+  assert.equal(
+    workflow.split(token).length-1,
+    2,
+    "workflow must trigger for PR and main push: "+relative,
+  );
+}
 function canonical(value){
   if(value===null)return "null";
   if(typeof value==="string")return JSON.stringify(value).replace(/[\u007f-\uffff]/g,
@@ -164,6 +185,44 @@ assert.equal(
   productionRequest.signer_role,
   VOID_SOVEREIGN_PRIMARY_GOVERNANCE_ROLE_V1,
 );
+
+function candidateWithReviewTime(reviewedAtUtc){
+  const nextBody={...body,reviewed_at_utc:reviewedAtUtc};
+  return Object.freeze({
+    ...candidate,
+    ...nextBody,
+    candidate_id:"voidblrhdc1_"+sha256(Buffer.from(canonical(nextBody),"utf8")),
+  });
+}
+for(const invalidUtc of [
+  "2026-02-29T00:00:00.000Z",
+  "2026-02-31T12:00:00.000Z",
+]){
+  assert.throws(
+    ()=>testOnlyBuildVoidBuyVoidLegacyHistorySovereignAuthorizationRequestAgainstFingerprintV1(
+      candidateWithReviewTime(invalidUtc),
+      "2026-03-05T00:00:00.000Z",
+      fingerprint,
+    ),
+    /candidate_review_time_invalid/u,
+  );
+  assert.throws(
+    ()=>testOnlyBuildVoidBuyVoidLegacyHistorySovereignAuthorizationRequestAgainstFingerprintV1(
+      candidate,
+      invalidUtc,
+      fingerprint,
+    ),
+    /issue_time_invalid/u,
+  );
+}
+const leapCandidate=candidateWithReviewTime("2028-02-29T12:00:00.000Z");
+const leapRequest=
+  testOnlyBuildVoidBuyVoidLegacyHistorySovereignAuthorizationRequestAgainstFingerprintV1(
+    leapCandidate,
+    "2028-02-29T12:05:00Z",
+    fingerprint,
+  );
+assert.match(leapRequest.request_id,/^voidblrhsr1_[0-9a-f]{64}$/u);
 
 for(const [key,expected] of Object.entries({
   source_only_authorization_verifier:true,

@@ -89,7 +89,12 @@ function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 function utc(value,code){
-  if(typeof value!=="string"||!UTC.test(value)||!Number.isFinite(Date.parse(value)))fail(code);
+  if(typeof value!=="string"||!UTC.test(value))fail(code);
+  const millis=Date.parse(value);
+  if(!Number.isFinite(millis))fail(code);
+  const iso=new Date(millis).toISOString();
+  const seconds=iso.endsWith(".000Z")?iso.slice(0,-5)+"Z":iso;
+  if(value!==iso&&value!==seconds)fail(code);
   return value;
 }
 function asBuffer(value){
@@ -334,6 +339,7 @@ export function classifyVoidBuyVoidLegacyHistoryExternalWitnessReadbackV1(input)
     );
     if(v.plan?.ok!==true||
        !Buffer.isBuffer(v.plan.next_witness_jsonl)||
+       typeof v.plan.append_required!=="boolean"||
        !EVENT_ID.test(String(v.plan.event?.event_id||""))){
       fail("legacy_history_external_witness_readback_plan_invalid");
     }
@@ -342,16 +348,25 @@ export function classifyVoidBuyVoidLegacyHistoryExternalWitnessReadbackV1(input)
       fail("legacy_history_external_witness_readback_bytes_mismatch");
     }
     const inspected=inspectVoidBuyVoidLegacyHistoryExternalWitnessV1(observed);
-    const tip=inspected.events.at(-1);
-    if(!tip||tip.event_id!==v.plan.event.event_id){
-      fail("legacy_history_external_witness_readback_tip_mismatch");
+    let matched;
+    if(v.plan.append_required===true){
+      const tip=inspected.events.at(-1);
+      if(!tip||tip.event_id!==v.plan.event.event_id){
+        fail("legacy_history_external_witness_readback_tip_mismatch");
+      }
+      matched=tip;
+    }else{
+      matched=inspected.events.find(event=>event.event_id===v.plan.event.event_id);
+      if(!matched||canonical(matched)!==canonical(v.plan.event)){
+        fail("legacy_history_external_witness_readback_event_mismatch");
+      }
     }
     return Object.freeze({
       ok:true,
       status:"LOCAL_READBACK_MATCH_SOURCE_ONLY",
       marker:VOID_BUY_VOID_LEGACY_HISTORY_EXTERNAL_WITNESS_V1,
       witness_path:VOID_BUY_VOID_LEGACY_HISTORY_EXTERNAL_WITNESS_PATH_V1,
-      event_id:tip.event_id,
+      event_id:matched.event_id,
       observed_witness_sha256:"sha256:"+sha256(observed),
       local_readback_bytes_match:true,
       external_transport_authenticated:false,

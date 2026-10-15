@@ -8,6 +8,15 @@ on:
       - "docs/operators/buy-void-legacy-request-history-external-witness-v1.md"
       - ".github/workflows/buy-void-legacy-request-history-external-witness-v1.yml"
       - "tools/void-buy-legacy-request-history-sovereign-authorization-v1.mjs"
+      - "tools/void-buy-legacy-request-history-disposition-v1.mjs"
+      - "src/security/void_sovereign_emergency_control_v1.ts"
+      - "src/security/void_alignment_layer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
   push:
     branches: [main]
     paths:
@@ -16,6 +25,15 @@ on:
       - "docs/operators/buy-void-legacy-request-history-external-witness-v1.md"
       - ".github/workflows/buy-void-legacy-request-history-external-witness-v1.yml"
       - "tools/void-buy-legacy-request-history-sovereign-authorization-v1.mjs"
+      - "tools/void-buy-legacy-request-history-disposition-v1.mjs"
+      - "src/security/void_sovereign_emergency_control_v1.ts"
+      - "src/security/void_alignment_layer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
 
 permissions:
   contents: read
