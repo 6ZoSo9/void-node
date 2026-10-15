@@ -69,9 +69,10 @@ for required in (
 ):
     assert required in source, required
 
+plan_marker="\ndef plan() -> None:"
 production_source = (
     source[:source.index("def self_test()")]
-    + source[source.index("def plan()"):]
+    + source[source.index(plan_marker)+1:]
 )
 
 for forbidden in (
