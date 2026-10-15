@@ -4,7 +4,10 @@ Installed-host successor for Xiphos before the first live custody start.
 
 The existing custody service source deliberately leaves its advertised socket
 pathname behind after stop. This update installs the reviewed root-owned cleanup
-helper and adds exactly one `ExecStopPost=` to the existing service unit.
+helper, adds exactly one `ExecStopPost=`, and adds an explicit
+`UnsetEnvironment=LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH` boundary
+to the existing service unit. This removes those manager-level influence
+variables at service execution without reading their values.
 
 The updater requires:
 
@@ -17,7 +20,8 @@ The updater requires:
 
 It then installs the helper as root:root 0444, atomically replaces the service
 unit when required, performs daemon-reload, and verifies the loaded
-`ExecStopPost` plus direct manual start/stop refusal.
+`ExecStopPost`, exact `UnsetEnvironment` set, and direct manual start/stop
+refusal.
 
 No service/target start or stop is issued. No socket is touched during this
 update. The installed cleanup helper independently requires the custody UID

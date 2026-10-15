@@ -8,7 +8,6 @@ import json
 import os
 from pathlib import Path
 import pwd
-import re
 import shlex
 import socket
 import stat
@@ -37,7 +36,7 @@ STATE_ROOT=Path("/var/lib/void-apollyon-custody-v1")
 CONSUMED=STATE_ROOT/"consumed"
 
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
-SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
+SERVICE_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"
 HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"
 LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"
 NODE_BYTES=126595440
@@ -63,7 +62,7 @@ EXPECTED_EXEC_START_ARGV=(
 EXPECTED_EXEC_STOP_POST_ARGV=(
     "/usr/bin/python3","-I","-B",os.fspath(HELPER_PATH),"--cleanup",
 )
-FORBIDDEN_MANAGER_ENV=(
+EXPECTED_UNSET_ENVIRONMENT=(
     "LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH",
 )
 
@@ -233,26 +232,6 @@ def verify_environment_file(ipc_gid:int)->None:
     if ENV_PATH.read_bytes()!=expected_environment_bytes(ipc_gid):
         hold("custody_environment_file_invalid")
 
-def manager_environment_names(raw:str)->set[str]:
-    names=set()
-    for line in raw.splitlines():
-        if not line:continue
-        if "=" not in line:hold("manager_environment_shape_invalid")
-        name,_=line.split("=",1)
-        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*",name):
-            hold("manager_environment_name_invalid")
-        names.add(name)
-    return names
-
-def reject_forbidden_manager_environment(names:set[str])->None:
-    for name in FORBIDDEN_MANAGER_ENV:
-        if name in names:hold("forbidden_manager_environment:"+name)
-
-def verify_manager_environment()->None:
-    r=run(["/usr/bin/systemctl","show-environment"],check=False)
-    if r.returncode!=0:hold("manager_environment_probe_failed")
-    reject_forbidden_manager_environment(manager_environment_names(r.stdout))
-
 def validate_loaded_relations(
     target:dict[str,str],service:dict[str,str]
 )->None:
@@ -276,6 +255,12 @@ def validate_loaded_relations(
     if service.get("NoNewPrivileges")!="yes":hold("service_nnp_missing")
     if service.get("RestrictAddressFamilies")!="AF_UNIX":
         hold("service_address_family_invalid")
+    unset=service.get("UnsetEnvironment","").split()
+    if (
+        len(unset)!=len(EXPECTED_UNSET_ENVIRONMENT) or
+        set(unset)!=set(EXPECTED_UNSET_ENVIRONMENT)
+    ):
+        hold("loaded_unset_environment_invalid")
 
     if parse_exec_property(service.get("ExecStart",""),"ExecStart")!=[
         EXPECTED_EXEC_START_ARGV
@@ -297,11 +282,11 @@ def loaded_relations()->None:
     service=show_properties(SERVICE_UNIT,(
         "FragmentPath","DropInPaths","NeedDaemonReload",
         "RefuseManualStart","RefuseManualStop","NoNewPrivileges",
-        "RestrictAddressFamilies","ExecCondition","ExecStartPre","ExecStart",
+        "RestrictAddressFamilies","UnsetEnvironment",
+        "ExecCondition","ExecStartPre","ExecStart",
         "ExecStartPost","ExecStop","ExecStopPost",
     ))
     validate_loaded_relations(target,service)
-    verify_manager_environment()
 
 def verify_public_key()->None:
     exact_file(PUBLIC_KEY_PATH,0o644,0,0)
@@ -609,7 +594,7 @@ def plan()->dict:
         "exact_runtime_argv_binding_required":True,
         "custody_environment_exact":True,
         "effective_systemd_configuration_bound":True,
-        "forbidden_manager_environment_absent":True,
+        "manager_environment_influence_unset":True,
         "planned_cycles":2,"target_start_stop":False,"service_direct_action":False,
         "training_execution":False,"durable_attempt_claim":False,
         "operator_private_key_access":False,"funds_movement":False,
@@ -742,7 +727,7 @@ def self_test()->None:
         'target_needs_daemon_reload',
         'service_needs_daemon_reload',
         'custody_environment_file_invalid',
-        'forbidden_manager_environment:',
+        'loaded_unset_environment_invalid',
         'emergency_cleanup_attempted=True',
         'final_dormant_recheck_attempted=True',
         'final_dormant_recheck_reason',
@@ -879,6 +864,7 @@ def self_test()->None:
         "DropInPaths":"","NeedDaemonReload":"no",
         "RefuseManualStart":"yes","RefuseManualStop":"yes",
         "NoNewPrivileges":"yes","RestrictAddressFamilies":"AF_UNIX",
+        "UnsetEnvironment":"LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH",
         "ExecCondition":"","ExecStartPre":"","ExecStart":exec_start_record,
         "ExecStartPost":"","ExecStop":"","ExecStopPost":exec_stop_post_record,
     }
@@ -886,9 +872,6 @@ def self_test()->None:
     assert parse_exec_property(exec_start_record,"ExecStart")==[
         EXPECTED_EXEC_START_ARGV
     ]
-    assert manager_environment_names("LANG=C\nPATH=/usr/bin\n")=={
-        "LANG","PATH"
-    }
     expected_env=expected_environment_bytes(321).decode("utf-8")
     assert "NODE_OPTIONS" not in expected_env
     assert "LD_PRELOAD" not in expected_env
@@ -897,6 +880,8 @@ def self_test()->None:
         ("target","NeedDaemonReload","yes","target_needs_daemon_reload"),
         ("service","DropInPaths","/run/systemd/system/x.conf","service_dropins_present"),
         ("service","NeedDaemonReload","yes","service_needs_daemon_reload"),
+        ("service","UnsetEnvironment","","loaded_unset_environment_invalid"),
+        ("service","UnsetEnvironment","NODE_OPTIONS","loaded_unset_environment_invalid"),
         ("service","ExecStartPre",exec_stop_post_record,"service_unexpected_exec_command:ExecStartPre"),
         ("service","ExecStart",exec_start_record+" "+exec_stop_post_record,"service_effective_execstart_invalid"),
         ("service","ExecStopPost",exec_stop_post_record+" "+exec_stop_post_record,"service_effective_execstoppost_invalid"),
@@ -904,11 +889,6 @@ def self_test()->None:
         target=dict(good_target);service=dict(good_service)
         (target if which=="target" else service)[key]=value
         expect_hold(lambda t=target,s=service:validate_loaded_relations(t,s),reason)
-    expect_hold(
-        lambda:reject_forbidden_manager_environment({"NODE_OPTIONS"}),
-        "forbidden_manager_environment:NODE_OPTIONS",
-    )
-
     custody_uid=4242
     training_uid=4343
     with tempfile.TemporaryDirectory(prefix="apollyon-child-proc-zero-") as td:
@@ -1014,7 +994,7 @@ def self_test()->None:
     print("effective_systemd_configuration_bound=true")
     print("systemd_dropins_rejected=true")
     print("unexpected_systemd_exec_commands_rejected=true")
-    print("forbidden_manager_environment_rejected=true")
+    print("manager_environment_influence_unset=true")
     print("failure_cleanup_receipt_truthful=true")
     print("emergency_cleanup_adversaries_executed=true")
     print("failed_stop_cleanup_reported=true")

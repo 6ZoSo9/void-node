@@ -24,9 +24,10 @@ The run performs two complete cycles:
 Before either start, the qualifier also closes the effective systemd and
 environment boundary. The installed custody environment file must be the exact
 five-key root-owned generation for the observed IPC GID and reviewed public-key
-fingerprint; extra keys such as `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`
-or `LD_LIBRARY_PATH` therefore HOLD. The current system-manager environment is
-also checked for those influence variables before activation.
+fingerprint; extra keys therefore HOLD. The reviewed service additionally
+requires exact effective `UnsetEnvironment=LD_LIBRARY_PATH LD_PRELOAD
+NODE_OPTIONS NODE_PATH`, so those manager-level influence variables are removed
+at execution without reading or exposing manager environment values.
 
 For both the target and service, the loaded fragment path must be the reviewed
 `/etc/systemd/system` path, `DropInPaths` must be empty, and
@@ -35,7 +36,8 @@ closed to the custody service. The service's complete loaded execution arrays
 are checked: exactly one reviewed `ExecStart`, no `ExecCondition`,
 `ExecStartPre`, `ExecStartPost` or `ExecStop`, and exactly one reviewed
 `ExecStopPost`. Extra commands, runtime/persistent drop-ins, stale daemon
-configuration, or alternate effective command arrays fail closed before start.
+configuration, an altered `UnsetEnvironment` set, or alternate effective
+command arrays fail closed before start.
 
 The consumed-record directory must be byte-metadata stable across both cycles.
 The custody UID lifecycle is therefore 0 -> exact service generation -> 0 for

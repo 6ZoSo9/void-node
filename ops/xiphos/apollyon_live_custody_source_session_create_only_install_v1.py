@@ -29,7 +29,7 @@ IPC_GROUP="voidapollyonipc"
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
 MANIFEST_BLOB="9b362f4efdc3d91c42a95de4a96147294e478a09"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
-UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
+UNIT_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 ENV_TEMPLATE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.env.template"
@@ -670,6 +670,11 @@ def self_test()->None:
     assert manifest["socket_lifecycle_contract"]["unclassifiable_process_status_holds"] is True
     assert manifest["service_contract"]["activation_target_unit_file_state_required"]=="disabled"
     assert manifest["service_contract"]["custody_service_unit_file_state_required"]=="static"
+    unit=read_source(UNIT_REL,UNIT_BLOB).decode("utf-8")
+    assert (
+        "UnsetEnvironment=LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH"
+        in unit
+    )
     assert manifest["node_runtime_contract"]["version"]==NODE_VERSION
     assert manifest["node_runtime_contract"]["bytes"]==NODE_BYTES
     assert manifest["node_runtime_contract"]["sha256"]==NODE_SHA256
@@ -794,6 +799,7 @@ def self_test()->None:
     print("public_key_retained_generation=true")
     print("public_key_path_swap_rejected=true")
     print("exact_post_install_unit_states_required=true")
+    print("manager_environment_influence_unset=true")
     print("service_start=false")
     print("service_enable=false")
     print("training_execution=false")
