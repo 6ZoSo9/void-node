@@ -153,6 +153,8 @@ for required in (
     '"reload_recovery_required"',
     '"reload_recovery_performed"',
     '"target_file_replaced":profile["replace_target"]',
+    '"target_changed_before_manager_recheck"',
+    '"target_changed_during_manager_recheck"',
     '"APPLY_DAEMON_RELOAD_RECOVERY"',
     'os.replace(temp,TARGET_PATH)',
     'run(["/usr/bin/systemctl","daemon-reload"])',
@@ -234,6 +236,7 @@ for line in (
     "reload_failure_resume_supported=true",
     "new_exact_stale_manager_reload_only=true",
     "reload_only_target_file_rewrite=false",
+    "target_revalidated_before_and_after_manager_recheck=true",
     "ambiguous_loaded_contract_fails_closed=true",
     "extra_loaded_wants_fails_closed=true",
     "service_action=false",
@@ -247,6 +250,7 @@ print("VOID_APOLLYON_CUSTODY_TARGET_STOP_PROPAGATION_UPDATE_V1_PROOF_GREEN")
 print("reload_failure_resume_supported=true")
 print("new_exact_stale_manager_reload_only=true")
 print("reload_only_target_file_rewrite=false")
+print("target_revalidated_before_and_after_manager_recheck=true")
 print("ambiguous_loaded_contract_fails_closed=true")
 print("extra_loaded_wants_fails_closed=true")
 print("service_action=false")
