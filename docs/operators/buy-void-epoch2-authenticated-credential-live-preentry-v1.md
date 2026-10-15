@@ -30,10 +30,10 @@ therefore HOLD.
 
 The exact current source generation is bound by:
 
-- runner Git blob: `b3d3768846e92065b1f2feb6c7d841b832e6e483`;
-- runner bytes: `24,365`;
+- runner Git blob: `12a64ab00c08ad6996ddbf0aeea344075126f67a`;
+- runner bytes: `24,409`;
 - runner SHA-256:
-  `d8fef8b60fdfab40e8f6c70566812d0ccb05a3169bcdaa590a50775dc10b3872`;
+  `3acc6757090779ce318912a51eca5a8db6bee8adcd0c8f856382124f3fed1b6c`;
 - sealed V2 Git blob: `14cbe81e27d04fee77cbe75225ce308bf8561a7b`.
 
 ## Native first entry
