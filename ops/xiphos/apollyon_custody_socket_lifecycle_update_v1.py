@@ -625,6 +625,10 @@ def apply_transition(
             receipt["persistent_filesystem_mutation_present_before_apply"]
             or receipt["persistent_filesystem_mutation_possible_this_apply"]
         )
+        if receipt["durability_repair_attempted"] is True and (
+            receipt["durability_repair_succeeded"] is None
+        ):
+            receipt["durability_repair_succeeded"]="indeterminate"
         if receipt["daemon_reload_attempted"] is True and (
             receipt["daemon_reload_command_succeeded"] is None
         ):
@@ -924,6 +928,26 @@ def self_test()->None:
     assert upgraded["durability_repair_attempted"] is True
     assert upgraded["durability_repair_succeeded"] is True
 
+    state={"service":"old_exact","helper":"exact","loaded":"old_loaded"}
+    def durability_failure(_stage):
+        raise Hold("synthetic_durability_failure")
+    try:
+        apply_transition(
+            synthetic_snapshot(state),
+            _replace_service_fn=lambda:False,
+            _reload_fn=lambda:None,
+            _state_fn=lambda:synthetic_snapshot(state),
+            _stabilize_fn=durability_failure,
+        )
+    except ApplyHold as exc:
+        assert str(exc)=="synthetic_durability_failure"
+        assert exc.receipt["durability_repair_attempted"] is True
+        assert exc.receipt["durability_repair_succeeded"]=="indeterminate"
+        assert exc.receipt["service_unit_replace_attempted"] is False
+        assert exc.receipt["daemon_reload_attempted"] is False
+    else:
+        raise AssertionError("synthetic_durability_failure_not_reported")
+
     durability_stages=[]
     state={
         "service":"new_exact","helper":"exact",
@@ -1100,6 +1124,7 @@ def self_test()->None:
     print("helper_crash_link_state_classified=true")
     print("helper_pending_resume_states=true")
     print("resume_directory_durability_repair=true")
+    print("durability_failure_outcome_indeterminate=true")
     print("service_temp_cleanup_on_prepublication_failure=true")
     print("failure_injection_after_helper_creation=true")
     print("failure_injection_after_service_replace=true")
