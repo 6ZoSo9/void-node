@@ -135,6 +135,21 @@ expect_hold(
     ),
     "target_not_exactly_inactive",
 )
+
+for invalid_unit_file_state in (
+    "enabled","enabled-runtime","masked","static","linked","linked-runtime","indirect","generated",
+):
+    expect_hold(
+        lambda state=invalid_unit_file_state:module.classify_loaded_contract_observation(
+            0,
+            stale_target.replace(
+                "UnitFileState=disabled",
+                "UnitFileState="+state,
+            ),
+            0,service_exact,
+        ),
+        "target_unit_file_state_not_disabled",
+    )
 expect_hold(
     lambda:module.classify_loaded_contract_observation(
         0,stale_target,
@@ -155,6 +170,7 @@ for required in (
     '"target_file_replaced":profile["replace_target"]',
     '"target_changed_before_manager_recheck"',
     '"target_changed_during_manager_recheck"',
+    '"target_unit_file_state_not_disabled"',
     '"APPLY_DAEMON_RELOAD_RECOVERY"',
     'os.replace(temp,TARGET_PATH)',
     'run(["/usr/bin/systemctl","daemon-reload"])',
@@ -239,6 +255,7 @@ for line in (
     "target_revalidated_before_and_after_manager_recheck=true",
     "ambiguous_loaded_contract_fails_closed=true",
     "extra_loaded_wants_fails_closed=true",
+    "target_unit_file_state_disabled_required=true",
     "service_action=false",
     "target_action=false",
     "training_execution=false",
@@ -253,6 +270,7 @@ print("reload_only_target_file_rewrite=false")
 print("target_revalidated_before_and_after_manager_recheck=true")
 print("ambiguous_loaded_contract_fails_closed=true")
 print("extra_loaded_wants_fails_closed=true")
+print("target_unit_file_state_disabled_required=true")
 print("service_action=false")
 print("target_action=false")
 print("training_execution=false")
