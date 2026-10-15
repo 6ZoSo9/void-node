@@ -27,7 +27,7 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="029ebeb82373ed8fea41e971c5ff940d526bf1e9"
+MANIFEST_BLOB="d3080463072a2bbb5278918c54c0b69267b32b3e"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
@@ -43,7 +43,7 @@ LIVE_LAUNCHER_BLOB="8e92a3337c9a4bba21fab6299e9e2ceb61d3e425"
 PREENTRY_SOURCE_REL="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 PREENTRY_SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 LIFECYCLE_REL="ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py"
-LIFECYCLE_BLOB="6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5"
+LIFECYCLE_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"
 
 EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"
 NODE_RUNTIME=Path("/opt/void-apollyon-node-runtime-v1/node")
@@ -131,6 +131,20 @@ def load_manifest()->dict[str,Any]:
     lock=value.get("preentry_lock",{})
     if lock.get("bytes")!=PREENTRY_BYTES or lock.get("sha256")!=PREENTRY_SHA256:
         hold("manifest_preentry_lock_invalid")
+    socket_contract=value.get("socket_lifecycle_contract",{})
+    if (
+        socket_contract.get("custody_uid_process_exclusivity_required") is not True or
+        socket_contract.get("custody_uid_process_census_uid_slots") !=
+            ["real","effective","saved","filesystem"] or
+        socket_contract.get("unclassifiable_process_status_holds") is not True
+    ):
+        hold("manifest_socket_lifecycle_contract_invalid")
+    service_contract=value.get("service_contract",{})
+    if (
+        service_contract.get("activation_target_unit_file_state_required")!="disabled" or
+        service_contract.get("custody_service_unit_file_state_required")!="static"
+    ):
+        hold("manifest_unit_file_state_contract_invalid")
     return value
 
 def run(argv:list[str],*,check:bool=True,timeout:int=30)->subprocess.CompletedProcess[str]:
@@ -629,6 +643,11 @@ def self_test()->None:
     assert manifest["paths"]["node_runtime"]==os.fspath(NODE_RUNTIME)
     assert manifest["paths"]["custody_stale_socket_cleanup"]==os.fspath(CLEANUP_HELPER)
     assert manifest["host_lifecycle_closure"][LIFECYCLE_REL]==LIFECYCLE_BLOB
+    assert manifest["socket_lifecycle_contract"]["custody_uid_process_exclusivity_required"] is True
+    assert manifest["socket_lifecycle_contract"]["custody_uid_process_census_uid_slots"]==["real","effective","saved","filesystem"]
+    assert manifest["socket_lifecycle_contract"]["unclassifiable_process_status_holds"] is True
+    assert manifest["service_contract"]["activation_target_unit_file_state_required"]=="disabled"
+    assert manifest["service_contract"]["custody_service_unit_file_state_required"]=="static"
     assert manifest["node_runtime_contract"]["version"]==NODE_VERSION
     assert manifest["node_runtime_contract"]["bytes"]==NODE_BYTES
     assert manifest["node_runtime_contract"]["sha256"]==NODE_SHA256

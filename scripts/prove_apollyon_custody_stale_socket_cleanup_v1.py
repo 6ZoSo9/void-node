@@ -20,8 +20,20 @@ for required in (
     'os.unlink(hidden[0])',
     'os.unlink(SOCKET_PATH)',
     'os.fsync(dfd)',
+    'custody_uid_process_pids',
+    'custody_uid_process_exclusivity_failed',
+    'require_custody_uid_exclusive(uid)',
 ):
     assert required in source,required
+cleanup_source=source[source.index("def cleanup()->dict:"):source.index("def self_test()->None:")]
+assert cleanup_source.count("require_custody_uid_exclusive(uid)")==3
+first_gate=cleanup_source.index("require_custody_uid_exclusive(uid)")
+hidden_unlink=cleanup_source.index("os.unlink(hidden[0])")
+second_gate=cleanup_source.index("require_custody_uid_exclusive(uid)",first_gate+1)
+third_gate=cleanup_source.index("require_custody_uid_exclusive(uid)",second_gate+1)
+socket_unlink=cleanup_source.index("os.unlink(SOCKET_PATH)")
+assert first_gate<second_gate<hidden_unlink<third_gate<socket_unlink
+
 for forbidden in (
     "subprocess.","systemctl","service ","sudo ","PRIVATE KEY","eth_sendRawTransaction",
 ):
@@ -44,7 +56,11 @@ assert r.returncode==0,r.stderr
 for line in (
     "VOID_APOLLYON_CUSTODY_STALE_SOCKET_CLEANUP_V1_SELF_TEST_GREEN",
     "fixed_socket_path=true","same_inode_hidden_cleanup=true",
+    "custody_uid_process_exclusivity_required=true",
+    "second_custody_uid_process_rejected=true",
     "live_listener_refused=true","stale_socket_cleanup_external_fulfilled=true",
 ):
     assert line in r.stdout,line
 print("VOID_APOLLYON_CUSTODY_STALE_SOCKET_CLEANUP_V1_PROOF_GREEN")
+print("custody_uid_process_exclusivity_required=true")
+print("second_custody_uid_process_rejected=true")

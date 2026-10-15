@@ -106,8 +106,11 @@ V2 evidence. The create-only installer therefore does not start or enable it.
 
 A separate
 `void-apollyon-authorization-custody-v1.target` may be activated by a later
-explicit gate. Dependency activation can start the custody service without weakening its
-manual-control refusal.
+explicit gate. Before activation, the reviewed host boundary requires the target
+to be loaded/inactive with `UnitFileState=disabled` exactly and the custody
+service to be loaded/inactive with `UnitFileState=static` exactly. Other
+unit-file states fail closed. Dependency activation can start the custody service
+without weakening its manual-control refusal.
 
 The target also declares:
 
@@ -130,10 +133,19 @@ and the custody service runs it through exactly one `ExecStopPost=`.
 The helper runs as `voidapollyoncustody` under the existing service sandbox.
 It accepts only the fixed custody socket path, exact custody/IPC
 ownership/modes, and a non-listening `ECONNREFUSED` socket. It revalidates the
-same inode before unlink. If an abrupt process death leaves the private
-`.vNNNN` hard-link, the helper removes it only when it is the unique same-inode
-sibling. A live listener, ambiguous liveness result, foreign socket, unexpected
-link count, or identity drift holds closed.
+same inode before unlink. Before any stale-path deletion it also enumerates
+numeric `/proc/<pid>/status` records and counts a process whenever any
+real/effective/saved/filesystem UID slot equals `voidapollyoncustody`. The
+observed custody-UID set must be exactly the cleanup helper PID. The exclusivity
+gate is repeated immediately before hidden-link unlink and again immediately
+before advertised-socket unlink; unreadable or unclassifiable live process
+status holds closed. This removes a second same-UID process as a pathname-race
+competitor inside the custody-writable socket directory.
+
+If an abrupt process death leaves the private `.vNNNN` hard-link, the helper
+removes it only when it is the unique same-inode sibling. A live listener,
+ambiguous liveness result, foreign socket, unexpected link count, identity
+drift, or second custody-UID process holds closed.
 
 This makes target start -> target stop -> target start repeatable without
 weakening the custody service's direct manual start/stop refusal.

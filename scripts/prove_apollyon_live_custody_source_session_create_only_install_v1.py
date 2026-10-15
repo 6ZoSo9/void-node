@@ -16,7 +16,7 @@ def git_blob(path:Path)->str:
     h.update(f"blob {len(data)}\0".encode("ascii"));h.update(data)
     return h.hexdigest()
 
-assert git_blob(MANIFEST)=="029ebeb82373ed8fea41e971c5ff940d526bf1e9"
+assert git_blob(MANIFEST)=="d3080463072a2bbb5278918c54c0b69267b32b3e"
 source=INSTALLER.read_text(encoding="utf-8")
 ast.parse(source)
 for required in (
@@ -27,7 +27,12 @@ for required in (
     'NODE_BYTES=126595440',
     'NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"',
     'UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"',
-    'LIFECYCLE_BLOB="6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5"',
+    'LIFECYCLE_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
+    'custody_uid_process_exclusivity_required',
+    'custody_uid_process_census_uid_slots',
+    'unclassifiable_process_status_holds',
+    'activation_target_unit_file_state_required',
+    'custody_service_unit_file_state_required',
     'CLEANUP_HELPER=LIFECYCLE_ROOT/"apollyon_custody_stale_socket_cleanup_v1.py"',
     'install_file(CLEANUP_HELPER,cleanup_helper,0o444,0,0)',
     'PREENTRY_BYTES=798736',

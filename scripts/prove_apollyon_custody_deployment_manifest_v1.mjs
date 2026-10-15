@@ -116,6 +116,8 @@ assert.equal(manifest.service_contract.node_runtime_path,"/opt/void-apollyon-nod
 assert.equal(manifest.service_contract.activation_target_stop_propagates_to_service,true);
 assert.equal(manifest.service_contract.activation_target_restart_propagation,false);
 assert.equal(manifest.service_contract.direct_service_start_stop_refused,true);
+assert.equal(manifest.service_contract.activation_target_unit_file_state_required,"disabled");
+assert.equal(manifest.service_contract.custody_service_unit_file_state_required,"static");
 
 assert.equal(manifest.service_contract.restart_safe_socket_cleanup_required,true);
 assert.equal(
@@ -129,13 +131,15 @@ assert.equal(
 );
 assert.deepEqual(manifest.host_lifecycle_closure,{
   "ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py":
-    "6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5",
+    "3cb5f2b85c80b9a26ba5e8d73634c29f584011af",
 });
 assert.deepEqual(manifest.socket_lifecycle_contract,{
   advertised_socket_unlink_by_source_service:false,
+  custody_uid_process_census_uid_slots:["real","effective","saved","filesystem"],
+  custody_uid_process_exclusivity_required:true,
   exec_stop_post_cleanup_required:true,
   fixed_socket_path:"/run/void-apollyon-custody-v1/custody.sock",
-  helper_git_blob_sha1:"6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5",
+  helper_git_blob_sha1:"3cb5f2b85c80b9a26ba5e8d73634c29f584011af",
   helper_mode:"0444",
   helper_owner:"root:root",
   helper_runtime_user:"voidapollyoncustody",
@@ -143,10 +147,11 @@ assert.deepEqual(manifest.socket_lifecycle_contract,{
   restart_safe_cleanup_required:true,
   same_inode_private_hardlink_cleanup:true,
   stale_socket_cleanup_external_required:true,
+  unclassifiable_process_status_holds:true,
 });
 assert.equal(
   gitBlob(fs.readFileSync(SOCKET_CLEANUP)),
-  "6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5",
+  "3cb5f2b85c80b9a26ba5e8d73634c29f584011af",
 );
 
 const target=fs.readFileSync(TARGET,"utf8");
