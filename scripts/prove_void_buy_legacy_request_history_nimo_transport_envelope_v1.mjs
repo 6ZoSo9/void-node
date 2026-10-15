@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
@@ -26,6 +27,31 @@ import {
 } from "../tools/void-buy-legacy-request-history-nimo-transport-envelope-v1.mjs";
 
 const D=VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_DECISIONS_V1;
+const workflow=fs.readFileSync(
+  ".github/workflows/buy-void-legacy-request-history-nimo-transport-envelope-v1.yml",
+  "utf8"
+);
+for(const relative of [
+  "tools/void-buy-legacy-request-history-external-witness-v1.mjs",
+  "tools/void-buy-legacy-request-history-sovereign-authorization-v1.mjs",
+  "tools/void-buy-legacy-request-history-disposition-v1.mjs",
+  "src/security/void_sovereign_emergency_control_v1.ts",
+  "src/security/void_alignment_layer_v1.ts",
+  "src/economic/buy_void_allocation_custody_witness_transport_v1.ts",
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "tsconfig.build.json",
+  "scripts/copy_void_runtime_js_v1.mjs",
+  "scripts/retire_saveblock_periodic_rewriters_v1.mjs",
+]){
+  const token='      - "'+relative+'"';
+  assert.equal(
+    workflow.split(token).length-1,
+    2,
+    "workflow must trigger for PR and main push: "+relative,
+  );
+}
 function canonical(value){
   if(value===null)return "null";
   if(typeof value==="string")return JSON.stringify(value).replace(/[\u007f-\uffff]/g,
@@ -128,6 +154,40 @@ if(!append.ok)throw Error(append.reason||"append request held");
 assert.equal(append.expected_append_required,true);
 assert.match(append.request_id,/^voidblrhtreq1_[0-9a-f]{64}$/u);
 
+for(const invalidUtc of [
+  "2026-02-29T00:00:00.000Z",
+  "2026-02-31T12:00:00.000Z",
+]){
+  const invalid=testOnlyBuildVoidBuyVoidLegacyHistoryNimoAppendRequestAgainstFingerprintV1(
+    {
+      policy,
+      challenge_sha256:"sha256:"+"8".repeat(64),
+      current_witness_jsonl:Buffer.alloc(0),
+      candidate,
+      authorization,
+      public_key_pem:publicPem,
+      witnessed_at_utc:invalidUtc,
+    },
+    fingerprint,
+  );
+  assert.equal(invalid.ok,false);
+  assert.match(invalid.reason,/legacy_history_nimo_transport_time_invalid/u);
+}
+const leapTransport=
+  testOnlyBuildVoidBuyVoidLegacyHistoryNimoAppendRequestAgainstFingerprintV1(
+    {
+      policy,
+      challenge_sha256:"sha256:"+"8".repeat(64),
+      current_witness_jsonl:Buffer.alloc(0),
+      candidate,
+      authorization,
+      public_key_pem:publicPem,
+      witnessed_at_utc:"2028-02-29T12:00:00Z",
+    },
+    fingerprint,
+  );
+assert.equal(leapTransport.ok,true);
+
 const server=testOnlyClassifyVoidBuyVoidLegacyHistoryNimoServerRequestAgainstFingerprintV1(
   {policy,request_json:append.request_json,current_witness_jsonl:Buffer.alloc(0)},
   fingerprint,
@@ -165,6 +225,102 @@ const validatedRetry=validateVoidBuyVoidLegacyHistoryNimoResponseV1({
   policy,request_json:append.request_json,response_json:retryResponse.response_json,
 });
 assert.equal(validatedRetry.ok,true);
+
+const candidateBBody={
+  ...candidateBody,
+  metadata_census_sha256:"sha256:"+"2".repeat(64),
+};
+const candidateB={
+  ...candidate,
+  ...candidateBBody,
+  candidate_id:"voidblrhdc1_"+sha256(Buffer.from(canonical(candidateBBody),"utf8")),
+};
+const requestB=
+  testOnlyBuildVoidBuyVoidLegacyHistorySovereignAuthorizationRequestAgainstFingerprintV1(
+    candidateB,"2026-10-15T12:08:00.000Z",fingerprint
+  );
+const signatureB=crypto.sign(
+  null,
+  canonicalVoidBuyVoidLegacyHistorySovereignAuthorizationPayloadV1(requestB),
+  privateKey,
+).toString("base64");
+const authorizationB=
+  assembleVoidBuyVoidLegacyHistorySovereignAuthorizationV1(requestB,signatureB);
+const appendB=testOnlyBuildVoidBuyVoidLegacyHistoryNimoAppendRequestAgainstFingerprintV1(
+  {
+    policy,
+    challenge_sha256:"sha256:"+"6".repeat(64),
+    current_witness_jsonl:server.next_witness_jsonl,
+    candidate:candidateB,
+    authorization:authorizationB,
+    public_key_pem:publicPem,
+    witnessed_at_utc:"2026-10-15T12:09:00.000Z",
+  },
+  fingerprint,
+);
+assert.equal(appendB.ok,true);
+if(!appendB.ok)throw Error(appendB.reason||"append B held");
+assert.equal(appendB.expected_append_required,true);
+const serverB=testOnlyClassifyVoidBuyVoidLegacyHistoryNimoServerRequestAgainstFingerprintV1(
+  {
+    policy,
+    request_json:appendB.request_json,
+    current_witness_jsonl:server.next_witness_jsonl,
+  },
+  fingerprint,
+);
+assert.equal(serverB.ok,true);
+if(!serverB.ok)throw Error(serverB.reason||"server B held");
+const responseB=buildVoidBuyVoidLegacyHistoryNimoServerResponseV1({
+  policy,
+  request_json:appendB.request_json,
+  observed_witness_jsonl:serverB.next_witness_jsonl,
+  operation_performed:true,
+});
+assert.equal(responseB.ok,true);
+assert.equal(validateVoidBuyVoidLegacyHistoryNimoResponseV1({
+  policy,request_json:appendB.request_json,response_json:responseB.response_json,
+}).ok,true);
+
+const retryA=testOnlyBuildVoidBuyVoidLegacyHistoryNimoAppendRequestAgainstFingerprintV1(
+  {
+    policy,
+    challenge_sha256:"sha256:"+"7".repeat(64),
+    current_witness_jsonl:serverB.next_witness_jsonl,
+    candidate,
+    authorization,
+    public_key_pem:publicPem,
+    witnessed_at_utc:"2026-10-15T12:10:00.000Z",
+  },
+  fingerprint,
+);
+assert.equal(retryA.ok,true);
+if(!retryA.ok)throw Error(retryA.reason||"non-tip retry A held");
+assert.equal(retryA.expected_append_required,false);
+assert.ok(retryA.expected_next_witness_jsonl.equals(serverB.next_witness_jsonl));
+const retryAServer=
+  testOnlyClassifyVoidBuyVoidLegacyHistoryNimoServerRequestAgainstFingerprintV1(
+    {policy,request_json:retryA.request_json,current_witness_jsonl:serverB.next_witness_jsonl},
+    fingerprint,
+  );
+assert.equal(retryAServer.ok,true);
+if(!retryAServer.ok)throw Error(retryAServer.reason||"non-tip server retry held");
+assert.equal(retryAServer.status,"IDEMPOTENT_READY_SOURCE_ONLY");
+assert.equal(retryAServer.append_required,false);
+const retryAResponse=buildVoidBuyVoidLegacyHistoryNimoServerResponseV1({
+  policy,
+  request_json:retryA.request_json,
+  observed_witness_jsonl:serverB.next_witness_jsonl,
+  operation_performed:false,
+});
+assert.equal(retryAResponse.ok,true);
+if(!retryAResponse.ok)throw Error(retryAResponse.reason||"non-tip response held");
+assert.equal(retryAResponse.response.status,"idempotent");
+assert.notEqual(retryAResponse.response.tip_event_id,retryA.request.expected_event_id);
+const validatedRetryA=validateVoidBuyVoidLegacyHistoryNimoResponseV1({
+  policy,request_json:retryA.request_json,response_json:retryAResponse.response_json,
+});
+assert.equal(validatedRetryA.ok,true);
 
 const read=buildVoidBuyVoidLegacyHistoryNimoReadRequestV1({
   policy,challenge_sha256:"sha256:"+"5".repeat(64),

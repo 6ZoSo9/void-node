@@ -32,11 +32,12 @@ Each witness event binds:
 - canonical candidate SHA-256;
 - canonical complete signed-authorization SHA-256;
 - verified Sovereign public-key DER SHA-256;
-- witness timestamp that cannot predate the authorization.
+- canonical UTC witness timestamp that cannot predate the authorization.
 
 Events are canonical JSONL. Existing noncanonical, duplicate or broken-chain
 history fails closed. A second authorization for the same candidate is rejected,
-while an exact already-witnessed authorization is idempotent.
+while an exact already-witnessed authorization is idempotent even after newer
+unrelated witness events have been appended.
 
 ## Readback boundary
 
