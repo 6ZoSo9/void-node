@@ -616,7 +616,8 @@ def apply_transition(
         ):
             require_dormancy("before_durability_repair")
             receipt["durability_repair_attempted"]=True
-            receipt["persistent_filesystem_mutation_possible_this_apply"]=True
+            if stage in ("helper_pending_absent","helper_pending_exact"):
+                receipt["persistent_filesystem_mutation_possible_this_apply"]=True
             _stabilize_fn(stage)
             receipt["durability_repair_succeeded"]=True
         if stage in ("initial","helper_pending_absent"):
@@ -1008,6 +1009,34 @@ def self_test()->None:
     else:
         raise AssertionError("synthetic_durability_failure_not_reported")
 
+    state={
+        "service":"old_exact","helper":"exact_pending",
+        "loaded":"old_loaded",
+    }
+    def pending_cleanup_failure(_stage):
+        state["helper"]="exact"
+        raise Hold("synthetic_after_pending_cleanup")
+    try:
+        apply_transition(
+            synthetic_snapshot(state),
+            _replace_service_fn=lambda:False,
+            _reload_fn=lambda:None,
+            _state_fn=lambda:synthetic_snapshot(state),
+            _stabilize_fn=pending_cleanup_failure,
+        )
+    except ApplyHold as exc:
+        assert str(exc)=="synthetic_after_pending_cleanup"
+        assert exc.receipt["durability_repair_attempted"] is True
+        assert exc.receipt["durability_repair_succeeded"]=="indeterminate"
+        assert (
+            exc.receipt["persistent_filesystem_mutation_possible_this_apply"]
+            is True
+        )
+        assert exc.receipt["service_unit_replace_attempted"] is False
+        assert exc.receipt["daemon_reload_attempted"] is False
+    else:
+        raise AssertionError("synthetic_pending_cleanup_failure_not_reported")
+
     durability_stages=[]
     state={
         "service":"new_exact","helper":"exact",
@@ -1232,6 +1261,7 @@ def self_test()->None:
     print("lifecycle_root_parent_fsync_on_create=true")
     print("mutation_boundary_dormancy_revalidation=true")
     print("durability_repair_mutation_receipt_truthful=true")
+    print("pending_cleanup_mutation_receipt_truthful=true")
     print("durability_failure_outcome_indeterminate=true")
     print("service_temp_cleanup_on_prepublication_failure=true")
     print("failure_injection_after_helper_creation=true")
