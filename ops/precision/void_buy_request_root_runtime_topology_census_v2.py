@@ -147,6 +147,16 @@ def same_target_metadata_generation(
     return first == second and first.get("metadata_qualified") is True
 
 
+def authenticated_live_binding(
+    diagnostic_candidate: bool,
+    authenticated_user_manager_binding_verified: bool,
+) -> bool:
+    return (
+        diagnostic_candidate is True
+        and authenticated_user_manager_binding_verified is True
+    )
+
+
 def classify_target_status(observation: dict[str, Any]) -> dict[str, Any]:
     body = observation.get("body")
     base = {
@@ -336,6 +346,9 @@ def self_test() -> None:
     assert len(EXPECTED_MACHINE_ID_SHA256) == 64
     assert all(ch in "0123456789abcdef" for ch in EXPECTED_MACHINE_ID_SHA256)
     assert AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED is False
+    assert authenticated_live_binding(True, False) is False
+    assert authenticated_live_binding(False, True) is False
+    assert authenticated_live_binding(True, True) is True
     print(f"{MARKER}_SELF_TEST_GREEN")
     print("fixed_target_policy=0750_0640")
     print("double_census_stability_required=true")
@@ -486,9 +499,9 @@ def collect() -> dict[str, Any]:
         and confirmed_closeout_status_stable
         and target_metadata_generation_stable
     )
-    live_binding = (
-        unauthenticated_runtime_candidate_observed
-        and AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED
+    live_binding = authenticated_live_binding(
+        unauthenticated_runtime_candidate_observed,
+        AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED,
     )
     legacy_exists = _distinct_candidate_count(
         cwd_candidate, historical_candidate, "exists"
