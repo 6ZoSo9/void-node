@@ -332,6 +332,7 @@ export function voidRelayClientExpiryV1(
 export class VoidRelayServerStateV1 {
   private reservations = new Map<string, VoidRelayReservationRecordV1>();
   private streams = new Map<string, MutableRelayStreamV1>();
+  private lastClockMs: number | undefined;
 
   reserve(
     nodeIdValue: string,
@@ -480,10 +481,20 @@ export class VoidRelayServerStateV1 {
 
   sweep(nowMs = Date.now()): readonly VoidRelayStreamRecordV1[] {
     const now = relayClock(nowMs);
+    const closed: VoidRelayStreamRecordV1[] = [];
+    if (this.lastClockMs !== undefined && now < this.lastClockMs) {
+      for (const stream of this.streams.values()) {
+        closed.push(this.snapshotStream(stream));
+      }
+      this.reservations.clear();
+      this.streams.clear();
+      this.lastClockMs = now;
+      return Object.freeze(closed);
+    }
+    this.lastClockMs = now;
     for (const [nodeIdValue, reservation] of this.reservations) {
       if (reservation.expires_at_ms <= now) this.reservations.delete(nodeIdValue);
     }
-    const closed: VoidRelayStreamRecordV1[] = [];
     for (const [streamId, stream] of this.streams) {
       const targetReservation = this.reservations.get(stream.target_node_id);
       if (!targetReservation ||
