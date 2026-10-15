@@ -27,7 +27,9 @@ exact dormant candidate Git object.
   `0d9eb90c27031b9820a139be2af63c4c07433e20`.
 
 The parent validates a clean exact `main` checkout before obtaining either
-Git object.
+Git object, requires the child receipt to prove its own post-sensitive-sequence
+checkout revalidation, and revalidates the exact clean checkout again after the
+child returns before emitting the binding receipt.
 
 ## Live child
 
@@ -43,7 +45,9 @@ That child in turn:
 - returns the public live-composition receipt.
 
 The dormant-candidate binder never accepts an arbitrary receipt file, stdin
-receipt, command-line receipt, or environment receipt. Its output retains the
+receipt, command-line receipt, or environment receipt. The child receipt must
+also carry `checkout_revalidated_after_sensitive_sequence=true`, and the binder
+performs its own final checkout revalidation before receipt construction. Its output retains the
 full public child live-composition receipt plus its content hash and receipt ID,
 so later review does not depend on an external ephemeral copy.
 
@@ -111,7 +115,7 @@ test -z "$("${clean_git[@]}" status --porcelain=v1 --untracked-files=all)"
 
 binder_path=ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs
 binder_blob="$("${clean_git[@]}" rev-parse "${head}:${binder_path}")"
-test "$binder_blob" = 2686acdfbed5b3e2c929c896f032b01b94c89cef
+test "$binder_blob" = c3be6b50d5dad15b9e75229cd258ca9cf04692e7
 
 "${clean_git[@]}" cat-file blob "$binder_blob" |
 sudo env -i \
