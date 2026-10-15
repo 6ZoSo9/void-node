@@ -67,6 +67,21 @@ try {
   assert.notEqual(usage.status, 0);
   assert.match(usage.stderr, /usage: node scripts\/keygen\.js/);
 
+
+const workflow = fs.readFileSync(
+  path.join(root, ".github", "workflows", "void-keygen-create-only-v1.yml"),
+  "utf8",
+);
+for (const required of [
+  'scripts/void_keygen_ci_diff_base_v1.mjs',
+  'EVENT_NAME: ${{ github.event_name }}',
+  'PUSH_BEFORE: ${{ github.event.before }}',
+  '--event "$EVENT_NAME"',
+  '--push-before "${PUSH_BEFORE:-}"',
+]) {
+  assert.ok(workflow.includes(required), "workflow event contract missing: " + required);
+}
+
   console.log("VOID_KEYGEN_CREATE_ONLY_V1_PROOF_GREEN");
 } finally {
   fs.rmSync(fixture, { recursive: true, force: true });

@@ -6,6 +6,7 @@ on:
       - "scripts/keygen.ts"
       - "scripts/keygen.js"
       - "scripts/prove_void_keygen_create_only_v1.mjs"
+      - "scripts/void_keygen_ci_diff_base_v1.mjs"
       - ".github/workflows/void-keygen-create-only-v1.yml"
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - "scripts/keygen.ts"
       - "scripts/keygen.js"
       - "scripts/prove_void_keygen_create_only_v1.mjs"
+      - "scripts/void_keygen_ci_diff_base_v1.mjs"
       - ".github/workflows/void-keygen-create-only-v1.yml"
   workflow_dispatch:
 
@@ -55,7 +57,9 @@ jobs:
           set -euo pipefail
           node --check scripts/keygen.js
           node --check scripts/prove_void_keygen_create_only_v1.mjs
+          node --check scripts/void_keygen_ci_diff_base_v1.mjs
           node scripts/prove_void_keygen_create_only_v1.mjs
+          node scripts/void_keygen_ci_diff_base_v1.mjs --self-test
 
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
@@ -88,10 +92,17 @@ jobs:
 
       - name: Diff hygiene
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
-          git merge-base --is-ancestor "$BASE" "$HEAD"
+          BASE="$(node scripts/void_keygen_ci_diff_base_v1.mjs \
+            --event "$EVENT_NAME" \
+            --head "$HEAD" \
+            --pr-base "${PR_BASE:-}" \
+            --push-before "${PUSH_BEFORE:-}")"
+          test -n "$BASE"
           git diff --check "$BASE" "$HEAD"
