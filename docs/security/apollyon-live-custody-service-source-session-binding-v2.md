@@ -26,7 +26,7 @@ The live runner must bind and keep stable:
 - custody-service MainPID/start-time/source identity;
 - clean loader environment;
 - exact current-stack custody launcher blob
-  `79b60798c48d7f635e133700483b071f5fef37b7`;
+  `d23ff045d8c355401fed499c6bcffd503ba4c7fd`;
 - authorization ID;
 - custody generation ID;
 - custody record SHA-256; and

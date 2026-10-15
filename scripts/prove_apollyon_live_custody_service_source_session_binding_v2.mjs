@@ -25,7 +25,7 @@ assert.equal(
 );
 assert.equal(
   gitBlob(fs.readFileSync(path.join(ROOT,"tools/apollyon-authorization-custody-launcher-v2.mjs"))),
-  "79b60798c48d7f635e133700483b071f5fef37b7",
+  "d23ff045d8c355401fed499c6bcffd503ba4c7fd",
 );
 
 function claim(){
@@ -88,7 +88,7 @@ function session(c){
     custody_generation_id:c.custody_generation_id,
     custody_record_sha256:c.custody_record_sha256,
     operator_public_key_raw_sha256:c.operator_public_key_raw_sha256,
-    custody_launcher_blob_sha1:"79b60798c48d7f635e133700483b071f5fef37b7",
+    custody_launcher_blob_sha1:"d23ff045d8c355401fed499c6bcffd503ba4c7fd",
     state_root_identity_sha256:"e".repeat(64),
     consumed_directory_identity_sha256:"f".repeat(64),
     socket_identity_sha256:"1".repeat(64),
