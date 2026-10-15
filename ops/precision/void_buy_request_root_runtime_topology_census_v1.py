@@ -407,10 +407,7 @@ def request_root_candidate(path: pathlib.Path, runtime_uid: int) -> dict[str, An
             mode = int(str(value.get("mode")), 8)
         except ValueError:
             return False
-        return (
-            (mode & 0o600) == 0o600
-            and (mode & 0o077) == 0
-        )
+        return mode == 0o600
 
     requests_size_qualified = (
         isinstance(requests.get("size"), int)
