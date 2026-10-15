@@ -12,6 +12,7 @@ def git_blob(path:Path)->str:
 
 manifest=json.loads(MANIFEST.read_text())
 assert manifest["marker"]=="VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1"
+assert git_blob(MANIFEST)=="aa8e559f9644afd6be74ed597ffa446c0881bf0f"
 assert manifest["from"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v1"
 assert manifest["to"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v2"
 assert manifest["from"]["fixed_launcher_blob_sha1"]=="e18124d3109ed63ff50da9c467fb1b798c300460"
@@ -24,6 +25,7 @@ assert manifest["authority"]["durable_attempt_claim"] is False
 source=INSTALLER.read_text()
 ast.parse(source)
 for required in (
+    'UPGRADE_MANIFEST_BLOB="aa8e559f9644afd6be74ed597ffa446c0881bf0f"',
     'OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")',
     'NEW_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")',
     'OLD_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"',
