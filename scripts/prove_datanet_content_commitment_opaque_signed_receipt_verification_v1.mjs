@@ -33,7 +33,7 @@ const candidate={
 };
 const candidateFingerprint=sha256(canonicalJson(candidate));
 
-function signingRequest(candidateValue=candidate,overrides={}){
+function signingRequest(overrides={},candidateValue=candidate){
   const fingerprint=sha256(canonicalJson(candidateValue));
   const material={
     marker:"VOID_DATANET_CONTENT_COMMITMENT_EXACT_PUBLISHER_SIGNING_REQUEST_V1",
@@ -273,7 +273,7 @@ async function receiptFor(request=signingRequest(),signer=wallet,overrides={}){
 }
 
 {
-  const request=signingRequest({...candidate,max_fee_per_gas_wei:"1"});
+  const request=signingRequest({}, {...candidate,max_fee_per_gas_wei:"1"});
   const receipt=await receiptFor(request);
   const result=verifyDatanetContentCommitmentOpaqueSignedReceiptV1({
     signing_request:request,
@@ -284,7 +284,7 @@ async function receiptFor(request=signingRequest(),signer=wallet,overrides={}){
 }
 
 {
-  const request=signingRequest({...candidate,max_priority_fee_per_gas_wei:"1"});
+  const request=signingRequest({}, {...candidate,max_priority_fee_per_gas_wei:"1"});
   const receipt=await receiptFor(request);
   const result=verifyDatanetContentCommitmentOpaqueSignedReceiptV1({
     signing_request:request,
