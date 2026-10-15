@@ -199,9 +199,11 @@ hosted marker grants fixture authority. The internal delegated-child marker is
 also insufficient by itself. Before skipping outer namespace creation, the
 child must independently prove kernel/process state: its real parent executable
 is fixed `/usr/bin/unshare` running as root; its mount-namespace inode differs
-from PID 1; namespace-local `/opt` and `/home` match the disposable backing
-directory generations derived from the running harness executable; and the
-checkout mirror is the expected read-only mount. Mount topology is asymmetric:
+from PID 1; the delegated bootstrap root is an exact root-owned mode-0755
+`/tmp/void-e2-private-opt-v1-*` generation supplied by the root namespace
+bootstrap; namespace-local `/opt` and `/home` match that bootstrap's
+disposable backing directory generations; and the checkout mirror is the
+expected read-only mount. Mount topology is asymmetric:
 visible `/opt` and `/home` must be explicit mountpoints, while their
 bootstrap backing directories and the bootstrap root itself must not be
 mountpoints. This rejects reverse-bind constructions that alias host directories
@@ -214,10 +216,13 @@ The hosted image does not need a real host `/usr/bin/node`. Inside the private
 mount namespace only, the proof creates a private overlay-backed `/usr/bin`
 whose lower layer is the existing host directory and whose private upper layer
 contains one root-owned copy of the selected setup-node executable at
-`/usr/bin/node`. The proof requires namespace-local `/usr/bin` to be an
-explicit mount, requires the merged backing to be an `overlay` mount while its
-upper/work directories are non-mountpoints, and requires fixed Node inode
-identity plus SHA-256 equality with the selected hosted Node bytes.
+`/usr/bin/node`. The delegated proof is executed with that namespace-local
+`/usr/bin/node`, never with the earlier bootstrap-source pathname. The proof
+requires namespace-local `/usr/bin` to be an explicit mount, requires the
+merged backing to be an `overlay` mount while its upper/work directories are
+non-mountpoints, requires the root-owned bootstrap Node copy and the installed
+overlay Node to match the original selected hosted Node SHA-256, and requires
+the fixed Node inode to match the overlay backing generation.
 
 No host `/usr/bin` entry is created, replaced, chmodded, chowned, removed, or
 mounted over outside the child namespace. The private mount namespace is
