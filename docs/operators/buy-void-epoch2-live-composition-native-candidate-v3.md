@@ -33,7 +33,7 @@ The derivation requires these Git objects:
   — `92e8c8696ea7e2bb81b6ef089db8baa657188935`;
 - repaired privileged-source proof:
   `scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs`
-  — `25d0a7baa1035cd2497ef75e199ccdb220bb8d18`;
+  — `73062194b5b5ed304ff820d7fa33e66c5c8da436`;
 - privileged-source workflow:
   `.github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml`
   — `85c28fdf03345240332cbf41d46fbda065958ec7`;
@@ -169,3 +169,7 @@ separate lock successor consider changing candidate/native/runner acceptance
 bits.
 
 PROTECT THE CORE.
+
+## Hosted compiler selector
+
+The private-fixture statx helper is compiled through fixed `/usr/bin/cc`. On Ubuntu this selector may be a root-owned symlink; the proof requires its resolved real compiler to be a direct root-owned, non-group/world-writable executable beneath trusted `/usr`. The selector cannot be replaced by caller PATH state.
