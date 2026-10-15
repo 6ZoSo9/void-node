@@ -19,7 +19,7 @@ const SEALED=
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v1.mjs";
 
 const EXPECTED=Object.freeze({
-  query:"6aefc385bcc4212d3c45e36871bfde0da3529baa",
+  query:"ddca2c544ce14261dffb80a202c0a4ae2979ec1e",
   peer:"d8b30ac499c3bb8a5d223dbc6be687dd175be611",
   preexec:"f0fbfaae97df3294097a281100f06ada2ef157ff",
 });
@@ -71,6 +71,7 @@ for(const needle of [
   '"DropInPaths"',
   '"LoadCredential"',
   '"org.freedesktop.systemd1.Service"',
+  '"org.freedesktop.systemd1.Service","ControlGroup"',
   '"a(ss)"',
   'same_retained_private_connection=true',
   'credential_contents_read=false',
@@ -91,6 +92,7 @@ assert.ok(
 );
 assert.ok(!source.includes('"--user", "show"'));
 assert.ok(!source.includes("/run/user/%lu/bus"));
+assert.ok(!source.includes('"org.freedesktop.systemd1.Unit","ControlGroup"'));
 
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-e2-auth-query-"));
 try{
