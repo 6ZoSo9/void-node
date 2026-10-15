@@ -28,8 +28,8 @@ A GREEN V2 probe requires:
   generations; and
 - successful descriptor close before GREEN output is emitted.
 
-Same-size/same-mode file replacement and whole credential-directory replacement
-therefore HOLD.
+Same-size/same-mode file replacement, metadata-only drift on the retained
+credential inode, and whole credential-directory replacement therefore HOLD.
 
 ## Source-only operator shape
 
