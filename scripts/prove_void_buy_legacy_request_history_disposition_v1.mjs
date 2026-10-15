@@ -54,7 +54,7 @@ function row(path,sources,classification){
 const cleanRows=()=>[
   row(
     "/home/zoso/dev/void-node/.runtime/public-buy-void-requests-v1",
-    ["repo_default"],
+    ["repo_default","unit_working_directory_default"],
     "ABSENT_OBSERVED",
   ),
   row(
@@ -62,6 +62,12 @@ const cleanRows=()=>[
       "/.runtime/public-buy-void-requests-v1",
     ["immutable_release_default"],
     "ZERO_LENGTH_FIXED_JOURNALS_OBSERVED_EXTERNAL_ANCHOR_REQUIRED",
+  ),
+  row(
+    "/opt/void-node-live/releases/"+"b".repeat(40)+
+      "/.runtime/public-buy-void-requests-v1",
+    ["live_process_cwd_default"],
+    "ABSENT_OBSERVED",
   ),
   row(
     "/var/lib/void-buy-request-journal-v1",
@@ -288,6 +294,34 @@ const unknownRows=cleanRows();
 unknownRows[0]={...unknownRows[0],classification:"MYSTERY"};
 assert.equal(classify(input(evidence(unknownRows))).ok,false);
 
+const relabeledHistorical=cleanRows();
+relabeledHistorical[0]={
+  ...relabeledHistorical[0],
+  sources:["selected_future_stable_root"],
+  classification:"SURVIVING_HISTORY_METADATA_OBSERVED",
+};
+assert.equal(classify(input(evidence(relabeledHistorical))).ok,false);
+
+const mixedFutureStable=cleanRows();
+mixedFutureStable[3]={
+  ...mixedFutureStable[3],
+  sources:["live_status_explicit_request_dir","selected_future_stable_root"],
+  classification:"SURVIVING_HISTORY_METADATA_OBSERVED",
+};
+assert.equal(classify(input(evidence(mixedFutureStable))).ok,false);
+
+const omittedLiveCwd=cleanRows().filter(
+  item=>!item.sources.includes("live_process_cwd_default"),
+);
+assert.equal(classify(input(evidence(omittedLiveCwd))).ok,false);
+
+const unknownSource=cleanRows();
+unknownSource[0]={
+  ...unknownSource[0],
+  sources:["repo_default","unit_working_directory_default","invented_source"],
+};
+assert.equal(classify(input(evidence(unknownSource))).ok,false);
+
 for(const [key,expected] of Object.entries({
   source_only_candidate:true,
   human_accounting_disposition_may_be_recorded:true,
@@ -327,6 +361,9 @@ console.log("exact_census_source_blob_required=true");
 console.log("census_sha256_computed_internally=true");
 console.log("census_partitions_derived_internally=true");
 console.log("fabricated_summary_rejected=true");
+console.log("source_provenance_labels_bound=true");
+console.log("future_stable_root_mixed_provenance_rejected=true");
+console.log("candidate_source_coverage_required=true");
 console.log("incomplete_census_hold_preserved=true");
 console.log("bounded_current_candidate_set_required=true");
 console.log("designated_runtime_user_required=true");
