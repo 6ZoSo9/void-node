@@ -27,10 +27,10 @@ const REPLACEMENT_PROOF="scripts/prove_void_buy_void_user_manager_query_protecte
 const REPLACEMENT_WORKFLOW=".github/workflows/buy-void-user-manager-query-protected-replace-v6.yml";
 const REPLACEMENT_DOC="docs/operators/buy-void-user-manager-query-protected-replace-v6.md";
 const EXPECTED_REPLACEMENT_BLOBS=Object.freeze({
-  [REPLACEMENT_SOURCE]:"dd4f1a9d83d95a70f2190d4b64afd14d0fabcbcf",
-  [REPLACEMENT_PROOF]:"45117533f3f49188a8538eb0ea4dec7a02831970",
+  [REPLACEMENT_SOURCE]:"f81d9fbead60593258d17dbb8720e1efc867b20f",
+  [REPLACEMENT_PROOF]:"fbe04dac1efb1a9f9a1a6b31130ea8e9e4bf2e7a",
   [REPLACEMENT_WORKFLOW]:"a3c9d157c12bc05fc0ab108f454e6084b56d0e99",
-  [REPLACEMENT_DOC]:"c24f8379ae8210c2e894be732cac4192f3ac51e3",
+  [REPLACEMENT_DOC]:"4bb6920b3226300c401ac1145f439e46e8af4924",
 });
 const EXPECTED_CORRECTION_DELTA=[
   LOCK_FILE,SELF,WORKFLOW,DOC,
@@ -71,7 +71,7 @@ const CANDIDATE_SHA256="d39409be8fbeb8a6237a5fd24acb6f19f00acfa2028f713679ad17e8
 const CANDIDATE_BLOB="a341112695b1abbc61e0b4d88db9675b4fa15d83";
 const PREDECESSOR_LOCK_BLOB="55ceccf61d59a18809e74979afa518ed150d62a0";
 const PREDECESSOR_LOCK_ID="voidbuyumqelflock4_846047629dd2dd58f73f926d85cddde5b0a1510493d59a2d7ef778d235a70301";
-const LOCK_ID="voidbuyumqelflock6_cede427c177e309cf23364b9092f3cbba63be405ad6458cc0c8ef93bc09abd77";
+const LOCK_ID="voidbuyumqelflock6_3627a98945579452b01c79b4d114c54d858122496f2b20a20ddfd7fae6b0307c";
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
@@ -168,9 +168,20 @@ function expectedLock(){
       artifact_a:11984123866,
       artifact_b:11984563387,
       artifact_c:11984857851,
-      never_installed:true,
+      live_diagnostic_observed:true,
+      live_diagnostic_result:"security_policy_mismatch_bounding_set_raw_equality",
+      protected_install_performed:false,
+      live_query_authorized:false,
       superseded_by_v6_candidate_generation:true,
-      superseded_by_live_v6:false,
+    },
+    v6_disposable_live_probe_evidence:{
+      disposable_live_probe_observed:true,
+      disposable_live_probe_status:"V6_LIVE_PROBE_GREEN",
+      disposable_live_probe_source_head:"4328b4d9cf830304de2f9dee3c2052684640f489",
+      disposable_live_probe_query_source_blob:CANDIDATE.query_source_git_blob_sha1,
+      protected_install_performed:false,
+      live_query_authorized:false,
+      production_host_evidence_authority:false,
     },
     manager_reexec_deserialize_argv_accepted:true,
     control_group_service_interface_required:true,
@@ -297,8 +308,10 @@ if(args.length===1&&args[0]==="--derive"){
   console.log("kernel_capability_state_bound=true");
   console.log("private_users_false_required=true");
   console.log("candidate_accepted=true");
+  console.log("v5_live_diagnostic_observed=true");
   console.log("v5_superseded_by_v6_candidate_generation=true");
-  console.log("superseded_by_live_v6=false");
+  console.log("v6_disposable_live_probe_observed=true");
+  console.log("v6_protected_install_performed=false");
   console.log("install_authorized=false");
   console.log("live_query_authorized=false");
   console.log("production_host_evidence_authority=false");
