@@ -106,7 +106,7 @@ for(const [relative,expected] of Object.entries(PARENT_SOURCE_BLOBS)){
 const readPolicy=fs.readFileSync(
   "src/economic/buy_void_request_custody_read_policy_v1.ts","utf8",
 );
-const normalizedReadPolicy=readPolicy.replace(/\\s+/gu,"");
+const normalizedReadPolicy=readPolicy.replace(/\s+/gu,"");
 for(const needle of [
   'VOID_BUY_REQUEST_CUSTODY_READ_GID',
   '0o750',
