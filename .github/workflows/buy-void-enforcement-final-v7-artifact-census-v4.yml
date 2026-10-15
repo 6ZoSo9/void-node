@@ -129,4 +129,3 @@ jobs:
           console.log("frozen_v4_census_proof_preserved="+c.frozen_v4_census_proof_preserved);
           console.log("funds_movement=false");
           NODE
-
