@@ -304,8 +304,24 @@ try {
   const sudoReady = run(SUDO, ["-n", "true"]);
   assert.equal(sudoReady.status, 0, "passwordless sudo is required by fixture");
 
+  let fixedNodeFixtureCreated = false;
   let fixtureInstalled = false;
   try {
+    if (!fs.existsSync(FIXED_NODE)) {
+      const nodeInstall = run(SUDO, [
+        "-n", "install",
+        "-o", "root", "-g", "root", "-m", "0755",
+        process.execPath,
+        FIXED_NODE,
+      ]);
+      assert.equal(
+        nodeInstall.status,
+        0,
+        "failed to materialize fixed Node fixture: " + nodeInstall.stderr,
+      );
+      fixedNodeFixtureCreated = true;
+    }
+
     let install = run(SUDO, [
       "-n", "install",
       "-d", "-o", "root", "-g", "root", "-m", "0755",
@@ -437,6 +453,16 @@ try {
     if (fixtureInstalled) {
       run(SUDO, ["-n", "rm", "-rf", "--", FIXED_ROOT]);
     }
+    if (fixedNodeFixtureCreated) {
+      const nodeCleanup = run(SUDO, [
+        "-n", "rm", "-f", "--", FIXED_NODE,
+      ]);
+      assert.equal(
+        nodeCleanup.status,
+        0,
+        "failed to remove fixed Node fixture: " + nodeCleanup.stderr,
+      );
+    }
   }
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
@@ -461,6 +487,7 @@ console.log("loader_environment_sanitized=true");
 console.log("native_preentry_static=true");
 console.log("native_preentry_no_pt_interp=true");
 console.log("native_preentry_ld_preload_blocked_before_main=true");
+console.log("hosted_fixed_node_fixture_created_only_if_absent=true");
 console.log("live_credential_access=false");
 console.log("live_signing=false");
 console.log("transaction=false");
