@@ -14,10 +14,10 @@ const PREENTRY_REL=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_preentry_v1.c";
 const RUNNER=path.join(ROOT,RUNNER_REL);
 const PREENTRY=path.join(ROOT,PREENTRY_REL);
-const RUNNER_BLOB="b3d3768846e92065b1f2feb6c7d841b832e6e483";
-const PREENTRY_BLOB="0d7cb2e62a13e0974a75cc38ba39d7b2ac340e90";
-const RUNNER_BYTES=24365;
-const RUNNER_SHA256="d8fef8b60fdfab40e8f6c70566812d0ccb05a3169bcdaa590a50775dc10b3872";
+const RUNNER_BLOB="12a64ab00c08ad6996ddbf0aeea344075126f67a";
+const PREENTRY_BLOB="a279e3cbb9f1ed4475ec303102bd9cb5b4ba1750";
+const RUNNER_BYTES=24409;
+const RUNNER_SHA256="3acc6757090779ce318912a51eca5a8db6bee8adcd0c8f856382124f3fed1b6c";
 const FIXED_ROOT="/opt/void-buy-void-epoch2-live-composition-v2";
 const FIXED_PREENTRY=
   FIXED_ROOT+"/void_buy_void_epoch2_authenticated_credential_live_preentry_v1";
@@ -94,7 +94,7 @@ for(const token of [
   'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_PREENTRY_V1',
   '#define FIXED_NODE "/usr/bin/node"',
   '#define FIXED_RUNNER "'+FIXED_RUNNER+'"',
-  '#define FIXED_RUNNER_BYTES 24365U',
+  '#define FIXED_RUNNER_BYTES 24409U',
   "static bool sha256_fd_matches(int fd)",
   "native_preentry_runner_digest_mismatch",
   "pipe2(pipefd, O_CLOEXEC)",
