@@ -17,7 +17,7 @@ FIXED_LAUNCHER=Path(
     "apollyon_live_custody_source_session_launcher_v2.py"
 )
 INSTALLED_SOURCE_ROOT=Path(
-    "/opt/void-apollyon-live-custody-binding-v2-reviewed-v1"
+    "/opt/void-apollyon-live-custody-binding-v2-reviewed-v2"
 )
 RUN_PARENT=Path("/run")
 NODE=Path("/opt/void-apollyon-node-runtime-v1/node")
@@ -27,11 +27,11 @@ REVIEWED_FILES={
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
-        "c7c63106511ee285f8f1cf79b97d32afe0424c65",
+        "676c41dc5cdaea88135611190901ec24edad95a4",
     "tools/apollyon-candidate-training-preclaim-v2.mjs":
         "9db6154ba2b6c539ad6462e008024d52f7356d5c",
     "tools/apollyon-v2-raw-collector-adapter-v1.mjs":
-        "b9edc663ff51d863af5c5fe052bdf8a6c90b6da3",
+        "749813bd9bc473481ab0cd5281f1ab0b507961f5",
     "tools/apollyon-candidate-training-attempt-claim-contract-v2.mjs":
         "722558eca8055cd3b4dd495887e849d7eeb1530c",
     "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":

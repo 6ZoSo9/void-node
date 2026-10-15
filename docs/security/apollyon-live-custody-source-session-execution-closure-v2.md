@@ -83,3 +83,14 @@ funds_movement=false
 
 Only after live qualification of this exact installed closure may the next gate
 be `durable_candidate_training_attempt_claim_executor_v2`.
+
+
+## Noble systemd 8.18 successor
+
+The reviewed private closure uses the current V2 collector with an exact
+systemd package allowlist containing the original reviewed Noble
+`255.4-1ubuntu8.11` plus the current Noble-security
+`255.4-1ubuntu8.18`. Other package versions remain fail-closed.
+
+The successor is installed under the v2 reviewed root; the v1 reviewed root is
+retained unchanged for rollback.
