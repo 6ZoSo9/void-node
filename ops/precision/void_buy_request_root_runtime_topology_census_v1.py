@@ -39,6 +39,8 @@ MAX_COMMAND_BYTES = 1024 * 1024
 MAX_HTTP_BYTES = 256 * 1024
 HTTP_TIMEOUT_SECONDS = 3
 MAX_PROC_BYTES = 256 * 1024
+MAX_REQUESTS_BYTES = 64 * 1024 * 1024
+MAX_OPERATOR_EVENTS_BYTES = 64 * 1024 * 1024
 
 
 class CensusError(RuntimeError):
@@ -331,6 +333,7 @@ def direct_path_metadata(path: pathlib.Path) -> dict[str, Any]:
             "dev": None,
             "ino": None,
             "nlink": None,
+            "size": None,
             "direct": None,
         }
     mode = stat.S_IMODE(info.st_mode)
@@ -355,6 +358,7 @@ def direct_path_metadata(path: pathlib.Path) -> dict[str, Any]:
         "dev": info.st_dev,
         "ino": info.st_ino,
         "nlink": info.st_nlink,
+        "size": info.st_size,
         "direct": direct,
     }
 
@@ -382,13 +386,21 @@ def request_root_candidate(path: pathlib.Path, runtime_uid: int) -> dict[str, An
         and directory_mode == "0700"
     )
 
-    def leaf_ok(value: dict[str, Any]) -> bool:
+    def leaf_ok(
+        value: dict[str, Any],
+        *,
+        minimum_size: int,
+        maximum_size: int,
+    ) -> bool:
         if (
             value.get("exists") is not True
             or value.get("kind") != "regular"
             or value.get("direct") is not True
             or value.get("uid") != runtime_uid
             or value.get("nlink") != 1
+            or not isinstance(value.get("size"), int)
+            or value.get("size") < minimum_size
+            or value.get("size") > maximum_size
         ):
             return False
         try:
@@ -400,14 +412,31 @@ def request_root_candidate(path: pathlib.Path, runtime_uid: int) -> dict[str, An
             and (mode & 0o077) == 0
         )
 
+    requests_size_qualified = (
+        isinstance(requests.get("size"), int)
+        and 1 <= requests["size"] <= MAX_REQUESTS_BYTES
+    )
+    operator_events_size_qualified = (
+        isinstance(operator.get("size"), int)
+        and 0 <= operator["size"] <= MAX_OPERATOR_EVENTS_BYTES
+    )
+
     overlaps_protected = (
         path_overlap(path, LEDGER_ROOT)
         or path_overlap(path, CUSTODY_ROOT)
     )
     qualified = (
         directory_owner_private
-        and leaf_ok(requests)
-        and leaf_ok(operator)
+        and leaf_ok(
+            requests,
+            minimum_size=1,
+            maximum_size=MAX_REQUESTS_BYTES,
+        )
+        and leaf_ok(
+            operator,
+            minimum_size=0,
+            maximum_size=MAX_OPERATOR_EVENTS_BYTES,
+        )
         and not overlaps_protected
     )
     return {
@@ -424,12 +453,14 @@ def request_root_candidate(path: pathlib.Path, runtime_uid: int) -> dict[str, An
         "requests_gid": requests.get("gid"),
         "requests_mode": requests.get("mode"),
         "requests_nlink": requests.get("nlink"),
+        "requests_size_qualified": requests_size_qualified,
         "operator_events_exists": operator.get("exists") is True,
         "operator_events_kind": operator.get("kind"),
         "operator_events_uid": operator.get("uid"),
         "operator_events_gid": operator.get("gid"),
         "operator_events_mode": operator.get("mode"),
         "operator_events_nlink": operator.get("nlink"),
+        "operator_events_size_qualified": operator_events_size_qualified,
         "overlaps_protected_storage": overlaps_protected,
         "metadata_qualified": qualified,
         "directory_dev": directory.get("dev"),
