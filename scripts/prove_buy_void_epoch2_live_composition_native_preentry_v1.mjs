@@ -89,6 +89,69 @@ function mountInfoPath(raw) {
   );
 }
 
+const PROC_SUPER_MAGIC = 0x9fa0n;
+
+function requireAuthenticProcfsForCurrentProcess() {
+  const pidRoot = "/proc/" + String(process.pid);
+  assert.equal(
+    fs.realpathSync.native("/proc/self"),
+    pidRoot,
+    "/proc/self must resolve to the current process",
+  );
+  for (const target of [
+    "/proc",
+    pidRoot,
+    pidRoot + "/mountinfo",
+    "/proc/self/mountinfo",
+    pidRoot + "/status",
+    "/proc/self/status",
+  ]) {
+    const statfs = fs.statfsSync(target, { bigint: true });
+    assert.equal(
+      statfs.type,
+      PROC_SUPER_MAGIC,
+      target + " must be backed by genuine procfs",
+    );
+  }
+  const canonicalMountInfo = fs.statSync(
+    pidRoot + "/mountinfo",
+    { bigint: true },
+  );
+  const aliasMountInfo = fs.statSync(
+    "/proc/self/mountinfo",
+    { bigint: true },
+  );
+  assert.equal(
+    canonicalMountInfo.dev,
+    aliasMountInfo.dev,
+    "proc mountinfo device identity mismatch",
+  );
+  assert.equal(
+    canonicalMountInfo.ino,
+    aliasMountInfo.ino,
+    "proc mountinfo inode identity mismatch",
+  );
+  const canonicalStatus = fs.statSync(pidRoot + "/status", { bigint: true });
+  const aliasStatus = fs.statSync("/proc/self/status", { bigint: true });
+  assert.equal(
+    canonicalStatus.dev,
+    aliasStatus.dev,
+    "proc status device identity mismatch",
+  );
+  assert.equal(
+    canonicalStatus.ino,
+    aliasStatus.ino,
+    "proc status inode identity mismatch",
+  );
+  const mountInfo = fs.readFileSync(pidRoot + "/mountinfo", "utf8");
+  assert.equal(
+    fs.readFileSync("/proc/self/mountinfo", "utf8"),
+    mountInfo,
+    "proc mountinfo alias content mismatch",
+  );
+  return mountInfo;
+}
+
 function requireDelegatedPrivateNamespace() {
   assert.equal(
     process.env[PRIVATE_OPT_FIXTURE_ENV],
@@ -188,7 +251,7 @@ function requireDelegatedPrivateNamespace() {
   const backingUsrWork = path.join(bootstrapRoot, "usr-bin-work");
   const backingUsrMerged = path.join(bootstrapRoot, "usr-bin-merged");
   const backingNode = path.join(backingUsrMerged, "node");
-  const mountEntries = fs.readFileSync("/proc/self/mountinfo", "utf8")
+  const mountEntries = requireAuthenticProcfsForCurrentProcess()
     .split("\n")
     .filter(Boolean)
     .map((line) => {
@@ -679,93 +742,18 @@ assert.match(doc, /No live invocation is authorized by this source PR/u);
 assert.match(workflow, /prove_buy_void_epoch2_live_composition_native_preentry_v1[.]mjs/u);
 assert.match(workflow, /void_buy_void_epoch2_credential_attestation_sealed_v2[.]mjs/u);
 
-const privateOptNamespaceFixture =
-  process.argv.includes("--private-opt-fixture");
 const initialOpt = fs.lstatSync("/opt");
 assert.equal(
   initialOpt.isDirectory() && !initialOpt.isSymbolicLink(),
   true,
-  "/opt must be a direct directory before any privileged fixture action",
+  "/opt must be a direct directory inside the authenticated delegated namespace",
 );
-const initialOptUnsafe =
-  initialOpt.uid !== 0 || (initialOpt.mode & 0o022) !== 0;
-if (initialOptUnsafe) {
-  assert.equal(
-    privateOptNamespaceFixture,
-    false,
-    "private /opt namespace failed to establish trusted ancestry",
-  );
-  const namespaceBootstrap = fs.mkdtempSync(
-    path.join(os.tmpdir(), "void-e2-private-opt-bootstrap-"),
-  );
-  try {
-    const namespaceNode = path.join(namespaceBootstrap, "node");
-    fs.copyFileSync(process.execPath, namespaceNode);
-    fs.chmodSync(namespaceNode, 0o755);
-
-    const sudoReady = run(SUDO, ["-n", "true"]);
-    assert.equal(
-      sudoReady.status,
-      0,
-      "passwordless sudo is required by private /opt fixture",
-    );
-
-    const namespaceProof = path.join(
-      ROOT,
-      "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs",
-    );
-    const namespaceUid = process.getuid();
-    const namespaceGid = process.getgid();
-    assert.equal(
-      Number.isSafeInteger(namespaceUid) && namespaceUid > 0,
-      true,
-      "private /opt fixture requires an unprivileged calling uid",
-    );
-    assert.equal(
-      Number.isSafeInteger(namespaceGid) && namespaceGid > 0,
-      true,
-      "private /opt fixture requires an unprivileged calling gid",
-    );
-    const namespaceScript = [
-      "set -euo pipefail",
-      "/usr/bin/mount -t tmpfs " +
-        "-o mode=0755,uid=0,gid=0,size=16m tmpfs /opt",
-      "exec " + JSON.stringify(SETPRIV) +
-        ' --reuid "$1" --regid "$2" --init-groups ' +
-        '"$3" "$4" --private-opt-fixture',
-    ].join("; ");
-    const namespaced = run(
-      SUDO,
-      [
-        "-n",
-        "/usr/bin/unshare",
-        "--mount",
-        "--fork",
-        "--propagation",
-        "private",
-        "/usr/bin/bash",
-        "-c",
-        namespaceScript,
-        "void-e2-private-opt",
-        String(namespaceUid),
-        String(namespaceGid),
-        namespaceNode,
-        namespaceProof,
-      ],
-      { timeout: 120_000 },
-    );
-    process.stdout.write(namespaced.stdout);
-    process.stderr.write(namespaced.stderr);
-    assert.equal(
-      namespaced.status,
-      0,
-      "private /opt mount-namespace proof failed: " + namespaced.stderr,
-    );
-  } finally {
-    fs.rmSync(namespaceBootstrap, { recursive: true, force: true });
-  }
-  process.exit(0);
-}
+assert.equal(initialOpt.uid, 0, "/opt must be root-owned in delegated namespace");
+assert.equal(
+  (initialOpt.mode & 0o022) === 0,
+  true,
+  "/opt must not be group/world writable in delegated namespace",
+);
 
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-e2-native-preentry-v1-"),
@@ -1186,6 +1174,7 @@ console.log("root_owned_bootstrap_generation=true");
 console.log("same_uid_bootstrap_replacement_blocked=true");
 console.log("host_fixed_mountpoints_preflight_read_only=true");
 console.log("delegated_namespace_kernel_state_verified=true");
+console.log("delegated_procfs_provenance_verified=true");
 console.log("delegated_mount_topology_asymmetric=true");
 console.log(
   "private_opt_mount_namespace_fixture=" +
@@ -1193,7 +1182,7 @@ console.log(
 );
 console.log("caller_controlled_ci_flags_authorize_opt_mutation=false");
 console.log("hosted_self_custody_shape_prechecked=true");
-console.log("fixed_node_preexisting_trusted_shape_required=true");
+console.log("private_fixed_node_overlay_required=true");
 console.log("host_usr_bin_mutation=false");
 console.log("live_credential_access=false");
 console.log("live_signing=false");
