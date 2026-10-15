@@ -36,7 +36,7 @@ const candidate={
 };
 const candidateFingerprint=sha256(canonicalJson(candidate));
 
-function finalReview(candidateValue=candidate,overrides={}){
+function finalReview(overrides={},candidateValue=candidate){
   const candidateValueFingerprint=sha256(canonicalJson(candidateValue));
   const material={
     marker:"VOID_DATANET_CONTENT_COMMITMENT_FINAL_SIGNING_REVIEW_PREFLIGHT_V1",
@@ -124,14 +124,14 @@ function envelopeFor(request,signer=privateKey,pem=publicKeyPem){
 
 {
   const nonzeroFee={...candidate,max_fee_per_gas_wei:"1"};
-  const request=buildRequest(finalReview(nonzeroFee));
+  const request=buildRequest(finalReview({},nonzeroFee));
   assert.equal(request.ok,false);
   assert.equal(request.reason,"sovereign_authorization_candidate_invalid");
 }
 
 {
   const nonzeroPriority={...candidate,max_priority_fee_per_gas_wei:"1"};
-  const request=buildRequest(finalReview(nonzeroPriority));
+  const request=buildRequest(finalReview({},nonzeroPriority));
   assert.equal(request.ok,false);
   assert.equal(request.reason,"sovereign_authorization_candidate_invalid");
 }
