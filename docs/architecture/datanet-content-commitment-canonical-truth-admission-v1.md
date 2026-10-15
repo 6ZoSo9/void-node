@@ -66,3 +66,14 @@ That gate may bind #1464's planner to this admitted commitment reference while k
 ## Authority
 
 Source/proof/schema/docs/CI only. No runtime/service action, filesystem mutation, credentials, wallet/signer access, signing, transaction submission, direct RPC/network call, Chain-2050 write, validator/governance/Work Credit mutation, automatic retry, treasury/liquidity action or funds movement.
+
+## Production registry identity binding
+
+Canonical truth independently requires the finalized-event membership registry
+to equal the reviewed production registry
+`0xe60b15ed8df7c4ec5334067ead18c924744c2681`. The emitted
+`VOID_DATANET_CHAIN_COMMITMENT_V1` reference now includes
+`registry_address`, and that field is part of the deterministic
+`commitment_id` hash material. A commitment for another contract therefore
+cannot be re-labeled as canonical truth by rebuilding otherwise self-consistent
+IDs.
