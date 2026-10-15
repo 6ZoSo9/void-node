@@ -25,6 +25,8 @@ import {
   canonicalApollyonClaimContractJsonV1,
 } from "./apollyon-candidate-training-attempt-claim-contract-v1.mjs";
 import {
+  VOID_APOLLYON_CUSTODY_SERVICE_UNIT_BLOB_SHA1_V1,
+  VOID_APOLLYON_CUSTODY_SERVICE_UNIT_FRAGMENT_PATH_V1,
   finalizeApollyonLiveCustodyServiceSourceSessionBindingV2,
 } from "./apollyon-live-custody-service-source-session-binding-v2.mjs";
 
@@ -66,6 +68,7 @@ const PYTHON_BIN="/usr/bin/python3";
 const ED25519_SPKI_PREFIX=Buffer.from("302a300506032b6570032100","hex");
 const AUTH_ID=/^apollyon_authz_v1:([0-9a-f]{64})$/u;
 const HASH64=/^[0-9a-f]{64}$/u;
+const INVOCATION_ID=/^[0-9a-f]{32}$/u;
 const SAFE_NAME=/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/u;
 const SAFE_UNIT=/^[A-Za-z0-9_.@-]+\.service$/u;
 const MAX_RECORD_BYTES=64*1024;
@@ -346,7 +349,7 @@ function launcherArgv(bytes,config){
     options.operator_public_key_file!==config.operator_public_key_file
   )fail("apollyon_live_runner_custody_configuration_mismatch");
 }
-function loaderEnvironmentHash(pid){
+function loaderEnvironmentEvidence(pid,expectedInvocationId){
   const bytes=fs.readFileSync("/proc/"+String(pid)+"/environ");
   if(bytes.length>1024*1024)fail("apollyon_live_runner_custody_environment_invalid");
   const entries=bytes.toString("utf8").split("\0").filter(Boolean);
@@ -355,9 +358,37 @@ function loaderEnvironmentHash(pid){
       fail("apollyon_live_runner_custody_loader_environment_forbidden");
     }
   }
-  return sha256(bytes);
+  const invocation=entries
+    .filter((entry)=>entry.startsWith("INVOCATION_ID="))
+    .map((entry)=>entry.slice("INVOCATION_ID=".length));
+  if(
+    invocation.length!==1||
+    !INVOCATION_ID.test(invocation[0])||
+    invocation[0]!==expectedInvocationId
+  )fail("apollyon_live_runner_custody_invocation_environment_mismatch");
+  return Object.freeze({
+    loader_environment_sha256:sha256(bytes),
+    systemd_invocation_id:invocation[0],
+    loader_environment_clean:true,
+  });
 }
 function custodyServiceIdentity(config){
+  const fragment=systemdValue(config.service_unit,"FragmentPath");
+  if(fragment!==VOID_APOLLYON_CUSTODY_SERVICE_UNIT_FRAGMENT_PATH_V1){
+    fail("apollyon_live_runner_custody_service_fragment_invalid");
+  }
+  if(systemdValue(config.service_unit,"DropInPaths")!==""){
+    fail("apollyon_live_runner_custody_service_dropins_forbidden");
+  }
+  const unitIdentity=rootOwnedPinnedBlob(
+    fragment,
+    VOID_APOLLYON_CUSTODY_SERVICE_UNIT_BLOB_SHA1_V1,
+    "apollyon_live_runner_custody_service_unit_invalid",
+  );
+  const invocationId=systemdValue(config.service_unit,"InvocationID");
+  if(!INVOCATION_ID.test(invocationId)){
+    fail("apollyon_live_runner_custody_invocation_id_invalid");
+  }
   const launcherIdentity=rootOwnedPinnedBlob(
     config.custody_service_entrypoint,
     CUSTODY_LAUNCHER_V2_BLOB_SHA1,
@@ -374,6 +405,7 @@ function custodyServiceIdentity(config){
   if(exe!==fs.realpathSync.native(NODE_BIN))fail("apollyon_live_runner_custody_node_mismatch");
   const cmdline=fs.readFileSync("/proc/"+raw+"/cmdline");
   launcherArgv(cmdline,config);
+  const loader=loaderEnvironmentEvidence(pid,invocationId);
   const value={
     pid,
     start_time_ticks:processStartTicks(pid),
@@ -381,7 +413,14 @@ function custodyServiceIdentity(config){
     launcher_blob_sha1:CUSTODY_LAUNCHER_V2_BLOB_SHA1,
     launcher_identity:launcherIdentity,
     launcher_argv_sha256:sha256(cmdline),
-    loader_environment_sha256:loaderEnvironmentHash(pid),
+    loader_environment_sha256:loader.loader_environment_sha256,
+    loader_environment_clean:loader.loader_environment_clean,
+    custody_service_unit_blob_sha1:VOID_APOLLYON_CUSTODY_SERVICE_UNIT_BLOB_SHA1_V1,
+    service_unit_fragment_path:VOID_APOLLYON_CUSTODY_SERVICE_UNIT_FRAGMENT_PATH_V1,
+    service_unit_identity:unitIdentity,
+    service_dropins_absent:true,
+    service_manager_preexec_environment_sanitized:true,
+    systemd_invocation_id:loader.systemd_invocation_id,
     operator_public_key_raw_sha256:config.expected_operator_public_key_raw_sha256,
   };
   return Object.freeze(value);
@@ -479,6 +518,9 @@ function selfTest(){
   process.stdout.write("training_service_start_stop=true\n");
   process.stdout.write("current_v2_raw_observation_count=2\n");
   process.stdout.write("custody_service_action=false\n");
+  process.stdout.write("service_manager_preexec_environment_boundary=true\n");
+  process.stdout.write("root_owned_service_unit_generation_required=true\n");
+  process.stdout.write("systemd_invocation_binding_required=true\n");
   process.stdout.write("durable_attempt_claim=false\n");
   process.stdout.write("training_execution=false\n");
 }
@@ -581,11 +623,17 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
         custody_record_sha256:claim.custody_record_sha256,
         operator_public_key_raw_sha256:claim.operator_public_key_raw_sha256,
         custody_launcher_blob_sha1:CUSTODY_LAUNCHER_V2_BLOB_SHA1,
+        custody_service_unit_blob_sha1:custodyBefore.custody_service_unit_blob_sha1,
+        service_unit_fragment_path:custodyBefore.service_unit_fragment_path,
+        service_manager_preexec_environment_sanitized:
+          custodyBefore.service_manager_preexec_environment_sanitized,
+        service_dropins_absent:custodyBefore.service_dropins_absent,
+        systemd_invocation_id:custodyBefore.systemd_invocation_id,
         state_root_identity_sha256:idHash(stateRoot.identity),
         consumed_directory_identity_sha256:idHash(consumed.identity),
         socket_identity_sha256:idHash(socketBefore),
         service_process_identity_sha256:idHash(custodyBefore),
-        loader_environment_clean:true,
+        loader_environment_clean:custodyBefore.loader_environment_clean,
         state_root_identity_stable:true,
         consumed_directory_identity_stable:true,
         socket_identity_stable:true,

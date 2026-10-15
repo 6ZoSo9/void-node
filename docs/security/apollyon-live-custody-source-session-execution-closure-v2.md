@@ -14,6 +14,9 @@ The closure contains:
 2. a fixed-path Python launcher; and
 3. the current-V2 live source/session runner.
 
+The observer pre-entry itself remains static/non-PIE and must have no
+`PT_INTERP`; the closure proof checks that property directly.
+
 The runner performs one bounded live session:
 
 - starts only the already-installed inert training-isolation service;
@@ -23,6 +26,12 @@ The runner performs one bounded live session:
 - composes them through #3037;
 - retains and checks custody state-root, consumed-directory, socket and service
   process identities;
+- binds the custody service to the exact root-owned systemd fragment generation,
+  requires no drop-ins, and matches systemd InvocationID to the observed
+  MainPID environment;
+- requires the service-manager pre-exec environment boundary to remove
+  `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, and `LD_LIBRARY_PATH`
+  before Node starts, rather than promoting a post-start cleanliness boolean;
 - queries the live AF_UNIX custody service for the exact authorization;
 - reads the exact immutable custody record;
 - qualifies it through #3043;

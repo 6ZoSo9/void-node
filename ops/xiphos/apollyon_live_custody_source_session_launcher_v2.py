@@ -23,7 +23,7 @@ RUN_PARENT=Path("/run")
 NODE=Path("/usr/bin/node")
 RUNNER_REL="tools/apollyon-live-custody-source-session-runner-v2.mjs"
 REVIEWED_FILES={
-    RUNNER_REL:"ccbb73e469dc07f684f41fd9c502f8420d5baa57",
+    RUNNER_REL:"59239f37e0420bc56dcd2f821af2beb75f6e5dc9",
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
@@ -35,7 +35,7 @@ REVIEWED_FILES={
     "tools/apollyon-candidate-training-attempt-claim-contract-v2.mjs":
         "722558eca8055cd3b4dd495887e849d7eeb1530c",
     "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
-        "c64983ed20c12ff797b250b65581de54919363d3",
+        "396d6420c7f2dd04c4753b84a999a6ca2fa5eb13",
     "tools/apollyon-authorization-custody-launcher-v2.mjs":
         "d23ff045d8c355401fed499c6bcffd503ba4c7fd",
     "tools/apollyon-designated-host-custody-live-qualification-v2.mjs":

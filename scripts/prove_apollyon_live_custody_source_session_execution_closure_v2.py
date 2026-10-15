@@ -20,7 +20,7 @@ def git_blob(path:Path)->str:
 
 expected={
     "tools/apollyon-live-custody-source-session-runner-v2.mjs":
-        "ccbb73e469dc07f684f41fd9c502f8420d5baa57",
+        "59239f37e0420bc56dcd2f821af2beb75f6e5dc9",
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
@@ -32,7 +32,7 @@ expected={
     "tools/apollyon-candidate-training-attempt-claim-contract-v2.mjs":
         "722558eca8055cd3b4dd495887e849d7eeb1530c",
     "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
-        "c64983ed20c12ff797b250b65581de54919363d3",
+        "396d6420c7f2dd04c4753b84a999a6ca2fa5eb13",
     "tools/apollyon-authorization-custody-launcher-v2.mjs":
         "d23ff045d8c355401fed499c6bcffd503ba4c7fd",
     "tools/apollyon-designated-host-custody-live-qualification-v2.mjs":
@@ -66,6 +66,9 @@ for required in (
     'runSystemctl(["start",TRAINING_UNIT])',
     'runSystemctl(["stop",TRAINING_UNIT],false)',
     "custody_service_action_performed:false",
+    "service_manager_preexec_environment_sanitized",
+    "systemd_invocation_id",
+    "custody_service_unit_blob_sha1",
     "durable_attempt_claim_performed:false",
     "training_execution_performed:false",
 ):
@@ -111,10 +114,16 @@ with tempfile.TemporaryDirectory(prefix="void-live-session-preentry-test-") as t
     binary=Path(td)/"preentry"
     subprocess.run([
         "cc","-std=c11","-O2","-Wall","-Wextra","-Werror",
-        "-D_FORTIFY_SOURCE=2","-fstack-protector-strong",
+        "-D_FORTIFY_SOURCE=2","-fstack-protector-strong","-fno-ident",
+        "-static","-fno-pie","-no-pie",
         "-Wl,-z,relro,-z,now","-Wl,--build-id=none",
         str(PREENTRY),"-o",str(binary),
     ],check=True)
+    elf=subprocess.run(
+        ["readelf","-l",str(binary)],
+        check=True,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+    )
+    assert "INTERP" not in elf.stdout
     result=subprocess.run(
         [str(binary),"--self-test"],
         check=True,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
@@ -126,6 +135,9 @@ print("complete_reviewed_closure_bound=true")
 print("native_preentry_source_green=true")
 print("installed_launcher_source_green=true")
 print("runner_source_green=true")
+print("service_manager_preexec_provenance_bound=true")
+print("systemd_invocation_binding_required=true")
+print("native_preentry_pt_interp_absent=true")
 print("live_worktree_invocation_supported=false")
 print("durable_attempt_claim=false")
 print("training_execution=false")
