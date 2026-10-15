@@ -31,6 +31,8 @@ const CONFIRM =
 const GIT = "/usr/bin/git";
 const CC = "/usr/bin/cc";
 const SUDO = "/usr/bin/sudo";
+const PRIVATE_OPT_FIXTURE_ENV =
+  "VOID_BUY_VOID_EPOCH2_PROOF_PRIVATE_OPT_NAMESPACE_V1";
 
 function cleanEnv(extra = {}) {
   return {
@@ -71,6 +73,116 @@ function git(args) {
     timeout: 10_000,
   }).trim();
 }
+
+
+function enterPrivateOptFixtureNamespace() {
+  if (process.env[PRIVATE_OPT_FIXTURE_ENV] === "1") return;
+
+  assert.equal(
+    typeof process.getuid === "function" && typeof process.getgid === "function",
+    true,
+    "private fixture namespace requires Unix uid/gid identity",
+  );
+  assert.notEqual(process.getuid(), 0, "outer proof must remain unprivileged");
+
+  for (const required of [
+    "/usr/bin/unshare",
+    "/usr/bin/mount",
+    "/usr/bin/install",
+    "/usr/bin/setpriv",
+    "/usr/bin/env",
+    "/usr/bin/bash",
+  ]) {
+    const st = fs.lstatSync(required);
+    assert.equal(st.isFile() && !st.isSymbolicLink(), true, required);
+    assert.equal(st.uid, 0, required + " must be root-owned");
+    assert.equal((st.mode & 0o022) === 0, true, required + " must not be writable");
+  }
+
+  const sudoReady = run(SUDO, ["-n", "true"]);
+  assert.equal(
+    sudoReady.status,
+    0,
+    "passwordless sudo is required for the disposable mount namespace",
+  );
+
+  const bootstrapRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-e2-private-opt-v1-"),
+  );
+  const harnessNode = path.join(bootstrapRoot, "node");
+  const safeOpt = path.join(bootstrapRoot, "opt");
+  const proofPath = path.join(
+    ROOT,
+    "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs",
+  );
+  fs.copyFileSync(process.execPath, harnessNode);
+  fs.chmodSync(harnessNode, 0o755);
+
+  const shell = [
+    "set -euo pipefail",
+    'safe_opt="$1"',
+    'harness_node="$2"',
+    'proof_path="$3"',
+    'runtime_uid="$4"',
+    'runtime_gid="$5"',
+    'runtime_home="$6"',
+    "/usr/bin/mount --make-rprivate /",
+    '/usr/bin/install -d -o root -g root -m 0755 "$safe_opt"',
+    '/usr/bin/mount --bind "$safe_opt" /opt',
+    'exec /usr/bin/setpriv --reuid="$runtime_uid" --regid="$runtime_gid" --clear-groups ' +
+      '/usr/bin/env -i PATH=/usr/bin:/bin HOME="$runtime_home" LANG=C LC_ALL=C ' +
+      PRIVATE_OPT_FIXTURE_ENV + '=1 "$harness_node" "$proof_path"',
+  ].join("\n");
+
+  let delegated;
+  try {
+    delegated = run(SUDO, [
+      "-n",
+      "/usr/bin/unshare",
+      "--mount",
+      "--fork",
+      "/usr/bin/bash",
+      "-c",
+      shell,
+      "void-e2-private-opt-v1",
+      safeOpt,
+      harnessNode,
+      proofPath,
+      String(process.getuid()),
+      String(process.getgid()),
+      String(process.env.HOME || "/home/runner"),
+    ], {
+      timeout: 180_000,
+    });
+  } finally {
+    const cleanup = run(SUDO, ["-n", "rm", "-rf", "--", bootstrapRoot]);
+    assert.equal(
+      cleanup.status,
+      0,
+      "failed to remove private mount-namespace bootstrap root: " +
+        cleanup.stderr,
+    );
+  }
+
+  assert.equal(
+    delegated.error,
+    undefined,
+    "private mount namespace spawn failed: " +
+      String(delegated.error && delegated.error.message || ""),
+  );
+  if (delegated.status !== 0) {
+    fs.writeSync(1, String(delegated.stdout || ""));
+    fs.writeSync(2, String(delegated.stderr || ""));
+    throw new Error(
+      "private_mount_namespace_fixture_failed:" + String(delegated.status),
+    );
+  }
+  fs.writeSync(1, String(delegated.stdout || ""));
+  fs.writeSync(2, String(delegated.stderr || ""));
+  process.exit(0);
+}
+
+enterPrivateOptFixtureNamespace();
 
 for (const file of [PREENTRY, RUNNER, SEALED, DOC, WORKFLOW]) {
   assert.equal(fs.lstatSync(path.join(ROOT, file)).isFile(), true, file);
@@ -223,6 +335,7 @@ assert.match(
   /Caller-streamed stdin JavaScript is rejected before policy, runner, or Node\s+execution/u,
 );
 assert.match(doc, /policy-v1[.]conf/u);
+assert.match(doc, /private mount namespace/u);
 assert.match(doc, /No live invocation is authorized by this source PR/u);
 assert.match(workflow, /prove_buy_void_epoch2_live_composition_native_preentry_v1[.]mjs/u);
 assert.match(workflow, /void_buy_void_epoch2_credential_attestation_sealed_v2[.]mjs/u);
@@ -319,7 +432,7 @@ const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-e2-native-preentry-v1-"),
 );
 const binary = path.join(temp, "preentry");
-let hostedOptPreflightVerified = false;
+let fixtureOptPreflightVerified = false;
 try {
   const compile = run(CC, [
     "-std=c11",
@@ -440,7 +553,7 @@ try {
         target + " must not be group/world writable",
       );
     }
-    hostedOptPreflightVerified = true;
+    fixtureOptPreflightVerified = true;
 
     if (!fs.existsSync(FIXED_NODE)) {
       const nodeInstall = run(SUDO, [
@@ -720,10 +833,12 @@ console.log("native_preentry_static=true");
 console.log("native_preentry_no_pt_interp=true");
 console.log("native_preentry_ld_preload_blocked_before_main=true");
 console.log(
-  "hosted_opt_ancestry_preflight_read_only=" +
-    String(hostedOptPreflightVerified),
+  "fixture_opt_ancestry_preflight_read_only=" +
+    String(fixtureOptPreflightVerified),
 );
-console.log("hosted_opt_metadata_mutation=false");
+console.log("host_opt_metadata_mutation=false");
+console.log("host_opt_mount_mutation=false");
+console.log("private_opt_mount_namespace=true");
 console.log(
   "private_opt_mount_namespace_fixture=" +
     String(privateOptNamespaceFixture),
