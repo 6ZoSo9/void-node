@@ -17,7 +17,6 @@ const pem = crypto.generateKeyPairSync('ed25519').privateKey.export({
 })
 
 let fd: number | undefined
-let createdIdentity: { dev: bigint; ino: bigint } | undefined
 try {
   fd = fs.openSync(
     out,
@@ -31,7 +30,6 @@ try {
   if (!stat.isFile() || stat.nlink !== 1n) {
     throw new Error('keygen_output_identity_invalid')
   }
-  createdIdentity = { dev: stat.dev, ino: stat.ino }
   fs.fchmodSync(fd, 0o600)
   fs.writeFileSync(fd, pem)
   fs.fsyncSync(fd)
@@ -44,20 +42,10 @@ try {
     }
     fd = undefined
   }
-  if (createdIdentity) {
-    try {
-      const visible = fs.lstatSync(out, { bigint: true })
-      if (
-        visible.dev === createdIdentity.dev &&
-        visible.ino === createdIdentity.ino &&
-        visible.nlink === 1n
-      ) {
-        fs.unlinkSync(out)
-      }
-    } catch {
-      // Never remove an unverified replacement generation.
-    }
-  }
+  // Do not unlink by pathname after creation. An lstat -> unlink check cannot
+  // atomically bind the directory entry against a same-directory replacement.
+  // Leave the private 0600 generation in place fail-closed for explicit
+  // operator disposition.
   const code =
     typeof error === 'object' && error && 'code' in error
       ? String(error.code)
