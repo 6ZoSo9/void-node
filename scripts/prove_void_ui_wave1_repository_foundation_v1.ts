@@ -175,26 +175,44 @@ if (
   fail("source-manifest payload hashes are missing");
 }
 
+if (sourceManifest.payload_hashes_are_source_bundle_only !== true) {
+  fail("source-package payload scope is missing");
+}
 for (const [relative, expected] of Object.entries(payloadHashes)) {
-  const target = payloadTarget(relative);
-
-  if (!fs.existsSync(target)) {
-    fail(`source-manifest target missing: ${relative}`);
-  }
-
-  const actual = createHash("sha256")
-    .update(fs.readFileSync(target))
-    .digest("hex");
-
-  if (actual !== expected) {
-    fail(`source-manifest hash mismatch: ${relative}`);
+  payloadTarget(relative);
+  if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) {
+    fail(`source-package payload hash is invalid: ${relative}`);
   }
 }
 
+const repositoryHashes = sourceManifest.repository_hashes;
+const requiredCurrentShellHashes = [
+  "public/void-app-wave1-v1/index.html",
+  "public/void-app-wave1-v1/assets/css/components.css",
+  "public/void-app-wave1-v1/assets/js/app.js",
+];
 if (
-  sourceManifest.repository_hashes_refreshed_after_whitespace_cleanup !== true
+  !repositoryHashes ||
+  typeof repositoryHashes !== "object" ||
+  Array.isArray(repositoryHashes)
 ) {
-  fail("repository hash refresh provenance is missing");
+  fail("current repository hash map is missing");
+}
+for (const relative of requiredCurrentShellHashes) {
+  const expected = repositoryHashes[relative];
+  if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) {
+    fail(`current repository hash is invalid: ${relative}`);
+  }
+  const target = path.join(root, relative);
+  if (!fs.existsSync(target)) {
+    fail(`current repository target is missing: ${relative}`);
+  }
+  const actual = createHash("sha256")
+    .update(fs.readFileSync(target))
+    .digest("hex");
+  if (actual !== expected) {
+    fail(`current repository hash mismatch: ${relative}`);
+  }
 }
 
 
@@ -642,8 +660,8 @@ if (commandFilterStart < 0 || commandFilterEnd < 0) {
 }
 const commandFilterBlock = appJs.slice(commandFilterStart, commandFilterEnd);
 for (const marker of [
-  "commandSearch.value.trim().toLocaleLowerCase()",
-  "link.textContent.toLocaleLowerCase().includes(query)",
+  "const query = normalizeCommandQuery(commandSearch.value);",
+  "normalizeCommandQuery(link.textContent).includes(query)",
   "link.hidden = !matches;",
   "commandEmpty.hidden = visibleCount !== 0;",
   "commandSearch.value = '';",
@@ -653,6 +671,29 @@ for (const marker of [
     fail(`command search filter missing: ${marker}`);
   }
 }
+if (commandFilterBlock.includes("toLocaleLowerCase")) {
+  fail("command search normalization must not depend on the host locale");
+}
+const normalizeCommandQueryMatch = commandFilterBlock.match(
+  /function normalizeCommandQuery\(value\) \{\n([\s\S]*?)\n\}/
+);
+if (!normalizeCommandQueryMatch) {
+  fail("command search normalization helper is missing");
+}
+const normalizeCommandQuery = new Function(
+  "value",
+  normalizeCommandQueryMatch[1]
+) as (value: string) => string;
+for (const [input, expected] of [
+  [" VOID ", "void"],
+  ["I", "i"],
+  ["İ", "i\u0307"],
+]) {
+  if (normalizeCommandQuery(input) !== expected) {
+    fail(`command search normalization regression: ${JSON.stringify(input)}`);
+  }
+}
+
 for (const marker of [
   "if (name === 'command') resetCommandSearch();",
   "commandSearch.addEventListener('input', filterCommandResults);",
