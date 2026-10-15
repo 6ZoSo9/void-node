@@ -13,10 +13,12 @@ merged #3200.
 
 It is stacked on the #3204 proof-completeness generation:
 
-`aab42057ff5da0cd1319acc465d1e297c5814436`
+`740bf98aee9eb4ac49c303d9d7bd8f33f91b337a`
 
 The candidate binds the unchanged privileged implementation plus the repaired
-proof generation. It does not reuse #3200's weak `cc_sha256 + strip_sha256`
+proof generation. Its implementation/source-ancestry parent remains
+`b5a00bb7b2bb9fad046993971b7ead887feb0260`; the later proof-only heads are
+bound separately by exact proof Git object. It does not reuse #3200's weak `cc_sha256 + strip_sha256`
 claim as complete build provenance.
 
 ## Exact trust root
@@ -31,7 +33,7 @@ The derivation requires these Git objects:
   — `92e8c8696ea7e2bb81b6ef089db8baa657188935`;
 - repaired privileged-source proof:
   `scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs`
-  — `944453d7876a21568207479375467ff1eebcf218`;
+  — `25d0a7baa1035cd2497ef75e199ccdb220bb8d18`;
 - privileged-source workflow:
   `.github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml`
   — `85c28fdf03345240332cbf41d46fbda065958ec7`;
