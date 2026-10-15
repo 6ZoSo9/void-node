@@ -112,32 +112,32 @@ jobs:
           git merge-base --is-ancestor "$BASE" "$HEAD"
           changed="$(
             git diff --name-only "$BASE" "$HEAD" -- \
-              tools/datanet-content-commitment-compiled-identity-acceptance-v1.mjs \\
-              tools/datanet-content-commitment-compiler-profile-v1.mjs \\
-              tools/datanet-content-commitment-deployment-attestation-v1.mjs \\
-              tools/datanet-content-commitment-dual-compiler-identity-v1.mjs \\
-              tools/void-datanet-registry-candidate-fresh-revalidation-v1.mjs \\
-              tools/void-datanet-registry-consumed-authorization-signing-v1.mjs \\
-              tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs \\
-              tools/void-datanet-registry-deployer-credential-binding-v1.mjs \\
-              tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs \\
-              tools/void-datanet-registry-deployment-pre-sign-revalidation-v1.mjs \\
-              tools/void-datanet-registry-exact-signing-request-v1.mjs \\
-              tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs \\
-              tools/void-datanet-registry-final-signing-review-v1.mjs \\
-              tools/void-datanet-registry-prebroadcast-observer-v1.mjs \\
-              tools/void-datanet-registry-signed-verification-broadcast-request-v1.mjs \\
-              tools/void-datanet-registry-signing-state-identity-provision-v1.mjs \\
-              tools/void-datanet-registry-single-transaction-signing-authorization-v1.mjs \\
-              tools/void-datanet-registry-single-use-broadcast-authorization-consumption-v1.mjs \\
-              tools/void-datanet-registry-single-use-signing-authorization-consumption-v1.mjs \\
-              tools/void-datanet-registry-transaction-construction-admission-v1.mjs \\
-              tools/void-datanet-registry-unsigned-deployment-input-plan-v1.mjs \\
-              tools/void-datanet-registry-unsigned-transaction-candidate-v1.mjs \\
-              tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs \\
-              tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs \\
-              tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs \\
-              tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs \\
+              tools/datanet-content-commitment-compiled-identity-acceptance-v1.mjs \
+              tools/datanet-content-commitment-compiler-profile-v1.mjs \
+              tools/datanet-content-commitment-deployment-attestation-v1.mjs \
+              tools/datanet-content-commitment-dual-compiler-identity-v1.mjs \
+              tools/void-datanet-registry-candidate-fresh-revalidation-v1.mjs \
+              tools/void-datanet-registry-consumed-authorization-signing-v1.mjs \
+              tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs \
+              tools/void-datanet-registry-deployer-credential-binding-v1.mjs \
+              tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs \
+              tools/void-datanet-registry-deployment-pre-sign-revalidation-v1.mjs \
+              tools/void-datanet-registry-exact-signing-request-v1.mjs \
+              tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs \
+              tools/void-datanet-registry-final-signing-review-v1.mjs \
+              tools/void-datanet-registry-prebroadcast-observer-v1.mjs \
+              tools/void-datanet-registry-signed-verification-broadcast-request-v1.mjs \
+              tools/void-datanet-registry-signing-state-identity-provision-v1.mjs \
+              tools/void-datanet-registry-single-transaction-signing-authorization-v1.mjs \
+              tools/void-datanet-registry-single-use-broadcast-authorization-consumption-v1.mjs \
+              tools/void-datanet-registry-single-use-signing-authorization-consumption-v1.mjs \
+              tools/void-datanet-registry-transaction-construction-admission-v1.mjs \
+              tools/void-datanet-registry-unsigned-deployment-input-plan-v1.mjs \
+              tools/void-datanet-registry-unsigned-transaction-candidate-v1.mjs \
+              tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs \
+              tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs \
+              tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs \
+              tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs \
               tools/void-economic-epoch2-raw-transaction-domain-v1.mjs
           )"
           if [ -n "$changed" ]; then
