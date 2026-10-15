@@ -1,69 +1,69 @@
-# Buy VOID allocation-custody host evidence v2
+# Buy VOID allocation-custody user-manager evidence adapter v2
 
 Marker: `VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V2`.
 
-Status: **source-only read-only collector successor; no install/apply authority**.
+Status: **source-only observation adapter; not a complete host-evidence collector**.
 
-## Why V2 exists
+## Why this bounded successor exists
 
 Precision's actual public node is a user-systemd `void-node-live.service`.
-The V1 allocation-custody collector reads the configured public runtime through
-the system manager and additionally requires explicit `User=` / `Group=`
-properties. That is correct for a system service but cannot qualify the live
-Precision topology.
+Historical allocation-custody host evidence V1 assumes a system-manager public
+runtime with explicit `User=` and `Group=`. Reusing that complete V1
+collector unchanged would therefore reject the real host.
 
-V2 does not replace V1 storage, mount, socket, source, service-policy or Polkit
-logic. It calls the exact V1 collector through its reviewed injected-I/O seam
-and changes only how the public-runtime `systemctl show` observation is
-obtained.
+A first version of this Draft attempted to wrap the whole V1 collector. Review
+of the current custody source showed that would be incomplete for a different
+reason: the future daemon is custody service **V2**, whose source, request-root
+and cross-UID capacity-lock configuration are not attested by V1.
 
-## User-manager binding
+This Draft therefore deliberately stops at the reusable manager-adapter
+primitive. It cannot emit a production host-evidence packet.
 
-Live V2 collection is root-only because the same collector must read the
-root-custodied Polkit rule and designated-host evidence.
+## Exact user-manager observation contract
 
-For the one configured runtime unit only, V2:
+A future root collector may derive the configured runtime UID/GID/group/home,
+then use the invocation plan defined here:
 
-1. derives the runtime UID/GID/primary group/home from the host account database;
-2. enters that exact user's existing systemd user-bus namespace using
-   root `runuser` plus an empty environment containing only the exact
-   `HOME`, `XDG_RUNTIME_DIR=/run/user/<uid>`,
-   `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`, fixed PATH and C
-   locale;
-3. queries `systemctl --user show`;
-4. requires the user unit to be loaded, active and running;
-5. requires implicit `User=` and `Group=` to remain empty;
-6. requires the exact user-manager cgroup
-   `/user.slice/user-<uid>.slice/user@<uid>.service/app.slice/<unit>`;
-7. requires `NoNewPrivileges=yes` and empty capability bounding/ambient sets;
-8. only then normalizes the implicit manager identity into the explicit
-   User/Group fields expected by the unchanged V1 collector.
+- root `/usr/sbin/runuser -u <runtime-user>`;
+- `/usr/bin/env -i`;
+- exact HOME;
+- `XDG_RUNTIME_DIR=/run/user/<uid>`;
+- `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`;
+- fixed PATH and C locale;
+- `/usr/bin/systemctl --user show <unit> ...`.
 
-V1 independently rechecks the live MainPID UID/GID, process start ticks,
-kernel capability masks, `NoNewPrivs: 1`, Polkit deny rule and all reviewed
-systemd control-denial probes.
+The normalized observation accepts only:
+- loaded + active + running;
+- implicit empty `User=` / `Group=`;
+- exact
+  `/user.slice/user-<uid>.slice/user@<uid>.service/app.slice/<unit>`;
+- positive MainPID;
+- `NoNewPrivileges=yes`;
+- empty `CapabilityBoundingSet`;
+- empty `AmbientCapabilities`.
 
-All custody-service `systemctl` observations remain system-manager reads.
+Only after those checks may the implicit user-manager identity be represented
+as the configured runtime user/group for downstream comparison. That
+normalization is not host authority by itself.
 
-## Evidence packet
+## Explicit nonclaims
 
-The V2 packet preserves the complete V1-compatible evidence payload and adds:
+This V2 source does **not**:
+- execute systemctl/runuser;
+- read the host;
+- reuse or call the V1 collector;
+- bind custody service V2 source bytes;
+- bind custody service V2's exact server configuration;
+- bind #3009's RuntimeDirectory policy;
+- inspect mounts, socket, Polkit or storage;
+- install/restart either service.
 
-- V2 schema/marker/version;
-- `runtime_service_manager="user"`;
-- `runtime_service_identity_source="user_manager_bus_plus_live_pid_v1"`;
-- the content-addressed predecessor-compatible V1 receipt digest.
+The complete successor host collector must compose:
+1. this user-manager observation contract;
+2. exact custody service V2 source/contract identity;
+3. exact server-controlled request root and capacity-lock configuration;
+4. accepted #3009 socket RuntimeDirectory policy;
+5. V1-equivalent storage/mount/socket/Polkit evidence;
+6. double-census stability.
 
-The V2 receipt is independently content-addressed.
-
-## Authority
-
-This source does not install or restart either service, create a socket or
-request root, install Polkit, alter permissions/mounts, access credentials,
-keys, wallets or signers, call RPC, accept payment, activate presale/WC, or move
-funds.
-
-A later host plan must still provision the stable #3003 request root, install
-the custody service/socket and exact Polkit rule, apply the already-merged
-#3005 user-service hardening through a rollback-safe ceremony, then execute V2
-read-only evidence twice before classification.
+No payment, presale, WC or funds authority is granted.
