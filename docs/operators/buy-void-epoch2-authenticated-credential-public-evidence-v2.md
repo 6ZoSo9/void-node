@@ -29,6 +29,7 @@ The credential/V6 qualification must prove:
 - exact accepted credential-query lock;
 - exact installed credential-query pair;
 - stable double authenticated credential query;
+- exact V6 kernel capability projection: derive the supported mask from `cap_last_cap`, require the supplied supported mask to match exactly, reject bounding bits above that mask, and preserve configured/kernel bounding equality;
 - same credential metadata generation as V6 security evidence;
 - V6 authenticated private-manager composition;
 - no credential-content read;
