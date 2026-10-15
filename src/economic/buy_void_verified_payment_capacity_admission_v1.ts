@@ -269,7 +269,7 @@ function validatePrivateSidecarStatV1(
       typeof process.getuid === "function" &&
       stat.uid !== BigInt(process.getuid())
     ) ||
-    (Number(stat.mode) & 0o022) !== 0
+    (Number(stat.mode) & 0o7777) !== 0o600
   ) {
     fail(code + "_conflict");
   }
@@ -419,6 +419,41 @@ function openPinnedLedgerV1(
     validateLedgerStatV1(opened, code);
     const visible = fs.lstatSync(visiblePath, { bigint: true });
     validateLedgerStatV1(visible, code);
+    if (!sameFileIdentityV1(opened, visible)) {
+      fail(code + "_path_not_bound");
+    }
+    return {
+      path: visiblePath,
+      name,
+      fd,
+      directory,
+    };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function openPinnedPrivateSidecarV1(
+  directory: PinnedRequestDirectoryV1,
+  name: string,
+  code: string,
+): PinnedLedgerV1 | null {
+  assertPinnedRequestDirectoryVisibleV1(directory);
+  const visiblePath = path.join(directory.path, name);
+  const pinnedPath = path.join(directory.proc_path, name);
+  let fd = -1;
+  try {
+    fd = fs.openSync(pinnedPath, fs.constants.O_RDONLY | O_NOFOLLOW);
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") return null;
+    throw error;
+  }
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    validatePrivateSidecarStatV1(opened, code);
+    const visible = fs.lstatSync(visiblePath, { bigint: true });
+    validatePrivateSidecarStatV1(visible, code);
     if (!sameFileIdentityV1(opened, visible)) {
       fail(code + "_path_not_bound");
     }
@@ -2775,8 +2810,8 @@ function publishOperatorTerminalSidecarAtomicallyV1(
   }
   // Verify against the same pinned request directory before returning GREEN.
   // Existing now means published bytes and a single visible hard link.
-  const final = openPinnedLedgerV1(
-    directory, sidecarName, code, { writable: false, create: false },
+  const final = openPinnedPrivateSidecarV1(
+    directory, sidecarName, code,
   );
   if (final === null) fail(code + "_missing_after_publish");
   try {
