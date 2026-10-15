@@ -567,6 +567,20 @@ def self_test()->None:
     else:
         raise AssertionError("synthetic_helper_failure_not_reported")
 
+    def helper_resume_replace():
+        state["service"]="new_exact"
+        state["loaded"]="new_file_pending_reload"
+        return True
+    def helper_resume_reload():
+        state["loaded"]="new_loaded"
+    helper_resumed=apply_transition(
+        synthetic_snapshot(state),
+        _replace_service_fn=helper_resume_replace,
+        _reload_fn=helper_resume_reload,
+        _state_fn=lambda:synthetic_snapshot(state),
+    )
+    assert helper_resumed["lifecycle_state"]=="complete"
+
     state={
         "service":"lifecycle_exact","helper":"exact",
         "loaded":"predecessor_loaded",
@@ -607,6 +621,15 @@ def self_test()->None:
         assert exc.receipt["recovery_next_action"]=="RESUME_DAEMON_RELOAD"
     else:
         raise AssertionError("synthetic_service_replace_failure_not_reported")
+
+    def replace_resume_reload():
+        state["loaded"]="new_loaded"
+    replace_resumed=apply_transition(
+        synthetic_snapshot(state),
+        _reload_fn=replace_resume_reload,
+        _state_fn=lambda:synthetic_snapshot(state),
+    )
+    assert replace_resumed["lifecycle_state"]=="complete"
 
     state={
         "service":"new_exact","helper":"exact",
