@@ -46,7 +46,7 @@ for forbidden in (
     "subprocess",
     "http.client",
     "urllib",
-    "requests.",
+    "import requests",
     ".connect(",
 ):
     assert forbidden not in source, f"mutating_or_network_primitive_forbidden:{forbidden}"
