@@ -1,0 +1,78 @@
+name: VOID Buy historical request-history disposition census v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_historical_request_history_disposition_census_v1.py"
+      - "scripts/prove_void_buy_historical_request_history_disposition_census_v1.py"
+      - "docs/operators/buy-void-historical-request-history-disposition-census-v1.md"
+      - ".github/workflows/buy-void-historical-request-history-disposition-census-v1.yml"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
+      - "tools/void-buy-stable-request-root-policy-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_historical_request_history_disposition_census_v1.py"
+      - "scripts/prove_void_buy_historical_request_history_disposition_census_v1.py"
+      - "docs/operators/buy-void-historical-request-history-disposition-census-v1.md"
+      - ".github/workflows/buy-void-historical-request-history-disposition-census-v1.yml"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
+      - "tools/void-buy-stable-request-root-policy-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Prove source contract
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/history-disposition-proof.txt"
+          python3 -I -B scripts/prove_void_buy_historical_request_history_disposition_census_v1.py | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_HISTORICAL_REQUEST_HISTORY_DISPOSITION_CENSUS_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'v1_topology_dependency_blob_bound=true' "$proof"
+          grep -Fx 'v2_designated_host_dependency_blob_bound=true' "$proof"
+          grep -Fx 'stable_request_root_policy_blob_bound=true' "$proof"
+          grep -Fx 'descriptor_relative_no_symlink_reads_proven=true' "$proof"
+          grep -Fx 'nonzero_history_requires_migration_plan=true' "$proof"
+          grep -Fx 'zero_or_absent_history_requires_external_anchor=true' "$proof"
+          grep -Fx 'migration_authorized=false' "$proof"
+          grep -Fx 'payment_acceptance=false' "$proof"
+          grep -Fx 'public_presale_activation=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+          grep -Fx 'production_gate_ready=false' "$proof"
+      - name: Prove inert collector modes
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_historical_request_history_disposition_census_v1.py --self-test
+          plan="$RUNNER_TEMP/history-disposition-plan.txt"
+          python3 -I -B ops/precision/void_buy_historical_request_history_disposition_census_v1.py --plan | tee "$plan"
+          grep -Fx 'read_only=true' "$plan"
+          grep -Fx 'sudo_required=false' "$plan"
+          grep -Fx 'filesystem_write=false' "$plan"
+          grep -Fx 'external_network_calls=false' "$plan"
+          grep -Fx 'loopback_calls=false' "$plan"
+          grep -Fx 'request_operator_bytes_read=false' "$plan"
+          grep -Fx 'migration_authorized=false' "$plan"
+          grep -Fx 'payment_acceptance=false' "$plan"
+          grep -Fx 'public_presale_activation=false' "$plan"
+          grep -Fx 'funds_movement=false' "$plan"
+          grep -Fx 'production_gate_ready=false' "$plan"
+      - name: Diff hygiene
+        run: git diff --check
