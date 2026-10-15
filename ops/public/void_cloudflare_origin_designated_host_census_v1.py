@@ -1361,7 +1361,7 @@ def self_test() -> None:
         "NoNewPrivs:\t1\n"
     )
     assert permitted["capabilities_permitted_empty"] is False
-    config = parse_tunnel_config(
+    config_text = (
         "tunnel: opaque\n"
         "credentials-file: /run/void-cloudflared/private/credentials.json\n"
         "ingress:\n"
@@ -1385,12 +1385,48 @@ def self_test() -> None:
         "      disableChunkedEncoding: true\n"
         "  - hostname: seed.nullfeed.org\n"
         "    service: http://127.0.0.1:8083\n"
+        "  - service: http_status:404\n"
     )
+    config = parse_tunnel_config(config_text)
     assert config["sensitive_route_shape_observed"] is True
     assert config["sensitive_adapter_port"] == 4311
     assert config["ordinary_routes_preserved_candidate"] is True
+    assert config["first_match_order_verified"] is True
+    assert config["global_catchall_last"] is True
+    assert config["public_hostname_wildcard_shadow_absent"] is True
     assert canonical_sensitive_path(SENSITIVE_PATHS[0]) is None
     assert canonical_sensitive_path("^" + SENSITIVE_PATHS[0] + "$") == SENSITIVE_PATHS[0]
+
+    ordinary_rule = (
+        "  - hostname: seed.nullfeed.org\n"
+        "    service: http://127.0.0.1:8083\n"
+    )
+    shadowed_text = config_text.replace(ordinary_rule, "", 1).replace(
+        "ingress:\n",
+        "ingress:\n" + ordinary_rule,
+        1,
+    )
+    shadowed = parse_tunnel_config(shadowed_text)
+    assert shadowed["sensitive_route_shape_observed"] is False
+    assert shadowed["first_match_order_verified"] is False
+
+    wildcard_shadow = parse_tunnel_config(
+        config_text.replace(
+            "ingress:\n",
+            "ingress:\n"
+            '  - hostname: "*.nullfeed.org"\n'
+            "    service: http://127.0.0.1:8084\n",
+            1,
+        )
+    )
+    assert wildcard_shadow["sensitive_route_shape_observed"] is False
+    assert wildcard_shadow["public_hostname_wildcard_shadow_absent"] is False
+
+    missing_catchall = parse_tunnel_config(
+        config_text.replace("  - service: http_status:404\n", "", 1)
+    )
+    assert missing_catchall["sensitive_route_shape_observed"] is False
+    assert missing_catchall["global_catchall_last"] is False
     rows = parse_ss(
         'LISTEN 0 511 127.0.0.1:4311 0.0.0.0:* users:(("node",pid=123,fd=20))\n'
     )
@@ -1413,6 +1449,9 @@ def self_test() -> None:
     print("sensitive_route_parser_exact=true")
     print("sensitive_path_regex_anchor_required=true")
     print("shared_listener_process_rejected=true")
+    print("cloudflare_first_match_order_verified=true")
+    print("cloudflare_global_catchall_required=true")
+    print("cloudflare_wildcard_shadow_rejected=true")
     print("credential_contents_read=false")
     print("process_environment_access=false")
     print("live_acceptance_claimed=false")
