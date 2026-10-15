@@ -34,6 +34,7 @@ OPERATOR_EVENTS_NAME = "operator-events.jsonl"
 LEDGER_ROOT = pathlib.Path("/var/lib/void-allocation-ledger-v1")
 CUSTODY_ROOT = pathlib.Path("/var/lib/void-allocation-custody-v1")
 SYSTEMCTL = pathlib.Path("/usr/bin/systemctl")
+SS = pathlib.Path("/usr/bin/ss")
 MAX_COMMAND_BYTES = 1024 * 1024
 MAX_HTTP_BYTES = 256 * 1024
 HTTP_TIMEOUT_SECONDS = 3
@@ -116,6 +117,79 @@ def run_systemctl(
         return result.returncode, result.stdout.decode("utf-8", "strict")
     except UnicodeDecodeError as exc:
         raise CensusError("systemctl_output_not_utf8") from exc
+
+
+def parse_listener_rows(raw: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for raw_line in raw.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        parts = line.split()
+        if len(parts) < 5 or parts[0] != "LISTEN":
+            raise CensusError("ss_listener_row_malformed")
+        rows.append({
+            "local": parts[3],
+            "process": " ".join(parts[5:]) if len(parts) > 5 else "",
+        })
+    return rows
+
+
+def runtime_http_listener_binding(pid: int) -> dict[str, Any]:
+    before = command_identity(SS)
+    result = subprocess.run(
+        [before[0], "-H", "-ltnp"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=safe_user_env(os.geteuid()),
+        timeout=10,
+        check=False,
+    )
+    after = command_identity(SS)
+    if before != after:
+        raise CensusError("ss_identity_changed_during_read")
+    if (
+        result.returncode != 0
+        or len(result.stdout) > MAX_COMMAND_BYTES
+        or len(result.stderr) > MAX_COMMAND_BYTES
+    ):
+        return {
+            "observed": False,
+            "candidate_count": 0,
+            "owned_by_runtime_pid": False,
+            "loopback_listener_observed": False,
+        }
+    try:
+        rows = parse_listener_rows(result.stdout.decode("utf-8", "strict"))
+    except (UnicodeDecodeError, CensusError):
+        return {
+            "observed": False,
+            "candidate_count": 0,
+            "owned_by_runtime_pid": False,
+            "loopback_listener_observed": False,
+        }
+    suffix = f":{NODE_PORT}"
+    candidates = [row for row in rows if str(row.get("local", "")).endswith(suffix)]
+    pid_pattern = re.compile(rf"(^|[^0-9])pid={pid}([^0-9]|$)")
+    owned = [
+        row for row in candidates
+        if pid > 0 and pid_pattern.search(str(row.get("process", "")))
+    ]
+    loopback = [
+        row for row in owned
+        if row.get("local") in {
+            f"127.0.0.1:{NODE_PORT}",
+            f"[::1]:{NODE_PORT}",
+            f"::1:{NODE_PORT}",
+        }
+    ]
+    return {
+        "observed": True,
+        "candidate_count": len(candidates),
+        "owned_by_runtime_pid": len(candidates) == 1 and len(owned) == 1,
+        "loopback_listener_observed": len(candidates) == 1 and len(loopback) == 1,
+    }
 
 
 def parse_key_values(raw: str) -> dict[str, str]:
@@ -548,6 +622,12 @@ def self_test() -> None:
         dict(first_service),
         changed,
     )
+    listener_rows = parse_listener_rows(
+        'LISTEN 0 511 127.0.0.1:4100 0.0.0.0:* users:(("node",pid=99,fd=20))\n'
+    )
+    assert listener_rows[0]["local"] == "127.0.0.1:4100"
+    assert "pid=99" in listener_rows[0]["process"]
+
     status = classify_confirmed_closeout_status(
         {
             "observed": True,
@@ -639,6 +719,9 @@ def collect() -> dict[str, Any]:
         historical_candidate,
     )
 
+    listener_binding = runtime_http_listener_binding(
+        int(user_before.get("main_pid") or 0)
+    )
     parent_raw = bounded_local_json(PARENT_STATUS_PATH)
     closeout_raw = bounded_local_json(CONFIRMED_CLOSEOUT_STATUS_PATH)
     parent_status = classify_parent_status(parent_raw)
@@ -688,6 +771,7 @@ def collect() -> dict[str, Any]:
         and user_before.get("active_running") is True
         and system_service.get("active_running") is False
         and generation_stable
+        and listener_binding.get("owned_by_runtime_pid") is True
         and status_matches_qualified_candidate
     )
 
@@ -730,6 +814,7 @@ def collect() -> dict[str, Any]:
             for key, value in system_service.items()
             if key not in {"main_pid"}
         },
+        "runtime_http_listener": listener_binding,
         "runtime_process": {
             "observed": process_before.get("observed") is True,
             "start_ticks_present":
@@ -825,6 +910,11 @@ def main() -> int:
     process = result["runtime_process"]
     print("runtime_user_service_active=" + str(user_service["active_running"]).lower())
     print("runtime_system_service_active=" + str(system_service["active_running"]).lower())
+    listener = result["runtime_http_listener"]
+    print("runtime_http_listener_observed=" + str(listener["observed"]).lower())
+    print("runtime_http_listener_candidate_count=" + str(listener["candidate_count"]))
+    print("runtime_http_listener_owned_by_runtime_pid=" + str(listener["owned_by_runtime_pid"]).lower())
+    print("runtime_http_loopback_listener_observed=" + str(listener["loopback_listener_observed"]).lower())
     print("runtime_process_generation_stable=" + str(process["generation_stable"]).lower())
     print("runtime_cwd_matches_historical_repo=" + str(process["cwd_matches_historical_repo"]).lower())
     print("runtime_exe_basename=" + str(process["exe_basename"]))
