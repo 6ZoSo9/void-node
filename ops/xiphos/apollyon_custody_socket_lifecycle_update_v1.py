@@ -40,9 +40,10 @@ SERVICE_PATH=Path("/etc/systemd/system/void-apollyon-authorization-custody-v1.se
 TARGET_PATH=Path("/etc/systemd/system/void-apollyon-authorization-custody-v1.target")
 LIFECYCLE_ROOT=Path("/opt/void-apollyon-custody-lifecycle-v1")
 HELPER_PATH=LIFECYCLE_ROOT/"apollyon_custody_stale_socket_cleanup_v1.py"
-HELPER_PENDING_RE=re.compile(
-    r"^\."+re.escape(HELPER_PATH.name)+r"\.pending\.[0-9]+$"
-)
+def helper_pending_re(path:Path):
+    return re.compile(
+        r"^\."+re.escape(path.name)+r"\.pending\.[0-9]+$"
+    )
 EXPECTED_EXEC_STOP_POST=(
     "/usr/bin/python3 -I -B "
     "/opt/void-apollyon-custody-lifecycle-v1/"
@@ -159,13 +160,14 @@ def helper_pending_paths_at(
 )->list[Path]:
     if not root.exists():return []
     out=[]
+    pending_re=helper_pending_re(path)
     try:
         with os.scandir(root) as entries:
             names=sorted(entry.name for entry in entries)
     except OSError as exc:
         raise Hold("helper_pending_inventory_failed") from exc
     for name in names:
-        if not HELPER_PENDING_RE.fullmatch(name):continue
+        if not pending_re.fullmatch(name):continue
         candidate=root/name
         st=os.lstat(candidate)
         if (
@@ -183,6 +185,8 @@ def helper_state_at(
     pending=helper_pending_paths_at(root,path,uid,gid)
     try:st=os.lstat(path)
     except FileNotFoundError:
+        if any(os.lstat(candidate).st_nlink!=1 for candidate in pending):
+            hold("helper_orphan_pending_link_count_invalid")
         return "absent_pending" if pending else "absent"
     if (
         not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
@@ -203,7 +207,10 @@ def helper_state_at(
         return "exact_pending"
     if matching:
         hold("helper_pending_link_count_invalid")
-    if pending:return "exact_orphan_pending"
+    if pending:
+        if any(os.lstat(candidate).st_nlink!=1 for candidate in pending):
+            hold("helper_orphan_pending_link_count_invalid")
+        return "exact_orphan_pending"
     return "exact"
 
 def helper_state()->str:
