@@ -227,13 +227,24 @@ function verifyRepositoryState(){
   // lock. Its workflow must run when any of those inputs changes, on both PR
   // and main-push events.
   const workflowText=read(WORKFLOW,64*1024).toString("utf8");
+  const pushMarker="\n  push:\n";
+  const permissionsMarker="\npermissions:\n";
+  const pushStart=workflowText.indexOf(pushMarker);
+  const permissionsStart=workflowText.indexOf(permissionsMarker);
+  assert.ok(pushStart>0&&permissionsStart>pushStart,"lock_workflow_event_sections_invalid");
+  const pullRequestBlock=workflowText.slice(0,pushStart);
+  const pushBlock=workflowText.slice(pushStart,permissionsStart);
   for(const relative of Object.keys(EXPECTED_REPLACEMENT_BLOBS)){
     const triggerNeedle='      - "'+relative+'"';
-    const triggerCount=workflowText.split(triggerNeedle).length-1;
     assert.equal(
-      triggerCount,
-      2,
-      "replacement_consumer_trigger_coverage_drift:"+relative,
+      pullRequestBlock.split(triggerNeedle).length-1,
+      1,
+      "replacement_consumer_pr_trigger_coverage_drift:"+relative,
+    );
+    assert.equal(
+      pushBlock.split(triggerNeedle).length-1,
+      1,
+      "replacement_consumer_push_trigger_coverage_drift:"+relative,
     );
   }
 
