@@ -71,7 +71,37 @@ assert.equal(normalized.main_pid,4242);
 assert.equal(normalized.no_new_privileges,true);
 assert.deepEqual(normalized.capability_bounding_set,[]);
 assert.deepEqual(normalized.ambient_capabilities,[]);
+assert.equal(normalized.reported_control_group_shape_validated,true);
+assert.equal(normalized.manager_peer_authenticated,false);
+assert.equal(normalized.runtime_user_manager_identity_verified,false);
+assert.equal(normalized.runtime_user_manager_cgroup_bound,false);
+assert.equal(
+  normalized.identity_normalization,
+  "untrusted_user_systemctl_shape_only_v2",
+);
 assert.equal(normalized.production_host_evidence_authority,false);
+
+// A same-UID fake D-Bus peer can return byte-identical systemctl text. This
+// syntax adapter must therefore classify the exact accepted shape without ever
+// promoting the transport peer or reported cgroup to authenticated authority.
+const fakeBusNormalized=normalizeBuyVoidAllocationCustodyUserServiceShowV2(
+  String(raw),
+  {
+    runtime_user:"zoso",
+    runtime_group:"zoso",
+    runtime_uid:1000,
+    runtime_service_unit:"void-node-live.service",
+  },
+);
+assert.equal(fakeBusNormalized.main_pid,4242);
+assert.equal(
+  fakeBusNormalized.control_group,
+  "/user.slice/user-1000.slice/user@1000.service/app.slice/void-node-live.service",
+);
+assert.equal(fakeBusNormalized.manager_peer_authenticated,false);
+assert.equal(fakeBusNormalized.runtime_user_manager_identity_verified,false);
+assert.equal(fakeBusNormalized.runtime_user_manager_cgroup_bound,false);
+assert.equal(fakeBusNormalized.production_host_evidence_authority,false);
 
 for(const [label,bad,pattern] of [
   ["inactive",raw.replace("ActiveState=active","ActiveState=inactive"),/runtime_service_not_active/u],
@@ -109,9 +139,12 @@ for(const [key,expected] of Object.entries({
   read_only_observation_plan:true,
   user_systemd_runtime_manager_supported:true,
   exact_runtime_user_bus_required:true,
-  runtime_user_manager_identity_derived:true,
-  runtime_user_manager_cgroup_bound:true,
-  implicit_user_unit_identity_normalized_only_after_verification:true,
+  exact_runtime_user_bus_path_selected:true,
+  manager_peer_authenticated:false,
+  runtime_user_manager_identity_derived:false,
+  runtime_user_manager_cgroup_bound:false,
+  reported_control_group_shape_validated:true,
+  implicit_user_unit_identity_normalized_only_after_verification:false,
   v1_host_collector_reused:false,
   complete_host_evidence_collector:false,
   service_v2_source_binding_proven:false,
@@ -143,7 +176,11 @@ for(const [key,expected] of Object.entries({
 console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V2_PROOF_GREEN");
 console.log("runtime_manager_adapter_only=true");
 console.log("runtime_service_manager=user");
-console.log("user_manager_bus_exact=true");
+console.log("user_manager_bus_path_selected=true");
+console.log("manager_peer_authenticated=false");
+console.log("runtime_user_manager_identity_verified=false");
+console.log("runtime_user_manager_cgroup_bound=false");
+console.log("fake_same_uid_bus_cannot_promote_authority=true");
 console.log("complete_host_evidence_collector=false");
 console.log("service_v2_source_binding_proven=false");
 console.log("service_v2_config_binding_proven=false");
