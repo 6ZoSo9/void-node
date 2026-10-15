@@ -260,7 +260,8 @@ for(const [key,expected] of Object.entries({
   server_replans_signed_authorization:true,compare_and_swap_required:true,
   durable_append_intent:true,torn_append_recovery:true,exact_post_crash_idempotence:true,
   witness_fsync:true,authority_directory_fsync:true,post_mutation_path_rebind:true,
-  fixed_nimo_host_identity_required:true,arbitrary_append_bytes_from_client:false,
+  fixed_nimo_host_identity_required:true,dedicated_voidwitness_uid_gid_required:true,
+  canonical_durable_intent_required:true,arbitrary_append_bytes_from_client:false,
   caller_selected_path:false,caller_selected_command:false,shell_access:false,
   generic_write_primitive:false,generic_delete_primitive:false,
   generic_rename_primitive:false,service_control_primitive:false,
@@ -279,6 +280,8 @@ console.log("torn_append_recovery=true");
 console.log("post_crash_idempotence=true");
 console.log("descriptor_pinned_authority_root=true");
 console.log("fixed_nimo_host_identity_required=true");
+console.log("dedicated_voidwitness_uid_gid_required=true");
+console.log("canonical_durable_intent_required=true");
 console.log("arbitrary_append_bytes_from_client=false");
 console.log("live_nimo_installed=false");
 console.log("external_witness_verified=false");
