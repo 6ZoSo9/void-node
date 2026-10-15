@@ -33,10 +33,13 @@ generation can be pending daemon-reload or complete. A new exact service file wi
 the exact old generation is therefore a bounded `RESUME_DAEMON_RELOAD` state,
 not a dead-end collision. Any other file/loaded combination still HOLDs.
 
-If apply fails after mutation starts, the failure receipt reports whether helper
-installation, service replacement, daemon-reload and final postcheck were
-attempted, whether the reload command returned success, whether persistent
-filesystem mutation is possible, and a fresh read-only recovery snapshot. A
+If apply fails, the failure receipt records the initial lifecycle/helper/service
+file/loaded-service state, whether persistent mutation was already present before
+this invocation, whether filesystem mutation was possible during this invocation,
+whether helper installation, service replacement, daemon-reload and final
+postcheck were attempted, whether the reload command returned success, the
+aggregate persistent-mutation possibility, and a fresh read-only recovery
+snapshot. A
 daemon-reload client failure/timeout reports the command outcome as
 `indeterminate`, never as a proven failed reload; the recovery snapshot
 classifies what PID1 actually exposes. Fault tests cover failure after helper

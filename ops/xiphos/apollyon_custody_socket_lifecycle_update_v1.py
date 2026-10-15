@@ -344,7 +344,21 @@ def apply_transition(
     _state_fn=host_lifecycle_state,
 )->dict[str,object]:
     stage=str(before["lifecycle_state"])
+    persistent_present_before=stage in (
+        "helper_only","predecessor_ready",
+        "new_file_pending_reload","complete",
+    )
     receipt:dict[str,object]={
+        "initial_lifecycle_state":stage,
+        "initial_cleanup_helper_state":
+            str(before.get("cleanup_helper_state","unknown")),
+        "initial_service_unit_state":
+            str(before.get("service_unit_state","unknown")),
+        "initial_loaded_service_state":
+            str(before.get("loaded_service_state","unknown")),
+        "persistent_filesystem_mutation_present_before_apply":
+            persistent_present_before,
+        "persistent_filesystem_mutation_possible_this_apply":False,
         "helper_install_attempted":False,
         "helper_install_returned_success":False,
         "service_unit_replace_attempted":False,
@@ -385,9 +399,13 @@ def apply_transition(
             hold("post_update_lifecycle_not_complete")
         return {**receipt,**after}
     except Exception as exc:
-        receipt["persistent_filesystem_mutation_possible"]=bool(
+        receipt["persistent_filesystem_mutation_possible_this_apply"]=bool(
             receipt["helper_install_attempted"]
             or receipt["service_unit_replace_attempted"]
+        )
+        receipt["persistent_filesystem_mutation_possible"]=bool(
+            receipt["persistent_filesystem_mutation_present_before_apply"]
+            or receipt["persistent_filesystem_mutation_possible_this_apply"]
         )
         if receipt["daemon_reload_attempted"] is True and (
             receipt["daemon_reload_command_succeeded"] is None
@@ -561,6 +579,14 @@ def self_test()->None:
         )
     except ApplyHold as exc:
         assert str(exc)=="synthetic_after_helper_creation"
+        assert (
+            exc.receipt["persistent_filesystem_mutation_present_before_apply"]
+            is False
+        )
+        assert (
+            exc.receipt["persistent_filesystem_mutation_possible_this_apply"]
+            is True
+        )
         assert exc.receipt["persistent_filesystem_mutation_possible"] is True
         assert exc.receipt["recovery_lifecycle_state"]=="helper_only"
         assert exc.receipt["recovery_next_action"]=="RESUME_SERVICE_PUBLICATION"
@@ -617,6 +643,14 @@ def self_test()->None:
         )
     except ApplyHold as exc:
         assert str(exc)=="synthetic_after_service_replace_fsync"
+        assert (
+            exc.receipt["persistent_filesystem_mutation_present_before_apply"]
+            is True
+        )
+        assert (
+            exc.receipt["persistent_filesystem_mutation_possible_this_apply"]
+            is True
+        )
         assert exc.receipt["recovery_lifecycle_state"]=="new_file_pending_reload"
         assert exc.receipt["recovery_next_action"]=="RESUME_DAEMON_RELOAD"
     else:
@@ -651,7 +685,15 @@ def self_test()->None:
             exc.receipt["daemon_reload_command_succeeded"]
             =="indeterminate"
         )
-        assert exc.receipt["persistent_filesystem_mutation_possible"] is False
+        assert (
+            exc.receipt["persistent_filesystem_mutation_present_before_apply"]
+            is True
+        )
+        assert (
+            exc.receipt["persistent_filesystem_mutation_possible_this_apply"]
+            is False
+        )
+        assert exc.receipt["persistent_filesystem_mutation_possible"] is True
         assert exc.receipt["recovery_lifecycle_state"]=="new_file_pending_reload"
     else:
         raise AssertionError("synthetic_reload_failure_not_reported")
@@ -721,6 +763,8 @@ def self_test()->None:
     print("deployed_lifecycle_predecessor_upgrade_proven=true")
     print("resumable_pending_reload_state=true")
     print("truthful_partial_mutation_receipt=true")
+    print("preexisting_persistent_mutation_reported=true")
+    print("this_apply_mutation_possibility_reported=true")
     print("failure_injection_after_helper_creation=true")
     print("failure_injection_after_service_replace=true")
     print("failure_injection_daemon_reload=true")
@@ -744,6 +788,10 @@ def main()->int:
     except ApplyHold as exc:
         print("HOLD="+str(exc),file=sys.stderr)
         for key in (
+            "initial_lifecycle_state","initial_cleanup_helper_state",
+            "initial_service_unit_state","initial_loaded_service_state",
+            "persistent_filesystem_mutation_present_before_apply",
+            "persistent_filesystem_mutation_possible_this_apply",
             "helper_install_attempted","helper_install_returned_success",
             "service_unit_replace_attempted",
             "service_unit_replace_returned_success",
