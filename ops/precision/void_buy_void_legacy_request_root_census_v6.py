@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import errno
 import hashlib
 import json
 import os
@@ -224,6 +223,53 @@ def _meta(path: pathlib.Path) -> dict[str, Any]:
         return {"exists": None, "reason": "permission_denied"}
 
 
+def _open_directory_component(
+    parent_fd: int,
+    component: str,
+) -> tuple[int | None, str | None]:
+    if not component or component in (".", "..") or "/" in component:
+        return None, "noncanonical_or_symlink_path"
+    try:
+        before = os.stat(component, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None, "absent"
+    except PermissionError:
+        return None, "permission_denied"
+    except OSError as exc:
+        return None, f"os_error_{exc.errno}"
+    if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+        return None, "noncanonical_or_symlink_path"
+
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW
+    try:
+        child_fd = os.open(component, flags, dir_fd=parent_fd)
+    except FileNotFoundError:
+        return None, "generation_changed"
+    except PermissionError:
+        return None, "permission_denied"
+    except OSError as exc:
+        return None, f"open_error_{exc.errno}"
+    try:
+        opened = os.fstat(child_fd)
+        try:
+            after = os.stat(component, dir_fd=parent_fd, follow_symlinks=False)
+        except OSError:
+            return None, "generation_changed"
+        if (
+            not _same_stat(before, opened)
+            or not _same_stat(opened, after)
+            or not stat.S_ISDIR(opened.st_mode)
+            or stat.S_ISLNK(opened.st_mode)
+        ):
+            return None, "generation_changed"
+        keep_fd = child_fd
+        child_fd = -1
+        return keep_fd, None
+    finally:
+        if child_fd >= 0:
+            os.close(child_fd)
+
+
 def _open_absolute_directory_nofollow(
     path: pathlib.Path,
 ) -> tuple[int | None, str | None]:
@@ -235,16 +281,9 @@ def _open_absolute_directory_nofollow(
         return None, f"root_open_error_{exc.errno}"
     try:
         for component in target.parts[1:]:
-            try:
-                next_fd = os.open(component, flags, dir_fd=current_fd)
-            except FileNotFoundError:
-                return None, "absent"
-            except PermissionError:
-                return None, "permission_denied"
-            except OSError as exc:
-                if exc.errno in (errno.ELOOP, errno.ENOTDIR):
-                    return None, "noncanonical_or_symlink_path"
-                return None, f"os_error_{exc.errno}"
+            next_fd, error = _open_directory_component(current_fd, component)
+            if next_fd is None:
+                return None, error
             os.close(current_fd)
             current_fd = next_fd
         keep_fd = current_fd
@@ -273,33 +312,45 @@ def _count_dirfd(dir_fd: int) -> dict[str, Any]:
 def _fixed_journal_snapshot(
     dir_fd: int,
     name: str,
-) -> tuple[dict[str, Any], int | None]:
+) -> tuple[dict[str, Any], int | None, os.stat_result | None]:
     try:
-        visible = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        before = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
     except FileNotFoundError:
-        return {"exists": False}, None
+        return {"exists": False}, None, None
     except PermissionError:
-        return {"exists": None, "reason": "permission_denied"}, None
+        return {"exists": None, "reason": "permission_denied"}, None, None
     except OSError as exc:
-        return {"exists": None, "reason": f"os_error_{exc.errno}"}, None
+        return {"exists": None, "reason": f"os_error_{exc.errno}"}, None, None
 
     flags = os.O_CLOEXEC | os.O_NOFOLLOW | getattr(os, "O_PATH", os.O_RDONLY)
     try:
         retained_fd = os.open(name, flags, dir_fd=dir_fd)
     except OSError as exc:
-        return {"exists": None, "reason": f"open_error_{exc.errno}"}, None
-    retained = os.fstat(retained_fd)
-    if not _same_stat(visible, retained):
-        os.close(retained_fd)
-        return {"exists": None, "reason": "generation_rebound"}, None
-    return _meta_from_stat(retained), retained_fd
+        return {"exists": None, "reason": f"open_error_{exc.errno}"}, None, None
+    try:
+        opened = os.fstat(retained_fd)
+        try:
+            after = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        except OSError:
+            return {"exists": None, "reason": "generation_changed"}, None, None
+        if not (_same_stat(before, opened) and _same_stat(opened, after)):
+            return {"exists": None, "reason": "generation_changed"}, None, None
+        keep_fd = retained_fd
+        retained_fd = -1
+        return _meta_from_stat(opened), keep_fd, opened
+    finally:
+        if retained_fd >= 0:
+            os.close(retained_fd)
 
 
 def _revalidate_candidate_generation(
     path: pathlib.Path,
     dir_fd: int,
     opened_before: os.stat_result,
-    fixed_states: dict[str, tuple[dict[str, Any], int | None]],
+    fixed_states: dict[
+        str,
+        tuple[dict[str, Any], int | None, os.stat_result | None],
+    ],
 ) -> bool:
     opened_after = os.fstat(dir_fd)
     if not _same_stat(opened_before, opened_after):
@@ -314,9 +365,9 @@ def _revalidate_candidate_generation(
     finally:
         os.close(visible_fd)
 
-    for name, (item, retained_fd) in fixed_states.items():
+    for name, (item, retained_fd, initial_stat) in fixed_states.items():
         exists = item.get("exists")
-        if retained_fd is not None:
+        if retained_fd is not None and initial_stat is not None:
             retained_after = os.fstat(retained_fd)
             try:
                 visible_after = os.stat(
@@ -326,7 +377,10 @@ def _revalidate_candidate_generation(
                 )
             except OSError:
                 return False
-            if not _same_stat(retained_after, visible_after):
+            if (
+                not _same_stat(initial_stat, retained_after)
+                or not _same_stat(retained_after, visible_after)
+            ):
                 return False
         elif exists is False:
             try:
@@ -401,11 +455,16 @@ def classify_candidate(
         elif open_error == "noncanonical_or_symlink_path":
             result["symlink_ancestor_observed"] = True
             result["classification"] = "HOLD_NONCANONICAL_OR_SYMLINK_PATH"
+        elif open_error == "generation_changed":
+            result["classification"] = "HOLD_CANDIDATE_GENERATION_CHANGED"
         else:
             result["classification"] = "UNVERIFIED_ROOT_OPEN"
         return result
 
-    fixed_states: dict[str, tuple[dict[str, Any], int | None]] = {}
+    fixed_states: dict[
+        str,
+        tuple[dict[str, Any], int | None, os.stat_result | None],
+    ] = {}
     try:
         opened_before = os.fstat(dir_fd)
         metadata = _meta_from_stat(opened_before)
@@ -432,8 +491,8 @@ def classify_candidate(
         surviving = False
         uncertain = False
         for name in ("requests.jsonl", "operator-events.jsonl"):
-            item, retained_fd = _fixed_journal_snapshot(dir_fd, name)
-            fixed_states[name] = (item, retained_fd)
+            item, retained_fd, initial_stat = _fixed_journal_snapshot(dir_fd, name)
+            fixed_states[name] = (item, retained_fd, initial_stat)
             result["fixed_journals"][name] = {
                 "exists": item.get("exists"),
                 "kind": item.get("kind"),
@@ -490,7 +549,7 @@ def classify_candidate(
             result["classification"] = "HOLD_UNCLASSIFIED"
         return result
     finally:
-        for _, retained_fd in fixed_states.values():
+        for _, retained_fd, _ in fixed_states.values():
             if retained_fd is not None:
                 os.close(retained_fd)
         os.close(dir_fd)

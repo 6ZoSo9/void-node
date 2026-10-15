@@ -13,7 +13,7 @@ V1 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
 V2 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 AUTH = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
 
-TARGET_BLOB = "f22e014c2193f73670091ebc63f55fa02d7fff85"
+TARGET_BLOB = "4d7f2b5c7766e2dc5f0f82aafbee5f46cc167865"
 EXPECTED_DEPENDENCY_BLOBS = {
     V1: "9ca9cb948a08973d0d874c5473ad2743de14140c",
     V2: "305737478025e22ddc8f56da29f2a2dfde251d8b",
@@ -82,6 +82,7 @@ for required in (
     "late_candidate_mutation_blocks_bounded_current_set",
     "descriptor_bound_candidate_snapshot",
     "path_swap_adversary_forces_hold",
+    "_open_directory_component",
     "_open_absolute_directory_nofollow",
     "_revalidate_candidate_generation",
     "HOLD_CANDIDATE_GENERATION_CHANGED",
@@ -97,6 +98,12 @@ assert "os.scandir(dir_fd)" in source
 assert "dir_fd=current_fd" in source
 assert "follow_symlinks=False" in source
 assert "os.O_NOFOLLOW" in source
+assert "before = os.stat(component, dir_fd=parent_fd, follow_symlinks=False)" in source
+assert "opened = os.fstat(child_fd)" in source
+assert "after = os.stat(component, dir_fd=parent_fd, follow_symlinks=False)" in source
+assert "_same_stat(before, opened)" in source
+assert "_same_stat(opened, after)" in source
+assert "not _same_stat(initial_stat, retained_after)" in source
 
 plan_marker = "\ndef plan() -> None:"
 production_source = (
