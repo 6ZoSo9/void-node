@@ -143,6 +143,42 @@ config_text = (
 )
 config = module.parse_tunnel_config(config_text)
 assert config["sensitive_route_shape_observed"] is True
+
+def expect_config_error(raw: str, reason: str) -> None:
+    try:
+        module.parse_tunnel_config(raw)
+    except module.CensusError as exc:
+        assert str(exc) == reason, (str(exc), reason)
+    else:
+        raise AssertionError("expected tunnel config rejection: " + reason)
+
+off_ingress_text = (
+    config_text
+    .replace("ingress:\n", "not-ingress:\n", 1)
+    .replace("  - service: http_status:404\n", "", 1)
+    + "ingress:\n  - service: http_status:404\n"
+)
+off_ingress = module.parse_tunnel_config(off_ingress_text)
+assert off_ingress["sensitive_route_shape_observed"] is False
+
+duplicate_hostname_text = config_text.replace(
+    "    path: ^/__void/agents/paid-work/credential-requests/v1$\n",
+    "    hostname: attacker.example\n"
+    "    path: ^/__void/agents/paid-work/credential-requests/v1$\n",
+    1,
+)
+expect_config_error(
+    duplicate_hostname_text,
+    "tunnel_rule_duplicate_hostname",
+)
+expect_config_error(
+    config_text + "ingress:\n  - service: http_status:503\n",
+    "tunnel_ingress_duplicate",
+)
+expect_config_error(
+    config_text.replace("ingress:\n", "not-ingress:\n", 1),
+    "tunnel_ingress_missing",
+)
 assert module.canonical_sensitive_path(module.SENSITIVE_PATHS[0]) is None
 assert (
     module.canonical_sensitive_path("^" + module.SENSITIVE_PATHS[0] + "$")
@@ -311,6 +347,9 @@ for required in (
     "operator_tunnel_config_path",
     "credential_content_access",
     "sensitive_route_shape_observed",
+    "tunnel_ingress_duplicate",
+    "tunnel_ingress_missing",
+    "tunnel_rule_duplicate_hostname",
     "config_generation_stable",
     "read_regular_descriptor_bound",
     "descriptor_bound_file_custody",
@@ -371,6 +410,10 @@ print("unanchored_sensitive_path_rejected=true")
 print("cloudflare_first_match_shadow_rejected=true")
 print("cloudflare_global_catchall_required=true")
 print("cloudflare_wildcard_shadow_rejected=true")
+print("cloudflare_ingress_block_scope_enforced=true")
+print("tunnel_duplicate_hostname_rejected=true")
+print("tunnel_duplicate_ingress_rejected=true")
+print("tunnel_missing_ingress_rejected=true")
 print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
