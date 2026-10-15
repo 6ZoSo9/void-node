@@ -60,12 +60,19 @@ Before any append it creates and fsyncs a 0600 intent that binds:
 - exact next witness size/hash;
 - exact event ID.
 
-Recovery permits only:
+Recovery with a durable intent permits only:
 1. exact prior bytes -> append the planned suffix;
 2. exact prior + a prefix of the planned suffix -> append the remainder;
 3. exact complete next bytes -> cleanup and return idempotent.
 
-Any non-prefix or rollback state fails closed.
+After a successful append has been fsynced and the intent has already been
+cleaned up, loss of the response is also recoverable: replay of the exact same
+request is accepted only when the current witness is exactly that request's
+expected-next generation and a fresh server replan proves the same signed event
+is already present. The retry performs no second append. A stale request against
+a later witness generation remains a compare-and-swap HOLD.
+
+Any non-prefix, rollback, or mismatched-generation state fails closed.
 
 ## Forced-command process boundary
 
