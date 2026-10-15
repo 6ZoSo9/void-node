@@ -423,6 +423,31 @@ function writeSyntheticCredential(directory, digit = "1") {
 }
 
 {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-e2-generation-metadata-drift-"),
+  );
+  const directory = path.join(root, "credentials");
+  const file = writeSyntheticCredential(directory, "1");
+  const generation = openCredentialGeneration(directory);
+  try {
+    const before = fs.lstatSync(file, { bigint: true });
+    fs.chmodSync(file, 0o400);
+    const after = fs.lstatSync(file, { bigint: true });
+    assert.equal(before.dev, after.dev);
+    assert.equal(before.ino, after.ino);
+    assert.equal(before.size, after.size);
+    assert.notEqual(before.mode & 0o777n, after.mode & 0o777n);
+    assert.throws(
+      () => generation.revalidate(),
+      /epoch2_sealed_credential_generation_changed_after_read/u,
+    );
+  } finally {
+    generation.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+{
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-e2-generation-dir-swap-"));
   const directory = path.join(root, "credentials");
   writeSyntheticCredential(directory, "1");
@@ -668,6 +693,7 @@ console.log("transaction_broadcast=false");
 console.log("privileged_first_entry_authenticated=false");
 console.log("credential_generation_retained_through_signing=true");
 console.log("same_shape_credential_replacement_rejected=true");
+console.log("credential_metadata_drift_rejected=true");
 console.log("credential_directory_replacement_rejected=true");
 console.log("credential_access_in_proof=false");
 console.log("funds_movement=false");
