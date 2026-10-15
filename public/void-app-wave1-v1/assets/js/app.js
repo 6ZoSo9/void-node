@@ -28,12 +28,16 @@ const commandLinks = [...commandResults.querySelectorAll('a')];
 const commandEmpty = document.getElementById('command-empty');
 let lastFocused = null;
 
+function normalizeCommandQuery(value) {
+  return value.trim().toLowerCase();
+}
+
 function filterCommandResults() {
-  const query = commandSearch.value.trim().toLocaleLowerCase();
+  const query = normalizeCommandQuery(commandSearch.value);
   let visibleCount = 0;
 
   commandLinks.forEach((link) => {
-    const matches = !query || link.textContent.toLocaleLowerCase().includes(query);
+    const matches = !query || normalizeCommandQuery(link.textContent).includes(query);
     link.hidden = !matches;
     if (matches) visibleCount += 1;
   });
