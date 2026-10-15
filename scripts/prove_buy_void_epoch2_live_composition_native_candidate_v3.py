@@ -24,12 +24,12 @@ RUNNER=ROOT/"ops/precision/void_buy_void_epoch2_authenticated_credential_live_co
 RUNNER_REL="ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
 EXPECTED_RUNNER_GIT_BLOB_SHA1="92e8c8696ea7e2bb81b6ef089db8baa657188935"
 SOURCE_PROOF_REL="scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs"
-EXPECTED_SOURCE_PROOF_GIT_BLOB_SHA1="c07773c2d1e365b408ef2e5f859e0dfbf4fdbd88"
+EXPECTED_SOURCE_PROOF_GIT_BLOB_SHA1="ffcd816d3d0dbd7d3c95a18da8522b808f468789"
 SOURCE_WORKFLOW_REL=".github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml"
 EXPECTED_SOURCE_WORKFLOW_GIT_BLOB_SHA1="85c28fdf03345240332cbf41d46fbda065958ec7"
 SEALED_V2_REL="scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
 EXPECTED_SEALED_V2_GIT_BLOB_SHA1="14cbe81e27d04fee77cbe75225ce308bf8561a7b"
-SOURCE_PARENT="a1a4a1b8e7f508dbd13628d28c32514a1632041a"
+SOURCE_PARENT="e1166e6dd736f0baf689881cc3cb2afcbd79a571"
 MIN_BINARY_BYTES=4096
 MAX_BINARY_BYTES=2*1024*1024
 MAX_REPORT_BYTES=64*1024
@@ -214,10 +214,14 @@ def trace_link_inputs(raw:bytes,object_path:Path)->list[dict[str,str|int]]:
                 continue
             p=Path(real)
             if not p.is_file():
-                continue
+                raise AssertionError(
+                    "traced absolute linker input is not a regular file: "+token
+                )
             identity=regular_file_identity(p,"link input")
-        except (OSError,AssertionError):
-            continue
+        except OSError as exc:
+            raise AssertionError(
+                "traced absolute linker input identity failed: "+token
+            ) from exc
         discovered[identity["path"]]=identity
     if not discovered:
         raise AssertionError("static linker trace did not yield regular inputs")
@@ -719,6 +723,7 @@ def derive_to(output:Path)->None:
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
     print("static_toolchain_closure_bound=true")
+    print("traced_absolute_link_inputs_fail_closed=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
@@ -754,6 +759,7 @@ def compare_dir(directory:Path)->None:
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
     print("static_toolchain_closure_bound=true")
+    print("traced_absolute_link_inputs_fail_closed=true")
     print("candidate_accepted=false")
     print("live_execution_authorized=false")
 
@@ -773,6 +779,18 @@ def self_test()->None:
             raise
     else:
         raise AssertionError("boolean version unexpectedly admitted")
+
+    with tempfile.TemporaryDirectory(prefix="void-epoch2-link-trace-negative-") as td:
+        missing=os.path.join(td,"missing-link-input.a")
+        try:
+            trace_link_inputs((missing+"\n").encode("utf-8"),Path(td)/"own.o")
+        except AssertionError as exc:
+            if "traced absolute linker input" not in str(exc):
+                raise
+        else:
+            raise AssertionError(
+                "missing traced absolute linker input unexpectedly skipped"
+            )
 
     forged=json.loads(canonical(valid))
     digest=forged["binary"]["sha256"]
