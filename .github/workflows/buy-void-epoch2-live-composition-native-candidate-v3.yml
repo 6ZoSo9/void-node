@@ -108,6 +108,10 @@ jobs:
             'hostile_ld_preload_preentry_blocked=true' \
             'static_toolchain_closure_bound=true' \
             'traced_absolute_link_inputs_fail_closed=true' \
+            'linker_trace_closed_grammar=true' \
+            'linker_archive_member_records_bound=true' \
+            'raw_linker_trace_identity_bound=true' \
+            'unknown_nonempty_linker_trace_records_hold=true' \
             'candidate_accepted=false' \
             'protected_install_authorized=false' \
             'live_execution_authorized=false'
@@ -164,6 +168,10 @@ jobs:
             'hostile_ld_preload_preentry_blocked=true' \
             'static_toolchain_closure_bound=true' \
             'traced_absolute_link_inputs_fail_closed=true' \
+            'linker_trace_closed_grammar=true' \
+            'linker_archive_member_records_bound=true' \
+            'raw_linker_trace_identity_bound=true' \
+            'unknown_nonempty_linker_trace_records_hold=true' \
             'candidate_accepted=false' \
             'protected_install_authorized=false' \
             'live_execution_authorized=false'
@@ -187,6 +195,10 @@ jobs:
             'hostile_ld_preload_preentry_blocked=true' \
             'static_toolchain_closure_bound=true' \
             'traced_absolute_link_inputs_fail_closed=true' \
+            'linker_trace_closed_grammar=true' \
+            'linker_archive_member_records_bound=true' \
+            'raw_linker_trace_identity_bound=true' \
+            'unknown_nonempty_linker_trace_records_hold=true' \
             'candidate_accepted=false' \
             'live_execution_authorized=false'
           do
