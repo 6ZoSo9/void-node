@@ -145,7 +145,7 @@ def prove_loader_independence(candidate:Path)->dict[str,bool]:
             "__attribute__((constructor)) static void poison(void){\n"
             f"  int fd=open({json.dumps(os.fspath(sentinel))},"
             "O_WRONLY|O_CREAT|O_TRUNC,0600);\n"
-            "  if(fd>=0){(void)write(fd,\"x\",1);close(fd);}\n"
+            "  if(fd>=0){ssize_t n=write(fd,\"x\",1);if(n!=1){close(fd);return;}close(fd);}\n"
             "}\n",
             encoding="utf-8",
         )
