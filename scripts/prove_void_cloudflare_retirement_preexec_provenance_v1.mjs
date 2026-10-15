@@ -24,6 +24,43 @@ const preexec=fs.readFileSync(path.join(ROOT,PREEXEC),"utf8");
 const query=fs.readFileSync(path.join(ROOT,QUERY),"utf8");
 const workflow=fs.readFileSync(path.join(ROOT,WORKFLOW),"utf8");
 
+
+function workflowEventPaths(name){
+  const lines=workflow.split("\n");
+  const eventLine="  "+name+":";
+  const start=lines.indexOf(eventLine);
+  assert.ok(start>=0,"missing workflow event: "+name);
+  let inPaths=false;
+  const paths=[];
+  for(let i=start+1;i<lines.length;i+=1){
+    const line=lines[i];
+    if(/^  [A-Za-z_][A-Za-z0-9_-]*:$/.test(line)) break;
+    if(line==="    paths:"){
+      inPaths=true;
+      continue;
+    }
+    if(!inPaths) continue;
+    const match=/^      - "([^"]+)"$/.exec(line);
+    if(match){
+      paths.push(match[1]);
+      continue;
+    }
+    if(line.trim()!=="" && !line.startsWith("      ")){
+      inPaths=false;
+    }
+  }
+  assert.ok(paths.length>0,"empty workflow paths: "+name);
+  return paths;
+}
+const pullRequestPaths=workflowEventPaths("pull_request");
+const pushPaths=workflowEventPaths("push");
+assert.deepEqual(
+  [...pushPaths].sort(),
+  [...pullRequestPaths].sort(),
+  "pull_request/main push path sets diverged",
+);
+assert.ok(workflow.includes("  push:\n    branches: [main]\n"));
+
 for(const token of [
   "VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_PREEXEC_V2",
   "pipe2(proof_pipe, O_CLOEXEC)",
@@ -73,6 +110,7 @@ console.log("installed_parent_generation_binding_required=true");
 console.log("installed_query_generation_binding_required=true");
 console.log("direct_marker_invocation_rejected=true");
 console.log("forged_proof_channel_rejected=true");
+console.log("accepted_main_trigger_path_parity=true");
 console.log("future_restart_prevented=false");
 console.log("historical_user_tunnel_retirement_verified=false");
 console.log("host_installation=false");
