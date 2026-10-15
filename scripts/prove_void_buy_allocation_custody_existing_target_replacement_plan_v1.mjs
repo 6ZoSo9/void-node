@@ -77,9 +77,25 @@ assert.equal(
 assert.equal(positive.plan.replacement_required, true);
 assert.equal(positive.plan.replacement_apply_authorized, false);
 assert.equal(positive.plan.root_owned_same_filesystem_staging_required, true);
+assert.equal(
+  positive.plan.target_parent_ancestry_reverification_at_apply_required,
+  true,
+);
+assert.equal(
+  positive.plan.target_mount_identity_reverification_at_apply_required,
+  true,
+);
+assert.equal(
+  positive.plan.target_symlink_bind_substitution_rejection_required,
+  true,
+);
 assert.equal(positive.plan.existing_target_rollback_preservation_required, true);
-assert.equal(positive.plan.rollback_name_content_addressed_required, true);
+assert.equal(positive.plan.rollback_name_prestate_identity_bound_required, true);
+assert.equal(positive.plan.rollback_content_scan_required, false);
 assert.equal(positive.plan.no_clobber_required, true);
+assert.equal(positive.plan.durable_install_intent_required, true);
+assert.equal(positive.plan.crash_recovery_required, true);
+assert.equal(positive.plan.rollback_restore_exact_identity_required, true);
 assert.equal(positive.plan.same_filesystem_rename_required, true);
 assert.equal(positive.plan.fsync_before_and_after_transition_required, true);
 assert.equal(positive.plan.post_transition_exact_tree_verification_required, true);
@@ -268,6 +284,9 @@ console.log("symlink_entries=0");
 console.log("replacement_required=true");
 console.log("replacement_authorized=false");
 console.log("replacement_apply_authorized=false");
+console.log("rollback_content_scan_required=false");
+console.log("durable_install_intent_required=true");
+console.log("crash_recovery_required=true");
 console.log("live_at_use_target_reverification_required=true");
 console.log("live_at_use_node_reverification_required=true");
 console.log("polkit_runtime_user=void-buy-runtime");
