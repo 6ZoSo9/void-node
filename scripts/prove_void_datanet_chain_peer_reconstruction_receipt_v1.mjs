@@ -22,6 +22,10 @@ function fixtureJson(value) {
   ).join(",")}}`;
 }
 
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "../tools/datanet-content-commitment-production-registry-identity-v1.mjs";
+
 const wire = (value) => Buffer.from(fixtureJson(value), "utf8");
 const evidenceWire = (value) => Buffer.from(JSON.stringify(value), "utf8");
 
@@ -34,7 +38,8 @@ const CONTENT_SHA256 = crypto.createHash("sha256").update(PAYLOAD).digest("hex")
 const CHECKPOINT_HASH = "0x" + "a".repeat(64);
 const COMMITMENT_TX = "0x" + "b".repeat(64);
 const OTHER_TX = "0x" + "c".repeat(64);
-const REGISTRY = "0x1111111111111111111111111111111111111111";
+const REGISTRY =
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1;
 const RECEIPT_BLOCK_HASH = "0x" + "4".repeat(64);
 const RECEIPT_PARENT_HASH = "0x" + "5".repeat(64);
 
@@ -47,6 +52,7 @@ if (!event) throw new Error("ContentCommitted event unavailable");
 function commitmentInput(overrides = {}) {
   return {
     chain_id: "2050",
+    registry_address: REGISTRY,
     object_id: OBJECT_ID,
     content_sha256: CONTENT_SHA256,
     byte_length: String(PAYLOAD.length),
