@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import struct
 import subprocess
@@ -21,6 +22,7 @@ CC=Path("/usr/bin/cc")
 MIN_BINARY_BYTES=4096
 MAX_BINARY_BYTES=2*1024*1024
 MAX_REPORT_BYTES=64*1024
+MAX_TOOLCHAIN_FILE_BYTES=64*1024*1024
 HEX64=re.compile(r"^[0-9a-f]{64}$")
 CANDIDATE_ID=re.compile(
     r"^apollyon_live_custody_source_session_preentry_binary_candidate_v1:[0-9a-f]{64}$"
@@ -28,8 +30,14 @@ CANDIDATE_ID=re.compile(
 COMPILE_FLAGS=(
     "-std=c11","-O2","-Wall","-Wextra","-Werror",
     "-D_FORTIFY_SOURCE=2","-fstack-protector-strong","-fno-ident",
+    "-fno-pie",
+)
+LINK_FLAGS=(
     "-static","-fno-pie","-no-pie",
     "-Wl,-z,relro,-z,now","-Wl,--build-id=none",
+)
+PREPROCESS_FLAGS=(
+    "-std=c11","-O2","-D_FORTIFY_SOURCE=2",
 )
 ELF_PT_INTERP=3
 ELF_MACHINE_X86_64=62
@@ -102,6 +110,97 @@ def compiler_identity()->dict[str,str]:
             [os.fspath(requested),"-dumpfullversion","-dumpversion"]
         ).strip(),
     }
+
+def regular_file_identity(path:Path,label:str)->dict[str,str|int]:
+    canonical=Path(os.path.realpath(os.path.abspath(os.fspath(path))))
+    st=canonical.lstat()
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_size<1 or st.st_size>MAX_TOOLCHAIN_FILE_BYTES
+    ):
+        raise AssertionError(label+" metadata invalid")
+    data=canonical.read_bytes()
+    if len(data)!=st.st_size:
+        raise AssertionError(label+" read drift")
+    return {
+        "path":os.fspath(canonical),
+        "bytes":st.st_size,
+        "sha256":sha256(data),
+    }
+
+def resolve_compiler_program(name:str)->Path:
+    raw=capture([os.fspath(CC),"-print-prog-name="+name]).strip()
+    if not raw:
+        raise AssertionError("compiler program missing: "+name)
+    if os.path.isabs(raw):
+        candidate=Path(raw)
+    else:
+        found=shutil.which(raw,path=ENV["PATH"])
+        if not found:
+            raise AssertionError("compiler program unresolved: "+name)
+        candidate=Path(found)
+    return Path(os.path.realpath(candidate))
+
+def static_toolchain_identity()->dict:
+    executables={}
+    requested=Path(os.path.abspath(os.fspath(CC)))
+    executables["cc"]=regular_file_identity(
+        Path(os.path.realpath(requested)),"toolchain cc"
+    )
+    for name in ("cc1","as","collect2","ld"):
+        executables[name]=regular_file_identity(
+            resolve_compiler_program(name),"toolchain "+name
+        )
+    specs=capture([os.fspath(CC),"-dumpspecs"]).encode("utf-8")
+    search=capture([os.fspath(CC),"-print-search-dirs"]).encode("utf-8")
+    return {
+        "executables":executables,
+        "gcc_specs_sha256":sha256(specs),
+        "gcc_search_dirs_sha256":sha256(search),
+    }
+
+def preprocessed_source_identity()->dict[str,str|int]:
+    with tempfile.TemporaryDirectory(
+        prefix="void-apollyon-live-session-preentry-preprocessed-"
+    ) as td:
+        output=Path(td)/"preentry.i"
+        result=subprocess.run(
+            [os.fspath(CC),*PREPROCESS_FLAGS,"-E","-P","-o",os.fspath(output),os.fspath(SOURCE)],
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=30,env=ENV,
+        )
+        if result.returncode!=0:
+            raise AssertionError(
+                "preprocess failed: "+result.stderr.decode("utf-8","replace")[-2000:]
+            )
+        data=bounded_file(output,4*1024*1024,"preprocessed translation unit")
+    return {
+        "bytes":len(data),
+        "sha256":sha256(data),
+    }
+
+def trace_link_inputs(raw:bytes,object_path:Path)->list[dict[str,str|int]]:
+    object_real=os.path.realpath(os.fspath(object_path))
+    discovered={}
+    text=raw.decode("utf-8","replace")
+    for line in text.splitlines():
+        token=line.strip()
+        if not token or not os.path.isabs(token):
+            continue
+        candidate=Path(token)
+        try:
+            real=os.path.realpath(os.fspath(candidate))
+            if real==object_real:
+                continue
+            p=Path(real)
+            if not p.is_file():
+                continue
+            identity=regular_file_identity(p,"link input")
+        except (OSError,AssertionError):
+            continue
+        discovered[identity["path"]]=identity
+    if not discovered:
+        raise AssertionError("static linker trace did not yield regular inputs")
+    return [discovered[key] for key in sorted(discovered)]
 
 def inspect_static_elf(binary:bytes)->dict[str,bool|int]:
     if len(binary)<64 or binary[:4]!=b"\x7fELF":
@@ -197,15 +296,28 @@ def prove_loader_independence(candidate:Path)->dict[str,bool]:
         "hostile_ld_preload_preentry_blocked":True,
     }
 
-def compile_one(output:Path)->tuple[bytes,dict[str,bool|int]]:
-    result=subprocess.run(
-        [os.fspath(CC),*COMPILE_FLAGS,"-o",os.fspath(output),os.fspath(SOURCE)],
+def compile_one(output:Path)->tuple[bytes,dict[str,bool|int],dict]:
+    obj=output.with_suffix(".o")
+    compile_result=subprocess.run(
+        [os.fspath(CC),*COMPILE_FLAGS,"-c","-o",os.fspath(obj),os.fspath(SOURCE)],
         stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=30,env=ENV,
     )
-    if result.returncode!=0:
+    if compile_result.returncode!=0:
         raise AssertionError(
-            "compile failed: "+result.stderr.decode("utf-8","replace")[-2000:]
+            "compile failed: "+compile_result.stderr.decode("utf-8","replace")[-2000:]
         )
+    object_bytes=bounded_file(obj,MAX_BINARY_BYTES,"candidate object")
+    link_result=subprocess.run(
+        [os.fspath(CC),*LINK_FLAGS,"-Wl,-t","-o",os.fspath(output),os.fspath(obj)],
+        stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=30,env=ENV,
+    )
+    if link_result.returncode!=0:
+        raise AssertionError(
+            "link failed: "+link_result.stderr.decode("utf-8","replace")[-2000:]
+        )
+    link_inputs=trace_link_inputs(
+        link_result.stdout+b"\n"+link_result.stderr,obj
+    )
     binary=bounded_file(output,MAX_BINARY_BYTES,"candidate ELF")
     if len(binary)<MIN_BINARY_BYTES or not binary.startswith(b"\x7fELF"):
         raise AssertionError("candidate ELF invalid")
@@ -222,7 +334,13 @@ def compile_one(output:Path)->tuple[bytes,dict[str,bool|int]]:
     stdout=test.stdout.decode("utf-8","strict")
     if stdout!=EXPECTED_SELF_TEST or test.stderr:
         raise AssertionError("preentry self-test transcript mismatch")
-    return binary,elf
+    return binary,elf,{
+        "compile_object":{
+            "bytes":len(object_bytes),
+            "sha256":sha256(object_bytes),
+        },
+        "link_inputs":link_inputs,
+    }
 
 def material(report:dict)->dict:
     return {k:v for k,v in report.items() if k!="candidate_id"}
@@ -232,15 +350,20 @@ def derive()->dict:
     if git_blob_sha1(source)!=EXPECTED_SOURCE_GIT_BLOB_SHA1:
         raise AssertionError("preentry source Git blob mismatch")
     compiler=compiler_identity()
+    toolchain_base=static_toolchain_identity()
+    preprocessed=preprocessed_source_identity()
     with tempfile.TemporaryDirectory(
         prefix="void-apollyon-live-session-preentry-candidate-"
     ) as td:
         root=Path(td)
-        first,first_elf=compile_one(root/"preentry-a")
-        second,second_elf=compile_one(root/"preentry-b")
+        first,first_elf,first_build=compile_one(root/"preentry-a")
+        second,second_elf,second_build=compile_one(root/"preentry-b")
         loader=prove_loader_independence(root/"preentry-a")
-    if first!=second or first_elf!=second_elf:
-        raise AssertionError("two local builds were not byte-identical")
+    if (
+        first!=second or first_elf!=second_elf or
+        first_build!=second_build
+    ):
+        raise AssertionError("two local builds/toolchain closures were not byte-identical")
     base={
         "marker":MARKER,
         "version":1,
@@ -252,11 +375,19 @@ def derive()->dict:
         },
         "compiler":compiler,
         "compile_recipe":{
-            "argv_prefix":[os.fspath(CC),*COMPILE_FLAGS],
+            "compile_argv_prefix":[os.fspath(CC),*COMPILE_FLAGS],
+            "link_argv_prefix":[os.fspath(CC),*LINK_FLAGS],
+            "preprocess_argv_prefix":[os.fspath(CC),*PREPROCESS_FLAGS,"-E","-P"],
             "source_date_epoch":"0",
             "build_id_disabled":True,
             "static_link_required":True,
             "no_pie_required":True,
+        },
+        "toolchain":{
+            **toolchain_base,
+            "preprocessed_translation_unit":preprocessed,
+            "compile_object":first_build["compile_object"],
+            "link_inputs":first_build["link_inputs"],
         },
         "binary":{
             "bytes":len(first),
@@ -300,7 +431,7 @@ def validate(report:dict)->None:
         report,
         (
             "authority","binary","candidate_id","compile_recipe","compiler",
-            "marker","next_gate","self_test","source","status","version",
+            "marker","next_gate","self_test","source","status","toolchain","version",
         ),
         "candidate report",
     )
@@ -332,19 +463,70 @@ def validate(report:dict)->None:
     exact_keys(
         report["compile_recipe"],
         (
-            "argv_prefix","build_id_disabled","no_pie_required",
+            "build_id_disabled","compile_argv_prefix","link_argv_prefix",
+            "no_pie_required","preprocess_argv_prefix",
             "source_date_epoch","static_link_required",
         ),
         "compile recipe",
     )
     if (
-        report["compile_recipe"]["argv_prefix"]!=[os.fspath(CC),*COMPILE_FLAGS] or
+        report["compile_recipe"]["compile_argv_prefix"]!=[os.fspath(CC),*COMPILE_FLAGS] or
+        report["compile_recipe"]["link_argv_prefix"]!=[os.fspath(CC),*LINK_FLAGS] or
+        report["compile_recipe"]["preprocess_argv_prefix"]!=[os.fspath(CC),*PREPROCESS_FLAGS,"-E","-P"] or
         report["compile_recipe"]["source_date_epoch"]!="0" or
         report["compile_recipe"]["build_id_disabled"] is not True or
         report["compile_recipe"]["static_link_required"] is not True or
         report["compile_recipe"]["no_pie_required"] is not True
     ):
         raise AssertionError("compile recipe invalid")
+
+    exact_keys(
+        report["toolchain"],
+        (
+            "compile_object","executables","gcc_search_dirs_sha256",
+            "gcc_specs_sha256","link_inputs","preprocessed_translation_unit",
+        ),
+        "toolchain",
+    )
+    current_base=static_toolchain_identity()
+    if (
+        report["toolchain"]["executables"]!=current_base["executables"] or
+        report["toolchain"]["gcc_specs_sha256"]!=current_base["gcc_specs_sha256"] or
+        report["toolchain"]["gcc_search_dirs_sha256"]!=current_base["gcc_search_dirs_sha256"] or
+        report["toolchain"]["preprocessed_translation_unit"]!=preprocessed_source_identity()
+    ):
+        raise AssertionError("candidate static toolchain identity invalid")
+    compile_object=report["toolchain"]["compile_object"]
+    exact_keys(compile_object,("bytes","sha256"),"compile object")
+    if (
+        type(compile_object["bytes"]) is not int or
+        compile_object["bytes"]<1 or compile_object["bytes"]>MAX_BINARY_BYTES or
+        not isinstance(compile_object["sha256"],str) or
+        HEX64.fullmatch(compile_object["sha256"]) is None
+    ):
+        raise AssertionError("candidate compile object invalid")
+    link_inputs=report["toolchain"]["link_inputs"]
+    if not isinstance(link_inputs,list) or not link_inputs:
+        raise AssertionError("candidate link input closure invalid")
+    previous=""
+    for index,entry in enumerate(link_inputs):
+        exact_keys(entry,("bytes","path","sha256"),"link input")
+        path_text=entry["path"]
+        if (
+            not isinstance(path_text,str) or not os.path.isabs(path_text) or
+            os.path.realpath(path_text)!=path_text or path_text<=previous
+        ):
+            raise AssertionError("candidate link input path invalid")
+        previous=path_text
+        current_identity=regular_file_identity(
+            Path(path_text),"link input "+str(index)
+        )
+        if entry!=current_identity:
+            raise AssertionError("candidate link input identity drift")
+    for digest_key in ("gcc_specs_sha256","gcc_search_dirs_sha256"):
+        digest=report["toolchain"][digest_key]
+        if not isinstance(digest,str) or HEX64.fullmatch(digest) is None:
+            raise AssertionError("candidate toolchain digest invalid")
 
     exact_keys(
         report["binary"],
@@ -445,6 +627,8 @@ def derive_to(output:Path)->None:
     print("pt_interp_absent=true")
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
+    print("static_toolchain_closure_bound=true")
+    print("static_toolchain_closure_bound=true")
     print("candidate_binary_identity_accepted=false")
     print("host_installation=false")
     print("training_execution=false")
@@ -462,8 +646,11 @@ def compare_dir(directory:Path)->None:
     if canonical(report)+"\n"!=payloads[0].decode("utf-8"):
         raise AssertionError("hosted report not canonical")
     local=derive()
-    if report["binary"]!=local["binary"]:
-        raise AssertionError("hosted binary identity differs from local re-derivation")
+    if (
+        report["binary"]!=local["binary"] or
+        report["toolchain"]!=local["toolchain"]
+    ):
+        raise AssertionError("hosted binary/toolchain identity differs from local re-derivation")
     print(MARKER+"_THREE_RUN_GREEN")
     print("candidate_id="+report["candidate_id"])
     print("binary_bytes="+str(report["binary"]["bytes"]))
@@ -474,6 +661,7 @@ def compare_dir(directory:Path)->None:
     print("pt_interp_absent=true")
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
+    print("static_toolchain_closure_bound=true")
     print("candidate_binary_identity_accepted=false")
     print("training_execution=false")
 
