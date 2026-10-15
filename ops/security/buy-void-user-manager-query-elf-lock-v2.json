@@ -1,0 +1,48 @@
+{
+  "schema": "void_buy_void_user_manager_query_elf_lock_v2",
+  "marker": "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2",
+  "version": 2,
+  "repository": "6ZoSo9/void-node",
+  "candidate_head": "6619131d424e4e8e1f589da16e57b454dad7950c",
+  "candidate_hosted_evidence": {
+    "workflow_run": 38735005407,
+    "artifact_a": 11973295334,
+    "artifact_b": 11972720683,
+    "artifact_c": 11973455270,
+    "cross_job_byte_identity_verified": true,
+    "exact_stripped_pair_executed_before_hash": true
+  },
+  "candidate_evidence": {
+    "path": "ops/security/buy-void-user-manager-query-elf-candidate-v2.json",
+    "workflow_path": ".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml",
+    "workflow_git_blob_sha1": "5b21d57c00e5a4d97be1e79356b75e736de949d0",
+    "bytes": 901,
+    "sha256": "bd7b6dccb4ac1948928fa8cf56c9e15ae8a90798599aa67e31748e4f9d18e033",
+    "git_blob_sha1": "57026c4d8ca6cc9a40a3fa61f8cf4ee2c9df47be",
+    "preexec_source_git_blob_sha1": "f0fbfaae97df3294097a281100f06ada2ef157ff",
+    "query_source_git_blob_sha1": "ad49cd7f71c41e0f559a561b5a62a00cec60c215",
+    "peer_source_git_blob_sha1": "d8b30ac499c3bb8a5d223dbc6be687dd175be611",
+    "preexec_binary_sha256": "8963c77f02c83c04c386912525b7c6177a6ef99507c7f85113c8b7c74e245c11",
+    "preexec_binary_bytes": 706504,
+    "preexec_static_no_interp": true,
+    "query_binary_sha256": "3b0e03ab00f3e763e9e8525e2a732a6b43cf4e02bb8c72b3aae06d9097c54b3f",
+    "query_binary_bytes": 38968,
+    "cc_sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+    "strip_sha256": "0d980587ada7ab12193f39271f060d5663aa2f289b0e80d2a0274ce7306e4e42"
+  },
+  "predecessor_lock": {
+    "path": "ops/security/buy-void-user-manager-query-elf-lock-v1.json",
+    "git_blob_sha1": "4f255dbc98ac4b65fb4e6433f4e7aee7b86351db",
+    "lock_id": "voidbuyumqelflock1_0b0b791995f7a3346c3562387e211e9e2bb54ca6a050a964950e70a0e4cd1a16"
+  },
+  "manager_reexec_deserialize_argv_accepted": true,
+  "candidate_accepted": true,
+  "install_authorized": false,
+  "protected_install_performed": false,
+  "complete_host_evidence_collector": false,
+  "production_host_evidence_authority": false,
+  "payment_acceptance": false,
+  "public_presale_activation": false,
+  "funds_movement": false,
+  "lock_id": "voidbuyumqelflock2_fa3cd31d2ba07c17daeb0dcea725dc72ad461af0afc6e336079be25b34e2b89c"
+}
