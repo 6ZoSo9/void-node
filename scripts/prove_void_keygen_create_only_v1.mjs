@@ -14,6 +14,8 @@ assert.ok(keygenSource.includes("import * as crypto from 'node:crypto';"));
 assert.ok(keygenSource.includes("import * as fs from 'node:fs';"));
 assert.equal(keygenSource.includes("require("), false);
 assert.equal(keygenSource.includes("exports"), false);
+assert.equal(keygenSource.includes("unlinkSync"), false);
+assert.equal(keygenSource.includes("rmSync"), false);
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "void-keygen-create-only-"));
 
 function run(...args) {
