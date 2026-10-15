@@ -352,7 +352,9 @@ function runSealedProbe(expectedHead){
       try{
         const held=JSON.parse(String(r.stderr||""));
         if(held&&typeof held.reason==="string")reason=held.reason;
-      }catch{}
+      }catch(parseError){
+        if(parseError instanceof Error)void parseError.message;
+      }
       throw new Error(reason);
     }
     if(r.stderr!=="")throw new Error("sealed_probe_unexpected_stderr");
