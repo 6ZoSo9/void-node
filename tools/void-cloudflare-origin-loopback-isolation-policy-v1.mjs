@@ -20,6 +20,11 @@ export const VOID_CLOUDFLARE_ORIGIN_LOOPBACK_ISOLATION_POLICY_AUTHORITY_V1 =
     ipv4_loopback_only_required: true,
     closed_world_listener_sets_required: true,
     root_owned_ruleset_required: true,
+    zero_effective_capability_sets_required: true,
+    zero_permitted_capability_sets_required: true,
+    zero_inheritable_capability_sets_required: true,
+    zero_ambient_capability_sets_required: true,
+    zero_bounding_capability_sets_required: true,
     root_equivalent_bypass_out_of_scope: true,
     live_host_evidence_verified: false,
     cloudflared_process_live_verified: false,
@@ -139,6 +144,11 @@ function exactSensitivePaths(value) {
   return Object.freeze([...value]);
 }
 
+function emptyCapabilitySet(value, code) {
+  if (!Array.isArray(value) || value.length !== 0) fail(code);
+  return Object.freeze([]);
+}
+
 function serviceIdentity(value, label, expectedUnit) {
   const service = exactKeys(
     value,
@@ -149,6 +159,11 @@ function serviceIdentity(value, label, expectedUnit) {
       "effective_gid",
       "cap_net_admin",
       "no_new_privileges",
+      "capabilities_effective",
+      "capabilities_permitted",
+      "capabilities_inheritable",
+      "capabilities_ambient",
+      "capabilities_bounding",
     ],
     label + "_shape_invalid",
   );
@@ -179,6 +194,26 @@ function serviceIdentity(value, label, expectedUnit) {
     service.no_new_privileges,
     true,
     label + "_no_new_privileges_required",
+  );
+  emptyCapabilitySet(
+    service.capabilities_effective,
+    label + "_effective_capabilities_forbidden",
+  );
+  emptyCapabilitySet(
+    service.capabilities_permitted,
+    label + "_permitted_capabilities_forbidden",
+  );
+  emptyCapabilitySet(
+    service.capabilities_inheritable,
+    label + "_inheritable_capabilities_forbidden",
+  );
+  emptyCapabilitySet(
+    service.capabilities_ambient,
+    label + "_ambient_capabilities_forbidden",
+  );
+  emptyCapabilitySet(
+    service.capabilities_bounding,
+    label + "_bounding_capabilities_forbidden",
   );
   return service;
 }
@@ -267,6 +302,11 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
         effective_gid: input.cloudflared?.effective_gid,
         cap_net_admin: input.cloudflared?.cap_net_admin,
         no_new_privileges: input.cloudflared?.no_new_privileges,
+        capabilities_effective: input.cloudflared?.capabilities_effective,
+        capabilities_permitted: input.cloudflared?.capabilities_permitted,
+        capabilities_inheritable: input.cloudflared?.capabilities_inheritable,
+        capabilities_ambient: input.cloudflared?.capabilities_ambient,
+        capabilities_bounding: input.cloudflared?.capabilities_bounding,
       },
       "cloudflare_isolation_cloudflared",
       TUNNEL_SERVICE_UNIT,
@@ -280,6 +320,11 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
         "effective_gid",
         "cap_net_admin",
         "no_new_privileges",
+        "capabilities_effective",
+        "capabilities_permitted",
+        "capabilities_inheritable",
+        "capabilities_ambient",
+        "capabilities_bounding",
         "public_hostname",
         "sensitive_origin_host",
         "sensitive_origin_port",
@@ -369,6 +414,11 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
         effective_gid: input.adapter?.effective_gid,
         cap_net_admin: input.adapter?.cap_net_admin,
         no_new_privileges: input.adapter?.no_new_privileges,
+        capabilities_effective: input.adapter?.capabilities_effective,
+        capabilities_permitted: input.adapter?.capabilities_permitted,
+        capabilities_inheritable: input.adapter?.capabilities_inheritable,
+        capabilities_ambient: input.adapter?.capabilities_ambient,
+        capabilities_bounding: input.adapter?.capabilities_bounding,
       },
       "cloudflare_isolation_adapter",
       ADAPTER_SERVICE_UNIT,
@@ -382,6 +432,11 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
         "effective_gid",
         "cap_net_admin",
         "no_new_privileges",
+        "capabilities_effective",
+        "capabilities_permitted",
+        "capabilities_inheritable",
+        "capabilities_ambient",
+        "capabilities_bounding",
         "runtime_marker",
         "listen_host",
         "listen_port",
@@ -421,6 +476,11 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
         effective_gid: input.dispatcher?.effective_gid,
         cap_net_admin: input.dispatcher?.cap_net_admin,
         no_new_privileges: input.dispatcher?.no_new_privileges,
+        capabilities_effective: input.dispatcher?.capabilities_effective,
+        capabilities_permitted: input.dispatcher?.capabilities_permitted,
+        capabilities_inheritable: input.dispatcher?.capabilities_inheritable,
+        capabilities_ambient: input.dispatcher?.capabilities_ambient,
+        capabilities_bounding: input.dispatcher?.capabilities_bounding,
       },
       "cloudflare_isolation_dispatcher",
       DISPATCHER_SERVICE_UNIT,
@@ -434,6 +494,11 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
         "effective_gid",
         "cap_net_admin",
         "no_new_privileges",
+        "capabilities_effective",
+        "capabilities_permitted",
+        "capabilities_inheritable",
+        "capabilities_ambient",
+        "capabilities_bounding",
         "runtime_marker",
         "listen_host",
         "listen_port",
@@ -566,6 +631,11 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
       cloudflared_to_adapter_policy_shape_qualified: true,
       adapter_to_dispatcher_policy_shape_qualified: true,
       closed_world_listener_sets_required: true,
+      zero_effective_capability_sets_required: true,
+      zero_permitted_capability_sets_required: true,
+      zero_inheritable_capability_sets_required: true,
+      zero_ambient_capability_sets_required: true,
+      zero_bounding_capability_sets_required: true,
       public_hostname: PUBLIC_HOSTNAME,
       sensitive_paths: sensitivePaths,
       tunnel_service_unit: TUNNEL_SERVICE_UNIT,
