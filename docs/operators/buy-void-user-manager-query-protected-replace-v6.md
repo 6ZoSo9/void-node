@@ -29,7 +29,9 @@ The installed V2 identity is historical host evidence from lock
 
 Accepted lock:
 
-`voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6`.
+`voidbuyumqelflock6_cede427c177e309cf23364b9092f3cbba63be405ad6458cc0c8ef93bc09abd77`.
+
+The corrected lock records V5 as superseded by the V6 candidate generation only; it explicitly requires `superseded_by_live_v6=false`. The replacement contract therefore does not rely on a nonexistent prior V6 live execution.
 
 V6 query:
 
