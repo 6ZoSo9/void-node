@@ -116,7 +116,7 @@ try{
   assert.throws(
     ()=>prepareFrozenIngressV1({
       ...request, output_dir:path.join(temp,"frozen-v1-negative")}),
-    /VOIDCHAIN_INGRESS_REVIEWED_SOURCE_BLOB_DRIFT:ops\/public\/void-public-app-composition-gateway-v1\.mjs/u,
+    /VOIDCHAIN_INGRESS_REVIEWED_SOURCE_BLOB_DRIFT:ops\/public\/void-public-frontdoor-v1\.mjs/u,
     "historical V1 source authority must reject the reviewed V2 gateway",
   );
   assert.equal(fs.existsSync(path.join(temp,"frozen-v1-negative")),false);
