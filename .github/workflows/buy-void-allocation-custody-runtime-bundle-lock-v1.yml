@@ -1,0 +1,112 @@
+name: VOID Buy custody runtime bundle acceptance lock v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_bundle_lock_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-runtime-bundle-lock-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-bundle-lock-v1.yml"
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_runtime_bundle_candidate_v1.mjs"
+      - ".github/workflows/buy-void-allocation-custody-runtime-bundle-candidate-v1.yml"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: custody bundle lock / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact lock without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile exact source tree
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - name: Prove exact hosted candidate and acceptance lock
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_buy_allocation_custody_runtime_bundle_lock_v1.mjs
+          node scripts/prove_void_buy_allocation_custody_runtime_bundle_lock_v1.mjs --self-test |
+            tee "$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_LOCK_V1_GREEN' "$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          grep -Fx 'candidate_id=voidbuycustodybundle1_2339d565cc1c298a3f7ca9cae2ef163831288007bb32d9e7c37c01880aaee704' "$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          grep -Fx 'candidate_sha256=5ee2b5e5fc25a7cec8313c7cb7c4cd8bb675e3652ab18dc614577a25376f2279' "$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          grep -Fx 'candidate_accepted=true' "$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          grep -Fx 'immutable_root_install=false' "$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          grep -Fx 'runtime_integration=false' "$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/custody-bundle-lock-proof.txt"
+          lock="$RUNNER_TEMP/custody-bundle-lock-node-${{ matrix.node }}.json"
+          node scripts/prove_void_buy_allocation_custody_runtime_bundle_lock_v1.mjs --derive > "$lock"
+          cmp "$lock" ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-bundle-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/custody-bundle-lock-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
+
+  cross-node:
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-bundle-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: locks
+      - name: Require exact cross-node lock bytes
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "locks/custody-bundle-lock-node-$v.json"
+          done
+          cmp locks/custody-bundle-lock-node-22.json locks/custody-bundle-lock-node-24.json
+          cmp locks/custody-bundle-lock-node-22.json locks/custody-bundle-lock-node-26.json
+          echo VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_LOCK_V1_THREE_NODE_GREEN
