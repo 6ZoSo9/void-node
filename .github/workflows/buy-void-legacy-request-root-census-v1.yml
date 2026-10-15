@@ -41,6 +41,7 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1_PROOF_GREEN' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'v1_topology_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'v2_designated_host_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'v2_fail_closed_manager_auth_successor_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'designated_runtime_user_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'ambient_home_not_used_for_repo_candidate=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'stable_release_inventory_required=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
