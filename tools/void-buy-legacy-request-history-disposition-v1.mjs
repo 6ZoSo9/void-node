@@ -21,6 +21,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_AUTHORITY_V1 =
     technical_historical_origin_proven: false,
     technical_candidate_set_completeness_proven: false,
     bounded_current_candidate_set_required_for_disposition: true,
+    designated_runtime_user_required: true,
     process_environment_access_forbidden: true,
     external_network_access_forbidden: true,
     cryptographic_never_used_proof_claimed: false,
@@ -46,6 +47,7 @@ const INPUT_KEYS=Object.freeze([
   "metadata_census_sha256",
   "metadata_census_source_head",
   "designated_hostname_matches",
+  "designated_runtime_user_matches",
   "designated_machine_id_matches",
   "bounded_current_candidate_set_observed",
   "process_environment_access",
@@ -99,7 +101,11 @@ export function classifyVoidBuyVoidLegacyHistoryDispositionCandidateV1(input){
     if(!SHA1.test(String(v.metadata_census_source_head||""))){
       fail("legacy_history_disposition_census_source_head_invalid");
     }
-    if(v.designated_hostname_matches!==true||v.designated_machine_id_matches!==true){
+    if(
+      v.designated_hostname_matches!==true||
+      v.designated_runtime_user_matches!==true||
+      v.designated_machine_id_matches!==true
+    ){
       fail("legacy_history_disposition_designated_host_unbound");
     }
     if(
@@ -165,6 +171,7 @@ export function classifyVoidBuyVoidLegacyHistoryDispositionCandidateV1(input){
       metadata_census_sha256:v.metadata_census_sha256,
       metadata_census_source_head:v.metadata_census_source_head,
       designated_hostname_matches:true,
+      designated_runtime_user_matches:true,
       designated_machine_id_matches:true,
       bounded_current_candidate_set_observed:
         v.bounded_current_candidate_set_observed===true,
