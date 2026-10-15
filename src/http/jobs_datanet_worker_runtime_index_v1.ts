@@ -474,6 +474,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           rawRecordBytes.length >
           VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
         ) {
+          this.rejectJobsSourceV1("jobs_record_too_large");
           throw new Error(
             `VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE file=${input.jobsFile}`,
           );
@@ -491,6 +492,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         try {
           line = decoder.decode(recordBytes).trim();
         } catch {
+          this.rejectJobsSourceV1("jobs_invalid_utf8");
           throw new Error(
             `VOID_JOBS_DATANET_WORKER_INVALID_UTF8 file=${input.jobsFile}`,
           );
@@ -546,6 +548,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         this.jobsCarry.length >
         VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
       ) {
+        this.rejectJobsSourceV1("jobs_record_too_large");
         throw new Error(
           `VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE file=${input.jobsFile}`,
         );
