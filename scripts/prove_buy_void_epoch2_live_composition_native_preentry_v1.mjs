@@ -75,8 +75,141 @@ function git(args) {
 }
 
 
+function sameFsIdentity(left, right) {
+  return left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode;
+}
+
+function mountInfoPath(raw) {
+  return String(raw).replace(/\\([0-7]{3})/gu, (_match, octal) =>
+    String.fromCharCode(Number.parseInt(octal, 8)),
+  );
+}
+
+function requireDelegatedPrivateNamespace() {
+  assert.equal(
+    process.env[PRIVATE_OPT_FIXTURE_ENV],
+    "1",
+    "delegated namespace marker missing",
+  );
+  assert.equal(
+    typeof process.getuid === "function" && process.getuid() !== 0,
+    true,
+    "delegated proof must run as the original unprivileged uid",
+  );
+
+  const parentExe = fs.realpathSync.native(
+    "/proc/" + String(process.ppid) + "/exe",
+  );
+  assert.equal(
+    parentExe,
+    "/usr/bin/unshare",
+    "delegated proof parent must be fixed /usr/bin/unshare",
+  );
+  const parentStatus = fs.readFileSync(
+    "/proc/" + String(process.ppid) + "/status",
+    "utf8",
+  );
+  assert.match(
+    parentStatus,
+    /^Uid:\s+0\s+0\s+0\s+0\s*$/mu,
+    "delegated unshare parent must remain root",
+  );
+
+  const selfMountNs = fs.statSync("/proc/self/ns/mnt", { bigint: true });
+  const initMountNs = fs.statSync("/proc/1/ns/mnt", { bigint: true });
+  assert.notEqual(
+    selfMountNs.ino,
+    initMountNs.ino,
+    "delegated proof must execute in a private mount namespace",
+  );
+
+  const bootstrapRoot = path.dirname(process.execPath);
+  assert.equal(
+    path.dirname(bootstrapRoot),
+    os.tmpdir(),
+    "delegated harness root must be directly beneath the system temp root",
+  );
+  assert.match(
+    path.basename(bootstrapRoot),
+    /^void-e2-private-opt-v1-[A-Za-z0-9_-]+$/u,
+    "delegated harness root name invalid",
+  );
+  assert.equal(
+    path.basename(process.execPath),
+    "node",
+    "delegated harness executable name invalid",
+  );
+
+  const backingOpt = path.join(bootstrapRoot, "opt");
+  const backingHome = path.join(bootstrapRoot, "home");
+  const backingRepo = path.join(bootstrapRoot, "repo");
+  for (const [visible, backing] of [
+    ["/opt", backingOpt],
+    ["/home", backingHome],
+  ]) {
+    const visibleStat = fs.lstatSync(visible, { bigint: true });
+    const backingStat = fs.lstatSync(backing, { bigint: true });
+    assert.equal(
+      visibleStat.isDirectory() && !visibleStat.isSymbolicLink(),
+      true,
+      visible + " delegated mount must be a direct directory",
+    );
+    assert.equal(
+      backingStat.isDirectory() && !backingStat.isSymbolicLink(),
+      true,
+      backing + " delegated backing must be a direct directory",
+    );
+    assert.equal(
+      sameFsIdentity(visibleStat, backingStat),
+      true,
+      visible + " must resolve to its private bootstrap backing generation",
+    );
+    assert.equal(
+      visibleStat.uid,
+      0n,
+      visible + " private backing must be root-owned",
+    );
+    assert.equal(
+      (visibleStat.mode & 0o022n) === 0n,
+      true,
+      visible + " private backing must not be group/world writable",
+    );
+  }
+
+  assert.equal(
+    path.resolve(ROOT),
+    backingRepo,
+    "delegated proof cwd must be the private checkout mirror",
+  );
+  const mountLines = fs.readFileSync("/proc/self/mountinfo", "utf8")
+    .split("\n")
+    .filter(Boolean);
+  const repoMount = mountLines
+    .map((line) => {
+      const fields = line.split(" ");
+      return {
+        mountPoint: mountInfoPath(fields[4] || ""),
+        options: String(fields[5] || "").split(","),
+      };
+    })
+    .find((entry) => entry.mountPoint === backingRepo);
+  assert.ok(repoMount, "private checkout mirror mount missing");
+  assert.equal(
+    repoMount.options.includes("ro"),
+    true,
+    "private checkout mirror must be read-only",
+  );
+}
+
 function enterPrivateOptFixtureNamespace() {
-  if (process.env[PRIVATE_OPT_FIXTURE_ENV] === "1") return;
+  if (process.env[PRIVATE_OPT_FIXTURE_ENV] === "1") {
+    requireDelegatedPrivateNamespace();
+    return;
+  }
 
   assert.equal(
     typeof process.getuid === "function" && typeof process.getgid === "function",
@@ -864,6 +997,7 @@ console.log("fixed_checkout_parent_host_mutation=false");
 console.log("private_opt_mount_namespace=true");
 console.log("private_home_mount_namespace=true");
 console.log("host_fixed_mountpoints_preflight_read_only=true");
+console.log("delegated_namespace_kernel_state_verified=true");
 console.log(
   "private_opt_mount_namespace_fixture=" +
     String(privateOptNamespaceFixture),
