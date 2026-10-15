@@ -78,9 +78,10 @@ daemon-reload client failure/timeout reports the command outcome as
 `indeterminate`, never as a proven failed reload; the recovery snapshot
 classifies what PID1 actually exposes. Fault tests cover failure after helper
 creation, after service replacement/parent fsync, at daemon-reload, and at
-loaded postcheck, and mutation-boundary dormancy drift before the first
-publication. The latter requires zero helper/service publication and zero
-daemon-reload attempts. The tests then prove idempotent resume without any
+loaded postcheck, and mutation-boundary dormancy drift before helper
+publication, service-unit replacement, and daemon-reload. Each drift adversary
+requires the affected publication/reload primitive to remain uncalled. The
+tests then prove idempotent resume without any
 target/service start or stop.
 
 No service/target start or stop is issued. No socket is touched during this
