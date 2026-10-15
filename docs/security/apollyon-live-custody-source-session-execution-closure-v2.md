@@ -37,7 +37,10 @@ return to exact `loaded/inactive/dead/MainPID=0/static` state after the bounded
 stop attempt. The exact training PID/start-ticks generation observed during the
 session must also be absent before success output. A nonzero stop command is
 not itself treated as success or failure authority; only the exact terminal
-state and generation disappearance qualify the cleanup boundary. Active,
+state and generation disappearance qualify the cleanup boundary. Cleanup is
+armed before the start command is issued, so a timeout, client error, or other
+indeterminate start result still triggers a bounded stop plus exact dormant
+postcondition check. Active,
 deactivating, failed, nonzero-MainPID, enabled/non-static, or lingering exact
 process-generation states HOLD.
 

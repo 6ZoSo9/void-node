@@ -289,6 +289,14 @@ function waitTrainingServiceDormant(generation){
   }
   fail("apollyon_live_runner_training_stop_transition_unproven");
 }
+function stopTrainingAndAttest(generation){
+  try{runSystemctl(["stop",TRAINING_UNIT],false);}
+  catch{
+    // Client outcome is not cleanup authority. Exact manager/process
+    // postconditions below decide whether cleanup is proven.
+  }
+  return waitTrainingServiceDormant(generation);
+}
 function waitTrainingEntrypoint(){
   const deadline=Date.now()+5000;
   while(Date.now()<deadline){
@@ -555,6 +563,7 @@ function selfTest(){
   process.stdout.write(VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2+"_SELF_TEST=GREEN\n");
   process.stdout.write("live_worktree_invocation_supported=false\n");
   process.stdout.write("training_service_start_stop=true\n");
+  process.stdout.write("training_start_attempt_cleanup_required=true\n");
   process.stdout.write("training_service_exact_dormancy_required=true\n");
   process.stdout.write("training_generation_absence_required=true\n");
   process.stdout.write("custody_loader_environment_seven_name_boundary=true\n");
@@ -577,7 +586,7 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
   const stateRoot=openPinnedDirectory(config.state_root,0o700,"apollyon_live_runner_state_root_invalid");
   let consumed=null;
   let prepared=null;
-  let trainingStarted=false;
+  let trainingStartAttempted=false;
   let training=null;
   try{
     consumed=openPinnedDirectory(
@@ -587,8 +596,8 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
     const socketBefore=socketIdentity(config.socket_path);
     const custodyBefore=custodyServiceIdentity(config);
 
+    trainingStartAttempted=true;
     runSystemctl(["start",TRAINING_UNIT]);
-    trainingStarted=true;
     training=waitTrainingEntrypoint();
 
     const isolation=runIsolationObserver(training.pid);
@@ -691,9 +700,8 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
     });
   }finally{
     try{
-      if(trainingStarted){
-        runSystemctl(["stop",TRAINING_UNIT],false);
-        waitTrainingServiceDormant(training);
+      if(trainingStartAttempted){
+        stopTrainingAndAttest(training);
       }
     }finally{
       try{

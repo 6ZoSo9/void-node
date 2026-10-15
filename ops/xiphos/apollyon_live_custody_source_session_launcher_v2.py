@@ -23,7 +23,7 @@ RUN_PARENT=Path("/run")
 NODE=Path("/opt/void-apollyon-node-runtime-v1/node")
 RUNNER_REL="tools/apollyon-live-custody-source-session-runner-v2.mjs"
 REVIEWED_FILES={
-    RUNNER_REL:"31a2351b2d39ce0bb9d4f09b579ffc1bfe622523",
+    RUNNER_REL:"a702c5da4e68b018987127252be9879b960916e5",
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
