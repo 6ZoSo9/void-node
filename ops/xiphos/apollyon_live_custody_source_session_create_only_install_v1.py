@@ -27,7 +27,7 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="029ebeb82373ed8fea41e971c5ff940d526bf1e9"
+MANIFEST_BLOB="809234fd8877992e1804c83ba7a3d0552bec22cb"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
@@ -43,7 +43,7 @@ LIVE_LAUNCHER_BLOB="8e92a3337c9a4bba21fab6299e9e2ceb61d3e425"
 PREENTRY_SOURCE_REL="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 PREENTRY_SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 LIFECYCLE_REL="ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py"
-LIFECYCLE_BLOB="6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5"
+LIFECYCLE_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"
 
 EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"
 NODE_RUNTIME=Path("/opt/void-apollyon-node-runtime-v1/node")
