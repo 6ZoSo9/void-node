@@ -120,6 +120,32 @@ def account_ids() -> tuple[int, int]:
         raise Hold("training_account_missing") from exc
     return row.pw_uid, row.pw_gid
 
+def boot_id_sha256() -> str:
+    raw = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="ascii").strip()
+    if not raw or len(raw) > 128:
+        hold("boot_id_invalid")
+    return sha256(raw.encode("ascii"))
+
+def process_start_time_ticks_from_text(text: str) -> int:
+    close = text.rfind(")")
+    if close < 0:
+        hold("process_stat_invalid")
+    fields = text[close + 2:].split()
+    if len(fields) < 20:
+        hold("process_stat_invalid")
+    try:
+        value = int(fields[19])
+    except ValueError as exc:
+        raise Hold("process_start_time_invalid") from exc
+    if value <= 0:
+        hold("process_start_time_invalid")
+    return value
+
+def process_start_time_ticks(pid: int) -> int:
+    return process_start_time_ticks_from_text(
+        Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+    )
+
 def verify_installed_materials() -> dict[str, Any]:
     unit = read_exact_regular(UNIT_PATH, mode=0o644)
     preentry = read_exact_regular(PREENTRY_PATH, mode=0o755, exact_bytes=EXPECTED_PREENTRY_BYTES)
@@ -203,9 +229,13 @@ def live_qualify() -> dict[str, Any]:
         cgroup = Path(f"/proc/{mainpid}/cgroup").read_text(encoding="utf-8")
         if f"/system.slice/{UNIT}" not in cgroup:
             hold("live_cgroup_mismatch")
+        observed_boot_id_sha256 = boot_id_sha256()
+        observed_start_time_ticks = process_start_time_ticks(mainpid)
 
         live = {
             "mainpid": mainpid,
+            "boot_id_sha256": observed_boot_id_sha256,
+            "process_start_time_ticks": observed_start_time_ticks,
             "entrypoint_path": os.fspath(ENTRYPOINT_PATH),
             "uid_slots": list(uids),
             "gid_slots": list(gids),
@@ -258,6 +288,8 @@ def self_test() -> None:
     assert AUTHORITY["training_execution"] is False
     assert AUTHORITY["attempt_claim"] is False
     assert AUTHORITY["service_enable"] is False
+    stat_fixture = "123 (entry v1) S " + " ".join(str(i) for i in range(1, 40))
+    assert process_start_time_ticks_from_text(stat_fixture) == 20
     print(MARKER + "_SELF_TEST=GREEN")
     print("source_only_by_import=true")
     print("live_service_action_requires_explicit_flag=true")

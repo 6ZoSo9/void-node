@@ -23,11 +23,18 @@ designated host boundary:
 - all real/effective/saved/fs UID and GID slots equal the dedicated identity;
 - `NoNewPrivs=1`;
 - inherited, permitted, effective, bounding and ambient capability sets all zero;
-- no inherited descriptor at fd 3 or above; and
-- the process living in the expected system service cgroup.
+- no inherited descriptor at fd 3 or above;
+- the process living in the expected system service cgroup;
+- the current Linux boot ID, bound as SHA-256; and
+- the live process start-time ticks from /proc/<pid>/stat field 22.
 
 The qualifier stops the service before returning and rechecks that it did not
 become enabled.
+
+The boot-ID digest plus PID plus process start-time ticks form the downstream
+generation binding. A later V2 composer must require all three to equal the
+training-process generation in its custody evidence; this receipt cannot be
+reused for a different start of the same unit.
 
 ## Why the exec-transition wait matters
 
