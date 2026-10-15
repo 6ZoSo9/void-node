@@ -16,6 +16,8 @@ for required in (
     'st.st_nlink!=2',
     'wait_socket(False)',
     'consumed_state_unchanged',
+    'first_generation=(observations[0]["live"]["pid"],observations[0]["live"]["start_ticks"])',
+    'second_generation=(observations[1]["live"]["pid"],observations[1]["live"]["start_ticks"])',
     'restart_safe_second_cycle_proven',
 ):
     assert required in source,required

@@ -320,7 +320,9 @@ def qualify()->dict:
             stopped=stop_and_attest(ids)
             observations[-1]["stopped"]=stopped
             target_maybe_started=False
-        if observations[0]["live"]["start_ticks"]==observations[1]["live"]["start_ticks"]:
+        first_generation=(observations[0]["live"]["pid"],observations[0]["live"]["start_ticks"])
+        second_generation=(observations[1]["live"]["pid"],observations[1]["live"]["start_ticks"])
+        if first_generation==second_generation:
             hold("custody_process_generation_not_renewed")
         if consumed_snapshot()!=consumed_before:
             hold("consumed_state_changed")
