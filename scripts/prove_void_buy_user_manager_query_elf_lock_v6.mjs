@@ -11,6 +11,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const CANDIDATE_HEAD="d7ebb60ca1bc59f16972ffe3671dfaa44ffb7cdf";
 const SOURCE_PARENT="0d635ccd9d07fd07bb086bef3202b8b67ec6e5f7";
 const CORRECTION_BASE_HEAD="a681546a3182d5f6f0c6d60e327546a6d7dcec30";
+const CORRECTION_HEAD="5efc57ddc8382259e470d65c9be8140be445434a";
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v6.yml";
 const CANDIDATE_WORKFLOW_BLOB="fe914ecbf81fd6c42ad25e3b5ebf70b7623dbee4";
 const PREEXEC_SOURCE="ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c";
@@ -205,18 +206,36 @@ function expectedLock(){
   assert.equal(id,LOCK_ID);
   return Object.freeze({...body,lock_id:id});
 }
-function verifyBranch(){
+function verifyRepositoryState(){
   git(["merge-base","--is-ancestor",CANDIDATE_HEAD,"HEAD"]);
   git(["merge-base","--is-ancestor",SOURCE_PARENT,"HEAD"]);
-  git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,"HEAD"]);
+  git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,CORRECTION_HEAD]);
+  git(["merge-base","--is-ancestor",CORRECTION_HEAD,"HEAD"]);
 
-  const changed=git(["diff","--name-only",CORRECTION_BASE_HEAD,"HEAD","--"])
+  // The eight-file truth correction is a historical branch-scope fact about
+  // the accepted #3143 head. Do not compare integrated main HEAD to the old
+  // correction base: unrelated later main changes are outside this lock gate.
+  const changed=git(["diff","--name-only",CORRECTION_BASE_HEAD,CORRECTION_HEAD,"--"])
     .split("\n").filter(Boolean).sort();
   assert.deepEqual(
     changed,
     EXPECTED_CORRECTION_DELTA,
-    "lock_v6_truth_correction_scope_drift",
+    "lock_v6_historical_truth_correction_scope_drift",
   );
+
+  // Every exact replacement-consumer blob pinned below is an input to this
+  // lock. Its workflow must run when any of those inputs changes, on both PR
+  // and main-push events.
+  const workflowText=read(WORKFLOW,64*1024).toString("utf8");
+  for(const relative of Object.keys(EXPECTED_REPLACEMENT_BLOBS)){
+    const triggerNeedle='      - "'+relative+'"';
+    const triggerCount=workflowText.split(triggerNeedle).length-1;
+    assert.equal(
+      triggerCount,
+      2,
+      "replacement_consumer_trigger_coverage_drift:"+relative,
+    );
+  }
 
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_FILE]),CANDIDATE_BLOB);
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_WORKFLOW]),CANDIDATE_WORKFLOW_BLOB);
@@ -282,7 +301,7 @@ function rederiveBinaries(){
   }
 }
 function verify(){
-  verifyBranch();
+  verifyRepositoryState();
   exactCandidateBytes();
   const binaries=rederiveBinaries();
   const lock=expectedLock();
@@ -301,6 +320,8 @@ if(args.length===1&&args[0]==="--derive"){
   console.log("candidate_sha256="+CANDIDATE_SHA256);
   console.log("preexec_binary_sha256="+v.binaries.preexec_sha256);
   console.log("query_binary_sha256="+v.binaries.query_sha256);
+  console.log("historical_correction_scope_pinned_to_merged_head=true");
+  console.log("replacement_consumer_trigger_coverage_complete=true");
   console.log("control_group_service_interface_required=true");
   console.log("kernel_cap_last_cap_projection_required=true");
   console.log("configured_kernel_bounding_set_projection_required=true");
