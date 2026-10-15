@@ -407,3 +407,12 @@ custody, finality or repair gates. #1314 remains a separate Draft reconciliation
 lane. Future verifier, custody, policy and publication integration must follow
 the accepted Boundary successor and its independent-review and designated-host
 requirements. No Ready/merge or operational authority is granted here.
+
+## Registry-bound canonical commitment
+
+`VOID_DATANET_CHAIN_COMMITMENT_V1` now includes the exact production
+`registry_address`. Peer-reconstruction validation requires
+`0xe60b15ed8df7c4ec5334067ead18c924744c2681` and includes that address in
+`commitment_id` derivation. Reconstruction therefore cannot drop the registry
+identity after canonical truth admission or accept a commitment reference for a
+different contract generation.
