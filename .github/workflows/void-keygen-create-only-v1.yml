@@ -60,6 +60,26 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Typecheck keygen source and reproduce checked-in executable
+        run: |
+          set -euo pipefail
+          keygen_out="$RUNNER_TEMP/keygen-ts-emit"
+          rm -rf "$keygen_out"
+          npx tsc scripts/keygen.ts \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --strict \
+            --skipLibCheck \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --noEmitOnError true \
+            --outDir "$keygen_out"
+          cmp "$keygen_out/keygen.js" scripts/keygen.js
+
       - name: Repository typecheck
         run: npm run typecheck -- --pretty false
 

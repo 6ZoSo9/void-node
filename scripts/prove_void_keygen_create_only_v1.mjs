@@ -9,6 +9,11 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const keygen = path.join(root, "scripts", "keygen.js");
+const keygenSource = fs.readFileSync(keygen, "utf8");
+assert.match(keygenSource, /^import \\* as crypto from ['"]node:crypto['"];$/m);
+assert.match(keygenSource, /^import \\* as fs from ['"]node:fs['"];$/m);
+assert.doesNotMatch(keygenSource, /\\brequire\\s*\\(/);
+assert.doesNotMatch(keygenSource, /\\bexports\\b/);
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "void-keygen-create-only-"));
 
 function run(...args) {
