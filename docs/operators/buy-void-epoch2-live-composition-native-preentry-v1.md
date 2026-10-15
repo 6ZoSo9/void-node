@@ -169,15 +169,12 @@ creating any checkout-parent fixture it requires both `/home/zoso` and
 ancestry. It then creates those disposable parents and materializes the fixed
 checkout path as a link to the exact hosted checkout.
 
-Production/operator proof execution never normalizes an unsafe `/opt`
-ancestor. The hosted positive fixture has one CI-only exception because the
-GitHub Ubuntu image may expose `/opt` with metadata that intentionally fails
-the production custody predicate: only when the GitHub-hosted
-`GITHUB_ACTIONS=true`, `CI=true`, and canonical runner-temp boundary are
-present, the proof captures the existing `/opt` device/inode/uid/gid/mode,
-temporarily normalizes it for the disposable fixture, and restores and
-revalidates that exact metadata in `finally`. Failure to restore is a proof
-failure.
+The proof never normalizes an unsafe `/opt` ancestor. Before any protected
+fixture write, it requires both `/` and `/opt` to already be direct
+(non-symlink) root-owned directories with no group/world write permission.
+Any other host shape fails closed before fixture mutation. No CI environment
+variable, runner-temp path, or caller-controlled hosted marker can authorize a
+`chown`/`chmod` exception, and the proof never changes `/opt` metadata.
 
 A real native `/dev/null` invocation must clear the parent-proof gates,
 execute the real runtime-user transition, and reach the later expected Git
