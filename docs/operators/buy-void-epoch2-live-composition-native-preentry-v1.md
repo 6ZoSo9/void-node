@@ -195,9 +195,12 @@ checkout mirror is the expected read-only mount. A caller that merely exports
 the internal marker therefore fails before protected fixture writes.
 
 Missing/failed unshare, mount, install, setpriv, sudo, parent provenance, mount
-identity, or read-only checkout state fails the proof closed. The private mount
-namespace is synthetic proof infrastructure only and does not weaken the
-production native ancestry predicate.
+identity, or read-only checkout state fails the proof closed. The fixed
+`/usr/bin/node` is also a read-only host prerequisite: it must already be a
+direct root-owned single-link executable with no group/world write or setid
+bits. The proof never creates, replaces, chmods, chowns, or removes that host
+path. The private mount namespace is synthetic proof infrastructure only and
+does not weaken the production native ancestry predicate.
 
 A real native `/dev/null` invocation must clear the parent-proof gates,
 execute the real runtime-user transition, and reach the later expected Git
