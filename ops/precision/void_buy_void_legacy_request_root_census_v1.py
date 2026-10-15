@@ -9,7 +9,6 @@ import pathlib
 import re
 import socket
 import stat
-import subprocess
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -41,17 +40,6 @@ MAX_DIRECT_ENTRIES = 100_000
 class CensusError(RuntimeError):
     pass
 
-def _run(argv: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        argv,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
-        env=v1.safe_user_env(os.geteuid()),
-    )
-
 def _machine_id_sha256() -> str:
     value = v2.machine_id_sha256()
     if value is None:
@@ -59,14 +47,18 @@ def _machine_id_sha256() -> str:
     return value
 
 def _service() -> dict[str, Any]:
-    cp = _run([
-        "/usr/bin/systemctl", "--user", "show", UNIT, "--no-pager",
-        "--property=LoadState", "--property=ActiveState",
-        "--property=SubState", "--property=MainPID",
-        "--property=WorkingDirectory",
-    ])
+    code, raw = v1.run_systemctl(
+        [
+            "show", UNIT, "--no-pager",
+            "--property=LoadState", "--property=ActiveState",
+            "--property=SubState", "--property=MainPID",
+            "--property=WorkingDirectory",
+        ],
+        user_manager=True,
+        allow_failure=True,
+    )
     rows: dict[str, str] = {}
-    for line in cp.stdout.splitlines():
+    for line in raw.splitlines():
         if "=" in line:
             key, value = line.split("=", 1)
             rows[key] = value
@@ -78,7 +70,7 @@ def _service() -> dict[str, Any]:
         except OSError:
             live_cwd = None
     return {
-        "status": cp.returncode,
+        "status": code,
         "load_state": rows.get("LoadState"),
         "active_state": rows.get("ActiveState"),
         "sub_state": rows.get("SubState"),
