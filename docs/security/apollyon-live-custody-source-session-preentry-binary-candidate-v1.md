@@ -33,14 +33,26 @@ The fixed compile recipe is:
 -Werror
 -D_FORTIFY_SOURCE=2
 -fstack-protector-strong
+-fno-ident
+-static
+-fno-pie
+-no-pie
 -Wl,-z,relro,-z,now
 -Wl,--build-id=none
 SOURCE_DATE_EPOCH=0
 ```
 
-Each hosted lane compiles twice, requires exact binary equality, verifies ELF
-magic and the exact pre-entry self-test transcript, then emits one canonical
-candidate report.
+Each hosted lane compiles twice, requires exact binary equality, parses the
+ELF64 program-header table and rejects any `PT_INTERP` entry, and verifies the
+exact pre-entry self-test transcript before emitting one canonical candidate
+report. The compile recipe is static and non-PIE, so the candidate itself has no
+dynamic-loader step before `main()`.
+
+The proof also builds a temporary hostile `LD_PRELOAD` constructor. A dynamic
+control executable must trigger the constructor and create its sentinel; the
+same environment is then applied to the static pre-entry, which must run its
+exact self-test without creating the sentinel. This is a positive-control proof
+that loader injection cannot execute before the pre-entry trust-root logic.
 
 Three independent Ubuntu 24.04 lanes must produce byte-identical reports. The
 compare job separately recompiles the checked-out source and requires the local
