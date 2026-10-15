@@ -43,7 +43,7 @@ const SIGNATURE = Buffer.from([
 const MAX_RAW_HEADER_ENTRIES = 128;
 const MAX_HEADER_NAME_BYTES = 128;
 const MAX_HEADER_VALUE_BYTES = 8 * 1024;
-const HEADER_NAME = /^[!#$%&'*+\-.^_\`|~0-9A-Za-z]+$/u;
+const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
 
 function fail(code) {
   throw new Error(code);
