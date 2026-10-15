@@ -44,7 +44,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs)" =             "e81dd50afe348dd90950b9efe9cde77025c149a9"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs)" =             "7611df0f0191ed9bf5648e60e0ef43a049105bed"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs)" =             "123569128d763919d638253218a552d3ddf3b45a"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v1.md)" =             "011196a3f594eed808098522d8655d32d1c967cf"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs)" =             "28d718eb4155e47dbe8d476a4cf45f2d3871e4db"
           test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json)" =             "2c861c021192c034c98404989cd25b26788cd0f0"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts)" =             "0d9eb90c27031b9820a139be2af63c4c07433e20"
