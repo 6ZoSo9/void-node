@@ -5,6 +5,8 @@ on:
     paths:
       - "src/p2p/client_transient_clock_v1.ts"
       - "src/p2p/udp_swarm_authenticated_control_adapter_v1.ts"
+      - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
+      - "src/p2p/udp_swarm_socket_runtime_v1.ts"
       - "src/node_core.ts"
       - "scripts/prove_void_p2p_client_clock_regression_v1.ts"
       - "docs/architecture/p2p-client-clock-regression-v1.md"
@@ -14,6 +16,8 @@ on:
     paths:
       - "src/p2p/client_transient_clock_v1.ts"
       - "src/p2p/udp_swarm_authenticated_control_adapter_v1.ts"
+      - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
+      - "src/p2p/udp_swarm_socket_runtime_v1.ts"
       - "src/node_core.ts"
       - "scripts/prove_void_p2p_client_clock_regression_v1.ts"
       - "docs/architecture/p2p-client-clock-regression-v1.md"
