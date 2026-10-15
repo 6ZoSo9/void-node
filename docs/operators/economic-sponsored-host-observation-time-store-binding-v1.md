@@ -96,40 +96,47 @@ It cannot manufacture a production host claim.
 
 \`observe()\` also accepts no arguments.
 
-For one operation it captures the fixed host binding **once**, then freezes its
-four-field sample for the whole operation:
+Observe is a separate positive operation from preview. It captures a **fresh**
+#3175 host binding exactly once and exposes only that immutable four-field
+sample to one direct durable-store \`observe()\` call:
 
 \`\`\`text
-one fixed #3175 host binding
-  -> durable store preview()
-       -> candidate receipt hash/generation
+one fresh fixed #3175 host binding
+  -> exact four-field observation sample
   -> durable store observe()
-       using the same exact bound sample
-  -> require persisted head hash == preview candidate hash
-  -> require persisted generation == preview candidate generation
+       -> reconstruct current durable head under the store's own serialization
+       -> validate the new sample against that current head
+       -> persist exactly one accepted next receipt
+  -> require exactly one store clock read
   -> require accepted observed time == bound host wall time
+  -> bind host binding ID to returned durable head receipt hash/generation
   -> emit composition receipt
 \`\`\`
 
-The store reads the clock twice (preview and durable observe), but both reads
-return the same immutable sample from the single host capture.
+The wrapper intentionally does **not** reuse an earlier preview candidate as a
+compare-and-swap promise. A durable head may legitimately advance between a
+negative/preflight preview operation and a later positive observe operation.
+The authoritative store already serializes and revalidates its own current head
+at \`observe()\` time.
 
-This gives the source composition an exact bridge:
+This avoids a bad failure mode where a stale preview could be compared only
+after the underlying store had already appended a valid later receipt. Each
+operation instead has one independently captured host sample and one store
+clock read.
+
+The source bridge for a positive observe is therefore:
 
 \`\`\`text
 #3175 host binding ID
   -> exact observation sample
-  -> exact preview candidate receipt hash
-  -> exact persisted durable head receipt hash
+  -> exact durable store observe
+  -> exact returned durable head receipt hash/generation/time
 \`\`\`
 
-A changed durable head between preview and observe cannot silently become a
-successful composition. Any hash/generation/time mismatch returns HOLD.
-
-If the underlying durable store already mutated before a later wrapper
-cross-check fails, the wrapper truthfully propagates that mutation state rather
-than claiming rollback. This lane does not invent transaction semantics around
-the append-only store.
+If the store rejects the sample, history, custody, or serialization state, the
+wrapper propagates HOLD. If the store reports success but the returned accepted
+time does not equal the bound host wall sample, the wrapper HOLDS and reports
+the underlying mutation state truthfully; it does not claim rollback.
 
 ## Provenance claims
 
@@ -203,8 +210,8 @@ The focused proof requires:
 - fixed collector wiring;
 - empty-store preview with zero durable growth;
 - exact preview candidate SHA-256;
-- one-capture/two-clock-read durable observation;
-- exact preview-candidate == persisted-head binding;
+- one host-binding capture and one store clock read per operation;
+- direct durable-observe result binding to the same operation's host sample;
 - forward generation on a second later host sample;
 - caller-input rejection before host capture;
 - malformed host-binding rejection before durable growth;
