@@ -36,6 +36,9 @@ on:
     paths:
       - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v1.json"
       - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-v1.yml"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-lock-v1.yml"
       - "tools/void-buy-allocation-custody-runtime-install-archive-v1.py"
       - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
       - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v1.mjs"
