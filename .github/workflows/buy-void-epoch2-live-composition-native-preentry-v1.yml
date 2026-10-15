@@ -93,6 +93,12 @@ jobs:
             "$RUNNER_TEMP/runner-self-test-${{ matrix.node }}.txt"
           grep -Fx 'native_preentry_required_for_live=true' \
             "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
+          grep -Fx 'native_parent_retained_for_child_lifetime_required=true' \
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
+          grep -Fx 'native_parent_process_generation_proof_required=true' \
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
+          grep -Fx 'native_parent_revalidation_after_sensitive_sequence_required=true' \
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
           grep -Fx 'stdin_javascript_source_forbidden=true' \
             "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
 
@@ -112,6 +118,11 @@ jobs:
             'expected_head_policy_bound=true' \
             'runner_descriptor_retained=true' \
             'node_descriptor_fexecve=true' \
+            'native_parent_retained_for_child_lifetime=true' \
+            'native_parent_process_generation_bound=true' \
+            'native_parent_installed_generation_bound=true' \
+            'native_parent_revalidated_after_sensitive_sequence=true' \
+            'direct_root_node_marker_fd_forgery_rejected=true' \
             'caller_stdin_javascript_rejected_before_root_js=true' \
             'loader_environment_sanitized=true' \
             'native_preentry_static=true' \
