@@ -18,6 +18,8 @@ import { VoidUdpSwarmAuthenticatedControlAdapterV1 } from
   "../src/p2p/udp_swarm_authenticated_control_adapter_v1.js";
 import { VoidUdpSwarmAuthenticatedDirectCandidateV1 } from
   "../src/p2p/udp_swarm_authenticated_direct_candidate_v1.js";
+import { VoidUdpSwarmNodeRuntimeMountV1 } from
+  "../src/p2p/udp_swarm_node_runtime_mount_v1.js";
 import { VoidUdpSwarmSocketRuntimeV1 } from
   "../src/p2p/udp_swarm_socket_runtime_v1.js";
 
@@ -391,29 +393,6 @@ try {
     1,
   );
 
-  nodeAny.udpSwarmControl.sweep(stagedRouteNow - 1_000);
-  assert.equal(
-    nodeAny.udpSwarmControl.snapshot(stagedRouteNow - 1_000).active_route_count,
-    0,
-  );
-  const stalePromotion =
-    node.promoteUdpSwarmAuthenticatedDirectCandidateV1(stagedSessionId);
-  assert.deepEqual(stalePromotion, {
-    ok: false,
-    error: "authenticated_control_route_required",
-  });
-  assert.equal(stagedSocket.destroyed, true);
-  assert.equal(nodeAny.udpSwarmDirectCandidates.has(stagedSessionId), false);
-  assert.equal(nodeAny.peers.has(stagedPeer.id), false);
-  assert.equal(nodeAny.relayStreams.get(stagedRelayKey), stagedRelayStream);
-
-  const runtimeSocket = {
-    destroyed: false,
-    destroy(error?: Error) {
-      void error;
-      this.destroyed = true;
-    },
-  };
   let runtimeFailureReason = "";
   const runtimeFailures: unknown[] = [];
   const runtimeAny = Object.create(
@@ -428,7 +407,7 @@ try {
       session_id: stagedSessionId,
       peer_node_id: relay.nodeId,
     },
-    directSocket: runtimeSocket,
+    directSocket: stagedSocket,
     pendingSecurePackets: [{}],
     failed: false,
     upgrade: {
@@ -443,17 +422,38 @@ try {
     attemptTimer: null,
   };
   runtimeAny.sessions.set(stagedSessionId, runtimeState);
+
+  const mountAny = Object.create(
+    VoidUdpSwarmNodeRuntimeMountV1.prototype,
+  ) as any;
+  mountAny.node = node;
+  mountAny.runtime = {
+    snapshot: () => ({
+      sessions: [...runtimeAny.sessions.values()].map((state: any) => ({
+        session_id: state.offer.session_id,
+      })),
+    }),
+    retireDirectCandidateSession: (sessionId: string, reason: string) =>
+      runtimeAny.retireDirectCandidateSession(sessionId, reason),
+  };
+  mountAny.candidatePromotions = 0;
+  mountAny.candidatePromotionRejects = 0;
+
+  nodeAny.udpSwarmControl.sweep(stagedRouteNow - 1_000);
   assert.equal(
-    runtimeAny.retireDirectCandidateSession(
-      stagedSessionId,
-      "authenticated control route lost before direct promotion",
-    ),
-    true,
+    nodeAny.udpSwarmControl.snapshot(stagedRouteNow - 1_000).active_route_count,
+    0,
   );
+  mountAny.promoteReadyCandidates();
+
+  assert.equal(mountAny.candidatePromotions, 0);
+  assert.equal(mountAny.candidatePromotionRejects, 1);
+  assert.equal(stagedSocket.destroyed, true);
+  assert.equal(nodeAny.udpSwarmDirectCandidates.has(stagedSessionId), false);
+  assert.equal(nodeAny.peers.has(stagedPeer.id), false);
   assert.equal(runtimeAny.sessions.has(stagedSessionId), false);
   assert.equal(runtimeState.failed, true);
   assert.equal(runtimeState.directSocket, undefined);
-  assert.equal(runtimeSocket.destroyed, true);
   assert.equal(runtimeState.pendingSecurePackets.length, 0);
   assert.equal(
     runtimeFailureReason,
@@ -494,6 +494,7 @@ console.log("relay_stream_map_not_cleared_by_client_clock_regression=true");
 console.log("staged_direct_candidate_survives_control_route_regression=false");
 console.log("stale_candidate_socket_destroyed=true");
 console.log("stale_socket_runtime_session_retired=true");
+console.log("runtime_mount_promotion_tick_revokes_stale_candidate=true");
 console.log("exact_control_route_generation_required_at_promotion=true");
 console.log("runtime_or_network_mutation=false");
 console.log("wallet_signer_validator_wc_money_authority=0");
