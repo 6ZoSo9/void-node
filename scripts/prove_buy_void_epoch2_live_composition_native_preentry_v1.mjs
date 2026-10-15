@@ -39,6 +39,8 @@ const PRIVATE_SELECTED_NODE_SHA256_ENV =
   "VOID_BUY_VOID_EPOCH2_PROOF_SELECTED_NODE_SHA256_V1";
 const PRIVATE_OUTER_MOUNT_NS_INO_ENV =
   "VOID_BUY_VOID_EPOCH2_PROOF_OUTER_MOUNT_NS_INO_V1";
+const PRIVATE_MOUNT_HELPER_SHA256_ENV =
+  "VOID_BUY_VOID_EPOCH2_PROOF_MOUNT_HELPER_SHA256_V1";
 
 function cleanEnv(extra = {}) {
   return {
@@ -158,7 +160,7 @@ function requireAuthenticProcfsForCurrentProcess() {
   return mountInfo;
 }
 
-function retainedDirectoryMountId(target) {
+function retainedDirectoryMountIdentity(target) {
   const noFollow = Number(fs.constants.O_NOFOLLOW || 0);
   const directory = Number(fs.constants.O_DIRECTORY || 0);
   assert.equal(
@@ -184,20 +186,95 @@ function retainedDirectoryMountId(target) {
       true,
       target + " changed across retained mount-id observation",
     );
-    const fdInfo = "/proc/self/fdinfo/" + String(fd);
-    assert.equal(
-      fs.statfsSync(fdInfo, { bigint: true }).type,
-      PROC_SUPER_MAGIC,
-      fdInfo + " must be backed by genuine procfs",
+
+    const bootstrapRoot = String(
+      process.env[PRIVATE_BOOTSTRAP_ROOT_ENV] || "",
     );
-    const raw = fs.readFileSync(fdInfo, "utf8");
-    const matches = [...raw.matchAll(/^mnt_id:\s+([1-9][0-9]*)\s*$/gmu)];
-    assert.equal(
-      matches.length,
-      1,
-      target + " retained fdinfo must expose exactly one mount id",
+    const expectedHelperSha256 = String(
+      process.env[PRIVATE_MOUNT_HELPER_SHA256_ENV] || "",
     );
-    return matches[0][1];
+    assert.match(
+      expectedHelperSha256,
+      /^[0-9a-f]{64}$/u,
+      "delegated mount helper SHA-256 binding invalid",
+    );
+    const helper = path.join(bootstrapRoot, "mount-id-helper");
+    const helperStat = fs.lstatSync(helper, { bigint: true });
+    assert.equal(
+      helperStat.isFile() && !helperStat.isSymbolicLink(),
+      true,
+      "delegated mount helper must be a direct regular file",
+    );
+    assert.equal(helperStat.uid, 0n, "delegated mount helper must be root-owned");
+    assert.equal(
+      helperStat.nlink,
+      1n,
+      "delegated mount helper must have one link",
+    );
+    assert.equal(
+      (helperStat.mode & 0o022n) === 0n &&
+        (helperStat.mode & 0o111n) !== 0n,
+      true,
+      "delegated mount helper must be non-writable and executable",
+    );
+    assert.equal(
+      crypto.createHash("sha256").update(fs.readFileSync(helper)).digest("hex"),
+      expectedHelperSha256,
+      "delegated mount helper bytes changed",
+    );
+
+    const result = spawnSync(helper, [], {
+      cwd: "/",
+      env: {
+        PATH: "/usr/bin:/bin",
+        HOME: "/nonexistent",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe", fd],
+      timeout: 10_000,
+      maxBuffer: 64 * 1024,
+    });
+    assert.equal(
+      result.error,
+      undefined,
+      "direct statx mount helper spawn failed",
+    );
+    assert.equal(
+      result.status,
+      0,
+      "direct statx mount helper failed: " + String(result.stderr || ""),
+    );
+    assert.equal(
+      result.stderr,
+      "",
+      "direct statx mount helper produced stderr",
+    );
+    const rows = String(result.stdout || "")
+      .split("\n")
+      .filter(Boolean);
+    assert.equal(rows.length, 3, "direct statx mount helper output shape invalid");
+    const mountMatch = /^mount_id=([1-9][0-9]*)$/u.exec(rows[0]);
+    const typeMatch = /^fs_type=([0-9a-f]+)$/u.exec(rows[1]);
+    const readonlyMatch = /^readonly=(true|false)$/u.exec(rows[2]);
+    assert.ok(mountMatch, "direct statx mount id missing");
+    assert.ok(typeMatch, "direct fstatfs type missing");
+    assert.ok(readonlyMatch, "direct fstatvfs readonly flag missing");
+
+    const openedAfter = fs.fstatSync(fd, { bigint: true });
+    const visibleAfter = fs.lstatSync(target, { bigint: true });
+    assert.equal(
+      sameFsIdentity(opened, openedAfter) &&
+        sameFsIdentity(openedAfter, visibleAfter),
+      true,
+      target + " changed across direct statx mount-id observation",
+    );
+    return Object.freeze({
+      mountId: mountMatch[1],
+      fsType: BigInt("0x" + typeMatch[1]),
+      readOnly: readonlyMatch[1] === "true",
+    });
   } finally {
     fs.closeSync(fd);
   }
@@ -337,47 +414,28 @@ function requireDelegatedPrivateNamespace() {
   const backingUsrWork = path.join(bootstrapRoot, "usr-bin-work");
   const backingUsrMerged = path.join(bootstrapRoot, "usr-bin-merged");
   const backingNode = path.join(backingUsrMerged, "node");
-  const mountEntries = requireAuthenticProcfsForCurrentProcess()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const fields = line.split(" ");
-      const separator = fields.indexOf("-");
-      return {
-        mountId: String(fields[0] || ""),
-        parentMountId: String(fields[1] || ""),
-        mountPoint: mountInfoPath(fields[4] || ""),
-        options: String(fields[5] || "").split(","),
-        fsType:
-          separator >= 0 ? String(fields[separator + 1] || "") : "",
-      };
-    });
-  const mountPoints = new Set(mountEntries.map((entry) => entry.mountPoint));
-  const exactMountEntry = (target) => {
-    const rows = mountEntries.filter((entry) => entry.mountPoint === target);
-    assert.equal(
-      rows.length,
-      1,
-      target + " must have exactly one visible mountinfo row",
-    );
-    assert.match(rows[0].mountId, /^[1-9][0-9]*$/u);
-    assert.equal(
-      rows[0].mountId,
-      retainedDirectoryMountId(target),
-      target + " mountinfo id must match the current process retained directory fd",
-    );
-    return rows[0];
-  };
-  const bootstrapMountId = retainedDirectoryMountId(bootstrapRoot);
+  const OVERLAYFS_SUPER_MAGIC = 0x794c7630n;
+
+  const bootstrapMount = retainedDirectoryMountIdentity(bootstrapRoot);
+  const tmpMount = retainedDirectoryMountIdentity("/tmp");
+  assert.equal(
+    bootstrapMount.mountId,
+    tmpMount.mountId,
+    "delegated bootstrap root must remain an ordinary directory on /tmp",
+  );
+
+  const ordinaryBackings = new Map();
   for (const backing of [
     backingOpt,
     backingHome,
     backingUsrUpper,
     backingUsrWork,
   ]) {
+    const identity = retainedDirectoryMountIdentity(backing);
+    ordinaryBackings.set(backing, identity);
     assert.equal(
-      retainedDirectoryMountId(backing),
-      bootstrapMountId,
+      identity.mountId,
+      bootstrapMount.mountId,
       backing + " must remain on the bootstrap root mount generation",
     );
   }
@@ -398,16 +456,13 @@ function requireDelegatedPrivateNamespace() {
       true,
       backing + " delegated backing must be a direct directory",
     );
-    assert.equal(
-      mountPoints.has(visible),
-      true,
-      visible + " must be an explicit namespace-local mountpoint",
-    );
-    exactMountEntry(visible);
-    assert.equal(
-      mountPoints.has(backing),
-      false,
-      backing + " must remain an ordinary non-mountpoint backing directory",
+    const visibleMount = retainedDirectoryMountIdentity(visible);
+    const backingMount = ordinaryBackings.get(backing);
+    assert.ok(backingMount, backing + " mount identity missing");
+    assert.notEqual(
+      visibleMount.mountId,
+      backingMount.mountId,
+      visible + " must be a distinct namespace-local bind mount",
     );
     assert.equal(
       sameFsIdentity(visibleStat, backingStat),
@@ -438,27 +493,29 @@ function requireDelegatedPrivateNamespace() {
     true,
     "private /usr/bin merged root must be a direct directory",
   );
-  assert.equal(
-    mountPoints.has("/usr/bin"),
-    true,
-    "namespace-local /usr/bin must be an explicit mountpoint",
+  const mergedUsrMount = retainedDirectoryMountIdentity(backingUsrMerged);
+  assert.notEqual(
+    mergedUsrMount.mountId,
+    bootstrapMount.mountId,
+    "private /usr/bin merged root must be a distinct overlay mount",
   );
-  exactMountEntry("/usr/bin");
-  const mergedUsrMount = exactMountEntry(backingUsrMerged);
   assert.equal(
     mergedUsrMount.fsType,
-    "overlay",
-    "private /usr/bin backing must be an overlay mount",
+    OVERLAYFS_SUPER_MAGIC,
+    "private /usr/bin backing must be overlayfs",
   );
-  assert.equal(
-    mountPoints.has(backingUsrUpper),
-    false,
-    "private /usr/bin upper directory must not itself be a mountpoint",
-  );
-  assert.equal(
-    mountPoints.has(backingUsrWork),
-    false,
-    "private /usr/bin work directory must not itself be a mountpoint",
+  for (const backing of [backingUsrUpper, backingUsrWork]) {
+    assert.equal(
+      retainedDirectoryMountIdentity(backing).mountId,
+      bootstrapMount.mountId,
+      backing + " must remain an ordinary bootstrap directory",
+    );
+  }
+  const visibleUsrMount = retainedDirectoryMountIdentity("/usr/bin");
+  assert.notEqual(
+    visibleUsrMount.mountId,
+    mergedUsrMount.mountId,
+    "namespace-local /usr/bin must be a distinct bind mount over the overlay",
   );
   assert.equal(
     sameFsIdentity(visibleUsrBin, mergedUsrBin),
@@ -501,18 +558,18 @@ function requireDelegatedPrivateNamespace() {
   );
 
   assert.equal(
-    mountPoints.has(bootstrapRoot),
-    false,
-    "delegated bootstrap root must not itself be a mountpoint",
-  );
-  assert.equal(
     path.resolve(ROOT),
     backingRepo,
     "delegated proof cwd must be the private checkout mirror",
   );
-  const repoMount = exactMountEntry(backingRepo);
+  const repoMount = retainedDirectoryMountIdentity(backingRepo);
+  assert.notEqual(
+    repoMount.mountId,
+    bootstrapMount.mountId,
+    "private checkout mirror must be a distinct bind mount",
+  );
   assert.equal(
-    repoMount.options.includes("ro"),
+    repoMount.readOnly,
     true,
     "private checkout mirror must be read-only",
   );
@@ -541,6 +598,7 @@ function enterPrivateOptFixtureNamespace() {
     "/usr/bin/setpriv",
     "/usr/bin/env",
     "/usr/bin/bash",
+    "/usr/bin/cc",
   ]) {
     const st = fs.lstatSync(required);
     assert.equal(st.isFile() && !st.isSymbolicLink(), true, required);
@@ -638,6 +696,83 @@ function enterPrivateOptFixtureNamespace() {
     "root-owned harness Node copy must match selected hosted Node bytes",
   );
 
+  const mountHelper = path.join(bootstrapRoot, "mount-id-helper");
+  const mountHelperSource = [
+    "#define _GNU_SOURCE",
+    "#include <fcntl.h>",
+    "#include <inttypes.h>",
+    "#include <stdint.h>",
+    "#include <stdio.h>",
+    "#include <sys/stat.h>",
+    "#include <sys/statfs.h>",
+    "#include <sys/statvfs.h>",
+    "int main(void){",
+    "  struct statx sx={0};",
+    "  struct statfs sfs;",
+    "  struct statvfs svfs;",
+    "  if(statx(3,\"\",AT_EMPTY_PATH,STATX_MNT_ID,&sx)!=0)return 2;",
+    "  if((sx.stx_mask & STATX_MNT_ID)==0 || sx.stx_mnt_id==0)return 3;",
+    "  if(fstatfs(3,&sfs)!=0)return 4;",
+    "  if(fstatvfs(3,&svfs)!=0)return 5;",
+    "  printf(\"mount_id=%\" PRIu64 \"\\n\",(uint64_t)sx.stx_mnt_id);",
+    "  printf(\"fs_type=%\" PRIx64 \"\\n\",(uint64_t)sfs.f_type);",
+    "  printf(\"readonly=%s\\n\",(svfs.f_flag & ST_RDONLY)?\"true\":\"false\");",
+    "  return 0;",
+    "}",
+    "",
+  ].join("\n");
+  const mountHelperBuild = run(SUDO, [
+    "-n",
+    "/usr/bin/cc",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-O2",
+    "-fno-ident",
+    "-Wl,--build-id=none",
+    "-x",
+    "c",
+    "-",
+    "-o",
+    mountHelper,
+  ], {
+    input: mountHelperSource,
+  });
+  assert.equal(
+    mountHelperBuild.status,
+    0,
+    "failed to compile root-owned direct statx helper: " +
+      String(mountHelperBuild.stderr || ""),
+  );
+  assert.equal(
+    mountHelperBuild.stderr,
+    "",
+    "direct statx helper compile produced stderr",
+  );
+  const mountHelperStat = fs.lstatSync(mountHelper);
+  assert.equal(
+    mountHelperStat.isFile() && !mountHelperStat.isSymbolicLink(),
+    true,
+    "direct statx helper must be a direct regular file",
+  );
+  assert.equal(mountHelperStat.uid, 0, "direct statx helper must be root-owned");
+  assert.equal(
+    mountHelperStat.nlink,
+    1,
+    "direct statx helper must have one link",
+  );
+  assert.equal(
+    (mountHelperStat.mode & 0o022) === 0 &&
+      (mountHelperStat.mode & 0o111) !== 0,
+    true,
+    "direct statx helper must be non-writable and executable",
+  );
+  const mountHelperSha256 = crypto
+    .createHash("sha256")
+    .update(fs.readFileSync(mountHelper))
+    .digest("hex");
+
   const safeOpt = path.join(bootstrapRoot, "opt");
   const safeHome = path.join(bootstrapRoot, "home");
   const safeRepo = path.join(bootstrapRoot, "repo");
@@ -663,6 +798,7 @@ function enterPrivateOptFixtureNamespace() {
     'bootstrap_root="${13}"',
     'selected_node_sha256="${14}"',
     'outer_mount_ns_ino="${15}"',
+    'mount_helper_sha256="${16}"',
     "/usr/bin/mount --make-rprivate /",
     '/usr/bin/install -d -o root -g root -m 0755 "$safe_usr_upper" "$safe_usr_work" "$safe_usr_merged"',
     '/usr/bin/mount -t overlay overlay -o "lowerdir=/usr/bin,upperdir=$safe_usr_upper,workdir=$safe_usr_work" "$safe_usr_merged"',
@@ -681,6 +817,7 @@ function enterPrivateOptFixtureNamespace() {
       PRIVATE_BOOTSTRAP_ROOT_ENV + '="$bootstrap_root" ' +
       PRIVATE_SELECTED_NODE_SHA256_ENV + '="$selected_node_sha256" ' +
       PRIVATE_OUTER_MOUNT_NS_INO_ENV + '="$outer_mount_ns_ino" ' +
+      PRIVATE_MOUNT_HELPER_SHA256_ENV + '="$mount_helper_sha256" ' +
       '/usr/bin/node "$safe_repo/$proof_relative"',
   ].join("\n");
 
@@ -708,6 +845,7 @@ function enterPrivateOptFixtureNamespace() {
       bootstrapRoot,
       selectedNodeSha256,
       outerMountNsIno,
+      mountHelperSha256,
     ], {
       timeout: 180_000,
     });
@@ -1338,6 +1476,8 @@ console.log("delegated_mount_topology_asymmetric=true");
 console.log("caller_controlled_ci_flags_authorize_opt_mutation=false");
 console.log("hosted_self_custody_shape_prechecked=true");
 console.log("private_fixed_node_overlay_required=true");
+console.log("direct_statx_mount_topology_bound=true");
+console.log("proc_mountinfo_topology_authority=false");
 console.log("host_usr_bin_mutation=false");
 console.log("live_credential_access=false");
 console.log("live_signing=false");
