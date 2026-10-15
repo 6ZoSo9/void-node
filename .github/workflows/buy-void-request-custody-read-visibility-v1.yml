@@ -55,7 +55,7 @@ jobs:
           VOID_BUY_REQUEST_CUSTODY_READ_GID="$gid"             npx tsx scripts/prove_buy_void_request_custody_read_visibility_v1.ts |
             tee "$RUNNER_TEMP/custody-read.log"
           grep -Fx 'VOID_BUY_VOID_REQUEST_CUSTODY_READ_VISIBILITY_V1_GREEN' "$RUNNER_TEMP/custody-read.log"
-          grep -Fx 'request_directory_mode=2750' "$RUNNER_TEMP/custody-read.log"
+          grep -Fx 'request_directory_mode=0750' "$RUNNER_TEMP/custody-read.log"
           grep -Fx 'fixed_journal_mode=0640' "$RUNNER_TEMP/custody-read.log"
           grep -Fx 'customer_sidecar_mode=0600' "$RUNNER_TEMP/custody-read.log"
           grep -Fx 'custody_write_authority=false' "$RUNNER_TEMP/custody-read.log"
