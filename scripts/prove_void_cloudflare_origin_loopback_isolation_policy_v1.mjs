@@ -39,6 +39,16 @@ function canonical() {
       ordinary_routes_preserved: true,
       worker_route_absence_required: true,
       pseudo_ipv4_mode_off_required: true,
+      private_file_custody: {
+        config_owner_uid: 991,
+        credentials_owner_uid: 991,
+        config_group_other_bits_zero: true,
+        credentials_group_other_bits_zero: true,
+        config_nlink_one: true,
+        credentials_nlink_one: true,
+        config_outside_repository: true,
+        credentials_outside_repository: true,
+      },
     },
     adapter: {
       service_unit: "void-cloudflare-origin-proxy-v2-adapter-v1.service",
@@ -152,6 +162,7 @@ assert.equal(
 assert.equal(result.policy_shape_qualified, true);
 assert.equal(result.dedicated_system_cloudflared_identity_required, true);
 assert.equal(result.historical_user_tunnel_retirement_required, true);
+assert.equal(result.tunnel_private_file_custody_policy_shape_qualified, true);
 assert.equal(result.exact_sensitive_tunnel_routes_qualified, true);
 assert.equal(result.ordinary_tunnel_routes_preserved_required, true);
 assert.equal(result.cloudflare_control_plane_evidence_required, true);
@@ -166,6 +177,8 @@ assert.deepEqual(
 assert.equal(result.cloudflare_uid_isolation_proven, undefined);
 assert.equal(result.cloudflared_uid_isolation_proven, false);
 assert.equal(result.historical_user_tunnel_retired_verified, false);
+assert.equal(result.tunnel_private_file_custody_verified, false);
+assert.equal(result.credential_content_access, false);
 assert.equal(result.tunnel_path_ownership_verified, false);
 assert.equal(result.cloudflare_worker_route_absence_proven, false);
 assert.equal(result.pseudo_ipv4_mode_off_proven, false);
@@ -211,6 +224,27 @@ expectHold(
     x.cloudflared.no_new_privileges = false;
   },
   "cloudflare_isolation_cloudflared_no_new_privileges_required",
+);
+expectHold(
+  (x) => {
+    x.cloudflared.private_file_custody.credentials_owner_uid =
+      x.adapter.effective_uid;
+  },
+  "cloudflare_isolation_private_file_custody_invalid",
+);
+expectHold(
+  (x) => {
+    x.cloudflared.private_file_custody.credentials_group_other_bits_zero =
+      false;
+  },
+  "cloudflare_isolation_private_file_custody_invalid",
+);
+expectHold(
+  (x) => {
+    x.cloudflared.private_file_custody.credentials_outside_repository =
+      false;
+  },
+  "cloudflare_isolation_private_file_custody_invalid",
 );
 expectHold(
   (x) => {
@@ -386,6 +420,7 @@ for (const [key, expected] of Object.entries({
   source_contract: true,
   dedicated_system_cloudflared_identity_required: true,
   historical_user_tunnel_retirement_required: true,
+  tunnel_private_file_custody_required: true,
   exact_sensitive_tunnel_routes_required: true,
   ordinary_tunnel_routes_preserved_required: true,
   cloudflare_control_plane_evidence_required: true,
@@ -398,6 +433,8 @@ for (const [key, expected] of Object.entries({
   live_host_evidence_verified: false,
   cloudflared_process_live_verified: false,
   historical_user_tunnel_retired_verified: false,
+  tunnel_private_file_custody_verified: false,
+  credential_content_access: false,
   tunnel_path_ownership_verified: false,
   cloudflare_worker_route_absence_proven: false,
   pseudo_ipv4_mode_off_proven: false,
@@ -497,6 +534,8 @@ for (const forbidden of [
 console.log("VOID_CLOUDFLARE_ORIGIN_LOOPBACK_ISOLATION_POLICY_V1_GREEN");
 console.log("dedicated_system_cloudflared_identity_required=true");
 console.log("historical_user_tunnel_retirement_required=true");
+console.log("tunnel_private_file_custody_policy_shape_qualified=true");
+console.log("credential_content_access=false");
 console.log("exact_sensitive_tunnel_routes_qualified=true");
 console.log("sensitive_origin_http_host_header_bound=true");
 console.log("sensitive_origin_chunked_encoding_disabled_required=true");
