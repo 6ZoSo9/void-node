@@ -56,6 +56,25 @@ root-owned non-writable single-link query executable, opens it with
 `O_NOFOLLOW`, rechecks the visible generation, and enters it with
 `fexecve()`.
 
+The pre-exec is not trusted from its pathname alone. The separately bounded
+create-only installer admits one exact hosted candidate generation before any
+privileged snapshot execution:
+
+- pre-exec: 785,824 bytes,
+  SHA-256 `9852c4754de5daa901e67b05c612c1c906de107ac6684f620d41415a275c89cb`;
+- query: 40,152 bytes,
+  SHA-256 `bd8703cdc7a0ee8e502ecc081dc2cbd3a825d426dbbfc9075bf07b424389c605`;
+- hosted evidence: workflow run `38787746099`, byte-identical on Node 22,
+  24 and 26 lanes.
+
+The protected installer is create-only: it refuses an existing install root,
+uses `O_EXCL` and `O_NOFOLLOW`, and requires the installed directory and
+both executables to be root-owned, single-link where applicable, mode 0555 and
+exact-hash/size matched. The read-only installed verifier is required
+immediately before the privileged pre-exec boundary. CI deliberately makes the
+installed pre-exec mode 0777 and proves that external admission rejects it
+before restoring the protected generation.
+
 The child receives a minimal environment. Caller loader variables are not
 forwarded.
 
@@ -68,7 +87,9 @@ The source therefore keeps:
 
 - `future_restart_prevented=false`;
 - `historical_user_tunnel_retirement_verified=false`;
-- host installation/runtime integration/external acceptance false.
+- the snapshot itself does not prove production-host installation, runtime
+  integration or external acceptance; the create-only installer is source
+  authority only until separately authorized on the designated host.
 
 A later #2984 composition must combine this snapshot with the reviewed
 config/credential custody, dedicated system-service identity, nftables/listener

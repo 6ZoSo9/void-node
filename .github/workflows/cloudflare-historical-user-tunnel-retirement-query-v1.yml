@@ -5,6 +5,8 @@ on:
     paths:
       - "ops/public/void_cloudflare_historical_user_tunnel_retirement_query_v1.c"
       - "ops/public/void_cloudflare_historical_user_tunnel_retirement_preexec_v1.c"
+      - "ops/public/void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py"
+      - "scripts/prove_void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
       - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
       - "scripts/prove_void_cloudflare_historical_user_tunnel_retirement_query_v1.mjs"
@@ -15,6 +17,8 @@ on:
     paths:
       - "ops/public/void_cloudflare_historical_user_tunnel_retirement_query_v1.c"
       - "ops/public/void_cloudflare_historical_user_tunnel_retirement_preexec_v1.c"
+      - "ops/public/void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py"
+      - "scripts/prove_void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
       - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
       - "scripts/prove_void_cloudflare_historical_user_tunnel_retirement_query_v1.mjs"
@@ -53,6 +57,18 @@ jobs:
           grep -Fx 'future_restart_prevented=false' "$RUNNER_TEMP/retirement-query-proof.log"
           grep -Fx 'historical_user_tunnel_retirement_verified=false' "$RUNNER_TEMP/retirement-query-proof.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/retirement-query-proof.log"
+
+      - name: Prove protected install contract
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py |
+            tee "$RUNNER_TEMP/retirement-protected-install-proof.log"
+          grep -Fx 'VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_QUERY_PROTECTED_INSTALL_V1_PROOF_GREEN' "$RUNNER_TEMP/retirement-protected-install-proof.log"
+          grep -Fx 'three_matrix_lanes_byte_identical=true' "$RUNNER_TEMP/retirement-protected-install-proof.log"
+          grep -Fx 'create_only=true' "$RUNNER_TEMP/retirement-protected-install-proof.log"
+          grep -Fx 'root_owned_mode_0555_single_link_required=true' "$RUNNER_TEMP/retirement-protected-install-proof.log"
+          grep -Fx 'production_host_installation=false' "$RUNNER_TEMP/retirement-protected-install-proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/retirement-protected-install-proof.log"
 
       - name: Build static preexec and dynamic retirement query
         run: |
@@ -96,11 +112,35 @@ jobs:
           }
           trap cleanup EXIT
           sudo chmod go-w /opt
-          sudo install -d -o root -g root -m 0755 "$root"
-          sudo install -o root -g root -m 0755 "$preexec" \
+          sudo python3 -I -B \
+            ops/public/void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py \
+            --apply \
+            --preexec-candidate "$preexec" \
+            --query-candidate "$query" \
+            --confirm CREATE_ONLY_PROTECTED_CLOUDFLARE_RETIREMENT_QUERY_V1 |
+            tee "$RUNNER_TEMP/protected-install-apply.log"
+          grep -Fx 'installed_protected_pair=true' "$RUNNER_TEMP/protected-install-apply.log"
+          python3 -I -B \
+            ops/public/void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py \
+            --verify-installed | tee "$RUNNER_TEMP/protected-install-verify.log"
+          grep -Fx 'VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_QUERY_PROTECTED_INSTALL_V1_GREEN' \
+            "$RUNNER_TEMP/protected-install-verify.log"
+
+          sudo chmod 0777 \
             "$root/void_cloudflare_historical_user_tunnel_retirement_preexec_v1"
-          sudo install -o root -g root -m 0755 "$query" \
-            "$root/void_cloudflare_historical_user_tunnel_retirement_query_v1"
+          if python3 -I -B \
+            ops/public/void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py \
+            --verify-installed >"$RUNNER_TEMP/mutable-preexec-admission.log" 2>&1; then
+            echo "mutable preexec unexpectedly passed external admission" >&2
+            exit 1
+          fi
+          grep -Fx 'reason=preexec_installed_custody_invalid' \
+            "$RUNNER_TEMP/mutable-preexec-admission.log"
+          sudo chmod 0555 \
+            "$root/void_cloudflare_historical_user_tunnel_retirement_preexec_v1"
+          python3 -I -B \
+            ops/public/void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py \
+            --verify-installed >/dev/null
 
           fake="$RUNNER_TEMP/preload"
           mkdir "$fake"
@@ -135,6 +175,9 @@ jobs:
             "$RUNNER_TEMP/direct-poison.log"
           rm -f "$sentinel"
 
+          python3 -I -B \
+            ops/public/void_cloudflare_historical_user_tunnel_retirement_query_protected_install_v1.py \
+            --verify-installed >/dev/null
           sudo env \
             VOID_PRELOAD_SENTINEL="$sentinel" \
             LD_PRELOAD="$fake/preload.so" \
