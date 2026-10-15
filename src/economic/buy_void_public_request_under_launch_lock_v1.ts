@@ -851,7 +851,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
   }
   // Legacy mode may create its private root. The custody-readable generation
   // is an explicit host contract: require one absolute pre-provisioned
-  // setgid root rather than silently changing ownership/permissions here.
+  // shared root rather than silently changing ownership/permissions here.
   if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
     if (!path.isAbsolute(dir) || path.resolve(dir) !== dir) {
       holdHistoryV1("custody_readable_directory_not_absolute");
