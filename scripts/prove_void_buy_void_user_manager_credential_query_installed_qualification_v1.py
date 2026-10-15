@@ -121,7 +121,9 @@ source = (ROOT / QUALIFIER_REL).read_text("utf-8")
 compile(source, QUALIFIER_REL, "exec", dont_inherit=True)
 
 for token in (
-    LOCK_ID,
+    'LOCK_ID = (',
+    '"voidbuyumqcredelflock1_"',
+    '"65a1839c14b692349dda8cccdbe8657a9485754c5d10ffa5b57421ce87e3753c"',
     "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_INSTALLED_QUALIFICATION_V1",
     "VOID_BUY_VOID_USER_MANAGER_PRIVATE_CREDENTIAL_UNIT_QUERY_V1_GREEN",
     "double_credential_query_stable",
