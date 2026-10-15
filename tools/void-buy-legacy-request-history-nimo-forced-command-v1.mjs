@@ -279,10 +279,12 @@ function parseConfig(value,{allowTestRoot=false}={}){
     expected_witness_identity:Object.freeze({...EXPECTED_NIMO}),
   });
 }
-function openAuthorityRoot(root){
+function openAuthorityRoot(root,{allowTestParent=false}={}){
   const resolved=path.resolve(root);
   const parent=path.dirname(resolved);
-  const parentChain=openRootOwnedDirectoryChain(parent);
+  const parentChain=allowTestParent
+    ?Object.freeze({fds:[]})
+    :openRootOwnedDirectoryChain(parent);
   let fd=null;
   try{
     const visible=fs.lstatSync(resolved,{bigint:true});
@@ -629,7 +631,9 @@ function appendNew(directory,config,requestBytes,server,serverClassifier,hooks){
 }
 function handle(config,requestBytes,{host=hostIdentity(),serverClassifier=classifyVoidBuyVoidLegacyHistoryNimoServerRequestV1,hooks={}}={}){
   requireHostIdentity(config,host);
-  const directory=openAuthorityRoot(config.authority_root);
+  const directory=openAuthorityRoot(config.authority_root,{
+    allowTestParent:hooks?.allow_test_parent===true,
+  });
   try{
     return withBuyVoidFilesystemBakeryLockV1(
       path.join(directory.proc_path,VOID_BUY_VOID_LEGACY_HISTORY_NIMO_LOCK_NAME_V1),
@@ -689,7 +693,11 @@ export function testOnlyHandleVoidBuyVoidLegacyHistoryNimoForcedCommandRequestV1
   return handle(normalized,Buffer.from(requestBytes),{
     host:options.host_identity??EXPECTED_NIMO,
     serverClassifier:options.server_classifier??classifyVoidBuyVoidLegacyHistoryNimoServerRequestV1,
-    hooks:{...(options.hooks??{}),use_injected_host_identity:true},
+    hooks:{
+      ...(options.hooks??{}),
+      use_injected_host_identity:true,
+      allow_test_parent:true,
+    },
   });
 }
 async function readOneRequest(){
