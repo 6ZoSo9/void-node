@@ -45,7 +45,7 @@ function transactionSummary(candidate){
   };
 }
 
-function canonicalCandidate(calldata){
+function canonicalCandidate(calldata,overrides={}){
   return {
     transaction_type:2,
     chain_id:"2050",
@@ -55,8 +55,9 @@ function canonicalCandidate(calldata){
     value_wei:"0",
     calldata,
     gas_limit:"60000",
-    max_fee_per_gas_wei:"2000000000",
-    max_priority_fee_per_gas_wei:"1000000000",
+    max_fee_per_gas_wei:"0",
+    max_priority_fee_per_gas_wei:"0",
+    ...overrides,
   };
 }
 
@@ -282,8 +283,8 @@ function finalityVerification(receipt){
   };
 }
 
-function fixture(calldata){
-  const candidate=canonicalCandidate(calldata);
+function fixture(calldata,candidateOverrides={}){
+  const candidate=canonicalCandidate(calldata,candidateOverrides);
   const signing=signingRequest(candidate);
   const receipt=receiptVerification(
     signing.unsigned_transaction_candidate_fingerprint_sha256,
@@ -445,6 +446,20 @@ const commitCalldata=COMMIT.encodeFunctionData(
   );
 }
 
+{
+  const f=fixture(commitCalldata,{max_fee_per_gas_wei:"1"});
+  const result=admitDatanetContentCommitmentFinalizedReceiptV1(f.input);
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,"datanet_finalized_admission_candidate_invalid");
+}
+
+{
+  const f=fixture(commitCalldata,{max_priority_fee_per_gas_wei:"1"});
+  const result=admitDatanetContentCommitmentFinalizedReceiptV1(f.input);
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,"datanet_finalized_admission_candidate_invalid");
+}
+
 for(const [key,expected] of Object.entries({
   source_only_admission:true,
   exact_finality_verification_required:true,
@@ -508,6 +523,9 @@ for(const forbidden of [
 assert.equal(source.includes("event_receipt_membership_verified:true"),false);
 assert.equal(source.includes("canonical_commitment_truth_admitted:true"),false);
 
+assert.equal(source.includes('maxFee!=="0"'),true,"nonzero max fee must fail closed");
+assert.equal(source.includes('priority!=="0"'),true,"nonzero priority fee must fail closed");
+
 console.log(
   "VOID_DATANET_CONTENT_COMMITMENT_FINALIZED_RECEIPT_ADMISSION_V1_PROOF_GREEN",
 );
@@ -523,3 +541,6 @@ console.log("canonical_commitment_truth_admitted=false");
 console.log("transaction_submission=false");
 console.log("rpc_call=false");
 console.log("chain2050_write=false");
+
+console.log("epoch2_zero_fee_candidate_accepted=true");
+console.log("nonzero_fee_drift_rejected=true");
