@@ -17,7 +17,7 @@ INSTALLER_SOURCE = (
     ROOT / "ops/precision/"
     "void_buy_void_user_manager_credential_query_protected_install_v1.py"
 )
-INSTALLER_SOURCE_GIT_BLOB_SHA1 = "e497ee1239865888303db56d0ff0ffeceb583516"
+INSTALLER_SOURCE_GIT_BLOB_SHA1 = "0fb7abc266dd4b66dd9f087d4c0c2acff29a8014"
 
 V6_QUALIFIER_SOURCE = (
     ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
