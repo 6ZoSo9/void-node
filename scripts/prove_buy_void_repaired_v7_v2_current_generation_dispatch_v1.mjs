@@ -12,6 +12,7 @@ const HISTORICAL_BASE="be959daf147a25f594ba705c6bead1e2e622b00e";
 const HISTORICAL_HEAD="af9646827b25e8103004f96525623ba248b41d2a";
 const HISTORICAL_MERGE_BASE="58c140232cb7bb7fd4f8d4680a413299c74fa57e";
 const RESTACK_BASE="f894cc5cbdccab0265a9a2265df45efa07170c4a";
+const RESTACK_HEAD="a350ff8673c77c685bb024576ed1e887bfe42ac7";
 const PROTECTED_PARENT="16563121f8d6c2a1fa7cd2f99ca4be2f88aa3cca";
 const PROVIDER_PARENT="bc510343c5c418a75154bedcc445cbf1251dc037";
 
@@ -159,7 +160,9 @@ function verifyRestackScope(){
   git(["cat-file","-e",HISTORICAL_HEAD+"^{commit}"]);
   git(["cat-file","-e",HISTORICAL_MERGE_BASE+"^{commit}"]);
   git(["cat-file","-e",RESTACK_BASE+"^{commit}"]);
-  git(["merge-base","--is-ancestor",RESTACK_BASE,"HEAD"]);
+  git(["cat-file","-e",RESTACK_HEAD+"^{commit}"]);
+  git(["merge-base","--is-ancestor",RESTACK_BASE,RESTACK_HEAD]);
+  git(["merge-base","--is-ancestor",RESTACK_HEAD,"HEAD"]);
   assert.equal(
     git(["merge-base",HISTORICAL_BASE,HISTORICAL_HEAD]),
     HISTORICAL_MERGE_BASE,
@@ -167,44 +170,54 @@ function verifyRestackScope(){
   );
 
   const historical=names(HISTORICAL_MERGE_BASE,HISTORICAL_HEAD);
-  const current=names(RESTACK_BASE,"HEAD");
+  const restacked=names(RESTACK_BASE,RESTACK_HEAD);
   assert.equal(historical.length,106,"historical_reconciliation_path_count");
-  assert.equal(current.length,106,"current_reconciliation_path_count");
+  assert.equal(restacked.length,106,"accepted_restack_path_count");
 
   const expected=historical
     .filter(relative=>!Object.hasOwn(MAIN_PRESERVED,relative))
     .concat([SELF,DOC])
     .sort();
-  assert.deepEqual(current,expected,"restack_path_set_drift");
+  assert.deepEqual(restacked,expected,"accepted_restack_path_set_drift");
 
   for(const [relative,blob] of Object.entries(MAIN_PRESERVED)){
     assert.ok(historical.includes(relative),"historical_main_preserved_path_missing:"+relative);
-    assert.ok(!current.includes(relative),"current_main_preserved_path_reintroduced:"+relative);
-    assert.equal(treeBlob("HEAD",relative),blob,"main_preserved_blob_drift:"+relative);
+    assert.ok(!restacked.includes(relative),"accepted_restack_main_preserved_path_reintroduced:"+relative);
     assert.equal(treeBlob(RESTACK_BASE,relative),blob,"restack_base_preserved_blob_drift:"+relative);
+    assert.equal(treeBlob(RESTACK_HEAD,relative),blob,"accepted_restack_preserved_blob_drift:"+relative);
+    assert.equal(treeBlob("HEAD",relative),blob,"current_head_preserved_blob_drift:"+relative);
   }
 
-  assert.ok(current.includes(SELF)&&current.includes(DOC),"dispatch_files_missing_from_current_delta");
-  for(const relative of current){
+  assert.ok(
+    restacked.includes(SELF)&&restacked.includes(DOC),
+    "dispatch_files_missing_from_accepted_restack_delta",
+  );
+  for(const relative of restacked){
     if(!historical.includes(relative))continue;
     if(SUCCESSOR_MODIFIED.includes(relative))continue;
     assert.equal(
-      treeBlob("HEAD",relative),
+      treeBlob(RESTACK_HEAD,relative),
       treeBlob(HISTORICAL_HEAD,relative),
       "restacked_historical_blob_drift:"+relative,
     );
     assert.equal(
-      treeMode("HEAD",relative),
+      treeMode(RESTACK_HEAD,relative),
       treeMode(HISTORICAL_HEAD,relative),
       "restacked_historical_mode_drift:"+relative,
     );
   }
   for(const relative of SUCCESSOR_MODIFIED){
-    assert.ok(historical.includes(relative)&&current.includes(relative),"successor_path_scope_missing:"+relative);
-    assert.notEqual(treeBlob("HEAD",relative),treeBlob(HISTORICAL_HEAD,relative),"successor_path_not_updated:"+relative);
+    assert.ok(
+      historical.includes(relative)&&restacked.includes(relative),
+      "successor_path_scope_missing:"+relative,
+    );
+    assert.notEqual(
+      treeBlob(RESTACK_HEAD,relative),
+      treeBlob(HISTORICAL_HEAD,relative),
+      "successor_path_not_updated:"+relative,
+    );
   }
 }
-
 function verifyFrozenEvidence(){
   pin(CANDIDATE_PROOF,CANDIDATE_PROOF_BLOB,256*1024);
   pin(LOCK_PROOF,LOCK_PROOF_BLOB,256*1024);
@@ -376,6 +389,7 @@ function verify(){
     repository:"6ZoSo9/void-node",
     historical_head:HISTORICAL_HEAD,
     restack_base:RESTACK_BASE,
+    accepted_restack_head:RESTACK_HEAD,
     protected_parent:PROTECTED_PARENT,
     protected_path_count:protectedPaths.length,
     protected_path_identity_preserved:true,
