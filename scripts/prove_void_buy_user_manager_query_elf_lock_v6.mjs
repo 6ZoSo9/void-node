@@ -10,6 +10,7 @@ import {fileURLToPath} from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const CANDIDATE_HEAD="d7ebb60ca1bc59f16972ffe3671dfaa44ffb7cdf";
 const SOURCE_PARENT="0d635ccd9d07fd07bb086bef3202b8b67ec6e5f7";
+const CORRECTION_BASE_HEAD="a248b2299b05a0445333b751b584c302eed66971";
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v6.yml";
 const CANDIDATE_WORKFLOW_BLOB="fe914ecbf81fd6c42ad25e3b5ebf70b7623dbee4";
 const PREEXEC_SOURCE="ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c";
@@ -21,7 +22,7 @@ const PREDECESSOR_LOCK="ops/security/buy-void-user-manager-query-elf-lock-v4.jso
 const SELF="scripts/prove_void_buy_user_manager_query_elf_lock_v6.mjs";
 const WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-lock-v6.yml";
 const DOC="docs/operators/buy-void-user-manager-query-elf-lock-v6.md";
-const EXPECTED_DELTA=[CANDIDATE_FILE,LOCK_FILE,SELF,WORKFLOW,DOC].sort();
+const EXPECTED_CORRECTION_DELTA=[LOCK_FILE,SELF,WORKFLOW,DOC].sort();
 
 const CANDIDATE=Object.freeze({
   marker:"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V6",
@@ -183,10 +184,16 @@ function expectedLock(){
 function verifyBranch(){
   git(["merge-base","--is-ancestor",CANDIDATE_HEAD,"HEAD"]);
   git(["merge-base","--is-ancestor",SOURCE_PARENT,"HEAD"]);
-  const changed=git(["diff","--name-only",CANDIDATE_HEAD,"HEAD","--"])
+  git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,"HEAD"]);
+  const changed=git(["diff","--name-only",CORRECTION_BASE_HEAD,"HEAD","--"])
     .split("\n").filter(Boolean).sort();
-  assert.deepEqual(changed,EXPECTED_DELTA,"lock_v6_branch_scope_drift");
+  assert.deepEqual(
+    changed,
+    EXPECTED_CORRECTION_DELTA,
+    "lock_v6_truth_correction_scope_drift",
+  );
 
+  assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_FILE]),CANDIDATE_BLOB);
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_WORKFLOW]),CANDIDATE_WORKFLOW_BLOB);
   for(const [relative,expected] of [
     [PREEXEC_SOURCE,CANDIDATE.preexec_source_git_blob_sha1],
