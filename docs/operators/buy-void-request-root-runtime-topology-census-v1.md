@@ -25,6 +25,9 @@ The collector performs only:
   `void-node-live.service`;
 - `/proc/<pid>/stat`, cwd and executable symlink reads for process-generation
   stability;
+- `ss -H -ltnp` to require the single local TCP/4100 listener to belong to
+  the observed `void-node-live.service` MainPID before trusting loopback
+  status responses;
 - filesystem **metadata only** for two bounded request-root candidates and the
   exact leaves `requests.jsonl` and `operator-events.jsonl`;
 - bounded GETs to the two loopback-only Buy VOID status routes on
@@ -78,6 +81,7 @@ raw path is not printed; only a SHA-256 and equality booleans are retained.
 - the user `void-node-live.service` is active;
 - no competing active system `void-node-live.service` exists;
 - PID + kernel start ticks + cwd + executable remain stable across observation;
+- the TCP/4100 listener is uniquely owned by that same runtime PID;
 - the loopback status explicitly binds the request directory; and
 - that exact directory passes the metadata qualification above.
 
