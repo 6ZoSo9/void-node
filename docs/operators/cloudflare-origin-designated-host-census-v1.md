@@ -44,22 +44,28 @@ Modes:
 A later operator bundle should pin the exact reviewed source generation and its
 SHA-256 before using `--run`.
 
-## Historical user Tunnel retirement
+## Historical user Tunnel observation
 
-The historical user-manager unit and intended system-manager unit intentionally
-share the name:
+The ordinary `zoso` user-manager query is **informational only**. The census
+may invoke `systemctl --user show` through a minimal environment to record what
+the visible user bus reports, but that D-Bus pathname is controlled by the same
+ordinary-user trust domain and is not authenticated systemd authority.
 
-`void-public-seed-named-tunnel-v1.service`.
+Accordingly the emitted historical snapshot always keeps:
 
-The census uses a bounded root-owned `runuser` + minimal environment query to
-the `zoso` user manager. It records only loaded/active/retirement booleans.
-It does not read the user service's environment or print its process command
-line.
+- `query_authenticated=false`;
+- `authority=untrusted_user_bus_shape_only`;
+- `retired_candidate_observed=false`;
+- `retirement_verified=false`.
 
-A live historical user Tunnel remains a HOLD. Inactivity alone is not treated
-as retirement: the observed user unit must also be disabled, masked, or absent.
-A merely inactive but still enabled/static candidate does not satisfy the
-retirement gate.
+Even an apparently inactive + disabled/masked user unit cannot promote the
+retirement gate from this query. A fake same-UID user-bus response reporting a
+retired unit is explicitly proved unable to promote retirement evidence.
+
+A later retirement gate must use a separately reviewed root/kernel-anchored
+manager/process identity or another host boundary that cannot be forged by the
+ordinary user. Until then, `next_action` holds at
+`HISTORICAL_USER_TUNNEL_AUTHORITY_HOLD` after the informational query.
 
 ## System service process identity
 
