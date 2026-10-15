@@ -69,10 +69,14 @@ assert module.EXPECTED_UID == 1000
 assert module.EXPECTED_MACHINE_ID_SHA256 == (
     "11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2"
 )
+assert module.AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED is False
 
 source = TARGET.read_text(encoding="utf-8")
 for required in (
     "target_live_binding_qualified",
+    "authenticated_user_manager_binding_verified",
+    "unauthenticated_runtime_candidate_observed",
+    "AUTHENTICATED_USER_MANAGER_BINDING_REQUIRED",
     "target_metadata_generation_stable",
     "machine_id_stable",
     "machine_id_matches_expected",
@@ -122,6 +126,8 @@ print("accepted_custody_readable_source_blobs_bound=true")
 print("v1_read_primitives_blob_bound=true")
 print("double_census_stability_required=true")
 print("designated_machine_id_binding_required=true")
+print("authenticated_user_manager_binding_verified=false")
+print("target_live_binding_fail_closed_until_authenticated_manager=true")
 print("request_payment_contents_read=false")
 print("historical_request_history_disposition_proven=false")
 print("migration_authorized=false")
