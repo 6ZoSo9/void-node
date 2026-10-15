@@ -104,16 +104,19 @@ function openTrustedPython(){
     canonicalPath,
     fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
   );
-  const opened=fs.fstatSync(fd);
-  const visible=fs.lstatSync(canonicalPath);
-  if(
-    opened.dev!==before.dev||opened.ino!==before.ino||opened.size!==before.size||
-    visible.dev!==opened.dev||visible.ino!==opened.ino||visible.size!==opened.size
-  ){
-    fs.closeSync(fd);
-    fail(code);
+  let transferred=false;
+  try{
+    const opened=fs.fstatSync(fd);
+    const visible=fs.lstatSync(canonicalPath);
+    if(
+      opened.dev!==before.dev||opened.ino!==before.ino||opened.size!==before.size||
+      visible.dev!==opened.dev||visible.ino!==opened.ino||visible.size!==opened.size
+    )fail(code);
+    transferred=true;
+    return fd;
+  }finally{
+    if(!transferred)fs.closeSync(fd);
   }
-  return fd;
 }
 
 export function buildApollyonV2RawCollectorArgsV1(config){
@@ -180,18 +183,21 @@ function openReviewedCollector(prepared){
     collector,
     fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0)|Number(fs.constants.O_NONBLOCK||0),
   );
-  const opened=fs.fstatSync(fd);
-  const bytes=fs.readFileSync(fd);
-  const after=fs.fstatSync(fd);
-  if(
-    opened.dev!==before.dev||opened.ino!==before.ino||opened.size!==before.size||
-    after.dev!==opened.dev||after.ino!==opened.ino||after.size!==opened.size||
-    gitBlobSha1(bytes)!==COLLECTOR_BLOB_SHA1
-  ){
-    fs.closeSync(fd);
-    fail("apollyon_v2_raw_adapter_collector_identity_mismatch");
+  let transferred=false;
+  try{
+    const opened=fs.fstatSync(fd);
+    const bytes=fs.readFileSync(fd);
+    const after=fs.fstatSync(fd);
+    if(
+      opened.dev!==before.dev||opened.ino!==before.ino||opened.size!==before.size||
+      after.dev!==opened.dev||after.ino!==opened.ino||after.size!==opened.size||
+      gitBlobSha1(bytes)!==COLLECTOR_BLOB_SHA1
+    )fail("apollyon_v2_raw_adapter_collector_identity_mismatch");
+    transferred=true;
+    return fd;
+  }finally{
+    if(!transferred)fs.closeSync(fd);
   }
-  return fd;
 }
 
 export function runApollyonV2RawCollectorAdapterV1(prepared,config){
