@@ -348,8 +348,11 @@ def host_context(root: pathlib.Path) -> dict[str, Any]:
     process = process_snapshot(service["main_pid"])
     listeners = listener_snapshot(env, service["main_pid"])
     target_state = file_state(target)
-    if target_state.get("exists") and target_state.get("bytes") != source:
-        raise Hold("target_dropin_exists_with_different_bytes")
+    if target_state.get("exists"):
+        if target_state.get("bytes") != source:
+            raise Hold("target_dropin_exists_with_different_bytes")
+        if target_state["uid"] != uid or target_state["mode"] != 0o600:
+            raise Hold("target_dropin_existing_custody_invalid")
     return {
         "uid": uid,
         "gid": account.pw_gid,
@@ -461,6 +464,8 @@ def print_common(ctx: dict[str, Any], mode: str) -> None:
     print("pre_capabilities_zero=" + str(ctx["process"]["capabilities_zero"]).lower())
     print("pre_no_new_privileges=" + str(ctx["process"]["no_new_privileges"]).lower())
     print("pre_listener_count=" + str(len(ctx["listeners"])))
+    print("same_uid_namespace_tamper_resistance_proven=false")
+    print("durable_policy_file_custody_proven=false")
     print("payment_acceptance=false")
     print("public_presale_activation=false")
     print("funds_movement=false")
@@ -482,6 +487,8 @@ def source_plan() -> None:
     print("user_group_mutation=false")
     print("storage_mutation=false")
     print("network_config_mutation=false")
+    print("same_uid_namespace_tamper_resistance_proven=false")
+    print("durable_policy_file_custody_proven=false")
     print("payment_acceptance=false")
     print("public_presale_activation=false")
     print("funds_movement=false")
@@ -763,6 +770,8 @@ def self_test() -> None:
     print("success_path_restart_count=1")
     print("listener_set_equality_required=true")
     print("automatic_failure_rollback=true")
+    print("same_uid_namespace_tamper_resistance_proven=false")
+    print("durable_policy_file_custody_proven=false")
     print("apply_authorized=false")
     print("payment_acceptance=false")
     print("public_presale_activation=false")
