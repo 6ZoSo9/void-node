@@ -33,6 +33,9 @@ spec.loader.exec_module(module)
 assert module.MARKER=="VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1"
 assert str(module.STABLE_ROOT)=="/var/lib/void-buy-request-journal-v1"
 assert module.EXPECTED_HOSTNAME=="zoso-Precision-Tower-7810"
+assert module.EXPECTED_USER=="zoso"
+assert module.EXPECTED_UID==1000
+assert str(module.REPO_ROOT)=="/home/zoso/dev/void-node"
 assert module.EXPECTED_MACHINE_ID_SHA256=="11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2"
 
 source=TARGET.read_text(encoding="utf-8")
@@ -52,6 +55,8 @@ for required in (
     "runtime_http_listener_stable",
     "confirmed_closeout_request_root_status_stable",
     "v1.run_systemctl",
+    "designated_runtime_user_matches",
+    "designated_runtime_user_required",
 ):
     assert required in source, required
 
@@ -91,6 +96,8 @@ assert "historical_request_history_disposition_proven=false" in cp.stdout
 print("VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1_PROOF_GREEN")
 print("v1_topology_dependency_blob_bound=true")
 print("v2_designated_host_dependency_blob_bound=true")
+print("designated_runtime_user_bound=true")
+print("ambient_home_not_used_for_repo_candidate=true")
 print("process_environment_access=false")
 print("external_network_calls=false")
 print("loopback_get_only=true")
