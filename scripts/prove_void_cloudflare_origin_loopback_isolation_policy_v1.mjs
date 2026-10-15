@@ -38,7 +38,7 @@ function canonical() {
       sensitive_paths: [...VOID_CLOUDFLARE_ORIGIN_SENSITIVE_PATHS_V1],
       ordinary_routes_preserved: true,
       worker_route_absence_required: true,
-      pseudo_ipv4_overwrite_disabled_required: true,
+      pseudo_ipv4_mode_off_required: true,
     },
     adapter: {
       service_unit: "void-cloudflare-origin-proxy-v2-adapter-v1.service",
@@ -168,7 +168,7 @@ assert.equal(result.cloudflared_uid_isolation_proven, false);
 assert.equal(result.historical_user_tunnel_retired_verified, false);
 assert.equal(result.tunnel_path_ownership_verified, false);
 assert.equal(result.cloudflare_worker_route_absence_proven, false);
-assert.equal(result.pseudo_ipv4_overwrite_disabled_proven, false);
+assert.equal(result.pseudo_ipv4_mode_off_proven, false);
 assert.equal(result.nftables_ruleset_live_verified, false);
 assert.equal(result.listener_ownership_live_verified, false);
 assert.equal(result.dispatcher_exclusive_reachability_proven, false);
@@ -250,7 +250,7 @@ expectHold(
 );
 expectHold(
   (x) => {
-    x.cloudflared.pseudo_ipv4_overwrite_disabled_required = false;
+    x.cloudflared.pseudo_ipv4_mode_off_required = false;
   },
   "cloudflare_isolation_cloudflared_route_policy_invalid",
 );
@@ -400,7 +400,7 @@ for (const [key, expected] of Object.entries({
   historical_user_tunnel_retired_verified: false,
   tunnel_path_ownership_verified: false,
   cloudflare_worker_route_absence_proven: false,
-  pseudo_ipv4_overwrite_disabled_proven: false,
+  pseudo_ipv4_mode_off_proven: false,
   nftables_ruleset_live_verified: false,
   listener_ownership_live_verified: false,
   cloudflared_uid_isolation_proven: false,
