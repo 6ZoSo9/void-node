@@ -28,8 +28,8 @@ installed-host evidence supplied through the existing policy contract.
 An append request does **not** carry arbitrary bytes to append.
 
 It carries the exact disposition candidate, Sovereign-signed authorization,
-public key, witness timestamp, policy/challenge binding, and prior/next witness
-hash expectations.
+public key, canonical UTC witness timestamp, policy/challenge binding, and
+prior/next witness hash expectations.
 
 The remote server must:
 
@@ -48,7 +48,8 @@ remote append primitive.
 
 Read and append responses return the complete bounded witness bytes plus event
 count/tip hashes. The client validates challenge, policy hash, request ID,
-response ID and full witness summary.
+response ID and full witness summary. Exact idempotent retries remain valid when
+the already-witnessed event is historical rather than the current journal tip.
 
 This source-only protocol still performs no SSH. Therefore:
 

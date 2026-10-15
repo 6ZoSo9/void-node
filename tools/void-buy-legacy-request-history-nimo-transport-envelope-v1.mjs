@@ -117,9 +117,14 @@ function challenge(value){
   return value;
 }
 function utc(value){
-  if(typeof value!=="string"||!UTC.test(value)||!Number.isFinite(Date.parse(value))){
+  if(typeof value!=="string"||!UTC.test(value)){
     fail("legacy_history_nimo_transport_time_invalid");
   }
+  const millis=Date.parse(value);
+  if(!Number.isFinite(millis))fail("legacy_history_nimo_transport_time_invalid");
+  const iso=new Date(millis).toISOString();
+  const seconds=iso.endsWith(".000Z")?iso.slice(0,-5)+"Z":iso;
+  if(value!==iso&&value!==seconds)fail("legacy_history_nimo_transport_time_invalid");
   return value;
 }
 function requirePolicy(input){
@@ -193,7 +198,19 @@ function appendRequestWithPlanner(input,planner){
   if(planned?.ok!==true)fail("legacy_history_nimo_transport_parent_"+String(planned?.reason||"held"));
   if(!EVENT_ID.test(String(planned.event?.event_id||"")))fail("legacy_history_nimo_transport_parent_event_invalid");
   const next=witnessSummary(planned.next_witness_jsonl);
-  if(next.tip_event_id!==planned.event.event_id)fail("legacy_history_nimo_transport_parent_tip_invalid");
+  if(planned.append_required===true){
+    if(next.tip_event_id!==planned.event.event_id){
+      fail("legacy_history_nimo_transport_parent_tip_invalid");
+    }
+  }else{
+    const inspectedNext=inspectVoidBuyVoidLegacyHistoryExternalWitnessV1(next.bytes);
+    const existing=inspectedNext.events.find(
+      event=>event.event_id===planned.event.event_id
+    );
+    if(!existing||canonical(existing)!==canonical(planned.event)){
+      fail("legacy_history_nimo_transport_parent_event_invalid");
+    }
+  }
   const candidateBytes=Buffer.from(canonical(input.candidate),"utf8");
   const authorizationBytes=Buffer.from(canonical(input.authorization),"utf8");
   const publicKeyBytes=Buffer.isBuffer(input.public_key_pem)
@@ -361,9 +378,21 @@ export function buildVoidBuyVoidLegacyHistoryNimoServerResponseV1(input){
       if(input.operation_performed!==false)fail("legacy_history_nimo_transport_read_operation_flag_invalid");
       status="read";
     }else{
-      if(observed.witness_sha256!==parsed.request.expected_next_witness_sha256||
-         observed.tip_event_id!==parsed.request.expected_event_id){
+      if(observed.witness_sha256!==parsed.request.expected_next_witness_sha256){
         fail("legacy_history_nimo_transport_append_response_witness_mismatch");
+      }
+      if(parsed.request.expected_append_required===true){
+        if(observed.tip_event_id!==parsed.request.expected_event_id){
+          fail("legacy_history_nimo_transport_append_response_witness_mismatch");
+        }
+      }else{
+        const inspectedObserved=
+          inspectVoidBuyVoidLegacyHistoryExternalWitnessV1(observed.bytes);
+        if(!inspectedObserved.events.some(
+          event=>event.event_id===parsed.request.expected_event_id
+        )){
+          fail("legacy_history_nimo_transport_append_response_event_missing");
+        }
       }
       if(input.operation_performed===true){
         if(parsed.request.expected_append_required!==true){
@@ -447,10 +476,16 @@ export function validateVoidBuyVoidLegacyHistoryNimoResponseV1(input){
         fail("legacy_history_nimo_transport_read_response_invalid");
       }
     }else{
+      const expectedEventPresent=
+        inspectVoidBuyVoidLegacyHistoryExternalWitnessV1(witness).events.some(
+          event=>event.event_id===parsed.request.expected_event_id
+        );
       if(
         !["appended","idempotent"].includes(response.status)||
         response.witness_sha256!==parsed.request.expected_next_witness_sha256||
-        response.tip_event_id!==parsed.request.expected_event_id||
+        !expectedEventPresent||
+        (parsed.request.expected_append_required===true&&
+          response.tip_event_id!==parsed.request.expected_event_id)||
         response.operation_performed!==(response.status==="appended")||
         (response.status==="appended"&&parsed.request.expected_append_required!==true)
       )fail("legacy_history_nimo_transport_append_response_invalid");

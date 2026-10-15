@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
 
 import {
   VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_AUTHORITY_V1,
@@ -21,6 +22,29 @@ import {
 } from "../tools/void-buy-legacy-request-history-external-witness-v1.mjs";
 
 const D=VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_DECISIONS_V1;
+const workflow=fs.readFileSync(
+  ".github/workflows/buy-void-legacy-request-history-external-witness-v1.yml",
+  "utf8"
+);
+for(const relative of [
+  "tools/void-buy-legacy-request-history-sovereign-authorization-v1.mjs",
+  "tools/void-buy-legacy-request-history-disposition-v1.mjs",
+  "src/security/void_sovereign_emergency_control_v1.ts",
+  "src/security/void_alignment_layer_v1.ts",
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "tsconfig.build.json",
+  "scripts/copy_void_runtime_js_v1.mjs",
+  "scripts/retire_saveblock_periodic_rewriters_v1.mjs",
+]){
+  const token='      - "'+relative+'"';
+  assert.equal(
+    workflow.split(token).length-1,
+    2,
+    "workflow must trigger for PR and main push: "+relative,
+  );
+}
 function canonical(value){
   if(value===null)return "null";
   if(typeof value==="string")return JSON.stringify(value).replace(/[\u007f-\uffff]/g,
@@ -124,6 +148,35 @@ assert.equal(plan.external_transport_authenticated,false);
 assert.equal(plan.external_witness_storage_proven,false);
 assert.equal(plan.external_witness_verified,false);
 
+for(const invalidUtc of [
+  "2026-02-29T00:00:00.000Z",
+  "2026-02-31T12:00:00.000Z",
+]){
+  const invalid=testOnlyPlanVoidBuyVoidLegacyHistoryExternalWitnessAgainstFingerprintV1(
+    {
+      current_witness_jsonl:Buffer.alloc(0),
+      candidate,
+      authorization,
+      public_key_pem:publicPem,
+      witnessed_at_utc:invalidUtc,
+    },
+    fingerprint,
+  );
+  assert.equal(invalid.ok,false);
+  assert.match(invalid.reason,/legacy_history_external_witness_time_invalid/u);
+}
+const leapPlan=testOnlyPlanVoidBuyVoidLegacyHistoryExternalWitnessAgainstFingerprintV1(
+  {
+    current_witness_jsonl:Buffer.alloc(0),
+    candidate,
+    authorization,
+    public_key_pem:publicPem,
+    witnessed_at_utc:"2028-02-29T12:00:00Z",
+  },
+  fingerprint,
+);
+assert.equal(leapPlan.ok,true);
+
 const inspected=inspectVoidBuyVoidLegacyHistoryExternalWitnessV1(plan.next_witness_jsonl);
 assert.equal(inspected.event_count,1);
 assert.equal(inspected.tip_event_id,plan.event.event_id);
@@ -150,6 +203,86 @@ assert.equal(idempotent.ok,true);
 if(!idempotent.ok)throw Error("idempotent hold");
 assert.equal(idempotent.append_required,false);
 assert.equal(idempotent.event.event_id,plan.event.event_id);
+
+const candidateBBody={
+  ...candidateBody,
+  metadata_census_sha256:"sha256:"+"2".repeat(64),
+};
+const candidateB={
+  ...candidate,
+  ...candidateBBody,
+  candidate_id:"voidblrhdc1_"+sha256(Buffer.from(canonical(candidateBBody),"utf8")),
+};
+const requestB=
+  testOnlyBuildVoidBuyVoidLegacyHistorySovereignAuthorizationRequestAgainstFingerprintV1(
+    candidateB,"2026-10-15T12:08:00.000Z",fingerprint
+  );
+const signatureB=crypto.sign(
+  null,
+  canonicalVoidBuyVoidLegacyHistorySovereignAuthorizationPayloadV1(requestB),
+  privateKey,
+).toString("base64");
+const authorizationB=
+  assembleVoidBuyVoidLegacyHistorySovereignAuthorizationV1(requestB,signatureB);
+const planB=testOnlyPlanVoidBuyVoidLegacyHistoryExternalWitnessAgainstFingerprintV1(
+  {
+    current_witness_jsonl:plan.next_witness_jsonl,
+    candidate:candidateB,
+    authorization:authorizationB,
+    public_key_pem:publicPem,
+    witnessed_at_utc:"2026-10-15T12:09:00.000Z",
+  },
+  fingerprint,
+);
+assert.equal(planB.ok,true);
+if(!planB.ok)throw Error(planB.reason||"second plan hold");
+assert.equal(planB.append_required,true);
+assert.notEqual(planB.event.event_id,plan.event.event_id);
+
+const replanA=testOnlyPlanVoidBuyVoidLegacyHistoryExternalWitnessAgainstFingerprintV1(
+  {
+    current_witness_jsonl:planB.next_witness_jsonl,
+    candidate,
+    authorization,
+    public_key_pem:publicPem,
+    witnessed_at_utc:"2026-10-15T12:10:00.000Z",
+  },
+  fingerprint,
+);
+assert.equal(replanA.ok,true);
+if(!replanA.ok)throw Error(replanA.reason||"non-tip idempotent hold");
+assert.equal(replanA.append_required,false);
+assert.equal(replanA.event.event_id,plan.event.event_id);
+assert.ok(replanA.next_witness_jsonl.equals(planB.next_witness_jsonl));
+const nonTipReadback=classifyVoidBuyVoidLegacyHistoryExternalWitnessReadbackV1({
+  plan:replanA,
+  observed_witness_jsonl:planB.next_witness_jsonl,
+});
+assert.equal(nonTipReadback.ok,true);
+assert.equal(nonTipReadback.event_id,plan.event.event_id);
+
+const missingEventPlan={
+  ...replanA,
+  event:{...replanA.event,event_id:"voidblrhw1_"+"f".repeat(64)},
+};
+assert.equal(
+  classifyVoidBuyVoidLegacyHistoryExternalWitnessReadbackV1({
+    plan:missingEventPlan,
+    observed_witness_jsonl:planB.next_witness_jsonl,
+  }).ok,
+  false,
+);
+const tamperedHistoricalPlan={
+  ...replanA,
+  event:{...replanA.event,decision:D.UNRESOLVED_HOLD},
+};
+assert.equal(
+  classifyVoidBuyVoidLegacyHistoryExternalWitnessReadbackV1({
+    plan:tamperedHistoricalPlan,
+    observed_witness_jsonl:planB.next_witness_jsonl,
+  }).ok,
+  false,
+);
 
 const secondRequest=
   testOnlyBuildVoidBuyVoidLegacyHistorySovereignAuthorizationRequestAgainstFingerprintV1(

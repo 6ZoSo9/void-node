@@ -114,7 +114,12 @@ function safeCount(value,code){
   return value;
 }
 function exactUtc(value,code){
-  if(typeof value!=="string"||!UTC.test(value)||!Number.isFinite(Date.parse(value)))fail(code);
+  if(typeof value!=="string"||!UTC.test(value))fail(code);
+  const millis=Date.parse(value);
+  if(!Number.isFinite(millis))fail(code);
+  const iso=new Date(millis).toISOString();
+  const seconds=iso.endsWith(".000Z")?iso.slice(0,-5)+"Z":iso;
+  if(value!==iso&&value!==seconds)fail(code);
   return value;
 }
 function candidateBody(candidate){
