@@ -37,38 +37,7 @@ assert module.SENSITIVE_PATHS == (
 
 doc = DOC.read_text(encoding="utf-8")
 assert doc.count("# Cloudflare origin designated-host census v1") == 1
-assert "exact anchored form `^<path>#!/usr/bin/env python3
-from __future__ import annotations
-
-import importlib.util
-import os
-import pathlib
-import re
-import tempfile
-
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-TARGET = ROOT / "ops/public/void_cloudflare_origin_designated_host_census_v1.py"
-DOC = ROOT / "docs/operators/cloudflare-origin-designated-host-census-v1.md"
-
-spec = importlib.util.spec_from_file_location(
-    "void_cloudflare_origin_designated_host_census_v1",
-    TARGET,
-)
-assert spec is not None and spec.loader is not None
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-
-module.self_test()
-
-assert module.EXPECTED_HOSTNAME == "zoso-Precision-Tower-7810"
-assert module.EXPECTED_USER == "zoso"
-assert module.PUBLIC_HOSTNAME == "seed.nullfeed.org"
-assert module.SYSTEM_UNITS == {
-    "cloudflared": "void-public-seed-named-tunnel-v1.service",
-    "adapter": "void-cloudflare-origin-proxy-v2-adapter-v1.service",
-    "dispatcher": "void-public-443-proxy-v2-dispatch-v1.service",
-}
-; an unanchored" in doc
+assert "exact anchored form `^<path>$`; an unanchored" in doc
 
 for role, row in module.SOURCE_BLOBS.items():
     assert re.fullmatch(r"[0-9a-f]{40}", row["git_blob_sha1"]), role
