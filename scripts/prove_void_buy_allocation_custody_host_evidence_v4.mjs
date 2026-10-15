@@ -14,7 +14,7 @@ const PINS=Object.freeze({
   "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c":
     "d8b30ac499c3bb8a5d223dbc6be687dd175be611",
   "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c":
-    "a493a557305d5193d2b1d38b6070a8e826c1d43a",
+    "6aefc385bcc4212d3c45e36871bfde0da3529baa",
   "tools/void-buy-allocation-custody-host-evidence-v3.mjs":
     "eae92c7dd060b4d6139543463b5fbd2f8564585b",
   "scripts/prove_void_buy_allocation_custody_host_evidence_v3.mjs":

@@ -69,7 +69,7 @@ assert.match(source,/CapabilityBoundingSet=%016" PRIx64/u);
 assert.match(source,/KernelCapBnd=%016" PRIx64/u);
 assert.match(source,/KernelNoNewPrivs=%d/u);
 assert.match(source,/PrivateUsers=no/u);
-assert.match(source,/PrivateUsers",NULL,\'b\',&out->private_users/u);
+assert.equal(source.includes("\"PrivateUsers\",NULL,\'b\',&out->private_users"),true);
 assert.match(source,/capability_bounding_set_kernel_match=true/u);
 assert.match(source,/process_nonbounding_capabilities_zero=true/u);
 assert.doesNotMatch(source,/printf\("CapabilityBoundingSet=\\n"\)/u);
