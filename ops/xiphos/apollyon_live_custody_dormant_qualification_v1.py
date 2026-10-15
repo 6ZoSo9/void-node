@@ -87,7 +87,8 @@ def exact_dormant(unit:str,allow_failed:bool=False)->dict[str,str]:
     if props.get("LoadState")!="loaded":hold("unit_not_loaded:"+unit)
     active=props.get("ActiveState")
     if allow_failed:
-        if active=="active":hold("unit_active:"+unit)
+        if active not in ("inactive","failed"):
+            hold("unit_not_safely_dormant:"+unit)
     elif active!="inactive":
         hold("unit_not_inactive:"+unit)
     if props.get("UnitFileState")=="enabled":hold("unit_enabled:"+unit)
@@ -224,6 +225,13 @@ def wait_socket(present:bool,timeout_s:float=8.0)->None:
         time.sleep(0.05)
     hold("socket_transition_timeout:"+("present" if present else "absent"))
 
+def assert_socket_parent_empty()->None:
+    if not SOCKET_PARENT.is_dir():
+        hold("socket_parent_missing")
+    names=sorted(entry.name for entry in os.scandir(SOCKET_PARENT))
+    if names:
+        hold("socket_parent_not_empty:"+",".join(names))
+
 def live_observation(ids:dict[str,int])->dict[str,object]:
     service=wait_unit(SERVICE_UNIT,"active")
     target=wait_unit(TARGET_UNIT,"active")
@@ -280,6 +288,7 @@ def stop_and_attest(ids:dict[str,int])->dict[str,object]:
     wait_unit(TARGET_UNIT,"inactive")
     wait_unit(SERVICE_UNIT,"inactive")
     wait_socket(False)
+    assert_socket_parent_empty()
     if not no_training_uid_processes(ids["training_uid"]):
         hold("training_uid_process_after_stop")
     return {"target_inactive":True,"service_inactive":True,"socket_absent":True}
@@ -291,6 +300,7 @@ def plan()->dict:
     exact_dormant(SERVICE_UNIT)
     exact_dormant(TRAINING_UNIT,allow_failed=True)
     if SOCKET_PATH.exists():hold("preexisting_socket_path")
+    assert_socket_parent_empty()
     if not no_training_uid_processes(ids["training_uid"]):hold("preexisting_training_uid_process")
     return {
         "marker":MARKER,"mode":"--plan","target_host":TARGET_HOST,
@@ -312,8 +322,8 @@ def qualify()->dict:
     error=None
     try:
         for cycle in (1,2):
-            run(["/usr/bin/systemctl","start",TARGET_UNIT])
             target_maybe_started=True
+            run(["/usr/bin/systemctl","start",TARGET_UNIT])
             live=live_observation(ids)
             live["cycle"]=cycle
             observations.append({"live":live})
@@ -335,6 +345,7 @@ def qualify()->dict:
                 wait_unit(TARGET_UNIT,"inactive",5.0)
                 wait_unit(SERVICE_UNIT,"inactive",5.0)
                 wait_socket(False,5.0)
+                assert_socket_parent_empty()
             except BaseException as cleanup_exc:
                 if error is None:error=cleanup_exc
             if stop.returncode!=0 and error is None:
@@ -343,6 +354,7 @@ def qualify()->dict:
 
     exact_dormant(TARGET_UNIT);exact_dormant(SERVICE_UNIT)
     if SOCKET_PATH.exists():hold("final_socket_present")
+    assert_socket_parent_empty()
     if consumed_snapshot()!=consumed_before:hold("final_consumed_state_changed")
     if not no_training_uid_processes(ids["training_uid"]):hold("final_training_uid_process")
 
@@ -363,6 +375,9 @@ def self_test()->None:
         'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
         'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',
         'wait_socket(False)',
+        'assert_socket_parent_empty()',
+        'target_maybe_started=True',
+        'active not in ("inactive","failed")',
         'st.st_nlink!=2',
         'consumed_snapshot()!=consumed_before',
         'custody_process_generation_not_renewed',
