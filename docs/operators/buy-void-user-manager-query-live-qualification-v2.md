@@ -40,6 +40,22 @@ The two complete transcripts and stable manager/service identities must be
 identical. The protected three-file generation must also remain byte/metadata
 stable around both observations.
 
+## Generation dispatch
+
+The V2 qualifier is historical evidence for its exact accepted V2 dependency
+generation. Its positive proof is executed only when the query, peer guard,
+preexec, V4 parser, protected replacement, and V2 lock all match that frozen
+generation.
+
+On the canonical PrivateUsers V4 generation, the frozen V2 qualifier is not
+repinned. The workflow instead requires its exact historical source/proof bytes,
+binds the canonical V4 query/parser/candidate/lock identities, and requires the
+historical qualifier to fail closed with
+`v4_parser_source_blob_mismatch`. Any unrecognized combination fails CI rather
+than silently becoming a new positive generation.
+
+This preservation path performs no live query.
+
 ## Failure semantics
 
 A HOLD reports `query_execution_state=unknown_or_partial` because failure may
