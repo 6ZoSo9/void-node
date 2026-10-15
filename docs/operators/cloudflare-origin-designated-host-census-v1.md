@@ -125,6 +125,17 @@ custody facts from one inode with route bytes from another. The emitted evidence
 contains only a SHA-256 of the config bytes and classification booleans; it does
 not print the config, Tunnel ID or path.
 
+The parser binds route classification to exactly one top-level `ingress:`
+mapping. Two-space list items under any other top-level key cannot contribute
+route evidence. A missing or duplicate top-level `ingress:` block and duplicate
+`hostname` keys within one ingress rule fail closed. Recognized scalar fields
+(`path`, `service`, and `originRequest.httpHostHeader`) must also be
+nonempty canonical scalars on first appearance; an empty/malformed first key
+cannot be followed by a duplicate valid key to smuggle an accepted value.
+`originRequest` child fields are credited only while that exact four-space
+mapping is active; entering any sibling mapping ends that scope before later
+six-space fields are considered.
+
 The canonical v1 sensitive candidate is deliberately strict: three explicit
 seed-host rules, one for each sensitive path, all to one IPv4-loopback adapter
 port. Because cloudflared interprets the `path` field as a regular expression,
@@ -143,12 +154,22 @@ shadow every later sensitive path and now fails the census.
 A wildcard hostname that can match `seed.nullfeed.org` must not appear before
 that ordinary seed rule, because it could likewise shadow the intended public
 route. The configuration must also end with exactly one hostless/pathless global
-catch-all rule, as required by cloudflared ingress semantics.
+catch-all rule whose service is exactly `http_status:404`; forwarding unmatched
+hosts to an origin or using a different status code fails closed.
 
-The ordinary seed rule must target a service other than the sensitive adapter so
-the census does not treat a sensitive-only Tunnel configuration as preserving
-the public site/read surface. Any additional exact seed-host rule makes the
-canonical v1 rule set fail closed.
+The ordinary seed rule must target exactly `http://127.0.0.1:8083`. That
+expectation is source-bound to reviewed current
+`ops/public/void-public-frontdoor-v1.mjs` Git blob
+`176f4a99c42ac3432d5797efaebf851cc0503737`, whose canonical defaults are
+loopback `127.0.0.1` and port `8083` and whose source refuses a non-loopback
+bind. A status service, wrong loopback port, non-loopback origin or arbitrary
+other service therefore cannot qualify ordinary-route preservation. Any
+additional exact seed-host rule also makes the canonical v1 rule set fail
+closed.
+
+This remains a local route-shape candidate, not proof that the currently running
+frontdoor process uses its default port or that Cloudflare control-plane state
+matches the config. Those live/runtime claims remain separate gates.
 
 The config's `credentials-file` path is used for **metadata only**. Credential
 contents are never read. The configured pathname itself must be canonical and

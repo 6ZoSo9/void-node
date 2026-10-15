@@ -39,6 +39,17 @@ SOURCE_BLOBS = {
         "git_blob_sha1": "13f78dfef5634f4ff9f930d6d2be9a29447674cd",
     },
 }
+REVIEWED_FRONTDOOR_SOURCE = {
+    "path": "ops/public/void-public-frontdoor-v1.mjs",
+    "git_blob_sha1": "176f4a99c42ac3432d5797efaebf851cc0503737",
+    "bind": "127.0.0.1",
+    "port": 8083,
+}
+ORDINARY_FRONTDOOR_SERVICE = (
+    f"http://{REVIEWED_FRONTDOOR_SOURCE['bind']}:"
+    f"{REVIEWED_FRONTDOOR_SOURCE['port']}"
+)
+GLOBAL_CATCHALL_SERVICE = "http_status:404"
 SENSITIVE_PATHS = (
     "/__void/agents/paid-work/credential-requests/v1",
     "/wc/public-earning-pilot-v1/claim-ticket",
@@ -835,6 +846,8 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
     rules: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     in_origin = False
+    ingress_seen = False
+    in_ingress = False
 
     def begin_rule() -> dict[str, Any]:
         return {
@@ -851,13 +864,35 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
             continue
         indent = len(raw_line) - len(raw_line.lstrip(" "))
         line = raw_line.strip()
-        if line.startswith("credentials-file:"):
+        if line == "ingress:":
             if indent != 0:
-                raise CensusError("tunnel_credentials_path_noncanonical_indent")
-            scalar = yaml_scalar(line.split(":", 1)[1])
-            if scalar is None:
-                raise CensusError("tunnel_credentials_path_invalid")
-            credentials.append(scalar)
+                raise CensusError("tunnel_ingress_noncanonical_indent")
+            if ingress_seen:
+                raise CensusError("tunnel_ingress_duplicate")
+            if current is not None:
+                rules.append(current)
+                current = None
+            ingress_seen = True
+            in_ingress = True
+            in_origin = False
+            continue
+
+        if indent == 0:
+            if current is not None:
+                rules.append(current)
+                current = None
+            in_ingress = False
+            in_origin = False
+            if line.startswith("credentials-file:"):
+                scalar = yaml_scalar(line.split(":", 1)[1])
+                if scalar is None:
+                    raise CensusError("tunnel_credentials_path_invalid")
+                credentials.append(scalar)
+            continue
+
+        if line.startswith("credentials-file:"):
+            raise CensusError("tunnel_credentials_path_noncanonical_indent")
+        if not in_ingress:
             continue
 
         if indent == 2 and line.startswith("- "):
@@ -886,15 +921,36 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
 
         if current is None:
             continue
-        if indent == 4 and line.startswith("path:"):
+
+        # originRequest child fields are valid only while that exact
+        # four-space mapping remains the active parent. Any sibling transition
+        # ends the scope before a later six-space field can be credited.
+        if in_origin and indent <= 4:
+            in_origin = False
+
+        if indent == 4 and line.startswith("hostname:"):
+            if current["hostname"] is not None:
+                raise CensusError("tunnel_rule_duplicate_hostname")
+            scalar = yaml_scalar(line.split(":", 1)[1])
+            if scalar is None:
+                raise CensusError("tunnel_hostname_invalid")
+            current["hostname"] = scalar
+            in_origin = False
+        elif indent == 4 and line.startswith("path:"):
             if current["path"] is not None:
                 raise CensusError("tunnel_rule_duplicate_path")
-            current["path"] = yaml_scalar(line.split(":", 1)[1])
+            scalar = yaml_scalar(line.split(":", 1)[1])
+            if scalar is None:
+                raise CensusError("tunnel_path_invalid")
+            current["path"] = scalar
             in_origin = False
         elif indent == 4 and line.startswith("service:"):
             if current["service"] is not None:
                 raise CensusError("tunnel_rule_duplicate_service")
-            current["service"] = yaml_scalar(line.split(":", 1)[1])
+            scalar = yaml_scalar(line.split(":", 1)[1])
+            if scalar is None:
+                raise CensusError("tunnel_service_invalid")
+            current["service"] = scalar
             in_origin = False
         elif indent == 4 and line == "originRequest:":
             if current["_origin_request_seen"]:
@@ -904,7 +960,10 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         elif in_origin and indent == 6 and line.startswith("httpHostHeader:"):
             if current["http_host_header"] is not None:
                 raise CensusError("tunnel_rule_duplicate_http_host_header")
-            current["http_host_header"] = yaml_scalar(line.split(":", 1)[1])
+            scalar = yaml_scalar(line.split(":", 1)[1])
+            if scalar is None:
+                raise CensusError("tunnel_rule_http_host_header_invalid")
+            current["http_host_header"] = scalar
         elif in_origin and indent == 6 and line.startswith("disableChunkedEncoding:"):
             if current["disable_chunked_encoding"] is not None:
                 raise CensusError("tunnel_rule_duplicate_chunked_encoding")
@@ -915,6 +974,8 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
 
     if current is not None:
         rules.append(current)
+    if not ingress_seen:
+        raise CensusError("tunnel_ingress_missing")
     if len(credentials) != 1:
         raise CensusError("tunnel_credentials_path_ambiguous")
     credential_path = pathlib.Path(credentials[0])
@@ -1001,15 +1062,16 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         len(hostless) == 1
         and hostless[0][0] == len(rules) - 1
         and hostless[0][1].get("path") is None
-        and isinstance(hostless[0][1].get("service"), str)
+        and hostless[0][1].get("service") == GLOBAL_CATCHALL_SERVICE
     )
     exact_public_rule_set = (
         len(public_other) == 1
         and len(ordinary_seed_rules) == 1
     )
-    ordinary_service_not_adapter = (
+    ordinary_frontdoor_target_bound = (
         len(ordinary_seed_rules) == 1
-        and ordinary_seed_rules[0][1].get("service") != adapter_service
+        and ordinary_seed_rules[0][1].get("service")
+        == ORDINARY_FRONTDOOR_SERVICE
     )
     extra_adapter_seed_rule = any(
         adapter_service is not None and rule.get("service") == adapter_service
@@ -1022,7 +1084,7 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
     )
     ordinary_preserved = (
         exact_public_rule_set
-        and ordinary_service_not_adapter
+        and ordinary_frontdoor_target_bound
         and first_match_order_verified
     )
     shape = (
@@ -1038,8 +1100,10 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         "extra_adapter_seed_rule_observed": extra_adapter_seed_rule,
         "ordinary_seed_route_count": len(ordinary_seed_rules),
         "ordinary_routes_preserved_candidate": ordinary_preserved,
+        "ordinary_frontdoor_target_bound": ordinary_frontdoor_target_bound,
         "first_match_order_verified": first_match_order_verified,
         "global_catchall_last": global_catchall_last,
+        "global_catchall_http_status_404_bound": global_catchall_last,
         "public_hostname_wildcard_shadow_absent": wildcard_shadow_absent,
     }
 

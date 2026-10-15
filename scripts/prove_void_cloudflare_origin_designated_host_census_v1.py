@@ -10,6 +10,7 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/public/void_cloudflare_origin_designated_host_census_v1.py"
 DOC = ROOT / "docs/operators/cloudflare-origin-designated-host-census-v1.md"
+WORKFLOW = ROOT / ".github/workflows/cloudflare-origin-designated-host-census-v1.yml"
 
 spec = importlib.util.spec_from_file_location(
     "void_cloudflare_origin_designated_host_census_v1",
@@ -44,6 +45,67 @@ for role, row in module.SOURCE_BLOBS.items():
     path = ROOT / row["path"]
     data = path.read_bytes()
     assert module.git_blob_sha1(data) == row["git_blob_sha1"], role
+
+frontdoor = module.REVIEWED_FRONTDOOR_SOURCE
+assert frontdoor == {
+    "path": "ops/public/void-public-frontdoor-v1.mjs",
+    "git_blob_sha1": "176f4a99c42ac3432d5797efaebf851cc0503737",
+    "bind": "127.0.0.1",
+    "port": 8083,
+}
+frontdoor_source = (ROOT / frontdoor["path"]).read_bytes()
+assert module.git_blob_sha1(frontdoor_source) == frontdoor["git_blob_sha1"]
+frontdoor_text = frontdoor_source.decode("utf-8", "strict")
+assert 'process.env.VOID_PUBLIC_FRONTDOOR_BIND || "127.0.0.1"' in frontdoor_text
+assert 'process.env.VOID_PUBLIC_FRONTDOOR_PORT || "8083"' in frontdoor_text
+assert 'if (BIND !== "127.0.0.1")' in frontdoor_text
+assert module.ORDINARY_FRONTDOOR_SERVICE == "http://127.0.0.1:8083"
+assert module.GLOBAL_CATCHALL_SERVICE == "http_status:404"
+
+workflow_lines = WORKFLOW.read_text(encoding="utf-8").splitlines()
+
+def workflow_trigger_paths(trigger: str) -> tuple[str, ...]:
+    marker = f"  {trigger}:"
+    assert workflow_lines.count(marker) == 1, trigger
+    start = workflow_lines.index(marker) + 1
+    end = len(workflow_lines)
+    for index in range(start, len(workflow_lines)):
+        if re.fullmatch(r"  [A-Za-z0-9_-]+:", workflow_lines[index]):
+            end = index
+            break
+    block = workflow_lines[start:end]
+    assert block.count("    paths:") == 1, trigger
+    path_start = block.index("    paths:") + 1
+    paths: list[str] = []
+    for line in block[path_start:]:
+        match = re.fullmatch(r'      - "([^"]+)"', line)
+        if match:
+            paths.append(match.group(1))
+            continue
+        if line.startswith("      - "):
+            raise AssertionError(("noncanonical workflow path", trigger, line))
+        if line and not line.startswith("      "):
+            break
+    assert paths, trigger
+    return tuple(paths)
+
+expected_workflow_paths = (
+    "ops/public/void_cloudflare_origin_designated_host_census_v1.py",
+    "scripts/prove_void_cloudflare_origin_designated_host_census_v1.py",
+    "docs/operators/cloudflare-origin-designated-host-census-v1.md",
+    module.SOURCE_BLOBS["policy"]["path"],
+    module.SOURCE_BLOBS["adapter"]["path"],
+    module.SOURCE_BLOBS["dispatcher"]["path"],
+    frontdoor["path"],
+    ".github/workflows/cloudflare-origin-designated-host-census-v1.yml",
+)
+pull_request_paths = workflow_trigger_paths("pull_request")
+push_paths = workflow_trigger_paths("push")
+assert pull_request_paths == expected_workflow_paths
+assert push_paths == expected_workflow_paths
+push_start = workflow_lines.index("  push:")
+push_end = workflow_lines.index("  workflow_dispatch:")
+assert "    branches: [main]" in workflow_lines[push_start:push_end]
 
 status = module.parse_proc_status(
     "Uid:\t991 991 991 991\n"
@@ -143,6 +205,128 @@ config_text = (
 )
 config = module.parse_tunnel_config(config_text)
 assert config["sensitive_route_shape_observed"] is True
+
+def expect_config_error(raw: str, reason: str) -> None:
+    try:
+        module.parse_tunnel_config(raw)
+    except module.CensusError as exc:
+        assert str(exc) == reason, (str(exc), reason)
+    else:
+        raise AssertionError("expected tunnel config rejection: " + reason)
+
+off_ingress_text = (
+    config_text
+    .replace("ingress:\n", "not-ingress:\n", 1)
+    .replace("  - service: http_status:404\n", "", 1)
+    + "ingress:\n  - service: http_status:404\n"
+)
+off_ingress = module.parse_tunnel_config(off_ingress_text)
+assert off_ingress["sensitive_route_shape_observed"] is False
+
+duplicate_hostname_text = config_text.replace(
+    "    path: ^/__void/agents/paid-work/credential-requests/v1$\n",
+    "    hostname: attacker.example\n"
+    "    path: ^/__void/agents/paid-work/credential-requests/v1$\n",
+    1,
+)
+expect_config_error(
+    duplicate_hostname_text,
+    "tunnel_rule_duplicate_hostname",
+)
+expect_config_error(
+    config_text + "ingress:\n  - service: http_status:503\n",
+    "tunnel_ingress_duplicate",
+)
+expect_config_error(
+    config_text.replace("ingress:\n", "not-ingress:\n", 1),
+    "tunnel_ingress_missing",
+)
+
+expect_config_error(
+    config_text.replace(
+        "    path: ^/__void/agents/paid-work/credential-requests/v1$\n",
+        "    path:\n"
+        "    path: ^/__void/agents/paid-work/credential-requests/v1$\n",
+        1,
+    ),
+    "tunnel_path_invalid",
+)
+expect_config_error(
+    config_text.replace(
+        "    service: http://127.0.0.1:4311\n",
+        "    service:\n"
+        "    service: http://127.0.0.1:4311\n",
+        1,
+    ),
+    "tunnel_service_invalid",
+)
+expect_config_error(
+    config_text.replace(
+        "      httpHostHeader: seed.nullfeed.org\n",
+        "      httpHostHeader:\n"
+        "      httpHostHeader: seed.nullfeed.org\n",
+        1,
+    ),
+    "tunnel_rule_http_host_header_invalid",
+)
+
+origin_sibling_chunked_spoof = module.parse_tunnel_config(
+    config_text.replace(
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "      disableChunkedEncoding: true\n",
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "    unrelated:\n"
+        "      disableChunkedEncoding: true\n",
+        1,
+    )
+)
+assert origin_sibling_chunked_spoof["sensitive_route_shape_observed"] is False
+
+origin_sibling_header_spoof = module.parse_tunnel_config(
+    config_text.replace(
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "      disableChunkedEncoding: true\n",
+        "    originRequest:\n"
+        "      disableChunkedEncoding: true\n"
+        "    unrelated:\n"
+        "      httpHostHeader: seed.nullfeed.org\n",
+        1,
+    )
+)
+assert origin_sibling_header_spoof["sensitive_route_shape_observed"] is False
+
+sibling_before_origin_spoof = module.parse_tunnel_config(
+    config_text.replace(
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "      disableChunkedEncoding: true\n",
+        "    unrelated:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "    originRequest:\n"
+        "      disableChunkedEncoding: true\n",
+        1,
+    )
+)
+assert sibling_before_origin_spoof["sensitive_route_shape_observed"] is False
+
+expect_config_error(
+    config_text.replace(
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "      disableChunkedEncoding: true\n",
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "    unrelated:\n"
+        "      disableChunkedEncoding: true\n"
+        "    originRequest:\n",
+        1,
+    ),
+    "tunnel_rule_duplicate_origin_request",
+)
+
 assert module.canonical_sensitive_path(module.SENSITIVE_PATHS[0]) is None
 assert (
     module.canonical_sensitive_path("^" + module.SENSITIVE_PATHS[0] + "$")
@@ -157,8 +341,10 @@ unanchored_config = module.parse_tunnel_config(
 assert unanchored_config["sensitive_route_shape_observed"] is False
 assert config["sensitive_adapter_port"] == 4311
 assert config["ordinary_routes_preserved_candidate"] is True
+assert config["ordinary_frontdoor_target_bound"] is True
 assert config["first_match_order_verified"] is True
 assert config["global_catchall_last"] is True
+assert config["global_catchall_http_status_404_bound"] is True
 assert config["public_hostname_wildcard_shadow_absent"] is True
 
 ordinary_rule = (
@@ -191,6 +377,39 @@ missing_catchall = module.parse_tunnel_config(
 )
 assert missing_catchall["sensitive_route_shape_observed"] is False
 assert missing_catchall["global_catchall_last"] is False
+
+for bad_service in (
+    "http_status:503",
+    "http://127.0.0.1:8084",
+    "http://192.0.2.10:8083",
+    "https://example.invalid",
+):
+    bad_ordinary = module.parse_tunnel_config(
+        config_text.replace(
+            "    service: http://127.0.0.1:8083\n",
+            f"    service: {bad_service}\n",
+            1,
+        )
+    )
+    assert bad_ordinary["ordinary_frontdoor_target_bound"] is False
+    assert bad_ordinary["ordinary_routes_preserved_candidate"] is False
+    assert bad_ordinary["sensitive_route_shape_observed"] is False
+
+for bad_service in (
+    "http://127.0.0.1:8083",
+    "http_status:503",
+    "https://example.invalid",
+):
+    bad_catchall = module.parse_tunnel_config(
+        config_text.replace(
+            "  - service: http_status:404\n",
+            f"  - service: {bad_service}\n",
+            1,
+        )
+    )
+    assert bad_catchall["global_catchall_last"] is False
+    assert bad_catchall["global_catchall_http_status_404_bound"] is False
+    assert bad_catchall["sensitive_route_shape_observed"] is False
 
 extra_adapter = module.parse_tunnel_config(
     config_text.replace(
@@ -311,6 +530,9 @@ for required in (
     "operator_tunnel_config_path",
     "credential_content_access",
     "sensitive_route_shape_observed",
+    "tunnel_ingress_duplicate",
+    "tunnel_ingress_missing",
+    "tunnel_rule_duplicate_hostname",
     "config_generation_stable",
     "read_regular_descriptor_bound",
     "descriptor_bound_file_custody",
@@ -318,8 +540,10 @@ for required in (
     "same_file_stat",
     "same_directory_stat",
     "ordinary_routes_preserved_candidate",
+    "ordinary_frontdoor_target_bound",
     "first_match_order_verified",
     "global_catchall_last",
+    "global_catchall_http_status_404_bound",
     "public_hostname_wildcard_shadow_absent",
     "listener_process_pids",
     "exclusive_process_owner",
@@ -371,6 +595,17 @@ print("unanchored_sensitive_path_rejected=true")
 print("cloudflare_first_match_shadow_rejected=true")
 print("cloudflare_global_catchall_required=true")
 print("cloudflare_wildcard_shadow_rejected=true")
+print("cloudflare_ingress_block_scope_enforced=true")
+print("tunnel_duplicate_hostname_rejected=true")
+print("tunnel_duplicate_ingress_rejected=true")
+print("tunnel_missing_ingress_rejected=true")
+print("tunnel_malformed_scalar_duplicate_smuggling_rejected=true")
+print("tunnel_origin_request_scope_exit_rejected=true")
+print("reviewed_frontdoor_source_blob_bound=true")
+print("ordinary_frontdoor_target_exact=true")
+print("global_catchall_http_status_404_required=true")
+print("focused_workflow_pr_main_path_parity=true")
+print("focused_workflow_frontdoor_dependency_bound=true")
 print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
