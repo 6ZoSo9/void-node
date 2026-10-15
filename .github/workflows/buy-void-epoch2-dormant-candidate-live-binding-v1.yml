@@ -43,9 +43,9 @@ jobs:
       - name: Bind exact source generation
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs)" =             "2686acdfbed5b3e2c929c896f032b01b94c89cef"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs)" =             "4ce4233689bd4c86c47389067e4480e8ea614043"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v1.md)" =             "916bfc05303c822f1032f315f7a2d2a02501a819"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs)" =             "c3be6b50d5dad15b9e75229cd258ca9cf04692e7"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs)" =             "685bdfb6645cf0744f1e356eb2a0a5dab0b06b71"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v1.md)" =             "5225af7ace2c17ea44a74181a148a7a593246dad"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs)" =             "28d718eb4155e47dbe8d476a4cf45f2d3871e4db"
           test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json)" =             "2c861c021192c034c98404989cd25b26788cd0f0"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts)" =             "0d9eb90c27031b9820a139be2af63c4c07433e20"
@@ -72,6 +72,7 @@ jobs:
             "arbitrary_child_receipt_input_accepted=false"
             "child_live_composition_git_object_required=true"
             "dormant_candidate_git_object_required=true"
+            "closing_checkout_revalidation_before_receipt=true"
             "systemd_credential_identity_promoted_only_from_live_child=true"
             "active_signing_capability_promoted_only_from_live_child=true"
             "launch_operator_signer_control_still_required=true"
