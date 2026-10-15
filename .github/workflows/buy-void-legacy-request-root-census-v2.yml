@@ -40,8 +40,15 @@ jobs:
       - name: Syntax and focused proof
         run: |
           set -euo pipefail
-          python3 -m py_compile ops/precision/void_buy_void_legacy_request_root_census_v2.py
-          python3 -m py_compile scripts/prove_void_buy_void_legacy_request_root_census_v2.py
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for p in (
+              "ops/precision/void_buy_void_legacy_request_root_census_v2.py",
+              "scripts/prove_void_buy_void_legacy_request_root_census_v2.py",
+          ):
+              compile(Path(p).read_text("utf-8"), p, "exec", dont_inherit=True)
+          print("VOID_LEGACY_REQUEST_ROOT_CENSUS_V2_SYNTAX_GREEN")
+          PY
           python3 -I -B scripts/prove_void_buy_void_legacy_request_root_census_v2.py |
             tee "$RUNNER_TEMP/legacy-root-census-v2.log"
           grep -Fx 'VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V2_PROOF_GREEN' "$RUNNER_TEMP/legacy-root-census-v2.log"
