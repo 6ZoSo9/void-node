@@ -228,6 +228,115 @@ struct unit_observation {
   uint64_t ambient_capabilities;
 };
 
+struct process_security {
+  uint64_t cap_inh;
+  uint64_t cap_prm;
+  uint64_t cap_eff;
+  uint64_t cap_bnd;
+  uint64_t cap_amb;
+  int no_new_privs;
+};
+
+static int hex_digit_value(unsigned char c) {
+  if (c >= '0' && c <= '9') return (int)(c - '0');
+  if (c >= 'a' && c <= 'f') return 10 + (int)(c - 'a');
+  if (c >= 'A' && c <= 'F') return 10 + (int)(c - 'A');
+  return -1;
+}
+
+static int parse_hex_labeled_line(const char *line, size_t len,
+                                  const char *label, uint64_t *out) {
+  size_t prefix = strlen(label);
+  if (len < prefix || memcmp(line, label, prefix) != 0) return 1;
+  size_t i = prefix;
+  while (i < len && (line[i] == ' ' || line[i] == '\t')) ++i;
+  if (i >= len) return -1;
+  uint64_t value = 0;
+  size_t digits = 0;
+  for (; i < len; ++i) {
+    int hex = hex_digit_value((unsigned char)line[i]);
+    if (hex < 0 || digits >= 16) return -1;
+    value = (value << 4) | (uint64_t)hex;
+    ++digits;
+  }
+  if (digits == 0) return -1;
+  *out = value;
+  return 0;
+}
+
+static int parse_flag_labeled_line(const char *line, size_t len,
+                                   const char *label, int *out) {
+  size_t prefix = strlen(label);
+  if (len < prefix || memcmp(line, label, prefix) != 0) return 1;
+  size_t i = prefix;
+  while (i < len && (line[i] == ' ' || line[i] == '\t')) ++i;
+  if (i + 1 != len || (line[i] != '0' && line[i] != '1')) return -1;
+  *out = line[i] == '1' ? 1 : 0;
+  return 0;
+}
+
+static int parse_status_security_text(const unsigned char *raw, size_t len,
+                                      struct process_security *out) {
+  if (!raw || !out || len == 0) return -1;
+  memset(out, 0, sizeof(*out));
+  const char *labels[] = {"CapInh:", "CapPrm:", "CapEff:", "CapBnd:", "CapAmb:"};
+  uint64_t *targets[] = {
+    &out->cap_inh, &out->cap_prm, &out->cap_eff, &out->cap_bnd, &out->cap_amb
+  };
+  unsigned char found[6] = {0,0,0,0,0,0};
+  size_t start = 0;
+  while (start < len) {
+    size_t end = start;
+    while (end < len && raw[end] != '\n') ++end;
+    const char *line = (const char *)raw + start;
+    size_t line_len = end - start;
+    int matched = 0;
+    for (size_t i = 0; i < 5; ++i) {
+      int parsed = parse_hex_labeled_line(line, line_len, labels[i], targets[i]);
+      if (parsed < 0) return -1;
+      if (parsed == 0) {
+        if (found[i]) return -1;
+        found[i] = 1;
+        matched = 1;
+        break;
+      }
+    }
+    if (!matched) {
+      int parsed = parse_flag_labeled_line(
+        line, line_len, "NoNewPrivs:", &out->no_new_privs
+      );
+      if (parsed < 0) return -1;
+      if (parsed == 0) {
+        if (found[5]) return -1;
+        found[5] = 1;
+      }
+    }
+    start = end < len ? end + 1 : end;
+  }
+  for (size_t i = 0; i < 6; ++i) if (!found[i]) return -1;
+  return 0;
+}
+
+static int read_proc_security(pid_t pid, struct process_security *out) {
+  char path[128];
+  if (snprintf(path, sizeof(path), "/proc/%ld/status", (long)pid) >=
+      (int)sizeof(path)) return -1;
+  unsigned char raw[32768];
+  size_t len = 0;
+  if (read_bounded(path, raw, sizeof(raw), &len) != 0) return -1;
+  return parse_status_security_text(raw, len, out);
+}
+
+static int same_process_security(const struct process_security *a,
+                                 const struct process_security *b) {
+  return a->cap_inh == b->cap_inh &&
+         a->cap_prm == b->cap_prm &&
+         a->cap_eff == b->cap_eff &&
+         a->cap_bnd == b->cap_bnd &&
+         a->cap_amb == b->cap_amb &&
+         a->no_new_privs == b->no_new_privs;
+}
+
 static int get_string_prop(struct sd_api *api, sd_bus *bus, const char *object,
                            const char *interface, const char *property,
                            char *dst, size_t cap) {
@@ -277,11 +386,12 @@ static int query_unit(struct sd_api *api, sd_bus *bus, const char *unit,
 static int validate_unit_observation(uid_t uid, const char *unit,
                                      const struct proc_identity *manager,
                                      const struct unit_observation *obs,
-                                     struct proc_identity *service) {
+                                     struct proc_identity *service,
+                                     struct process_security *security) {
   if (strcmp(obs->load_state,"loaded") || strcmp(obs->active_state,"active") || strcmp(obs->sub_state,"running")) return -1;
   if (obs->user[0] != '\0' || obs->group[0] != '\0') return -1;
   if (obs->main_pid <= 1 || obs->no_new_privileges != 1 ||
-      obs->capability_bounding_set != 0 || obs->ambient_capabilities != 0) return -1;
+      obs->ambient_capabilities != 0) return -1;
   char expected_cgroup[512];
   int n = snprintf(expected_cgroup,sizeof(expected_cgroup),
     "/user.slice/user-%lu.slice/user@%lu.service/app.slice/%s",
@@ -294,6 +404,11 @@ static int validate_unit_observation(uid_t uid, const char *unit,
   uid_t observed_uid = 0;
   gid_t observed_gid = 0;
   if (parse_status_ids((pid_t)obs->main_pid,uid,&observed_uid,&observed_gid) != 0 || observed_gid != manager->gid) return -1;
+  if (read_proc_security((pid_t)obs->main_pid,security) != 0 ||
+      security->no_new_privs != 1 ||
+      security->cap_inh != 0 || security->cap_prm != 0 ||
+      security->cap_eff != 0 || security->cap_amb != 0 ||
+      security->cap_bnd != obs->capability_bounding_set) return -1;
   if (exact_service_cgroup((pid_t)obs->main_pid,uid,unit) != 0) return -1;
   if (exact_executable_path((pid_t)obs->main_pid,NODE_EXE) != 0) return -1;
   service->pid=(pid_t)obs->main_pid;
@@ -347,7 +462,8 @@ static int live_query(uid_t uid, const char *unit) {
     api.bus_unref(bus); unload_sd_api(&api); close(manager_pidfd); query_die("unit_property_query_failed");
   }
   struct proc_identity service;
-  if (validate_unit_observation(uid,unit,&manager,&obs,&service) != 0) {
+  struct process_security security;
+  if (validate_unit_observation(uid,unit,&manager,&obs,&service,&security) != 0) {
     api.bus_unref(bus); unload_sd_api(&api); close(manager_pidfd); query_die("unit_property_kernel_binding_failed");
   }
   int service_pidfd=pidfd_open_checked(service.pid);
@@ -356,11 +472,14 @@ static int live_query(uid_t uid, const char *unit) {
   }
 
   struct proc_identity manager_after,service_after;
+  struct process_security security_after;
   struct ucred final_cred;
   if (candidate(manager.pid,uid,&manager_after) != 0 ||
       manager_after.start_ticks != manager.start_ticks || manager_after.gid != manager.gid ||
       proc_stat_identity(service.pid,&service_after.ppid,&service_after.start_ticks) != 0 ||
       service_after.ppid != manager.pid || service_after.start_ticks != service.start_ticks ||
+      read_proc_security(service.pid,&security_after) != 0 ||
+      !same_process_security(&security,&security_after) ||
       exact_service_cgroup(service.pid,uid,unit) != 0 || exact_executable_path(service.pid,NODE_EXE) != 0 ||
       pidfd_alive(manager_pidfd) != 0 || pidfd_alive(service_pidfd) != 0 ||
       peercred(retained_fd,&final_cred) != 0 || final_cred.pid != manager.pid || final_cred.uid != manager.uid || final_cred.gid != manager.gid) {
@@ -387,8 +506,16 @@ static int live_query(uid_t uid, const char *unit) {
   printf("MainPID=%u\n",obs.main_pid);
   printf("ControlGroup=%s\n",obs.control_group);
   printf("NoNewPrivileges=yes\n");
-  printf("CapabilityBoundingSet=\n");
-  printf("AmbientCapabilities=\n");
+  printf("CapabilityBoundingSet=%016" PRIx64 "\n",obs.capability_bounding_set);
+  printf("AmbientCapabilities=%016" PRIx64 "\n",obs.ambient_capabilities);
+  printf("KernelCapInh=%016" PRIx64 "\n",security.cap_inh);
+  printf("KernelCapPrm=%016" PRIx64 "\n",security.cap_prm);
+  printf("KernelCapEff=%016" PRIx64 "\n",security.cap_eff);
+  printf("KernelCapBnd=%016" PRIx64 "\n",security.cap_bnd);
+  printf("KernelCapAmb=%016" PRIx64 "\n",security.cap_amb);
+  printf("KernelNoNewPrivs=%d\n",security.no_new_privs);
+  printf("capability_bounding_set_kernel_match=true\n");
+  printf("process_nonbounding_capabilities_zero=true\n");
   printf("service_ppid=%ld\n",(long)service.ppid);
   printf("service_start_ticks=%llu\n",service.start_ticks);
   printf("service_pidfd_retained=true\n");
@@ -415,6 +542,22 @@ static int self_test_query(void) {
   if (safe_unit_name("void-node-live.service") != 0) return 1;
   if (safe_unit_name("../bad.service") == 0) return 1;
   if (safe_unit_name("bad.socket") == 0) return 1;
+  const char *security_fixture =
+    "Name:\tnode\n"
+    "CapInh:\t0000000000000000\n"
+    "CapPrm:\t0000000000000000\n"
+    "CapEff:\t0000000000000000\n"
+    "CapBnd:\t000001ffffffffff\n"
+    "CapAmb:\t0000000000000000\n"
+    "NoNewPrivs:\t1\n";
+  struct process_security fixture;
+  if (parse_status_security_text(
+        (const unsigned char *)security_fixture,
+        strlen(security_fixture), &fixture) != 0 ||
+      fixture.cap_inh != 0 || fixture.cap_prm != 0 ||
+      fixture.cap_eff != 0 || fixture.cap_amb != 0 ||
+      fixture.cap_bnd != UINT64_C(0x000001ffffffffff) ||
+      fixture.no_new_privs != 1) return 1;
   printf("%s_SELF_TEST_GREEN\n",MARKER);
   printf("libsystemd_runtime_symbols_available=true\n");
   printf("sanitized_loader_environment=true\n");
@@ -426,6 +569,10 @@ static int self_test_query(void) {
   printf("systemd_private_socket_required=true\n");
   printf("public_user_bus_used=false\n");
   printf("unit_properties_queried_live_only=true\n");
+  printf("kernel_capability_status_parser_verified=true\n");
+  printf("nonbounding_process_capabilities_zero_required=true\n");
+  printf("systemd_kernel_bounding_set_match_required=true\n");
+  printf("kernel_no_new_privileges_required=true\n");
   printf("host_mutation=false\n");
   return 0;
 }
