@@ -65,7 +65,7 @@ const EVIDENCE_ID=/^voidpwre2_[0-9a-f]{64}$/u;
 
 const SOURCE_BLOBS=Object.freeze({
   "ops/public/public-seed-adapter-v1.mjs":
-    "60158fa63c7fafc55738d4b5a021cc021983812a",
+    "140796d809a13171f0186a226bade1b4d82f406d",
   "ops/public/run-public-seed-adapter-v1.sh":
     "bc5f5d8c277c114b007a5676015729ec25fc09dd",
   // Reviewed public Buy VOID operator ingress deny successor (#2631).
