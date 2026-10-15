@@ -43,7 +43,9 @@ That child in turn:
 - returns the public live-composition receipt.
 
 The dormant-candidate binder never accepts an arbitrary receipt file, stdin
-receipt, command-line receipt, or environment receipt.
+receipt, command-line receipt, or environment receipt. Its output retains the
+full public child live-composition receipt plus its content hash and receipt ID,
+so later review does not depend on an external ephemeral copy.
 
 ## Bound receipt
 
@@ -109,7 +111,7 @@ test -z "$("${clean_git[@]}" status --porcelain=v1 --untracked-files=all)"
 
 binder_path=ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs
 binder_blob="$("${clean_git[@]}" rev-parse "${head}:${binder_path}")"
-test "$binder_blob" = e81dd50afe348dd90950b9efe9cde77025c149a9
+test "$binder_blob" = 2686acdfbed5b3e2c929c896f032b01b94c89cef
 
 "${clean_git[@]}" cat-file blob "$binder_blob" |
 sudo env -i \
