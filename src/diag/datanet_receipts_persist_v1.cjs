@@ -30,12 +30,17 @@ const G = globalThis;
 if (G.__void_datanet_receipts_persist_v1) process.exit(0);
 G.__void_datanet_receipts_persist_v1 = true;
 
+const SCAN_DEADLINE_MS = 5_000;
+const MAX_SCAN_WINDOW_BYTES = 256 * 1024;
+const MAX_CARRY_BYTES = 1024 * 1024;
+
 // incremental state
 let st = {
   file: "",
+  dev: 0,
   ino: 0,
   pos: 0,
-  buf: "",
+  buf: Buffer.alloc(0),
   totals: {
     lines: 0,
     ok: 0,
@@ -49,11 +54,12 @@ let st = {
   last_scan_ms: 0,
 };
 
-function resetFor(file, ino) {
+function resetFor(file, dev, ino) {
   st.file = file;
+  st.dev = dev;
   st.ino = ino;
   st.pos = 0;
-  st.buf = "";
+  st.buf = Buffer.alloc(0);
   st.totals = { lines:0, ok:0, bad:0, bytes:0, wc:0, parse_err:0, last_any_ts_ms:0, last_ok_ts_ms:0 };
 }
 
@@ -80,45 +86,192 @@ function absorbLine(line) {
   st.totals.wc += wc;
 }
 
-async function scanOnce() {
+function snapshotState() {
+  return {
+    file: st.file,
+    dev: st.dev,
+    ino: st.ino,
+    pos: st.pos,
+    buf: Buffer.from(st.buf),
+    totals: { ...st.totals },
+    last_scan_ms: st.last_scan_ms,
+  };
+}
+
+async function scanOnceUnlocked() {
   const file = receiptsFile();
-  let s;
-  try { s = fs.statSync(file); } catch {
-    // missing file: keep state but mark last_scan
-    st.last_scan_ms = nowMs();
-    st.file = file;
-    return { file, missing: true };
+  const openFlags =
+    fs.constants.O_RDONLY |
+    Number(fs.constants.O_NOFOLLOW || 0) |
+    Number(fs.constants.O_NONBLOCK || 0);
+  let fd;
+  try {
+    fd = fs.openSync(file, openFlags);
+  } catch (error) {
+    if (error && (error.code === "ENOENT" || error.code === "ENOTDIR")) {
+      // Missing path: retain counters, but force generation revalidation if it returns.
+      st.last_scan_ms = nowMs();
+      st.file = file;
+      st.dev = 0;
+      st.ino = 0;
+      return { file, missing: true };
+    }
+    throw error;
   }
 
-  if (!st.file || st.file !== file || st.ino !== (s.ino || 0) || s.size < st.pos) {
-    resetFor(file, s.ino || 0);
-  }
+  let descriptorOpen = true;
+  const closeDescriptor = () => {
+    if (!descriptorOpen) return;
+    descriptorOpen = false;
+    fs.closeSync(fd);
+  };
 
-  if (s.size === st.pos) {
+  const beforeScan = snapshotState();
+  try {
+    const s = fs.fstatSync(fd);
+    if (!s.isFile()) throw new Error("receipts_file_not_regular");
+    const dev = Number(s.dev || 0);
+    const ino = Number(s.ino || 0);
+    if (
+      !st.file ||
+      st.file !== file ||
+      st.dev !== dev ||
+      st.ino !== ino ||
+      s.size < st.pos
+    ) {
+      resetFor(file, dev, ino);
+    }
+
+    if (s.size === st.pos) {
+      closeDescriptor();
+      st.last_scan_ms = nowMs();
+      return { file, missing: false };
+    }
+
+    const start = st.pos;
+    const end = Math.min(s.size, start + MAX_SCAN_WINDOW_BYTES) - 1;
+    const expectedBytes = end - start + 1;
+    await new Promise((resolve, reject) => {
+      const rs = fs.createReadStream(file, {
+        fd,
+        autoClose: false,
+        start,
+        end,
+      });
+      let settled = false;
+      let deadlineTimer = null;
+      const settle = (done, value) => {
+        if (settled) return;
+        settled = true;
+        if (deadlineTimer !== null) {
+          clearTimeout(deadlineTimer);
+          deadlineTimer = null;
+        }
+        done(value);
+      };
+      const rejectAndDestroy = (code) => {
+        if (settled) return;
+        settle(reject, new Error(code));
+        try {
+          if (typeof rs.destroy === "function") rs.destroy();
+        } catch (destroyError) {
+          try {
+            console.error("[datanet_receipts_persist_v1] stream destroy failed");
+          } catch (logError) {
+            void logError;
+          }
+          void destroyError;
+        }
+      };
+      deadlineTimer = setTimeout(
+        () => rejectAndDestroy("scan_timeout"),
+        SCAN_DEADLINE_MS,
+      );
+      rs.on("data", (chunk) => {
+        if (settled) return;
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        let cursor = 0;
+        while (cursor <= bytes.length) {
+          const newline = bytes.indexOf(0x0a, cursor);
+          const terminal = newline < 0;
+          const segment = terminal
+            ? bytes.subarray(cursor)
+            : bytes.subarray(cursor, newline);
+          const carryBytes = st.buf.length;
+          const segmentBytes = segment.length;
+          if (
+            carryBytes > MAX_CARRY_BYTES ||
+            segmentBytes > MAX_CARRY_BYTES - carryBytes
+          ) {
+            rejectAndDestroy("line_too_large");
+            return;
+          }
+          if (terminal) {
+            st.buf = Buffer.concat(
+              [st.buf, segment],
+              carryBytes + segmentBytes,
+            );
+            break;
+          }
+          const lineBytes = Buffer.concat(
+            [st.buf, segment],
+            carryBytes + segmentBytes,
+          );
+          const line = lineBytes.toString("utf8").trim();
+          st.buf = Buffer.alloc(0);
+          if (line) absorbLine(line);
+          cursor = newline + 1;
+        }
+      });
+      rs.once("error", (error) => settle(reject, error));
+      rs.once("end", () => {
+        const readBytes = Number(rs.bytesRead);
+        if (!Number.isSafeInteger(readBytes) || readBytes !== expectedBytes) {
+          settle(reject, new Error(`short_read:${readBytes}/${expectedBytes}`));
+          return;
+        }
+        settle(resolve);
+      });
+      rs.once("close", () => {
+        settle(reject, new Error("premature_close"));
+      });
+    });
+
+    closeDescriptor();
+    st.pos = end + 1;
     st.last_scan_ms = nowMs();
     return { file, missing: false };
+  } catch (error) {
+    let terminalError = error;
+    try {
+      closeDescriptor();
+    } catch (closeError) {
+      terminalError = closeError;
+    }
+    st = beforeScan;
+    st.last_scan_ms = nowMs();
+    throw terminalError;
   }
+}
 
-  const start = st.pos;
-  const end = s.size - 1;
-  await new Promise((resolve) => {
-    const rs = fs.createReadStream(file, { start, end, encoding: "utf8" });
-    rs.on("data", (chunk) => {
-      st.buf += chunk;
-      let idx;
-      while ((idx = st.buf.indexOf("\n")) >= 0) {
-        const line = st.buf.slice(0, idx).trim();
-        st.buf = st.buf.slice(idx + 1);
-        if (line) absorbLine(line);
-      }
-    });
-    rs.on("error", () => resolve());
-    rs.on("end", () => resolve());
-  });
+let scanInFlight = null;
+function scanOnce() {
+  if (scanInFlight) return scanInFlight;
 
-  st.pos = s.size;
-  st.last_scan_ms = nowMs();
-  return { file, missing: false };
+  const run = scanOnceUnlocked();
+  let shared;
+  shared = run.then(
+    (value) => {
+      if (scanInFlight === shared) scanInFlight = null;
+      return value;
+    },
+    (error) => {
+      if (scanInFlight === shared) scanInFlight = null;
+      throw error;
+    },
+  );
+  scanInFlight = shared;
+  return shared;
 }
 
 function renderProm(extra) {
@@ -180,7 +333,16 @@ function mountOnce() {
       const extra = await scanOnce();
       res.status(200).type("text/plain; version=0.0.4").send(renderProm(extra));
     } catch (e) {
-      res.status(200).type("text/plain; version=0.0.4").send(renderProm({ file: receiptsFile(), missing: false }) + "\n# err=1\n");
+      const message = String(e?.message || "");
+      const reason = message === "scan_timeout"
+        ? "timeout"
+        : message === "line_too_large"
+          ? "line_too_large"
+          : "scan_failed";
+      res.status(200).type("text/plain; version=0.0.4").send(
+        renderProm({ file: receiptsFile(), missing: false }) +
+        "\n# err=1\n# err_reason=" + reason + "\n",
+      );
     }
   });
 

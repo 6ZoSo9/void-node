@@ -1,0 +1,4 @@
+[Service]
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=

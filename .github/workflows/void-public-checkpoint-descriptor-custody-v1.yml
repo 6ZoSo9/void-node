@@ -1,0 +1,58 @@
+name: VOID public checkpoint descriptor custody v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-public-seed-gateway-v1.mjs"
+      - "scripts/prove_void_public_checkpoint_descriptor_custody_v1.mjs"
+      - ".github/workflows/void-public-checkpoint-descriptor-custody-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: checkpoint custody / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove descriptor-bound checkpoint reads
+        run: |
+          set -euo pipefail
+          node --check tools/void-public-seed-gateway-v1.mjs
+          node --check scripts/prove_void_public_checkpoint_descriptor_custody_v1.mjs
+          proof_file="$RUNNER_TEMP/void-public-checkpoint-descriptor-custody-v1.txt"
+          node scripts/prove_void_public_checkpoint_descriptor_custody_v1.mjs | tee "$proof_file"
+          grep -Fx 'VOID_PUBLIC_CHECKPOINT_DESCRIPTOR_CUSTODY_V1_GREEN' "$proof_file"
+          grep -Fx 'checkpoint_root_descriptor_retained=true' "$proof_file"
+          grep -Fx 'checkpoint_file_reads_descriptor_bound=true' "$proof_file"
+          grep -Fx 'checkpoint_manifest_bounded_before_allocation=true' "$proof_file"
+          grep -Fx 'oversized_manifest_rejected_before_allocation=true' "$proof_file"
+          grep -Fx 'byte_identical_root_replacement_rejected=true' "$proof_file"
+          grep -Fx 'manifest_root_generation_replacement_rejected=true' "$proof_file"
+          grep -Fx 'segment_root_generation_replacement_rejected=true' "$proof_file"
+          grep -Fx 'checkpoint_discovery_startup_metadata_preserved=true' "$proof_file"
+          grep -Fx 'wallet_signer_validator_wc_money_authority=0' "$proof_file"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check "$BASE" "$HEAD"

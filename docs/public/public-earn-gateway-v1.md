@@ -53,6 +53,40 @@ The coordinator remains authoritative for public-key-to-node-ID derivation, sign
 
 The result route requires JSON, has bounded request and response sizes, uses an upstream timeout, strips cookies and every caller header except one strictly validated `Bearer wcep1.<32-hex-ticket-id>.<43-base64url-secret>` capability on the exact submit route, rejects redirects, and applies an independent submission rate limit. Missing, malformed, or ticket-mismatched capability authorization is rejected before the coordinator is contacted. Authorization is never forwarded on read or claim routes.
 
+## Dedicated mutation downstream
+
+The gateway source supports a designated-host isolation mode for the two
+mutation routes. The operator selects a nonprivileged port through
+`VOID_EARN_MUTATION_DOWNSTREAM_PORT`; the source does **not** choose or
+publish a production port.
+
+When that value is present:
+
+- a second HTTP listener binds only to `127.0.0.1:<operator-port>`;
+- the existing shared gateway listener returns a bounded 404 for claim and
+  submit POSTs and never contacts the coordinator for those requests;
+- the dedicated listener accepts only the exact raw claim and submit targets;
+- query, trailing-slash, dot-segment, percent-encoded and unrelated aliases are
+  rejected before mutation handling;
+- non-POST sensitive requests are rejected and unrelated paths return 404;
+- the existing claim/submit validation, body limits, capability checks,
+  header stripping, rate walls, upstream deadlines, and response filtering
+  are reused unchanged; and
+- status reports `mutation_ingress.mode=dedicated_loopback` without
+  disclosing the selected port.
+
+If the variable is absent, historical shared-listener behavior is preserved for
+deployment continuity and status reports `shared_legacy_hold`. That legacy
+mode is **not** sufficient to close #2968 and must not be treated as designated
+host acceptance.
+
+The dedicated listener alone also does not establish local transport trust. A
+later reviewed service/nftables policy must prove that only the PROXY-v2 Earn
+edge identity can connect to it, while the old external/shared claim/submit
+publication is removed. Until that host evidence exists,
+`local_transport_trust_proven=false` and runtime integration remains
+unaccepted.
+
 ## Participant flow
 
 1. The participant downloads the public claim CLI.
