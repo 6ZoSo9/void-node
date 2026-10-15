@@ -20,6 +20,9 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_AUTHORITY_V1 =
     human_accounting_disposition_may_be_recorded: true,
     technical_historical_origin_proven: false,
     technical_candidate_set_completeness_proven: false,
+    bounded_current_candidate_set_required_for_disposition: true,
+    process_environment_access_forbidden: true,
+    external_network_access_forbidden: true,
     cryptographic_never_used_proof_claimed: false,
     sovereign_signature_required_for_acceptance: true,
     external_witness_required_for_acceptance: true,
@@ -44,6 +47,10 @@ const INPUT_KEYS=Object.freeze([
   "metadata_census_source_head",
   "designated_hostname_matches",
   "designated_machine_id_matches",
+  "bounded_current_candidate_set_observed",
+  "process_environment_access",
+  "external_network_calls",
+  "loopback_get_only",
   "candidate_count",
   "surviving_history_metadata_root_count",
   "unverified_root_count",
@@ -95,7 +102,12 @@ export function classifyVoidBuyVoidLegacyHistoryDispositionCandidateV1(input){
     if(v.designated_hostname_matches!==true||v.designated_machine_id_matches!==true){
       fail("legacy_history_disposition_designated_host_unbound");
     }
-    if(v.request_or_payment_contents_read!==false){
+    if(
+      v.request_or_payment_contents_read!==false||
+      v.process_environment_access!==false||
+      v.external_network_calls!==false||
+      v.loopback_get_only!==true
+    ){
       fail("legacy_history_disposition_metadata_census_scope_invalid");
     }
     if(v.metadata_census_historical_disposition_proven!==false){
@@ -126,6 +138,10 @@ export function classifyVoidBuyVoidLegacyHistoryDispositionCandidateV1(input){
     if(!Object.values(decisions).includes(v.decision)){
       fail("legacy_history_disposition_decision_invalid");
     }
+    if(v.bounded_current_candidate_set_observed!==true&&
+       v.decision!==decisions.UNRESOLVED_HOLD){
+      fail("legacy_history_disposition_incomplete_bounded_census_requires_hold");
+    }
     if(unverified>0&&v.decision!==decisions.UNRESOLVED_HOLD){
       fail("legacy_history_disposition_unverified_requires_hold");
     }
@@ -150,6 +166,11 @@ export function classifyVoidBuyVoidLegacyHistoryDispositionCandidateV1(input){
       metadata_census_source_head:v.metadata_census_source_head,
       designated_hostname_matches:true,
       designated_machine_id_matches:true,
+      bounded_current_candidate_set_observed:
+        v.bounded_current_candidate_set_observed===true,
+      process_environment_access:false,
+      external_network_calls:false,
+      loopback_get_only:true,
       candidate_count:candidateCount,
       surviving_history_metadata_root_count:surviving,
       unverified_root_count:unverified,
