@@ -101,6 +101,15 @@ for cap_name, field in (
     assert parsed[field] is False, cap_name
     assert parsed["all_capability_sets_empty"] is False, cap_name
 
+shared_rows = module.parse_ss(
+    'LISTEN 0 511 127.0.0.1:4311 0.0.0.0:* users:(("node",pid=123,fd=20),("other",pid=124,fd=21))\n'
+)
+shared_listener = module.listener_set(shared_rows, 123)
+assert shared_listener["exclusive_process_owner"] is False
+assert shared_listener["additional_process_owner_observed"] is True
+assert shared_listener["exact_single_ipv4_loopback_listener"] is False
+assert shared_listener["listener_port"] is None
+
 config_text = (
     "tunnel: not-emitted\n"
     "credentials-file: /run/void-cloudflared/private/credentials.json\n"
@@ -256,6 +265,9 @@ for required in (
     "same_file_stat",
     "same_directory_stat",
     "ordinary_routes_preserved_candidate",
+    "listener_process_pids",
+    "exclusive_process_owner",
+    "additional_process_owner_observed",
     "adapter_route_matches_listener",
     "exact_ruleset_verified",
     "cloudflare_worker_route_absence_proven",
@@ -303,6 +315,7 @@ print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
 print("loopback_listener_ownership_observed=true")
+print("shared_listener_process_rejected=true")
 print("tunnel_private_metadata_custody_observed=true")
 print("tunnel_config_retained_descriptor_binding=true")
 print("tunnel_config_custody_same_generation=true")
