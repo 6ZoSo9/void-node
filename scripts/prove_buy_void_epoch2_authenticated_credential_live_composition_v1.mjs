@@ -80,7 +80,7 @@ const crossAt=source.indexOf("crossCheck(sealedRecord,before);");
 assert.ok(beforeAt>0&&beforeAt<sealedAt&&sealedAt<afterAt&&
   afterAt<stableAt&&stableAt<crossAt);
 
-const self=spawnSync("/usr/bin/node",[
+const self=spawnSync(process.execPath,[
   "--input-type=module","-","--self-test",
 ],{
   cwd:ROOT,
@@ -106,7 +106,7 @@ for(const line of [
   assert.ok(selfLines.has(line),line);
 }
 
-const plan=spawnSync("/usr/bin/node",[
+const plan=spawnSync(process.execPath,[
   "--input-type=module","-","--plan",
 ],{
   cwd:ROOT,
