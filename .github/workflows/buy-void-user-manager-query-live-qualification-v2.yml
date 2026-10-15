@@ -1,0 +1,73 @@
+name: VOID Buy authenticated user-manager live query qualification v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py"
+      - "scripts/prove_void_buy_void_user_manager_query_live_qualification_v2.py"
+      - "docs/operators/buy-void-user-manager-query-live-qualification-v2.md"
+      - ".github/workflows/buy-void-user-manager-query-live-qualification-v2.yml"
+      - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py"
+      - "scripts/prove_void_buy_void_user_manager_query_live_qualification_v2.py"
+      - "docs/operators/buy-void-user-manager-query-live-qualification-v2.md"
+      - ".github/workflows/buy-void-user-manager-query-live-qualification-v2.yml"
+      - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [3.12]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Prove V2 qualifier
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py --self-test |
+            tee "$RUNNER_TEMP/qual-v2-self.log"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_LIVE_QUALIFICATION_V2_SELF_TEST_GREEN' "$RUNNER_TEMP/qual-v2-self.log"
+
+          python3 -I -B scripts/prove_void_buy_void_user_manager_query_live_qualification_v2.py |
+            tee "$RUNNER_TEMP/qual-v2-proof.log"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_LIVE_QUALIFICATION_V2_PROOF_GREEN' "$RUNNER_TEMP/qual-v2-proof.log"
+          grep -Fx 'protected_v2_generation_required=true' "$RUNNER_TEMP/qual-v2-proof.log"
+          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/qual-v2-proof.log"
+          grep -Fx 'kernel_active_capabilities_zero_required=true' "$RUNNER_TEMP/qual-v2-proof.log"
+          grep -Fx 'configured_kernel_bounding_set_equality_required=true' "$RUNNER_TEMP/qual-v2-proof.log"
+          grep -Fx 'double_authenticated_query_required=true' "$RUNNER_TEMP/qual-v2-proof.log"
+          grep -Fx 'host_mutation=false' "$RUNNER_TEMP/qual-v2-proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/qual-v2-proof.log"
+      - name: Prove inert plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/qual-v2-plan.log"
+          python3 -I -B ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py --plan | tee "$out"
+          grep -Fx 'protected_v2_generation_verification_required=true' "$out"
+          grep -Fx 'private_users_false_required=true' "$out"
+          grep -Fx 'kernel_active_capabilities_zero_required=true' "$out"
+          grep -Fx 'configured_kernel_bounding_set_equality_required=true' "$out"
+          grep -Fx 'query_execution=false' "$out"
+          grep -Fx 'host_mutation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+      - run: git diff --check
