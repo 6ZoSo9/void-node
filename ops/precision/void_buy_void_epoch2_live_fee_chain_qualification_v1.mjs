@@ -339,6 +339,68 @@ function validateChild(child,expectedHead){
   }
 }
 
+function stableChildRuntimeIdentity(child,expectedHead){
+  validateChild(child,expectedHead);
+  const binding=child.authenticated_credential_binding_receipt;
+  const live=binding?.authenticated_credential_live_receipt;
+  if(!binding||typeof binding!=="object"||Array.isArray(binding)||
+     !live||typeof live!=="object"||Array.isArray(live)){
+    throw new Error("credential_signer_control_nested_receipt_missing");
+  }
+  const identity={
+    source_head:child.source_head,
+    canonical_chain_id:child.canonical_chain_id,
+    execution_epoch:child.execution_epoch,
+    epoch2_presale_contract:child.epoch2_presale_contract,
+    epoch2_fulfiller_public_address:child.epoch2_fulfiller_public_address,
+    accepted_signer_control_candidate_git_blob:
+      child.accepted_signer_control_candidate_git_blob,
+    accepted_signer_control_public_evidence_git_blob:
+      child.accepted_signer_control_public_evidence_git_blob,
+    accepted_signer_control_evidence_id_sha256:
+      child.accepted_signer_control_evidence_id_sha256,
+    source_candidate_git_blob:binding.source_candidate_git_blob,
+    credential_lock_id:live.credential_lock_id,
+    runtime_uid:live.runtime_uid,
+    manager_pid:live.manager_pid,
+    manager_start_ticks:live.manager_start_ticks,
+    main_pid:live.main_pid,
+    service_start_ticks:live.service_start_ticks,
+    credential_qualification_sha256:live.credential_qualification_sha256,
+    signer_address:live.signer_address,
+  };
+  if(!SHA40.test(String(identity.source_candidate_git_blob||""))||
+     identity.credential_lock_id!==
+       "voidbuyumqcredelflock1_65a1839c14b692349dda8cccdbe8657a9485754c5d10ffa5b57421ce87e3753c"||
+     identity.runtime_uid!==1000||
+     !Number.isSafeInteger(identity.manager_pid)||identity.manager_pid<=1||
+     !Number.isSafeInteger(identity.main_pid)||identity.main_pid<=1||
+     typeof identity.manager_start_ticks!=="string"||
+     !/^[1-9][0-9]*$/u.test(identity.manager_start_ticks)||
+     typeof identity.service_start_ticks!=="string"||
+     !/^[1-9][0-9]*$/u.test(identity.service_start_ticks)||
+     !/^sha256:[0-9a-f]{64}$/u.test(
+       String(identity.credential_qualification_sha256||"")
+     )||
+     identity.signer_address!==FULFILLER){
+    throw new Error("credential_signer_control_stable_identity_invalid");
+  }
+  return Object.freeze(identity);
+}
+
+export function requireStableChildRuntimeIdentity(
+  before,after,expectedHead
+){
+  const first=stableChildRuntimeIdentity(before,expectedHead);
+  const second=stableChildRuntimeIdentity(after,expectedHead);
+  if(canonical(first)!==canonical(second)){
+    throw new Error(
+      "credential_signer_control_generation_changed_during_fee_window"
+    );
+  }
+  return first;
+}
+
 function loadCandidate(expectedHead){
   const raw=gitObject(expectedHead,CANDIDATE_REL,CANDIDATE_BLOB);
   try{
@@ -694,8 +756,12 @@ function validateObservation(policy,observation){
   }
 }
 
-export function buildReceipt(expectedHead,child,policy,observation){
-  validateChild(child,expectedHead);
+export function buildReceipt(
+  expectedHead,childBefore,childAfter,policy,observation
+){
+  const stableChildIdentity=requireStableChildRuntimeIdentity(
+    childBefore,childAfter,expectedHead
+  );
   validateObservation(policy,observation);
   const zero=observation.zero_fee_envelope===true;
   const nonzero=observation.nonzero_fee_envelope===true;
@@ -727,10 +793,20 @@ export function buildReceipt(expectedHead,child,policy,observation){
     version:1,
     status:STATUS,
     source_head:expectedHead,
-    authenticated_credential_signer_control_receipt:child,
-    authenticated_credential_signer_control_receipt_id:child.receipt_id,
-    authenticated_credential_signer_control_receipt_sha256:
-      sha256Bytes(Buffer.from(canonical(child),"utf8")),
+    authenticated_credential_signer_control_receipt_before:childBefore,
+    authenticated_credential_signer_control_receipt_before_id:
+      childBefore.receipt_id,
+    authenticated_credential_signer_control_receipt_before_sha256:
+      sha256Bytes(Buffer.from(canonical(childBefore),"utf8")),
+    authenticated_credential_signer_control_receipt_after:childAfter,
+    authenticated_credential_signer_control_receipt_after_id:
+      childAfter.receipt_id,
+    authenticated_credential_signer_control_receipt_after_sha256:
+      sha256Bytes(Buffer.from(canonical(childAfter),"utf8")),
+    credential_signer_control_generation_stable_across_chain_window:true,
+    credential_signer_control_stable_identity:stableChildIdentity,
+    credential_signer_control_stable_identity_sha256:
+      sha256Bytes(Buffer.from(canonical(stableChildIdentity),"utf8")),
     live_fee_chain_receipt:chainReceipt,
     live_fee_chain_receipt_id:chainReceipt.chain_receipt_id,
     canonical_chain_id:2050,
@@ -775,6 +851,8 @@ function plan(){
   console.log("git_object_stdin_required_for_live=true");
   console.log("root_required_for_run=true");
   console.log("exact_credential_signer_control_child_required=true");
+  console.log("credential_signer_control_before_after_chain_window_required=true");
+  console.log("credential_signer_control_runtime_generation_stability_required=true");
   console.log("arbitrary_child_receipt_input_accepted=false");
   console.log("exact_candidate_v2_fee_policy_required=true");
   console.log("fixed_loopback_rpc=http://127.0.0.1:18553/");
@@ -831,6 +909,8 @@ function selfTest(){
   }
   console.log(MARKER+"_SELF_TEST_GREEN");
   console.log("candidate_v2_fee_policy_bound=true");
+  console.log("credential_signer_control_before_after_chain_window_required=true");
+  console.log("credential_signer_control_runtime_generation_stability_required=true");
   console.log("zero_fee_envelope_supported_for_exact_e2_presale=true");
   console.log("nonzero_fee_envelope_bounded_by_runtime_policy=true");
   console.log("transaction_calldata_constructed=false");
@@ -852,13 +932,18 @@ async function live(expectedHead,confirm){
   requireExactCheckout(expectedHead);
 
   const {policy}=loadCandidate(expectedHead);
-  const child=runChild(expectedHead);
+  const childBefore=runChild(expectedHead);
   requireExactCheckout(expectedHead);
 
   const observation=await observeFeeChainLive(policy);
   requireExactCheckout(expectedHead);
 
-  const receipt=buildReceipt(expectedHead,child,policy,observation);
+  const childAfter=runChild(expectedHead);
+  requireExactCheckout(expectedHead);
+
+  const receipt=buildReceipt(
+    expectedHead,childBefore,childAfter,policy,observation
+  );
   console.log(JSON.stringify(receipt,null,2));
 }
 
