@@ -20,7 +20,7 @@ def git_blob(path:Path)->str:
 
 expected={
     "tools/apollyon-live-custody-source-session-runner-v2.mjs":
-        "01ad6bba68aa7614716ee579f00cb3b7f6904900",
+        "31a2351b2d39ce0bb9d4f09b579ffc1bfe622523",
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
@@ -72,6 +72,10 @@ for required in (
     "custody_service_action_performed:false",
     "durable_attempt_claim_performed:false",
     "training_execution_performed:false",
+    "trainingServiceExactlyDormant",
+    "waitTrainingServiceDormant(training)",
+    "apollyon_live_runner_training_generation_still_present",
+    "custody_loader_environment_seven_name_boundary=true",
 ):
     assert required in runner, required
 
@@ -97,6 +101,9 @@ runner_test=subprocess.run(
     stderr=subprocess.PIPE,
 )
 assert "VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2_SELF_TEST=GREEN" in runner_test.stdout
+assert "training_service_exact_dormancy_required=true" in runner_test.stdout
+assert "training_generation_absence_required=true" in runner_test.stdout
+assert "custody_loader_environment_seven_name_boundary=true" in runner_test.stdout
 
 subprocess.run(
     ["python3","-m","py_compile",str(LAUNCHER)],

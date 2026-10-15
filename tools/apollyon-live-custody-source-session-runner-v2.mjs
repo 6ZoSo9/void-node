@@ -208,13 +208,26 @@ function socketIdentity(socketPath){
 function assertSocketStable(socketPath,expected){
   if(!sameIdentity(socketIdentity(socketPath),expected))fail("apollyon_live_runner_socket_drift");
 }
-function processStartTicks(pid){
-  const text=fs.readFileSync("/proc/"+String(pid)+"/stat","utf8");
+function processStartTicksFromText(text){
   const close=text.lastIndexOf(")");
   if(close<0)fail("apollyon_live_runner_proc_stat_invalid");
   const fields=text.slice(close+2).trim().split(/\s+/u);
-  if(fields.length<20||!/^[1-9][0-9]*$/u.test(fields[19]))fail("apollyon_live_runner_proc_stat_invalid");
+  if(fields.length<20||!/^[1-9][0-9]*$/u.test(fields[19])){
+    fail("apollyon_live_runner_proc_stat_invalid");
+  }
   return fields[19];
+}
+function processStartTicks(pid){
+  return processStartTicksFromText(
+    fs.readFileSync("/proc/"+String(pid)+"/stat","utf8"),
+  );
+}
+function processGenerationPresent(pid,startTicks){
+  try{return processStartTicks(pid)===startTicks;}
+  catch(error){
+    if(error?.code==="ENOENT"||error?.code==="ESRCH")return false;
+    throw error;
+  }
 }
 function runSystemctl(args,check=true){
   const result=spawnSync("/usr/bin/systemctl",args,{
@@ -230,6 +243,51 @@ function systemdValue(unit,property){
 function serviceEnabled(unit){
   const r=runSystemctl(["is-enabled",unit],false);
   return String(r.stdout??"").trim()==="enabled";
+}
+const TRAINING_STATE_PROPERTIES=Object.freeze([
+  "LoadState","ActiveState","SubState","MainPID","UnitFileState",
+]);
+function trainingServiceState(){
+  const args=["show",TRAINING_UNIT,"--no-pager"];
+  for(const name of TRAINING_STATE_PROPERTIES)args.push("-p",name);
+  const result=runSystemctl(args);
+  const state={};
+  for(const line of String(result.stdout??"").split("\n").filter(Boolean)){
+    const index=line.indexOf("=");
+    if(index<=0)fail("apollyon_live_runner_training_state_invalid");
+    const key=line.slice(0,index),value=line.slice(index+1);
+    if(!TRAINING_STATE_PROPERTIES.includes(key)||Object.hasOwn(state,key)){
+      fail("apollyon_live_runner_training_state_invalid");
+    }
+    state[key]=value;
+  }
+  if(Object.keys(state).length!==TRAINING_STATE_PROPERTIES.length){
+    fail("apollyon_live_runner_training_state_invalid");
+  }
+  return Object.freeze(state);
+}
+function trainingServiceExactlyDormant(state){
+  return (
+    state?.LoadState==="loaded"&&state.ActiveState==="inactive"&&
+    state.SubState==="dead"&&state.MainPID==="0"&&
+    state.UnitFileState==="static"
+  );
+}
+function requireTrainingServiceDormant(state,code){
+  if(!trainingServiceExactlyDormant(state))fail(code);
+  return state;
+}
+function waitTrainingServiceDormant(generation){
+  const deadline=Date.now()+5000;
+  while(Date.now()<deadline){
+    const state=trainingServiceState();
+    const generationPresent=(
+      generation!==null&&
+      processGenerationPresent(generation.pid,generation.start_time_ticks)
+    );
+    if(trainingServiceExactlyDormant(state)&&!generationPresent)return state;
+  }
+  fail("apollyon_live_runner_training_stop_transition_unproven");
 }
 function waitTrainingEntrypoint(){
   const deadline=Date.now()+5000;
@@ -350,7 +408,10 @@ function loaderEnvironmentHash(pid){
   const bytes=fs.readFileSync("/proc/"+String(pid)+"/environ");
   if(bytes.length>1024*1024)fail("apollyon_live_runner_custody_environment_invalid");
   const entries=bytes.toString("utf8").split("\0").filter(Boolean);
-  for(const name of ["NODE_OPTIONS","NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH"]){
+  for(const name of [
+    "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+    "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
+  ]){
     if(entries.some((e)=>e.startsWith(name+"=")&&e!==name+"=")){
       fail("apollyon_live_runner_custody_loader_environment_forbidden");
     }
@@ -468,15 +529,35 @@ function parseCli(argv){
 }
 function selfTest(){
   const sample="123 (entry v1) S "+Array.from({length:39},(_,i)=>String(i+1)).join(" ");
-  const close=sample.lastIndexOf(")");
-  const fields=sample.slice(close+2).trim().split(/\s+/u);
-  if(fields[19]!=="19")fail("apollyon_live_runner_self_test_stat");
+  if(processStartTicksFromText(sample)!=="19"){
+    fail("apollyon_live_runner_self_test_stat");
+  }
+  const dormant={
+    LoadState:"loaded",ActiveState:"inactive",SubState:"dead",
+    MainPID:"0",UnitFileState:"static",
+  };
+  if(!trainingServiceExactlyDormant(dormant)){
+    fail("apollyon_live_runner_self_test_dormant");
+  }
+  for(const [key,value] of [
+    ["LoadState","not-found"],["ActiveState","active"],
+    ["ActiveState","deactivating"],["ActiveState","failed"],
+    ["SubState","stop-sigterm"],["MainPID","4242"],
+    ["UnitFileState","enabled"],
+  ]){
+    if(trainingServiceExactlyDormant({...dormant,[key]:value})){
+      fail("apollyon_live_runner_self_test_noncanonical_dormant");
+    }
+  }
   if(VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_AUTHORITY_V2.durable_attempt_claim!==false){
     fail("apollyon_live_runner_self_test_authority");
   }
   process.stdout.write(VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2+"_SELF_TEST=GREEN\n");
   process.stdout.write("live_worktree_invocation_supported=false\n");
   process.stdout.write("training_service_start_stop=true\n");
+  process.stdout.write("training_service_exact_dormancy_required=true\n");
+  process.stdout.write("training_generation_absence_required=true\n");
+  process.stdout.write("custody_loader_environment_seven_name_boundary=true\n");
   process.stdout.write("current_v2_raw_observation_count=2\n");
   process.stdout.write("custody_service_action=false\n");
   process.stdout.write("durable_attempt_claim=false\n");
@@ -488,15 +569,16 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
      "VOID_APOLLYON_LIVE_SESSION_PRIVATE_CLOSURE_V2"){
     fail("apollyon_live_runner_private_closure_required");
   }
-  if(serviceEnabled(TRAINING_UNIT))fail("apollyon_live_runner_training_service_enabled");
-  if(systemdValue(TRAINING_UNIT,"ActiveState")==="active"){
-    fail("apollyon_live_runner_training_service_already_active");
-  }
+  requireTrainingServiceDormant(
+    trainingServiceState(),
+    "apollyon_live_runner_training_service_not_exactly_dormant",
+  );
 
   const stateRoot=openPinnedDirectory(config.state_root,0o700,"apollyon_live_runner_state_root_invalid");
   let consumed=null;
   let prepared=null;
   let trainingStarted=false;
+  let training=null;
   try{
     consumed=openPinnedDirectory(
       path.join(config.state_root,"consumed"),0o700,
@@ -507,7 +589,7 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
 
     runSystemctl(["start",TRAINING_UNIT]);
     trainingStarted=true;
-    const training=waitTrainingEntrypoint();
+    training=waitTrainingEntrypoint();
 
     const isolation=runIsolationObserver(training.pid);
     if(
@@ -608,26 +690,40 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
       funds_movement_performed:false,
     });
   }finally{
-    if(prepared!==null)cleanupApollyonReviewedExecutionTreeV2(prepared);
-    if(trainingStarted)runSystemctl(["stop",TRAINING_UNIT],false);
-    closePinned(consumed);
-    closePinned(stateRoot);
+    try{
+      if(trainingStarted){
+        runSystemctl(["stop",TRAINING_UNIT],false);
+        waitTrainingServiceDormant(training);
+      }
+    }finally{
+      try{
+        if(prepared!==null)cleanupApollyonReviewedExecutionTreeV2(prepared);
+      }finally{
+        try{closePinned(consumed);}
+        finally{closePinned(stateRoot);}
+      }
+    }
   }
 }
 async function main(){
   const config=parseCli(process.argv.slice(2));
   if(config.self_test){selfTest();return;}
   const result=await runApollyonLiveCustodySourceSessionRunnerV2(config);
-  if(systemdValue(TRAINING_UNIT,"ActiveState")==="active"){
-    fail("apollyon_live_runner_training_service_failed_to_stop");
-  }
-  if(serviceEnabled(TRAINING_UNIT)){
-    fail("apollyon_live_runner_training_service_became_enabled");
+  requireTrainingServiceDormant(
+    trainingServiceState(),
+    "apollyon_live_runner_training_service_failed_to_stop",
+  );
+  if(processGenerationPresent(
+    result.training_pid,result.training_process_start_time_ticks
+  )){
+    fail("apollyon_live_runner_training_generation_still_present");
   }
   process.stdout.write(canonical({
     ...result,
     status:"live_source_session_binding_complete_training_service_stopped",
     training_service_active_after:false,
+    training_service_exact_dormant_after:true,
+    training_generation_absent_after:true,
   })+"\n");
 }
 if(process.argv[1]&&fileURLToPath(import.meta.url)===path.resolve(process.argv[1])){

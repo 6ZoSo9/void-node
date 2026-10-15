@@ -12,11 +12,11 @@ def git_blob(path:Path)->str:
 
 manifest=json.loads(MANIFEST.read_text())
 assert manifest["marker"]=="VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1"
-assert git_blob(MANIFEST)=="0548d4b672b97847464b9d5c2b86eee70d9ca26f"
+assert git_blob(MANIFEST)=="9fbf52ac87784dcaf1ace299e5dcaf9f1aacd9f5"
 assert manifest["from"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v1"
 assert manifest["to"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v2"
 assert manifest["from"]["fixed_launcher_blob_sha1"]=="e18124d3109ed63ff50da9c467fb1b798c300460"
-assert manifest["to"]["fixed_launcher_blob_sha1"]=="6899930d48f7057197a31183da44865da72f6269"
+assert manifest["to"]["fixed_launcher_blob_sha1"]=="6078ea99f0aa770f3e9a1a0224be818e62066e20"
 assert manifest["to"]["systemd_reviewed_versions"]==["255.4-1ubuntu8.11","255.4-1ubuntu8.18"]
 assert manifest["authority"]["service_action"] is False
 assert manifest["authority"]["training_execution"] is False
@@ -25,11 +25,11 @@ assert manifest["authority"]["durable_attempt_claim"] is False
 source=INSTALLER.read_text()
 ast.parse(source)
 for required in (
-    'UPGRADE_MANIFEST_BLOB="0548d4b672b97847464b9d5c2b86eee70d9ca26f"',
+    'UPGRADE_MANIFEST_BLOB="9fbf52ac87784dcaf1ace299e5dcaf9f1aacd9f5"',
     'OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")',
     'NEW_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")',
     'OLD_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"',
-    'NEW_LAUNCHER_BLOB="6899930d48f7057197a31183da44865da72f6269"',
+    'NEW_LAUNCHER_BLOB="6078ea99f0aa770f3e9a1a0224be818e62066e20"',
     "verify_tree(OLD_ROOT,manifest[\"from\"][\"closure\"])",
     "verify_tree(NEW_ROOT,manifest[\"to\"][\"closure\"])",
     "os.replace(temp,FIXED_LAUNCHER)",
