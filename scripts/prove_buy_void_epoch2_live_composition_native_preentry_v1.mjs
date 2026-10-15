@@ -598,13 +598,43 @@ function enterPrivateOptFixtureNamespace() {
     "/usr/bin/setpriv",
     "/usr/bin/env",
     "/usr/bin/bash",
-    "/usr/bin/cc",
   ]) {
     const st = fs.lstatSync(required);
     assert.equal(st.isFile() && !st.isSymbolicLink(), true, required);
     assert.equal(st.uid, 0, required + " must be root-owned");
     assert.equal((st.mode & 0o022) === 0, true, required + " must not be writable");
   }
+
+  const ccRequested = "/usr/bin/cc";
+  const ccVisible = fs.lstatSync(ccRequested);
+  assert.equal(
+    (ccVisible.isFile() || ccVisible.isSymbolicLink()) && ccVisible.uid === 0,
+    true,
+    "fixed compiler selector must be root-owned file or symlink",
+  );
+  const ccResolved = fs.realpathSync.native(ccRequested);
+  assert.equal(
+    path.isAbsolute(ccResolved) && ccResolved.startsWith("/usr/"),
+    true,
+    "fixed compiler selector must resolve beneath trusted /usr",
+  );
+  const ccResolvedStat = fs.lstatSync(ccResolved);
+  assert.equal(
+    ccResolvedStat.isFile() && !ccResolvedStat.isSymbolicLink(),
+    true,
+    "resolved compiler must be a direct regular file",
+  );
+  assert.equal(
+    ccResolvedStat.uid,
+    0,
+    "resolved compiler must be root-owned",
+  );
+  assert.equal(
+    (ccResolvedStat.mode & 0o022) === 0 &&
+      (ccResolvedStat.mode & 0o111) !== 0,
+    true,
+    "resolved compiler must be non-writable and executable",
+  );
 
   for (const target of ["/opt", "/home"]) {
     const st = fs.lstatSync(target);
@@ -1476,6 +1506,7 @@ console.log("delegated_mount_topology_asymmetric=true");
 console.log("caller_controlled_ci_flags_authorize_opt_mutation=false");
 console.log("hosted_self_custody_shape_prechecked=true");
 console.log("private_fixed_node_overlay_required=true");
+console.log("trusted_cc_symlink_resolution_bound=true");
 console.log("direct_statx_mount_topology_bound=true");
 console.log("proc_mountinfo_topology_authority=false");
 console.log("host_usr_bin_mutation=false");
