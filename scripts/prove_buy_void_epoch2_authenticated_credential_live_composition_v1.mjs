@@ -12,7 +12,7 @@ const RUNNER=
 const RUNNER_BLOB="28d718eb4155e47dbe8d476a4cf45f2d3871e4db";
 const OPERATOR_DOC=
   "docs/operators/buy-void-epoch2-authenticated-credential-live-composition-v1.md";
-const OPERATOR_DOC_BLOB="4a4735fde261f1c79521cd7fb562fe5074d21655";
+const OPERATOR_DOC_BLOB="8a488e9bc29b1f6e1edd15deb14c8b38a96f831d";
 const QUALIFIER=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v1.py";
 const QUALIFIER_BLOB="8dc5d53dfcc52c261a3da0ee692f3a4fcc0bfc4c";
