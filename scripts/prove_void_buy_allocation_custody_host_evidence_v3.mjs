@@ -35,6 +35,10 @@ const lines=[
   "manager_start_ticks=1409",
   "manager_peer_authenticated=true",
   "same_private_fd_used_for_query=true",
+  "sanitized_loader_environment=true",
+  "libsystemd_fixed_path_verified=true",
+  "libsystemd_retained_fd_load=true",
+  "libsystemd_symbol_provenance_verified=true",
   "runtime_service_unit=void-node-live.service",
   "LoadState=loaded",
   "ActiveState=active",
@@ -62,6 +66,10 @@ const lines=[
 const raw=lines.join("\n");
 const parsed=parseBuyVoidAuthenticatedUserManagerUnitQueryV1(raw);
 assert.equal(parsed.manager_peer_authenticated,"true");
+assert.equal(parsed.sanitized_loader_environment,"true");
+assert.equal(parsed.libsystemd_fixed_path_verified,"true");
+assert.equal(parsed.libsystemd_retained_fd_load,"true");
+assert.equal(parsed.libsystemd_symbol_provenance_verified,"true");
 
 const config={
   runtime_user:"zoso",
@@ -77,6 +85,10 @@ assert.equal(
 );
 assert.equal(decision.manager_peer_authenticated,true);
 assert.equal(decision.same_authenticated_connection_unit_query,true);
+assert.equal(decision.sanitized_loader_environment,true);
+assert.equal(decision.libsystemd_fixed_path_verified,true);
+assert.equal(decision.libsystemd_retained_fd_load,true);
+assert.equal(decision.libsystemd_symbol_provenance_verified,true);
 assert.equal(decision.runtime_user_manager_identity_verified,true);
 assert.equal(decision.runtime_user_manager_cgroup_bound,true);
 assert.equal(decision.runtime_main_pid_kernel_bound,true);
@@ -99,6 +111,22 @@ for(const [label,bad,pattern] of [
       "same_private_fd_used_for_query=false",
     ),
     /native_truth_invalid:same_private_fd_used_for_query/u,
+  ],
+  [
+    "loader-env",
+    raw.replace(
+      "sanitized_loader_environment=true",
+      "sanitized_loader_environment=false",
+    ),
+    /native_truth_invalid:sanitized_loader_environment/u,
+  ],
+  [
+    "libsystemd-path",
+    raw.replace(
+      "libsystemd_fixed_path_verified=true",
+      "libsystemd_fixed_path_verified=false",
+    ),
+    /native_truth_invalid:libsystemd_fixed_path_verified/u,
   ],
   [
     "wrong-parent",
@@ -145,6 +173,14 @@ const parentGuardSource=fs.readFileSync(
 assert.ok(parentGuardSource.includes("SO_PEERCRED"),"SO_PEERCRED");
 assert.ok(parentGuardSource.includes("/systemd/private"),"/systemd/private");
 for(const needle of [
+  "LIBSYSTEMD_SONAME",
+  "/usr/lib/x86_64-linux-gnu/libsystemd.so.0",
+  "SANITIZED_ENV_MARKER",
+  "LD_PRELOAD",
+  "LD_LIBRARY_PATH",
+  "GLIBC_TUNABLES",
+  "/proc/self/fd/%d",
+  "dladdr",
   "sd_bus_set_fd",
   "sd_bus_set_bus_client",
   "sd_bus_start",
@@ -165,6 +201,11 @@ for(const [key,expected] of Object.entries({
   source_composition_only:true,
   authenticated_private_manager_peer_required:true,
   same_authenticated_connection_unit_query_required:true,
+  sanitized_loader_environment_required:true,
+  fixed_libsystemd_path_required:true,
+  retained_libsystemd_descriptor_required:true,
+  libsystemd_symbol_provenance_required:true,
+  ambient_dynamic_loader_authority:false,
   manager_pidfd_required:true,
   service_pidfd_required:true,
   manager_generation_revalidation_required:true,
@@ -196,6 +237,10 @@ console.log(
 );
 console.log("manager_peer_authenticated=true");
 console.log("same_authenticated_connection_unit_query=true");
+console.log("sanitized_loader_environment=true");
+console.log("libsystemd_fixed_path_verified=true");
+console.log("libsystemd_retained_fd_load=true");
+console.log("libsystemd_symbol_provenance_verified=true");
 console.log("runtime_user_manager_identity_verified=true");
 console.log("runtime_user_manager_cgroup_bound=true");
 console.log("runtime_main_pid_kernel_bound=true");
