@@ -48,8 +48,17 @@ remote append primitive.
 
 Read and append responses return the complete bounded witness bytes plus event
 count/tip hashes. The client validates challenge, policy hash, request ID,
-response ID and full witness summary. Exact idempotent retries remain valid when
-the already-witnessed event is historical rather than the current journal tip.
+response ID and full witness summary.
+
+If an append was durably committed but its response was lost, replaying the
+**exact same request** is idempotent only when the server's current witness SHA
+is exactly that request's expected-next SHA. The server then replans the signed
+authorization against the committed witness and must prove the same event is
+already present with no new append required. A stale request against any later
+witness generation still fails the prior-witness compare-and-swap check.
+
+Separately rebuilt idempotent requests remain valid when the already-witnessed
+event is historical rather than the current journal tip.
 
 This source-only protocol still performs no SSH. Therefore:
 
