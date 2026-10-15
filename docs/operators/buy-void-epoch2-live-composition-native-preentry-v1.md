@@ -169,12 +169,23 @@ creating any checkout-parent fixture it requires both `/home/zoso` and
 ancestry. It then creates those disposable parents and materializes the fixed
 checkout path as a link to the exact hosted checkout.
 
-The proof never normalizes an unsafe `/opt` ancestor. Before any protected
-fixture write, it requires both `/` and `/opt` to already be direct
-(non-symlink) root-owned directories with no group/world write permission.
-Any other host shape fails closed before fixture mutation. No CI environment
-variable, runner-temp path, or caller-controlled hosted marker can authorize a
-`chown`/`chmod` exception, and the proof never changes `/opt` metadata.
+The proof never normalizes or rewrites pre-existing `/opt` metadata. It first
+requires host `/opt` itself to be a direct non-symlink directory before any
+privileged fixture action. If that real directory is already root-owned and
+non-group/world-writable, the disposable fixture may use it directly.
+
+If the real directory is direct but its owner/mode does not satisfy the
+production ancestry predicate, the outer unprivileged proof copies only its
+current Node executable into a disposable `/tmp` bootstrap and re-executes the
+proof through root `unshare --mount --fork`. That child mounts a private
+root-owned mode-0755 tmpfs over `/opt` inside the new mount namespace, then
+runs the same proof source there. The mount disappears with the child process;
+the host `/opt` inode, owner, mode and contents are never changed.
+
+A symlink/non-directory `/opt` fails before namespace creation. No
+`GITHUB_ACTIONS`, `CI`, `RUNNER_TEMP`, or other caller-controlled hosted
+marker grants mutation authority. The private namespace is a CI proof fixture
+only and does not weaken the production native ancestry predicate.
 
 A real native `/dev/null` invocation must clear the parent-proof gates,
 execute the real runtime-user transition, and reach the later expected Git
