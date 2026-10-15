@@ -651,6 +651,13 @@ int main(int argc, char **argv) {
         close(runner_fd);
         hold("native_preentry_parent_proof_pipe_failed");
     }
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+        close(proof_pipe[0]);
+        close(proof_pipe[1]);
+        close(node_fd);
+        close(runner_fd);
+        hold("native_preentry_sigpipe_guard_failed");
+    }
 
     pid_t child = fork();
     if (child < 0) {
