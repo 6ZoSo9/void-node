@@ -25,7 +25,9 @@ A GREEN V2 probe requires:
 - visible directory/file paths still naming that exact generation after the
   signature and final live observation;
 - all reviewed credential-path ancestors still naming their admitted
-  generations; and
+  generations;
+- a second closing generation revalidation after receipt construction and
+  immediately before descriptor close; and
 - successful descriptor close before GREEN output is emitted.
 
 Same-size/same-mode file replacement, metadata-only drift on the retained
