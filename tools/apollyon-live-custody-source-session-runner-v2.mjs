@@ -601,31 +601,51 @@ function selfTest(){
     fail("apollyon_live_runner_self_test_authority");
   }
 
-  const strictEvents=[];
-  let strictFailed=false;
+  const nonzeroStopEvents=[];
+  let nonzeroStopFailed=false;
   try{
     stopApollyonTrainingServiceStrictV2({
       run_systemctl:(args,check)=>{
-        strictEvents.push("stop:"+args.join(":")+":"+String(check));
+        nonzeroStopEvents.push("stop:"+args.join(":")+":"+String(check));
         return {status:1,error:null,signal:null};
       },
       systemd_value:(unit,property)=>{
-        strictEvents.push("state:"+unit+":"+property);
+        nonzeroStopEvents.push("state:"+unit+":"+property);
+        return "inactive";
+      },
+    });
+  }catch(error){
+    nonzeroStopFailed=
+      error.message==="apollyon_live_runner_training_service_stop_failed";
+  }
+  if(
+    !nonzeroStopFailed||
+    nonzeroStopEvents[0]!=="stop:"+TRAINING_UNIT+":false"||
+    nonzeroStopEvents[1]!=="state:"+TRAINING_UNIT+":ActiveState"
+  )fail("apollyon_live_runner_self_test_nonzero_stop");
+
+  const activeAfterStopEvents=[];
+  let activeAfterStopFailed=false;
+  try{
+    stopApollyonTrainingServiceStrictV2({
+      run_systemctl:(args,check)=>{
+        activeAfterStopEvents.push("stop:"+args.join(":")+":"+String(check));
+        return {status:0,error:null,signal:null};
+      },
+      systemd_value:(unit,property)=>{
+        activeAfterStopEvents.push("state:"+unit+":"+property);
         return "active";
       },
     });
   }catch(error){
-    strictFailed=
-      error instanceof AggregateError&&
-      error.errors.length===2&&
-      error.errors.some((e)=>e.message==="apollyon_live_runner_training_service_stop_failed")&&
-      error.errors.some((e)=>e.message==="apollyon_live_runner_training_service_failed_to_stop");
+    activeAfterStopFailed=
+      error.message==="apollyon_live_runner_training_service_failed_to_stop";
   }
   if(
-    !strictFailed||
-    strictEvents[0]!=="stop:"+TRAINING_UNIT+":false"||
-    strictEvents[1]!=="state:"+TRAINING_UNIT+":ActiveState"
-  )fail("apollyon_live_runner_self_test_strict_stop");
+    !activeAfterStopFailed||
+    activeAfterStopEvents[0]!=="stop:"+TRAINING_UNIT+":false"||
+    activeAfterStopEvents[1]!=="state:"+TRAINING_UNIT+":ActiveState"
+  )fail("apollyon_live_runner_self_test_active_after_stop");
 
   const cleanupEvents=[];
   let cleanupFailed=false;
