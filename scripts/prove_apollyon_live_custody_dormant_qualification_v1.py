@@ -41,6 +41,10 @@ for required in (
     'service_dropins_present',
     'target_dropins_present',
     'loaded_unset_environment_invalid',
+    'SYSTEMD_UNIT_SEARCH_ROOTS=(',
+    'assert_no_unreviewed_dependency_directories(TARGET_UNIT)',
+    'assert_no_unreviewed_dependency_directories(SERVICE_UNIT)',
+    'unreviewed_systemd_dependency_entry:',
     'REVIEWED_SYSTEMD_MAJOR=255',
     'REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(',
     'verify_systemd_generation()',
@@ -100,6 +104,8 @@ for line in (
     "systemd_dropins_rejected=true",
     "unexpected_systemd_exec_commands_rejected=true",
     "manager_environment_influence_unset=true",
+    "systemd_dependency_directories_closed=true",
+    "unreviewed_systemd_dependency_entries_rejected=true",
     "failure_cleanup_receipt_truthful=true",
     "emergency_cleanup_adversaries_executed=true",
     "failed_stop_cleanup_reported=true",
@@ -135,6 +141,8 @@ print("running_installed_systemd_version_match_required=true")
 print("systemd_dropins_rejected=true")
 print("unexpected_systemd_exec_commands_rejected=true")
 print("manager_environment_influence_unset=true")
+print("systemd_dependency_directories_closed=true")
+print("unreviewed_systemd_dependency_entries_rejected=true")
 print("failure_cleanup_receipt_truthful=true")
 print("emergency_cleanup_adversaries_executed=true")
 print("failed_stop_cleanup_reported=true")
