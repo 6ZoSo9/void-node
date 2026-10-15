@@ -194,8 +194,8 @@ The deployment contract binds the exact repository lock
 `apollyon_live_custody_source_session_preentry_binary_lock_v1:7009aab71636ae4a06d880160e60b7131887f0ab7199b8da19ef65f399534439`). The lock accepts SHA-256
 `2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d`, requires static/no-`PT_INTERP` execution and the hostile
 `LD_PRELOAD` positive-control proof, while keeping installed identity and live
-execution false. The lock verifier/workflow blobs and hosted verification run
-`38684203856` are also bound so copied hash values cannot substitute for the
+execution false. The current lock verifier/workflow generation and hosted verification run
+`38788674691` are also bound so copied hash values cannot substitute for the
 reviewed lock evidence.
 
 ## Authority

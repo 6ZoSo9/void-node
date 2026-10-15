@@ -20,6 +20,26 @@ on:
       - "scripts/prove_apollyon_custody_deployment_manifest_v1.mjs"
       - "docs/security/apollyon-custody-deployment-manifest-v1.md"
       - ".github/workflows/apollyon-custody-deployment-manifest-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
+      - "ops/xiphos/apollyon-node-runtime-custody-v1.json"
+      - "ops/xiphos/apollyon_node_runtime_create_only_install_v1.py"
+      - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+      - "scripts/prove_apollyon_live_custody_source_session_execution_closure_v2.py"
+      - "ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json"
+      - "scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py"
+      - ".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1.service"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1.target"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1.env.template"
+      - "ops/xiphos/00-void-apollyon-training-custody-deny-v1.rules"
+      - "ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf"
+      - "scripts/prove_apollyon_custody_deployment_manifest_v1.mjs"
+      - "docs/security/apollyon-custody-deployment-manifest-v1.md"
+      - ".github/workflows/apollyon-custody-deployment-manifest-v1.yml"
   workflow_dispatch:
 
 permissions:

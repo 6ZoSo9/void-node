@@ -18,8 +18,8 @@ const PREENTRY_LOCK=path.join(ROOT,"ops/security/apollyon-live-custody-source-se
 const PREENTRY_LOCK_PROOF=path.join(ROOT,"scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py");
 const PREENTRY_LOCK_WORKFLOW=path.join(ROOT,".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml");
 const PREENTRY_LOCK_BLOB="aaa4d3265fcd3471fb433928df1cf9f9b4ef42a6";
-const PREENTRY_LOCK_PROOF_BLOB="8c21671892667d65fe3e528a2286ed557ad25780";
-const PREENTRY_LOCK_WORKFLOW_BLOB="4f848605ab8e54584900cac44aff73c9649ff3f5";
+const PREENTRY_LOCK_PROOF_BLOB="2d823b6acdf9861ad4bb05c62a25d8f2ad37f477";
+const PREENTRY_LOCK_WORKFLOW_BLOB="8421a574064874b3bead14482a93d21d9414e80f";
 
 function canonical(v){
   if(Array.isArray(v))return v.map(canonical);
@@ -231,7 +231,7 @@ assert.deepEqual(manifest.preentry_lock_evidence,{
   verification_proof_path:"scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py",
   verification_workflow_git_blob_sha1:PREENTRY_LOCK_WORKFLOW_BLOB,
   verification_workflow_path:".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml",
-  verification_workflow_run:38684203856,
+  verification_workflow_run:38788674691,
 });
 assert.equal(manifest.required_operator_input.private_key_required,false);
 assert.equal(manifest.required_operator_input.public_identity_cross_attested,true);
