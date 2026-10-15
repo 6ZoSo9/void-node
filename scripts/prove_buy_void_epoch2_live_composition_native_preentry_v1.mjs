@@ -687,7 +687,6 @@ try {
     "fixed setpriv must be executable",
   );
 
-  let fixedNodeFixtureCreated = false;
   let fixedRepoFixtureCreated = false;
   let fixedRepoParentsCreated = false;
   let fixtureInstalled = false;
@@ -708,20 +707,29 @@ try {
     }
     fixtureOptPreflightVerified = true;
 
-    if (!fs.existsSync(FIXED_NODE)) {
-      const nodeInstall = run(SUDO, [
-        "-n", "install",
-        "-o", "root", "-g", "root", "-m", "0755",
-        process.execPath,
-        FIXED_NODE,
-      ]);
-      assert.equal(
-        nodeInstall.status,
-        0,
-        "failed to materialize fixed Node fixture: " + nodeInstall.stderr,
-      );
-      fixedNodeFixtureCreated = true;
-    }
+    const fixedNodeStat = fs.lstatSync(FIXED_NODE);
+    assert.equal(
+      fixedNodeStat.isFile() && !fixedNodeStat.isSymbolicLink(),
+      true,
+      "fixed /usr/bin/node must already be a direct regular file",
+    );
+    assert.equal(fixedNodeStat.uid, 0, "fixed /usr/bin/node must be root-owned");
+    assert.equal(fixedNodeStat.nlink, 1, "fixed /usr/bin/node must have one link");
+    assert.equal(
+      (fixedNodeStat.mode & 0o022) === 0,
+      true,
+      "fixed /usr/bin/node must not be group/world writable",
+    );
+    assert.equal(
+      (fixedNodeStat.mode & 0o6000) === 0,
+      true,
+      "fixed /usr/bin/node must not be setuid/setgid",
+    );
+    assert.equal(
+      (fixedNodeStat.mode & 0o111) !== 0,
+      true,
+      "fixed /usr/bin/node must already be executable",
+    );
 
     assert.equal(
       fs.existsSync(FIXED_ROOT),
@@ -951,16 +959,6 @@ try {
     if (fixtureInstalled) {
       run(SUDO, ["-n", "rm", "-rf", "--", FIXED_ROOT]);
     }
-    if (fixedNodeFixtureCreated) {
-      const nodeCleanup = run(SUDO, [
-        "-n", "rm", "-f", "--", FIXED_NODE,
-      ]);
-      assert.equal(
-        nodeCleanup.status,
-        0,
-        "failed to remove fixed Node fixture: " + nodeCleanup.stderr,
-      );
-    }
   }
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
@@ -1004,7 +1002,8 @@ console.log(
 );
 console.log("caller_controlled_ci_flags_authorize_opt_mutation=false");
 console.log("hosted_self_custody_shape_prechecked=true");
-console.log("hosted_fixed_node_fixture_created_only_if_absent=true");
+console.log("fixed_node_preexisting_trusted_shape_required=true");
+console.log("host_usr_bin_mutation=false");
 console.log("live_credential_access=false");
 console.log("live_signing=false");
 console.log("transaction=false");
