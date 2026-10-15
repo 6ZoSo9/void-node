@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
@@ -60,19 +61,36 @@ assert.match(policySource,/\/usr\/sbin\/usermod/u);
 assert.match(policySource,/\/usr\/bin\/systemctl","restart","user@1000\.service"/u);
 assert.match(policySource,/\/usr\/bin\/gpasswd","--delete","zoso","void-buy-custody-ipc"/u);
 
-const socketPolicy=fs.readFileSync(
+function gitBlobSha1(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+bytes.length+"\\0","utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
+const socketPolicyBytes=fs.readFileSync(
   "tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs",
-  "utf8",
 );
+assert.equal(
+  gitBlobSha1(socketPolicyBytes),
+  "9d4b97a822b50c525722f0decae9205a9aebeb4a",
+  "socket_runtime_directory_policy_parent_blob_drift",
+);
+const socketPolicy=socketPolicyBytes.toString("utf8");
 assert.match(socketPolicy,/ipc_group: "void-buy-custody-ipc"/u);
 assert.match(socketPolicy,/runtime_directory_mode: "0750"/u);
 assert.match(socketPolicy,/socket_mode: "0660"/u);
 assert.match(socketPolicy,/runtime_socket_parent_write_denied_required: true/u);
 
-const runtimeHardening=fs.readFileSync(
+const runtimeHardeningBytes=fs.readFileSync(
   "ops/systemd/void-node-live.service.d/98-buy-void-allocation-custody-runtime-hardening-v1.conf.example",
-  "utf8",
 );
+assert.equal(
+  gitBlobSha1(runtimeHardeningBytes),
+  "ddb9498bfbe12cc5952e82c6a8c5d0232425f32a",
+  "runtime_hardening_parent_blob_drift",
+);
+const runtimeHardening=runtimeHardeningBytes.toString("utf8");
 assert.equal(runtimeHardening,
   "[Service]\nNoNewPrivileges=yes\nCapabilityBoundingSet=\nAmbientCapabilities=\n",
 );
