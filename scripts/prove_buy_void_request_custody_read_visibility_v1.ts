@@ -156,6 +156,27 @@ try{
   );
   fs.chmodSync(shared,VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1);
 
+  const realParent=path.join(root,"real-parent");
+  const realAliasRoot=path.join(realParent,"requests");
+  const aliasParent=path.join(root,"alias-parent");
+  fs.mkdirSync(realAliasRoot,{recursive:true,mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1});
+  fs.chmodSync(realAliasRoot,VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1);
+  for(const name of [REQUESTS,EVENTS]){
+    const file=path.join(realAliasRoot,name);
+    fs.writeFileSync(file,"",{mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1});
+    fs.chmodSync(file,VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
+  }
+  fs.symlinkSync(realParent,aliasParent,"dir");
+  const aliasedRoot=path.join(aliasParent,"requests");
+  await rejects(
+    ()=>persist(aliasedRoot,req("buyvoid_shared_ffffffff","6")),
+    /custody_readable_directory_alias_forbidden/u,
+  );
+  assert.throws(
+    ()=>testOnlyReadStrictCapacityCensusV1(aliasedRoot,10_000_000n,()=>{}),
+    /buy_void_verified_payment_capacity_request_directory_alias_forbidden/u,
+  );
+
   const missingJournalRoot=path.join(root,"missing-journal");
   fs.mkdirSync(missingJournalRoot,{
     mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1,
