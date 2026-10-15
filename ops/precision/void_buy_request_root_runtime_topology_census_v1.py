@@ -16,6 +16,8 @@ import sys
 from typing import Any
 
 MARKER = "VOID_BUY_VOID_REQUEST_ROOT_RUNTIME_TOPOLOGY_CENSUS_V1"
+METADATA_POLICY_ID = "current_private_request_root_0700_0600_v1"
+FUTURE_CUSTODY_READABLE_PROFILE = "future_ipc_group_request_root_0750_0640"
 EXPECTED_HOSTNAME = "zoso-Precision-Tower-7810"
 EXPECTED_USER = "zoso"
 RUNTIME_UNIT = "void-node-live.service"
@@ -684,6 +686,9 @@ def plan() -> None:
     for key, value in (
         ("mode", "--plan"),
         ("read_only", "true"),
+        ("metadata_policy_id", METADATA_POLICY_ID),
+        ("future_custody_readable_profile_accepted", "false"),
+        ("future_profile_requires_successor_census", "true"),
         ("sudo_required", "false"),
         ("filesystem_write", "false"),
         ("service_mutation", "false"),
@@ -806,6 +811,10 @@ def collect() -> dict[str, Any]:
     return {
         "marker": MARKER,
         "version": 1,
+        "metadata_policy_id": METADATA_POLICY_ID,
+        "future_custody_readable_profile": FUTURE_CUSTODY_READABLE_PROFILE,
+        "future_custody_readable_profile_accepted": False,
+        "future_profile_requires_successor_census": True,
         "mode": "read_only",
         "sudo_used": False,
         "filesystem_write": False,
@@ -905,6 +914,10 @@ def main() -> int:
 
     result = collect()
     print(MARKER)
+    print("metadata_policy_id=" + result["metadata_policy_id"])
+    print("future_custody_readable_profile=" + result["future_custody_readable_profile"])
+    print("future_custody_readable_profile_accepted=false")
+    print("future_profile_requires_successor_census=true")
     for key in (
         "mode",
         "sudo_used",
