@@ -9,6 +9,18 @@ on:
       - "tools/void-cloudflare-origin-loopback-isolation-policy-v1.mjs"
       - "ops/public/void-cloudflare-origin-proxy-v2-adapter-v1.mjs"
       - "ops/public/void-public-443-proxy-v2-dispatcher-v1.mjs"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - ".github/workflows/cloudflare-origin-designated-host-census-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/public/void_cloudflare_origin_designated_host_census_v1.py"
+      - "scripts/prove_void_cloudflare_origin_designated_host_census_v1.py"
+      - "docs/operators/cloudflare-origin-designated-host-census-v1.md"
+      - "tools/void-cloudflare-origin-loopback-isolation-policy-v1.mjs"
+      - "ops/public/void-cloudflare-origin-proxy-v2-adapter-v1.mjs"
+      - "ops/public/void-public-443-proxy-v2-dispatcher-v1.mjs"
+      - "ops/public/void-public-frontdoor-v1.mjs"
       - ".github/workflows/cloudflare-origin-designated-host-census-v1.yml"
   workflow_dispatch:
 
@@ -63,6 +75,8 @@ jobs:
           grep -Fx 'reviewed_frontdoor_source_blob_bound=true' "$proof"
           grep -Fx 'ordinary_frontdoor_target_exact=true' "$proof"
           grep -Fx 'global_catchall_http_status_404_required=true' "$proof"
+          grep -Fx 'focused_workflow_pr_main_path_parity=true' "$proof"
+          grep -Fx 'focused_workflow_frontdoor_dependency_bound=true' "$proof"
           grep -Fx 'process_environment_access=false' "$proof"
           grep -Fx 'cloudflared_process_command_line_access=false' "$proof"
           grep -Fx 'operator_tunnel_config_path_required=true' "$proof"
