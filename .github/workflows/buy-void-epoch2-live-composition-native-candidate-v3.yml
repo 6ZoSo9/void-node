@@ -107,6 +107,7 @@ jobs:
             'hostile_ld_preload_positive_control=true' \
             'hostile_ld_preload_preentry_blocked=true' \
             'static_toolchain_closure_bound=true' \
+            'traced_absolute_link_inputs_fail_closed=true' \
             'candidate_accepted=false' \
             'protected_install_authorized=false' \
             'live_execution_authorized=false'
@@ -162,6 +163,7 @@ jobs:
             'hostile_ld_preload_positive_control=true' \
             'hostile_ld_preload_preentry_blocked=true' \
             'static_toolchain_closure_bound=true' \
+            'traced_absolute_link_inputs_fail_closed=true' \
             'candidate_accepted=false' \
             'protected_install_authorized=false' \
             'live_execution_authorized=false'
@@ -184,6 +186,7 @@ jobs:
             'pt_interp_absent=true' \
             'hostile_ld_preload_preentry_blocked=true' \
             'static_toolchain_closure_bound=true' \
+            'traced_absolute_link_inputs_fail_closed=true' \
             'candidate_accepted=false' \
             'live_execution_authorized=false'
           do
