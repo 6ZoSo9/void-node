@@ -13,7 +13,7 @@ V1 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
 V2 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 AUTH = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
 
-TARGET_BLOB = "6b083227ba761c0a6b591fc6fe14c43e121f0161"
+TARGET_BLOB = "64fda26d0fd370717f57f437fb7eaa99ca711a98"
 EXPECTED_DEPENDENCY_BLOBS = {
     V1: "9ca9cb948a08973d0d874c5473ad2743de14140c",
     V2: "305737478025e22ddc8f56da29f2a2dfde251d8b",
@@ -79,6 +79,7 @@ for required in (
     "root_required_for_authenticated_manager_query",
     "designated_runtime_user_matches",
     "late_candidate_mutation_forces_unstable",
+    "late_candidate_mutation_blocks_bounded_current_set",
 ):
     assert required in source, required
 
@@ -154,6 +155,7 @@ for line in (
     "cap_last_cap_projection_contract_required=true",
     "unauthenticated_user_manager_not_authority=true",
     "late_candidate_mutation_forces_unstable=true",
+    "late_candidate_mutation_blocks_bounded_current_set=true",
     "production_gate_ready=false",
 ):
     assert line in self_lines, line
@@ -223,6 +225,7 @@ print("designated_runtime_user_bound=true")
 print("stable_release_inventory_required=true")
 print("repeat_candidate_observation_required=true")
 print("late_candidate_mutation_window_guarded=true")
+print("late_candidate_mutation_blocks_bounded_current_set=true")
 print("process_environment_access=false")
 print("external_network_calls=false")
 print("loopback_get_only=true")

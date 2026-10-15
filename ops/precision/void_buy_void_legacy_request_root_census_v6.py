@@ -390,6 +390,13 @@ def self_test() -> None:
         (window / "requests.jsonl").write_bytes(b"x")
         late_rows = _classify_candidates(window_candidates)
         assert early_rows != late_rows
+        candidate_observations_stable = early_rows == late_rows
+        assert candidate_observations_stable is False
+        bounded_current_candidate_set_observed = all((
+            True,
+            candidate_observations_stable,
+        ))
+        assert bounded_current_candidate_set_observed is False
     for dependency, expected in DEPENDENCY_BLOBS.items():
         assert _git_blob_sha1(_authenticated_source_bytes(dependency)) == expected
     own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
@@ -411,6 +418,7 @@ def self_test() -> None:
     print("cap_last_cap_projection_contract_required=true")
     print("unauthenticated_user_manager_not_authority=true")
     print("late_candidate_mutation_forces_unstable=true")
+    print("late_candidate_mutation_blocks_bounded_current_set=true")
     print("production_gate_ready=false")
 
 def plan() -> None:
