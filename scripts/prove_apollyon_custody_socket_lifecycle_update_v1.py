@@ -77,6 +77,7 @@ for required in (
     'lifecycle_root_parent_fsync_on_create=true',
     'mutation_boundary_dormancy_revalidation=true',
     'filesystem_primitive_dormancy_revalidation=true',
+    'service_and_reload_dormancy_drift_rejected=true',
     'durability_repair_mutation_receipt_truthful=true',
     'recovery_snapshot_attempted',
     'daemon_reload_command_succeeded',
@@ -119,6 +120,7 @@ for line in (
     "lifecycle_root_parent_fsync_on_create=true",
     "mutation_boundary_dormancy_revalidation=true",
     "filesystem_primitive_dormancy_revalidation=true",
+    "service_and_reload_dormancy_drift_rejected=true",
     "durability_repair_mutation_receipt_truthful=true",
     "pending_cleanup_mutation_receipt_truthful=true",
     "durability_failure_outcome_indeterminate=true",
@@ -144,6 +146,7 @@ print("final_file_metadata_fsync_before_publication=true")
 print("lifecycle_root_parent_fsync_on_create=true")
 print("mutation_boundary_dormancy_revalidation=true")
 print("filesystem_primitive_dormancy_revalidation=true")
+print("service_and_reload_dormancy_drift_rejected=true")
 print("durability_repair_mutation_receipt_truthful=true")
 print("pending_cleanup_mutation_receipt_truthful=true")
 print("idempotent_resume_proven=true")
