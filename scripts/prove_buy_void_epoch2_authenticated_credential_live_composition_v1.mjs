@@ -10,6 +10,9 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const RUNNER=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs";
 const RUNNER_BLOB="28d718eb4155e47dbe8d476a4cf45f2d3871e4db";
+const OPERATOR_DOC=
+  "docs/operators/buy-void-epoch2-authenticated-credential-live-composition-v1.md";
+const OPERATOR_DOC_BLOB="4a4735fde261f1c79521cd7fb562fe5074d21655";
 const QUALIFIER=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v1.py";
 const QUALIFIER_BLOB="8dc5d53dfcc52c261a3da0ee692f3a4fcc0bfc4c";
@@ -26,6 +29,7 @@ function gitBlob(bytes){
 
 for(const [relative,expected] of [
   [RUNNER,RUNNER_BLOB],
+  [OPERATOR_DOC,OPERATOR_DOC_BLOB],
   [QUALIFIER,QUALIFIER_BLOB],
   [SEALED,SEALED_BLOB],
 ]){
@@ -34,6 +38,28 @@ for(const [relative,expected] of [
 }
 
 const source=fs.readFileSync(path.join(ROOT,RUNNER),"utf8");
+const operatorDoc=fs.readFileSync(path.join(ROOT,OPERATOR_DOC),"utf8");
+for(const required of [
+  "GIT_NO_REPLACE_OBJECTS=1",
+  "GIT_CONFIG_GLOBAL=/dev/null",
+  "GIT_CONFIG_SYSTEM=/dev/null",
+  "/usr/bin/git",
+  "--no-replace-objects",
+  "core.fsmonitor=false",
+  "core.hooksPath=/dev/null",
+  "branch --show-current",
+  "status --porcelain=v1 --untracked-files=all",
+  "runner_blob=",
+  "28d718eb4155e47dbe8d476a4cf45f2d3871e4db",
+  "cat-file blob",
+]){
+  assert.ok(operatorDoc.includes(required),"operator_launcher_contract:"+required);
+}
+assert.equal(
+  operatorDoc.includes("head=$(/usr/bin/git rev-parse --verify HEAD)"),
+  false,
+  "unsanitized_operator_git_entry_forbidden",
+);
 for(const required of [
   'const ROOT="/home/zoso/dev/void-node"',
   'const SETPRIV="/usr/bin/setpriv"',
