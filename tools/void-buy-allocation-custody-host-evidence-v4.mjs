@@ -220,7 +220,8 @@ export function classifyBuyVoidAllocationCustodyAuthenticatedUserServiceV4(raw,c
   const runtimeGroup=safeName(c.runtime_group,"custody_host_evidence_v4_runtime_group_invalid");
   const runtimeUid=positive(c.runtime_uid,"custody_host_evidence_v4_runtime_uid_invalid");
   const unit=safeUnit(c.runtime_service_unit,"custody_host_evidence_v4_runtime_unit_invalid");
-  const native=typeof raw==="string"?parseBuyVoidAuthenticatedUserManagerUnitQueryV2(raw):raw;
+  if(typeof raw!=="string")fail("custody_host_evidence_v4_native_transcript_required");
+  const native=parseBuyVoidAuthenticatedUserManagerUnitQueryV2(raw);
   const n=exactObject(native,EXACT_KEYS,"custody_host_evidence_v4_native_object_invalid");
   if(Number(n.runtime_uid)!==runtimeUid||n.runtime_service_unit!==unit){
     fail("custody_host_evidence_v4_native_binding_mismatch");
