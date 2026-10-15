@@ -103,9 +103,11 @@ for (const required of [
   "node_bytes",
   "fexecve(node_fd, next_argv, envp);",
   "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_RUNNER_FD=%d",
-  "NODE_OPTIONS",
-  "NODE_PATH",
-  "LD_PRELOAD",
+  "PATH=/usr/bin:/bin",
+  "HOME=/root",
+  "LANG=C",
+  "LC_ALL=C",
+  "TZ=UTC",
 ]) {
   assert.equal(
     preentry.includes(required),
@@ -128,6 +130,20 @@ assert.equal(preentry.includes("system("), false);
 assert.equal(preentry.includes("popen("), false);
 assert.equal(preentry.includes("execve("), true);
 assert.equal(preentry.includes("--input-type=module"), false);
+
+for (const forbiddenEnvName of [
+  "NODE_OPTIONS",
+  "NODE_PATH",
+  "LD_PRELOAD",
+  "LD_LIBRARY_PATH",
+  "LD_AUDIT",
+]) {
+  assert.equal(
+    preentry.includes(forbiddenEnvName),
+    false,
+    "native preentry must sanitize loader variable: " + forbiddenEnvName,
+  );
+}
 
 for (const required of [
   "VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V2",
