@@ -863,20 +863,35 @@ def checkout_head() -> str | None:
 def next_action(result: dict[str, Any]) -> str:
     if not result["host"]["hostname_matches_precision"] or not result["host"]["complete_privileged_visibility"]:
         return "PRECISION_ROOT_READ_ONLY_CENSUS_REQUIRED"
+    if not result["reviewed_checkout_blobs"]["all_match"]:
+        return "REVIEWED_SOURCE_BLOB_HOLD"
     if not result["historical_user_tunnel"]["query_observed"]:
         return "HISTORICAL_USER_TUNNEL_QUERY_HOLD"
     if result["historical_user_tunnel"]["active_running"] is True:
         return "HISTORICAL_USER_TUNNEL_RETIREMENT_PLAN_REQUIRED"
+    if not result["historical_user_tunnel"]["retired_candidate_observed"]:
+        return "HISTORICAL_USER_TUNNEL_RETIREMENT_STATE_HOLD"
     if not all(result["services"][name]["active_running"] for name in SYSTEM_UNITS):
         return "PROTECTED_SYSTEM_SERVICES_NOT_ACTIVE"
+    if not result["all_service_process_generations_stable"]:
+        return "SERVICE_PROCESS_GENERATION_HOLD"
     if not result["service_identity_shape_observed"]:
         return "SERVICE_IDENTITY_OR_CAPABILITY_HOLD"
+    if not result["services"]["cloudflared"]["process"]["comm_is_cloudflared"]:
+        return "CLOUDFLARED_PROCESS_IDENTITY_HOLD"
+    if not (
+        result["services"]["adapter"]["source"]["matches_reviewed_blob"]
+        and result["services"]["dispatcher"]["source"]["matches_reviewed_blob"]
+    ):
+        return "RUNNING_SOURCE_CUSTODY_HOLD"
     if not result["listener_shape_observed"]:
         return "LISTENER_OWNERSHIP_HOLD"
     if not result["tunnel"]["private_custody_shape_observed"]:
         return "TUNNEL_PRIVATE_CUSTODY_HOLD"
     if not result["tunnel"]["sensitive_route_shape_observed"]:
         return "TUNNEL_SENSITIVE_ROUTE_HOLD"
+    if not result["tunnel"]["ordinary_routes_preserved_candidate"]:
+        return "ORDINARY_TUNNEL_ROUTE_PRESERVATION_HOLD"
     if not result["tunnel"]["adapter_route_matches_listener"]:
         return "TUNNEL_ADAPTER_PORT_BINDING_HOLD"
     if not result["nftables"]["table_present"]:
