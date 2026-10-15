@@ -50,6 +50,8 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_AUTHORITY_V1 =
     authority_directory_fsync: true,
     post_mutation_path_rebind: true,
     fixed_nimo_host_identity_required: true,
+    dedicated_voidwitness_uid_gid_required: true,
+    canonical_durable_intent_required: true,
     arbitrary_append_bytes_from_client: false,
     caller_selected_path: false,
     caller_selected_command: false,
@@ -108,7 +110,10 @@ const MAX_INTENT_BYTES=1024*1024;
 const O_NOFOLLOW=fs.constants.O_NOFOLLOW;
 const O_DIRECTORY=fs.constants.O_DIRECTORY;
 const SHA256_ID=/^sha256:[0-9a-f]{64}$/u;
-const SAFE_TEXT=/^[A-Za-z0-9._:@/+~-]{1,300}$/u;
+const REQUEST_ID=/^voidblrhtreq1_[0-9a-f]{64}$/u;
+const EVENT_ID=/^voidblrhw1_[0-9a-f]{64}$/u;
+const EXPECTED_VOIDWITNESS_UID=997;
+const EXPECTED_VOIDWITNESS_GID=984;
 
 function fail(code){throw new Error(code);}
 function exactObject(value,keys,code){
@@ -433,6 +438,23 @@ function requireHostIdentity(config,observed){
     if(observed[key]!==expected)fail("legacy_history_nimo_forced_command_host_identity_mismatch");
   }
 }
+function requireExecutionIdentity(){
+  const uid=process.getuid?.();
+  const gid=process.getgid?.();
+  let info;
+  try{info=os.userInfo();}catch{
+    fail("legacy_history_nimo_forced_command_execution_identity_unavailable");
+  }
+  if(
+    uid!==EXPECTED_VOIDWITNESS_UID||
+    gid!==EXPECTED_VOIDWITNESS_GID||
+    info.uid!==EXPECTED_VOIDWITNESS_UID||
+    info.gid!==EXPECTED_VOIDWITNESS_GID||
+    info.username!=="voidwitness"
+  ){
+    fail("legacy_history_nimo_forced_command_execution_identity_invalid");
+  }
+}
 function intentBody(requestBytes,prior,next,eventId){
   return Object.freeze({
     schema:INTENT_SCHEMA,
@@ -466,12 +488,15 @@ function parseIntent(bytes){
     "prior_witness_sha256","prior_witness_bytes","expected_next_witness_sha256",
     "expected_next_witness_bytes","expected_event_id",
   ],"legacy_history_nimo_forced_command_intent_shape_invalid");
+  if(!canonicalBytes(value).equals(bytes)){
+    fail("legacy_history_nimo_forced_command_intent_noncanonical");
+  }
   if(value.schema!==INTENT_SCHEMA||value.marker!==INTENT_MARKER||value.version!==1||
-     !SAFE_TEXT.test(String(value.request_id||""))||
+     !REQUEST_ID.test(String(value.request_id||""))||
      !SHA256_ID.test(String(value.request_sha256||""))||
      !SHA256_ID.test(String(value.prior_witness_sha256||""))||
      !SHA256_ID.test(String(value.expected_next_witness_sha256||""))||
-     !SAFE_TEXT.test(String(value.expected_event_id||""))||
+     !EVENT_ID.test(String(value.expected_event_id||""))||
      !Number.isSafeInteger(value.prior_witness_bytes)||value.prior_witness_bytes<0||
      !Number.isSafeInteger(value.expected_next_witness_bytes)||
      value.expected_next_witness_bytes<value.prior_witness_bytes){
@@ -630,6 +655,7 @@ function appendNew(directory,config,requestBytes,server,serverClassifier,hooks){
   });
 }
 function handle(config,requestBytes,{host=hostIdentity(),serverClassifier=classifyVoidBuyVoidLegacyHistoryNimoServerRequestV1,hooks={}}={}){
+  if(hooks?.allow_test_identity!==true)requireExecutionIdentity();
   requireHostIdentity(config,host);
   const directory=openAuthorityRoot(config.authority_root,{
     allowTestParent:hooks?.allow_test_parent===true,
@@ -697,6 +723,7 @@ export function testOnlyHandleVoidBuyVoidLegacyHistoryNimoForcedCommandRequestV1
       ...(options.hooks??{}),
       use_injected_host_identity:true,
       allow_test_parent:true,
+      allow_test_identity:true,
     },
   });
 }
