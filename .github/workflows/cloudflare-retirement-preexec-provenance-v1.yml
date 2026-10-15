@@ -51,6 +51,7 @@ jobs:
           grep -Fx 'VOID_CLOUDFLARE_RETIREMENT_PREEXEC_PROVENANCE_V1_PROOF_GREEN' "$RUNNER_TEMP/provenance-source-proof.log"
           grep -Fx 'direct_marker_invocation_rejected=true' "$RUNNER_TEMP/provenance-source-proof.log"
           grep -Fx 'forged_proof_channel_rejected=true' "$RUNNER_TEMP/provenance-source-proof.log"
+          grep -Fx 'accepted_main_trigger_path_parity=true' "$RUNNER_TEMP/provenance-source-proof.log"
           grep -Fx 'historical_user_tunnel_retirement_verified=false' "$RUNNER_TEMP/provenance-source-proof.log"
 
       - name: Build V2 static preexec and dynamic query
