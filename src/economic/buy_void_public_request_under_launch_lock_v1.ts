@@ -180,9 +180,33 @@ function assertNoSurvivingRequestHistoryV1(dir: string): void {
       holdHistoryV1("directory_listing_sparse");
     }
     const entry = entries[i];
-    if (typeof entry !== "string" ||
-        entry === "operator-events.jsonl" ||
-        path.extname(entry) === ".json") {
+    if (typeof entry !== "string") {
+      holdHistoryV1("missing_or_empty_with_surviving_history");
+    }
+    if (entry === "operator-events.jsonl") {
+      // Shared custody-readable mode requires both fixed journals to be
+      // pre-provisioned. An exact-qualified zero-byte operator journal is
+      // therefore compatible with an empty request journal. Any operator
+      // history remains surviving history and must HOLD.
+      if (!VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+        holdHistoryV1("missing_or_empty_with_surviving_history");
+      }
+      let operator: fs.BigIntStats;
+      try {
+        operator = fs.lstatSync(
+          path.join(dir, "operator-events.jsonl"),
+          { bigint: true },
+        );
+      } catch {
+        holdHistoryV1("missing_or_empty_with_surviving_history");
+      }
+      assertRequestLeafPolicyV1(operator, true);
+      if (operator.size !== 0n) {
+        holdHistoryV1("missing_or_empty_with_surviving_history");
+      }
+      continue;
+    }
+    if (path.extname(entry) === ".json") {
       holdHistoryV1("missing_or_empty_with_surviving_history");
     }
   }
