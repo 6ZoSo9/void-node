@@ -43,6 +43,8 @@ jobs:
           grep -Fx 'v2_designated_host_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'designated_runtime_user_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'ambient_home_not_used_for_repo_candidate=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'stable_release_inventory_required=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'repeat_candidate_observation_required=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'process_environment_access=false' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'external_network_calls=false' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'loopback_get_only=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
