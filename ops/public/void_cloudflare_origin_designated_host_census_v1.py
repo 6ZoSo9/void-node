@@ -604,8 +604,8 @@ def operator_tunnel_config_path(raw: str | None) -> pathlib.Path:
         raise CensusError("operator_tunnel_config_path_not_canonical")
     return resolved
 
-def file_custody(path_value: pathlib.Path | None, owner_uid: int | None) -> dict[str, Any]:
-    result = {
+def empty_file_custody(path_value: pathlib.Path | None) -> dict[str, Any]:
+    return {
         "path_observed": path_value is not None,
         "path_sha256": sha256_bytes(str(path_value).encode("utf-8")) if path_value else None,
         "regular_nonsymlink": False,
@@ -615,31 +615,148 @@ def file_custody(path_value: pathlib.Path | None, owner_uid: int | None) -> dict
         "parent_real_directory": False,
         "parent_owner_uid_matches": False,
         "parent_group_other_bits_zero": False,
+        "generation_stable": False,
+        "metadata_descriptor_only": False,
+        "contents_read": False,
         "custody_shape_observed": False,
     }
+
+def same_file_stat(first: os.stat_result, second: os.stat_result) -> bool:
+    return (
+        first.st_dev == second.st_dev
+        and first.st_ino == second.st_ino
+        and first.st_mode == second.st_mode
+        and first.st_uid == second.st_uid
+        and first.st_gid == second.st_gid
+        and first.st_nlink == second.st_nlink
+        and first.st_size == second.st_size
+        and first.st_mtime_ns == second.st_mtime_ns
+        and first.st_ctime_ns == second.st_ctime_ns
+    )
+
+def same_directory_stat(first: os.stat_result, second: os.stat_result) -> bool:
+    return (
+        first.st_dev == second.st_dev
+        and first.st_ino == second.st_ino
+        and first.st_mode == second.st_mode
+        and first.st_uid == second.st_uid
+        and first.st_gid == second.st_gid
+        and first.st_nlink == second.st_nlink
+        and first.st_mtime_ns == second.st_mtime_ns
+        and first.st_ctime_ns == second.st_ctime_ns
+    )
+
+def descriptor_bound_file_custody(
+    path_value: pathlib.Path | None,
+    owner_uid: int | None,
+    *,
+    maximum: int | None = None,
+    read_contents: bool = False,
+) -> tuple[bytes, dict[str, Any]]:
+    result = empty_file_custody(path_value)
     if path_value is None or not isinstance(owner_uid, int) or owner_uid < 1:
-        return result
+        return b"", result
+    if read_contents and (not isinstance(maximum, int) or maximum < 1):
+        return b"", result
+    if not read_contents and not hasattr(os, "O_PATH"):
+        return b"", result
+
+    parent = path_value.parent
+    parent_fd: int | None = None
+    file_fd: int | None = None
+    data = b""
     try:
-        info = path_value.lstat()
-        parent = path_value.parent
-        parent_info = parent.lstat()
-    except OSError:
-        return result
-    result["regular_nonsymlink"] = stat.S_ISREG(info.st_mode) and not stat.S_ISLNK(info.st_mode)
-    result["owner_uid_matches"] = info.st_uid == owner_uid
-    result["group_other_bits_zero"] = stat.S_IMODE(info.st_mode) & 0o077 == 0
-    result["nlink_one"] = info.st_nlink == 1
-    try:
-        result["parent_real_directory"] = (
-            stat.S_ISDIR(parent_info.st_mode)
-            and not stat.S_ISLNK(parent_info.st_mode)
-            and parent.resolve(strict=True) == parent
+        visible_before = path_value.lstat()
+        parent_before = parent.lstat()
+        if (
+            not stat.S_ISREG(visible_before.st_mode)
+            or stat.S_ISLNK(visible_before.st_mode)
+            or not stat.S_ISDIR(parent_before.st_mode)
+            or stat.S_ISLNK(parent_before.st_mode)
+        ):
+            return b"", result
+        if path_value.resolve(strict=True) != path_value:
+            return b"", result
+        if parent.resolve(strict=True) != parent:
+            return b"", result
+        if read_contents and (
+            visible_before.st_size < 1
+            or visible_before.st_size > maximum
+        ):
+            return b"", result
+
+        parent_flags = (
+            getattr(os, "O_PATH", os.O_RDONLY)
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
         )
+        parent_fd = os.open(parent, parent_flags)
+        parent_opened = os.fstat(parent_fd)
+        if not same_directory_stat(parent_before, parent_opened):
+            return b"", result
+
+        file_flags = (
+            os.O_RDONLY
+            if read_contents
+            else getattr(os, "O_PATH")
+        ) | getattr(os, "O_NOFOLLOW", 0)
+        file_fd = os.open(path_value.name, file_flags, dir_fd=parent_fd)
+        opened = os.fstat(file_fd)
+        if not same_file_stat(visible_before, opened):
+            return b"", result
+
+        if read_contents:
+            chunks: list[bytes] = []
+            remaining = opened.st_size
+            while remaining:
+                chunk = os.read(file_fd, min(65536, remaining))
+                if not chunk:
+                    return b"", result
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            data = b"".join(chunks)
+
+        after = os.fstat(file_fd)
+        parent_after = os.fstat(parent_fd)
+        visible_after = path_value.lstat()
+        parent_visible_after = parent.lstat()
+        path_canonical_after = path_value.resolve(strict=True) == path_value
+        parent_canonical_after = parent.resolve(strict=True) == parent
     except OSError:
-        result["parent_real_directory"] = False
-    result["parent_owner_uid_matches"] = parent_info.st_uid == owner_uid
-    result["parent_group_other_bits_zero"] = stat.S_IMODE(parent_info.st_mode) & 0o077 == 0
-    result["custody_shape_observed"] = all([
+        return b"", result
+    finally:
+        if file_fd is not None:
+            os.close(file_fd)
+        if parent_fd is not None:
+            os.close(parent_fd)
+
+    stable = (
+        same_file_stat(opened, after)
+        and same_file_stat(after, visible_after)
+        and same_directory_stat(parent_opened, parent_after)
+        and same_directory_stat(parent_after, parent_visible_after)
+        and path_canonical_after
+        and parent_canonical_after
+    )
+    result["regular_nonsymlink"] = (
+        stat.S_ISREG(opened.st_mode) and not stat.S_ISLNK(opened.st_mode)
+    )
+    result["owner_uid_matches"] = opened.st_uid == owner_uid
+    result["group_other_bits_zero"] = stat.S_IMODE(opened.st_mode) & 0o077 == 0
+    result["nlink_one"] = opened.st_nlink == 1
+    result["parent_real_directory"] = (
+        stat.S_ISDIR(parent_opened.st_mode)
+        and not stat.S_ISLNK(parent_opened.st_mode)
+        and parent_canonical_after
+    )
+    result["parent_owner_uid_matches"] = parent_opened.st_uid == owner_uid
+    result["parent_group_other_bits_zero"] = (
+        stat.S_IMODE(parent_opened.st_mode) & 0o077 == 0
+    )
+    result["generation_stable"] = stable
+    result["metadata_descriptor_only"] = not read_contents
+    result["contents_read"] = read_contents and stable
+    result["custody_shape_observed"] = stable and all([
         result["regular_nonsymlink"],
         result["owner_uid_matches"],
         result["group_other_bits_zero"],
@@ -648,7 +765,7 @@ def file_custody(path_value: pathlib.Path | None, owner_uid: int | None) -> dict
         result["parent_owner_uid_matches"],
         result["parent_group_other_bits_zero"],
     ])
-    return result
+    return (data if stable else b""), result
 
 def yaml_scalar(raw: str) -> str | None:
     value = raw.strip()
@@ -747,11 +864,7 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
     credential_path = pathlib.Path(credentials[0])
     if not credential_path.is_absolute() or "\x00" in credentials[0]:
         raise CensusError("tunnel_credentials_path_invalid")
-    try:
-        credential_resolved = credential_path.resolve(strict=True)
-    except OSError as exc:
-        raise CensusError("tunnel_credentials_path_unavailable") from exc
-    if credential_resolved != credential_path:
+    if os.path.normpath(credentials[0]) != credentials[0]:
         raise CensusError("tunnel_credentials_path_not_canonical")
     sensitive: list[dict[str, Any]] = []
     non_sensitive_seed_rules: list[dict[str, Any]] = []
@@ -798,7 +911,7 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         if adapter_service is None or row.get("service") != adapter_service
     )
     return {
-        "credential_path": credential_resolved,
+        "credential_path": credential_path,
         "sensitive_route_shape_observed": shape,
         "sensitive_adapter_port": sensitive_port if shape else None,
         "extra_adapter_seed_rule_observed": extra_adapter_seed_rule,
@@ -814,8 +927,8 @@ def tunnel_config_snapshot(
         "config_path_observed": False,
         "config_sha256": None,
         "config_generation_stable": False,
-        "config_custody": file_custody(None, cloudflared_uid),
-        "credentials_custody": file_custody(None, cloudflared_uid),
+        "config_custody": empty_file_custody(None),
+        "credentials_custody": empty_file_custody(None),
         "sensitive_route_shape_observed": False,
         "sensitive_adapter_port": None,
         "ordinary_routes_preserved_candidate": False,
@@ -823,12 +936,18 @@ def tunnel_config_snapshot(
         "credential_contents_read": False,
     }
     result["config_path_observed"] = True
-    result["config_custody"] = file_custody(config, cloudflared_uid)
-    data, generation_stable = read_regular_descriptor_bound(
+    data, config_custody = descriptor_bound_file_custody(
         config,
-        MAX_CONFIG_BYTES,
+        cloudflared_uid,
+        maximum=MAX_CONFIG_BYTES,
+        read_contents=True,
     )
-    if not generation_stable:
+    result["config_custody"] = config_custody
+    if (
+        not config_custody["generation_stable"]
+        or not config_custody["custody_shape_observed"]
+        or not config_custody["contents_read"]
+    ):
         return result
     try:
         parsed = parse_tunnel_config(data.decode("utf-8", "strict"))
@@ -840,9 +959,13 @@ def tunnel_config_snapshot(
     result["sensitive_route_shape_observed"] = parsed["sensitive_route_shape_observed"]
     result["sensitive_adapter_port"] = parsed["sensitive_adapter_port"]
     result["ordinary_routes_preserved_candidate"] = parsed["ordinary_routes_preserved_candidate"]
-    result["credentials_custody"] = file_custody(
-        parsed["credential_path"], cloudflared_uid
+    _credential_bytes, credential_custody = descriptor_bound_file_custody(
+        parsed["credential_path"],
+        cloudflared_uid,
+        read_contents=False,
     )
+    result["credentials_custody"] = credential_custody
+    result["credential_contents_read"] = False
     return result
 
 def nft_snapshot() -> dict[str, Any]:
@@ -989,7 +1112,11 @@ def collect(tunnel_config: pathlib.Path) -> dict[str, Any]:
     )
     tunnel["private_custody_shape_observed"] = (
         tunnel["config_custody"]["custody_shape_observed"]
+        and tunnel["config_custody"]["generation_stable"]
         and tunnel["credentials_custody"]["custody_shape_observed"]
+        and tunnel["credentials_custody"]["generation_stable"]
+        and tunnel["credentials_custody"]["metadata_descriptor_only"]
+        and tunnel["credential_contents_read"] is False
     )
     adapter_port = services["adapter"]["listeners"]["listener_port"]
     tunnel["adapter_route_matches_listener"] = (
