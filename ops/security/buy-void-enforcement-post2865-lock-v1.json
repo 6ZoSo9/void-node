@@ -1,0 +1,26 @@
+{
+  "schema": "void_buy_void_enforcement_post2865_lock_v1",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_POST2865_LOCK_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "candidate_head": "3c93b17200c4eeffeaea488c2970c5f7dcc6891e",
+  "candidate_evidence": {
+    "path": "ops/security/buy-void-enforcement-post2865-candidate-v1.json",
+    "bytes": 2806,
+    "sha256": "d2b1488dbc6b9dffeb7cdf428be10ea01720081347bc53438ed89a468defc70d",
+    "git_blob_sha1": "e85ec223ccb5babcc834a300e1be5abc315626dd",
+    "candidate_enforcement_set_sha256": "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b"
+  },
+  "compiled_source_finality_generation_sha256": "18758f6563f9a96aea0d55e293a4c10da8de349ba12ecc90fdebd82f486b944c",
+  "audited_package_profile_id": "voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac",
+  "audited_package_profile_canonical_sha256": "3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757",
+  "provider_closure_sha256": "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945",
+  "provider_closure_semantic_sha256": "95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384",
+  "complete_executable_closure_verified": true,
+  "candidate_enforcement_identity_accepted": true,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}

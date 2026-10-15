@@ -1,0 +1,59 @@
+name: VOID Buy user manager query ELF candidate v4
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+
+permissions:
+  contents: read
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Preserve accepted V4 candidate on exact V5 successor
+        run: |
+          set -euo pipefail
+          query_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
+          case "$query_blob" in
+            fc1f640689b7da7278ff013669ef8a10cd8f6659) ;;
+            6aefc385bcc4212d3c45e36871bfde0da3529baa)
+              echo "accepted V4 source reintroduced; V4 is historical after V5" >&2
+              exit 2
+              ;;
+            *) echo "unknown query generation: $query_blob" >&2; exit 2 ;;
+          esac
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v4.json)" = "988542122028843b2848063dbbaf7a94c32d6cd4"
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-user-manager-query-elf-candidate-v4.md)" = "6662213a705f6e23b00dd5790a933c492142b0b4"
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync("ops/security/buy-void-user-manager-query-elf-candidate-v4.json","utf8"));
+          assert.equal(c.query_source_git_blob_sha1,"6aefc385bcc4212d3c45e36871bfde0da3529baa");
+          assert.equal(c.query_binary_sha256,"e8df6ed33ed798e2e3015f7c9a8a3548031049eb1867029e35e3e20953aeed56");
+          assert.equal(c.candidate_accepted,false);
+          assert.equal(c.install_authorized,false);
+          assert.equal(c.live_query_authorized,false);
+          NODE
+          echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V4_HISTORICAL_PRESERVED
+          echo v6_query_source_exact=true
+          echo install_authorized=false
+          echo funds_movement=false
+      - run: git diff --check

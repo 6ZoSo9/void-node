@@ -1,0 +1,40 @@
+name: VOID Buy authenticated user-manager kernel capability binding v3
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "scripts/prove_void_buy_user_manager_query_kernel_capability_binding_v3.mjs"
+      - "docs/architecture/buy-void-user-manager-query-kernel-capability-binding-v3.md"
+      - ".github/workflows/buy-void-user-manager-query-kernel-capability-binding-v3.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "scripts/prove_void_buy_user_manager_query_kernel_capability_binding_v3.mjs"
+      - "docs/architecture/buy-void-user-manager-query-kernel-capability-binding-v3.md"
+      - ".github/workflows/buy-void-user-manager-query-kernel-capability-binding-v3.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Preserve V3 kernel-capability proof on exact V5 successor
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "fc1f640689b7da7278ff013669ef8a10cd8f6659"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_user_manager_query_kernel_capability_binding_v3.mjs)" = "c4a3eefaa7b007bc2a269da5380e6a052c512ba9"
+          echo VOID_BUY_VOID_USER_MANAGER_QUERY_KERNEL_CAPABILITY_BINDING_V3_HISTORICAL_PRESERVED
+          echo v6_kernel_cap_last_cap_projection_successor=true
+          echo kernel_capability_contract_preserved=true
+          echo install_authorized=false
+          echo funds_movement=false
+      - run: git diff --check

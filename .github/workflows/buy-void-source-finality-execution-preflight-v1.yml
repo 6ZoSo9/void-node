@@ -8,6 +8,10 @@ on:
       - "src/economic/buy_void_delivery_runtime_integration_v1.ts"
       - "src/economic/buy_void_erc20_execution_composition_v1.ts"
       - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "scripts/prove_buy_void_source_finality_live_process_binding_v1.mjs"
+      - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
       - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
       - "src/economic/buy_void_source_finality_authority_v2.ts"
       - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
@@ -18,6 +22,7 @@ on:
       - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
       - "scripts/prove_buy_void_source_finality_execution_preflight_v1.ts"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v6.ts"
+      - "scripts/prove_buy_void_source_finality_generation_provenance_v7.ts"
       - "scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts"
       - "docs/architecture/buy-void-source-finality-execution-preflight-v1.md"
       - "docs/architecture/buy-void-source-finality-execution-preflight-v1-review-checklist.md"
@@ -77,8 +82,11 @@ jobs:
       - name: Prove lazy source-finality dependency gate
         run: npx tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
 
-      - name: Prove current V6 truth boundary
+      - name: Preserve V6 predecessor truth boundary
         run: npx tsx scripts/prove_buy_void_source_finality_generation_provenance_v6.ts
+
+      - name: Prove V7 deployment and two-provider authority primitive
+        run: npx tsx scripts/prove_buy_void_source_finality_generation_provenance_v7.ts
 
       - name: Preserve delivery runtime integration guard
         run: npx tsx scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts

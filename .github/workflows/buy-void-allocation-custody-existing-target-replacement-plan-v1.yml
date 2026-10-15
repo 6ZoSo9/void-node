@@ -1,0 +1,74 @@
+name: VOID Buy custody existing-target replacement plan v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-existing-target-replacement-plan-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_existing_target_replacement_plan_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-existing-target-replacement-plan-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-existing-target-replacement-plan-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v1.json"
+      - "tools/void-buy-allocation-custody-node-binary-profile-v1.mjs"
+      - "tools/void-buy-allocation-custody-polkit-deny-profile-v1.mjs"
+      - "tools/void-buy-allocation-custody-host-evidence-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-allocation-custody-existing-target-replacement-plan-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_existing_target_replacement_plan_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-existing-target-replacement-plan-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-existing-target-replacement-plan-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v1.json"
+      - "tools/void-buy-allocation-custody-node-binary-profile-v1.mjs"
+      - "tools/void-buy-allocation-custody-polkit-deny-profile-v1.mjs"
+      - "tools/void-buy-allocation-custody-host-evidence-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22,24,26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove source-only replacement plan
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-allocation-custody-existing-target-replacement-plan-v1.mjs
+          node --check scripts/prove_void_buy_allocation_custody_existing_target_replacement_plan_v1.mjs
+          proof="$RUNNER_TEMP/custody-existing-target-replacement-plan.log"
+          node scripts/prove_void_buy_allocation_custody_existing_target_replacement_plan_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_EXISTING_TARGET_REPLACEMENT_PLAN_V1_GREEN' "$proof"
+          grep -Fx 'current_observed_status=NONEMPTY_TARGET_NOT_EXACT_ACCEPTED_BUNDLE' "$proof"
+          grep -Fx 'archive_lock_git_blob=099e81e1185a1590eb987e4b231889c571af6f49' "$proof"
+          grep -Fx 'archive_lock_bytes=2185' "$proof"
+          grep -Fx 'archive_lock_sha256=4d0a169bbc1dec33a3ef72fa9b93ff2ae3fd42dae7ae197fda61bd6e91e7791b' "$proof"
+          grep -Fx 'symlink_entries=0' "$proof"
+          grep -Fx 'replacement_required=true' "$proof"
+          grep -Fx 'replacement_authorized=false' "$proof"
+          grep -Fx 'replacement_apply_authorized=false' "$proof"
+          grep -Fx 'rollback_content_scan_required=false' "$proof"
+          grep -Fx 'opaque_legacy_content_read_authorized=false' "$proof"
+          grep -Fx 'durable_install_intent_required=true' "$proof"
+          grep -Fx 'crash_recovery_required=true' "$proof"
+          grep -Fx 'live_at_use_target_reverification_required=true' "$proof"
+          grep -Fx 'live_at_use_node_reverification_required=true' "$proof"
+          grep -Fx 'polkit_runtime_user=void-buy-runtime' "$proof"
+          grep -Fx 'filesystem_write=false' "$proof"
+          grep -Fx 'service_mutation=false' "$proof"
+          grep -Fx 'payment_acceptance=false' "$proof"
+          grep -Fx 'public_presale_activation=false' "$proof"
+          grep -Fx 'production_gate_ready=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+      - run: git diff --check

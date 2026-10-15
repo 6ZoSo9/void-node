@@ -4,7 +4,22 @@ on:
   pull_request:
     paths:
       - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "scripts/prove_buy_void_source_finality_live_process_binding_v1.mjs"
+      - "scripts/prove_buy_void_source_finality_live_process_binding_v2.ts"
+      - "docs/architecture/buy-void-source-finality-live-process-binding-v1.md"
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_live_process_binding_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-live-process-binding-receipt-install-v1.md"
+      - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v6.ts"
+      - "scripts/prove_buy_void_source_finality_generation_provenance_v7.ts"
+      - "scripts/prove_buy_void_source_finality_v7_provider_pair_pre_rpc_v1.mjs"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts"
       - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
       - "src/economic/buy_void_source_finality_authority_v2.ts"
@@ -13,6 +28,7 @@ on:
       - "src/economic/buy_void_verified_payment_v2.ts"
       - "Dockerfile"
       - "docs/architecture/buy-void-source-finality-generation-provenance-v6.md"
+      - "docs/architecture/buy-void-source-finality-generation-provenance-v7.md"
       - "docs/architecture/buy-void-source-finality-generation-provenance-v6-review-checklist.md"
       - ".github/workflows/buy-void-source-finality-generation-provenance-v6.yml"
   workflow_dispatch:
@@ -67,11 +83,55 @@ jobs:
             --downlevelIteration \
             --skipLibCheck \
             src/economic/buy_void_source_finality_generation_provenance_v6.ts \
+            src/economic/buy_void_source_finality_generation_provenance_v7.ts \
+            src/economic/buy_void_source_finality_live_process_binding_v1.ts \
+            src/economic/buy_void_source_finality_live_process_binding_v2.ts \
+            ops/precision/void_buy_void_source_finality_live_process_binding_receipt_install_v1.ts \
+            scripts/prove_buy_void_source_finality_live_process_binding_receipt_install_v1.ts \
+            scripts/prove_buy_void_source_finality_live_process_binding_v2.ts \
             scripts/prove_buy_void_source_finality_generation_provenance_v6.ts \
+            scripts/prove_buy_void_source_finality_generation_provenance_v7.ts \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
             scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts
 
       - name: Prove reviewed source-file binding V6
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v6.ts
+
+      - name: Prove dormant V7 deployment receipt and provider quorum
+        run: |
+          set -euo pipefail
+          proof_log="$RUNNER_TEMP/source-finality-v7-root-proof.txt"
+          sudo env "PATH=$PATH" ./node_modules/.bin/tsx \
+            scripts/prove_buy_void_source_finality_generation_provenance_v7.ts \
+            | tee "$proof_log"
+          grep -Fx 'audited_post2865_enforcement_lock_bound=true' "$proof_log"
+          grep -Fx 'deployment_receipt_enforcement_identity_bound=true' "$proof_log"
+          grep -Fx 'same_live_process_binding_gate_required=true' "$proof_log"
+          grep -Fx 'unverified_live_process_binding_not_promoted=true' "$proof_log"
+          grep -Fx 'deployment_receipt_root_owned_ancestor_custody_required=true' "$proof_log"
+          grep -Fx 'forged_deployment_object_rejected=true' "$proof_log"
+          grep -Fx 'cloned_deployment_cannot_bypass_observation_brand=true' "$proof_log"
+          grep -Fx 'deployment_classifier_gate_shadowed_by_unbranded_observation=true' "$proof_log"
+          grep -Fx 'writable_parent_rejected=true' "$proof_log"
+          grep -Fx 'root_custody_positive_exercised=true' "$proof_log"
+
+      - name: Prove V7 root-custodied deployment receipt installer
+        run: |
+          set -euo pipefail
+          install_log="$RUNNER_TEMP/source-finality-v7-receipt-installer.txt"
+          sudo env "PATH=$PATH" ./node_modules/.bin/tsx \
+            scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            | tee "$install_log"
+          grep -Fx 'root_custodied_create_once_positive=true' "$install_log"
+          grep -Fx 'repository_local_fsmonitor_ignored=true' "$install_log"
+          grep -Fx 'historical_enforcement_lock_refused_after_current_closure_expansion=true' "$install_log"
+          grep -Fx 'current_enforcement_tracked_source_inventory_count=49' "$install_log"
+          grep -Fx 'current_enforcement_tracked_source_inventory_verified=true' "$install_log"
+          grep -Fx 'current_enforcement_tracked_source_inventory_blob_and_mode_bound=true' "$install_log"
+          grep -Fx 'matching_reapply_idempotent=true' "$install_log"
+          grep -Fx 'mismatched_existing_receipt_rejected=true' "$install_log"
+          grep -Fx 'funds_movement=false' "$install_log"
 
       - name: Prove V6 preflight shares the total deadline
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts
@@ -90,6 +150,43 @@ jobs:
 
       - name: Repository build
         run: npm run build
+
+      - name: Prove executable provider-pair gate precedes RPC
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_source_finality_v7_provider_pair_pre_rpc_v1.mjs
+          proof_log="$RUNNER_TEMP/source-finality-v7-provider-pair-pre-rpc.txt"
+          sudo env "PATH=$PATH" node scripts/prove_buy_void_source_finality_v7_provider_pair_pre_rpc_v1.mjs | tee "$proof_log"
+          grep -Fx 'invalid_provider_pair_http_request_count=0' "$proof_log"
+          grep -Fx 'invalid_provider_pair_https_request_count=0' "$proof_log"
+          grep -Fx 'valid_provider_pair_reaches_https_request_sentinel=true' "$proof_log"
+          grep -Fx 'real_v7_observer_invoked=true' "$proof_log"
+          grep -Fx 'production_dependency_injection_seam_added=false' "$proof_log"
+          grep -Fx 'real_network_contact=false' "$proof_log"
+          grep -Fx 'public_presale_activation=false' "$proof_log"
+          grep -Fx 'funds_movement=false' "$proof_log"
+
+      - name: Preserve V1 self-process identity contract
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_source_finality_live_process_binding_v1.mjs
+          node scripts/prove_buy_void_source_finality_live_process_binding_v1.mjs
+
+      - name: Prove V2 live-process receipt and selector contract
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_live_process_binding_v2.ts
+
+      - name: Preserve historical V1 root receipt installer
+        run: |
+          set -euo pipefail
+          installer_log="$RUNNER_TEMP/live-process-binding-installer.txt"
+          sudo env "PATH=$PATH" ./node_modules/.bin/tsx \
+            scripts/prove_buy_void_source_finality_live_process_binding_receipt_install_v1.ts \
+            | tee "$installer_log"
+          grep -Fx 'root_custodied_create_once_positive=true' "$installer_log"
+          grep -Fx 'matching_reapply_idempotent=true' "$installer_log"
+          grep -Fx 'mismatched_existing_receipt_rejected=true' "$installer_log"
+          grep -Fx 'process_environment_allowlist_only=true' "$installer_log"
+          grep -Fx 'funds_movement=false' "$installer_log"
 
       - name: Prove compiled V6 source-file resolution
         run: |

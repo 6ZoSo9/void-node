@@ -55,10 +55,10 @@ jobs:
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)" = "5050498f600efd7d5c83af214f75663a66685d6e"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "794b3bb8e2c386be7fad607a3adf79aadff5332d"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts)" = "752deafb5a8ff884cfcfc0ff7ef8fded2a92287b"
-          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v5.ts)" = "870754b9888b535a16629b8b181e55c3182c328a"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v5.ts)" = "9113830d86e60d818ddf10d6381fb285b534d008"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts)" = "d31f8cbb85ed17c9937baf3c9725a6fae22cc829"
-          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts)" = "fa57e8a5e3ba919ce11ea28150443d15116246d7"
-          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "3343d64a22ee98aa451ad35dac5aa4223ed6819f"
+          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts)" = "959e19e2cfc76616385a47556335e4ba8e094e44"
+          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "10a6dad27b08c3b21ccc2d0940451f770438e89e"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs)" = "3f91404c8f5b6897b0781455564b4ec26b480c03"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs)" = "5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs)" = "6d0d489eba7964d82e104c8824f1ebdb0da9e397"
@@ -92,7 +92,7 @@ jobs:
               # V2's first frozen dependency is the old central writer;
               # exact current writer drift must HOLD, not be repinned.
               grep -Fq 'f591f7407d9afc2cf77e0f90923aa11b4817fd4e' "$log"
-              grep -Fq 'd2410a871c0318502654acd2428b2a4366d27185' "$log"
+              grep -Fq 'ac8bf352979e0e24d2cab45c3b23949e1bd2b026' "$log"
             fi
             echo "historical_refusal_verified=$proof"
           done

@@ -28,12 +28,13 @@ const candidate={
   value_wei:"0",
   calldata:"0x1234",
   gas_limit:"60000",
-  max_fee_per_gas_wei:"2000000000",
-  max_priority_fee_per_gas_wei:"1000000000",
+  max_fee_per_gas_wei:"0",
+  max_priority_fee_per_gas_wei:"0",
 };
 const candidateFingerprint=sha256(canonicalJson(candidate));
 
-function signingRequest(overrides={}){
+function signingRequest(overrides={},candidateValue=candidate){
+  const fingerprint=sha256(canonicalJson(candidateValue));
   const material={
     marker:"VOID_DATANET_CONTENT_COMMITMENT_EXACT_PUBLISHER_SIGNING_REQUEST_V1",
     version:1,
@@ -43,20 +44,20 @@ function signingRequest(overrides={}){
     authorization_verification_id:"voiddccstav1_"+"2".repeat(64),
     consumption_record_id:"voiddccstac1_"+"3".repeat(64),
     final_signing_review_preflight_id:"voiddccfsrp1_"+"4".repeat(64),
-    unsigned_transaction_candidate_fingerprint_sha256:candidateFingerprint,
+    unsigned_transaction_candidate_fingerprint_sha256:fingerprint,
     publisher_address:publisher,
-    unsigned_transaction_candidate:candidate,
+    unsigned_transaction_candidate:candidateValue,
     transaction_summary:{
       transaction_type:2,
       chain_id:"2050",
-      nonce:"9",
-      from_address:publisher,
-      to_address:registry,
+      nonce:String(candidateValue.nonce),
+      from_address:String(candidateValue.from_address).toLowerCase(),
+      to_address:String(candidateValue.to_address).toLowerCase(),
       value_wei:"0",
-      gas_limit:"60000",
-      max_fee_per_gas_wei:"2000000000",
-      max_priority_fee_per_gas_wei:"1000000000",
-      calldata_sha256:sha256(Buffer.from("1234","hex")),
+      gas_limit:String(candidateValue.gas_limit),
+      max_fee_per_gas_wei:String(candidateValue.max_fee_per_gas_wei),
+      max_priority_fee_per_gas_wei:String(candidateValue.max_priority_fee_per_gas_wei),
+      calldata_sha256:sha256(Buffer.from(String(candidateValue.calldata).slice(2),"hex")),
     },
     canonical_state_store_realpath_sha256:"5".repeat(64),
     external_signing_idempotency_key_sha256:"6".repeat(64),
@@ -271,6 +272,28 @@ async function receiptFor(request=signingRequest(),signer=wallet,overrides={}){
   );
 }
 
+{
+  const request=signingRequest({}, {...candidate,max_fee_per_gas_wei:"1"});
+  const receipt=await receiptFor(request);
+  const result=verifyDatanetContentCommitmentOpaqueSignedReceiptV1({
+    signing_request:request,
+    opaque_signed_receipt:receipt,
+  });
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,"opaque_signed_receipt_signing_request_candidate_invalid");
+}
+
+{
+  const request=signingRequest({}, {...candidate,max_priority_fee_per_gas_wei:"1"});
+  const receipt=await receiptFor(request);
+  const result=verifyDatanetContentCommitmentOpaqueSignedReceiptV1({
+    signing_request:request,
+    opaque_signed_receipt:receipt,
+  });
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,"opaque_signed_receipt_signing_request_candidate_invalid");
+}
+
 for(const [key,expected] of Object.entries({
   source_only_receipt_verification:true,
   exact_signing_request_required:true,
@@ -330,6 +353,9 @@ for(const forbidden of [
   assert.equal(source.includes(forbidden),false,"source contains "+forbidden);
 }
 
+assert.equal(source.includes('maxFee!=="0"'),true,"nonzero max fee must fail closed");
+assert.equal(source.includes('priority!=="0"'),true,"nonzero priority fee must fail closed");
+
 console.log(
   "VOID_DATANET_CONTENT_COMMITMENT_OPAQUE_SIGNED_RECEIPT_VERIFICATION_V1_PROOF_GREEN",
 );
@@ -349,3 +375,6 @@ console.log("transaction_signing=false");
 console.log("transaction_broadcast_authorized=false");
 console.log("transaction_broadcast=false");
 console.log("chain2050_write=false");
+
+console.log("epoch2_zero_fee_candidate_accepted=true");
+console.log("nonzero_fee_drift_rejected=true");

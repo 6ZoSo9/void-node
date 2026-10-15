@@ -31,12 +31,13 @@ const candidate={
   value_wei:"0",
   calldata:"0x1234",
   gas_limit:"60000",
-  max_fee_per_gas_wei:"2000000000",
-  max_priority_fee_per_gas_wei:"1000000000",
+  max_fee_per_gas_wei:"0",
+  max_priority_fee_per_gas_wei:"0",
 };
 const candidateFingerprint=sha256(canonicalJson(candidate));
 
-function finalReview(overrides={}){
+function finalReview(overrides={},candidateValue=candidate){
+  const candidateValueFingerprint=sha256(canonicalJson(candidateValue));
   const material={
     marker:"VOID_DATANET_CONTENT_COMMITMENT_FINAL_SIGNING_REVIEW_PREFLIGHT_V1",
     version:1,
@@ -47,8 +48,8 @@ function finalReview(overrides={}){
     fresh_pre_sign_revalidation_id:"voiddccpsr1_"+"1".repeat(64),
     fresh_credential_binding_id:"voiddccpcb1_"+"2".repeat(64),
     publisher_address:PUBLISHER,
-    unsigned_transaction_candidate:candidate,
-    unsigned_transaction_candidate_fingerprint_sha256:candidateFingerprint,
+    unsigned_transaction_candidate:candidateValue,
+    unsigned_transaction_candidate_fingerprint_sha256:candidateValueFingerprint,
     revalidation:{
       full_pre_sign_revalidation_rerun:true,
       repaired_freshness_wall_reapplied:true,
@@ -119,6 +120,20 @@ function envelopeFor(request,signer=privateKey,pem=publicKeyPem){
     ...body,
     authorization_id:"voiddccsta1_"+sha256(canonicalJson(body)),
   };
+}
+
+{
+  const nonzeroFee={...candidate,max_fee_per_gas_wei:"1"};
+  const request=buildRequest(finalReview({},nonzeroFee));
+  assert.equal(request.ok,false);
+  assert.equal(request.reason,"sovereign_authorization_candidate_invalid");
+}
+
+{
+  const nonzeroPriority={...candidate,max_priority_fee_per_gas_wei:"1"};
+  const request=buildRequest(finalReview({},nonzeroPriority));
+  assert.equal(request.ok,false);
+  assert.equal(request.reason,"sovereign_authorization_candidate_invalid");
 }
 
 {
@@ -332,6 +347,9 @@ for(const forbidden of [
   assert.equal(source.includes(forbidden),false,"source contains "+forbidden);
 }
 
+assert.equal(source.includes('maxFee!=="0"'),true,"nonzero max fee must fail closed");
+assert.equal(source.includes('priority!=="0"'),true,"nonzero priority fee must fail closed");
+
 console.log(
   "VOID_DATANET_CONTENT_COMMITMENT_SOVEREIGN_SINGLE_TRANSACTION_AUTHORIZATION_V1_PROOF_GREEN",
 );
@@ -353,3 +371,6 @@ console.log("transaction_signing_performed=false");
 console.log("transaction_broadcast_authorized=false");
 console.log("transaction_broadcast=false");
 console.log("chain2050_write=false");
+
+console.log("epoch2_zero_fee_candidate_accepted=true");
+console.log("nonzero_fee_drift_rejected=true");

@@ -1,0 +1,81 @@
+name: VOID Buy user runtime custody hardening installer v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_runtime_custody_hardening_installer_v2.py"
+      - "scripts/prove_void_buy_void_user_runtime_custody_hardening_installer_v2.py"
+      - "docs/operators/buy-void-user-runtime-custody-hardening-installer-v2.md"
+      - ".github/workflows/buy-void-user-runtime-custody-hardening-installer-v2.yml"
+      - "ops/systemd/void-node-live.service.d/98-buy-void-allocation-custody-runtime-hardening-v2.conf.example"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_runtime_custody_hardening_installer_v2.py"
+      - "scripts/prove_void_buy_void_user_runtime_custody_hardening_installer_v2.py"
+      - "docs/operators/buy-void-user-runtime-custody-hardening-installer-v2.md"
+      - ".github/workflows/buy-void-user-runtime-custody-hardening-installer-v2.yml"
+      - "ops/systemd/void-node-live.service.d/98-buy-void-allocation-custody-runtime-hardening-v2.conf.example"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12"]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Prove V2 installer source
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_user_runtime_custody_hardening_installer_v2.py --self-test |
+            tee "$RUNNER_TEMP/v2-self-test.log"
+          grep -Fx 'VOID_BUY_VOID_USER_RUNTIME_CUSTODY_HARDENING_INSTALLER_V2_SELF_TEST_GREEN' "$RUNNER_TEMP/v2-self-test.log"
+          grep -Fx 'no_new_privileges_only_dropin=true' "$RUNNER_TEMP/v2-self-test.log"
+          grep -Fx 'private_users_remains_false_required=true' "$RUNNER_TEMP/v2-self-test.log"
+          grep -Fx 'configured_capability_sets_preserved=true' "$RUNNER_TEMP/v2-self-test.log"
+          grep -Fx 'kernel_cap_bnd_preserved=true' "$RUNNER_TEMP/v2-self-test.log"
+
+          python3 -I -B scripts/prove_void_buy_void_user_runtime_custody_hardening_installer_v2.py |
+            tee "$RUNNER_TEMP/v2-proof.log"
+          grep -Fx 'VOID_BUY_VOID_USER_RUNTIME_CUSTODY_HARDENING_INSTALLER_V2_PROOF_GREEN' "$RUNNER_TEMP/v2-proof.log"
+          grep -Fx 'no_new_privileges_only_dropin=true' "$RUNNER_TEMP/v2-proof.log"
+          grep -Fx 'private_users_remains_false_required=true' "$RUNNER_TEMP/v2-proof.log"
+          grep -Fx 'configured_capability_sets_preserved=true' "$RUNNER_TEMP/v2-proof.log"
+          grep -Fx 'kernel_cap_bnd_preserved=true' "$RUNNER_TEMP/v2-proof.log"
+          grep -Fx 'apply_authorized=false' "$RUNNER_TEMP/v2-proof.log"
+          grep -Fx 'payment_acceptance=false' "$RUNNER_TEMP/v2-proof.log"
+          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/v2-proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v2-proof.log"
+      - name: Prove inert V2 source plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/v2-source-plan.log"
+          python3 -I -B ops/precision/void_buy_void_user_runtime_custody_hardening_installer_v2.py --source-plan |
+            tee "$plan"
+          grep -Fx 'source_only=true' "$plan"
+          grep -Fx 'host_read=false' "$plan"
+          grep -Fx 'host_write=false' "$plan"
+          grep -Fx 'success_path_restart_count=1' "$plan"
+          grep -Fx 'capability_bounding_set_mutation=false' "$plan"
+          grep -Fx 'ambient_capabilities_mutation=false' "$plan"
+          grep -Fx 'private_users_mutation=false' "$plan"
+          grep -Fx 'payment_acceptance=false' "$plan"
+          grep -Fx 'public_presale_activation=false' "$plan"
+          grep -Fx 'funds_movement=false' "$plan"
+      - run: git diff --check
