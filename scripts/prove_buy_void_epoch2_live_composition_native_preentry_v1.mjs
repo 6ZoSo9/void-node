@@ -396,7 +396,10 @@ function enterPrivateOptFixtureNamespace() {
     /^\/tmp\/void-e2-private-opt-v1-[A-Za-z0-9]{8}$/u,
     "root bootstrap path invalid",
   );
-  const bootstrapStat = fs.lstatSync(bootstrapRoot);
+
+  let delegated;
+  try {
+    const bootstrapStat = fs.lstatSync(bootstrapRoot);
   assert.equal(
     bootstrapStat.isDirectory() && !bootstrapStat.isSymbolicLink(),
     true,
@@ -464,8 +467,6 @@ function enterPrivateOptFixtureNamespace() {
       PRIVATE_OPT_FIXTURE_ENV + '=1 "$harness_node" "$safe_repo/$proof_relative"',
   ].join("\n");
 
-  let delegated;
-  try {
     delegated = run(SUDO, [
       "-n",
       "/usr/bin/unshare",
