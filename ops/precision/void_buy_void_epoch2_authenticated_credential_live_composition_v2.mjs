@@ -564,6 +564,7 @@ function selfTest(){
     qualificationFn:()=>({...q}),
     sealedFn:()=>({...sealed}),
     crossFn:()=>{},
+    privilegedFirstEntryAuthenticated:true,
   });
   if(checkoutCount!==2||
      stableSequence.checkout_revalidated_after_sensitive_sequence!==true){
