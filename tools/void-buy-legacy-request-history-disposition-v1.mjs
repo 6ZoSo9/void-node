@@ -19,9 +19,9 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_PARENT_V1 =
   Object.freeze({
     marker: "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1",
     version: 1,
-    accepted_source_head: "c4a0046dbadc7eb681e78c49090c9a17373f8682",
+    accepted_source_head: "f7fabe82fc3caa872a389c752012d86aa7dcfd17",
     source_path: "ops/precision/void_buy_void_legacy_request_root_census_v1.py",
-    accepted_source_blob_sha1: "f8bfda9ff88a5278c950b1c23f5e1675e5362048",
+    accepted_source_blob_sha1: "55ffe33d10bc9cf9e39a82876dbf2b6c932549d9",
   });
 
 export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_AUTHORITY_V1 =
