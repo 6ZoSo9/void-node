@@ -16,7 +16,7 @@ export const CONFIRM =
 export const STATUS =
   "EPOCH2_AUTHENTICATED_CREDENTIAL_BOUND_REMAINING_GATES_HOLD";
 export const NEXT_ACTION =
-  "PROVE_LAUNCH_OPERATOR_SIGNER_CONTROLS_EXACT_IMMUTABLE_EPOCH2_FULFILLER";
+  "BIND_ACCEPTED_EPOCH2_SIGNER_CONTROL_EVIDENCE_TO_AUTHENTICATED_CREDENTIAL_RECEIPT";
 
 const ROOT="/home/zoso/dev/void-node";
 const CHILD_REL=
@@ -355,7 +355,7 @@ export function buildBindingReceipt(expectedHead,candidate,child){
   validateChildReceipt(child,expectedHead);
 
   const remainingGates=[
-    "prove_launch_operator_signer_controls_exact_immutable_epoch2_fulfiller",
+    "bind_accepted_epoch2_signer_control_evidence_to_authenticated_credential_receipt",
     "qualify_live_zero_fee_or_nonzero_fee_envelope_and_exact_chain_receipt",
     "complete_current_chain_2050_one_payment_one_fulfillment_canary",
     "coupled_presale_and_wc_void_market_sovereign_activation",
@@ -561,7 +561,7 @@ function selfTest(){
   console.log("active_signing_capability_proven_on_bound_receipt=true");
   console.log("full_public_child_receipt_retained=true");
   console.log("closing_checkout_revalidation_before_receipt=true");
-  console.log("launch_operator_signer_control_still_required=true");
+  console.log("accepted_signer_control_evidence_binding_still_required=true");
   console.log("customer_safe_to_pay=false");
   console.log("transaction=false");
   console.log("public_presale_activation=false");
