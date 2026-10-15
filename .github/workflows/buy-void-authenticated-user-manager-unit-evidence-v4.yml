@@ -66,6 +66,7 @@ jobs:
           grep -Fx 'kernel_no_new_privileges_required=true' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'kernel_bounding_set_matches_systemd_mask=true' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'capability_state_revalidated=true' "$RUNNER_TEMP/custody-host-v4.log"
+          grep -Fx 'object_input_capability_bypass_rejected=true' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'historical_v3_evidence_preserved=true' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'complete_host_evidence_collector=false' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/custody-host-v4.log"
