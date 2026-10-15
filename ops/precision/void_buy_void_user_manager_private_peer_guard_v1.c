@@ -340,7 +340,8 @@ static int self_test_peer(void) {
     int client = accept4(server, NULL, NULL, SOCK_CLOEXEC);
     if (client < 0) _exit(13);
     char byte;
-    (void)read(client, &byte, 1);
+    ssize_t got = read(client, &byte, 1);
+    if (got != 1 || byte != 'X') _exit(14);
     close(client); close(server); close(sync_pipe[1]);
     _exit(0);
   }
