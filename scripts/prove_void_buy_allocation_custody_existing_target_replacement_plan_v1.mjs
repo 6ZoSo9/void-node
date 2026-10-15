@@ -1,22 +1,40 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
   VOID_BUY_VOID_CUSTODY_ACCEPTED_ARCHIVE_BYTES_V1,
   VOID_BUY_VOID_CUSTODY_ACCEPTED_ARCHIVE_ID_V1,
   VOID_BUY_VOID_CUSTODY_ACCEPTED_ARCHIVE_SHA256_V1,
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_BYTES_V1,
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_GIT_BLOB_V1,
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_PATH_V1,
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_SHA256_V1,
   VOID_BUY_VOID_CUSTODY_EXISTING_TARGET_REPLACEMENT_AUTHORITY_V1,
   VOID_BUY_VOID_CUSTODY_EXISTING_TARGET_REPLACEMENT_PLAN_V1,
   classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1,
 } from "../tools/void-buy-allocation-custody-existing-target-replacement-plan-v1.mjs";
 
-const archiveLock = JSON.parse(
-  fs.readFileSync(
-    "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v1.json",
-    "utf8",
-  ),
+const archiveLockRaw = fs.readFileSync(
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_PATH_V1,
 );
+assert.equal(archiveLockRaw.length, VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_BYTES_V1);
+assert.equal(
+  crypto.createHash("sha256").update(archiveLockRaw).digest("hex"),
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_SHA256_V1,
+);
+assert.equal(
+  crypto
+    .createHash("sha1")
+    .update(Buffer.concat([
+      Buffer.from("blob " + archiveLockRaw.length + "\0", "utf8"),
+      archiveLockRaw,
+    ]))
+    .digest("hex"),
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_GIT_BLOB_V1,
+);
+const archiveLock = JSON.parse(archiveLockRaw.toString("utf8"));
 
 const observed = Object.freeze({
   host: "zoso-Precision-Tower-7810",
@@ -43,7 +61,7 @@ const observed = Object.freeze({
 const positive =
   classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1(
     observed,
-    archiveLock,
+    archiveLockRaw,
   );
 
 assert.equal(positive.ok, true);
@@ -68,6 +86,22 @@ assert.equal(positive.plan.polkit_install_separate_gate_required, true);
 assert.equal(positive.plan.polkit_live_denial_separate_gate_required, true);
 assert.equal(positive.plan.service_start_separate_gate_required, true);
 
+assert.equal(
+  positive.dependencies.accepted_archive_lock_path,
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_PATH_V1,
+);
+assert.equal(
+  positive.dependencies.accepted_archive_lock_git_blob,
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_GIT_BLOB_V1,
+);
+assert.equal(
+  positive.dependencies.accepted_archive_lock_bytes,
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_BYTES_V1,
+);
+assert.equal(
+  positive.dependencies.accepted_archive_lock_sha256,
+  VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_SHA256_V1,
+);
 assert.equal(
   positive.dependencies.accepted_archive_id,
   VOID_BUY_VOID_CUSTODY_ACCEPTED_ARCHIVE_ID_V1,
@@ -112,7 +146,7 @@ for (const mutate of [
   const result =
     classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1(
       candidate,
-      archiveLock,
+      archiveLockRaw,
     );
   assert.equal(result.ok, false);
   assert.equal(result.status, "HOLD");
@@ -130,10 +164,37 @@ for (const mutate of [
 ]) {
   const candidate = structuredClone(archiveLock);
   mutate(candidate);
+  const candidateRaw = Buffer.from(
+    JSON.stringify(candidate, null, 2) + "\n",
+    "utf8",
+  );
   const result =
     classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1(
       observed,
-      candidate,
+      candidateRaw,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "HOLD");
+  assert.equal(result.reason, "custody_existing_target_archive_lock_invalid");
+}
+
+for (const corrupt of [
+  Buffer.concat([archiveLockRaw, Buffer.from("X", "utf8")]),
+  Buffer.from(archiveLockRaw.subarray(0, archiveLockRaw.length - 1)),
+  Buffer.from(
+    archiveLockRaw
+      .toString("utf8")
+      .replace(
+        VOID_BUY_VOID_CUSTODY_ACCEPTED_ARCHIVE_SHA256_V1,
+        "0".repeat(64),
+      ),
+    "utf8",
+  ),
+]) {
+  const result =
+    classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1(
+      observed,
+      corrupt,
     );
   assert.equal(result.ok, false);
   assert.equal(result.status, "HOLD");
@@ -193,6 +254,9 @@ for (const forbidden of [
 
 console.log("VOID_BUY_VOID_CUSTODY_EXISTING_TARGET_REPLACEMENT_PLAN_V1_GREEN");
 console.log("current_observed_status=NONEMPTY_TARGET_NOT_EXACT_ACCEPTED_BUNDLE");
+console.log("archive_lock_git_blob=" + VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_GIT_BLOB_V1);
+console.log("archive_lock_bytes=" + VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_BYTES_V1);
+console.log("archive_lock_sha256=" + VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_SHA256_V1);
 console.log("inventory_entries=906");
 console.log("expected_runtime_file_matches=2");
 console.log("expected_runtime_file_missing=6");
