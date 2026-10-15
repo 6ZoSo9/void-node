@@ -9,7 +9,9 @@ on:
       - "tools/void-economic-epoch2-public-void-state-root-anchor-v1.mjs"
       - "public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json"
       - "tools/datanet-content-commitment-canonical-truth-admission-v1.mjs"
+      - "tools/datanet-content-commitment-production-registry-identity-v1.mjs"
       - "tools/datanet-content-commitment-finalized-event-membership-v1.mjs"
+      - "tools/datanet-content-commitment-production-registry-identity-v1.mjs"
       - ".github/workflows/void-economic-epoch2-public-state-root-anchor-admission-v1.yml"
   push:
     branches: [main]
@@ -20,7 +22,9 @@ on:
       - "tools/void-economic-epoch2-public-void-state-root-anchor-v1.mjs"
       - "public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json"
       - "tools/datanet-content-commitment-canonical-truth-admission-v1.mjs"
+      - "tools/datanet-content-commitment-production-registry-identity-v1.mjs"
       - "tools/datanet-content-commitment-finalized-event-membership-v1.mjs"
+      - "tools/datanet-content-commitment-production-registry-identity-v1.mjs"
       - ".github/workflows/void-economic-epoch2-public-state-root-anchor-admission-v1.yml"
 
 permissions:
