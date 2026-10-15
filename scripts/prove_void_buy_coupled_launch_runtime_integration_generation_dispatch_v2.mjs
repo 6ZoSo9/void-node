@@ -56,13 +56,15 @@ const child = spawnSync(process.execPath, [CURRENT_RUNTIME], {
   maxBuffer: 32 * 1024 * 1024,
 });
 assert.equal(child.error, undefined);
+const stdout = String(child.stdout || "");
+const stderr = String(child.stderr || "");
 assert.equal(
   child.status,
   0,
-  "current Epoch-2 coupled-launch integration must succeed",
+  "current Epoch-2 coupled-launch integration must succeed" +
+    "\\nstdout:\\n" + stdout +
+    "\\nstderr:\\n" + stderr,
 );
-
-const stdout = String(child.stdout || "");
 for (const marker of [
   "VOID_BUY_COUPLED_LAUNCH_RUNTIME_INTEGRATION_CURRENT_V2_GREEN",
   "generation_transition_publication_uses_same_lock=true",
