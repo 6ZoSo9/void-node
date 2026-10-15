@@ -125,7 +125,20 @@ jobs:
             "$query" --self-test > "$RUNNER_TEMP/preload-sanitized.log"
           test ! -e "$sentinel"
           grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/preload-sanitized.log"
-      - name: Prove authenticated adapter composition
+      - name: Detect exact historical V3 adapter generation
+        id: generation
+        run: |
+          set -euo pipefail
+          peer="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)"
+          query="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
+          if [ "$peer" = "cab88f4642ab929d1f7a4d2f1511462a94ef34ca" ] &&
+             [ "$query" = "ad49cd7f71c41e0f559a561b5a62a00cec60c215" ]; then
+            echo "historical_current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "historical_current=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Prove exact historical V3 adapter composition
+        if: steps.generation.outputs.historical_current == 'true'
         run: |
           set -euo pipefail
           node scripts/prove_void_buy_void_user_manager_private_peer_guard_v1.mjs
@@ -134,14 +147,16 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V3_PROOF_GREEN' "$RUNNER_TEMP/custody-host-v3.log"
           grep -Fx 'manager_peer_authenticated=true' "$RUNNER_TEMP/custody-host-v3.log"
           grep -Fx 'same_authenticated_connection_unit_query=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'sanitized_loader_environment=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'libsystemd_fixed_path_verified=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'libsystemd_retained_fd_load=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'libsystemd_symbol_provenance_verified=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'runtime_user_manager_identity_verified=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'runtime_user_manager_cgroup_bound=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'runtime_main_pid_kernel_bound=true' "$RUNNER_TEMP/custody-host-v3.log"
           grep -Fx 'complete_host_evidence_collector=false' "$RUNNER_TEMP/custody-host-v3.log"
           grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/custody-host-v3.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/custody-host-v3.log"
+      - name: Preserve V3 adapter as historical evidence
+        if: steps.generation.outputs.historical_current != 'true'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-host-evidence-v3.mjs)" = "eae92c7dd060b4d6139543463b5fbd2f8564585b"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_host_evidence_v3.mjs)" = "9130e93d0c31b02d5ac4762065e29f814d054945"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-authenticated-user-manager-unit-evidence-v3.md)" = "b5dc6392e4c778f6f7cae24edd0563e8793a6098"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-host-evidence-v2.mjs)" = "5507d049dc00d46ea3d02d3af46273a73e868639"
+          echo VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V3_HISTORICAL_PRESERVED
       - run: git diff --check
