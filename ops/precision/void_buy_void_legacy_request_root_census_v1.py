@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import pwd
 import re
 import socket
 import stat
@@ -27,11 +28,13 @@ v2 = _load(V2_PATH, "void_buy_request_root_runtime_topology_census_v2")
 
 MARKER = "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1"
 EXPECTED_HOSTNAME = "zoso-Precision-Tower-7810"
+EXPECTED_USER = "zoso"
+EXPECTED_UID = 1000
 EXPECTED_MACHINE_ID_SHA256 = "11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2"
 UNIT = "void-node-live.service"
 REQUEST_ENV = "VOID_BUY_REQUEST_DIR"
 DEFAULT_RELATIVE = pathlib.Path(".runtime") / "public-buy-void-requests-v1"
-REPO_ROOT = pathlib.Path.home() / "dev" / "void-node"
+REPO_ROOT = pathlib.Path("/home/zoso/dev/void-node")
 RELEASES_ROOT = pathlib.Path("/opt/void-node-live/releases")
 STABLE_ROOT = pathlib.Path("/var/lib/void-buy-request-journal-v1")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
@@ -277,6 +280,8 @@ def plan() -> None:
     print("mode=--plan")
     print("read_only=true")
     print("sudo_required=false")
+    print("designated_runtime_user=zoso")
+    print("designated_runtime_uid=1000")
     print("filesystem_write=false")
     print("service_mutation=false")
     print("external_network_calls=false")
@@ -293,6 +298,13 @@ def plan() -> None:
 def collect() -> dict[str, Any]:
     if os.geteuid() == 0:
         raise CensusError("ordinary_user_required")
+    uid = os.geteuid()
+    try:
+        account = pwd.getpwuid(uid)
+    except KeyError as exc:
+        raise CensusError("observer_user_identity_unavailable") from exc
+    if uid != EXPECTED_UID or account.pw_name != EXPECTED_USER:
+        raise CensusError("designated_runtime_user_required")
     hostname = socket.gethostname()
     machine_sha = _machine_id_sha256()
     service_before = _service()
@@ -357,6 +369,8 @@ def collect() -> dict[str, Any]:
         and process_before.get("observed") is True
         and process_after.get("observed") is True
         and process_before.get("pid") == process_after.get("pid")
+        and service_before.get("live_process_cwd") == process_before.get("cwd")
+        and service_after.get("live_process_cwd") == process_after.get("cwd")
         and process_before.get("start_ticks") == process_after.get("start_ticks")
         and process_before.get("cwd") == process_after.get("cwd")
         and process_before.get("exe") == process_after.get("exe")
@@ -390,6 +404,9 @@ def collect() -> dict[str, Any]:
         "version": 1,
         "read_only": True,
         "designated_hostname_matches": hostname == EXPECTED_HOSTNAME,
+        "designated_runtime_user_matches":
+            uid == EXPECTED_UID and account.pw_name == EXPECTED_USER,
+        "effective_uid": uid,
         "designated_machine_id_matches": machine_sha == EXPECTED_MACHINE_ID_SHA256,
         "service": service_before,
         "process_environment_access": False,
@@ -447,7 +464,8 @@ def main() -> int:
     result = collect()
     print(MARKER)
     for key in (
-        "read_only", "designated_hostname_matches", "designated_machine_id_matches",
+        "read_only", "designated_hostname_matches", "designated_runtime_user_matches",
+        "designated_machine_id_matches",
         "candidate_set_completeness_proven", "bounded_current_candidate_set_observed",
         "process_environment_access", "external_network_calls", "loopback_get_only",
         "runtime_process_generation_stable", "runtime_http_listener_stable",
