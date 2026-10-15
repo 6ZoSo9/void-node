@@ -10,6 +10,12 @@ import {
 } from "node:fs";
 import { hostname } from "node:os";
 import { extname, join, relative, resolve, sep } from "node:path";
+import {
+  PUBLIC_NODE_SAFE_SERVE_SNAPSHOT_AGGREGATE_BYTES_V1,
+  PUBLIC_NODE_SAFE_SERVE_SNAPSHOT_MAX_IN_FLIGHT_V1,
+  PublicNodeSafeServeSnapshotBudgetV1,
+  armPublicNodeSafeServeSnapshotReservationV1,
+} from "./public-node-safe-serve-snapshot-budget-v1.mjs";
 
 const args = process.argv.slice(2);
 let port = Number(process.env.VOID_PUBLIC_NODE_PORT || "8088");
@@ -28,6 +34,13 @@ const root = resolve(process.cwd(), "public");
 const publicNodeIndex = resolve(root, "public-node", "index.json");
 const PROC_SELF_FD = "/proc/self/fd";
 const MAX_PUBLIC_FILE_BYTES = 8 * 1024 * 1024;
+const PUBLIC_NODE_SAFE_SERVE_SNAPSHOT_BUDGET_V1 =
+  new PublicNodeSafeServeSnapshotBudgetV1({
+    maxAggregateBytes:
+      PUBLIC_NODE_SAFE_SERVE_SNAPSHOT_AGGREGATE_BYTES_V1,
+    maxReservationBytes: MAX_PUBLIC_FILE_BYTES,
+    maxReservations: PUBLIC_NODE_SAFE_SERVE_SNAPSHOT_MAX_IN_FLIGHT_V1,
+  });
 let publicRootFd = null;
 
 function fail(message) {
@@ -373,18 +386,75 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  let reservation = null;
+  if (opened.size > 0) {
+    try {
+      reservation =
+        PUBLIC_NODE_SAFE_SERVE_SNAPSHOT_BUDGET_V1.tryReserve(opened.size);
+    } catch (error) {
+      void error;
+      closeOpenedPublicFile(opened);
+      res.writeHead(500, {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      res.end("internal error\n");
+      return;
+    }
+
+    if (reservation === null) {
+      closeOpenedPublicFile(opened);
+      res.writeHead(503, {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+        "retry-after": "1",
+      });
+      res.end("server busy\n");
+      return;
+    }
+  }
+
   let body;
   try {
     body = readOpenedPublicFile(opened);
   } catch (error) {
     void error;
+    reservation?.release();
     res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
     res.end("internal error\n");
     return;
   }
 
-  res.writeHead(200, responseHeaders);
-  res.end(body);
+  const releaseSnapshot =
+    reservation === null
+      ? () => false
+      : armPublicNodeSafeServeSnapshotReservationV1(
+          req,
+          res,
+          reservation,
+        );
+
+  if (req.aborted === true || res.destroyed === true) {
+    releaseSnapshot();
+    return;
+  }
+
+  try {
+    res.writeHead(200, responseHeaders);
+    res.end(body);
+  } catch (error) {
+    void error;
+    releaseSnapshot();
+    if (!res.headersSent && !res.destroyed) {
+      res.writeHead(500, {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      res.end("internal error\n");
+    } else if (!res.destroyed) {
+      res.destroy();
+    }
+  }
 });
 
 server.listen(port, bindHost, () => {
