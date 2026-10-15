@@ -154,12 +154,22 @@ shadow every later sensitive path and now fails the census.
 A wildcard hostname that can match `seed.nullfeed.org` must not appear before
 that ordinary seed rule, because it could likewise shadow the intended public
 route. The configuration must also end with exactly one hostless/pathless global
-catch-all rule, as required by cloudflared ingress semantics.
+catch-all rule whose service is exactly `http_status:404`; forwarding unmatched
+hosts to an origin or using a different status code fails closed.
 
-The ordinary seed rule must target a service other than the sensitive adapter so
-the census does not treat a sensitive-only Tunnel configuration as preserving
-the public site/read surface. Any additional exact seed-host rule makes the
-canonical v1 rule set fail closed.
+The ordinary seed rule must target exactly `http://127.0.0.1:8083`. That
+expectation is source-bound to reviewed current
+`ops/public/void-public-frontdoor-v1.mjs` Git blob
+`176f4a99c42ac3432d5797efaebf851cc0503737`, whose canonical defaults are
+loopback `127.0.0.1` and port `8083` and whose source refuses a non-loopback
+bind. A status service, wrong loopback port, non-loopback origin or arbitrary
+other service therefore cannot qualify ordinary-route preservation. Any
+additional exact seed-host rule also makes the canonical v1 rule set fail
+closed.
+
+This remains a local route-shape candidate, not proof that the currently running
+frontdoor process uses its default port or that Cloudflare control-plane state
+matches the config. Those live/runtime claims remain separate gates.
 
 The config's `credentials-file` path is used for **metadata only**. Credential
 contents are never read. The configured pathname itself must be canonical and
