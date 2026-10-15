@@ -94,8 +94,8 @@ jobs:
       - name: Prove archive candidate
         run: |
           set -euo pipefail
-          python3 -m py_compile tools/void-buy-allocation-custody-runtime-install-archive-v1.py
-          python3 -m py_compile scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile tools/void-buy-allocation-custody-runtime-install-archive-v1.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py
           python3 -I -B tools/void-buy-allocation-custody-runtime-install-archive-v1.py --self-test
           proof="$RUNNER_TEMP/custody-install-archive-proof.txt"
           python3 -I -B scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py | tee "$proof"
