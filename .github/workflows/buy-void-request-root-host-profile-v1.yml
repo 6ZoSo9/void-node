@@ -1,0 +1,65 @@
+name: VOID Buy request-root host profile v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-request-root-host-profile-v1.mjs"
+      - "scripts/prove_void_buy_request_root_host_profile_v1.mjs"
+      - "docs/architecture/buy-void-request-root-host-profile-v1.md"
+      - ".github/workflows/buy-void-request-root-host-profile-v1.yml"
+      - "src/economic/buy_void_request_custody_read_policy_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-request-root-host-profile-v1.mjs"
+      - "scripts/prove_void_buy_request_root_host_profile_v1.mjs"
+      - "docs/architecture/buy-void-request-root-host-profile-v1.md"
+      - ".github/workflows/buy-void-request-root-host-profile-v1.yml"
+      - "src/economic/buy_void_request_custody_read_policy_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22,24,26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and prove exact host profile
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          node --check tools/void-buy-request-root-host-profile-v1.mjs
+          npx tsx scripts/prove_void_buy_request_root_host_profile_v1.mjs |
+            tee "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'VOID_BUY_VOID_REQUEST_ROOT_HOST_PROFILE_V1_GREEN' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'request_root=/var/lib/void-buy-requests-v1' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'request_root_mode=0750' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'journal_mode=0640' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'runtime_uid=1000' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'ipc_gid=980' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'request_root_provisioned=false' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'runtime_environment_installed=false' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'historical_request_data_disposition_proven=false' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'host_mutation=false' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/request-root-profile.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/request-root-profile.log"
+      - run: git diff --check
