@@ -39,7 +39,7 @@ POLKIT_BLOB="9d9e6890a35b6ae3bdc8e7a2f97abc61cff5360f"
 TMPFILES_REL="ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf"
 TMPFILES_BLOB="5d3443c03821b403d52d10629571374325dc5598"
 LIVE_LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
-LIVE_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"
+LIVE_LAUNCHER_BLOB="30958f317c975cb28d7cc15427715775e36c3081"
 PREENTRY_SOURCE_REL="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 PREENTRY_SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 
@@ -72,7 +72,7 @@ STATE_ROOT=Path("/var/lib/void-apollyon-custody-v1")
 CONSUMED=STATE_ROOT/"consumed"
 SOCKET_PARENT=Path("/run/void-apollyon-custody-v1")
 CUSTODY_SOURCE_ROOT=Path("/opt/void-apollyon-custody-service-v2-reviewed-v1")
-LIVE_SOURCE_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")
+LIVE_SOURCE_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")
 LIVE_PREENTRY_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-preentry-v1")
 LIVE_PREENTRY=LIVE_PREENTRY_ROOT/"apollyon_live_custody_source_session_preentry_v2"
 LIVE_LAUNCHER=LIVE_PREENTRY_ROOT/"apollyon_live_custody_source_session_launcher_v2.py"

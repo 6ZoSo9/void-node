@@ -100,6 +100,15 @@ assert.deepEqual(manifest.node_runtime_contract,{
   version:"v24.21.0",
 });
 assert.equal(manifest.paths.node_runtime,"/opt/void-apollyon-node-runtime-v1/node");
+
+assert.equal(manifest.paths.live_session_source_root,"/opt/void-apollyon-live-custody-binding-v2-reviewed-v2");
+assert.deepEqual(manifest.systemd_package_review,{
+  current_xiphos_package_version:"255.4-1ubuntu8.18",
+  exact_allowlist:true,
+  reviewed_major:255,
+  reviewed_package_versions:["255.4-1ubuntu8.11","255.4-1ubuntu8.18"],
+  running_installed_match_required:true,
+});
 assert.equal(manifest.service_contract.node_runtime_path,"/opt/void-apollyon-node-runtime-v1/node");
 
 const target=fs.readFileSync(TARGET,"utf8");
@@ -236,6 +245,8 @@ assert.equal(
 );
 
 console.log("VOID_APOLLYON_CUSTODY_DEPLOYMENT_MANIFEST_V1_PROOF_GREEN");
+console.log("systemd_8_18_review_bound=true");
+console.log("live_session_reviewed_root_v2=true");
 console.log("root_custodied_node_runtime_required=true");
 console.log("node_runtime_path=/opt/void-apollyon-node-runtime-v1/node");
 console.log("node_runtime_sha256=7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c");

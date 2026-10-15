@@ -142,7 +142,7 @@ The manifest pins both:
 - the custody service closure under
   `/opt/void-apollyon-custody-service-v2-reviewed-v1`; and
 - the complete current-V2 live-session closure under
-  `/opt/void-apollyon-live-custody-binding-v2-reviewed-v1`.
+  `/opt/void-apollyon-live-custody-binding-v2-reviewed-v2`.
 
 The accepted 798,736-byte loader-independent native pre-entry is installed separately beneath
 `/opt/void-apollyon-live-custody-binding-v2-preentry-v1`.
@@ -166,3 +166,14 @@ funds action.
 
 Next gate:
 `apollyon_live_custody_source_session_create_only_install_v1`.
+
+
+## Current Noble systemd package review
+
+The designated-host collector uses an exact allowlist. The reviewed set is now:
+
+- `255.4-1ubuntu8.11` (original reviewed baseline)
+- `255.4-1ubuntu8.18` (current Xiphos Noble-security package)
+
+Other package versions remain fail-closed, and the running PID1 manager version
+must still equal the installed package version.

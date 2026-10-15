@@ -93,3 +93,10 @@ funds_movement=false
 
 Next gate:
 `INSTALLED_CUSTODY_AND_LIVE_SESSION_ATTESTATION`.
+
+
+## Current systemd review
+
+The installed live-session source closure now contains the exact V2 collector
+reviewed for Noble systemd `255.4-1ubuntu8.18`, while preserving the original
+`255.4-1ubuntu8.11` baseline in its exact allowlist.
