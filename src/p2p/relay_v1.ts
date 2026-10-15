@@ -332,6 +332,8 @@ export function voidRelayClientExpiryV1(
 export class VoidRelayServerStateV1 {
   private reservations = new Map<string, VoidRelayReservationRecordV1>();
   private streams = new Map<string, MutableRelayStreamV1>();
+  private lastClockMs: number | undefined;
+  private pendingClosedStreams = new Map<string, VoidRelayStreamRecordV1>();
 
   reserve(
     nodeIdValue: string,
@@ -350,7 +352,7 @@ export class VoidRelayServerStateV1 {
     if (!Number.isSafeInteger(expiresAtMs)) {
       throw new Error("relay reservation expiry is invalid");
     }
-    this.sweep(now);
+    this.advanceClock(now);
     if (!this.reservations.has(nodeIdValue) &&
         this.reservations.size >= VOID_P2P_RELAY_MAX_RESERVATIONS_V1) {
       throw new Error("relay reservation capacity reached");
@@ -374,7 +376,7 @@ export class VoidRelayServerStateV1 {
       throw new Error("relay stream endpoint node ID is invalid");
     }
     if (sourceNodeId === targetNodeId) throw new Error("relay self/loop stream rejected");
-    this.sweep(nowMs);
+    this.advanceClock(nowMs);
     const reservation = this.reservations.get(targetNodeId);
     if (!reservation || reservation.expires_at_ms <= nowMs) {
       throw new Error("relay target has no active reservation");
@@ -420,7 +422,7 @@ export class VoidRelayServerStateV1 {
     nodeIdValue: string,
     nowMs = Date.now(),
   ): VoidRelayReservationRecordV1 | undefined {
-    this.sweep(nowMs);
+    this.advanceClock(nowMs);
     return this.reservations.get(nodeIdValue);
   }
 
@@ -456,7 +458,7 @@ export class VoidRelayServerStateV1 {
   }
 
   closeStream(endpointNodeId: string, streamId: string, nowMs = Date.now()) {
-    this.sweep(nowMs);
+    this.advanceClock(nowMs);
     const stream = this.streams.get(streamId);
     if (!stream) return;
     if (endpointNodeId !== stream.source_node_id && endpointNodeId !== stream.target_node_id) {
@@ -478,25 +480,45 @@ export class VoidRelayServerStateV1 {
     return Object.freeze(closed);
   }
 
-  sweep(nowMs = Date.now()): readonly VoidRelayStreamRecordV1[] {
+  private queueClosedStream(stream: MutableRelayStreamV1): void {
+    if (!this.pendingClosedStreams.has(stream.stream_id)) {
+      this.pendingClosedStreams.set(stream.stream_id, this.snapshotStream(stream));
+    }
+  }
+
+  private advanceClock(nowMs: number): void {
     const now = relayClock(nowMs);
+    if (this.lastClockMs !== undefined && now < this.lastClockMs) {
+      for (const stream of this.streams.values()) this.queueClosedStream(stream);
+      this.reservations.clear();
+      this.streams.clear();
+      this.lastClockMs = now;
+      return;
+    }
+    this.lastClockMs = now;
     for (const [nodeIdValue, reservation] of this.reservations) {
       if (reservation.expires_at_ms <= now) this.reservations.delete(nodeIdValue);
     }
-    const closed: VoidRelayStreamRecordV1[] = [];
     for (const [streamId, stream] of this.streams) {
       const targetReservation = this.reservations.get(stream.target_node_id);
       if (!targetReservation ||
           now - stream.last_activity_at_ms > VOID_P2P_RELAY_STREAM_IDLE_TIMEOUT_MS_V1) {
-        closed.push(this.snapshotStream(stream));
+        this.queueClosedStream(stream);
         this.streams.delete(streamId);
       }
     }
+  }
+
+  sweep(nowMs = Date.now()): readonly VoidRelayStreamRecordV1[] {
+    this.advanceClock(nowMs);
+    if (this.pendingClosedStreams.size === 0) return Object.freeze([]);
+    const closed = [...this.pendingClosedStreams.values()];
+    this.pendingClosedStreams.clear();
     return Object.freeze(closed);
   }
 
   snapshot(nowMs = Date.now()) {
-    this.sweep(nowMs);
+    this.advanceClock(nowMs);
     const reservations = [...this.reservations.values()]
       .sort((a, b) => a.node_id.localeCompare(b.node_id));
     const streams = [...this.streams.values()]
@@ -511,7 +533,7 @@ export class VoidRelayServerStateV1 {
   }
 
   private requireEndpoint(endpointNodeId: string, streamId: string, nowMs: number) {
-    this.sweep(nowMs);
+    this.advanceClock(nowMs);
     const stream = this.streams.get(streamId);
     if (!stream) throw new Error("relay stream is missing or expired");
     if (endpointNodeId !== stream.source_node_id && endpointNodeId !== stream.target_node_id) {
