@@ -104,7 +104,7 @@ jobs:
             assert.equal(l.public_presale_activation,false);
             assert.equal(l.funds_movement,false);
             console.log("VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V4_INTEGRATION_GREEN");
-            NODE
+          NODE
             cp ops/security/buy-void-user-manager-query-elf-lock-v4.json "$out"
           fi
 
