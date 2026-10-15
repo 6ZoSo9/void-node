@@ -368,6 +368,7 @@ export function buildBindingReceipt(expectedHead,candidate,child){
     source_candidate_path:CANDIDATE_REL,
     source_candidate_git_blob:CANDIDATE_BLOB,
     source_candidate_marker:candidate.marker,
+    authenticated_credential_live_receipt:child,
     authenticated_credential_live_receipt_id:child.receipt_id,
     authenticated_credential_live_receipt_sha256:
       sha256(Buffer.from(canonical(child),"utf8")),
