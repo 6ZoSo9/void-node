@@ -228,6 +228,8 @@ def process_source(pid: int, expected_blob: str) -> dict[str, Any]:
         "running_git_blob_sha1": None,
         "running_sha256": None,
         "matches_reviewed_blob": False,
+        "retained_descriptor_generation_stable": False,
+        "root_owned_nonwritable_source": False,
     }
     argv = read_proc_cmdline(pid)
     if not argv or len(argv) < 2:
@@ -245,13 +247,64 @@ def process_source(pid: int, expected_blob: str) -> dict[str, Any]:
         candidate = cwd / candidate
     try:
         resolved = candidate.resolve(strict=True)
-        data = read_bounded(resolved, MAX_SOURCE_BYTES)
-    except (OSError, CensusError):
+        visible_before = resolved.lstat()
+        if (
+            not stat.S_ISREG(visible_before.st_mode)
+            or stat.S_ISLNK(visible_before.st_mode)
+            or visible_before.st_size < 1
+            or visible_before.st_size > MAX_SOURCE_BYTES
+        ):
+            return result
+        fd = os.open(
+            resolved,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+        )
+        try:
+            opened = os.fstat(fd)
+            if (
+                opened.st_dev != visible_before.st_dev
+                or opened.st_ino != visible_before.st_ino
+                or opened.st_size != visible_before.st_size
+            ):
+                return result
+            data = b""
+            remaining = opened.st_size
+            while remaining:
+                chunk = os.read(fd, min(65536, remaining))
+                if not chunk:
+                    return result
+                data += chunk
+                remaining -= len(chunk)
+            after = os.fstat(fd)
+            visible_after = resolved.lstat()
+        finally:
+            os.close(fd)
+    except OSError:
         return result
+    stable = (
+        after.st_dev == opened.st_dev
+        and after.st_ino == opened.st_ino
+        and after.st_size == opened.st_size
+        and after.st_mtime_ns == opened.st_mtime_ns
+        and after.st_ctime_ns == opened.st_ctime_ns
+        and visible_after.st_dev == after.st_dev
+        and visible_after.st_ino == after.st_ino
+        and visible_after.st_size == after.st_size
+        and visible_after.st_mtime_ns == after.st_mtime_ns
+        and visible_after.st_ctime_ns == after.st_ctime_ns
+    )
     result["entry_present"] = True
+    result["retained_descriptor_generation_stable"] = stable
+    result["root_owned_nonwritable_source"] = (
+        opened.st_uid == 0 and stat.S_IMODE(opened.st_mode) & 0o022 == 0
+    )
     result["running_git_blob_sha1"] = git_blob_sha1(data)
     result["running_sha256"] = sha256_bytes(data)
-    result["matches_reviewed_blob"] = result["running_git_blob_sha1"] == expected_blob
+    result["matches_reviewed_blob"] = (
+        stable
+        and result["root_owned_nonwritable_source"]
+        and result["running_git_blob_sha1"] == expected_blob
+    )
     return result
 
 def cloudflared_executable(pid: int) -> dict[str, Any]:
@@ -579,12 +632,16 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         indent = len(raw_line) - len(raw_line.lstrip(" "))
         line = raw_line.strip()
         if line.startswith("credentials-file:"):
+            if indent != 0:
+                raise CensusError("tunnel_credentials_path_noncanonical_indent")
             scalar = yaml_scalar(line.split(":", 1)[1])
             if scalar is None:
                 raise CensusError("tunnel_credentials_path_invalid")
             credentials.append(scalar)
             continue
         if line.startswith("- hostname:"):
+            if indent != 2:
+                raise CensusError("tunnel_hostname_noncanonical_indent")
             if current is not None:
                 rules.append(current)
             scalar = yaml_scalar(line.split(":", 1)[1])
@@ -890,7 +947,11 @@ def collect() -> dict[str, Any]:
         and identity_shape
         and checkout["all_match"]
         and services["adapter"]["source"]["matches_reviewed_blob"]
+        and services["adapter"]["source"]["retained_descriptor_generation_stable"]
+        and services["adapter"]["source"]["root_owned_nonwritable_source"]
         and services["dispatcher"]["source"]["matches_reviewed_blob"]
+        and services["dispatcher"]["source"]["retained_descriptor_generation_stable"]
+        and services["dispatcher"]["source"]["root_owned_nonwritable_source"]
         and services["cloudflared"]["process"]["comm_is_cloudflared"]
         and services["cloudflared"]["process"]["executable_regular"]
         and services["cloudflared"]["process"]["executable_root_owned"]
