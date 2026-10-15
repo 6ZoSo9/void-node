@@ -44,6 +44,26 @@ The child must still be dormant:
 - `customer_safe_to_pay=false`;
 - no payment/presale/WC/funds authority.
 
+The chain observation is bracketed by **two fresh child invocations**. Because
+each child contains a fresh non-transaction challenge/signature, the two child
+receipt IDs are expected to differ. The fee gate instead derives a closed
+stable runtime identity from both receipts and requires exact equality of:
+
+- source head / chain / epoch / presale / fulfiller;
+- accepted signer-control evidence identities;
+- dormant candidate lineage;
+- credential-query lock;
+- runtime UID;
+- authenticated manager PID + start ticks;
+- service MainPID + start ticks;
+- authenticated credential qualification SHA-256;
+- signer address.
+
+A service restart, credential-generation change, or authenticated-manager
+generation change during the 12-second chain observation therefore HOLDS.
+Both public child receipts are retained in the final fee receipt so this
+bracketing is independently reviewable.
+
 ## Candidate-v2 policy binding
 
 The runner loads the exact dormant candidate v2 Git object:
