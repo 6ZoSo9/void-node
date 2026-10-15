@@ -17,6 +17,8 @@ spec.loader.exec_module(module)
 
 module.self_test()
 
+assert module.METADATA_POLICY_ID == "current_private_request_root_0700_0600_v1"
+assert module.FUTURE_CUSTODY_READABLE_PROFILE == "future_ipc_group_request_root_0750_0640"
 assert module.EXPECTED_HOSTNAME == "zoso-Precision-Tower-7810"
 assert module.EXPECTED_USER == "zoso"
 assert module.RUNTIME_UNIT == "void-node-live.service"
@@ -32,6 +34,8 @@ source = TARGET.read_text(encoding="utf-8")
 for required in [
     "request_root_live_path_qualified",
     "request_root_override_absence_proven",
+    "future_custody_readable_profile_accepted",
+    "future_profile_requires_successor_census",
     "REQUEST_ROOT_QUALIFIED_FOR_CUSTODY_INSTALL_PLAN",
     "REQUEST_ROOT_STATUS_BINDING_REQUIRED",
     "metadata_qualified_candidate_count",
