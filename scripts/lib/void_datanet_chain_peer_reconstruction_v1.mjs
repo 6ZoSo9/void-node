@@ -1,5 +1,8 @@
 import crypto from "node:crypto";
 import { TextDecoder, types } from "node:util";
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "../../tools/datanet-content-commitment-production-registry-identity-v1.mjs";
 
 export const VOID_DATANET_RECONSTRUCTION_INGRESS_V1 = Object.freeze({
   encoding: "canonical-utf8-json-buffer", max_request_bytes: 65536,
@@ -145,6 +148,7 @@ const EXACT_COMMITMENT_INPUT_KEYS = [
   "accepted_checkpoint_id",
   "byte_length",
   "chain_id",
+  "registry_address",
   "checkpoint_block_hash",
   "checkpoint_height",
   "commitment_log_index",
@@ -582,6 +586,12 @@ function normalizedCommitmentInput(input) {
   if (text(input.chain_id) !== "2050") {
     throw invalid("commitment_wrong_chain_id");
   }
+  if (
+    text(input.registry_address) !==
+    VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1
+  ) {
+    throw invalid("commitment_wrong_registry_address");
+  }
   const objectId = safeId(input.object_id, "commitment_invalid_object_id");
   const contentSha256 = hash64(
     input.content_sha256,
@@ -613,6 +623,8 @@ function normalizedCommitmentInput(input) {
 
   return {
     chain_id: "2050",
+    registry_address:
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
     object_id: objectId,
     content_sha256: contentSha256,
     byte_length: byteLength.normalized,
