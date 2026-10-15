@@ -42,9 +42,24 @@ The normalized observation accepts only:
 - empty `CapabilityBoundingSet`;
 - empty `AmbientCapabilities`.
 
-Only after those checks may the implicit user-manager identity be represented
-as the configured runtime user/group for downstream comparison. That
-normalization is not host authority by itself.
+Those checks validate only the **reported text shape**. They do not
+authenticate the peer behind `/run/user/<uid>/bus`: a same-UID fake D-Bus
+endpoint can return the exact expected MainPID, cgroup, NNP and capability
+strings.
+
+Accordingly the normalizer explicitly emits:
+
+```text
+manager_peer_authenticated=false
+runtime_user_manager_identity_verified=false
+runtime_user_manager_cgroup_bound=false
+identity_normalization=untrusted_user_systemctl_shape_only_v2
+production_host_evidence_authority=false
+```
+
+A later #2963 collector must kernel/root-anchor the real user manager and bind a
+retained query connection to that manager (for example with authenticated Unix
+peer credentials) before these reported properties may become host authority.
 
 ## Explicit nonclaims
 
