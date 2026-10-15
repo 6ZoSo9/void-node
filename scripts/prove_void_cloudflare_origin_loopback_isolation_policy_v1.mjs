@@ -33,6 +33,8 @@ function canonical() {
       public_hostname: "seed.nullfeed.org",
       sensitive_origin_host: "127.0.0.1",
       sensitive_origin_port: 4311,
+      sensitive_origin_http_host_header: "seed.nullfeed.org",
+      disable_chunked_encoding_required: true,
       sensitive_paths: [...VOID_CLOUDFLARE_ORIGIN_SENSITIVE_PATHS_V1],
       ordinary_routes_preserved: true,
       worker_route_absence_required: true,
@@ -218,6 +220,18 @@ expectHold(
 expectHold(
   (x) => {
     x.cloudflared.sensitive_origin_host = "0.0.0.0";
+  },
+  "cloudflare_isolation_cloudflared_route_policy_invalid",
+);
+expectHold(
+  (x) => {
+    x.cloudflared.sensitive_origin_http_host_header = "origin.invalid";
+  },
+  "cloudflare_isolation_cloudflared_route_policy_invalid",
+);
+expectHold(
+  (x) => {
+    x.cloudflared.disable_chunked_encoding_required = false;
   },
   "cloudflare_isolation_cloudflared_route_policy_invalid",
 );
@@ -482,6 +496,8 @@ console.log("VOID_CLOUDFLARE_ORIGIN_LOOPBACK_ISOLATION_POLICY_V1_GREEN");
 console.log("dedicated_system_cloudflared_identity_required=true");
 console.log("historical_user_tunnel_retirement_required=true");
 console.log("exact_sensitive_tunnel_routes_qualified=true");
+console.log("sensitive_origin_http_host_header_bound=true");
+console.log("sensitive_origin_chunked_encoding_disabled_required=true");
 console.log("ordinary_tunnel_routes_preserved_required=true");
 console.log("cloudflared_to_adapter_policy_shape_qualified=true");
 console.log("adapter_to_dispatcher_policy_shape_qualified=true");
