@@ -136,6 +136,7 @@ for(const relative of [
 for(const required of [
   "historical_positive",
   "historical_refusal",
+  "historical_v1_reviewed_closure_changed=false",
   HISTORICAL_PACKAGE_BLOB,
   HISTORICAL_LOCK_BLOB,
   CURRENT_PACKAGE_BLOB,
@@ -148,6 +149,7 @@ console.log("VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_V1_HISTORICAL_REFUSAL_
 console.log("frozen_v1_executor_sources_unchanged=true");
 console.log("frozen_v1_profile_refuses_current_package_generation=true");
 console.log("reviewed_closure_trigger_exact=true");
+console.log("reviewed_closure_mutation_fail_closed=true");
 console.log("broad_sibling_globs_present=false");
 console.log("v2_executor_authority_created=false");
 console.log("rpc_call=false");

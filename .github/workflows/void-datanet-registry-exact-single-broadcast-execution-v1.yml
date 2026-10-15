@@ -60,7 +60,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
       - name: Bind exact checkout identity
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -101,6 +101,51 @@ jobs:
           node --check scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs
           node --check scripts/prove_void_datanet_registry_isolated_reviewed_execution_v1.mjs
           node --check scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1_historical_refusal_v2.mjs
+      - name: Refuse historical V1 reviewed-closure mutation on current package generation
+        if: steps.package-generation.outputs.mode == 'historical_refusal' && github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          changed="$(
+            git diff --name-only "$BASE" "$HEAD" -- \
+              tools/datanet-content-commitment-compiled-identity-acceptance-v1.mjs \\
+              tools/datanet-content-commitment-compiler-profile-v1.mjs \\
+              tools/datanet-content-commitment-deployment-attestation-v1.mjs \\
+              tools/datanet-content-commitment-dual-compiler-identity-v1.mjs \\
+              tools/void-datanet-registry-candidate-fresh-revalidation-v1.mjs \\
+              tools/void-datanet-registry-consumed-authorization-signing-v1.mjs \\
+              tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs \\
+              tools/void-datanet-registry-deployer-credential-binding-v1.mjs \\
+              tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs \\
+              tools/void-datanet-registry-deployment-pre-sign-revalidation-v1.mjs \\
+              tools/void-datanet-registry-exact-signing-request-v1.mjs \\
+              tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs \\
+              tools/void-datanet-registry-final-signing-review-v1.mjs \\
+              tools/void-datanet-registry-prebroadcast-observer-v1.mjs \\
+              tools/void-datanet-registry-signed-verification-broadcast-request-v1.mjs \\
+              tools/void-datanet-registry-signing-state-identity-provision-v1.mjs \\
+              tools/void-datanet-registry-single-transaction-signing-authorization-v1.mjs \\
+              tools/void-datanet-registry-single-use-broadcast-authorization-consumption-v1.mjs \\
+              tools/void-datanet-registry-single-use-signing-authorization-consumption-v1.mjs \\
+              tools/void-datanet-registry-transaction-construction-admission-v1.mjs \\
+              tools/void-datanet-registry-unsigned-deployment-input-plan-v1.mjs \\
+              tools/void-datanet-registry-unsigned-transaction-candidate-v1.mjs \\
+              tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs \\
+              tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs \\
+              tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs \\
+              tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs \\
+              tools/void-economic-epoch2-raw-transaction-domain-v1.mjs
+          )"
+          if [ -n "$changed" ]; then
+            printf '%s\n' "$changed" >&2
+            echo "historical V1 reviewed closure changed; versioned successor required" >&2
+            exit 2
+          fi
+          echo "historical_v1_reviewed_closure_changed=false"
       - name: Prove exact single broadcast execution
         if: steps.package-generation.outputs.mode == 'historical_positive'
         run: |
@@ -116,6 +161,7 @@ jobs:
           grep -Fx 'frozen_v1_executor_sources_unchanged=true' "$receipt"
           grep -Fx 'frozen_v1_profile_refuses_current_package_generation=true' "$receipt"
           grep -Fx 'reviewed_closure_trigger_exact=true' "$receipt"
+          grep -Fx 'reviewed_closure_mutation_fail_closed=true' "$receipt"
           grep -Fx 'broad_sibling_globs_present=false' "$receipt"
           grep -Fx 'v2_executor_authority_created=false' "$receipt"
           grep -Fx 'transaction_broadcast=false' "$receipt"
