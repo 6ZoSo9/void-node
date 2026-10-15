@@ -6,11 +6,15 @@ Status: **reproducible binary candidate only; unaccepted and uninstalled**.
 
 ## Exact source generation
 
-This candidate is stacked on #3091 exact source head:
+This candidate is stacked on current-parent #3093 exact head:
+
+`857befbbe5adb245ecb2d28056285913fe866bf6`
+
+and preserves the exact semantic source repair from #3091:
 
 `a734613ee3786ded067e491dfa8e533a2fee3e89`
 
-and pins:
+It pins:
 
 - private-peer guard Git blob `d8b30ac499c3bb8a5d223dbc6be687dd175be611`;
 - static preexec Git blob `f0fbfaae97df3294097a281100f06ada2ef157ff`;
