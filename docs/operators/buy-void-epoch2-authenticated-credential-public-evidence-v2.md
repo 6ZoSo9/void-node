@@ -2,8 +2,7 @@
 
 Marker: `VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_PUBLIC_EVIDENCE_V2`.
 
-Status: **source-only public-evidence composition; no live credential access or
-runtime authority**.
+Status: **source-only composition helper; qualification provenance is not authenticated by this classifier, and no live credential/runtime authority is granted**.
 
 ## Purpose
 
@@ -18,8 +17,7 @@ credential/V6 qualification:
 
 `VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_INSTALLED_QUALIFICATION_V1`.
 
-The V2 composer does not execute either live path. It accepts their JSON
-evidence only after independent validation.
+The V2 composer does not execute either live path. It validates the sealed record cryptographically and validates the credential/V6 record's closed schema and cross-field consistency, but an arbitrary caller can still fabricate a JSON qualification object. Therefore the composer deliberately reports `qualification_provenance_authenticated=false` and `production_runtime_authority=false`.
 
 ## Exact authenticated cross-check
 
@@ -66,8 +64,6 @@ It does not authorize:
 - credential installation or credential-content access by the composer;
 - funds movement.
 
-A later operator runner may compose a fresh live read-only credential/V6
-qualification with a fresh sealed signing record. That runtime operation
-remains separately authorized.
+The explicit next gate is `BUILD_ROOT_LIVE_COMPOSITION_RUNNER_V1`: a later operator runner must invoke the merged root-authenticated credential/V6 qualifier itself, collect a fresh sealed signing record in the same bounded operation, and only then feed both records into this helper. That runtime operation remains separately authorized.
 
 PROTECT THE CORE.
