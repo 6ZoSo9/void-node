@@ -45,7 +45,10 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V2_PROOF_GREEN' "$RUNNER_TEMP/custody-host-v2.log"
           grep -Fx 'runtime_service_manager=user' "$RUNNER_TEMP/custody-host-v2.log"
           grep -Fx 'user_manager_bus_exact=true' "$RUNNER_TEMP/custody-host-v2.log"
-          grep -Fx 'v1_storage_mount_socket_source_engine_reused=true' "$RUNNER_TEMP/custody-host-v2.log"
+          grep -Fx 'runtime_manager_adapter_only=true' "$RUNNER_TEMP/custody-host-v2.log"
+          grep -Fx 'complete_host_evidence_collector=false' "$RUNNER_TEMP/custody-host-v2.log"
+          grep -Fx 'service_v2_source_binding_proven=false' "$RUNNER_TEMP/custody-host-v2.log"
+          grep -Fx 'service_v2_config_binding_proven=false' "$RUNNER_TEMP/custody-host-v2.log"
           grep -Fx 'host_mutation=false' "$RUNNER_TEMP/custody-host-v2.log"
           grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/custody-host-v2.log"
           git diff --check
