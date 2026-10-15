@@ -47,78 +47,21 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
-      - name: Rederive standalone lock or preserve exact integrated V2 lock
+      - name: Rederive and verify exact V2 lock
         run: |
           set -euo pipefail
           proof=scripts/prove_void_buy_user_manager_query_elf_lock_v2.mjs
-          query=ops/precision/void_buy_void_user_manager_private_unit_query_v1.c
-          peer=ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c
-          preexec=ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c
-          candidate=ops/security/buy-void-user-manager-query-elf-candidate-v2.json
-          lock=ops/security/buy-void-user-manager-query-elf-lock-v2.json
+          node "$proof" --self-test | tee "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
+          grep -Fx "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2_GREEN" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
+          grep -Fx "manager_reexec_deserialize_argv_accepted=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
+          grep -Fx "kernel_capability_state_bound=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
+          grep -Fx "configured_kernel_bounding_set_equality_required=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
+          grep -Fx "private_users_false_required=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
+          grep -Fx "candidate_accepted=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
+          grep -Fx "install_authorized=false" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
           out="$RUNNER_TEMP/user-manager-query-elf-lock-v2-${{ matrix.node }}.json"
-
-          query_blob="$(git rev-parse "HEAD:$query")"
-          peer_blob="$(git rev-parse "HEAD:$peer")"
-          preexec_blob="$(git rev-parse "HEAD:$preexec")"
-          candidate_blob="$(git rev-parse "HEAD:$candidate")"
-          lock_blob="$(git rev-parse "HEAD:$lock")"
-          proof_blob="$(git rev-parse "HEAD:$proof")"
-
-          if git merge-base --is-ancestor 308432485cf6dc7899c58d6d6425f1c4294929b7 HEAD &&
-             [ "$(git diff --name-only 308432485cf6dc7899c58d6d6425f1c4294929b7 HEAD -- | sort | tr '\n' ' ')" =
-               ".github/workflows/buy-void-user-manager-query-elf-lock-v2.yml docs/operators/buy-void-user-manager-query-elf-lock-v2.md ops/security/buy-void-user-manager-query-elf-candidate-v2.json ops/security/buy-void-user-manager-query-elf-lock-v2.json scripts/prove_void_buy_user_manager_query_elf_lock_v2.mjs " ]; then
-            node "$proof" --self-test | tee "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
-            grep -Fx "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2_GREEN" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
-            grep -Fx "manager_reexec_deserialize_argv_accepted=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
-            grep -Fx "kernel_capability_state_bound=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
-            grep -Fx "configured_kernel_bounding_set_equality_required=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
-            grep -Fx "private_users_false_required=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
-            grep -Fx "candidate_accepted=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
-            grep -Fx "install_authorized=false" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
-            node "$proof" --derive > "$out"
-            cmp "$out" "$lock"
-            echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2_STANDALONE_REDERIVED
-          elif [ "$query_blob" = "5355b7f177574ac4fa173a693605acaf9c5f26e4" ] &&
-               [ "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611" ] &&
-               [ "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff" ] &&
-               [ "$candidate_blob" = "c73920dc02aaad5e99314fd981defe42db224749" ] &&
-               [ "$lock_blob" = "b3abcb408730cf5e79093f6df30733f11324e95c" ] &&
-               [ "$proof_blob" = "18de6410a3c2c81f706bb7d4a08cbe1a120d577d" ]; then
-            node --input-type=module - "$lock" <<'NODE'
-          import assert from "node:assert/strict";
-          import fs from "node:fs";
-          const file=process.argv[2];
-          const l=JSON.parse(fs.readFileSync(file,"utf8"));
-          assert.equal(l.marker,"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2");
-          assert.equal(l.lock_id,"voidbuyumqelflock2_c643213ce46d6f2b4dfe04675a7fbbcaad2b6aea40418cb921586362a054f474");
-          assert.equal(l.candidate_evidence.query_source_git_blob_sha1,"5355b7f177574ac4fa173a693605acaf9c5f26e4");
-          assert.equal(l.candidate_evidence.query_binary_sha256,"d11304cb35be20dd4775677a2d5bf41c09f0f0b7a747ec7a8fea952e4bc8639c");
-          assert.equal(l.candidate_evidence.query_binary_bytes,43064);
-          assert.equal(l.manager_reexec_deserialize_argv_accepted,true);
-          assert.equal(l.kernel_capability_state_bound,true);
-          assert.equal(l.configured_kernel_bounding_set_equality_required,true);
-          assert.equal(l.private_users_false_required,true);
-          assert.equal(l.candidate_accepted,true);
-          assert.equal(l.install_authorized,false);
-          assert.equal(l.protected_install_performed,false);
-          assert.equal(l.production_host_evidence_authority,false);
-          assert.equal(l.payment_acceptance,false);
-          assert.equal(l.public_presale_activation,false);
-          assert.equal(l.funds_movement,false);
-          NODE
-            cp "$lock" "$out"
-            echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2_INTEGRATED_EXACT_PRESERVED
-          else
-            echo "unknown user-manager query/lock generation" >&2
-            echo "query_blob=$query_blob" >&2
-            echo "peer_blob=$peer_blob" >&2
-            echo "preexec_blob=$preexec_blob" >&2
-            echo "candidate_blob=$candidate_blob" >&2
-            echo "lock_blob=$lock_blob" >&2
-            echo "proof_blob=$proof_blob" >&2
-            exit 2
-          fi
+          node "$proof" --derive > "$out"
+          cmp "$out" ops/security/buy-void-user-manager-query-elf-lock-v2.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: void-buy-user-manager-query-elf-lock-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
