@@ -25,6 +25,12 @@ This census enumerates a bounded set of *known current candidates*:
 It reads only root/fixed-leaf metadata and direct-entry **counts**. It never
 prints direct-entry names and never reads request/payment JSONL contents.
 
+The census is bound to the designated runtime identity `zoso` / UID 1000.
+The historical repository candidate is the fixed
+`/home/zoso/dev/void-node/.runtime/public-buy-void-requests-v1`; caller
+`HOME` is never used to select it. The live-process cwd candidate is also
+cross-bound to the same stable process generation.
+
 The census does **not** read `/proc/<pid>/environ` or request the full systemd
 environment. That would unnecessarily expose unrelated same-process secrets.
 Explicit request-root discovery instead uses the bounded loopback GET already
