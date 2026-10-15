@@ -72,18 +72,24 @@ And the staged-runtime Polkit profile:
 A future separately reviewed root installer must, at minimum:
 
 1. freshly reobserve the target and require the same safe custody class;
-2. freshly reopen/hash `/usr/bin/node` and its trusted ancestry;
-3. reverify the exact accepted archive bytes;
-4. prove the custody service is absent or inactive and no admitted process is
+2. reverify the target parent ancestry, mount identity, and absence of symlink
+   or bind-substitution drift;
+3. freshly reopen/hash `/usr/bin/node` and its trusted ancestry;
+4. reverify the exact accepted archive bytes;
+5. prove the custody service is absent or inactive and no admitted process is
    using the target generation;
-5. stage the accepted tree under a root-owned sibling on the same filesystem;
-6. verify the staged tree exactly before transition;
-7. preserve the pre-existing target under a content-addressed, no-clobber
-   rollback name;
-8. use only a same-filesystem rename transition;
-9. fsync the relevant files/directories before and after transition;
-10. postverify the exact installed tree;
-11. leave Polkit installation/live denial and service start as separate gates.
+6. stage the accepted tree under a root-owned sibling on the same filesystem;
+7. verify the staged tree exactly before transition;
+8. publish a durable install intent before the first rename;
+9. preserve the pre-existing target under a no-clobber rollback name bound to
+   the target's pre-transition filesystem identity, without recursively reading
+   opaque legacy contents merely to name the rollback;
+10. use only same-filesystem rename transitions;
+11. fsync the intent and relevant directories before and after each transition;
+12. define crash recovery for the intermediate target-absent state and permit
+    rollback restoration only when the preserved prestate identity is exact;
+13. postverify the exact installed tree;
+14. leave Polkit installation/live denial and service start as separate gates.
 
 The plan does not authorize deleting the rollback generation.
 
