@@ -216,6 +216,31 @@ assert.equal(
 const incompleteHold=classify(input(incompleteEvidence,{decision:D.UNRESOLVED_HOLD}));
 assert.equal(incompleteHold.ok,true);
 
+const unavailableEvidence=evidence(cleanRows(),{
+  service:{
+    status:3,
+    load_state:"loaded",
+    active_state:"inactive",
+    sub_state:"dead",
+    main_pid:null,
+    working_directory:null,
+    live_process_cwd:null,
+  },
+  runtime_process_generation_stable:false,
+  runtime_http_listener_stable:false,
+  confirmed_closeout_request_root_status:{
+    observed:false,
+    source:null,
+    request_dir:null,
+  },
+  confirmed_closeout_request_root_status_stable:false,
+  bounded_current_candidate_set_observed:false,
+});
+assert.equal(classify(input(unavailableEvidence)).ok,false);
+assert.equal(classify(input(unavailableEvidence,{
+  decision:D.UNRESOLVED_HOLD,
+})).ok,true);
+
 for(const unsafe of [
   {process_environment_access:true},
   {external_network_calls:true},
@@ -288,6 +313,7 @@ console.log("exact_census_source_head_required=true");
 console.log("census_sha256_computed_internally=true");
 console.log("census_partitions_derived_internally=true");
 console.log("fabricated_summary_rejected=true");
+console.log("incomplete_census_hold_preserved=true");
 console.log("bounded_current_candidate_set_required=true");
 console.log("designated_runtime_user_required=true");
 console.log("process_environment_access_forbidden=true");
