@@ -12,7 +12,7 @@ V1=ROOT/"ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
 V2=ROOT/"ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 EXPECTED_DEPENDENCY_BLOBS={
     V1:"9ca9cb948a08973d0d874c5473ad2743de14140c",
-    V2:"3c99359bf4ae020ce29c871d0bfcbf8043a44150",
+    V2:"305737478025e22ddc8f56da29f2a2dfde251d8b",
 }
 
 def git_blob_sha1(raw: bytes) -> str:
@@ -25,6 +25,10 @@ for dependency, expected in EXPECTED_DEPENDENCY_BLOBS.items():
         "dependency_blob_drift:"+str(dependency.relative_to(ROOT))
     )
 
+v2_source=V2.read_text(encoding="utf-8")
+assert "AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED = False" in v2_source
+assert "AUTHENTICATED_USER_MANAGER_BINDING_REQUIRED" in v2_source
+assert "def authenticated_live_binding(" in v2_source
 
 spec=importlib.util.spec_from_file_location("legacy_request_root_census_v1",TARGET)
 assert spec is not None and spec.loader is not None
@@ -112,6 +116,7 @@ assert "historical_request_history_disposition_proven=false" in cp.stdout
 print("VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1_PROOF_GREEN")
 print("v1_topology_dependency_blob_bound=true")
 print("v2_designated_host_dependency_blob_bound=true")
+print("v2_fail_closed_manager_auth_successor_bound=true")
 print("designated_runtime_user_bound=true")
 print("ambient_home_not_used_for_repo_candidate=true")
 print("stable_release_inventory_required=true")
