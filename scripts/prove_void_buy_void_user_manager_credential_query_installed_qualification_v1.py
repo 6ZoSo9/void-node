@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PARENT = "d9aa2089fe7fa5716562227210f773201ae63122"
+PARENT = "376aaf6c682fdf25fd6b6609a148ad92308052dc"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -42,10 +42,17 @@ WORKFLOW_REL = (
     "buy-void-user-manager-credential-query-installed-qualification-v1.yml"
 )
 
-EXPECTED_SCOPE = sorted((QUALIFIER_REL, SELF_REL, DOC_REL, WORKFLOW_REL))
+EXPECTED_SCOPE = sorted((
+    QUALIFIER_REL,
+    SELF_REL,
+    DOC_REL,
+    INSTALLER_REL,
+    "scripts/prove_void_buy_void_user_manager_credential_query_protected_install_v1.py",
+    "docs/operators/buy-void-user-manager-credential-query-protected-install-v1.md",
+))
 EXPECTED_BLOBS = {
-    QUALIFIER_REL: "5dec0f9534c3b2d6c8d4a0647e69d3c89ab91cd6",
-    INSTALLER_REL: "e497ee1239865888303db56d0ff0ffeceb583516",
+    QUALIFIER_REL: "8dc5d53dfcc52c261a3da0ee692f3a4fcc0bfc4c",
+    INSTALLER_REL: "0fb7abc266dd4b66dd9f087d4c0c2acff29a8014",
     LOCK_REL: "a434fa671c5a1ca3237efcb51f16223cc27cf4fa",
     V6_QUALIFIER_REL: "83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc",
     QUERY_REL: "e12e0b16df6e6eb5fd912a6dbf6ae970673246f9",
