@@ -52,9 +52,13 @@ jobs:
           set -euo pipefail
           proof=scripts/prove_void_buy_user_manager_query_elf_lock_v2.mjs
           query=ops/precision/void_buy_void_user_manager_private_unit_query_v1.c
+          peer=ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c
+          preexec=ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c
           out="$RUNNER_TEMP/user-manager-query-elf-lock-v2-${{ matrix.node }}.json"
           query_blob="$(git rev-parse "HEAD:$query")"
-          if [ "$query_blob" = "ad49cd7f71c41e0f559a561b5a62a00cec60c215" ]; then
+          peer_blob="$(git rev-parse "HEAD:$peer")"
+          preexec_blob="$(git rev-parse "HEAD:$preexec")"
+          if [ "$query_blob" = "ad49cd7f71c41e0f559a561b5a62a00cec60c215" ] && [ "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611" ] && [ "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff" ]; then
             node "$proof" --self-test | tee "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
             grep -Fx "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2_GREEN" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
             grep -Fx "manager_reexec_deserialize_argv_accepted=true" "$RUNNER_TEMP/query-elf-lock-v2-proof.log"
