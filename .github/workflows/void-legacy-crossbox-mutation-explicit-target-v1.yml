@@ -136,6 +136,10 @@ jobs:
           hold "vault name is unsafe"             env CROSSBOX_SSH_TARGET="$valid_alien"                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 2 ../../vault
           hold "retired Alienware target is forbidden"             env CROSSBOX_SSH_TARGET=zoso@100.122.79.39                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 2 vault-test
           hold "confirmation token required"             env CROSSBOX_SSH_TARGET="$valid_alien" bash "$validator" 2 vault-test
+          hold "validator transaction live integration required; legacy sequential closeout is retired" \
+            env CROSSBOX_SSH_TARGET="$valid_alien" \
+                CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1 \
+                bash "$validator" 2 vault-test
 
           python3 - <<'PY'
           from pathlib import Path
@@ -174,23 +178,36 @@ jobs:
               assert child.index('invalid explicit ALIEN SSH target') < child.index('mkdir -p "$OUT"')
 
           assert '${ALIEN:-zoso@100.122.79.39}' not in validator
-          assert 'valid_ssh_target "$CROSSBOX_SSH_TARGET" || hold "invalid explicit CROSSBOX_SSH_TARGET"' in validator
+          assert 'valid_ssh_target "$CROSSBOX_SSH_TARGET" ||' in validator
+          assert 'hold "invalid explicit CROSSBOX_SSH_TARGET"' in validator
           assert 'epoch must be a canonical positive integer <= 6 digits' in validator
           assert 'vault name is unsafe' in validator
           assert 'publishValidatorCrossboxCloseoutV1' in validator
-          assert 'require_crossbox_source_parity' in validator
-          assert validator.index('confirmation token required') < validator.rindex('require_crossbox_source_parity')
-          assert validator.rindex('require_crossbox_source_parity') < validator.index('mkdir -p "$LIVE_STAGE"')
-          assert 'ssh "$ALIEN"' not in validator
-          assert 'ssh "$CROSSBOX_SSH_TARGET"' in validator
-          assert 'git status --porcelain=v1 --untracked-files=all' in validator
-          assert 'local/remote repository HEAD mismatch' in validator
+          assert 'void-validator-crossbox-transaction-executor-v1.mjs' in validator
+          assert 'legacy_sequential_mutation_retired=true' in validator
+          assert 'validator transaction live integration required; legacy sequential closeout is retired' in validator
+          assert validator.index('confirmation token required') < validator.index('legacy_sequential_mutation_retired=true')
+          assert 'require_crossbox_source_parity' not in validator
+          for forbidden in (
+              'ssh ',
+              'systemctl ',
+              'git tag',
+              'git push',
+              'mkdir -p',
+              'validator-runtime-truth-publish-dir.sh',
+              'validator-runtime-truth-shadow-run.sh',
+              'tar -C',
+              'curl -fsS',
+          ):
+              assert forbidden not in validator, forbidden
 
           print("VOID_LEGACY_CROSSBOX_MUTATION_EXPLICIT_TARGET_V1_GREEN")
           print("destination_only_ssh_targets=true")
           print("peer_urls_validated_before_mutation=true")
           print("dropin_name_validated_before_mutation=true")
-          print("crossbox_source_parity_required_before_mutation=true")
+          print("validator_legacy_sequential_mutation_retired=true")
+          print("validator_transaction_journal_required=true")
+          print("validator_live_integration_still_hold=true")
           print("validator_epoch_and_vault_name_bounded=true")
           print("runtime_mutation_performed=false")
           print("ssh_performed=false")

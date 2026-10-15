@@ -480,16 +480,18 @@ for(const required of [
 
 
 // In a clean V2 checkout, the frozen V1 generator must still reject this
-// new gateway source identity. A green V2 cannot be manufactured by silently
-// repinning V1 history or disabling its source-generation refusal.
+// newer source generation. The Public Earn adapter now drifts before the
+// already-reviewed composition-gateway drift in frozen V1 SOURCE_BLOBS order.
+// A green V2 cannot be manufactured by silently repinning V1 history or
+// disabling its source-generation refusal.
 {
   const { prepareVoidPrecisionWebRecoveryPlanV1 } = await import(
     "../tools/void-precision-web-recovery-evidence-v1.mjs"
   );
   assert.throws(
     () => prepareVoidPrecisionWebRecoveryPlanV1(),
-    /precision_web_source_blob_mismatch:ops\/public\/void-public-app-composition-gateway-v1\.mjs/u,
-    "historical V1 must reject the newer current gateway",
+    /precision_web_source_blob_mismatch:ops\/public\/public-seed-adapter-v1\.mjs/u,
+    "historical V1 must reject the newer current adapter generation",
   );
 }
 console.log("frozen_v1_new_gateway_rejection_intact=true");

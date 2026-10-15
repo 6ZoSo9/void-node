@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { constants as bufferConstants } from "node:buffer";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -28,7 +27,7 @@ const chunkBoundCheck = source.indexOf("Number.isSafeInteger(opts.chunkBytes)");
 const descriptorOpen = source.indexOf("const fd = fs.openSync");
 assert.ok(chunkBoundCheck >= 0 && chunkBoundCheck < descriptorOpen);
 
-const { packFile } = await import("../dist/datanet/pack.js");
+const { MAX_PACK_CHUNK_BYTES, packFile } = await import("../dist/datanet/pack.js");
 
 function snapshotDirectory(dir) {
   return fs.readdirSync(dir)
@@ -47,6 +46,8 @@ const normalOut = path.join(root, "normal");
 const fifoOut = path.join(root, "fifo");
 const shortOut = path.join(root, "short");
 const invalidOut = path.join(root, "invalid");
+const boundaryOut = path.join(root, "boundary");
+const cliInvalidOut = path.join(root, "cli-invalid");
 
 try {
   fs.writeFileSync(input, Buffer.from("abcdefgh", "utf8"));
@@ -59,7 +60,7 @@ try {
     Number.NaN,
     Number.POSITIVE_INFINITY,
     Number.MAX_SAFE_INTEGER + 1,
-    bufferConstants.MAX_LENGTH + 1,
+    MAX_PACK_CHUNK_BYTES + 1,
   ]) {
     assert.throws(
       () => packFile(input, { chunkBytes, outDir: invalidOut }),
@@ -67,6 +68,39 @@ try {
     );
     assert.equal(fs.existsSync(invalidOut), false);
   }
+
+  const boundary = packFile(input, {
+    chunkBytes: MAX_PACK_CHUNK_BYTES,
+    outDir: boundaryOut,
+  });
+  assert.equal(boundary.chunkBytes, MAX_PACK_CHUNK_BYTES);
+  assert.equal(boundary.chunks.length, 1);
+  assert.equal(
+    fs.readFileSync(path.join(boundaryOut, "chunk_000000.bin"), "utf8"),
+    "abcdefgh",
+  );
+
+  const cliOverLimit = spawnSync(
+    process.execPath,
+    [
+      path.join(repo, "dist", "voidctl", "index.js"),
+      "datanet",
+      "pack",
+      "--in",
+      input,
+      "--out",
+      cliInvalidOut,
+      "--chunk-bytes",
+      String(MAX_PACK_CHUNK_BYTES + 1),
+    ],
+    { cwd: repo, encoding: "utf8", timeout: 2_000 },
+  );
+  assert.equal(cliOverLimit.status, 2);
+  assert.match(
+    cliOverLimit.stderr,
+    /invalid --chunk-bytes: expected a positive safe integer/,
+  );
+  assert.equal(fs.existsSync(cliInvalidOut), false);
 
   const normal = packFile(input, { chunkBytes: 4, outDir: normalOut });
   assert.equal(normal.sizeBytes, 8);
@@ -205,7 +239,9 @@ try {
   console.log("staging_generation_leaked=false");
   console.log("manifest_publication_marker_last=true");
   console.log("chunk_bytes_positive_safe_integer=true");
-  console.log("chunk_bytes_buffer_bound=true");
+  console.log("chunk_bytes_operational_bound=true");
+  console.log("chunk_bytes_max_boundary_accepted=true");
+  console.log("voidctl_chunk_bound_aligned=true");
   console.log("invalid_chunk_bytes_no_filesystem_touch=true");
   console.log("wallet_signer_validator_wc_money_authority=0");
 } finally {
