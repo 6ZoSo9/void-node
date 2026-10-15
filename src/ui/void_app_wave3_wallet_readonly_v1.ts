@@ -416,12 +416,17 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
           (walletBody.unlocked === false || walletUnlocked)
     );
 
+  const ledgerAccountMatches = ledgerBody.account === account;
   const ledgerBalanceCandidate =
-    ledgerSource.status === 200 && ledgerBody.ok === true
+    ledgerSource.status === 200 &&
+    ledgerBody.ok === true &&
+    ledgerAccountMatches
       ? walletNonNegativeFiniteNumberV1(ledgerBody.balance)
       : null;
   const ledgerCountCandidate =
-    ledgerSource.status === 200 && ledgerBody.ok === true
+    ledgerSource.status === 200 &&
+    ledgerBody.ok === true &&
+    ledgerAccountMatches
       ? walletNonNegativeSafeIntegerV1(ledgerBody.count)
       : null;
   const ledgerAvailable =
@@ -429,16 +434,19 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
   const ledgerBalance = ledgerAvailable ? ledgerBalanceCandidate : null;
   const ledgerCount = ledgerAvailable ? ledgerCountCandidate : null;
 
+  const productionAccountMatches = productionBody.account === account;
   const productionBalanceCandidate =
     productionSource.status === 200 &&
     productionBody.ok === true &&
-    productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1"
+    productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1" &&
+    productionAccountMatches
       ? walletNonNegativeFiniteNumberV1(productionBody.balance)
       : null;
   const productionCountCandidate =
     productionSource.status === 200 &&
     productionBody.ok === true &&
-    productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1"
+    productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1" &&
+    productionAccountMatches
       ? walletNonNegativeSafeIntegerV1(productionBody.count)
       : null;
   const productionAvailable =
