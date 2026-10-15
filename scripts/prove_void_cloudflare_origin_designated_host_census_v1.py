@@ -179,6 +179,34 @@ expect_config_error(
     config_text.replace("ingress:\n", "not-ingress:\n", 1),
     "tunnel_ingress_missing",
 )
+
+expect_config_error(
+    config_text.replace(
+        "    path: ^/__void/agents/paid-work/credential-requests/v1$\n",
+        "    path:\n"
+        "    path: ^/__void/agents/paid-work/credential-requests/v1$\n",
+        1,
+    ),
+    "tunnel_path_invalid",
+)
+expect_config_error(
+    config_text.replace(
+        "    service: http://127.0.0.1:4311\n",
+        "    service:\n"
+        "    service: http://127.0.0.1:4311\n",
+        1,
+    ),
+    "tunnel_service_invalid",
+)
+expect_config_error(
+    config_text.replace(
+        "      httpHostHeader: seed.nullfeed.org\n",
+        "      httpHostHeader:\n"
+        "      httpHostHeader: seed.nullfeed.org\n",
+        1,
+    ),
+    "tunnel_rule_http_host_header_invalid",
+)
 assert module.canonical_sensitive_path(module.SENSITIVE_PATHS[0]) is None
 assert (
     module.canonical_sensitive_path("^" + module.SENSITIVE_PATHS[0] + "$")
@@ -414,6 +442,7 @@ print("cloudflare_ingress_block_scope_enforced=true")
 print("tunnel_duplicate_hostname_rejected=true")
 print("tunnel_duplicate_ingress_rejected=true")
 print("tunnel_missing_ingress_rejected=true")
+print("tunnel_malformed_scalar_duplicate_smuggling_rejected=true")
 print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
