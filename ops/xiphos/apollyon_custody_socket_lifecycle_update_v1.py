@@ -16,10 +16,10 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-socket-lifecycle-update-v1.json"
-MANIFEST_BLOB="2d8381ceea5ef4cceab3b36250bb340eedd0a8a6"
+MANIFEST_BLOB="f6860d20ddab53d41ca5f5f9b82b2081b426f514"
 SERVICE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"
-NEW_SERVICE_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"
+NEW_SERVICE_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 HELPER_REL="ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py"
@@ -37,7 +37,8 @@ EXPECTED_EXEC_STOP_POST=(
     "apollyon_custody_stale_socket_cleanup_v1.py --cleanup"
 )
 EXPECTED_UNSET_ENVIRONMENT=(
-    "LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH",
+    "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+    "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
 )
 
 class Hold(RuntimeError): pass
@@ -274,7 +275,7 @@ def self_test()->None:
     service=read_source(SERVICE_REL,NEW_SERVICE_BLOB).decode()
     assert "ExecStopPost="+EXPECTED_EXEC_STOP_POST in service
     assert (
-        "UnsetEnvironment=LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH"
+        "UnsetEnvironment=GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF"
         in service
     )
     own=Path(__file__).read_text(encoding="utf-8")
