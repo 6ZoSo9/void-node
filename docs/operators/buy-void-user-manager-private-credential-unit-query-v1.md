@@ -7,17 +7,22 @@ forge the credential-effective systemd properties even while reporting the real
 node PID.
 
 This source lane adds a new native query primitive without changing the current
-PrivateUsers V5 query generation.
+accepted V6 user-manager query generation.
 
 ## Trust path
 
 The query embeds the accepted authenticated user-manager private peer guard
 `d8b30ac499c3bb8a5d223dbc6be687dd175be611`.
 
-The current V5 PrivateUsers-bound unit-query source
-`ddca2c544ce14261dffb80a202c0a4ae2979ec1e` is pinned as the integration
-peer. Accepted V4 binary evidence remains frozen in its historical lock, and
-the current unit-query preexec source is pinned at
+The accepted V6 unit-query source
+`fc1f640689b7da7278ff013669ef8a10cd8f6659` is pinned as the integration
+peer through V6 lock
+`voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6`.
+That lock binds the current capability/NoNewPrivileges/PrivateUsers query
+generation while keeping installation and live-query authority false. The V5
+source `ddca2c544ce14261dffb80a202c0a4ae2979ec1e` is superseded historical
+evidence and was never installed. Accepted V4 evidence remains frozen in its
+historical lock. The current ordinary unit-query preexec source is pinned at
 `f0fbfaae97df3294097a281100f06ada2ef157ff` only as historical/integration
 context. It executes the ordinary unit-query binary, not this credential-query
 binary, and therefore supplies no live execution authority for this lane.
@@ -34,8 +39,8 @@ A future live execution must run as root and:
    authenticated connection;
 7. bind MainPID to cgroup, executable, parent-manager, UID/GID and process
    generation inside this primitive;
-8. compose that exact MainPID/start-ticks generation with the separately
-   accepted current capability/NoNewPrivileges/PrivateUsers security transcript;
+8. compose that exact MainPID/start-ticks generation with the accepted V6
+   capability/NoNewPrivileges/PrivateUsers security transcript;
 9. run this binary only through a new protected preexec generation that binds
    its exact installed identity and constructs the minimal loader environment;
 10. re-query both ordinary and credential properties and revalidate manager,
@@ -46,8 +51,9 @@ manager, exact cgroup, UID/GID generation and root-owned `/usr/bin/node`
 executable. It does not itself query or prove CapabilityBoundingSet,
 AmbientCapabilities, kernel capability sets, NoNewPrivileges or PrivateUsers.
 A later integration must require this exact MainPID/start-ticks generation to
-match whichever canonical security-transcript generation is accepted at that
-time; the source-only primitive carries no such policy authority by itself.
+match the accepted V6 security transcript (or an explicitly reviewed successor
+if V6 is superseded before integration); the source-only primitive carries no
+such policy authority by itself.
 
 The public `/run/user/<uid>/bus` endpoint is never used.
 
@@ -73,12 +79,13 @@ For `void-node-live.service`, the primitive requires and emits:
 
 The credential contents are not opened or read by this primitive.
 
-## Why this is separate from the accepted V4 query
+## Why this remains additive to the accepted query
 
-The canonical V4 query is already accepted and merged. Rewriting it to add
-credential properties would create a new binary generation and invalidate its
-accepted evidence. This lane is additive so the accepted query remains
-byte-frozen.
+The canonical V6 query and its exact ELF lock are already accepted source/CI
+evidence. Rewriting that query to add credential properties would create a new
+binary generation and invalidate the accepted identity. This lane is additive
+so V6 remains byte-frozen and the credential-specific primitive can acquire its
+own candidate/lock/preexec evidence.
 
 The source is also deliberately not wired into the older Epoch-2 sealed
 attestation yet. A later integration must consume an accepted binary identity
@@ -102,8 +109,9 @@ Still false:
 - transaction or funds movement.
 
 Next gate: a protected credential-query preexec generation plus reproducible
-candidate/lock acceptance. Before any live integration, refresh the composition
-against the accepted current security-transcript generation, then build a
-separately reviewed #2870 integration successor.
+candidate/lock acceptance. Before any live integration, compose the exact
+credential-query MainPID/start-ticks generation with accepted V6 security
+evidence (or an explicitly reviewed successor), then build a separately reviewed
+#2870 integration successor.
 
 PROTECT THE CORE.
