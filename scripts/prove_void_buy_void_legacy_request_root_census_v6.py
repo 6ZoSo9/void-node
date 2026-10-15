@@ -95,7 +95,7 @@ assert "os.scandir(path)" not in source
 assert "_meta(path / name)" not in source
 assert "_ancestor_symlink(" not in source
 assert "os.scandir(dir_fd)" in source
-assert "dir_fd=current_fd" in source
+assert "_open_directory_component(current_fd, component)" in source
 assert "follow_symlinks=False" in source
 assert "os.O_NOFOLLOW" in source
 assert "before = os.stat(component, dir_fd=parent_fd, follow_symlinks=False)" in source
