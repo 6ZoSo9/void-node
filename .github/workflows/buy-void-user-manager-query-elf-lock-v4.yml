@@ -1,0 +1,155 @@
+name: VOID Buy user manager query ELF lock v4
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+      - "scripts/prove_void_buy_user_manager_query_elf_lock_v4.mjs"
+      - "docs/operators/buy-void-user-manager-query-elf-lock-v4.md"
+      - ".github/workflows/buy-void-user-manager-query-elf-lock-v4.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+      - "scripts/prove_void_buy_user_manager_query_elf_lock_v4.mjs"
+      - "docs/operators/buy-void-user-manager-query-elf-lock-v4.md"
+      - ".github/workflows/buy-void-user-manager-query-elf-lock-v4.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Rederive or consume exact V4 lock
+        run: |
+          set -euo pipefail
+          proof=scripts/prove_void_buy_user_manager_query_elf_lock_v4.mjs
+          out="$RUNNER_TEMP/user-manager-query-elf-lock-v4-${{ matrix.node }}.json"
+          candidate_workflow_blob="$(git rev-parse HEAD:.github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml)"
+
+          if git merge-base --is-ancestor 12cec975bc560ebd90c430732261c1b98c4af1d2 HEAD &&
+             [ "$candidate_workflow_blob" = "abf4f67d2e99fb29906e21ba1c388df6cdc8c0ce" ]; then
+            node "$proof" --self-test | tee "$RUNNER_TEMP/query-elf-lock-v4-proof.log"
+            grep -Fx "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V4_GREEN" "$RUNNER_TEMP/query-elf-lock-v4-proof.log"
+            grep -Fx "manager_reexec_deserialize_argv_accepted=true" "$RUNNER_TEMP/query-elf-lock-v4-proof.log"
+            grep -Fx "kernel_capability_state_bound=true" "$RUNNER_TEMP/query-elf-lock-v4-proof.log"
+            grep -Fx "configured_kernel_bounding_set_equality_required=true" "$RUNNER_TEMP/query-elf-lock-v4-proof.log"
+            grep -Fx "private_users_false_required=true" "$RUNNER_TEMP/query-elf-lock-v4-proof.log"
+            grep -Fx "candidate_accepted=true" "$RUNNER_TEMP/query-elf-lock-v4-proof.log"
+            grep -Fx "install_authorized=false" "$RUNNER_TEMP/query-elf-lock-v4-proof.log"
+            grep -Fx "live_query_authorized=false" "$RUNNER_TEMP/query-elf-lock-v4-proof.log"
+            node "$proof" --derive > "$out"
+            cmp "$out" ops/security/buy-void-user-manager-query-elf-lock-v4.json
+          else
+            test "$candidate_workflow_blob" = "1d38d410554e435f8e472be732cd03e8d4be2da6"
+            test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
+            test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c)" = "f0fbfaae97df3294097a281100f06ada2ef157ff"
+            test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "6aefc385bcc4212d3c45e36871bfde0da3529baa"
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v4.json)" = "988542122028843b2848063dbbaf7a94c32d6cd4"
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v2.json)" = "347951dbaa2d9bb5c31c8b718d9965ab3fdf7301"
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
+            test "$(git rev-parse HEAD:scripts/prove_void_buy_user_manager_query_elf_lock_v4.mjs)" = "e86a1c27186d47e05b1c6292475f71c5d591a44e"
+
+            node --input-type=module <<'NODE'
+            import assert from "node:assert/strict";
+            import crypto from "node:crypto";
+            import fs from "node:fs";
+            const gitBlob=b=>crypto.createHash("sha1")
+              .update(Buffer.from("blob "+b.length+"\0","utf8")).update(b).digest("hex");
+            const candidateBytes=fs.readFileSync("ops/security/buy-void-user-manager-query-elf-candidate-v4.json");
+            const lockBytes=fs.readFileSync("ops/security/buy-void-user-manager-query-elf-lock-v4.json");
+            assert.equal(gitBlob(candidateBytes),"988542122028843b2848063dbbaf7a94c32d6cd4");
+            assert.equal(gitBlob(lockBytes),"55ceccf61d59a18809e74979afa518ed150d62a0");
+            const c=JSON.parse(candidateBytes);
+            const l=JSON.parse(lockBytes);
+            assert.equal(c.query_source_git_blob_sha1,"6aefc385bcc4212d3c45e36871bfde0da3529baa");
+            assert.equal(c.query_binary_sha256,"e8df6ed33ed798e2e3015f7c9a8a3548031049eb1867029e35e3e20953aeed56");
+            assert.equal(c.private_users_false_required,true);
+            assert.equal(c.candidate_accepted,false);
+            assert.equal(l.candidate_evidence.git_blob_sha1,"988542122028843b2848063dbbaf7a94c32d6cd4");
+            assert.equal(l.predecessor_lock.git_blob_sha1,"347951dbaa2d9bb5c31c8b718d9965ab3fdf7301");
+            assert.equal(l.lock_id,"voidbuyumqelflock4_846047629dd2dd58f73f926d85cddde5b0a1510493d59a2d7ef778d235a70301");
+            assert.equal(l.private_users_false_required,true);
+            assert.equal(l.candidate_accepted,true);
+            assert.equal(l.install_authorized,false);
+            assert.equal(l.live_query_authorized,false);
+            assert.equal(l.public_presale_activation,false);
+            assert.equal(l.funds_movement,false);
+            console.log("VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V4_INTEGRATION_GREEN");
+          NODE
+            cp ops/security/buy-void-user-manager-query-elf-lock-v4.json "$out"
+          fi
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-user-manager-query-elf-lock-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/user-manager-query-elf-lock-v4-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-user-manager-query-elf-lock-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: locks
+      - name: Require exact V4 lock equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "locks/user-manager-query-elf-lock-v4-$node.json"
+          done
+          cmp locks/user-manager-query-elf-lock-v4-22.json locks/user-manager-query-elf-lock-v4-24.json
+          cmp locks/user-manager-query-elf-lock-v4-22.json locks/user-manager-query-elf-lock-v4-26.json
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const l=JSON.parse(fs.readFileSync("locks/user-manager-query-elf-lock-v4-22.json","utf8"));
+          assert.equal(l.marker,"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V4");
+          assert.equal(l.lock_id,"voidbuyumqelflock4_846047629dd2dd58f73f926d85cddde5b0a1510493d59a2d7ef778d235a70301");
+          assert.equal(l.manager_reexec_deserialize_argv_accepted,true);
+          assert.equal(l.kernel_capability_state_bound,true);
+          assert.equal(l.configured_kernel_bounding_set_equality_required,true);
+          assert.equal(l.private_users_false_required,true);
+          assert.equal(l.candidate_accepted,true);
+          assert.equal(l.install_authorized,false);
+          assert.equal(l.live_query_authorized,false);
+          assert.equal(l.public_presale_activation,false);
+          assert.equal(l.funds_movement,false);
+          console.log("VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V4_CROSS_NODE_GREEN");
+          NODE

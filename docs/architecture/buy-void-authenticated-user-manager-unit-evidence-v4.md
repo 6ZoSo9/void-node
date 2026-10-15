@@ -2,54 +2,56 @@
 
 Marker: `VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V4`.
 
-Status: **source/read-only transcript parser and classifier; complete host evidence still HOLD**.
+Status: **source/read-only trust composition; complete host evidence still HOLD**.
 
-## Purpose
+## Why V4 exists
 
-The V3 evidence contract assumed an empty configured `CapabilityBoundingSet`.
-Precision's accepted user-runtime hardening V2 intentionally preserves the
-configured/kernel bounding mask while requiring `NoNewPrivileges=yes` and zero
-active kernel capability masks.
+Historical V3 required the authenticated systemd `CapabilityBoundingSet` to be
+empty. Precision live hardening established that forcing the per-user manager's
+configured bounding set empty changes its execution namespace and is not the
+safe host transition.
 
-V4 consumes the exact authenticated native query V2 transcript instead of
-reusing the obsolete V3 user-service shape adapter.
-
-## Exact native transcript requirements
-
-The parser accepts only marker:
-
-`VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V2_GREEN`
-
-It requires the complete exact field set and rejects duplicates, unknown fields,
-missing fields, malformed integers, malformed 64-bit masks, or caller-built
-object substitutes.
-
-Required security state:
-- manager private peer authenticated;
-- same retained authenticated FD used for the unit query;
-- sanitized dynamic-loader environment;
-- fixed retained libsystemd provenance;
-- loaded/active/running `void-node-live.service`;
-- implicit empty systemd `User=` / `Group=`;
-- `NoNewPrivileges=yes`;
-- `PrivateUsers=no`;
-- configured `AmbientCapabilities=0000000000000000`;
+The reviewed native V3 query instead binds the configured mask to kernel state:
+- systemd `NoNewPrivileges=true`;
+- systemd `PrivateUsers=false`;
+- systemd `AmbientCapabilities=0`;
 - kernel `NoNewPrivs=1`;
-- kernel `CapInh/CapPrm/CapEff/CapAmb` all zero;
-- kernel `CapBnd` byte-equal to configured `CapabilityBoundingSet`;
-- direct service-parent relation to the authenticated manager;
-- retained manager/service pidfds and generation revalidation;
-- all mutation/payment/presale/funds authority booleans false.
+- kernel `CapInh/CapPrm/CapEff/CapAmb=0`;
+- kernel `CapBnd` exactly equals the authenticated systemd
+  `CapabilityBoundingSet`;
+- the complete process capability tuple is reread and unchanged after the query.
 
-## Authority
+V4 consumes that exact transcript. V3 stays immutable historical evidence.
 
-V4 is still a source-composition/evidence-shape layer. It does not install or
-execute the protected query, perform host mutation, read request/payment
-contents, access credentials/keys/wallets, accept payment, activate presale/WC,
-or move funds.
+## Authenticated user-manager boundary
 
-A separately reviewed V2 live qualifier must execute the fixed protected query
-twice and bind stable manager/service/query generations before request-root
-census authority can consume this evidence.
+V4 preserves the accepted private-peer/same-FD boundary:
+- root-selected reexec-aware `systemd --user` manager;
+- retained manager/service pidfds;
+- `/run/user/<uid>/systemd/private` and exact `SO_PEERCRED`;
+- fixed root-controlled libsystemd path/descriptor/symbol provenance;
+- no public user bus;
+- D-Bus MainPID rebound to exact direct-child/cgroup/executable generation.
 
-PROTECT THE CORE.
+## Capability semantics
+
+A nonzero configured bounding set is not itself treated as an effective
+capability grant. V4 requires all non-bounding process capability sets to be
+zero and requires exact configured-bound ↔ kernel-bound equality at the
+authenticated MainPID. A mismatch, nonzero permitted/effective/inheritable/
+ambient set, missing NNP, `PrivateUsers!=false`, malformed mask, or false native relation marker fails
+closed.
+
+## Remaining HOLD
+
+V4 still does not bind the complete #2452 host profile:
+- custody service V2 source/config;
+- stable request-root installed profile;
+- live storage mounts;
+- RuntimeDirectory/socket;
+- Polkit denial;
+- double-census stability;
+- external monotonic witness continuity.
+
+Therefore complete host evidence, payment acceptance, presale activation and
+funds movement remain false.

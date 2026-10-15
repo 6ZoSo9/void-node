@@ -11,6 +11,11 @@ on:
       - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
       - "ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py"
       - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
       - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
   push:
     branches: [main]
@@ -23,6 +28,11 @@ on:
       - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
       - "ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py"
       - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
       - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
 
 permissions:
@@ -37,7 +47,51 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Dispatch exact V2 census generation
+        id: generation
+        run: |
+          set -euo pipefail
+          query_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
+          peer_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)"
+          preexec_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c)"
+          lock_v2_blob="$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v2.json)"
+          parser_blob="$(git rev-parse HEAD:tools/void-buy-allocation-custody-host-evidence-v4.mjs)"
+          if [ "$query_blob" = "5355b7f177574ac4fa173a693605acaf9c5f26e4" ] &&
+             [ "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611" ] &&
+             [ "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff" ] &&
+             [ "$lock_v2_blob" = "b3abcb408730cf5e79093f6df30733f11324e95c" ] &&
+             [ "$parser_blob" = "7887cacd5481ba70a34dc7316fe8343e928936b5" ]; then
+            echo "superseded3114=true" >> "$GITHUB_OUTPUT"
+          else
+            test "$query_blob" = "6aefc385bcc4212d3c45e36871bfde0da3529baa"
+            test "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
+            test "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff"
+            test "$lock_v2_blob" = "347951dbaa2d9bb5c31c8b718d9965ab3fdf7301"
+            test "$parser_blob" = "223a8acf32f8c7961d61222b83c0db17075f86c6"
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
+            echo "superseded3114=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Preserve superseded 3114 census evidence
+        if: steps.generation.outputs.superseded3114 != 'true'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_legacy_request_root_census_v2.py)" = "d23968ac9fd7887ec505166e7cec42162d2507db"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_legacy_request_root_census_v2.py)" = "1495e13f93e4fb282b527109bdc0776c522da237"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-legacy-request-root-census-v2.md)" = "036b2c7ccc397f650dafc5869f4e9ae202e95d5f"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_request_root_runtime_topology_census_v1.py)" = "9ca9cb948a08973d0d874c5473ad2743de14140c"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_request_root_runtime_topology_census_v2.py)" = "305737478025e22ddc8f56da29f2a2dfde251d8b"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py)" = "16c75f6f385749283221914c92c968281578dbb3"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py)" = "25753737ac7719b0ceddc759904c81db0f7a1cae"
+          echo "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V2_HISTORICAL_PRESERVED"
       - name: Syntax and focused proof
+        if: steps.generation.outputs.superseded3114 == 'true'
         run: |
           set -euo pipefail
           python3 -I -B - <<'PY'
@@ -63,6 +117,7 @@ jobs:
           grep -Fx 'historical_request_history_disposition_proven=false' "$RUNNER_TEMP/legacy-root-census-v2.log"
           grep -Fx 'external_witness_required=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
       - name: Plan is inert
+        if: steps.generation.outputs.superseded3114 == 'true'
         run: |
           set -euo pipefail
           python3 -I -B ops/precision/void_buy_void_legacy_request_root_census_v2.py --plan |
