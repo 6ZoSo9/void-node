@@ -11,14 +11,13 @@ PrivateUsers V4 query generation.
 
 ## Trust path
 
-The query embeds the accepted canonical sources:
+The query embeds the accepted authenticated user-manager private peer guard
+`d8b30ac499c3bb8a5d223dbc6be687dd175be611`.
 
-- authenticated user-manager private peer guard:
-  `d8b30ac499c3bb8a5d223dbc6be687dd175be611`;
-- PrivateUsers-bound unit query:
-  `6aefc385bcc4212d3c45e36871bfde0da3529baa`;
-- the accepted preexec source remains independently pinned:
-  `f0fbfaae97df3294097a281100f06ada2ef157ff`.
+The accepted PrivateUsers-bound unit query
+`6aefc385bcc4212d3c45e36871bfde0da3529baa` remains byte-frozen as a
+separate integration peer, and the accepted preexec source remains independently
+pinned at `f0fbfaae97df3294097a281100f06ada2ef157ff`.
 
 A future live execution must run as root and:
 
@@ -34,6 +33,11 @@ A future live execution must run as root and:
    NoNewPrivileges and PrivateUsers evidence;
 8. re-query both ordinary and credential properties and revalidate manager,
    service, pidfds and retained socket peer before success.
+
+This primitive independently kernel-binds the returned MainPID to the same
+manager, exact cgroup, UID/GID generation and root-owned `/usr/bin/node`
+executable. A later integration must require this MainPID/start-ticks generation
+to match the separately accepted V4 security transcript.
 
 The public `/run/user/<uid>/bus` endpoint is never used.
 
