@@ -66,3 +66,11 @@ It does not close independent peer/session authentication, custody/failure-domai
 Source/proof/schema/docs/CI only.
 
 No filesystem mutation, credential access, private-key access, wallet/signer access, transaction signing, transaction submission, RPC/network call, Chain-2050 write, validator/governance/Work Credit mutation, automatic retry, treasury/liquidity action, or funds movement is authorized or performed.
+
+## Production registry identity binding
+
+Event membership independently requires both the finalized admission and the
+verified `ContentCommitted` receipt to name the exact reviewed production
+registry `0xe60b15ed8df7c4ec5334067ead18c924744c2681`. Matching a receipt log to a
+self-consistent alternate admission address is not sufficient. The downstream
+membership artifact always carries the production registry identity.
