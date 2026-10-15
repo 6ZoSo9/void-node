@@ -22,9 +22,9 @@ RUN_PARENT=Path("/run")
 NODE=Path("/usr/bin/node")
 RUNNER_REL="tools/apollyon-designated-host-custody-live-qualification-v2.mjs"
 REVIEWED_FILES={
-    RUNNER_REL:"a46cae54131bd25c25f2efb2d67c24b57a872a7e",
+    RUNNER_REL:"c242cd056bd6f87864c3000b4d038f6f12433efb",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
-        "c7c63106511ee285f8f1cf79b97d32afe0424c65",
+        "676c41dc5cdaea88135611190901ec24edad95a4",
     "tools/apollyon-custody-host-policy-qualification-v1.mjs":
         "6f34e79d94c502e31ca4923fd78922d4875550a5",
     "tools/apollyon-custody-host-policy-qualification-v2.mjs":

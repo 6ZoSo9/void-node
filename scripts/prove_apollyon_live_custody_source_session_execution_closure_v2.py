@@ -36,7 +36,7 @@ expected={
     "tools/apollyon-authorization-custody-launcher-v2.mjs":
         "d23ff045d8c355401fed499c6bcffd503ba4c7fd",
     "tools/apollyon-designated-host-custody-live-qualification-v2.mjs":
-        "a46cae54131bd25c25f2efb2d67c24b57a872a7e",
+        "c242cd056bd6f87864c3000b4d038f6f12433efb",
     "tools/apollyon-custody-host-policy-qualification-v2.mjs":
         "db5493a513a42780865e7194580eec3b770dc8e1",
     "tools/apollyon-custody-host-policy-qualification-v1.mjs":
