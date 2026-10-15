@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
+import importlib.util
 import json
 import os
 import pathlib
@@ -11,6 +11,20 @@ import socket
 import stat
 import subprocess
 from typing import Any
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+V1_PATH = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
+V2_PATH = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
+
+def _load(path: pathlib.Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+v1 = _load(V1_PATH, "void_buy_request_root_runtime_topology_census_v1")
+v2 = _load(V2_PATH, "void_buy_request_root_runtime_topology_census_v2")
 
 MARKER = "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1"
 EXPECTED_HOSTNAME = "zoso-Precision-Tower-7810"
@@ -22,7 +36,6 @@ REPO_ROOT = pathlib.Path.home() / "dev" / "void-node"
 RELEASES_ROOT = pathlib.Path("/opt/void-node-live/releases")
 STABLE_ROOT = pathlib.Path("/var/lib/void-buy-request-journal-v1")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
-MAX_ENV_BYTES = 1024 * 1024
 MAX_DIRECT_ENTRIES = 100_000
 
 class CensusError(RuntimeError):
@@ -36,14 +49,14 @@ def _run(argv: list[str]) -> subprocess.CompletedProcess[str]:
         stderr=subprocess.PIPE,
         text=True,
         check=False,
-        env={**os.environ, "PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+        env=v1.safe_user_env(os.geteuid()),
     )
 
 def _machine_id_sha256() -> str:
-    raw = pathlib.Path("/etc/machine-id").read_text(encoding="ascii").strip().lower()
-    if not re.fullmatch(r"[0-9a-f]{32}", raw):
-        raise CensusError("machine_id_invalid")
-    return hashlib.sha256(raw.encode("ascii")).hexdigest()
+    value = v2.machine_id_sha256()
+    if value is None:
+        raise CensusError("machine_id_unqualified")
+    return value
 
 def _service() -> dict[str, Any]:
     cp = _run([
@@ -74,28 +87,32 @@ def _service() -> dict[str, Any]:
         "live_process_cwd": live_cwd,
     }
 
-def _targeted_process_env(pid: int | None) -> dict[str, Any]:
-    if not pid or pid <= 1:
-        return {"readable": False, "present": None, "reason": "mainpid_unavailable"}
-    try:
-        data = pathlib.Path(f"/proc/{pid}/environ").read_bytes()
-    except PermissionError:
-        return {"readable": False, "present": None, "reason": "permission_denied"}
-    except OSError as exc:
-        return {"readable": False, "present": None, "reason": f"os_error_{exc.errno}"}
-    if len(data) > MAX_ENV_BYTES:
-        return {"readable": False, "present": None, "reason": "environment_too_large"}
-    prefix = (REQUEST_ENV + "=").encode()
-    matches = [part[len(prefix):] for part in data.split(b"\0") if part.startswith(prefix)]
-    if len(matches) > 1:
-        return {"readable": True, "present": True, "reason": "duplicate_target_key"}
-    if not matches:
-        return {"readable": True, "present": False, "value": None}
-    try:
-        value = matches[0].decode("utf-8", "strict")
-    except UnicodeDecodeError:
-        return {"readable": True, "present": True, "reason": "invalid_utf8"}
-    return {"readable": True, "present": True, "value": value}
+def _request_root_status(observation: dict[str, Any]) -> dict[str, Any]:
+    body = observation.get("body")
+    result = {
+        "observed": False,
+        "source": None,
+        "request_dir": None,
+    }
+    if not isinstance(body, dict):
+        return result
+    request_dir = body.get("request_dir")
+    source = body.get("request_dir_source")
+    if (
+        observation.get("observed") is not True
+        or body.get("marker") != "VOID_BUY_VOID_CONFIRMED_CLOSEOUT_RUNTIME_V1"
+        or source not in {"server_default", REQUEST_ENV}
+        or not isinstance(request_dir, str)
+        or not os.path.isabs(request_dir)
+        or os.path.normpath(request_dir) != request_dir
+    ):
+        return result
+    result.update({
+        "observed": True,
+        "source": source,
+        "request_dir": request_dir,
+    })
+    return result
 
 def _absolute(path: os.PathLike[str] | str) -> str:
     return os.path.abspath(os.path.normpath(str(path)))
@@ -270,7 +287,9 @@ def plan() -> None:
     print("sudo_required=false")
     print("filesystem_write=false")
     print("service_mutation=false")
-    print("network_calls=false")
+    print("external_network_calls=false")
+    print("loopback_get_only=true")
+    print("process_environment_access=false")
     print("request_or_payment_contents_read=false")
     print("directory_entry_names_output=false")
     print("candidate_set_completeness_proven=false")
@@ -284,24 +303,32 @@ def collect() -> dict[str, Any]:
         raise CensusError("ordinary_user_required")
     hostname = socket.gethostname()
     machine_sha = _machine_id_sha256()
-    service = _service()
-    env = _targeted_process_env(service.get("main_pid"))
+    service_before = _service()
+    process_before = v1.read_process_generation(
+        int(service_before.get("main_pid") or 0)
+    )
+    listener_before = v1.runtime_http_listener_binding(
+        int(service_before.get("main_pid") or 0)
+    )
+    status_before = _request_root_status(
+        v1.bounded_local_json(v1.CONFIRMED_CLOSEOUT_STATUS_PATH)
+    )
 
     candidates: dict[str, list[str]] = {}
     def add(path: os.PathLike[str] | str, source: str) -> None:
         candidates.setdefault(_absolute(path), []).append(source)
 
     add(REPO_ROOT / DEFAULT_RELATIVE, "repo_default")
-    if service.get("working_directory"):
-        add(pathlib.Path(service["working_directory"]) / DEFAULT_RELATIVE, "unit_working_directory_default")
-    if service.get("live_process_cwd"):
-        add(pathlib.Path(service["live_process_cwd"]) / DEFAULT_RELATIVE, "live_process_cwd_default")
-    if env.get("present") is True and isinstance(env.get("value"), str) and env["value"]:
-        value = env["value"]
-        if os.path.isabs(value):
-            add(value, "live_process_explicit_request_dir")
-        elif service.get("live_process_cwd"):
-            add(pathlib.Path(service["live_process_cwd"]) / value, "live_process_explicit_request_dir_relative")
+    if service_before.get("working_directory"):
+        add(pathlib.Path(service_before["working_directory"]) / DEFAULT_RELATIVE, "unit_working_directory_default")
+    if service_before.get("live_process_cwd"):
+        add(pathlib.Path(service_before["live_process_cwd"]) / DEFAULT_RELATIVE, "live_process_cwd_default")
+    if (
+        status_before.get("observed") is True
+        and status_before.get("source") == REQUEST_ENV
+        and isinstance(status_before.get("request_dir"), str)
+    ):
+        add(status_before["request_dir"], "live_status_explicit_request_dir")
 
     release_inventory_complete = True
     release_count = 0
@@ -314,6 +341,44 @@ def collect() -> dict[str, Any]:
     except PermissionError:
         release_inventory_complete = False
 
+    service_after = _service()
+    process_after = v1.read_process_generation(
+        int(service_after.get("main_pid") or 0)
+    )
+    listener_after = v1.runtime_http_listener_binding(
+        int(service_after.get("main_pid") or 0)
+    )
+    status_after = _request_root_status(
+        v1.bounded_local_json(v1.CONFIRMED_CLOSEOUT_STATUS_PATH)
+    )
+    runtime_process_generation_stable = (
+        service_before.get("load_state") == "loaded"
+        and service_after.get("load_state") == "loaded"
+        and service_before.get("active_state") == "active"
+        and service_after.get("active_state") == "active"
+        and service_before.get("sub_state") == "running"
+        and service_after.get("sub_state") == "running"
+        and service_before.get("working_directory")
+            == service_after.get("working_directory")
+        and service_before.get("live_process_cwd")
+            == service_after.get("live_process_cwd")
+        and process_before.get("observed") is True
+        and process_after.get("observed") is True
+        and process_before.get("pid") == process_after.get("pid")
+        and process_before.get("start_ticks") == process_after.get("start_ticks")
+        and process_before.get("cwd") == process_after.get("cwd")
+        and process_before.get("exe") == process_after.get("exe")
+    )
+    runtime_listener_stable = (
+        listener_before == listener_after
+        and listener_before.get("owned_by_runtime_pid") is True
+        and listener_before.get("loopback_listener_observed") is True
+    )
+    request_root_status_stable = (
+        status_before == status_after
+        and status_before.get("observed") is True
+    )
+
     add(STABLE_ROOT, "selected_future_stable_root")
     rows = [classify_candidate(pathlib.Path(path), sources) for path, sources in sorted(candidates.items())]
     historical = [row for row in rows if "selected_future_stable_root" not in row["sources"]]
@@ -324,8 +389,9 @@ def collect() -> dict[str, Any]:
 
     candidate_set_complete = (
         release_inventory_complete
-        and env.get("readable") is True
-        and env.get("reason") != "duplicate_target_key"
+        and runtime_process_generation_stable
+        and runtime_listener_stable
+        and request_root_status_stable
     )
     return {
         "marker": MARKER,
@@ -333,8 +399,14 @@ def collect() -> dict[str, Any]:
         "read_only": True,
         "designated_hostname_matches": hostname == EXPECTED_HOSTNAME,
         "designated_machine_id_matches": machine_sha == EXPECTED_MACHINE_ID_SHA256,
-        "service": service,
-        "targeted_live_process_request_env": env,
+        "service": service_before,
+        "process_environment_access": False,
+        "external_network_calls": False,
+        "loopback_get_only": True,
+        "runtime_process_generation_stable": runtime_process_generation_stable,
+        "runtime_http_listener_stable": runtime_listener_stable,
+        "confirmed_closeout_request_root_status": status_before,
+        "confirmed_closeout_request_root_status_stable": request_root_status_stable,
         "immutable_release_count": release_count,
         "immutable_release_inventory_complete": release_inventory_complete,
         "candidate_set_completeness_proven": False,
@@ -385,6 +457,9 @@ def main() -> int:
     for key in (
         "read_only", "designated_hostname_matches", "designated_machine_id_matches",
         "candidate_set_completeness_proven", "bounded_current_candidate_set_observed",
+        "process_environment_access", "external_network_calls", "loopback_get_only",
+        "runtime_process_generation_stable", "runtime_http_listener_stable",
+        "confirmed_closeout_request_root_status_stable",
         "request_or_payment_contents_read", "directory_entry_names_output",
         "historical_request_history_disposition_proven", "historical_origin_authenticated",
         "filesystem_rollback_prevention_proven", "migration_authorized",
