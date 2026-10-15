@@ -359,6 +359,12 @@ def classify_candidate(path: pathlib.Path, sources: list[str]) -> dict[str, Any]
         result["classification"] = "HOLD_UNCLASSIFIED"
     return result
 
+def _classify_candidates(candidates: dict[str, list[str]]) -> list[dict[str, Any]]:
+    return [
+        classify_candidate(pathlib.Path(path), sources)
+        for path, sources in sorted(candidates.items())
+    ]
+
 def self_test() -> None:
     import tempfile
     with tempfile.TemporaryDirectory(prefix="void-legacy-root-census-") as td:
@@ -376,6 +382,14 @@ def self_test() -> None:
         (fixed / "requests.jsonl").write_bytes(b"x")
         s = classify_candidate(fixed, ["synthetic"])
         assert s["classification"] == "SURVIVING_HISTORY_METADATA_OBSERVED"
+
+        window = root / "late-window"
+        window.mkdir()
+        window_candidates = {_absolute(window): ["synthetic"]}
+        early_rows = _classify_candidates(window_candidates)
+        (window / "requests.jsonl").write_bytes(b"x")
+        late_rows = _classify_candidates(window_candidates)
+        assert early_rows != late_rows
     for dependency, expected in DEPENDENCY_BLOBS.items():
         assert _git_blob_sha1(_authenticated_source_bytes(dependency)) == expected
     own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
@@ -396,6 +410,7 @@ def self_test() -> None:
     print("authenticated_user_manager_query_v6_dependency_bound=true")
     print("cap_last_cap_projection_contract_required=true")
     print("unauthenticated_user_manager_not_authority=true")
+    print("late_candidate_mutation_forces_unstable=true")
     print("production_gate_ready=false")
 
 def plan() -> None:
@@ -482,15 +497,7 @@ def collect() -> dict[str, Any]:
     release_count = len(release_paths_before)
 
     add(STABLE_ROOT, "selected_future_stable_root")
-    rows = [
-        classify_candidate(pathlib.Path(path), sources)
-        for path, sources in sorted(candidates.items())
-    ]
-    rows_second = [
-        classify_candidate(pathlib.Path(path), sources)
-        for path, sources in sorted(candidates.items())
-    ]
-    candidate_observations_stable = rows == rows_second
+    rows = _classify_candidates(candidates)
 
     release_paths_after, release_inventory_complete_after = _release_inventory()
     process_after = v1.read_process_generation(main_pid)
@@ -506,6 +513,9 @@ def collect() -> dict[str, Any]:
     installed_after = auth.installed_generation_snapshot(replacement)
     identity_after = authenticated_after["identity"]
     cap_last_cap_after, supported_mask_after = auth._read_kernel_cap_last_cap()
+
+    rows_second = _classify_candidates(candidates)
+    candidate_observations_stable = rows == rows_second
 
     kernel_cap_last_cap_stable = (
         cap_last_cap_before == cap_last_cap_after

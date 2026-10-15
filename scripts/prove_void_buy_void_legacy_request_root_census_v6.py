@@ -13,7 +13,7 @@ V1 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
 V2 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 AUTH = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
 
-TARGET_BLOB = "4a931683821e1f02fb84ceedac265b46492759df"
+TARGET_BLOB = "6b083227ba761c0a6b591fc6fe14c43e121f0161"
 EXPECTED_DEPENDENCY_BLOBS = {
     V1: "9ca9cb948a08973d0d874c5473ad2743de14140c",
     V2: "305737478025e22ddc8f56da29f2a2dfde251d8b",
@@ -78,6 +78,7 @@ for required in (
     "designated_host_identity_verified",
     "root_required_for_authenticated_manager_query",
     "designated_runtime_user_matches",
+    "late_candidate_mutation_forces_unstable",
 ):
     assert required in source, required
 
@@ -112,6 +113,21 @@ for forbidden in (
 ):
     assert forbidden not in production_source, forbidden
 
+collect_source = source[source.index("def collect() -> dict[str, Any]:"):source.index("\ndef main() -> int:")]
+first_candidate_snapshot = collect_source.index("rows = _classify_candidates(candidates)")
+closing_authentication = collect_source.index("authenticated_after = _authenticated_query(replacement)")
+closing_capability_revalidation = collect_source.index(
+    "cap_last_cap_after, supported_mask_after = auth._read_kernel_cap_last_cap()"
+)
+second_candidate_snapshot = collect_source.index("rows_second = _classify_candidates(candidates)")
+candidate_stability_decision = collect_source.index(
+    "candidate_observations_stable = rows == rows_second"
+)
+assert first_candidate_snapshot < closing_authentication
+assert closing_authentication < closing_capability_revalidation
+assert closing_capability_revalidation < second_candidate_snapshot
+assert second_candidate_snapshot < candidate_stability_decision
+
 cp = subprocess.run(
     ["/usr/bin/python3", "-I", "-B", str(TARGET), "--self-test"],
     cwd=ROOT,
@@ -137,6 +153,7 @@ for line in (
     "authenticated_user_manager_query_v6_dependency_bound=true",
     "cap_last_cap_projection_contract_required=true",
     "unauthenticated_user_manager_not_authority=true",
+    "late_candidate_mutation_forces_unstable=true",
     "production_gate_ready=false",
 ):
     assert line in self_lines, line
@@ -205,6 +222,7 @@ print("fake_user_bus_not_authority=true")
 print("designated_runtime_user_bound=true")
 print("stable_release_inventory_required=true")
 print("repeat_candidate_observation_required=true")
+print("late_candidate_mutation_window_guarded=true")
 print("process_environment_access=false")
 print("external_network_calls=false")
 print("loopback_get_only=true")
