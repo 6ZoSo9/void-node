@@ -35,8 +35,13 @@ const exactKeys = (value, expected, label) => {
 };
 
 const nonNegativeFinite = (value, label) => {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    throw new Error(`${label} must be a nonnegative finite number`);
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    Object.is(value, -0)
+  ) {
+    throw new Error(`${label} must be a nonnegative finite number other than -0`);
   }
   return value;
 };
@@ -52,9 +57,22 @@ const nonNegativeSafeInteger = (value, label) => {
   return value;
 };
 
-const formatAccountingBalance = (value) => new Intl.NumberFormat('en-US', {
-  maximumFractionDigits: 9,
-}).format(value);
+const ACCOUNTING_DISPLAY_MAX_FRACTION_DIGITS = 9;
+const accountingCompactFormatter = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: ACCOUNTING_DISPLAY_MAX_FRACTION_DIGITS,
+  useGrouping: false,
+});
+const accountingFriendlyFormatter = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: ACCOUNTING_DISPLAY_MAX_FRACTION_DIGITS,
+});
+
+export const formatWalletAccountingBalanceV1 = (raw) => {
+  const value = nonNegativeFinite(raw, 'accounting balance');
+  const compact = accountingCompactFormatter.format(value);
+  return Number(compact) === value
+    ? accountingFriendlyFormatter.format(value)
+    : String(value);
+};
 
 const NATIVE_GAS_DISPLAY_PATTERN =
   /^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/;
@@ -105,7 +123,7 @@ const validateAccounting = (value, label, extraKeys = []) => {
   if (value.available) {
     const balance = nonNegativeFinite(value.balance, `${label}.balance`);
     nonNegativeSafeInteger(value.entries, `${label}.entries`);
-    if (value.display !== formatAccountingBalance(balance)) {
+    if (value.display !== formatWalletAccountingBalanceV1(balance)) {
       throw new Error(`${label}.display does not match balance`);
     }
   } else if (

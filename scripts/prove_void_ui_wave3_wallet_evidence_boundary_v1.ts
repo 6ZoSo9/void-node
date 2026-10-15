@@ -7,6 +7,7 @@ import {
   VOID_UI_WAVE3_WALLET_SOURCE_MAX_RESPONSE_BYTES_V1,
   fetchVoidUiWave3WalletSourceJsonV1,
   walletAccountIdV1,
+  walletAccountingDisplayV1,
   walletFiniteNumberV1,
   walletNativeGasDisplayV1,
   walletNonNegativeSafeIntegerV1,
@@ -16,6 +17,7 @@ import {
   WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS,
   bindWalletViewV1,
   clearWalletViewV1,
+  formatWalletAccountingBalanceV1,
   loadWalletAccountV1,
   renderWalletErrorV1,
   renderWalletLoadingV1,
@@ -153,6 +155,22 @@ assert.equal(walletFiniteNumberV1(0), 0);
 assert.equal(walletFiniteNumberV1(1.25), 1.25);
 assert.equal(walletFiniteNumberV1(Number.NaN), null);
 assert.equal(walletFiniteNumberV1(Number.POSITIVE_INFINITY), null);
+
+for (const [balance, display] of [
+  [3, "3"],
+  [1.5, "1.5"],
+  [1000.5, "1,000.5"],
+  [4e-10, "4e-10"],
+  [1.0000000004, "1.0000000004"],
+] as const) {
+  assert.equal(walletAccountingDisplayV1(balance), display);
+  assert.equal(formatWalletAccountingBalanceV1(balance), display);
+}
+assert.equal(walletAccountingDisplayV1(-0), null);
+assert.throws(
+  () => formatWalletAccountingBalanceV1(-0),
+  /nonnegative finite number other than -0/,
+);
 
 for (const wrong of [null, true, "0", -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
   assert.equal(walletNonNegativeSafeIntegerV1(wrong), null);
@@ -505,6 +523,40 @@ for (const balanceKey of ["ledger_wc", "production_wc"] as const) {
     /display does not match balance/,
   );
 }
+
+const tinyPositive = validSnapshot() as any;
+tinyPositive.balances.ledger_wc.balance = 4e-10;
+tinyPositive.balances.ledger_wc.display = "4e-10";
+assert.doesNotThrow(() => validateWalletAt(tinyPositive));
+
+const tinyPositiveCollapsed = validSnapshot() as any;
+tinyPositiveCollapsed.balances.ledger_wc.balance = 4e-10;
+tinyPositiveCollapsed.balances.ledger_wc.display = "0";
+assert.throws(
+  () => validateWalletAt(tinyPositiveCollapsed),
+  /display does not match balance/,
+);
+
+const preciseFraction = validSnapshot() as any;
+preciseFraction.balances.production_wc.balance = 1.0000000004;
+preciseFraction.balances.production_wc.display = "1.0000000004";
+assert.doesNotThrow(() => validateWalletAt(preciseFraction));
+
+const preciseFractionCollapsed = validSnapshot() as any;
+preciseFractionCollapsed.balances.production_wc.balance = 1.0000000004;
+preciseFractionCollapsed.balances.production_wc.display = "1";
+assert.throws(
+  () => validateWalletAt(preciseFractionCollapsed),
+  /display does not match balance/,
+);
+
+const negativeZeroAccounting = validSnapshot() as any;
+negativeZeroAccounting.balances.ledger_wc.balance = -0;
+negativeZeroAccounting.balances.ledger_wc.display = "0";
+assert.throws(
+  () => validateWalletAt(negativeZeroAccounting),
+  /nonnegative finite number other than -0/,
+);
 
 const inventedVoidDisplay = validSnapshot() as any;
 inventedVoidDisplay.balances.void.display = "999 VOID";
