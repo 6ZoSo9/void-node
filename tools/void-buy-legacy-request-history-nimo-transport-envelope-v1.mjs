@@ -26,6 +26,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_TRANSPORT_AUTHORITY_V1 =
     server_replans_signed_authorization_against_current_witness: true,
     append_compare_and_swap_required: true,
     round_trip_witness_bytes_returned: true,
+    crash_retry_idempotent_response_supported: true,
     challenge_bound_request_response: true,
     policy_hash_bound_request_response: true,
     canonical_request_response_bytes: true,
@@ -364,11 +365,12 @@ export function buildVoidBuyVoidLegacyHistoryNimoServerResponseV1(input){
          observed.tip_event_id!==parsed.request.expected_event_id){
         fail("legacy_history_nimo_transport_append_response_witness_mismatch");
       }
-      if(parsed.request.expected_append_required===true){
-        if(input.operation_performed!==true)fail("legacy_history_nimo_transport_append_operation_flag_invalid");
+      if(input.operation_performed===true){
+        if(parsed.request.expected_append_required!==true){
+          fail("legacy_history_nimo_transport_unexpected_append_operation");
+        }
         status="appended";
       }else{
-        if(input.operation_performed!==false)fail("legacy_history_nimo_transport_idempotent_operation_flag_invalid");
         status="idempotent";
       }
     }
@@ -445,12 +447,12 @@ export function validateVoidBuyVoidLegacyHistoryNimoResponseV1(input){
         fail("legacy_history_nimo_transport_read_response_invalid");
       }
     }else{
-      const expectedStatus=parsed.request.expected_append_required?"appended":"idempotent";
       if(
-        response.status!==expectedStatus||
+        !["appended","idempotent"].includes(response.status)||
         response.witness_sha256!==parsed.request.expected_next_witness_sha256||
         response.tip_event_id!==parsed.request.expected_event_id||
-        response.operation_performed!==parsed.request.expected_append_required
+        response.operation_performed!==(response.status==="appended")||
+        (response.status==="appended"&&parsed.request.expected_append_required!==true)
       )fail("legacy_history_nimo_transport_append_response_invalid");
     }
     return Object.freeze({
