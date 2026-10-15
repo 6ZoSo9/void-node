@@ -143,6 +143,10 @@ function sameIdentity(a,b){
   return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
     a.mode===b.mode&&a.nlink===b.nlink;
 }
+function sameDirectoryIdentity(a,b){
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode;
+}
 function sameFile(a,b){
   return sameIdentity(a,b)&&a.size===b.size&&a.mtimeNs===b.mtimeNs&&a.ctimeNs===b.ctimeNs;
 }
@@ -207,7 +211,7 @@ function openRootOwnedDirectoryChain(target){
     }
     return Object.freeze({path:resolved,fd:opened.at(-1),fds:opened});
   }catch(error){
-    for(const fd of opened.reverse()){try{fs.closeSync(fd);}catch{}}
+    for(const fd of opened.reverse()){try{fs.closeSync(fd);}catch(error){void error;}}
     throw error;
   }
 }
@@ -242,7 +246,7 @@ function readRootOwnedConfig(configPath){
       return parseConfig(parsed);
     }finally{fs.closeSync(fd);}
   }finally{
-    for(const fd of chain.fds.reverse()){try{fs.closeSync(fd);}catch{}}
+    for(const fd of chain.fds.reverse()){try{fs.closeSync(fd);}catch(error){void error;}}
   }
 }
 function parseConfig(value,{allowTestRoot=false}={}){
@@ -305,14 +309,14 @@ function openAuthorityRoot(root,{allowTestParent=false}={}){
       parent_fds:parentChain.fds,
     });
   }catch(error){
-    if(fd!==null)try{fs.closeSync(fd);}catch{}
-    for(const x of parentChain.fds.reverse()){try{fs.closeSync(x);}catch{}}
+    if(fd!==null)try{fs.closeSync(fd);}catch(error){void error;}
+    for(const x of parentChain.fds.reverse()){try{fs.closeSync(x);}catch(error){void error;}}
     throw error;
   }
 }
 function closeAuthorityRoot(directory){
   try{fs.closeSync(directory.fd);}finally{
-    for(const fd of directory.parent_fds.reverse()){try{fs.closeSync(fd);}catch{}}
+    for(const fd of directory.parent_fds.reverse()){try{fs.closeSync(fd);}catch(error){void error;}}
   }
 }
 function assertAuthorityRootBound(directory){
@@ -320,7 +324,8 @@ function assertAuthorityRootBound(directory){
   const visible=fs.lstatSync(directory.path,{bigint:true});
   validatePrivateDirectory(opened,"legacy_history_nimo_forced_command_authority_root_changed");
   validatePrivateDirectory(visible,"legacy_history_nimo_forced_command_authority_root_changed");
-  if(!sameIdentity(directory.opened,opened)||!sameIdentity(opened,visible)){
+  if(!sameDirectoryIdentity(directory.opened,opened)||
+     !sameDirectoryIdentity(opened,visible)){
     fail("legacy_history_nimo_forced_command_authority_root_changed");
   }
 }
