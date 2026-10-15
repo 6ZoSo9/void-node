@@ -157,11 +157,12 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
           if [ -n "${BASE:-}" ]; then
-            git merge-base --is-ancestor "$BASE" "$HEAD"
+            merge_base="$(git merge-base "$BASE" "$HEAD")"
+            test -n "$merge_base"
           else
-            BASE="$(git rev-parse "$HEAD^1")"
+            merge_base="$(git rev-parse "$HEAD^1")"
           fi
-          git diff --check "$BASE" "$HEAD"
+          git diff --check "$merge_base" "$HEAD"
 
   compare:
     needs: [qualify]
