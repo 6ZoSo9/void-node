@@ -1027,6 +1027,7 @@ def self_test()->None:
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
     print("static_toolchain_closure_bound=true")
+    print("traced_absolute_link_inputs_fail_closed=true")
     print("linker_trace_closed_grammar=true")
     print("linker_archive_member_records_bound=true")
     print("raw_linker_trace_identity_bound=true")
