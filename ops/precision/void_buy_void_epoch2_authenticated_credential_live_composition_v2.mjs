@@ -167,7 +167,7 @@ function parseNativeParentProof(fd){
   try{
     raw=fs.readFileSync(fd,{encoding:"utf8"});
   }finally{
-    try{fs.closeSync(fd);}catch{}
+    try{fs.closeSync(fd);}catch(closeError){void closeError;}
   }
   if(Buffer.byteLength(raw,"utf8")<2||Buffer.byteLength(raw,"utf8")>2048){
     throw new Error("native_preentry_parent_proof_size_invalid");
