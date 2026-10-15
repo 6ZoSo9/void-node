@@ -45,8 +45,8 @@ jobs:
       - name: Bind exact reviewed source generation
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs)" =             "a386e6474996cd06ac40af760deb43e0107de291"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_fee_chain_qualification_v1.mjs)" =             "8c3053e129a57f8653d5e8450a7247e6a5162f9a"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs)" =             "8d40aafb5f0d1d12dd2edec0504d4fc1c89ea40f"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_fee_chain_qualification_v1.mjs)" =             "7b553e3e456a68a932042f46e46defb09ce6b404"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v1.mjs)" =             "6d68b52ec036e422a151239f9c8f3ee7faa28055"
           test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json)" =             "6a0159e516d30ca8a4b9af4dcace79a4fcddfbb1"
           test "$(git rev-parse HEAD:src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts)" =             "aa2f60c57c4cb8fed280d67397636ddd08a415cc"
@@ -87,6 +87,11 @@ jobs:
             "credential_signer_control_before_after_chain_window_required=true"
             "credential_signer_control_runtime_generation_stability_required=true"
             "credential_signer_control_runtime_drift_rejected=true"
+            "fresh_rpc_host_service_container_listener_binding_required=true"
+            "historical_runtime_observation_sufficient_without_fresh_revalidation=false"
+            "rpc_host_binding_live_provenance_required=true"
+            "fabricated_rpc_host_binding_provenance_rejected=true"
+            "rpc_host_generation_drift_rejected=true"
             "forged_fee_receipt_rejected=true"
             "transaction_calldata_constructed=false"
             "nonce_reserved=false"
