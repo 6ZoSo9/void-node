@@ -1,0 +1,63 @@
+{
+  "schema": "void_buy_void_enforcement_post2865_candidate_v1",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_POST2865_CANDIDATE_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "reviewed_pre2865_receipt": {
+    "workflow_run": 38486514781,
+    "head": "21773007311f63c7a2e5d288e8bfa1e2243d49b6",
+    "candidate_json_sha256": "f3680f613095054be2699fefe6d1f11dc03eda725d930254d2a045462bf4646e",
+    "candidate_enforcement_set_sha256": "43a1a3cbec71f59e0c33216afe5e5b826e119e95aa14acfd2bc2d8b2c238a297"
+  },
+  "audited_package_runtime": {
+    "manifest_git_blob_sha1": "445bcfbf5feae928e0d9cc06d4d31c1ee186fe39",
+    "profile_id": "voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac",
+    "packages_aggregate_sha256": "77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6",
+    "profile_canonical_sha256": "3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757",
+    "root_packages": [
+      "ethers",
+      "express"
+    ],
+    "profile_identity_accepted": true
+  },
+  "compiled_source_finality": {
+    "compiled_artifact_generation_sha256": "18758f6563f9a96aea0d55e293a4c10da8de349ba12ecc90fdebd82f486b944c",
+    "audited_dependency_build_equivalence_bound": true,
+    "current_audited_build_matches_locked_artifacts": true,
+    "compiled_artifact_generation_verified": true
+  },
+  "delivery_runtime": {
+    "reviewed_artifact_count": 23,
+    "current_audited_build_matches_reviewed_artifacts": true,
+    "dynamic_tool_candidate_count": 1,
+    "dynamic_tool_execution_identity_verified": true,
+    "dynamic_tool_transitive_closure_verified": true,
+    "no_dynamic_unknown_imports": true
+  },
+  "dependency_provider": {
+    "lock_candidate_json_sha256": "6c2bfe62b0d669bc9794a13eb24d357026ca8f9f7c055af1bcc0c0893c94247b",
+    "provider_closure_sha256": "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945",
+    "provider_closure_semantic_sha256": "95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384",
+    "provider_closure_identity_accepted": true,
+    "current_descendant_semantics_requalified": true,
+    "third_party_package_imports": [
+      "ethers"
+    ]
+  },
+  "third_party_package_imports": [
+    "ethers",
+    "express"
+  ],
+  "package_runtime_identity_accepted": true,
+  "provider_closure_composed": true,
+  "delivery_route_closure_composed": true,
+  "third_party_package_runtime_closure_verified": true,
+  "complete_executable_closure_verified": true,
+  "candidate_enforcement_identity_accepted": false,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false,
+  "candidate_enforcement_set_sha256": "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b"
+}

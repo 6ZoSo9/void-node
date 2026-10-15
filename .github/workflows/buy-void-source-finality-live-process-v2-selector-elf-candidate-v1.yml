@@ -1,0 +1,88 @@
+name: VOID Buy VOID V2 selector ELF candidate
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_selector_guard.c"
+      - ".github/workflows/buy-void-source-finality-live-process-v2-selector-elf-candidate-v1.yml"
+      - "docs/operators/buy-void-source-finality-live-process-v2-selector-elf-candidate-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_selector_guard.c"
+      - ".github/workflows/buy-void-source-finality-live-process-v2-selector-elf-candidate-v1.yml"
+      - "docs/operators/buy-void-source-finality-live-process-v2-selector-elf-candidate-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: [a, b, c]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Derive deterministic selector ELF
+        run: |
+          set -euo pipefail
+          src=ops/precision/void_buy_void_source_finality_live_process_v2_selector_guard.c
+          out="$RUNNER_TEMP/void-buy-void-v2-selector"
+          meta="$RUNNER_TEMP/selector-metadata.json"
+          test "$(git hash-object "$src")" = "$(git rev-parse HEAD:"$src")"
+          SOURCE_DATE_EPOCH=0 /usr/bin/cc             -std=c11 -Wall -Wextra -Werror -O2 -fno-ident             -Wl,--build-id=none             -o "$out" "$src"
+          /usr/bin/strip --strip-all "$out"
+          chmod 0555 "$out"
+          "$out" --self-test | tee "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'VOID_BUY_VOID_V2_NATIVE_SELECTOR_GUARD_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/self-test.log"
+          sha="$(sha256sum "$out" | awk '{print $1}')"
+          bytes="$(stat -Lc '%s' "$out")"
+          source_blob="$(git hash-object "$src")"
+          cc_sha="$(sha256sum /usr/bin/cc | awk '{print $1}')"
+          strip_sha="$(sha256sum /usr/bin/strip | awk '{print $1}')"
+          printf '{"marker":"VOID_BUY_VOID_V2_SELECTOR_ELF_CANDIDATE_V1","version":1,"source_git_blob_sha1":"%s","binary_sha256":"%s","binary_bytes":%s,"cc_sha256":"%s","strip_sha256":"%s","install_authorized":false,"receipt_publication":false,"production_source_finality_authority_ready":false,"public_presale_activation":false,"funds_movement":false}\n'             "$source_blob" "$sha" "$bytes" "$cc_sha" "$strip_sha" > "$meta"
+          echo "selector_source_git_blob_sha1=$source_blob"
+          echo "selector_binary_sha256=$sha"
+          echo "selector_binary_bytes=$bytes"
+          echo "install_authorized=false"
+          echo "funds_movement=false"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-void-v2-selector-elf-${{ github.event.pull_request.head.sha || github.sha }}-${{ matrix.slot }}
+          path: |
+            ${{ runner.temp }}/void-buy-void-v2-selector
+            ${{ runner.temp }}/selector-metadata.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-job:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-void-v2-selector-elf-${{ github.event.pull_request.head.sha || github.sha }}-*
+          path: candidates
+      - name: Require byte-identical ELF and metadata
+        run: |
+          set -euo pipefail
+          for slot in a b c; do
+            test -s "candidates/void-buy-void-v2-selector-elf-${{ github.event.pull_request.head.sha || github.sha }}-$slot/void-buy-void-v2-selector"
+            test -s "candidates/void-buy-void-v2-selector-elf-${{ github.event.pull_request.head.sha || github.sha }}-$slot/selector-metadata.json"
+          done
+          cmp candidates/*-a/void-buy-void-v2-selector candidates/*-b/void-buy-void-v2-selector
+          cmp candidates/*-a/void-buy-void-v2-selector candidates/*-c/void-buy-void-v2-selector
+          cmp candidates/*-a/selector-metadata.json candidates/*-b/selector-metadata.json
+          cmp candidates/*-a/selector-metadata.json candidates/*-c/selector-metadata.json
+          sha256sum candidates/*-a/void-buy-void-v2-selector
+          cat candidates/*-a/selector-metadata.json
+          grep -F '"install_authorized":false' candidates/*-a/selector-metadata.json
+          grep -F '"funds_movement":false' candidates/*-a/selector-metadata.json
+          echo VOID_BUY_VOID_V2_SELECTOR_ELF_CANDIDATE_CROSS_JOB_GREEN

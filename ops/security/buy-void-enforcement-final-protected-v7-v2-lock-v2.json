@@ -1,0 +1,47 @@
+{
+  "schema": "void_buy_void_enforcement_final_protected_v7_v2_lock_v2",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V2",
+  "version": 2,
+  "repository": "6ZoSo9/void-node",
+  "candidate_head": "1d138dcb3ac61f156fe8eb0fff27341fe97c04f9",
+  "candidate_hosted_evidence": {
+    "workflow_run": 38654613151,
+    "node22_artifact_id": 11936242797,
+    "node24_artifact_id": 11935634883,
+    "node26_artifact_id": 11936605015,
+    "cross_node_byte_identity_verified": true
+  },
+  "candidate_evidence": {
+    "path": "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json",
+    "derivation_proof_path": "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v2.mjs",
+    "derivation_proof_git_blob_sha1": "5cb990d0ef680f80292bed5f6b28c11d4ee1ffed",
+    "bytes": 16342,
+    "sha256": "092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb",
+    "git_blob_sha1": "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718",
+    "candidate_enforcement_set_sha256": "05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852"
+  },
+  "protected_census_evidence": {
+    "census_id": "voidbefv7c4_9c8fa20632d3cfb431c0d13229153d19f076613720c7402e5374eab1f833401d",
+    "census_json_sha256": "c9d910cd461b87c6b4722ada7505ceffe9a8d3c266387f3d9bbebddaf8f586f8",
+    "protected_tracked_source_inventory_canonical_sha256": "224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2"
+  },
+  "audited_package_runtime": {
+    "profile_id": "voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac",
+    "packages_aggregate_sha256": "77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6",
+    "profile_canonical_sha256": "3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757"
+  },
+  "dependency_provider": {
+    "provider_closure_sha256": "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945",
+    "provider_closure_semantic_sha256": "95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384"
+  },
+  "v7_executable_delta_candidate_generation_sha256": "5c5637207d5970d2ca793cf431726ff8d86db370b3e69e9ff1e5caa25d9b5224",
+  "current_enforcement_tracked_source_inventory_sha256": "224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2",
+  "complete_executable_closure_verified": true,
+  "current_enforcement_tracked_source_inventory_verified": true,
+  "candidate_enforcement_identity_accepted": true,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "void_buy_void_v2_selector_elf_candidate_v1",
+  "marker": "VOID_BUY_VOID_V2_SELECTOR_ELF_CANDIDATE_V1",
+  "version": 1,
+  "source_pr_head": "8da9cde16351e93ac267e214f90228bd02f50537",
+  "source_git_blob_sha1": "b7aad6ecea7afa5b7f931b50b4b463e992b19748",
+  "binary_sha256": "048564b0a351a5ba3b9f980962d9261fa14a49823b5075ca4794bbeefecbb232",
+  "binary_bytes": 26680,
+  "cc_sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+  "strip_sha256": "0d980587ada7ab12193f39271f060d5663aa2f289b0e80d2a0274ce7306e4e42",
+  "compile_flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-O2",
+    "-fno-ident",
+    "-Wl,--build-id=none"
+  ],
+  "stripped": true,
+  "cross_job_run_id": 38622183894,
+  "cross_job_byte_identity_verified": true,
+  "install_authorized": false,
+  "receipt_publication": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}
