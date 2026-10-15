@@ -1,0 +1,187 @@
+name: VOID Buy custody runtime install archive v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-runtime-install-archive-v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py"
+      - "docs/architecture/buy-void-allocation-custody-runtime-install-archive-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v1.mjs"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-allocation-custody-runtime-install-archive-v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py"
+      - "docs/architecture/buy-void-allocation-custody-runtime-install-archive-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v1.mjs"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    name: custody install archive / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked compiler
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile exact source tree
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - name: Prove archive candidate
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/void-buy-allocation-custody-runtime-install-archive-v1.py
+          python3 -m py_compile scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py
+          python3 -I -B tools/void-buy-allocation-custody-runtime-install-archive-v1.py --self-test
+          proof="$RUNNER_TEMP/custody-install-archive-proof.txt"
+          python3 -I -B scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'runtime_files_exact=10' "$proof"
+          grep -Fx 'deterministic_ustar=true' "$proof"
+          grep -Fx 'archive_candidate_accepted=false' "$proof"
+          grep -Fx 'immutable_root_install=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+      - name: Package and inspect candidate
+        run: |
+          set -euo pipefail
+          private="$RUNNER_TEMP/custody-install-node${{ matrix.node }}"
+          mkdir "$private"
+          chmod 700 "$private"
+          archive="$private/void-buy-allocation-custody-runtime-install-v1.tar"
+          package_out="$RUNNER_TEMP/package-node${{ matrix.node }}.json"
+          inspect_out="$RUNNER_TEMP/inspect-node${{ matrix.node }}.json"
+          python3 -I -B tools/void-buy-allocation-custody-runtime-install-archive-v1.py --package "$archive" | tee "$package_out"
+          python3 -I -B tools/void-buy-allocation-custody-runtime-install-archive-v1.py --inspect-archive "$archive" | tee "$inspect_out"
+          python3 - "$package_out" "$inspect_out" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1],encoding="utf-8"))
+          b=json.load(open(sys.argv[2],encoding="utf-8"))
+          for key in ("archive_candidate_id","archive_bytes","archive_sha256","runtime_files_exact"):
+              assert a[key]==b[key], (key,a,b)
+          assert a["archive_candidate_accepted"] is False
+          assert b["archive_candidate_accepted"] is False
+          assert a["funds_movement"] is False
+          assert b["funds_movement"] is False
+          PY
+          cp "$archive" "$RUNNER_TEMP/archive-node${{ matrix.node }}.tar"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-install-archive-${{ matrix.node }}
+          path: |
+            ${{ runner.temp }}/archive-node${{ matrix.node }}.tar
+            ${{ runner.temp }}/package-node${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        run: git diff --check
+
+  compare:
+    name: custody install archive / compare Node 22-24-26
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-install-archive-*
+          path: ${{ runner.temp }}/archives
+          merge-multiple: true
+      - name: Require byte-identical archives and receipts
+        run: |
+          set -euo pipefail
+          cmp "$RUNNER_TEMP/archives/archive-node22.tar" "$RUNNER_TEMP/archives/archive-node24.tar"
+          cmp "$RUNNER_TEMP/archives/archive-node22.tar" "$RUNNER_TEMP/archives/archive-node26.tar"
+          cmp "$RUNNER_TEMP/archives/package-node22.json" "$RUNNER_TEMP/archives/package-node24.json"
+          cmp "$RUNNER_TEMP/archives/package-node22.json" "$RUNNER_TEMP/archives/package-node26.json"
+          inspect="$RUNNER_TEMP/compare-inspect.json"
+          python3 -I -B tools/void-buy-allocation-custody-runtime-install-archive-v1.py             --inspect-archive "$RUNNER_TEMP/archives/archive-node22.tar" | tee "$inspect"
+          python3 - "$inspect" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1],encoding="utf-8"))
+          assert x["runtime_files_exact"]==10
+          assert x["archive_candidate_accepted"] is False
+          assert x["immutable_root_install"] is False
+          assert x["node_binary_identity_verified"] is False
+          assert x["runtime_integration"] is False
+          assert x["payment_acceptance"] is False
+          assert x["public_presale_activation"] is False
+          assert x["production_gate_ready"] is False
+          assert x["funds_movement"] is False
+          print("VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_V1_THREE_NODE_GREEN")
+          print("archive_candidate_id="+x["archive_candidate_id"])
+          print("archive_bytes="+str(x["archive_bytes"]))
+          print("archive_sha256="+x["archive_sha256"])
+          print("archive_candidate_accepted=false")
+          print("immutable_root_install=false")
+          print("funds_movement=false")
+          PY
+      - name: Diff hygiene
+        run: git diff --check
