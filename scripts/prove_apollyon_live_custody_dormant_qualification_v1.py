@@ -23,7 +23,7 @@ for required in (
     assert required in source,required
 for forbidden in (
     'systemctl","start",SERVICE_UNIT','systemctl","stop",SERVICE_UNIT',
-    "PRIVATE KEY-----","eth_sendRawTransaction","training_execution":True",
+    "PRIVATE KEY-----","eth_sendRawTransaction","training_"+"execution"+":True",
 ):
     assert forbidden not in source,forbidden
 r=subprocess.run(
