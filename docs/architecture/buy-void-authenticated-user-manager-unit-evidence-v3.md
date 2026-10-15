@@ -18,6 +18,35 @@ deliberately stops before issuing a D-Bus method.
 This successor composes those two boundaries without reopening the public user
 bus.
 
+## Loader provenance before the retained connection
+
+The native query must itself start from a reviewed empty loader environment.
+The supported operation shape launches the target through `/usr/bin/env -i`
+with fixed PATH/locale plus the single
+`VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1` marker.
+The target refuses `LD_PRELOAD`, `LD_LIBRARY_PATH`, `LD_AUDIT`,
+`GLIBC_TUNABLES` and the other reviewed dynamic-loader variables.
+
+The sd-bus implementation is no longer selected by the soname search path.
+The query resolves only the fixed
+`/usr/lib/x86_64-linux-gnu/libsystemd.so.0`, requires root-owned,
+non-group/world-writable system-library ancestry and target metadata, retains
+the exact target descriptor, and loads `/proc/self/fd/<fd>`. Every required
+sd-bus symbol is then checked with `dladdr()` to come from that same retained
+library target.
+
+Focused CI proves:
+- direct execution without the sanitizer marker HOLDS;
+- an ambient fake `libsystemd.so.0` through `LD_LIBRARY_PATH` HOLDS before
+  library selection;
+- the same poison outside `env -i` cannot affect the sanitized child;
+- an `LD_PRELOAD` constructor demonstrably reaches the query under unsafe
+  direct execution, while the sanitized child does not load it.
+
+This closes loader search/interposition as caller-controlled query authority.
+The future installed operation must preserve the exact sanitized launch shape
+and reverify the system-library path at use.
+
 ## Same retained connection
 
 The native query source includes the reviewed #3026 guard source and therefore
@@ -73,6 +102,10 @@ checks and V2 shape checks succeed does V3 report:
 ```text
 manager_peer_authenticated=true
 same_authenticated_connection_unit_query=true
+sanitized_loader_environment=true
+libsystemd_fixed_path_verified=true
+libsystemd_retained_fd_load=true
+libsystemd_symbol_provenance_verified=true
 runtime_user_manager_identity_verified=true
 runtime_user_manager_cgroup_bound=true
 runtime_main_pid_kernel_bound=true
