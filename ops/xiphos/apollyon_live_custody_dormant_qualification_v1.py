@@ -176,13 +176,28 @@ def show_properties(unit:str,names:tuple[str,...])->dict[str,str]:
 def parse_exec_property(raw:str,label:str)->list[tuple[str,...]]:
     raw=raw.strip()
     if raw=="":return []
-    matches=list(re.finditer(r"\{([^{}]*)\}",raw))
-    if not matches or re.sub(r"\{[^{}]*\}","",raw).strip():
+    bodies=[]
+    depth=0
+    start:int|None=None
+    for index,char in enumerate(raw):
+        if char=="{":
+            if depth==0:start=index+1
+            depth+=1
+        elif char=="}":
+            if depth==0:hold("exec_property_shape_invalid:"+label)
+            depth-=1
+            if depth==0:
+                if start is None:hold("exec_property_shape_invalid:"+label)
+                bodies.append(raw[start:index])
+                start=None
+        elif depth==0 and not char.isspace():
+            hold("exec_property_shape_invalid:"+label)
+    if depth!=0 or start is not None or not bodies:
         hold("exec_property_shape_invalid:"+label)
     commands=[]
-    for match in matches:
+    for body in bodies:
         fields={}
-        for part in match.group(1).split(" ; "):
+        for part in body.split(" ; "):
             if "=" not in part:hold("exec_property_field_invalid:"+label)
             key,value=part.split("=",1)
             if key in fields:hold("exec_property_field_duplicate:"+label)
