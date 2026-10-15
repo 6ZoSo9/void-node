@@ -82,7 +82,7 @@ for cap_name, field in (
     assert parsed[field] is False, cap_name
     assert parsed["all_capability_sets_empty"] is False, cap_name
 
-config = module.parse_tunnel_config(
+config_text = (
     "tunnel: not-emitted\n"
     "credentials-file: /run/void-cloudflared/private/credentials.json\n"
     "ingress:\n"
@@ -107,9 +107,19 @@ config = module.parse_tunnel_config(
     "  - hostname: seed.nullfeed.org\n"
     "    service: http://127.0.0.1:8083\n"
 )
+config = module.parse_tunnel_config(config_text)
 assert config["sensitive_route_shape_observed"] is True
 assert config["sensitive_adapter_port"] == 4311
 assert config["ordinary_routes_preserved_candidate"] is True
+extra_adapter = module.parse_tunnel_config(
+    config_text.replace(
+        "    service: http://127.0.0.1:8083\n",
+        "    service: http://127.0.0.1:4311\n",
+    )
+)
+assert extra_adapter["sensitive_route_shape_observed"] is False
+assert extra_adapter["extra_adapter_seed_rule_observed"] is True
+assert extra_adapter["ordinary_routes_preserved_candidate"] is False
 
 source = TARGET.read_text(encoding="utf-8")
 for required in (
@@ -122,6 +132,11 @@ for required in (
     "retained_descriptor_generation_stable",
     "root_owned_nonwritable_source",
     "historical_user_tunnel_snapshot",
+    "UnitFileState",
+    "retired_candidate_observed",
+    "systemd_capability_bounding_set_empty",
+    "systemd_ambient_capabilities_empty",
+    "extra_adapter_seed_rule_observed",
     "process_environment_access",
     "process_command_line_access",
     "credential_content_access",
@@ -162,7 +177,10 @@ print("process_environment_access=false")
 print("raw_process_command_line_output=false")
 print("credential_contents_read=false")
 print("historical_user_tunnel_read_only_query=true")
+print("historical_user_tunnel_retirement_requires_inactive_disabled_or_masked=true")
 print("system_service_generation_binding=true")
+print("systemd_capability_bounds_observed=true")
+print("extra_sensitive_adapter_route_rejected=true")
 print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
