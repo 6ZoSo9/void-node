@@ -62,6 +62,7 @@ assert.equal(git(["rev-parse","HEAD:"+PREEXEC]),EXPECTED.preexec);
 
 const source=fs.readFileSync(path.join(ROOT,SOURCE),"utf8");
 const sealed=fs.readFileSync(path.join(ROOT,SEALED),"utf8");
+const preexec=fs.readFileSync(path.join(ROOT,PREEXEC),"utf8");
 for(const needle of [
   '#include "void_buy_void_user_manager_private_peer_guard_v1.c"',
   'E2_CREDENTIAL_ID "buy-void-epoch2-fulfiller-v1"',
@@ -69,6 +70,10 @@ for(const needle of [
   '"NeedDaemonReload"',
   '"FragmentPath"',
   '"DropInPaths"',
+  'MAX_DROPIN_PATHS 32',
+  'MAX_DROPIN_TOTAL_BYTES (16 * 1024)',
+  'credential_match_count',
+  'canonical_paths',
   '"LoadCredential"',
   '"org.freedesktop.systemd1.Service"',
   '"a(ss)"',
@@ -98,6 +103,16 @@ assert.ok(
 assert.ok(!source.includes('"--user", "show"'));
 assert.ok(!source.includes("/run/user/%lu/bus"));
 assert.doesNotMatch(source, /"org\.freedesktop\.systemd1\.Unit"\s*,\s*"ControlGroup"/u);
+assert.ok(
+  preexec.includes(
+    '#define QUERY_PATH ROOT_DIR "/void_buy_void_user_manager_private_unit_query_v1"',
+  ),
+  "current_preexec_unit_query_path_missing",
+);
+assert.ok(
+  !preexec.includes("void_buy_void_user_manager_private_credential_unit_query_v1"),
+  "current_preexec_must_not_be_claimed_for_credential_query",
+);
 
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-e2-auth-query-"));
 try{
@@ -127,6 +142,12 @@ try{
     "dropin_paths_queried_same_connection=true",
     "load_credential_queried_same_connection=true",
     "main_pid_kernel_bound=true",
+    "bounded_dropin_set_observed=true",
+    "exactly_one_credential_dropin_match_required=true",
+    "unrelated_hardening_dropin_allowed=true",
+    "dropin_set_generation_stability_required=true",
+    "security_transcript_composed=false",
+    "credential_query_preexec_execution_path_proven=false",
     "credential_contents_read=false",
     "binary_acceptance=false",
     "live_query_authorized=false",
@@ -141,6 +162,12 @@ try{
   console.log("accepted_peer_guard_git_blob_sha1="+EXPECTED.peer);
   console.log("accepted_preexec_git_blob_sha1="+EXPECTED.preexec);
   console.log("credential_effective_properties_same_authenticated_connection=true");
+  console.log("bounded_dropin_set_observed=true");
+  console.log("exactly_one_credential_dropin_match_required=true");
+  console.log("unrelated_hardening_dropin_allowed=true");
+  console.log("dropin_set_generation_stability_required=true");
+  console.log("security_transcript_composed=false");
+  console.log("credential_query_preexec_execution_path_proven=false");
   console.log("credential_contents_read=false");
   console.log("binary_acceptance=false");
   console.log("live_query_authorized=false");
