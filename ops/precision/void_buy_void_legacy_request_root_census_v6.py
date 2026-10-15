@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -193,13 +194,7 @@ def _request_root_status(observation: dict[str, Any]) -> dict[str, Any]:
 def _absolute(path: os.PathLike[str] | str) -> str:
     return os.path.abspath(os.path.normpath(str(path)))
 
-def _meta(path: pathlib.Path) -> dict[str, Any]:
-    try:
-        st = path.lstat()
-    except FileNotFoundError:
-        return {"exists": False}
-    except PermissionError:
-        return {"exists": None, "reason": "permission_denied"}
+def _meta_from_stat(st: os.stat_result) -> dict[str, Any]:
     kind = (
         "directory" if stat.S_ISDIR(st.st_mode)
         else "regular" if stat.S_ISREG(st.st_mode)
@@ -219,36 +214,131 @@ def _meta(path: pathlib.Path) -> dict[str, Any]:
         "symlink": stat.S_ISLNK(st.st_mode),
     }
 
-def _ancestor_symlink(path: pathlib.Path) -> bool | None:
-    target = pathlib.Path(_absolute(path))
-    cursor = pathlib.Path("/")
-    for part in target.parts[1:]:
-        cursor = cursor / part
-        try:
-            st = cursor.lstat()
-        except FileNotFoundError:
-            return False
-        except PermissionError:
-            return None
-        if stat.S_ISLNK(st.st_mode):
-            return True
-    return False
 
-def _count_only(path: pathlib.Path) -> dict[str, Any]:
+def _meta(path: pathlib.Path) -> dict[str, Any]:
+    try:
+        return _meta_from_stat(path.lstat())
+    except FileNotFoundError:
+        return {"exists": False}
+    except PermissionError:
+        return {"exists": None, "reason": "permission_denied"}
+
+
+def _open_absolute_directory_nofollow(
+    path: pathlib.Path,
+) -> tuple[int | None, str | None]:
+    target = pathlib.Path(_absolute(path))
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW
+    try:
+        current_fd = os.open("/", flags)
+    except OSError as exc:
+        return None, f"root_open_error_{exc.errno}"
+    try:
+        for component in target.parts[1:]:
+            try:
+                next_fd = os.open(component, flags, dir_fd=current_fd)
+            except FileNotFoundError:
+                return None, "absent"
+            except PermissionError:
+                return None, "permission_denied"
+            except OSError as exc:
+                if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+                    return None, "noncanonical_or_symlink_path"
+                return None, f"os_error_{exc.errno}"
+            os.close(current_fd)
+            current_fd = next_fd
+        keep_fd = current_fd
+        current_fd = -1
+        return keep_fd, None
+    finally:
+        if current_fd >= 0:
+            os.close(current_fd)
+
+
+def _count_dirfd(dir_fd: int) -> dict[str, Any]:
     count = 0
     try:
-        with os.scandir(path) as entries:
+        with os.scandir(dir_fd) as entries:
             for _ in entries:
                 count += 1
                 if count > MAX_DIRECT_ENTRIES:
                     return {"ok": False, "reason": "entry_count_limit_exceeded"}
         return {"ok": True, "count": count}
-    except FileNotFoundError:
-        return {"ok": False, "reason": "absent"}
     except PermissionError:
         return {"ok": False, "reason": "permission_denied"}
     except OSError as exc:
         return {"ok": False, "reason": f"os_error_{exc.errno}"}
+
+
+def _fixed_journal_snapshot(
+    dir_fd: int,
+    name: str,
+) -> tuple[dict[str, Any], int | None]:
+    try:
+        visible = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return {"exists": False}, None
+    except PermissionError:
+        return {"exists": None, "reason": "permission_denied"}, None
+    except OSError as exc:
+        return {"exists": None, "reason": f"os_error_{exc.errno}"}, None
+
+    flags = os.O_CLOEXEC | os.O_NOFOLLOW | getattr(os, "O_PATH", os.O_RDONLY)
+    try:
+        retained_fd = os.open(name, flags, dir_fd=dir_fd)
+    except OSError as exc:
+        return {"exists": None, "reason": f"open_error_{exc.errno}"}, None
+    retained = os.fstat(retained_fd)
+    if not _same_stat(visible, retained):
+        os.close(retained_fd)
+        return {"exists": None, "reason": "generation_rebound"}, None
+    return _meta_from_stat(retained), retained_fd
+
+
+def _revalidate_candidate_generation(
+    path: pathlib.Path,
+    dir_fd: int,
+    opened_before: os.stat_result,
+    fixed_states: dict[str, tuple[dict[str, Any], int | None]],
+) -> bool:
+    opened_after = os.fstat(dir_fd)
+    if not _same_stat(opened_before, opened_after):
+        return False
+
+    visible_fd, visible_error = _open_absolute_directory_nofollow(path)
+    if visible_fd is None or visible_error is not None:
+        return False
+    try:
+        if not _same_stat(opened_after, os.fstat(visible_fd)):
+            return False
+    finally:
+        os.close(visible_fd)
+
+    for name, (item, retained_fd) in fixed_states.items():
+        exists = item.get("exists")
+        if retained_fd is not None:
+            retained_after = os.fstat(retained_fd)
+            try:
+                visible_after = os.stat(
+                    name,
+                    dir_fd=dir_fd,
+                    follow_symlinks=False,
+                )
+            except OSError:
+                return False
+            if not _same_stat(retained_after, visible_after):
+                return False
+        elif exists is False:
+            try:
+                os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            except OSError:
+                return False
+            return False
+        elif exists is None:
+            return False
+    return True
 
 def _release_inventory() -> tuple[list[pathlib.Path], bool]:
     try:
@@ -278,15 +368,19 @@ def _release_inventory() -> tuple[list[pathlib.Path], bool]:
         return [], False
 
 
-def classify_candidate(path: pathlib.Path, sources: list[str]) -> dict[str, Any]:
+def classify_candidate(
+    path: pathlib.Path,
+    sources: list[str],
+    _phase_hook: Any = None,
+) -> dict[str, Any]:
     path = pathlib.Path(_absolute(path))
-    metadata = _meta(path)
-    ancestry = _ancestor_symlink(path)
     result: dict[str, Any] = {
         "path": str(path),
         "sources": sorted(set(sources)),
-        "metadata": metadata,
-        "symlink_ancestor_observed": ancestry,
+        "metadata": {"exists": None},
+        "symlink_ancestor_observed": None,
+        "descriptor_bound_snapshot": False,
+        "snapshot_generation_stable": False,
         "directory_enumerated_for_count_only": False,
         "directory_entry_names_output": False,
         "request_or_payment_contents_read": False,
@@ -295,69 +389,111 @@ def classify_candidate(path: pathlib.Path, sources: list[str]) -> dict[str, Any]
         "fixed_journals": {},
         "classification": None,
     }
-    if ancestry is True:
-        result["classification"] = "HOLD_SYMLINK_ANCESTOR"
-        return result
-    if ancestry is None:
-        result["classification"] = "UNVERIFIED_ANCESTRY"
-        return result
-    if metadata.get("exists") is False:
-        result["classification"] = "ABSENT_OBSERVED"
-        return result
-    if metadata.get("exists") is not True:
-        result["classification"] = "UNVERIFIED_ROOT"
-        return result
-    if metadata.get("kind") != "directory" or metadata.get("symlink"):
-        result["classification"] = "HOLD_NONCANONICAL_ROOT"
+
+    dir_fd, open_error = _open_absolute_directory_nofollow(path)
+    if dir_fd is None:
+        if open_error == "absent":
+            result["metadata"] = {"exists": False}
+            result["symlink_ancestor_observed"] = False
+            result["classification"] = "ABSENT_OBSERVED"
+        elif open_error == "permission_denied":
+            result["classification"] = "UNVERIFIED_ANCESTRY"
+        elif open_error == "noncanonical_or_symlink_path":
+            result["symlink_ancestor_observed"] = True
+            result["classification"] = "HOLD_NONCANONICAL_OR_SYMLINK_PATH"
+        else:
+            result["classification"] = "UNVERIFIED_ROOT_OPEN"
         return result
 
-    counted = _count_only(path)
-    result["directory_enumerated_for_count_only"] = True
-    if counted.get("ok") is not True:
-        result["classification"] = "UNVERIFIED_" + str(counted.get("reason", "COUNT")).upper()
-        return result
-    result["direct_entry_count"] = counted["count"]
+    fixed_states: dict[str, tuple[dict[str, Any], int | None]] = {}
+    try:
+        opened_before = os.fstat(dir_fd)
+        metadata = _meta_from_stat(opened_before)
+        result["metadata"] = metadata
+        result["symlink_ancestor_observed"] = False
+        result["descriptor_bound_snapshot"] = True
+        if metadata.get("kind") != "directory" or metadata.get("symlink"):
+            result["classification"] = "HOLD_NONCANONICAL_ROOT"
+            return result
 
-    known = 0
-    surviving = False
-    uncertain = False
-    for name in ("requests.jsonl", "operator-events.jsonl"):
-        item = _meta(path / name)
-        result["fixed_journals"][name] = {
-            "exists": item.get("exists"),
-            "kind": item.get("kind"),
-            "uid": item.get("uid"),
-            "gid": item.get("gid"),
-            "mode": item.get("mode"),
-            "nlink": item.get("nlink"),
-            "size": item.get("size"),
-            "symlink": item.get("symlink"),
-            "contents_read": False,
-        }
-        if item.get("exists") is True:
-            known += 1
-            if item.get("kind") != "regular" or item.get("symlink") or item.get("nlink") != 1:
+        counted = _count_dirfd(dir_fd)
+        result["directory_enumerated_for_count_only"] = True
+        if counted.get("ok") is not True:
+            result["classification"] = (
+                "UNVERIFIED_" + str(counted.get("reason", "COUNT")).upper()
+            )
+            return result
+        result["direct_entry_count"] = counted["count"]
+
+        if _phase_hook is not None:
+            _phase_hook()
+
+        known = 0
+        surviving = False
+        uncertain = False
+        for name in ("requests.jsonl", "operator-events.jsonl"):
+            item, retained_fd = _fixed_journal_snapshot(dir_fd, name)
+            fixed_states[name] = (item, retained_fd)
+            result["fixed_journals"][name] = {
+                "exists": item.get("exists"),
+                "kind": item.get("kind"),
+                "uid": item.get("uid"),
+                "gid": item.get("gid"),
+                "mode": item.get("mode"),
+                "nlink": item.get("nlink"),
+                "size": item.get("size"),
+                "symlink": item.get("symlink"),
+                "contents_read": False,
+            }
+            if item.get("exists") is True:
+                known += 1
+                if (
+                    item.get("kind") != "regular"
+                    or item.get("symlink")
+                    or item.get("nlink") != 1
+                ):
+                    uncertain = True
+                elif int(item.get("size") or 0) > 0:
+                    surviving = True
+            elif item.get("exists") is None:
                 uncertain = True
-            elif int(item.get("size") or 0) > 0:
-                surviving = True
-        elif item.get("exists") is None:
-            uncertain = True
-    other = max(0, int(counted["count"]) - known)
-    result["other_direct_entry_count"] = other
-    if other > 0:
-        surviving = True
 
-    if uncertain:
-        result["classification"] = "HOLD_UNVERIFIED_HISTORY_METADATA"
-    elif surviving:
-        result["classification"] = "SURVIVING_HISTORY_METADATA_OBSERVED"
-    elif counted["count"] == 0:
-        result["classification"] = "EMPTY_DIRECTORY_OBSERVED_EXTERNAL_ANCHOR_REQUIRED"
-    elif known == counted["count"]:
-        result["classification"] = "ZERO_LENGTH_FIXED_JOURNALS_OBSERVED_EXTERNAL_ANCHOR_REQUIRED"
-    else:
-        result["classification"] = "HOLD_UNCLASSIFIED"
-    return result
+        generation_stable = _revalidate_candidate_generation(
+            path,
+            dir_fd,
+            opened_before,
+            fixed_states,
+        )
+        result["snapshot_generation_stable"] = generation_stable
+        if not generation_stable:
+            result["classification"] = "HOLD_CANDIDATE_GENERATION_CHANGED"
+            return result
+
+        other = max(0, int(counted["count"]) - known)
+        result["other_direct_entry_count"] = other
+        if other > 0:
+            surviving = True
+
+        if uncertain:
+            result["classification"] = "HOLD_UNVERIFIED_HISTORY_METADATA"
+        elif surviving:
+            result["classification"] = "SURVIVING_HISTORY_METADATA_OBSERVED"
+        elif counted["count"] == 0:
+            result["classification"] = (
+                "EMPTY_DIRECTORY_OBSERVED_EXTERNAL_ANCHOR_REQUIRED"
+            )
+        elif known == counted["count"]:
+            result["classification"] = (
+                "ZERO_LENGTH_FIXED_JOURNALS_OBSERVED_EXTERNAL_ANCHOR_REQUIRED"
+            )
+        else:
+            result["classification"] = "HOLD_UNCLASSIFIED"
+        return result
+    finally:
+        for _, retained_fd in fixed_states.values():
+            if retained_fd is not None:
+                os.close(retained_fd)
+        os.close(dir_fd)
 
 def _classify_candidates(candidates: dict[str, list[str]]) -> list[dict[str, Any]]:
     return [
@@ -397,6 +533,26 @@ def self_test() -> None:
             candidate_observations_stable,
         ))
         assert bounded_current_candidate_set_observed is False
+
+        swap_target = root / "swap-target"
+        swap_target.mkdir()
+        swap_replacement = root / "swap-replacement"
+        swap_replacement.mkdir()
+        (swap_replacement / "requests.jsonl").write_bytes(b"x")
+        swap_parked = root / "swap-parked"
+
+        def swap_candidate_path() -> None:
+            swap_target.rename(swap_parked)
+            swap_replacement.rename(swap_target)
+
+        swapped = classify_candidate(
+            swap_target,
+            ["synthetic"],
+            _phase_hook=swap_candidate_path,
+        )
+        assert swapped["descriptor_bound_snapshot"] is True
+        assert swapped["snapshot_generation_stable"] is False
+        assert swapped["classification"] == "HOLD_CANDIDATE_GENERATION_CHANGED"
     for dependency, expected in DEPENDENCY_BLOBS.items():
         assert _git_blob_sha1(_authenticated_source_bytes(dependency)) == expected
     own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
@@ -419,6 +575,8 @@ def self_test() -> None:
     print("unauthenticated_user_manager_not_authority=true")
     print("late_candidate_mutation_forces_unstable=true")
     print("late_candidate_mutation_blocks_bounded_current_set=true")
+    print("descriptor_bound_candidate_snapshot=true")
+    print("path_swap_adversary_forces_hold=true")
     print("production_gate_ready=false")
 
 def plan() -> None:

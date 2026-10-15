@@ -13,7 +13,7 @@ V1 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
 V2 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 AUTH = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
 
-TARGET_BLOB = "64fda26d0fd370717f57f437fb7eaa99ca711a98"
+TARGET_BLOB = "f22e014c2193f73670091ebc63f55fa02d7fff85"
 EXPECTED_DEPENDENCY_BLOBS = {
     V1: "9ca9cb948a08973d0d874c5473ad2743de14140c",
     V2: "305737478025e22ddc8f56da29f2a2dfde251d8b",
@@ -80,11 +80,23 @@ for required in (
     "designated_runtime_user_matches",
     "late_candidate_mutation_forces_unstable",
     "late_candidate_mutation_blocks_bounded_current_set",
+    "descriptor_bound_candidate_snapshot",
+    "path_swap_adversary_forces_hold",
+    "_open_absolute_directory_nofollow",
+    "_revalidate_candidate_generation",
+    "HOLD_CANDIDATE_GENERATION_CHANGED",
 ):
     assert required in source, required
 
 assert "void_buy_void_user_manager_query_live_qualification_v2.py" not in source
 assert "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V2" not in source
+assert "os.scandir(path)" not in source
+assert "_meta(path / name)" not in source
+assert "_ancestor_symlink(" not in source
+assert "os.scandir(dir_fd)" in source
+assert "dir_fd=current_fd" in source
+assert "follow_symlinks=False" in source
+assert "os.O_NOFOLLOW" in source
 
 plan_marker = "\ndef plan() -> None:"
 production_source = (
@@ -156,6 +168,8 @@ for line in (
     "unauthenticated_user_manager_not_authority=true",
     "late_candidate_mutation_forces_unstable=true",
     "late_candidate_mutation_blocks_bounded_current_set=true",
+    "descriptor_bound_candidate_snapshot=true",
+    "path_swap_adversary_forces_hold=true",
     "production_gate_ready=false",
 ):
     assert line in self_lines, line
@@ -226,6 +240,8 @@ print("stable_release_inventory_required=true")
 print("repeat_candidate_observation_required=true")
 print("late_candidate_mutation_window_guarded=true")
 print("late_candidate_mutation_blocks_bounded_current_set=true")
+print("descriptor_bound_candidate_snapshot=true")
+print("path_swap_adversary_forces_hold=true")
 print("process_environment_access=false")
 print("external_network_calls=false")
 print("loopback_get_only=true")
