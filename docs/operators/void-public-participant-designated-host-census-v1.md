@@ -23,8 +23,9 @@ The live `--run` mode:
 - refuses root execution and requires ordinary user `zoso`;
 - reads `/usr/bin/ss` to identify exactly one IPv4-loopback listener on
   `127.0.0.1:8082`;
-- binds the listener PID across two `/proc/<pid>/stat` process-generation
-  observations;
+- binds the listener PID across three `/proc/<pid>/stat` process-generation
+  observations: before the first HTTP set, between the two HTTP sets, and after
+  the complete second HTTP set;
 - verifies the visible running gateway entry file matches the exact reviewed
   Git blob;
 - performs only bounded loopback GETs to:
@@ -32,7 +33,10 @@ The live `--run` mode:
   - `/__void/participant/session/v1/status.json`;
   - `/__void/participant/account-read/v1/status.json`;
 - repeats listener/process/status observations and requires stable endpoints
-  before reporting an active loopback participant surface.
+  before reporting an active loopback participant surface;
+- takes the final listener/process snapshot only after all second status GETs,
+  so both HTTP sample sets are bracketed by one stable PID/start-tick/listener
+  generation and reviewed visible gateway source generation.
 
 It never reads `/proc/<pid>/environ`, never reads bearer/session/account
 contents, and never calls challenge/login/logout routes.
@@ -47,8 +51,8 @@ contents, and never calls challenge/login/logout routes.
   durable state store;
 - the account-read status reports the exact Wallet/Earn read-only routes with
   mutation/money authority false;
-- both branded status surfaces are mounted on loopback in the same observed
-  process generation.
+- both branded status surfaces are mounted on loopback inside one observed
+  process generation bracket spanning the complete two-sample HTTP window.
 
 It does **not** prove the bytes originally loaded by Node equal the currently
 visible file bytes.

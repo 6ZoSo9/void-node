@@ -48,6 +48,9 @@ for (const required of [
   '"PARTICIPANT_LOOPBACK_SURFACE_OBSERVED_HOST_GATES_REMAIN"',
   '"PARTICIPANT_SURFACE_DEFAULT_OFF_OR_UNOBSERVED"',
   "running_loaded_source_bytes_proven: false",
+  "final_generation_bracket_verified",
+  "listener_final",
+  "process_final",
   "systemd_service_binding_verified: false",
   "binding_registry_path_custody_verified: false",
   "session_state_path_custody_verified: false",
@@ -123,6 +126,8 @@ console.log("process_environment_access=false");
 console.log("participant_status_route_only=true");
 console.log("account_or_bearer_data_read=false");
 console.log("running_loaded_source_bytes_proven=false");
+console.log("final_generation_bracket_required=true");
+console.log("restart_after_middle_snapshot_fails_closed=true");
 console.log("systemd_service_binding_verified=false");
 console.log("session_state_path_custody_verified=false");
 console.log("live_role_rpc_target_verified=false");

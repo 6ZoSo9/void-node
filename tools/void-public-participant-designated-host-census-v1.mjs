@@ -31,6 +31,7 @@ export const VOID_PUBLIC_PARTICIPANT_DESIGNATED_HOST_AUTHORITY_V1 =
     read_only: true,
     loopback_get_only: true,
     process_environment_access: false,
+    final_process_listener_bracket_required: true,
     session_or_challenge_mutation: false,
     bearer_token_access: false,
     account_data_access: false,
@@ -496,19 +497,33 @@ export function classifyVoidPublicParticipantDesignatedHostCensusV1(
 ) {
   const hostnameMatches =
     observation?.hostname === EXPECTED_HOSTNAME;
-  const listenerStable = sameListener(
-    observation?.listener_before,
-    observation?.listener_after,
-  );
-  const processStable = sameProcessGeneration(
-    observation?.process_before,
-    observation?.process_after,
-  );
+  const listenerStable =
+    sameListener(
+      observation?.listener_before,
+      observation?.listener_after,
+    ) &&
+    sameListener(
+      observation?.listener_after,
+      observation?.listener_final,
+    );
+  const processStable =
+    sameProcessGeneration(
+      observation?.process_before,
+      observation?.process_after,
+    ) &&
+    sameProcessGeneration(
+      observation?.process_after,
+      observation?.process_final,
+    );
   const samePid =
     observation?.listener_before?.pid ===
       observation?.process_before?.pid &&
     observation?.listener_after?.pid ===
-      observation?.process_after?.pid;
+      observation?.process_after?.pid &&
+    observation?.listener_final?.pid ===
+      observation?.process_final?.pid &&
+    observation?.listener_before?.pid ===
+      observation?.listener_final?.pid;
 
   const compositionBefore =
     compositionStatusQualified(observation?.composition_before);
@@ -577,11 +592,15 @@ export function classifyVoidPublicParticipantDesignatedHostCensusV1(
     listener_generation_stable: listenerStable,
     process_generation_stable: processStable,
     listener_process_pid_bound: samePid,
+    final_generation_bracket_verified:
+      listenerStable && processStable && samePid,
     composition_status_stable_and_qualified: compositionStable,
     running_visible_gateway_blob_matches_reviewed:
       observation?.process_before?.visible_gateway_blob_matches_reviewed ===
         true &&
       observation?.process_after?.visible_gateway_blob_matches_reviewed ===
+        true &&
+      observation?.process_final?.visible_gateway_blob_matches_reviewed ===
         true,
     running_loaded_source_bytes_proven: false,
     participant_status_endpoints_stable: participantEndpointStable,
@@ -711,8 +730,10 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
     hostname: EXPECTED_HOSTNAME,
     listener_before: listener,
     listener_after: listener,
+    listener_final: listener,
     process_before: process,
     process_after: process,
+    process_final: process,
     composition_before: composition,
     composition_after: composition,
     session_before: session,
@@ -727,6 +748,7 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
       "PARTICIPANT_LOOPBACK_SURFACE_OBSERVED_HOST_GATES_REMAIN" ||
     accepted.participant_loopback_surface_observed !== true ||
     accepted.durable_state_store_status_observed !== true ||
+    accepted.final_generation_bracket_verified !== true ||
     accepted.production_session_issuance_authorized !== false
   ) {
     throw new Error("active_self_test_failed");
@@ -771,6 +793,31 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
     throw new Error("process_generation_self_test_failed");
   }
 
+  const movedFinalProcess =
+    classifyVoidPublicParticipantDesignatedHostCensusV1({
+      ...active,
+      process_final: { ...process, start_ticks: "12346" },
+    });
+  if (
+    movedFinalProcess.status !== "HOST_RUNTIME_HOLD" ||
+    movedFinalProcess.final_generation_bracket_verified !== false
+  ) {
+    throw new Error("final_process_generation_self_test_failed");
+  }
+
+  const movedFinalListener =
+    classifyVoidPublicParticipantDesignatedHostCensusV1({
+      ...active,
+      listener_final: { ...listener, pid: 4322 },
+      process_final: { ...process, pid: 4322, start_ticks: "12346" },
+    });
+  if (
+    movedFinalListener.status !== "HOST_RUNTIME_HOLD" ||
+    movedFinalListener.final_generation_bracket_verified !== false
+  ) {
+    throw new Error("final_listener_generation_self_test_failed");
+  }
+
   const wrongBlob =
     classifyVoidPublicParticipantDesignatedHostCensusV1({
       ...active,
@@ -813,14 +860,22 @@ export async function collectVoidPublicParticipantDesignatedHostCensusV1() {
   const sessionAfter = await readHttpBounded(SESSION_STATUS_PATH);
   const accountAfter = await readHttpBounded(ACCOUNT_STATUS_PATH);
 
+  // Final generation snapshot occurs after every accepted second HTTP sample.
+  // This closes the observation window over both status sets rather than
+  // accepting final HTTP evidence from a post-snapshot replacement process.
+  const listenerFinal = listenerSnapshot();
+  const processFinal = processSnapshot(listenerFinal.pid);
+
   return Object.freeze({
     observed_at_utc: new Date().toISOString(),
     ...classifyVoidPublicParticipantDesignatedHostCensusV1({
       hostname,
       listener_before: listenerBefore,
       listener_after: listenerAfter,
+      listener_final: listenerFinal,
       process_before: processBefore,
       process_after: processAfter,
+      process_final: processFinal,
       composition_before: compositionBefore,
       composition_after: compositionAfter,
       session_before: sessionBefore,
