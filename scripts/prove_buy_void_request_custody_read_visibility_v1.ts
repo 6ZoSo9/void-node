@@ -270,15 +270,63 @@ try{
     path.join(missingJournalRoot,EVENTS),
     VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1,
   );
+  process.env.VOID_BUY_REQUEST_DIR=missingJournalRoot;
+  let missingRequestReaderCalls=0;
   await rejects(
-    ()=>persist(missingJournalRoot,req("buyvoid_shared_eeeeeeee","5")),
+    ()=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+      req("buyvoid_shared_eeeeeeee","5"),
+      [
+        async(_request:any,operation:any)=>await operation(()=>({ready:true})),
+        async()=>{missingRequestReaderCalls+=1;assert.fail("request reader must not run before shared journal preflight");},
+        async()=>{missingRequestReaderCalls+=1;assert.fail("event reader must not run before shared journal preflight");},
+        (requests:any[])=>requests,
+        ()=>false,
+        ()=>true,
+      ],
+    ),
     /custody_readable_journal_not_preprovisioned/u,
   );
+  assert.equal(missingRequestReaderCalls,0);
   assert.equal(
     fs.existsSync(path.join(missingJournalRoot,REQUESTS)),
     false,
     "shared runtime must not create the fixed request journal",
   );
+
+  const missingEventRoot=path.join(root,"missing-event-journal");
+  fs.mkdirSync(missingEventRoot,{
+    mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1,
+  });
+  fs.chmodSync(
+    missingEventRoot,
+    VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1,
+  );
+  fs.writeFileSync(
+    path.join(missingEventRoot,REQUESTS),
+    "",
+    {mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1},
+  );
+  fs.chmodSync(
+    path.join(missingEventRoot,REQUESTS),
+    VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1,
+  );
+  process.env.VOID_BUY_REQUEST_DIR=missingEventRoot;
+  let missingEventReaderCalls=0;
+  await rejects(
+    ()=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+      req("buyvoid_shared_event_missing","7"),
+      [
+        async(_request:any,operation:any)=>await operation(()=>({ready:true})),
+        async()=>{missingEventReaderCalls+=1;assert.fail("request reader must not run before both shared journals qualify");},
+        async()=>{missingEventReaderCalls+=1;assert.fail("event reader must not run before both shared journals qualify");},
+        (requests:any[])=>requests,
+        ()=>false,
+        ()=>true,
+      ],
+    ),
+    /custody_readable_journal_not_preprovisioned/u,
+  );
+  assert.equal(missingEventReaderCalls,0);
 
   process.env.VOID_BUY_REQUEST_DIR=absent;
   await rejects(
@@ -333,6 +381,7 @@ console.log("operator_sidecar_mode=0600");
 console.log("operator_sidecar_private_reopen_path=true");
 console.log("operator_sidecar_group_readable=false");
 console.log("shared_mode_preprovision_required=true");
+console.log("shared_journal_preflight_precedes_reader_callbacks=true");
 console.log("legacy_mode_default_preserved=true");
 console.log("custody_write_authority=false");
 console.log("payment_acceptance=false");
