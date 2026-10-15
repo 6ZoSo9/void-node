@@ -45,10 +45,10 @@ const hostile=new Proxy(structuredClone(
   ownKeys(){traps+=1;throw Error("trap");},
   getPrototypeOf(){traps+=1;throw Error("trap");},
 });
-assert.throws(
-  ()=>classifyVoidBuyVoidRuntimeIpcGroupRefreshPolicyV1(hostile),
-  /runtime_ipc_group_refresh_shape_invalid/u,
-);
+const hostileDecision=
+  classifyVoidBuyVoidRuntimeIpcGroupRefreshPolicyV1(hostile);
+assert.equal(hostileDecision.ok,false);
+assert.equal(hostileDecision.reason,"runtime_ipc_group_refresh_shape_invalid");
 assert.equal(traps,0);
 
 const policySource=fs.readFileSync(
