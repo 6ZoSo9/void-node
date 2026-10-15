@@ -88,7 +88,11 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_CANONICAL_GIT_
     }),
     canonical_truth_admission:Object.freeze({
       path:"tools/datanet-content-commitment-canonical-truth-admission-v1.mjs",
-      git_blob_sha1:"ee92747e3109e3b8940c1d8657d51c9a14fc961e",
+      git_blob_sha1:"c46827f2ec68c16af59b7aaef05ed1e331247488",
+    }),
+    production_registry_identity:Object.freeze({
+      path:"tools/datanet-content-commitment-production-registry-identity-v1.mjs",
+      git_blob_sha1:"9154771decf989155bf4e6c5f94caf819f784fac",
     }),
     compiler_profile:Object.freeze({
       path:"tools/datanet-content-commitment-compiler-profile-v1.mjs",
