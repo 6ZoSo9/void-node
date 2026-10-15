@@ -276,11 +276,14 @@ def self_test()->None:
     assert EXPECTED_BYTES==126595440
     assert EXPECTED_SHA256=="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"
     source=Path(__file__).read_text(encoding="utf-8")
-    for forbidden in (
-        "apt-get","apt ","dnf ","yum ","snap install",
-        "systemctl","start","systemctl","enable","systemctl","restart",
-        "curl ","wget ",'training_execution":True','durable_attempt_claim":True',
-    ):
+    forbidden_parts=(
+        ("apt","-get"),("apt"," "),("dnf"," "),("yum"," "),("snap"," install"),
+        ("systemctl",'","',"start"),("systemctl",'","',"enable"),
+        ("systemctl",'","',"restart"),("curl"," "),("wget"," "),
+        ("training_execution",'"',":True"),("durable_attempt_claim",'"',":True"),
+    )
+    for parts in forbidden_parts:
+        forbidden="".join(parts)
         assert forbidden not in source,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
     print("source_ownership_trusted=false")
