@@ -20,9 +20,15 @@ The updater requires:
 - every other target/service unit-file state holds closed; and
 - the helper absent or exact.
 
-It stages the helper into a private pending file, fsyncs and verifies the full
-bytes/metadata, publishes it with a create-only hardlink, fsyncs the lifecycle
-directory, removes the pending link and fsyncs again. If a process crash leaves
+It stages the helper into a private pending file, applies the final reviewed
+ownership/mode, verifies the descriptor metadata and bytes, and only then
+fsyncs the finalized file immediately before create-only hardlink publication.
+The lifecycle directory is fsynced after publication, the pending link is
+removed, and the directory is fsynced again. When the lifecycle root itself is
+first created, the updater fsyncs that root and its `/opt` parent before any
+helper publication. The service staging file uses the same rule: final
+ownership/mode and descriptor verification precede its final file fsync, which
+precedes atomic replacement and the systemd-directory fsync. If a process crash leaves
 a private pending name before publication, or leaves the exact final helper with
 its one same-inode pending hardlink, plan classifies that state explicitly and
 apply removes only the reviewed private pending link(s), fsyncs the lifecycle
@@ -34,6 +40,11 @@ the loaded
 refusal.
 
 The apply path is restart-safe across its own partial publication boundary.
+The initial plan is not treated as a mutation lease: apply re-runs the exact
+target/service dormant and loaded-generation census immediately before any
+durability repair, helper publication, service-unit replacement, and
+daemon-reload. If either unit becomes active or its reviewed generation/state
+changes at a mutation boundary, apply HOLDs without starting or stopping it.
 Plan mode classifies the reviewed predecessor generations explicitly. The
 historical base can be initial/helper-only, the installed lifecycle and
 four-variable environment predecessors are `predecessor_ready`, and the new
@@ -48,7 +59,12 @@ not a dead-end collision. Any other file/loaded combination still HOLDs.
 If apply fails, the failure receipt records the initial lifecycle/helper/service
 file/loaded-service state, whether persistent mutation was already present before
 this invocation, whether filesystem mutation was possible during this invocation,
-whether helper installation, service replacement, daemon-reload and final
+and how many mutation-boundary dormancy revalidations completed. Durability
+repair is conservatively classified as a possible current-invocation persistent
+mutation before it may remove a pending entry or fsync persistent state, so a
+mid-recovery failure cannot falsely attribute all mutation to a prior run.
+The receipt also records whether helper installation, service replacement,
+daemon-reload and final
 postcheck were attempted, whether the reload command returned success, the
 aggregate persistent-mutation possibility, and a fresh read-only recovery
 snapshot. A
@@ -56,8 +72,10 @@ daemon-reload client failure/timeout reports the command outcome as
 `indeterminate`, never as a proven failed reload; the recovery snapshot
 classifies what PID1 actually exposes. Fault tests cover failure after helper
 creation, after service replacement/parent fsync, at daemon-reload, and at
-loaded postcheck, then prove idempotent resume without any target/service start
-or stop.
+loaded postcheck, and mutation-boundary dormancy drift before the first
+publication. The latter requires zero helper/service publication and zero
+daemon-reload attempts. The tests then prove idempotent resume without any
+target/service start or stop.
 
 No service/target start or stop is issued. No socket is touched during this
 update. The installed cleanup helper independently requires the custody UID
