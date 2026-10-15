@@ -43,8 +43,20 @@
     "artifact_a": 11984123866,
     "artifact_b": 11984563387,
     "artifact_c": 11984857851,
-    "never_installed": true,
-    "superseded_by_live_v6": true
+    "live_diagnostic_observed": true,
+    "live_diagnostic_result": "security_policy_mismatch_bounding_set_raw_equality",
+    "protected_install_performed": false,
+    "live_query_authorized": false,
+    "superseded_by_v6_candidate_generation": true
+  },
+  "v6_disposable_live_probe_evidence": {
+    "disposable_live_probe_observed": true,
+    "disposable_live_probe_status": "V6_LIVE_PROBE_GREEN",
+    "disposable_live_probe_source_head": "4328b4d9cf830304de2f9dee3c2052684640f489",
+    "disposable_live_probe_query_source_blob": "fc1f640689b7da7278ff013669ef8a10cd8f6659",
+    "protected_install_performed": false,
+    "live_query_authorized": false,
+    "production_host_evidence_authority": false
   },
   "manager_reexec_deserialize_argv_accepted": true,
   "control_group_service_interface_required": true,
@@ -63,5 +75,5 @@
   "payment_acceptance": false,
   "public_presale_activation": false,
   "funds_movement": false,
-  "lock_id": "voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6"
+  "lock_id": "voidbuyumqelflock6_3627a98945579452b01c79b4d114c54d858122496f2b20a20ddfd7fae6b0307c"
 }
