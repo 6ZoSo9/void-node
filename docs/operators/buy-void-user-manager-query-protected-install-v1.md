@@ -70,6 +70,10 @@ unless its own executable path and the query path match this fixed layout.
 Apply requires:
 
 - effective UID 0;
+- Python isolated mode (`-I`);
+- absence of loader/Python injection variables including `LD_PRELOAD`,
+  `LD_LIBRARY_PATH`, `LD_AUDIT`, `GLIBC_TUNABLES`, `PYTHONPATH` and
+  `PYTHONHOME`;
 - trusted root-owned, non-group/world-writable `/` and `/opt`;
 - the complete installation root to be absent;
 - the explicit confirmation token
@@ -130,7 +134,9 @@ python3 -I -B ops/precision/void_buy_void_user_manager_query_protected_install_v
 ```
 
 A live `--apply` is intentionally not authorized merely by merging this
-source. It requires separate operator authorization and root execution.
+source. It requires separate operator authorization and must be invoked through
+isolated Python (for example, `sudo python3 -I -B ... --apply`); the installer
+also checks that dangerous loader/Python environment variables are absent.
 
 ## Authority boundary
 
