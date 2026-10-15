@@ -292,7 +292,6 @@ def live_qualify() -> dict[str, Any]:
 
         observed = observe_live_generation(mainpid)
         live = observed["live"]
-        }
     finally:
         if started:
             run_systemctl("stop", UNIT, check=False)
