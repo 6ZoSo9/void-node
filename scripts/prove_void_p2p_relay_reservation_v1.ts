@@ -396,6 +396,50 @@ try {
     regressionBase + 7,
   );
 
+  const deferredRegressionState = new VoidRelayServerStateV1();
+  const deferredTarget = keypair().nodeId;
+  const deferredSource = keypair().nodeId;
+  const deferredBase = 4_000_000;
+  deferredRegressionState.reserve(deferredTarget, 60_000, deferredBase);
+  const deferredStream = deferredRegressionState.openStream(
+    deferredSource,
+    deferredTarget,
+    deferredBase + 1,
+  );
+  deferredRegressionState.markReady(
+    deferredSource,
+    deferredStream.stream_id,
+    deferredBase + 2,
+  );
+  deferredRegressionState.markReady(
+    deferredTarget,
+    deferredStream.stream_id,
+    deferredBase + 3,
+  );
+  deferredRegressionState.routeData(
+    deferredSource,
+    deferredStream.stream_id,
+    1,
+    deferredBase + 4,
+  );
+  assert.deepEqual(deferredRegressionState.sweep(deferredBase + 4), []);
+  assert.throws(
+    () => deferredRegressionState.markReady(
+      deferredSource,
+      deferredStream.stream_id,
+      deferredBase + 3,
+    ),
+    /relay stream is missing or expired/,
+  );
+  assert.equal(deferredRegressionState.hasStream(deferredStream.stream_id), false);
+  const deferredRegressionClosed = deferredRegressionState.sweep(deferredBase + 3);
+  assert.equal(deferredRegressionClosed.length, 1);
+  assert.equal(
+    deferredRegressionClosed[0]?.stream_id,
+    deferredStream.stream_id,
+  );
+  assert.deepEqual(deferredRegressionState.sweep(deferredBase + 3), []);
+
   const refreshState = new VoidRelayServerStateV1();
   const refreshTarget = keypair().nodeId;
   const refreshSource = keypair().nodeId;
@@ -717,6 +761,7 @@ try {
   console.log("[PASS] relay reservation TTL is bounded by the local request clock");
   console.log("[PASS] relay reservation expiry arithmetic fails closed atomically");
   console.log("[PASS] relay server clock regression clears transient state");
+  console.log("[PASS] internal clock regression queues exactly one owner close notification");
   console.log("[PASS] monotonic reservation refresh preserves established streams");
   console.log("[PASS] ignored relay requests expire and free pending capacity");
   console.log("[PASS] relay forwarding queue has an explicit byte ceiling");
@@ -741,6 +786,7 @@ try {
   console.log("relay_invalid_clock_mutates_state=false");
   console.log("relay_clock_regression_clears_transient_state=true");
   console.log("relay_clock_regression_fresh_state_recovery=true");
+  console.log("relay_clock_regression_internal_close_notification_preserved=true");
   console.log("relay_monotonic_reservation_refresh_preserves_stream=true");
   console.log("relay_pending_request_timeout_bounded=true");
   console.log("relay_forwarding_queue_bounded=true");
