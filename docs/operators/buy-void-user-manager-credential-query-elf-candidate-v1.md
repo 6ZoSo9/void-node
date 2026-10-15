@@ -71,6 +71,6 @@ It does **not** accept the binary pair or authorize installation/live execution:
 A separate acceptance-lock successor must consume exact hosted artifact
 identities before any protected installer can be reviewed.
 
-This clean child is stacked on accepted #3152 exact head `a44308f094bc67841da2a7ce3eb22c36782318fe`, which is 19/19 hosted SUCCESS and independently source-reviewed. Candidate derivation still grants no protected install or live-query authority.
+The frozen credential source parent remains #3152 exact head `a44308f094bc67841da2a7ce3eb22c36782318fe`, which is independently source-reviewed and remains an ancestor of current main. This successor is clean-restacked on `main@7a83b0fb5d2bface8060aef1a1ecc41ca800b538`; its PR delta is exactly this workflow plus this document. The intervening canonical V6 qualifier/census commits are not part of the credential candidate scope. Candidate derivation still grants no protected install or live-query authority.
 
 PROTECT THE CORE.

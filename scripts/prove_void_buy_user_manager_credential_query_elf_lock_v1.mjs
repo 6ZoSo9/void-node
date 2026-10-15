@@ -9,9 +9,9 @@ import {fileURLToPath} from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE_PARENT="a44308f094bc67841da2a7ce3eb22c36782318fe";
-const CANDIDATE_HEAD="cbf9491dd9f9a613a781d6844198389ef56195e6";
+const CANDIDATE_HEAD="bd9526032a926bcd4ede09b6ad1c8a26ca415b46";
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-credential-query-elf-candidate-v1.yml";
-const CANDIDATE_WORKFLOW_BLOB="1c2c4ba75bb57c888445c8cd8027b43ce7f2e42c";
+const CANDIDATE_WORKFLOW_BLOB="4f4559234d6418c9a97c5743cdf813a6530e3d2c";
 const PEER_SOURCE="ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c";
 const QUERY_SOURCE="ops/precision/void_buy_void_user_manager_private_credential_unit_query_v1.c";
 const QUERY_PROOF="scripts/prove_void_buy_user_manager_private_credential_unit_query_v1.mjs";
@@ -67,7 +67,7 @@ const CANDIDATE=Object.freeze({
 const CANDIDATE_BYTES=1478;
 const CANDIDATE_SHA256="dabc9fb5e5fca1717ceb8f86b59174930a719ee3f52f64b2af244bcd139a023a";
 const CANDIDATE_BLOB="beedebce690b8ed26422f3bc579f90d6d1405936";
-const LOCK_ID="voidbuyumqcredelflock1_9cac1929a16f130e176ba3af998963defeacdd7e2b73467ca02bbf89cb4763eb";
+const LOCK_ID="voidbuyumqcredelflock1_65a1839c14b692349dda8cccdbe8657a9485754c5d10ffa5b57421ce87e3753c";
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
@@ -126,10 +126,10 @@ function expectedLock(){
     source_parent:SOURCE_PARENT,
     candidate_head:CANDIDATE_HEAD,
     candidate_hosted_evidence:{
-      workflow_run:38777649125,
-      artifact_a:11993854341,
-      artifact_b:11994283558,
-      artifact_c:11995130749,
+      workflow_run:38779415675,
+      artifact_a:11995740384,
+      artifact_b:11995087368,
+      artifact_c:11994932598,
       cross_job_byte_identity_verified:true,
       exact_stripped_pair_executed_before_hash:true,
     },

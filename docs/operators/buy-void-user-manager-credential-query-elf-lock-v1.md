@@ -8,17 +8,17 @@ Status: **source/CI acceptance of one exact authenticated credential-query + sta
 
 Candidate head:
 
-`cbf9491dd9f9a613a781d6844198389ef56195e6` (#3155).
+`bd9526032a926bcd4ede09b6ad1c8a26ca415b46` (#3157).
 
 Hosted derivation run:
 
-`38777649125`.
+`38779415675`.
 
 Artifacts:
 
-- slot a: `11993854341`;
-- slot b: `11994283558`;
-- slot c: `11995130749`.
+- slot a: `11995740384`;
+- slot b: `11995087368`;
+- slot c: `11994932598`.
 
 All three derive jobs and the independent cross-job byte comparison are GREEN.
 
@@ -30,7 +30,7 @@ Accepted source generation:
 - credential-query proof: `ec3803e766fd679eb53c84cc0b3d7069e33c2932`;
 - static credential-preexec source: `0ccd2d07a951389d85a9fc56ec892a774d9dd681`;
 - static credential-preexec proof: `58df08ca966f4629893c3885f1df37c837762520`;
-- candidate workflow: `1c2c4ba75bb57c888445c8cd8027b43ce7f2e42c`.
+- candidate workflow: `4f4559234d6418c9a97c5743cdf813a6530e3d2c`.
 
 Accepted binary identities:
 
@@ -56,7 +56,7 @@ and Git blob
 
 The lock proof independently:
 
-- requires #3155 exact ancestry and a five-file lock-only delta;
+- requires #3157 exact ancestry and a five-file lock-only delta;
 - pins every credential-query/preexec source and proof blob;
 - pins the exact candidate workflow and candidate metadata;
 - requires the hosted compiler and strip identities;
@@ -74,7 +74,7 @@ execute the retained fixed-path query descriptor, and preserve
 
 ## Lock identity
 
-`voidbuyumqcredelflock1_9cac1929a16f130e176ba3af998963defeacdd7e2b73467ca02bbf89cb4763eb`
+`voidbuyumqcredelflock1_65a1839c14b692349dda8cccdbe8657a9485754c5d10ffa5b57421ce87e3753c`
 
 Node 22, 24 and 26 independently rederive the lock and must produce byte-identical
 lock JSON.
