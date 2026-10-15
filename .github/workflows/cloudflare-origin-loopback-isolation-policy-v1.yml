@@ -78,6 +78,7 @@ jobs:
           grep -Fx 'sensitive_origin_chunked_encoding_disabled_required=true' "$proof"
           grep -Fx 'ordinary_tunnel_routes_preserved_required=true' "$proof"
           grep -Fx 'cloudflare_control_plane_evidence_required=true' "$proof"
+          grep -Fx 'pseudo_ipv4_mode_off_required=true' "$proof"
           grep -Fx 'cloudflared_to_adapter_policy_shape_qualified=true' "$proof"
           grep -Fx 'adapter_to_dispatcher_policy_shape_qualified=true' "$proof"
           grep -Fx 'closed_world_listener_sets_required=true' "$proof"
