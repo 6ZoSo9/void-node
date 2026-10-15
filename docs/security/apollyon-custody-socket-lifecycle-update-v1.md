@@ -36,10 +36,13 @@ not a dead-end collision. Any other file/loaded combination still HOLDs.
 If apply fails after mutation starts, the failure receipt reports whether helper
 installation, service replacement, daemon-reload and final postcheck were
 attempted, whether the reload command returned success, whether persistent
-filesystem mutation is possible, and a fresh read-only recovery snapshot. Fault
-tests cover failure after helper creation, after service replacement/parent
-fsync, at daemon-reload, and at loaded postcheck, then prove idempotent resume
-without any target/service start or stop.
+filesystem mutation is possible, and a fresh read-only recovery snapshot. A
+daemon-reload client failure/timeout reports the command outcome as
+`indeterminate`, never as a proven failed reload; the recovery snapshot
+classifies what PID1 actually exposes. Fault tests cover failure after helper
+creation, after service replacement/parent fsync, at daemon-reload, and at
+loaded postcheck, then prove idempotent resume without any target/service start
+or stop.
 
 No service/target start or stop is issued. No socket is touched during this
 update. The installed cleanup helper independently requires the custody UID

@@ -392,7 +392,7 @@ def apply_transition(
         if receipt["daemon_reload_attempted"] is True and (
             receipt["daemon_reload_command_succeeded"] is None
         ):
-            receipt["daemon_reload_command_succeeded"]=False
+            receipt["daemon_reload_command_succeeded"]="indeterminate"
         receipt["recovery_snapshot_attempted"]=True
         try:
             recovery=_state_fn()
@@ -647,7 +647,10 @@ def self_test()->None:
     except ApplyHold as exc:
         assert str(exc)=="synthetic_daemon_reload_failure"
         assert exc.receipt["daemon_reload_attempted"] is True
-        assert exc.receipt["daemon_reload_command_succeeded"] is False
+        assert (
+            exc.receipt["daemon_reload_command_succeeded"]
+            =="indeterminate"
+        )
         assert exc.receipt["persistent_filesystem_mutation_possible"] is False
         assert exc.receipt["recovery_lifecycle_state"]=="new_file_pending_reload"
     else:
@@ -721,6 +724,7 @@ def self_test()->None:
     print("failure_injection_after_helper_creation=true")
     print("failure_injection_after_service_replace=true")
     print("failure_injection_daemon_reload=true")
+    print("daemon_reload_failure_outcome_indeterminate=true")
     print("failure_injection_loaded_postcheck=true")
     print("idempotent_resume_proven=true")
     print("service_action=false")
