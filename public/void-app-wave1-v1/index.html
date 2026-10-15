@@ -125,11 +125,11 @@
     <div class="drawer-header"><div><span class="eyebrow">Restricted area</span><h2 id="advanced-title">Advanced</h2></div><button class="icon-button" type="button" data-action="close-overlay" aria-label="Close Advanced"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
     <div class="drawer-body">
       <div class="authority-banner"><span class="status-dot status-dot--warning"></span><div><strong>Operator boundary</strong><p>Diagnostics and guarded operations stay outside normal participant flows.</p></div></div>
-      <div class="settings-list">
-        <button type="button"><span><strong>Records</strong><small>Receipts, proofs, and durable references</small></span><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-        <button type="button"><span><strong>Diagnostics</strong><small>Health, API, and runtime inspection</small></span><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-        <button type="button"><span><strong>Operator tools</strong><small>Guarded maintenance and node controls</small></span><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-        <button type="button"><span><strong>Developer</strong><small>Raw contracts and local debugging</small></span><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+      <div class="settings-list" role="list">
+        <div class="settings-list__item" role="listitem"><span><strong>Records</strong><small>Unavailable in the public app. Receipts, proofs, and durable references stay operator-only.</small></span><span class="status-chip status-chip--warning" aria-hidden="true">Unavailable</span></div>
+        <div class="settings-list__item" role="listitem"><span><strong>Diagnostics</strong><small>Unavailable in the public app. Health, API, and runtime inspection stay operator-only.</small></span><span class="status-chip status-chip--warning" aria-hidden="true">Unavailable</span></div>
+        <div class="settings-list__item" role="listitem"><span><strong>Operator tools</strong><small>Unavailable in the public app. Maintenance and node controls stay operator-only.</small></span><span class="status-chip status-chip--warning" aria-hidden="true">Unavailable</span></div>
+        <div class="settings-list__item" role="listitem"><span><strong>Developer</strong><small>Unavailable in the public app. Raw contracts and local debugging stay operator-only.</small></span><span class="status-chip status-chip--warning" aria-hidden="true">Unavailable</span></div>
       </div>
     </div>
   </aside>

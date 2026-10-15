@@ -2,13 +2,17 @@
 
 import http from "node:http";
 import {
+  closeSync,
+  constants as fsConstants,
   existsSync,
+  fstatSync,
   lstatSync,
+  openSync,
   readFileSync,
   realpathSync,
   statSync,
 } from "node:fs";
-import { extname, join, resolve, sep } from "node:path";
+import { extname, join, parse as pathParse, resolve, sep } from "node:path";
 import {
   VOID_TOR_DESCRIPTOR_PATHS,
   VOID_TOR_ONION_TRANSPORT_MARKER,
@@ -911,7 +915,121 @@ async function proxyMcpRequest(
   });
 }
 
-function safeResolveStatic(root, realRoot, rawUrl) {
+const TOR_STATIC_DIR_OPEN_FLAGS_V1 =
+  fsConstants.O_RDONLY |
+  Number(fsConstants.O_DIRECTORY || 0) |
+  Number(fsConstants.O_NOFOLLOW || 0) |
+  Number(fsConstants.O_NONBLOCK || 0);
+const TOR_STATIC_FILE_OPEN_FLAGS_V1 =
+  fsConstants.O_RDONLY |
+  Number(fsConstants.O_NOFOLLOW || 0) |
+  Number(fsConstants.O_NONBLOCK || 0);
+const TOR_STATIC_PROC_FD_ROOT_V1 = "/proc/self/fd";
+
+function requireTorStaticDescriptorSupportV1() {
+  if (
+    typeof fsConstants.O_DIRECTORY !== "number" ||
+    fsConstants.O_DIRECTORY <= 0 ||
+    typeof fsConstants.O_NOFOLLOW !== "number" ||
+    fsConstants.O_NOFOLLOW <= 0 ||
+    !existsSync(TOR_STATIC_PROC_FD_ROOT_V1)
+  ) {
+    throw new Error("tor_static_descriptor_traversal_unavailable");
+  }
+}
+
+function torStaticDescriptorChildPathV1(parentFd, component) {
+  if (
+    typeof component !== "string" ||
+    component.length === 0 ||
+    component === "." ||
+    component === ".." ||
+    component.includes(sep) ||
+    component.includes("\0")
+  ) {
+    throw new Error("tor_static_component_invalid");
+  }
+  return join(TOR_STATIC_PROC_FD_ROOT_V1, String(parentFd), component);
+}
+
+function sameTorStaticGenerationV1(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
+}
+
+function openTorStaticDirectoryPathV1(absolutePath) {
+  requireTorStaticDescriptorSupportV1();
+  const canonical = resolve(absolutePath);
+  if (canonical !== absolutePath) {
+    throw new Error("tor_static_root_not_canonical");
+  }
+  const parsed = pathParse(canonical);
+  const components = canonical
+    .slice(parsed.root.length)
+    .split(sep)
+    .filter(Boolean);
+  let fd = openSync(parsed.root, TOR_STATIC_DIR_OPEN_FLAGS_V1);
+  try {
+    for (const component of components) {
+      const nextFd = openSync(
+        torStaticDescriptorChildPathV1(fd, component),
+        TOR_STATIC_DIR_OPEN_FLAGS_V1,
+      );
+      const nextStat = fstatSync(nextFd);
+      if (!nextStat.isDirectory()) {
+        closeSync(nextFd);
+        throw new Error("tor_static_root_component_not_directory");
+      }
+      closeSync(fd);
+      fd = nextFd;
+    }
+    const st = fstatSync(fd);
+    if (!st.isDirectory()) {
+      throw new Error("tor_static_root_not_directory");
+    }
+    return { path: canonical, fd, st };
+  } catch (error) {
+    closeSync(fd);
+    throw error;
+  }
+}
+
+function assertTorStaticRootPinnedV1(rootAuthority) {
+  const current = openTorStaticDirectoryPathV1(rootAuthority.path);
+  try {
+    if (
+      current.st.dev !== rootAuthority.st.dev ||
+      current.st.ino !== rootAuthority.st.ino
+    ) {
+      throw new Error("tor_static_root_generation_changed");
+    }
+  } finally {
+    closeSync(current.fd);
+  }
+}
+
+function classifyTorStaticOpenErrorV1(error) {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String(error.code || "")
+      : "";
+  if (code === "ELOOP" || code === "EACCES" || code === "EPERM") {
+    return 403;
+  }
+  if (code === "ENOENT" || code === "ENOTDIR") {
+    return 404;
+  }
+  return null;
+}
+
+function safeResolveStatic(rootAuthority, rawUrl) {
   const rawPath = String(rawUrl || "/").split("?", 1)[0] || "/";
   if (rawPath.length > MAX_URL_LENGTH) return { error: 414 };
 
@@ -922,22 +1040,120 @@ function safeResolveStatic(root, realRoot, rawUrl) {
     return { error: 400 };
   }
 
-  if (decodedPath.includes("\0") || decodedPath.includes("\\")) return { error: 403 };
-  const segments = decodedPath.split("/");
-  if (segments.some((segment) => segment === "." || segment === "..")) {
+  if (decodedPath.includes("\0") || decodedPath.includes("\\")) {
     return { error: 403 };
   }
+  const rawSegments = decodedPath.split("/");
+  if (
+    rawSegments.some(
+      (segment) => segment === "." || segment === "..",
+    )
+  ) {
+    return { error: 403 };
+  }
+  const segments = rawSegments.filter(Boolean);
 
-  const candidate = resolve(root, `.${decodedPath.startsWith("/") ? decodedPath : `/${decodedPath}`}`);
-  if (candidate !== root && !candidate.startsWith(`${root}${sep}`)) return { error: 403 };
+  assertTorStaticRootPinnedV1(rootAuthority);
+  let parentFd = rootAuthority.fd;
+  const ownedDirectoryFds = [];
+  try {
+    if (segments.length === 0) {
+      const fd = openSync(
+        torStaticDescriptorChildPathV1(parentFd, "index.html"),
+        TOR_STATIC_FILE_OPEN_FLAGS_V1,
+      );
+      const st = fstatSync(fd);
+      if (!st.isFile()) {
+        closeSync(fd);
+        return { error: 404 };
+      }
+      return {
+        fd,
+        st,
+        file: join(rootAuthority.path, "index.html"),
+      };
+    }
 
-  let file = candidate;
-  if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html");
-  if (!existsSync(file) || !statSync(file).isFile()) return { error: 404 };
+    for (let index = 0; index < segments.length; index += 1) {
+      const component = segments[index];
+      const final = index === segments.length - 1;
+      const fd = openSync(
+        torStaticDescriptorChildPathV1(parentFd, component),
+        TOR_STATIC_FILE_OPEN_FLAGS_V1,
+      );
+      const st = fstatSync(fd);
 
-  const realFile = realpathSync(file);
-  if (realFile !== realRoot && !realFile.startsWith(`${realRoot}${sep}`)) return { error: 403 };
-  return { file: realFile };
+      if (!final) {
+        if (!st.isDirectory()) {
+          closeSync(fd);
+          return { error: 404 };
+        }
+        ownedDirectoryFds.push(fd);
+        parentFd = fd;
+        continue;
+      }
+
+      if (st.isDirectory()) {
+        ownedDirectoryFds.push(fd);
+        const indexFd = openSync(
+          torStaticDescriptorChildPathV1(fd, "index.html"),
+          TOR_STATIC_FILE_OPEN_FLAGS_V1,
+        );
+        const indexStat = fstatSync(indexFd);
+        if (!indexStat.isFile()) {
+          closeSync(indexFd);
+          return { error: 404 };
+        }
+        return {
+          fd: indexFd,
+          st: indexStat,
+          file: join(rootAuthority.path, ...segments, "index.html"),
+        };
+      }
+
+      if (!st.isFile()) {
+        closeSync(fd);
+        return { error: 404 };
+      }
+
+      return {
+        fd,
+        st,
+        file: join(rootAuthority.path, ...segments),
+      };
+    }
+    return { error: 404 };
+  } catch (error) {
+    const status = classifyTorStaticOpenErrorV1(error);
+    if (status !== null) return { error: status };
+    throw error;
+  } finally {
+    for (
+      let index = ownedDirectoryFds.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      closeSync(ownedDirectoryFds[index]);
+    }
+  }
+}
+
+function readResolvedTorStaticV1(rootAuthority, resolved) {
+  try {
+    const before = resolved.st;
+    const body = readFileSync(resolved.fd);
+    const after = fstatSync(resolved.fd);
+    if (
+      !sameTorStaticGenerationV1(before, after) ||
+      body.length !== before.size
+    ) {
+      throw new Error("tor_static_file_generation_changed");
+    }
+    assertTorStaticRootPinnedV1(rootAuthority);
+    return body;
+  } finally {
+    closeSync(resolved.fd);
+  }
 }
 
 function handleSynchronousPublicRequest({
@@ -945,8 +1161,7 @@ function handleSynchronousPublicRequest({
   response,
   options,
   listeningPort,
-  root,
-  realRoot,
+  rootAuthority,
 }) {
   const method = String(request.method || "").toUpperCase();
   const parsedPath = strictRequestPath(request.url || "/");
@@ -1037,7 +1252,10 @@ function handleSynchronousPublicRequest({
     return true;
   }
 
-  const resolved = safeResolveStatic(root, realRoot, request.url || "/");
+  const resolved = safeResolveStatic(
+    rootAuthority,
+    request.url || "/",
+  );
   if (resolved.error) {
     const messages = {
       400: "bad request\n",
@@ -1049,7 +1267,7 @@ function handleSynchronousPublicRequest({
     return true;
   }
 
-  const body = readFileSync(resolved.file);
+  const body = readResolvedTorStaticV1(rootAuthority, resolved);
   send(response, 200, body, method, contentType(resolved.file));
   return true;
 }
@@ -1191,8 +1409,23 @@ try {
   if (!existsSync(publicNodeIndex)) {
     throw new Error(`public-node index missing: ${publicNodeIndex}`);
   }
-  JSON.parse(readFileSync(publicNodeIndex, "utf8"));
   const realRoot = realpathSync(root);
+  const staticRootAuthority = openTorStaticDirectoryPathV1(realRoot);
+  const publicNodeIndexResolved = safeResolveStatic(
+    staticRootAuthority,
+    "/public-node/index.json",
+  );
+  if (publicNodeIndexResolved.error) {
+    throw new Error(
+      `public-node index unavailable: ${publicNodeIndexResolved.error}`,
+    );
+  }
+  JSON.parse(
+    readResolvedTorStaticV1(
+      staticRootAuthority,
+      publicNodeIndexResolved,
+    ).toString("utf8"),
+  );
 
   if (options.checkOnly) {
     console.log("VOID_TOR_ONION_PUBLIC_NODE_V1_CHECK_GREEN");
@@ -1224,8 +1457,7 @@ try {
         response: res,
         options,
         listeningPort,
-        root,
-        realRoot,
+        rootAuthority: staticRootAuthority,
       });
       if (handled) return;
     } catch {
@@ -1407,7 +1639,10 @@ try {
         return;
       }
 
-      const resolved = safeResolveStatic(root, realRoot, req.url || "/");
+      const resolved = safeResolveStatic(
+        staticRootAuthority,
+        req.url || "/",
+      );
       if (resolved.error) {
         const messages = {
           400: "bad request\n",
@@ -1419,7 +1654,10 @@ try {
         return;
       }
 
-      const body = readFileSync(resolved.file);
+      const body = readResolvedTorStaticV1(
+        staticRootAuthority,
+        resolved,
+      );
       send(res, 200, body, method, contentType(resolved.file));
     })().catch(() => {
       req.resume();

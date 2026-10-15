@@ -2,10 +2,12 @@
 
 Marker: `VOID_LEGACY_CROSSBOX_MUTATION_EXPLICIT_TARGET_V1`
 
-Status: corrective source-only hardening after the v1 retired-host wall. This
-lane does not execute SSH, write systemd configuration, restart a service,
-publish validator state, create/push a tag, access credentials, sign, submit a
-transaction, or move funds.
+Status: corrective source-only hardening after the v1 retired-host wall.
+Site-bundle mutation now uses its reviewed transaction executor. The legacy
+validator closeout is retired fail-closed until its separate live transaction
+adapter is reviewed. This source lane does not execute SSH, write systemd
+configuration, restart a service, publish validator state, create/push a tag,
+access credentials, sign, submit a transaction, or move funds.
 
 ## Why v2 is required
 
@@ -107,7 +109,7 @@ retired-host wall before output creation or SSH.
 
 ## Validator cross-box closeout
 
-`ops/mainnet/validator-crossbox-closeout.sh` requires:
+`ops/mainnet/validator-crossbox-closeout.sh` still validates:
 
 - explicit destination through `CROSSBOX_SSH_TARGET` (legacy `ALIEN` is only
   an explicit compatibility alias);
@@ -118,17 +120,34 @@ retired-host wall before output creation or SSH.
 - exact confirmation:
   `CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1`.
 
-The epoch/vault validation occurs before their use in glob/path construction.
+Those checks remain useful operator-input boundaries, but the historical
+sequential implementation is no longer an executable mutation path.
 
-Before `LIVE_STAGE` is created, the validator closeout also requires the same
-clean, distinct-host, exact-HEAD cross-box source parity described above.
+After confirmation the shell now verifies that the reviewed source journal
+controller exists:
 
-Only after that read-only parity proof may the script:
+`tools/void-validator-crossbox-transaction-executor-v1.mjs`
 
-- stage/publish local validator truth;
-- copy/link validator truth on the remote host;
-- restart the remote VOID service; or
-- create/push a checkpoint tag.
+and then fails closed with:
+
+```text
+validator transaction live integration required; legacy sequential closeout is retired
+```
+
+The shell performs no source-parity SSH probe, local validator publication,
+shadow refresh, remote copy/link/restart, checkpoint tag creation, or tag push.
+
+This retirement is intentional. Merged #2322 already defines the append-only
+validator transaction journal/replay contract, including two-participant
+prepare, durable publish/restore transition ordering, observation-first
+recovery, exact-prestate restoration receipts, and checkpoint eligibility only
+after two-party commit. However that source controller deliberately performs no
+live host actions. Issue #2255 therefore remains open for one later reviewed
+live adapter that makes the actual validator publication/recovery side effects
+obey that journal.
+
+Until that adapter exists and is separately reviewed, the legacy shell must
+HOLD rather than fall back to the old local -> remote -> tag sequence.
 
 ## Focused CI
 
@@ -144,8 +163,11 @@ fail-closed inputs that must terminate before parity/network/mutation:
 - noncanonical validator epoch; and
 - unsafe validator vault name.
 
-Static ordering assertions additionally require source parity to occur before
-the first site-bundle mutation and before validator `LIVE_STAGE` creation.
+Static assertions require the site-bundle transaction boundary to remain
+fail-closed and require the validator shell to contain no SSH, systemd,
+validator-publication, staging, curl, tar, Git tag, or Git push execution
+surface. A fully valid validator invocation must still terminate with the
+explicit live-integration HOLD.
 
 Expected marker:
 
@@ -153,5 +175,7 @@ Expected marker:
 VOID_LEGACY_CROSSBOX_MUTATION_EXPLICIT_TARGET_V1_GREEN
 ```
 
-The historical marker remains v1 for compatibility; this document defines the
-corrective v2 input/parity contract.
+The historical marker remains v1 for compatibility. This document now defines
+the corrective v3 posture: site-bundle transactions are integrated, while the
+legacy validator sequential mutation path is retired until the reviewed
+journal has a live crash-atomic adapter.
