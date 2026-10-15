@@ -20,10 +20,10 @@ INSTALLED_SOURCE_ROOT=Path(
     "/opt/void-apollyon-live-custody-binding-v2-reviewed-v1"
 )
 RUN_PARENT=Path("/run")
-NODE=Path("/usr/bin/node")
+NODE=Path("/opt/void-apollyon-node-runtime-v1/node")
 RUNNER_REL="tools/apollyon-live-custody-source-session-runner-v2.mjs"
 REVIEWED_FILES={
-    RUNNER_REL:"ccbb73e469dc07f684f41fd9c502f8420d5baa57",
+    RUNNER_REL:"01ad6bba68aa7614716ee579f00cb3b7f6904900",
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
