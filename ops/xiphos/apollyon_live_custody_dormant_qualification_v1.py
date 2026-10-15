@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 import shlex
 import socket
 import stat
@@ -65,6 +66,10 @@ EXPECTED_EXEC_STOP_POST_ARGV=(
 EXPECTED_UNSET_ENVIRONMENT=(
     "LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH",
 )
+REVIEWED_SYSTEMD_MAJOR=255
+REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(
+    "255.4-1ubuntu8.11","255.4-1ubuntu8.18",
+)
 
 class Hold(RuntimeError): pass
 
@@ -111,6 +116,77 @@ def run(argv:list[str],check=True,timeout=20)->subprocess.CompletedProcess[str]:
     )
     if check and r.returncode!=0:hold("command_failed:"+Path(argv[0]).name+":"+argv[-1])
     return r
+
+def validate_systemd_generation(
+    installed_line:str,owner_raw:str,running_raw:str
+)->dict[str,object]:
+    installed_match=re.fullmatch(
+        r"systemd\s+([0-9]+)\s+\(([^()]+)\)",installed_line.strip()
+    )
+    if not installed_match:
+        hold("apollyon_custody_collector_systemd_version_failed")
+    installed_major=int(installed_match.group(1))
+    installed_version=installed_match.group(2).strip()
+    if (
+        installed_major!=REVIEWED_SYSTEMD_MAJOR or
+        installed_version not in REVIEWED_SYSTEMD_PACKAGE_VERSIONS
+    ):
+        hold("apollyon_custody_collector_systemd_package_not_reviewed")
+
+    owner_match=re.fullmatch(r"u\s+([1-9][0-9]*)",owner_raw.strip())
+    if not owner_match:
+        hold("apollyon_custody_collector_systemd_bus_owner_pid_invalid")
+    owner_pid=int(owner_match.group(1))
+    if owner_pid!=1:
+        hold("apollyon_custody_collector_systemd_bus_owner_not_pid1")
+
+    running_match=re.fullmatch(
+        r's\s+"([A-Za-z0-9.+:~_-]{1,120})"',running_raw.strip()
+    )
+    if not running_match:
+        hold("apollyon_custody_collector_running_systemd_version_failed")
+    running_version=running_match.group(1)
+    if running_version not in REVIEWED_SYSTEMD_PACKAGE_VERSIONS:
+        hold("apollyon_custody_collector_running_systemd_package_not_reviewed")
+    running_major_match=re.match(r"^([0-9]+)(?:[.-]|$)",running_version)
+    if (
+        not running_major_match or
+        int(running_major_match.group(1))!=REVIEWED_SYSTEMD_MAJOR
+    ):
+        hold("apollyon_custody_collector_running_systemd_major_not_reviewed")
+    if running_version!=installed_version:
+        hold("apollyon_custody_collector_running_installed_systemd_version_mismatch")
+    return {
+        "installed_systemd_major":installed_major,
+        "installed_systemd_package_version":installed_version,
+        "running_systemd_manager_version":running_version,
+        "systemd_bus_owner_pid":owner_pid,
+        "systemd_bus_owner_pid_is_pid1":True,
+        "running_installed_systemd_version_match":True,
+    }
+
+def verify_systemd_generation()->dict[str,object]:
+    installed=run(["/usr/bin/systemctl","--version"],check=False)
+    if installed.returncode!=0 or not installed.stdout.splitlines():
+        hold("apollyon_custody_collector_systemd_version_failed")
+    owner=run([
+        "/usr/bin/busctl","--system","call",
+        "org.freedesktop.DBus","/org/freedesktop/DBus",
+        "org.freedesktop.DBus","GetConnectionUnixProcessID",
+        "s","org.freedesktop.systemd1",
+    ],check=False)
+    if owner.returncode!=0:
+        hold("apollyon_custody_collector_systemd_bus_owner_pid_invalid")
+    running=run([
+        "/usr/bin/busctl","--system","get-property",
+        "org.freedesktop.systemd1","/org/freedesktop/systemd1",
+        "org.freedesktop.systemd1.Manager","Version",
+    ],check=False)
+    if running.returncode!=0:
+        hold("apollyon_custody_collector_running_systemd_version_failed")
+    return validate_systemd_generation(
+        installed.stdout.splitlines()[0],owner.stdout,running.stdout
+    )
 
 def exact_file(path:Path,mode:int,uid:int=0,gid:int=0,blob:str|None=None)->os.stat_result:
     st=os.lstat(path)
@@ -312,6 +388,7 @@ def verify_public_key()->None:
         hold("public_key_fingerprint_invalid")
 
 def verify_static_install()->dict[str,int]:
+    verify_systemd_generation()
     exact_file(TARGET_PATH,0o644,0,0,TARGET_BLOB)
     exact_file(SERVICE_PATH,0o644,0,0,SERVICE_BLOB)
     exact_file(HELPER_PATH,0o444,0,0,HELPER_BLOB)
@@ -629,6 +706,9 @@ def plan()->dict:
         "exact_runtime_argv_binding_required":True,
         "custody_environment_exact":True,
         "effective_systemd_configuration_bound":True,
+        "reviewed_systemd_generation_verified":True,
+        "systemd_bus_owner_pid_is_pid1":True,
+        "running_installed_systemd_version_match":True,
         "manager_environment_influence_unset":True,
         "planned_cycles":2,"target_start_stop":False,"service_direct_action":False,
         "training_execution":False,"durable_attempt_claim":False,
@@ -779,6 +859,13 @@ def self_test()->None:
         'service_needs_daemon_reload',
         'custody_environment_file_invalid',
         'loaded_unset_environment_invalid',
+        'REVIEWED_SYSTEMD_MAJOR=255',
+        'REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(',
+        'verify_systemd_generation()',
+        '"/usr/bin/systemctl","--version"',
+        '"/usr/bin/busctl","--system","call"',
+        '"org.freedesktop.systemd1.Manager","Version"',
+        'apollyon_custody_collector_running_installed_systemd_version_mismatch',
         'emergency_cleanup_attempted=True',
         'final_dormant_recheck_attempted=True',
         'final_dormant_recheck_reason',
@@ -899,6 +986,37 @@ def self_test()->None:
             assert str(exc)==reason,(str(exc),reason)
         else:
             raise AssertionError("expected HOLD: "+reason)
+
+    for reviewed_version in REVIEWED_SYSTEMD_PACKAGE_VERSIONS:
+        evidence=validate_systemd_generation(
+            "systemd 255 ("+reviewed_version+")",
+            "u 1",
+            's "'+reviewed_version+'"',
+        )
+        assert evidence["installed_systemd_major"]==255
+        assert evidence["systemd_bus_owner_pid_is_pid1"] is True
+        assert evidence["running_installed_systemd_version_match"] is True
+    expect_hold(
+        lambda:validate_systemd_generation(
+            "systemd 255 (255.4-1ubuntu8.19)","u 1",
+            's "255.4-1ubuntu8.19"',
+        ),
+        "apollyon_custody_collector_systemd_package_not_reviewed",
+    )
+    expect_hold(
+        lambda:validate_systemd_generation(
+            "systemd 255 (255.4-1ubuntu8.18)","u 2",
+            's "255.4-1ubuntu8.18"',
+        ),
+        "apollyon_custody_collector_systemd_bus_owner_not_pid1",
+    )
+    expect_hold(
+        lambda:validate_systemd_generation(
+            "systemd 255 (255.4-1ubuntu8.11)","u 1",
+            's "255.4-1ubuntu8.18"',
+        ),
+        "apollyon_custody_collector_running_installed_systemd_version_mismatch",
+    )
 
     exec_start_record=(
         "{ path="+EXPECTED_EXEC_START_ARGV[0]
@@ -1050,6 +1168,9 @@ def self_test()->None:
     print("exact_runtime_argv_binding_required=true")
     print("custody_environment_exact_required=true")
     print("effective_systemd_configuration_bound=true")
+    print("systemd_reviewed_generation_required=true")
+    print("systemd_bus_owner_pid1_required=true")
+    print("running_installed_systemd_version_match_required=true")
     print("systemd_dropins_rejected=true")
     print("unexpected_systemd_exec_commands_rejected=true")
     print("manager_environment_influence_unset=true")

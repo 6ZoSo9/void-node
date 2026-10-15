@@ -41,6 +41,13 @@ for required in (
     'service_dropins_present',
     'target_dropins_present',
     'loaded_unset_environment_invalid',
+    'REVIEWED_SYSTEMD_MAJOR=255',
+    'REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(',
+    'verify_systemd_generation()',
+    '"/usr/bin/systemctl","--version"',
+    '"/usr/bin/busctl","--system","call"',
+    '"org.freedesktop.systemd1.Manager","Version"',
+    'apollyon_custody_collector_running_installed_systemd_version_mismatch',
     'custody_uid_process_exclusivity_failed',
     'preexisting_custody_uid_process',
     'prestart_custody_uid_process',
@@ -87,6 +94,9 @@ for line in (
     "exact_runtime_argv_binding_required=true",
     "custody_environment_exact_required=true",
     "effective_systemd_configuration_bound=true",
+    "systemd_reviewed_generation_required=true",
+    "systemd_bus_owner_pid1_required=true",
+    "running_installed_systemd_version_match_required=true",
     "systemd_dropins_rejected=true",
     "unexpected_systemd_exec_commands_rejected=true",
     "manager_environment_influence_unset=true",
@@ -119,6 +129,9 @@ print("training_uid_unreadable_status_rejected=true")
 print("exact_runtime_argv_binding_required=true")
 print("custody_environment_exact_required=true")
 print("effective_systemd_configuration_bound=true")
+print("systemd_reviewed_generation_required=true")
+print("systemd_bus_owner_pid1_required=true")
+print("running_installed_systemd_version_match_required=true")
 print("systemd_dropins_rejected=true")
 print("unexpected_systemd_exec_commands_rejected=true")
 print("manager_environment_influence_unset=true")

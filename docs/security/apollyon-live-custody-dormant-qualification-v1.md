@@ -29,6 +29,14 @@ requires exact effective `UnsetEnvironment=LD_LIBRARY_PATH LD_PRELOAD
 NODE_OPTIONS NODE_PATH`, so those manager-level influence variables are removed
 at execution without reading or exposing manager environment values.
 
+Before either target start, the qualifier also reuses the reviewed V2 collector's
+systemd-generation boundary. `/usr/bin/systemctl --version` must report systemd
+major 255 with exact reviewed Noble package `255.4-1ubuntu8.11` or
+`255.4-1ubuntu8.18`; the system-bus owner of
+`org.freedesktop.systemd1` must be PID 1; and the running manager `Version`
+must be reviewed and exactly equal the installed package version. This check is
+part of `verify_static_install()`, so it is repeated before each cycle.
+
 For both the target and service, the loaded fragment path must be the reviewed
 `/etc/systemd/system` path, `DropInPaths` must be empty, and
 `NeedDaemonReload=no`. The target dependency and stop-propagation sets are
