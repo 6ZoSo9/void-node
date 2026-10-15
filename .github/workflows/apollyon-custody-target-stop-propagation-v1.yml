@@ -31,7 +31,19 @@ jobs:
       - name: Prove stop-only target control
         run: |
           set -euo pipefail
-          python3 -I -B scripts/prove_apollyon_custody_target_stop_propagation_update_v1.py
+          proof="$RUNNER_TEMP/apollyon-custody-target-stop-propagation-v1.txt"
+          python3 -I -B scripts/prove_apollyon_custody_target_stop_propagation_update_v1.py | tee "$proof"
+          grep -Fx 'VOID_APOLLYON_CUSTODY_TARGET_STOP_PROPAGATION_UPDATE_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'reload_failure_resume_supported=true' "$proof"
+          grep -Fx 'new_exact_stale_manager_reload_only=true' "$proof"
+          grep -Fx 'reload_only_target_file_rewrite=false' "$proof"
+          grep -Fx 'target_revalidated_before_and_after_manager_recheck=true' "$proof"
+          grep -Fx 'ambiguous_loaded_contract_fails_closed=true' "$proof"
+          grep -Fx 'extra_loaded_wants_fails_closed=true' "$proof"
+          grep -Fx 'service_action=false' "$proof"
+          grep -Fx 'target_action=false' "$proof"
+          grep -Fx 'training_execution=false' "$proof"
+          grep -Fx 'durable_attempt_claim=false' "$proof"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
         env:
