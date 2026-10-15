@@ -40,6 +40,7 @@ jobs:
           grep -Fx 'target_revalidated_before_and_after_manager_recheck=true' "$proof"
           grep -Fx 'ambiguous_loaded_contract_fails_closed=true' "$proof"
           grep -Fx 'extra_loaded_wants_fails_closed=true' "$proof"
+          grep -Fx 'target_unit_file_state_disabled_required=true' "$proof"
           grep -Fx 'service_action=false' "$proof"
           grep -Fx 'target_action=false' "$proof"
           grep -Fx 'training_execution=false' "$proof"
