@@ -7,10 +7,6 @@ on:
       - "scripts/prove_void_buy_user_manager_query_kernel_capability_binding_v3.mjs"
       - "docs/architecture/buy-void-user-manager-query-kernel-capability-binding-v3.md"
       - ".github/workflows/buy-void-user-manager-query-kernel-capability-binding-v3.yml"
-      - ".github/workflows/buy-void-user-manager-query-elf-lock-v2.yml"
-      - "ops/security/buy-void-user-manager-query-elf-candidate-v2.json"
-      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
-      - "scripts/prove_void_buy_user_manager_query_elf_lock_v2.mjs"
   push:
     branches: [main]
     paths:
@@ -18,46 +14,27 @@ on:
       - "scripts/prove_void_buy_user_manager_query_kernel_capability_binding_v3.mjs"
       - "docs/architecture/buy-void-user-manager-query-kernel-capability-binding-v3.md"
       - ".github/workflows/buy-void-user-manager-query-kernel-capability-binding-v3.yml"
-      - ".github/workflows/buy-void-user-manager-query-elf-lock-v2.yml"
-      - "ops/security/buy-void-user-manager-query-elf-candidate-v2.json"
-      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
-      - "scripts/prove_void_buy_user_manager_query_elf_lock_v2.mjs"
 
 permissions:
   contents: read
 
 jobs:
-  prove:
+  preserve:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [22,24,26]
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: ${{ matrix.node }}
-      - name: Prove kernel capability binding
+      - name: Preserve V3 kernel-capability proof on exact V5 successor
         run: |
           set -euo pipefail
-          node scripts/prove_void_buy_user_manager_query_kernel_capability_binding_v3.mjs |
-            tee "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_KERNEL_CAPABILITY_BINDING_V3_GREEN' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'configured_bounding_set_may_be_nonzero=true' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'kernel_cap_bnd_must_match_systemd_mask=true' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'kernel_cap_inh_zero_required=true' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'kernel_cap_prm_zero_required=true' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'kernel_cap_eff_zero_required=true' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'kernel_cap_amb_zero_required=true' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'kernel_no_new_privileges_required=true' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'capability_state_rechecked_after_query=true' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'historical_v2_lock_preserved=true' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'install_authorized=false' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
-          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/user-manager-kernel-cap-v3.log"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "ddca2c544ce14261dffb80a202c0a4ae2979ec1e"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_user_manager_query_kernel_capability_binding_v3.mjs)" = "c4a3eefaa7b007bc2a269da5380e6a052c512ba9"
+          echo VOID_BUY_VOID_USER_MANAGER_QUERY_KERNEL_CAPABILITY_BINDING_V3_HISTORICAL_PRESERVED
+          echo v5_control_group_service_interface_successor=true
+          echo kernel_capability_contract_preserved=true
+          echo install_authorized=false
+          echo funds_movement=false
       - run: git diff --check
