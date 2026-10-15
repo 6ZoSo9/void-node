@@ -17,6 +17,9 @@ export const VOID_APOLLYON_LIVE_CUSTODY_SERVICE_SOURCE_SESSION_BINDING_AUTHORITY
     stable_socket_identity_required:true,
     stable_custody_service_process_identity_required:true,
     loader_environment_clean_required:true,
+    service_manager_preexec_environment_boundary_required:true,
+    root_owned_service_unit_generation_required:true,
+    systemd_invocation_binding_required:true,
     exact_authorization_identity_rebinding_required:true,
     live_service_source_identity_proven_by_input:false,
     same_live_custody_session_binding_proven_by_input:false,
@@ -41,7 +44,10 @@ export const VOID_APOLLYON_LIVE_CUSTODY_SERVICE_SOURCE_SESSION_BINDING_AUTHORITY
 
 const CLAIM_V2_BLOB_SHA1="722558eca8055cd3b4dd495887e849d7eeb1530c";
 const CUSTODY_LAUNCHER_V2_BLOB_SHA1="d23ff045d8c355401fed499c6bcffd503ba4c7fd";
+export const VOID_APOLLYON_CUSTODY_SERVICE_UNIT_BLOB_SHA1_V1="359488ba482f87f9015e85c1f9f5026edd4dcbee";
+export const VOID_APOLLYON_CUSTODY_SERVICE_UNIT_FRAGMENT_PATH_V1="/etc/systemd/system/void-apollyon-authorization-custody-v1.service";
 const HASH64=/^[0-9a-f]{64}$/u;
+const INVOCATION_ID=/^[0-9a-f]{32}$/u;
 const GIT40=/^[0-9a-f]{40}$/u;
 const AUTH_ID=/^apollyon_authz_v1:[0-9a-f]{64}$/u;
 const GENERATION_ID=/^apollyon_custody_generation_v1:[0-9a-f]{64}$/u;
@@ -137,11 +143,14 @@ function validateClaimContract(value){
 function validateSessionEvidence(value,claim){
   exactKeys(value,[
     "authorization_id","consumed_directory_identity_sha256","custody_generation_id",
-    "custody_launcher_blob_sha1","custody_record_sha256","loader_environment_clean",
-    "operator_public_key_raw_sha256","service_process_identity_sha256",
-    "service_process_identity_stable","socket_identity_sha256","socket_identity_stable",
+    "custody_launcher_blob_sha1","custody_record_sha256",
+    "custody_service_unit_blob_sha1","loader_environment_clean",
+    "operator_public_key_raw_sha256","service_dropins_absent",
+    "service_manager_preexec_environment_sanitized",
+    "service_process_identity_sha256","service_process_identity_stable",
+    "service_unit_fragment_path","socket_identity_sha256","socket_identity_stable",
     "state_root_identity_sha256","state_root_identity_stable",
-    "consumed_directory_identity_stable",
+    "consumed_directory_identity_stable","systemd_invocation_id",
   ],"apollyon_live_binding_v2_session_evidence_invalid");
   for(const key of [
     "state_root_identity_sha256","consumed_directory_identity_sha256",
@@ -151,6 +160,13 @@ function validateSessionEvidence(value,claim){
   }
   if(
     value.custody_launcher_blob_sha1!==CUSTODY_LAUNCHER_V2_BLOB_SHA1||
+    value.custody_service_unit_blob_sha1!==
+      VOID_APOLLYON_CUSTODY_SERVICE_UNIT_BLOB_SHA1_V1||
+    value.service_unit_fragment_path!==
+      VOID_APOLLYON_CUSTODY_SERVICE_UNIT_FRAGMENT_PATH_V1||
+    value.service_manager_preexec_environment_sanitized!==true||
+    value.service_dropins_absent!==true||
+    !INVOCATION_ID.test(value.systemd_invocation_id)||
     value.authorization_id!==claim.authorization_id||
     value.custody_generation_id!==claim.custody_generation_id||
     value.custody_record_sha256!==claim.custody_record_sha256||
@@ -177,6 +193,12 @@ export function finalizeApollyonLiveCustodyServiceSourceSessionBindingV2(input){
     target_host:"Xiphos",
     claim_contract_v2_blob_sha1:CLAIM_V2_BLOB_SHA1,
     custody_launcher_v2_blob_sha1:CUSTODY_LAUNCHER_V2_BLOB_SHA1,
+    custody_service_unit_blob_sha1:
+      input.session_evidence.custody_service_unit_blob_sha1,
+    service_unit_fragment_path:input.session_evidence.service_unit_fragment_path,
+    systemd_invocation_id:input.session_evidence.systemd_invocation_id,
+    service_manager_preexec_environment_sanitized:true,
+    service_dropins_absent:true,
     claim_contract_id:input.claim_contract.claim_contract_id,
     preclaim_id:input.claim_contract.preclaim_id,
     current_v2_live_qualification_id:input.claim_contract.current_v2_live_qualification_id,
