@@ -31,6 +31,11 @@ for required in [
     "live_runtime_capabilities_nonzero",
     "post_restart_qualification_timeout",
     "rollback_target_identity_changed",
+    "runtime_state_parent_missing",
+    "installation_receipt_custody_invalid",
+    "STALE_INSTALLATION_RECEIPT",
+    "installation_receipt_already_exists",
+    "installation_receipt_identity_changed",
     "listener_set_preserved=true",
     "automatic_rollback_attempted=",
     "HARDENING_INSTALLED_GREEN",
@@ -49,6 +54,7 @@ for forbidden in [
     "Environment=",
     "ReadWritePaths=",
     "SupplementaryGroups=",
+    "parents=True",
 ]:
     assert forbidden not in text, forbidden
 
