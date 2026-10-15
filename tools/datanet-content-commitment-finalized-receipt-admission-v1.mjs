@@ -5,6 +5,9 @@ import {
   canonicalJson,
   sha256,
 } from "./datanet-content-commitment-compiler-profile-v1.mjs";
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "./datanet-content-commitment-production-registry-identity-v1.mjs";
 
 export const VOID_DATANET_CONTENT_COMMITMENT_FINALIZED_RECEIPT_ADMISSION_V1 =
   "VOID_DATANET_CONTENT_COMMITMENT_FINALIZED_RECEIPT_ADMISSION_V1";
@@ -14,6 +17,7 @@ export const VOID_DATANET_CONTENT_COMMITMENT_FINALIZED_RECEIPT_ADMISSION_AUTHORI
   exact_finality_verification_required:true,
   exact_signing_request_rederivation_required:true,
   exact_unsigned_candidate_fingerprint_rederived:true,
+  production_registry_identity_bound:true,
   exact_commit_calldata_decoded:true,
   finalized_confirmed_transaction_required:true,
   operator_recognized_checkpoint_finality_required:true,
@@ -483,6 +487,19 @@ export function admitDatanetContentCommitmentFinalizedReceiptV1(input){
     );
   }
 
+  if(
+    signingValidation.candidate.to_address!==
+    VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1
+  ){
+    return held(
+      "datanet_finalized_admission_registry_address_mismatch",
+      {
+        finality_verification_id:finality.finality_verification_id,
+        signing_request_id:input.signing_request.signing_request_id,
+      },
+    );
+  }
+
   const decoded=decodeCommitment(signingValidation.candidate);
   if(decoded.ok===false){
     return held(
@@ -507,7 +524,8 @@ export function admitDatanetContentCommitmentFinalizedReceiptV1(input){
     signed_transaction_hash:finality.signed_transaction_hash,
     unsigned_transaction_candidate_fingerprint_sha256:
       signingValidation.candidateFingerprint,
-    registry_address:signingValidation.candidate.to_address,
+    registry_address:
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
     publisher_address:signingValidation.candidate.from_address,
     commitment:{
       object_id_sha256:decoded.object_id_sha256,
