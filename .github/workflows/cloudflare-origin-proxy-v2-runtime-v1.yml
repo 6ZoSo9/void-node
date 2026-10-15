@@ -1,0 +1,117 @@
+name: VOID Cloudflare origin PROXY-v2 runtime v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/void-cloudflare-origin-proxy-v2-adapter-v1.mjs"
+      - "scripts/prove_void_cloudflare_origin_proxy_v2_runtime_v1.mjs"
+      - "docs/architecture/cloudflare-origin-proxy-v2-runtime-v1.md"
+      - "tools/void-cloudflare-origin-proxy-v2-source-v1.mjs"
+      - "tools/void-public-443-proxy-v2-dispatch-v1.mjs"
+      - "tools/void-agent-paid-work-credential-request-proxy-v2-source-v1.mjs"
+      - "tools/void-agent-paid-work-credential-request-proxy-v2-edge-composition-v1.mjs"
+      - "tools/void-agent-paid-work-credential-request-proxy-v2-rate-state-v1.mjs"
+      - "ops/void-agent-credential-request-proxy-v2-edge-v1.mjs"
+      - "ops/public/void-public-earn-proxy-v2-edge-v1.mjs"
+      - "tools/void-public-earn-proxy-v2-edge-contract-v1.mjs"
+      - "tools/void-public-earn-proxy-v2-rate-state-v1.mjs"
+      - "scripts/prove_agent_paid_work_credential_request_proxy_v2_edge_runtime_v1.mjs"
+      - "scripts/prove_public_earn_proxy_v2_edge_runtime_v1.mjs"
+      - ".github/workflows/cloudflare-origin-proxy-v2-runtime-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: cloudflare origin runtime / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check focused source
+        run: |
+          node --check ops/public/void-cloudflare-origin-proxy-v2-adapter-v1.mjs
+          node --check scripts/prove_void_cloudflare_origin_proxy_v2_runtime_v1.mjs
+
+      - name: Prove source translator prerequisite
+        run: node scripts/prove_void_cloudflare_origin_proxy_v2_source_v1.mjs
+
+      - name: Prove loopback runtime
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/cloudflare-origin-proxy-v2-runtime-v1.txt"
+          node scripts/prove_void_cloudflare_origin_proxy_v2_runtime_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_CLOUDFLARE_ORIGIN_PROXY_V2_RUNTIME_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'signed_public_origin_preserved=true' "$proof"
+          grep -Fx 'exact_sensitive_routes_only=true' "$proof"
+          grep -Fx 'strict_proxy_v2_to_dispatcher=true' "$proof"
+          grep -Fx 'credential_body_ceiling_bytes=65536' "$proof"
+          grep -Fx 'earn_claim_body_ceiling_bytes=65536' "$proof"
+          grep -Fx 'earn_submit_body_ceiling_bytes=524288' "$proof"
+          grep -Fx 'earn_response_ceiling_bytes=1048576' "$proof"
+          grep -Fx 'source_identity_forwarded_as_http_header=false' "$proof"
+          grep -Fx 'spoofable_forwarding_headers_forwarded=false' "$proof"
+          grep -Fx 'split_request_delivery_preserved=true' "$proof"
+          grep -Fx 'buffered_trailing_bytes_rejected=true' "$proof"
+          grep -Fx 'post_classification_read_paused=true' "$proof"
+          grep -Fx 'oversize_response_fails_closed=true' "$proof"
+          grep -Fx 'dispatcher_unavailable_fails_closed=true' "$proof"
+          grep -Fx 'cloudflare_header_transport_trusted=false' "$proof"
+          grep -Fx 'cloudflared_uid_isolation_proven=false' "$proof"
+          grep -Fx 'tunnel_path_ownership_verified=false' "$proof"
+          grep -Fx 'runtime_integration=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Re-prove credential sensitive edge
+        run: node scripts/prove_agent_paid_work_credential_request_proxy_v2_edge_runtime_v1.mjs
+
+      - name: Re-prove Public Earn sensitive edge
+        run: node scripts/prove_public_earn_proxy_v2_edge_runtime_v1.mjs
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Repository typecheck
+        run: npm run typecheck -- --pretty false
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
