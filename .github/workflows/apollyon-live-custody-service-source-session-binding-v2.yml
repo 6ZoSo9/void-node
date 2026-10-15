@@ -9,6 +9,7 @@ on:
       - ".github/workflows/apollyon-live-custody-service-source-session-binding-v2.yml"
       - "tools/apollyon-candidate-training-attempt-claim-contract-v2.mjs"
       - "tools/apollyon-authorization-custody-launcher-v2.mjs"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1.service"
   workflow_dispatch:
 
 permissions:
