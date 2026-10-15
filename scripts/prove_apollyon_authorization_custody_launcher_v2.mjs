@@ -29,6 +29,7 @@ for(const required of [
   "VOID_APOLLYON_AUTHORIZATION_CUSTODY_LAUNCHER_V2",
   "VOID_APOLLYON_AUTHORIZATION_CUSTODY_LAUNCHER_AUTHORITY_V2",
   "current_stack_versioned_launcher:true",
+  "version:2,",
   "historical_v1_semantics_preserved:true",
   'SERVICE_BLOB_SHA1="8961572ba5834371b1229f790a1960940fc74935"',
   'CORE_BLOB_SHA1="f9f18db5bbfeea466202ef0d7babe08c3c401d66"',
