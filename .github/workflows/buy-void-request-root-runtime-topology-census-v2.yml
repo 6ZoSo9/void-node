@@ -52,6 +52,7 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_REQUEST_ROOT_RUNTIME_TOPOLOGY_CENSUS_V2_PROOF_GREEN' "$proof"
           grep -Fx 'accepted_stable_request_root_policy_blob_bound=true' "$proof"
           grep -Fx 'accepted_custody_readable_source_blobs_bound=true' "$proof"
+          grep -Fx 'double_census_stability_required=true' "$proof"
           grep -Fx 'request_payment_contents_read=false' "$proof"
           grep -Fx 'historical_request_history_disposition_proven=false' "$proof"
           grep -Fx 'migration_authorized=false' "$proof"

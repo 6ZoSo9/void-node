@@ -25,6 +25,8 @@ For the fixed target it checks only directory and fixed-journal metadata. It nev
 
 The live binding can qualify only when the ordinary zoso observer is on the designated Precision host, the user service is the sole active void-node-live.service generation, TCP/4100 is owned by that stable process, the confirmed-closeout status explicitly reports VOID_BUY_REQUEST_DIR, the reported request root equals the fixed target, and the target metadata matches the accepted 0750/0640 IPC profile.
 
+The collector performs a second observation before qualification. IPC-group name/GID, target directory and fixed-journal inode/metadata, absence of a competing system service, runtime process generation, loopback listener ownership, and confirmed-closeout binding must remain stable across the observation window. Any drift keeps target_live_binding_qualified=false.
+
 ## Historical disposition remains a separate gate
 
 This census deliberately reports historical_request_history_disposition_proven=false and migration_authorized=false in every result.

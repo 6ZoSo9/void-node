@@ -68,6 +68,10 @@ assert module.EXPECTED_UID == 1000
 source = TARGET.read_text(encoding="utf-8")
 for required in (
     "target_live_binding_qualified",
+    "target_metadata_generation_stable",
+    "ipc_group_stable",
+    "runtime_http_listener_stable",
+    "confirmed_closeout_status_stable",
     "legacy_candidate_exists_count",
     "legacy_metadata_qualified_candidate_count",
     "historical_request_history_disposition_proven",
@@ -103,6 +107,7 @@ print("VOID_BUY_VOID_REQUEST_ROOT_RUNTIME_TOPOLOGY_CENSUS_V2_PROOF_GREEN")
 print("accepted_stable_request_root_policy_blob_bound=true")
 print("accepted_custody_readable_source_blobs_bound=true")
 print("v1_read_primitives_blob_bound=true")
+print("double_census_stability_required=true")
 print("request_payment_contents_read=false")
 print("historical_request_history_disposition_proven=false")
 print("migration_authorized=false")

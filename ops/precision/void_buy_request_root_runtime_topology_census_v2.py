@@ -97,17 +97,25 @@ def qualify_target_metadata(
         "directory_gid": directory.get("gid"),
         "directory_mode": directory.get("mode"),
         "directory_direct": directory.get("direct"),
+        "directory_dev": directory.get("dev"),
+        "directory_ino": directory.get("ino"),
         "requests_exists": requests.get("exists") is True,
         "requests_uid": requests.get("uid"),
         "requests_gid": requests.get("gid"),
         "requests_mode": requests.get("mode"),
         "requests_nlink": requests.get("nlink"),
+        "requests_dev": requests.get("dev"),
+        "requests_ino": requests.get("ino"),
+        "requests_size": requests.get("size"),
         "requests_size_bounded": requests_ok,
         "operator_events_exists": operator_events.get("exists") is True,
         "operator_events_uid": operator_events.get("uid"),
         "operator_events_gid": operator_events.get("gid"),
         "operator_events_mode": operator_events.get("mode"),
         "operator_events_nlink": operator_events.get("nlink"),
+        "operator_events_dev": operator_events.get("dev"),
+        "operator_events_ino": operator_events.get("ino"),
+        "operator_events_size": operator_events.get("size"),
         "operator_events_size_bounded": operator_ok,
         "overlaps_protected_storage": overlaps,
         "metadata_qualified": directory_ok
@@ -125,6 +133,12 @@ def target_metadata(runtime_uid: int, ipc_gid: int) -> dict[str, Any]:
         runtime_uid=runtime_uid,
         ipc_gid=ipc_gid,
     )
+
+
+def same_target_metadata_generation(
+    first: dict[str, Any], second: dict[str, Any]
+) -> bool:
+    return first == second and first.get("metadata_qualified") is True
 
 
 def classify_target_status(observation: dict[str, Any]) -> dict[str, Any]:
@@ -168,6 +182,13 @@ def _distinct_candidate_count(
     return sum(1 for value in (first, second) if value.get(key) is True)
 
 
+def resolve_ipc_group() -> tuple[bool, int]:
+    try:
+        return True, grp.getgrnam(IPC_GROUP).gr_gid
+    except KeyError:
+        return False, -1
+
+
 def self_test() -> None:
     directory = {
         "exists": True,
@@ -176,6 +197,8 @@ def self_test() -> None:
         "uid": 1000,
         "gid": 980,
         "mode": "0750",
+        "dev": 11,
+        "ino": 21,
     }
     leaf = {
         "exists": True,
@@ -186,11 +209,17 @@ def self_test() -> None:
         "mode": "0640",
         "nlink": 1,
         "size": 0,
+        "dev": 11,
+        "ino": 22,
     }
     ok = qualify_target_metadata(
         dict(directory), dict(leaf), dict(leaf), runtime_uid=1000, ipc_gid=980
     )
     assert ok["metadata_qualified"] is True
+    assert same_target_metadata_generation(ok, dict(ok)) is True
+    rebound = dict(ok)
+    rebound["requests_ino"] = 23
+    assert same_target_metadata_generation(ok, rebound) is False
     wrong_mode = dict(directory)
     wrong_mode["mode"] = "0700"
     assert qualify_target_metadata(
@@ -232,6 +261,7 @@ def self_test() -> None:
     assert wrong_source["explicit_override_observed"] is False
     print(f"{MARKER}_SELF_TEST_GREEN")
     print("fixed_target_policy=0750_0640")
+    print("double_census_stability_required=true")
     print("request_payment_contents_read=false")
     print("historical_request_history_disposition_proven=false")
     print("production_gate_ready=false")
@@ -274,13 +304,7 @@ def collect() -> dict[str, Any]:
         account = pwd.getpwuid(uid)
     except KeyError as exc:
         raise CensusV2Error("observer_user_identity_unavailable") from exc
-    try:
-        ipc = grp.getgrnam(IPC_GROUP)
-        ipc_group_present = True
-        ipc_gid = ipc.gr_gid
-    except KeyError:
-        ipc_group_present = False
-        ipc_gid = -1
+    ipc_group_present_before, ipc_gid_before = resolve_ipc_group()
 
     user_before = v1.service_snapshot(user_manager=True)
     system_service = v1.service_snapshot(user_manager=False)
@@ -298,38 +322,77 @@ def collect() -> dict[str, Any]:
 
     cwd_candidate = v1.request_root_candidate(cwd_candidate_path, uid)
     historical_candidate = v1.request_root_candidate(historical_candidate_path, uid)
-    target = (
-        target_metadata(uid, ipc_gid)
-        if ipc_group_present
+    target_before = (
+        target_metadata(uid, ipc_gid_before)
+        if ipc_group_present_before
         else {
             "exists": v1.direct_path_metadata(TARGET_ROOT).get("exists") is True,
             "metadata_qualified": False,
         }
     )
 
-    listener = v1.runtime_http_listener_binding(int(user_before.get("main_pid") or 0))
-    status = classify_target_status(v1.bounded_local_json(v1.CONFIRMED_CLOSEOUT_STATUS_PATH))
+    listener_before = v1.runtime_http_listener_binding(
+        int(user_before.get("main_pid") or 0)
+    )
+    status_before = classify_target_status(
+        v1.bounded_local_json(v1.CONFIRMED_CLOSEOUT_STATUS_PATH)
+    )
+
     user_after = v1.service_snapshot(user_manager=True)
+    system_service_after = v1.service_snapshot(user_manager=False)
     process_after = v1.read_process_generation(int(user_after.get("main_pid") or 0))
+    ipc_group_present_after, ipc_gid_after = resolve_ipc_group()
+    target_after = (
+        target_metadata(uid, ipc_gid_after)
+        if ipc_group_present_after
+        else {
+            "exists": v1.direct_path_metadata(TARGET_ROOT).get("exists") is True,
+            "metadata_qualified": False,
+        }
+    )
+    listener_after = v1.runtime_http_listener_binding(
+        int(user_after.get("main_pid") or 0)
+    )
+    status_after = classify_target_status(
+        v1.bounded_local_json(v1.CONFIRMED_CLOSEOUT_STATUS_PATH)
+    )
+
     generation_stable = v1.same_process_generation(
         user_before, process_before, user_after, process_after
+    )
+    ipc_group_stable = (
+        ipc_group_present_before
+        and ipc_group_present_after
+        and ipc_gid_before == ipc_gid_after
+    )
+    target_metadata_generation_stable = same_target_metadata_generation(
+        target_before, target_after
+    )
+    runtime_http_listener_stable = (
+        listener_before == listener_after
+        and listener_before.get("owned_by_runtime_pid") is True
+        and listener_before.get("loopback_listener_observed") is True
+    )
+    confirmed_closeout_status_stable = (
+        status_before == status_after
+        and status_before.get("observed") is True
+        and status_before.get("marker_ok") is True
+        and status_before.get("explicit_override_observed") is True
+        and status_before.get("fixed_target_matches") is True
     )
 
     live_binding = (
         socket.gethostname() == EXPECTED_HOSTNAME
         and account.pw_name == EXPECTED_USER
         and uid == EXPECTED_UID
-        and ipc_group_present
+        and ipc_group_stable
         and user_before.get("active_running") is True
         and system_service.get("active_running") is False
+        and system_service_after.get("active_running") is False
         and generation_stable
-        and listener.get("owned_by_runtime_pid") is True
-        and listener.get("loopback_listener_observed") is True
-        and status.get("observed") is True
-        and status.get("marker_ok") is True
-        and status.get("explicit_override_observed") is True
-        and status.get("fixed_target_matches") is True
-        and target.get("metadata_qualified") is True
+        and runtime_http_listener_stable
+        and confirmed_closeout_status_stable
+        and target_metadata_generation_stable
     )
     legacy_exists = _distinct_candidate_count(
         cwd_candidate, historical_candidate, "exists"
@@ -340,9 +403,9 @@ def collect() -> dict[str, Any]:
 
     if live_binding:
         next_action = "TARGET_LIVE_BINDING_OBSERVED_HISTORY_DISPOSITION_REQUIRED"
-    elif target.get("metadata_qualified") is True:
+    elif target_before.get("metadata_qualified") is True:
         next_action = "TARGET_METADATA_QUALIFIED_HISTORY_AND_LIVE_BINDING_REQUIRED"
-    elif target.get("exists") is True:
+    elif target_before.get("exists") is True:
         next_action = "TARGET_METADATA_HOLD"
     else:
         next_action = "TARGET_NOT_PROVISIONED_HISTORY_DISPOSITION_REQUIRED_BEFORE_APPLY"
@@ -376,15 +439,19 @@ def collect() -> dict[str, Any]:
             "hostname_matches_precision": socket.gethostname() == EXPECTED_HOSTNAME,
             "effective_user_is_zoso": account.pw_name == EXPECTED_USER,
             "effective_uid": uid,
-            "ipc_group_present": ipc_group_present,
-            "ipc_gid": ipc_gid if ipc_group_present else None,
+            "ipc_group_present": ipc_group_present_before,
+            "ipc_gid": ipc_gid_before if ipc_group_present_before else None,
+            "ipc_group_stable": ipc_group_stable,
         },
         "runtime_user_service_active": user_before.get("active_running") is True,
         "runtime_system_service_active": system_service.get("active_running") is True,
         "runtime_process_generation_stable": generation_stable,
-        "runtime_http_listener": listener,
-        "target_request_root": target,
-        "confirmed_closeout_status": status,
+        "runtime_http_listener": listener_before,
+        "runtime_http_listener_stable": runtime_http_listener_stable,
+        "target_request_root": target_before,
+        "target_metadata_generation_stable": target_metadata_generation_stable,
+        "confirmed_closeout_status": status_before,
+        "confirmed_closeout_status_stable": confirmed_closeout_status_stable,
         "target_live_binding_qualified": live_binding,
         "legacy_candidate_exists_count": legacy_exists,
         "legacy_metadata_qualified_candidate_count": legacy_qualified,
@@ -439,9 +506,13 @@ def main() -> int:
     print("effective_user_is_zoso=" + str(host["effective_user_is_zoso"]).lower())
     print("ipc_group_present=" + str(host["ipc_group_present"]).lower())
     print("ipc_gid=" + str(host["ipc_gid"]))
+    print("ipc_group_stable=" + str(host["ipc_group_stable"]).lower())
+    print("runtime_http_listener_stable=" + str(result["runtime_http_listener_stable"]).lower())
+    print("confirmed_closeout_status_stable=" + str(result["confirmed_closeout_status_stable"]).lower())
+    print("target_metadata_generation_stable=" + str(result["target_metadata_generation_stable"]).lower())
     target = result["target_request_root"]
-    print("target_root_exists=" + str(target.get("exists") is True).lower())
-    print("target_root_metadata_qualified=" + str(target.get("metadata_qualified") is True).lower())
+    print("target_root_exists=" + str(target_before.get("exists") is True).lower())
+    print("target_root_metadata_qualified=" + str(target_before.get("metadata_qualified") is True).lower())
     print("target_live_binding_qualified=" + str(result["target_live_binding_qualified"]).lower())
     print("legacy_candidate_exists_count=" + str(result["legacy_candidate_exists_count"]))
     print("legacy_metadata_qualified_candidate_count=" + str(result["legacy_metadata_qualified_candidate_count"]))
