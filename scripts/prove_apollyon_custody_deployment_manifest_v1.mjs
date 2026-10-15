@@ -12,6 +12,7 @@ const TARGET=path.join(ROOT,"ops/xiphos/void-apollyon-authorization-custody-v1.t
 const ENV_TEMPLATE=path.join(ROOT,"ops/xiphos/void-apollyon-authorization-custody-v1.env.template");
 const POLKIT=path.join(ROOT,"ops/xiphos/00-void-apollyon-training-custody-deny-v1.rules");
 const TMPFILES=path.join(ROOT,"ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf");
+const SOCKET_CLEANUP=path.join(ROOT,"ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py");
 const NODE_RUNTIME_MANIFEST=path.join(ROOT,"ops/xiphos/apollyon-node-runtime-custody-v1.json");
 const PREENTRY_LOCK=path.join(ROOT,"ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json");
 const PREENTRY_LOCK_PROOF=path.join(ROOT,"scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py");
@@ -70,6 +71,7 @@ for(const required of [
   "EnvironmentFile=/etc/void/apollyon-custody-v1/custody.env",
   "/opt/void-apollyon-node-runtime-v1/node",
   "/opt/void-apollyon-custody-service-v2-reviewed-v1/tools/apollyon-authorization-custody-launcher-v2.mjs",
+  "ExecStopPost=/usr/bin/python3 -I -B /opt/void-apollyon-custody-lifecycle-v1/apollyon_custody_stale_socket_cleanup_v1.py --cleanup",
 ]){
   assert.equal(unit.includes(required),true,required);
 }
@@ -115,6 +117,38 @@ assert.equal(manifest.service_contract.activation_target_stop_propagates_to_serv
 assert.equal(manifest.service_contract.activation_target_restart_propagation,false);
 assert.equal(manifest.service_contract.direct_service_start_stop_refused,true);
 
+assert.equal(manifest.service_contract.restart_safe_socket_cleanup_required,true);
+assert.equal(
+  manifest.service_contract.exec_stop_post,
+  "/usr/bin/python3 -I -B /opt/void-apollyon-custody-lifecycle-v1/apollyon_custody_stale_socket_cleanup_v1.py --cleanup",
+);
+assert.equal(manifest.paths.custody_lifecycle_root,"/opt/void-apollyon-custody-lifecycle-v1");
+assert.equal(
+  manifest.paths.custody_stale_socket_cleanup,
+  "/opt/void-apollyon-custody-lifecycle-v1/apollyon_custody_stale_socket_cleanup_v1.py",
+);
+assert.deepEqual(manifest.host_lifecycle_closure,{
+  "ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py":
+    "65b80f5f175d0acf498af94110deb379c3165f4f",
+});
+assert.deepEqual(manifest.socket_lifecycle_contract,{
+  advertised_socket_unlink_by_source_service:false,
+  exec_stop_post_cleanup_required:true,
+  fixed_socket_path:"/run/void-apollyon-custody-v1/custody.sock",
+  helper_git_blob_sha1:"65b80f5f175d0acf498af94110deb379c3165f4f",
+  helper_mode:"0444",
+  helper_owner:"root:root",
+  helper_runtime_user:"voidapollyoncustody",
+  live_listener_unlink_forbidden:true,
+  restart_safe_cleanup_required:true,
+  same_inode_private_hardlink_cleanup:true,
+  stale_socket_cleanup_external_required:true,
+});
+assert.equal(
+  gitBlob(fs.readFileSync(SOCKET_CLEANUP)),
+  "65b80f5f175d0acf498af94110deb379c3165f4f",
+);
+
 const target=fs.readFileSync(TARGET,"utf8");
 assert.equal(target.includes("Wants=void-apollyon-authorization-custody-v1.service"),true);
 assert.equal(target.includes("PropagatesStopTo=void-apollyon-authorization-custody-v1.service"),true);
@@ -153,6 +187,7 @@ assert.equal(polkit.toString("utf8").includes('subject.user === "voidapollyontra
 for(const [relative,expected] of Object.entries({
   ...manifest.custody_service_closure,
   ...manifest.live_session_closure,
+  ...manifest.host_lifecycle_closure,
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -260,6 +295,8 @@ console.log("training_ipc_membership_additive_required=true");
 console.log("custody_service_refuse_manual_start_stop=true");
 console.log("activation_target_separate=true");
 console.log("activation_target_stop_propagates_to_service=true");
+console.log("restart_safe_socket_cleanup_required=true");
+console.log("stale_socket_cleanup_external_fulfilled=true");
 console.log("direct_service_start_stop_refused=true");
 console.log("operator_public_key_required=true");
 console.log("operator_public_key_raw_sha256=c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134");

@@ -117,6 +117,27 @@ so an explicit stop of the activation target queues an indirect stop of the
 custody service. This is intentionally stop-only; target restart propagation is
 not part of the contract. Direct service start/stop remains refused.
 
+## Restart-safe socket lifecycle
+
+The source custody service deliberately does not unlink its advertised AF_UNIX
+socket pathname when it stops. Host lifecycle authority therefore installs the
+root-owned reviewed helper:
+
+`/opt/void-apollyon-custody-lifecycle-v1/apollyon_custody_stale_socket_cleanup_v1.py`
+
+and the custody service runs it through exactly one `ExecStopPost=`.
+
+The helper runs as `voidapollyoncustody` under the existing service sandbox.
+It accepts only the fixed custody socket path, exact custody/IPC
+ownership/modes, and a non-listening `ECONNREFUSED` socket. It revalidates the
+same inode before unlink. If an abrupt process death leaves the private
+`.vNNNN` hard-link, the helper removes it only when it is the unique same-inode
+sibling. A live listener, ambiguous liveness result, foreign socket, unexpected
+link count, or identity drift holds closed.
+
+This makes target start -> target stop -> target start repeatable without
+weakening the custody service's direct manual start/stop refusal.
+
 ## Polkit boundary
 
 The exact lexically-first rule is installed only by the later privileged
