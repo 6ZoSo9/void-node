@@ -224,6 +224,7 @@ struct unit_observation {
   char control_group[512];
   uint32_t main_pid;
   int no_new_privileges;
+  int private_users;
   uint64_t capability_bounding_set;
   uint64_t ambient_capabilities;
 };
@@ -319,6 +320,7 @@ static int same_service_security(const struct service_security *a,
 static int service_security_policy_ok(const struct unit_observation *obs,
                                       const struct service_security *security) {
   return obs->no_new_privileges==1 &&
+         obs->private_users==0 &&
          obs->ambient_capabilities==0 &&
          security->no_new_privileges==1 &&
          security->cap_inh==0 &&
@@ -369,6 +371,7 @@ static int query_unit(struct sd_api *api, sd_bus *bus, const char *unit,
       get_string_prop(api,bus,object_copy,"org.freedesktop.systemd1.Service","Group",out->group,sizeof(out->group)) != 0) return -1;
   if (api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","MainPID",NULL,'u',&out->main_pid) < 0 ||
       api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","NoNewPrivileges",NULL,'b',&out->no_new_privileges) < 0 ||
+      api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","PrivateUsers",NULL,'b',&out->private_users) < 0 ||
       api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","CapabilityBoundingSet",NULL,'t',&out->capability_bounding_set) < 0 ||
       api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","AmbientCapabilities",NULL,'t',&out->ambient_capabilities) < 0) return -1;
   return 0;
@@ -497,6 +500,7 @@ static int live_query(uid_t uid, const char *unit) {
   printf("MainPID=%u\n",obs.main_pid);
   printf("ControlGroup=%s\n",obs.control_group);
   printf("NoNewPrivileges=yes\n");
+  printf("PrivateUsers=no\n");
   printf("CapabilityBoundingSet=%016" PRIx64 "\n",obs.capability_bounding_set);
   printf("AmbientCapabilities=%016" PRIx64 "\n",obs.ambient_capabilities);
   printf("KernelNoNewPrivs=%d\n",service_security.no_new_privileges);
@@ -559,6 +563,7 @@ static int self_test_query(void) {
   struct unit_observation synthetic_obs;
   memset(&synthetic_obs,0,sizeof(synthetic_obs));
   synthetic_obs.no_new_privileges=1;
+  synthetic_obs.private_users=0;
   synthetic_obs.capability_bounding_set=UINT64_C(0x000001ffffffffff);
   synthetic_obs.ambient_capabilities=0;
   if (!service_security_policy_ok(&synthetic_obs,&good)) return 1;
@@ -568,10 +573,14 @@ static int self_test_query(void) {
   if (service_security_policy_ok(&synthetic_obs,&wrong_bnd)) return 1;
   synthetic_obs.ambient_capabilities=1;
   if (service_security_policy_ok(&synthetic_obs,&good)) return 1;
+  synthetic_obs.ambient_capabilities=0;
+  synthetic_obs.private_users=1;
+  if (service_security_policy_ok(&synthetic_obs,&good)) return 1;
 
   printf("%s_SELF_TEST_GREEN\n",MARKER);
   printf("kernel_security_status_parser=true\n");
   printf("kernel_no_new_privileges_required=true\n");
+  printf("private_users_false_required=true\n");
   printf("kernel_active_capabilities_zero_required=true\n");
   printf("configured_kernel_bounding_set_equality_required=true\n");
   printf("libsystemd_runtime_symbols_available=true\n");
