@@ -379,8 +379,12 @@ def self_test() -> None:
     for dependency, expected in DEPENDENCY_BLOBS.items():
         assert _git_blob_sha1(_authenticated_source_bytes(dependency)) == expected
     own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
-    assert "run_systemctl" not in own_source
-    assert "systemctl" not in own_source
+    production_source = (
+        own_source[:own_source.index("def self_test()")]
+        + own_source[own_source.index("def plan()"):]
+    )
+    assert "run_systemctl" not in production_source
+    assert "systemctl" not in production_source
     print(MARKER + "_SELF_TEST_GREEN")
     print("empty_metadata_is_not_genesis_proof=true")
     print("zero_length_fixed_journals_are_not_genesis_proof=true")
