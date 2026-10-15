@@ -55,6 +55,16 @@ must route exactly these sensitive paths to the Cloudflare adapter:
 The sensitive origin must be exact IPv4 loopback and the same port owned by the
 #3038 adapter candidate.
 
+The sensitive origin also requires:
+
+- `httpHostHeader: seed.nullfeed.org`, binding the canonical Host consumed by
+  the #3038 adapter; and
+- `disableChunkedEncoding: true`, because #3038 deliberately rejects
+  `Transfer-Encoding` and accepts only bounded `Content-Length` framing.
+
+Those settings apply to the three sensitive rules, not to unrelated ordinary
+origin routes.
+
 Ordinary site, status, bootstrap, download, and other reviewed read routes are
 required to remain outside the sensitive adapter path.
 
