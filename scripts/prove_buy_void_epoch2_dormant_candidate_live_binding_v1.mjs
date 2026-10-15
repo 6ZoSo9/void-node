@@ -9,10 +9,10 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const BINDER=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs";
-const BINDER_BLOB="2686acdfbed5b3e2c929c896f032b01b94c89cef";
+const BINDER_BLOB="c3be6b50d5dad15b9e75229cd258ca9cf04692e7";
 const OPERATOR_DOC=
   "docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v1.md";
-const OPERATOR_DOC_BLOB="916bfc05303c822f1032f315f7a2d2a02501a819";
+const OPERATOR_DOC_BLOB="5225af7ace2c17ea44a74181a148a7a593246dad";
 const CHILD=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs";
 const CHILD_BLOB="28d718eb4155e47dbe8d476a4cf45f2d3871e4db";
@@ -53,7 +53,7 @@ for(const required of [
   "branch --show-current",
   "status --porcelain=v1 --untracked-files=all",
   "binder_blob=",
-  "2686acdfbed5b3e2c929c896f032b01b94c89cef",
+  "c3be6b50d5dad15b9e75229cd258ca9cf04692e7",
   "cat-file blob",
 ]){
   assert.ok(operatorDoc.includes(required),"operator_launcher_contract:"+required);
@@ -69,6 +69,9 @@ for(const required of [
   'if(process.argv[1]!=="-")throw new Error("binder_git_object_stdin_required")',
   'const child=runChild(expectedHead);',
   'const candidate=loadCandidate(expectedHead);',
+  'checkout_revalidated_after_sensitive_sequence:true',
+  'checkout_revalidated_after_child:true',
+  'requireExactCheckout(expectedHead);',
   'systemd_credential_identity_proven:true',
   'active_signing_capability_proven:true',
   'authenticated_credential_live_receipt:child',
@@ -93,8 +96,16 @@ for(const forbidden of [
 assert.equal((source.match(/catch\s*(?:\([^)]*\))?\s*\{\s*\}/gu)||[]).length,0);
 
 const childAt=source.indexOf("const child=runChild(expectedHead);");
-const buildAt=source.indexOf("const receipt=buildBindingReceipt(expectedHead,candidate,child);");
-assert.ok(childAt>0&&buildAt>childAt);
+const closingCheckoutAt=source.indexOf(
+  "requireExactCheckout(expectedHead);",
+  childAt,
+);
+const buildAt=source.indexOf(
+  "const receipt=buildBindingReceipt(expectedHead,candidate,child);",
+);
+assert.ok(
+  childAt>0&&closingCheckoutAt>childAt&&buildAt>closingCheckoutAt,
+);
 
 const self=spawnSync(process.execPath,[
   "--input-type=module","-","--self-test",
@@ -115,6 +126,7 @@ for(const line of [
   "systemd_credential_identity_proven_on_bound_receipt=true",
   "active_signing_capability_proven_on_bound_receipt=true",
   "full_public_child_receipt_retained=true",
+  "closing_checkout_revalidation_before_receipt=true",
   "launch_operator_signer_control_still_required=true",
   "customer_safe_to_pay=false",
   "transaction=false",
@@ -144,6 +156,7 @@ for(const line of [
   "exact_child_live_composition_required=true",
   "arbitrary_child_receipt_input_accepted=false",
   "exact_dormant_candidate_git_object_required=true",
+  "closing_checkout_revalidation_required=true",
   "credential_content_access=false",
   "private_key_access=false",
   "nontransaction_signature=false",
@@ -168,6 +181,7 @@ console.log("binder_git_object_entry_required=true");
 console.log("arbitrary_child_receipt_input_accepted=false");
 console.log("child_live_composition_git_object_required=true");
 console.log("dormant_candidate_git_object_required=true");
+console.log("closing_checkout_revalidation_before_receipt=true");
 console.log("systemd_credential_identity_promoted_only_from_live_child=true");
 console.log("active_signing_capability_promoted_only_from_live_child=true");
 console.log("launch_operator_signer_control_still_required=true");
