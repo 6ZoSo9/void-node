@@ -363,15 +363,20 @@ def daemon_reload()->None:
     run(["/usr/bin/systemctl","daemon-reload"])
 
 def ensure_root_dir()->None:
+    created=False
     try:st=os.lstat(LIFECYCLE_ROOT)
     except FileNotFoundError:
         LIFECYCLE_ROOT.mkdir(mode=0o755)
         os.chown(LIFECYCLE_ROOT,0,0);os.chmod(LIFECYCLE_ROOT,0o755)
         st=os.lstat(LIFECYCLE_ROOT)
+        created=True
     if (
         not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode) or
         st.st_uid!=0 or st.st_gid!=0 or stat.S_IMODE(st.st_mode)!=0o755
     ):hold("lifecycle_root_collision")
+    if created:
+        fsync_directory(LIFECYCLE_ROOT)
+        fsync_directory(LIFECYCLE_ROOT.parent)
 
 def fsync_directory(path:Path)->None:
     fd=os.open(
@@ -420,7 +425,6 @@ def publish_create_only_file(
             count=os.write(fd,data[sent:])
             if count<=0:hold("pending_file_write_failed:"+str(path))
             sent+=count
-        os.fsync(fd)
         os.fchown(fd,uid,gid)
         os.fchmod(fd,mode)
         st=os.fstat(fd)
@@ -437,6 +441,7 @@ def publish_create_only_file(
             if not chunk:break
             observed+=chunk
         if observed!=data:hold("pending_file_bytes_invalid:"+str(path))
+        os.fsync(fd)
         if _before_publish_fn is not None:_before_publish_fn(pending)
         try:
             os.link(pending,path,follow_symlinks=False)
@@ -505,7 +510,7 @@ def replace_service_unit()->bool:
     try:
         fd=os.open(
             temp,
-            os.O_WRONLY|os.O_CREAT|os.O_EXCL
+            os.O_RDWR|os.O_CREAT|os.O_EXCL
             |getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),
             0o600,
         )
@@ -515,7 +520,22 @@ def replace_service_unit()->bool:
                 count=os.write(fd,new[sent:])
                 if count<=0:hold("service_temp_write_failed")
                 sent+=count
-            os.fsync(fd);os.fchown(fd,0,0);os.fchmod(fd,0o644)
+            os.fchown(fd,0,0);os.fchmod(fd,0o644)
+            staged=os.fstat(fd)
+            if (
+                not stat.S_ISREG(staged.st_mode) or staged.st_nlink!=1 or
+                staged.st_uid!=0 or staged.st_gid!=0 or
+                stat.S_IMODE(staged.st_mode)!=0o644 or
+                staged.st_size!=len(new)
+            ):hold("service_temp_metadata_invalid")
+            os.lseek(fd,0,os.SEEK_SET)
+            observed=b""
+            while len(observed)<len(new):
+                chunk=os.read(fd,len(new)-len(observed))
+                if not chunk:break
+                observed+=chunk
+            if observed!=new:hold("service_temp_bytes_invalid")
+            os.fsync(fd)
         finally:
             os.close(fd)
         current=os.lstat(SERVICE_PATH)
@@ -539,7 +559,10 @@ def apply_transition(
     _reload_fn=daemon_reload,
     _state_fn=host_lifecycle_state,
     _stabilize_fn=stabilize_published_state,
+    _dormancy_fn=None,
 )->dict[str,object]:
+    if _dormancy_fn is None:
+        _dormancy_fn=_state_fn
     stage=str(before["lifecycle_state"])
     persistent_present_before=stage in (
         "helper_pending_absent","helper_pending_exact",
@@ -563,6 +586,8 @@ def apply_transition(
         "service_unit_replace_returned_success":False,
         "durability_repair_attempted":False,
         "durability_repair_succeeded":None,
+        "dormancy_revalidation_count":0,
+        "last_dormancy_revalidation_boundary":"not_attempted",
         "daemon_reload_attempted":False,
         "daemon_reload_command_succeeded":None,
         "final_postcheck_attempted":False,
@@ -575,27 +600,43 @@ def apply_transition(
         "recovery_loaded_service_state":"not_needed",
         "recovery_next_action":"not_needed",
     }
+    def require_dormancy(boundary:str)->None:
+        receipt["last_dormancy_revalidation_boundary"]=boundary
+        observed=_dormancy_fn()
+        if not isinstance(observed,dict):
+            hold("dormancy_revalidation_invalid:"+boundary)
+        receipt["dormancy_revalidation_count"]=int(
+            receipt["dormancy_revalidation_count"]
+        )+1
+
     try:
         if stage in (
             "helper_pending_absent","helper_pending_exact",
             "helper_only","predecessor_ready","new_file_pending_reload",
         ):
+            require_dormancy("before_durability_repair")
             receipt["durability_repair_attempted"]=True
+            receipt["persistent_filesystem_mutation_possible_this_apply"]=True
             _stabilize_fn(stage)
             receipt["durability_repair_succeeded"]=True
         if stage in ("initial","helper_pending_absent"):
+            require_dormancy("before_helper_publication")
             receipt["helper_install_attempted"]=True
+            receipt["persistent_filesystem_mutation_possible_this_apply"]=True
             receipt["helper_install_returned_success"]=bool(_install_helper_fn())
         if stage in (
             "initial","helper_pending_absent","helper_pending_exact",
             "helper_only","predecessor_ready",
         ):
+            require_dormancy("before_service_publication")
             receipt["service_unit_replace_attempted"]=True
+            receipt["persistent_filesystem_mutation_possible_this_apply"]=True
             receipt["service_unit_replace_returned_success"]=bool(
                 _replace_service_fn()
             )
         receipt["persistent_filesystem_mutation_possible_this_apply"]=bool(
-            receipt["helper_install_attempted"]
+            receipt["persistent_filesystem_mutation_possible_this_apply"]
+            or receipt["helper_install_attempted"]
             or receipt["service_unit_replace_attempted"]
         )
         receipt["persistent_filesystem_mutation_possible"]=bool(
@@ -606,6 +647,7 @@ def apply_transition(
             "initial","helper_pending_absent","helper_pending_exact",
             "helper_only","predecessor_ready","new_file_pending_reload",
         ):
+            require_dormancy("before_daemon_reload")
             receipt["daemon_reload_attempted"]=True
             _reload_fn()
             receipt["daemon_reload_command_succeeded"]=True
@@ -618,7 +660,8 @@ def apply_transition(
         return {**receipt,**after}
     except Exception as exc:
         receipt["persistent_filesystem_mutation_possible_this_apply"]=bool(
-            receipt["helper_install_attempted"]
+            receipt["persistent_filesystem_mutation_possible_this_apply"]
+            or receipt["helper_install_attempted"]
             or receipt["service_unit_replace_attempted"]
         )
         receipt["persistent_filesystem_mutation_possible"]=bool(
@@ -711,6 +754,23 @@ def self_test()->None:
         in service
     )
     own=Path(__file__).read_text(encoding="utf-8")
+    helper_publish=own.index("def publish_create_only_file(")
+    helper_staged=own.index("os.fchown(fd,uid,gid)",helper_publish)
+    helper_final_fsync=own.index("os.fsync(fd)",helper_staged)
+    helper_link=own.index("os.link(pending,path,follow_symlinks=False)",helper_final_fsync)
+    assert helper_staged<helper_final_fsync<helper_link
+    service_publish=own.index("def replace_service_unit(")
+    service_metadata=own.index("os.fchown(fd,0,0);os.fchmod(fd,0o644)",service_publish)
+    service_final_fsync=own.index("os.fsync(fd)",service_metadata)
+    service_replace=own.index("os.replace(temp,SERVICE_PATH)",service_final_fsync)
+    assert service_metadata<service_final_fsync<service_replace
+    root_create=own.index("def ensure_root_dir(")
+    root_parent_fsync=own.index("fsync_directory(LIFECYCLE_ROOT.parent)",root_create)
+    helper_install=own.index("def install_helper(",root_parent_fsync)
+    assert root_create<root_parent_fsync<helper_install
+    assert 'require_dormancy("before_helper_publication")' in own
+    assert 'require_dormancy("before_service_publication")' in own
+    assert 'require_dormancy("before_daemon_reload")' in own
     assert 'exact_dormant(TARGET_UNIT,"disabled")' in own
     assert own.count('exact_dormant(SERVICE_UNIT,"static")')>=2
     assert 'props.get("UnitFileState")!=expected_unit_file_state' in own
@@ -1070,6 +1130,8 @@ def self_test()->None:
             before,
             _reload_fn=reload_then_new,
             _state_fn=flaky_postcheck,
+            _stabilize_fn=lambda stage:None,
+            _dormancy_fn=lambda:synthetic_snapshot(state),
         )
     except ApplyHold as exc:
         assert str(exc)=="synthetic_loaded_postcheck_failure"
@@ -1079,6 +1141,48 @@ def self_test()->None:
     else:
         raise AssertionError("synthetic_postcheck_failure_not_reported")
 
+    state={"service":"old_exact","helper":"absent","loaded":"old_loaded"}
+    drift_calls={"count":0}
+    mutation_calls={"helper":0,"replace":0,"reload":0}
+    def dormant_drift():
+        drift_calls["count"]+=1
+        raise Hold("synthetic_mutation_boundary_not_dormant")
+    def helper_must_not_run():
+        mutation_calls["helper"]+=1
+        return True
+    def replace_must_not_run():
+        mutation_calls["replace"]+=1
+        return True
+    def reload_must_not_run():
+        mutation_calls["reload"]+=1
+    try:
+        apply_transition(
+            synthetic_snapshot(state),
+            _install_helper_fn=helper_must_not_run,
+            _replace_service_fn=replace_must_not_run,
+            _reload_fn=reload_must_not_run,
+            _state_fn=lambda:synthetic_snapshot(state),
+            _stabilize_fn=lambda stage:None,
+            _dormancy_fn=dormant_drift,
+        )
+    except ApplyHold as exc:
+        assert str(exc)=="synthetic_mutation_boundary_not_dormant"
+        assert drift_calls["count"]==1
+        assert mutation_calls=={"helper":0,"replace":0,"reload":0}
+        assert exc.receipt["helper_install_attempted"] is False
+        assert exc.receipt["service_unit_replace_attempted"] is False
+        assert exc.receipt["daemon_reload_attempted"] is False
+        assert (
+            exc.receipt["persistent_filesystem_mutation_possible_this_apply"]
+            is False
+        )
+    else:
+        raise AssertionError("synthetic_dormancy_drift_not_reported")
+
+    state={
+        "service":"new_exact","helper":"exact",
+        "loaded":"new_loaded",
+    }
     complete=apply_transition(
         synthetic_snapshot(state),
         _reload_fn=lambda:(_ for _ in ()).throw(
@@ -1124,6 +1228,10 @@ def self_test()->None:
     print("helper_crash_link_state_classified=true")
     print("helper_pending_resume_states=true")
     print("resume_directory_durability_repair=true")
+    print("final_file_metadata_fsync_before_publication=true")
+    print("lifecycle_root_parent_fsync_on_create=true")
+    print("mutation_boundary_dormancy_revalidation=true")
+    print("durability_repair_mutation_receipt_truthful=true")
     print("durability_failure_outcome_indeterminate=true")
     print("service_temp_cleanup_on_prepublication_failure=true")
     print("failure_injection_after_helper_creation=true")
@@ -1157,6 +1265,7 @@ def main()->int:
             "service_unit_replace_attempted",
             "service_unit_replace_returned_success",
             "durability_repair_attempted","durability_repair_succeeded",
+            "dormancy_revalidation_count","last_dormancy_revalidation_boundary",
             "daemon_reload_attempted","daemon_reload_command_succeeded",
             "final_postcheck_attempted",
             "persistent_filesystem_mutation_possible",
