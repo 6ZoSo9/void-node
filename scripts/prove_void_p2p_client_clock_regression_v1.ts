@@ -38,6 +38,56 @@ function configureNodeEnvironment(dataDir: string): void {
   process.env.BOOTSTRAP_ADDRS = "";
 }
 
+const nodeSource = fs.readFileSync(
+  path.join(process.cwd(), "src", "node_core.ts"),
+  "utf8",
+);
+const adapterSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src",
+    "p2p",
+    "udp_swarm_authenticated_control_adapter_v1.ts",
+  ),
+  "utf8",
+);
+
+for (const required of [
+  "private readonly relayClientClock = new VoidP2pClientTransientClockV1();",
+  "const nowMs = Date.now();\n    this.sweepRelayClientState(nowMs);",
+  "const relayClientNowMs = Date.now();\n    this.sweepRelayClientState(relayClientNowMs);",
+  "voidRelayRequestTimedOutV1(pending.requested_at_ms, relayClientNowMs)",
+  "msg.ttl_ms,\n        relayClientNowMs,",
+]) {
+  assert.equal(nodeSource.includes(required), true, required);
+}
+assert.match(
+  nodeSource,
+  /this\.udpSwarmControl\.handleAuthenticatedControl\(\{\s*fromNodeId: peer\.id,\s*message,\s*\}\)/u,
+);
+const relaySweepStart = nodeSource.indexOf(
+  "private sweepRelayClientState(nowMs = Date.now()): void",
+);
+const relaySweepEnd = nodeSource.indexOf(
+  "private sweepRelayServerState(): void",
+  relaySweepStart,
+);
+assert.ok(relaySweepStart >= 0 && relaySweepEnd > relaySweepStart);
+const relaySweepSource = nodeSource.slice(relaySweepStart, relaySweepEnd);
+assert.equal(relaySweepSource.includes("this.relayStreams.clear()"), false);
+assert.equal(relaySweepSource.includes("this.relayPendingReservations.clear()"), true);
+assert.equal(relaySweepSource.includes("this.relayPendingConnects.clear()"), true);
+assert.equal(relaySweepSource.includes("this.relayClientReservations.clear()"), true);
+
+for (const required of [
+  "private readonly clientClock = new VoidP2pClientTransientClockV1();",
+  "const nowMs = this.sweep(input.nowMs ?? Date.now());",
+  "this.pendingRequests.clear();",
+  "for (const sessionId of [...this.activeRoutes.keys()])",
+]) {
+  assert.equal(adapterSource.includes(required), true, required);
+}
+
 const primitive = new VoidP2pClientTransientClockV1();
 assert.deepEqual(primitive.observe(10_000), {
   now_ms: 10_000,
@@ -235,5 +285,8 @@ console.log("relay_cached_reservation_survives_regression=false");
 console.log("established_relay_stream_survives_client_clock_regression=true");
 console.log("fresh_transient_state_after_regression=true");
 console.log("peer_timestamp_is_client_clock_authority=false");
+console.log("production_udp_control_clock_uses_local_default=true");
+console.log("production_relay_control_clock_uses_local_date_now=true");
+console.log("relay_stream_map_not_cleared_by_client_clock_regression=true");
 console.log("runtime_or_network_mutation=false");
 console.log("wallet_signer_validator_wc_money_authority=0");
