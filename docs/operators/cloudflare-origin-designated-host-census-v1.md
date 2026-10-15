@@ -99,8 +99,10 @@ cloudflared binary hash.
 The observer reads one bounded `ss -H -ltnp` snapshot.
 
 For adapter and dispatcher, a local listener candidate requires exactly one TCP
-listener owned by the service PID and it must be IPv4 loopback
-`127.0.0.1:<port>`. Any extra or IPv6 listener keeps the candidate false.
+listener owned **exclusively** by the service PID and it must be IPv4 loopback
+`127.0.0.1:<port>`. If the same `ss` listener row names any second process
+PID, ownership is shared and the candidate fails closed. Any extra or IPv6
+listener also keeps the candidate false.
 
 The adapter port is derived from that owned listener; no process environment is
 read.
