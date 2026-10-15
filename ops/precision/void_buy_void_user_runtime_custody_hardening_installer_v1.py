@@ -325,8 +325,20 @@ def host_context(root: pathlib.Path) -> dict[str, Any]:
     source = source_bytes(root)
     dropin_dir = service_dir / f"{UNIT}.d"
     target = dropin_dir / TARGET_BASENAME
-    state_dir = home / ".local" / "state" / "void" / "buy-void-user-runtime-hardening-v1"
+    state_parent = home / ".local" / "state" / "void"
+    if not state_parent.is_dir():
+        raise Hold("runtime_state_parent_missing")
+    validate_user_path(home / ".local", uid)
+    validate_user_path(home / ".local" / "state", uid)
+    validate_user_path(state_parent, uid)
+    state_dir = state_parent / "buy-void-user-runtime-hardening-v1"
+    if state_dir.exists():
+        validate_user_path(state_dir, uid)
     receipt = state_dir / "installation.json"
+    receipt_state = file_state(receipt)
+    if receipt_state.get("exists"):
+        if receipt_state["uid"] != uid or receipt_state["mode"] & 0o077:
+            raise Hold("installation_receipt_custody_invalid")
     env = safe_env(uid, home)
     service = service_snapshot(env)
     expected_fragment = service_dir / UNIT
@@ -345,8 +357,10 @@ def host_context(root: pathlib.Path) -> dict[str, Any]:
         "service_dir": service_dir,
         "dropin_dir": dropin_dir,
         "target": target,
+        "state_parent": state_parent,
         "state_dir": state_dir,
         "receipt": receipt,
+        "receipt_state": receipt_state,
         "env": env,
         "source": source,
         "service": service,
@@ -475,6 +489,11 @@ def source_plan() -> None:
 def plan(root: pathlib.Path) -> None:
     ctx = host_context(root)
     print_common(ctx, "--plan")
+    if ctx["receipt_state"].get("exists") and not ctx["target_state"].get("exists"):
+        print("apply_candidate=false")
+        print("hold=STALE_INSTALLATION_RECEIPT")
+        print("next_action=REVIEW_ROLLBACK_RECEIPT")
+        return
     already = (
         bool(ctx["target_state"].get("exists"))
         and str(ctx["target"]) in ctx["service"]["dropin_paths"]
@@ -501,6 +520,8 @@ def apply(root: pathlib.Path, confirm: str) -> None:
         raise Hold("apply_confirmation_invalid")
     ctx = host_context(root)
     print_common(ctx, "--apply")
+    if ctx["receipt_state"].get("exists"):
+        raise Hold("installation_receipt_already_exists")
     if ctx["target_state"].get("exists"):
         if (
             str(ctx["target"]) in ctx["service"]["dropin_paths"]
@@ -518,11 +539,17 @@ def apply(root: pathlib.Path, confirm: str) -> None:
         raise Hold("live_runtime_capabilities_nonzero")
 
     created_dir = False
+    created_state_dir = False
     target_stat: os.stat_result | None = None
     target_sha = sha256(ctx["source"])
     mutation_started = False
     rollback_green = False
     try:
+        if not ctx["state_dir"].exists():
+            os.mkdir(ctx["state_dir"], 0o700)
+            created_state_dir = True
+            fsync_dir(ctx["state_parent"])
+        validate_user_path(ctx["state_dir"], ctx["uid"])
         if not ctx["dropin_dir"].exists():
             os.mkdir(ctx["dropin_dir"], 0o700)
             created_dir = True
@@ -544,7 +571,6 @@ def apply(root: pathlib.Path, confirm: str) -> None:
         if ctx["target"].read_bytes() != ctx["source"]:
             raise Hold("installed_dropin_bytes_changed")
 
-        ctx["state_dir"].mkdir(parents=True, mode=0o700, exist_ok=True)
         receipt = {
             "marker": MARKER,
             "version": 1,
@@ -603,6 +629,13 @@ def apply(root: pathlib.Path, confirm: str) -> None:
                     time.sleep(0.5)
             except Exception:
                 rollback_green = False
+        if created_state_dir:
+            try:
+                if ctx["state_dir"].exists() and not any(ctx["state_dir"].iterdir()):
+                    ctx["state_dir"].rmdir()
+                    fsync_dir(ctx["state_parent"])
+            except OSError:
+                pass
         print("automatic_rollback_attempted=" + str(mutation_started).lower())
         print("automatic_rollback_green=" + str(rollback_green).lower())
         raise
@@ -611,9 +644,9 @@ def rollback(root: pathlib.Path, confirm: str) -> None:
     if confirm != CONFIRM_ROLLBACK:
         raise Hold("rollback_confirmation_invalid")
     ctx = host_context(root)
-    if not ctx["receipt"].exists():
+    if not ctx["receipt_state"].get("exists"):
         raise Hold("installation_receipt_missing")
-    receipt_raw = ctx["receipt"].read_bytes()
+    receipt_raw = ctx["receipt_state"]["bytes"]
     if len(receipt_raw) > 64 * 1024:
         raise Hold("installation_receipt_too_large")
     receipt = json.loads(receipt_raw.decode("utf-8", "strict"))
@@ -663,8 +696,21 @@ def rollback(root: pathlib.Path, confirm: str) -> None:
     if not restored:
         raise Hold("rollback_runtime_recovery_failed")
 
+    receipt_now = file_state(ctx["receipt"])
+    if (
+        not receipt_now.get("exists")
+        or receipt_now["dev"] != ctx["receipt_state"]["dev"]
+        or receipt_now["ino"] != ctx["receipt_state"]["ino"]
+        or receipt_now["sha256"] != ctx["receipt_state"]["sha256"]
+    ):
+        raise Hold("installation_receipt_identity_changed")
     ctx["receipt"].unlink()
     fsync_dir(ctx["state_dir"])
+    try:
+        ctx["state_dir"].rmdir()
+        fsync_dir(ctx["state_parent"])
+    except OSError:
+        pass
     print(MARKER)
     print("mode=--rollback")
     print("dropin_removed=true")
