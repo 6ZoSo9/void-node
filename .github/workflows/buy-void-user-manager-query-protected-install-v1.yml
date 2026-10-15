@@ -1,0 +1,94 @@
+name: VOID Buy protected user-manager query install v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_query_protected_install_v1.py"
+      - "scripts/prove_void_buy_void_user_manager_query_protected_install_v1.py"
+      - "docs/operators/buy-void-user-manager-query-protected-install-v1.md"
+      - ".github/workflows/buy-void-user-manager-query-protected-install-v1.yml"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v1.json"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_query_protected_install_v1.py"
+      - "scripts/prove_void_buy_void_user_manager_query_protected_install_v1.py"
+      - "docs/operators/buy-void-user-manager-query-protected-install-v1.md"
+      - ".github/workflows/buy-void-user-manager-query-protected-install-v1.yml"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v1.json"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Prove protected installer contract
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/protected-query-install-proof.txt"
+          python3 -I -B scripts/prove_void_buy_void_user_manager_query_protected_install_v1.py | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_PROTECTED_INSTALL_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'accepted_elf_lock_blob_bound=true' "$proof"
+          grep -Fx 'preexec_source_blob_bound=true' "$proof"
+          grep -Fx 'query_source_blob_bound=true' "$proof"
+          grep -Fx 'exact_binary_bytes_and_sha_required=true' "$proof"
+          grep -Fx 'source_descriptor_identity_rechecked=true' "$proof"
+          grep -Fx 'source_symlink_rejected=true' "$proof"
+          grep -Fx 'source_multilink_rejected=true' "$proof"
+          grep -Fx 'target_root_create_only=true' "$proof"
+          grep -Fx 'target_files_o_excl_nofollow=true' "$proof"
+          grep -Fx 'failed_file_creation_cleanup_required=true' "$proof"
+          grep -Fx 'root_owned_0555_targets_required=true' "$proof"
+          grep -Fx 'isolated_python_apply_required=true' "$proof"
+          grep -Fx 'loader_and_python_env_injection_rejected=true' "$proof"
+          grep -Fx 'query_execution=false' "$proof"
+          grep -Fx 'service_mutation=false' "$proof"
+          grep -Fx 'systemd_mutation=false' "$proof"
+          grep -Fx 'network_calls=false' "$proof"
+          grep -Fx 'credential_access=false' "$proof"
+          grep -Fx 'wallet_or_signer_access=false' "$proof"
+          grep -Fx 'payment_acceptance=false' "$proof"
+          grep -Fx 'public_presale_activation=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+          grep -Fx 'production_host_evidence_authority=false' "$proof"
+      - name: Prove inert modes only
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_user_manager_query_protected_install_v1.py --self-test
+          plan="$RUNNER_TEMP/protected-query-install-plan.txt"
+          python3 -I -B ops/precision/void_buy_void_user_manager_query_protected_install_v1.py --plan | tee "$plan"
+          grep -Fx 'mode=plan' "$plan"
+          grep -Fx 'root_required_for_apply=true' "$plan"
+          grep -Fx 'python_isolated_mode_required_for_apply=true' "$plan"
+          grep -Fx 'forbidden_loader_environment_required_absent=true' "$plan"
+          grep -Fx 'create_only=true' "$plan"
+          grep -Fx 'source_candidate_bytes_verified=false' "$plan"
+          grep -Fx 'filesystem_write=false' "$plan"
+          grep -Fx 'query_execution=false' "$plan"
+          grep -Fx 'service_mutation=false' "$plan"
+          grep -Fx 'systemd_mutation=false' "$plan"
+          grep -Fx 'network_calls=false' "$plan"
+          grep -Fx 'payment_acceptance=false' "$plan"
+          grep -Fx 'public_presale_activation=false' "$plan"
+          grep -Fx 'funds_movement=false' "$plan"
+          grep -Fx 'production_host_evidence_authority=false' "$plan"
+      - name: Diff hygiene
+        run: git diff --check
