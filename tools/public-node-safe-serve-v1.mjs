@@ -6,7 +6,7 @@ import {
   existsSync,
   fstatSync,
   openSync,
-  readFileSync,
+  readSync,
 } from "node:fs";
 import { hostname } from "node:os";
 import { extname, join, relative, resolve, sep } from "node:path";
@@ -27,6 +27,7 @@ for (let i = 0; i < args.length; i++) {
 const root = resolve(process.cwd(), "public");
 const publicNodeIndex = resolve(root, "public-node", "index.json");
 const PROC_SELF_FD = "/proc/self/fd";
+const MAX_PUBLIC_FILE_BYTES = 8 * 1024 * 1024;
 let publicRootFd = null;
 
 function fail(message) {
@@ -85,7 +86,7 @@ function bindPublicRoot() {
       constants.O_NOFOLLOW |
       Number(constants.O_NONBLOCK || 0),
   );
-  const st = fstatSync(fd);
+  const st = fstatOrClose(fd);
   if (!st.isDirectory()) {
     closeSync(fd);
     throw new Error("public root is not a directory");
@@ -120,6 +121,65 @@ function openChildNoFollow(parentFd, name) {
   );
 }
 
+function fstatOrClose(fd) {
+  try {
+    return fstatSync(fd);
+  } catch (error) {
+    closeSync(fd);
+    throw error;
+  }
+}
+
+function openedFileIdentity(st) {
+  return Object.freeze({
+    dev: st.dev,
+    ino: st.ino,
+    size: st.size,
+    mode: st.mode,
+    uid: st.uid,
+    gid: st.gid,
+    nlink: st.nlink,
+    mtimeMs: st.mtimeMs,
+    ctimeMs: st.ctimeMs,
+  });
+}
+
+function sameOpenedFileIdentity(expected, st) {
+  return (
+    expected.dev === st.dev &&
+    expected.ino === st.ino &&
+    expected.size === st.size &&
+    expected.mode === st.mode &&
+    expected.uid === st.uid &&
+    expected.gid === st.gid &&
+    expected.nlink === st.nlink &&
+    expected.mtimeMs === st.mtimeMs &&
+    expected.ctimeMs === st.ctimeMs
+  );
+}
+
+function classifyOpenedPublicFile(fd, st, file) {
+  if (!st.isFile()) {
+    closeSync(fd);
+    return { status: 404 };
+  }
+  if (!Number.isSafeInteger(st.size) || st.size < 0) {
+    closeSync(fd);
+    return { status: 500 };
+  }
+  if (st.size > MAX_PUBLIC_FILE_BYTES) {
+    closeSync(fd);
+    return { status: 413 };
+  }
+  return {
+    status: 200,
+    fd,
+    size: st.size,
+    file,
+    identity: openedFileIdentity(st),
+  };
+}
+
 function openPublicTarget(target) {
   if (publicRootFd === null) {
     throw new Error("public root descriptor not bound");
@@ -137,17 +197,17 @@ function openPublicTarget(target) {
   try {
     if (parts.length === 0) {
       const fd = openChildNoFollow(parentFd, "index.html");
-      const st = fstatSync(fd);
-      if (!st.isFile()) {
-        closeSync(fd);
-        return { status: 404 };
-      }
-      return { status: 200, fd, size: st.size, file: join(target, "index.html") };
+      const st = fstatOrClose(fd);
+      return classifyOpenedPublicFile(
+        fd,
+        st,
+        join(target, "index.html"),
+      );
     }
 
     for (let index = 0; index < parts.length; index += 1) {
       const fd = openChildNoFollow(parentFd, parts[index]);
-      const st = fstatSync(fd);
+      const st = fstatOrClose(fd);
       const final = index === parts.length - 1;
 
       if (!final) {
@@ -163,25 +223,15 @@ function openPublicTarget(target) {
       if (st.isDirectory()) {
         directoryFds.push(fd);
         const indexFd = openChildNoFollow(fd, "index.html");
-        const indexStat = fstatSync(indexFd);
-        if (!indexStat.isFile()) {
-          closeSync(indexFd);
-          return { status: 404 };
-        }
-        return {
-          status: 200,
-          fd: indexFd,
-          size: indexStat.size,
-          file: join(target, "index.html"),
-        };
+        const indexStat = fstatOrClose(indexFd);
+        return classifyOpenedPublicFile(
+          indexFd,
+          indexStat,
+          join(target, "index.html"),
+        );
       }
 
-      if (!st.isFile()) {
-        closeSync(fd);
-        return { status: 404 };
-      }
-
-      return { status: 200, fd, size: st.size, file: target };
+      return classifyOpenedPublicFile(fd, st, target);
     }
 
     return { status: 404 };
@@ -194,11 +244,40 @@ function openPublicTarget(target) {
   }
 }
 
+function assertOpenedPublicFileStable(opened) {
+  const observed = fstatSync(opened.fd);
+  if (!sameOpenedFileIdentity(opened.identity, observed)) {
+    throw new Error("public file changed during request");
+  }
+  return observed;
+}
+
+function closeOpenedPublicFile(opened) {
+  closeSync(opened.fd);
+}
+
 function readOpenedPublicFile(opened) {
   try {
-    return readFileSync(opened.fd);
+    assertOpenedPublicFileStable(opened);
+    const body = Buffer.allocUnsafe(opened.size);
+    let offset = 0;
+    while (offset < opened.size) {
+      const count = readSync(
+        opened.fd,
+        body,
+        offset,
+        opened.size - offset,
+        offset,
+      );
+      if (count <= 0) {
+        throw new Error("short read from retained public file");
+      }
+      offset += count;
+    }
+    assertOpenedPublicFileStable(opened);
+    return body;
   } finally {
-    closeSync(opened.fd);
+    closeOpenedPublicFile(opened);
   }
 }
 
@@ -260,9 +339,37 @@ const server = http.createServer((req, res) => {
 
   const opened = openPublicTarget(target);
   if (opened.status !== 200) {
-    const status = opened.status === 403 ? 403 : opened.status === 404 ? 404 : 500;
+    const status =
+      opened.status === 403 ? 403 :
+        opened.status === 404 ? 404 :
+          opened.status === 413 ? 413 : 500;
     res.writeHead(status, { "content-type": "text/plain; charset=utf-8" });
-    res.end(status === 403 ? "forbidden\n" : status === 404 ? "not found\n" : "internal error\n");
+    res.end(
+      status === 403 ? "forbidden\n" :
+        status === 404 ? "not found\n" :
+          status === 413 ? "file too large\n" : "internal error\n",
+    );
+    return;
+  }
+
+  const responseHeaders = {
+    "content-type": contentType(opened.file),
+    "content-length": opened.size,
+    "cache-control": "no-store",
+  };
+
+  if (req.method === "HEAD") {
+    try {
+      assertOpenedPublicFileStable(opened);
+      res.writeHead(200, responseHeaders);
+      res.end();
+    } catch (error) {
+      void error;
+      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end("internal error\n");
+    } finally {
+      closeOpenedPublicFile(opened);
+    }
     return;
   }
 
@@ -276,14 +383,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  res.writeHead(200, {
-    "content-type": contentType(opened.file),
-    "content-length": body.length,
-    "cache-control": "no-store",
-  });
-
-  if (req.method === "HEAD") res.end();
-  else res.end(body);
+  res.writeHead(200, responseHeaders);
+  res.end(body);
 });
 
 server.listen(port, bindHost, () => {
