@@ -60,9 +60,11 @@ If apply fails, the failure receipt records the initial lifecycle/helper/service
 file/loaded-service state, whether persistent mutation was already present before
 this invocation, whether filesystem mutation was possible during this invocation,
 and how many mutation-boundary dormancy revalidations completed. Durability
-repair is conservatively classified as a possible current-invocation persistent
-mutation before it may remove a pending entry or fsync persistent state, so a
-mid-recovery failure cannot falsely attribute all mutation to a prior run.
+repair of the two pending-helper states is conservatively classified as a
+possible current-invocation persistent mutation before it may remove a pending
+entry. Pure re-fsync of an already-published exact generation does not by itself
+claim a new namespace/content mutation. A mid-cleanup failure therefore cannot
+falsely attribute an unlink performed by this invocation to a prior run.
 The receipt also records whether helper installation, service replacement,
 daemon-reload and final
 postcheck were attempted, whether the reload command returned success, the
