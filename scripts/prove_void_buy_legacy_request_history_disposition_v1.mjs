@@ -54,7 +54,7 @@ function row(path,sources,classification){
 const cleanRows=()=>[
   row(
     "/home/zoso/dev/void-node/.runtime/public-buy-void-requests-v1",
-    ["repo_default","unit_working_directory_default"],
+    ["repo_default"],
     "ABSENT_OBSERVED",
   ),
   row(
@@ -66,7 +66,7 @@ const cleanRows=()=>[
   row(
     "/opt/void-node-live/releases/"+"b".repeat(40)+
       "/.runtime/public-buy-void-requests-v1",
-    ["live_process_cwd_default"],
+    ["authenticated_live_process_cwd_default"],
     "ABSENT_OBSERVED",
   ),
   row(
@@ -97,17 +97,27 @@ function evidence(rows=cleanRows(),overrides={}){
     marker:PARENT.marker,
     version:PARENT.version,
     read_only:true,
+    root_execution_required:true,
     designated_hostname_matches:true,
     designated_runtime_user_matches:true,
-    effective_uid:1000,
+    effective_uid:0,
     designated_machine_id_matches:true,
+    designated_host_identity_verified:true,
+    authenticated_private_manager_peer:true,
+    authenticated_user_manager_query_stable:true,
+    installed_authenticated_query_pair_stable:true,
+    authenticated_main_pid:4242,
+    unit_working_directory_authenticated:false,
     service:{
-      status:0,
+      authenticated_user_manager:true,
       load_state:"loaded",
       active_state:"active",
       sub_state:"running",
       main_pid:4242,
-      working_directory:"/home/zoso/dev/void-node",
+      runtime_uid:1000,
+      control_group:"/user.slice/user-1000.slice/user@1000.service/app.slice/void-node-live.service",
+      working_directory:null,
+      working_directory_authenticated:false,
       live_process_cwd:"/opt/void-node-live/releases/"+"b".repeat(40),
     },
     process_environment_access:false,
@@ -145,6 +155,8 @@ function evidence(rows=cleanRows(),overrides={}){
     request_or_payment_contents_read:false,
     directory_entry_names_output:false,
     host_mutation:false,
+    service_mutation:false,
+    systemd_mutation:false,
     payment_acceptance:false,
     public_presale_activation:false,
     funds_movement:false,
@@ -172,7 +184,7 @@ function input(census,{
 
 assert.equal(
   PARENT.accepted_source_head,
-  "a8e3b930a98eeef0f19f3df94822c2c104bfdde8",
+  "c4a0046dbadc7eb681e78c49090c9a17373f8682",
 );
 
 const cleanEvidence=evidence();
@@ -235,18 +247,18 @@ const incompleteHold=classify(input(incompleteEvidence,{decision:D.UNRESOLVED_HO
 assert.equal(incompleteHold.ok,true);
 
 const unavailableRows=cleanRows()
-  .filter(item=>!item.sources.includes("live_process_cwd_default"))
-  .map(item=>item.sources.includes("unit_working_directory_default")
-    ?{...item,sources:["repo_default"]}
-    :item);
+  .filter(item=>!item.sources.includes("authenticated_live_process_cwd_default"));
 const unavailableEvidence=evidence(unavailableRows,{
   service:{
-    status:3,
+    authenticated_user_manager:true,
     load_state:"loaded",
-    active_state:"inactive",
-    sub_state:"dead",
-    main_pid:null,
+    active_state:"active",
+    sub_state:"running",
+    main_pid:4242,
+    runtime_uid:1000,
+    control_group:"/user.slice/user-1000.slice/user@1000.service/app.slice/void-node-live.service",
     working_directory:null,
+    working_directory_authenticated:false,
     live_process_cwd:null,
   },
   runtime_process_generation_stable:false,
@@ -265,11 +277,15 @@ assert.equal(classify(input(unavailableEvidence,{
 })).ok,true);
 
 for(const unsafe of [
+  {root_execution_required:false},
   {process_environment_access:true},
   {external_network_calls:true},
   {loopback_get_only:false},
   {designated_runtime_user_matches:false},
   {designated_machine_id_matches:false},
+  {designated_host_identity_verified:false},
+  {authenticated_private_manager_peer:false},
+  {unit_working_directory_authenticated:true},
   {request_or_payment_contents_read:true},
 ]){
   assert.equal(classify(input(evidence(cleanRows(),unsafe))).ok,false);
@@ -316,14 +332,14 @@ mixedFutureStable[3]={
 assert.equal(classify(input(evidence(mixedFutureStable))).ok,false);
 
 const omittedLiveCwd=cleanRows().filter(
-  item=>!item.sources.includes("live_process_cwd_default"),
+  item=>!item.sources.includes("authenticated_live_process_cwd_default"),
 );
 assert.equal(classify(input(evidence(omittedLiveCwd))).ok,false);
 
 const unknownSource=cleanRows();
 unknownSource[0]={
   ...unknownSource[0],
-  sources:["repo_default","unit_working_directory_default","invented_source"],
+  sources:["invented_source","repo_default"],
 };
 assert.equal(classify(input(evidence(unknownSource))).ok,false);
 
@@ -369,6 +385,9 @@ console.log("fabricated_summary_rejected=true");
 console.log("source_provenance_labels_bound=true");
 console.log("future_stable_root_mixed_provenance_rejected=true");
 console.log("candidate_source_coverage_required=true");
+console.log("authenticated_census_manager_binding_required=true");
+console.log("unit_working_directory_untrusted=true");
+console.log("authenticated_live_cwd_provenance_required=true");
 console.log("incomplete_census_hold_preserved=true");
 console.log("bounded_current_candidate_set_required=true");
 console.log("designated_runtime_user_required=true");
