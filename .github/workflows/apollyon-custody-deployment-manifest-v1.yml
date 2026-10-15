@@ -1,0 +1,44 @@
+name: Apollyon custody deployment manifest v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1.service"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1.target"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1.env.template"
+      - "ops/xiphos/00-void-apollyon-training-custody-deny-v1.rules"
+      - "scripts/prove_apollyon_custody_deployment_manifest_v1.mjs"
+      - "docs/security/apollyon-custody-deployment-manifest-v1.md"
+      - ".github/workflows/apollyon-custody-deployment-manifest-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prove deployment contract
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_apollyon_custody_deployment_manifest_v1.mjs
+          node scripts/prove_apollyon_custody_deployment_manifest_v1.mjs
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
