@@ -199,35 +199,103 @@ def preprocessed_source_identity()->dict[str,str|int]:
         "sha256":sha256(data),
     }
 
-def trace_link_inputs(raw:bytes,object_path:Path)->list[dict[str,str|int]]:
+ARCHIVE_MEMBER_PREFIX_RE=re.compile(r"^\((/[^()\\x00\\r\\n]+)\)([^()\\x00\\r\\n]+)$")
+ARCHIVE_MEMBER_SUFFIX_RE=re.compile(r"^(/[^()\\x00\\r\\n]+)\(([^()\\x00\\r\\n]+)\)$")
+
+def parse_link_trace(raw:bytes,object_path:Path)->dict:
+    try:
+        text=raw.decode("utf-8","strict")
+    except UnicodeDecodeError as exc:
+        raise AssertionError("linker trace is not canonical UTF-8") from exc
+    if "\x00" in text or "\r" in text:
+        raise AssertionError("linker trace contains forbidden control bytes")
+
     object_real=os.path.realpath(os.fspath(object_path))
-    discovered={}
-    text=raw.decode("utf-8","replace")
-    for line in text.splitlines():
-        token=line.strip()
-        if not token:
-            continue
-        if not os.path.isabs(token):
-            raise AssertionError("traced linker input is not absolute: "+token)
-        candidate=Path(token)
+    file_identities={}
+    records=[]
+    raw_normalized=[]
+    candidate_object_count=0
+    archive_member_count=0
+
+    def bind_file(raw_path:str,label:str)->str:
         try:
-            real=os.path.realpath(os.fspath(candidate))
-            if real==object_real:
-                continue
+            real=os.path.realpath(raw_path)
             p=Path(real)
             if not p.is_file():
-                raise AssertionError(
-                    "traced absolute linker input is not a regular file: "+token
-                )
-            identity=regular_file_identity(p,"link input")
+                raise AssertionError(label+" is not a regular file: "+raw_path)
+            identity=regular_file_identity(p,label)
         except OSError as exc:
-            raise AssertionError(
-                "traced absolute linker input identity failed: "+token
-            ) from exc
-        discovered[identity["path"]]=identity
-    if not discovered:
+            raise AssertionError(label+" identity failed: "+raw_path) from exc
+        file_identities[identity["path"]]=identity
+        return identity["path"]
+
+    for line in text.splitlines():
+        if line=="":
+            continue
+        if line!=line.strip():
+            raise AssertionError("linker trace record has surrounding whitespace")
+        token=line
+
+        if os.path.isabs(token) and "(" not in token and ")" not in token:
+            real=os.path.realpath(token)
+            if real==object_real:
+                candidate_object_count+=1
+                records.append({"kind":"candidate_object"})
+                raw_normalized.append("<candidate-object>")
+                continue
+            canonical_path=bind_file(token,"traced linker file")
+            records.append({"kind":"file","path":canonical_path})
+            raw_normalized.append(token)
+            continue
+
+        member_match=ARCHIVE_MEMBER_PREFIX_RE.fullmatch(token)
+        syntax="prefix"
+        if member_match is None:
+            member_match=ARCHIVE_MEMBER_SUFFIX_RE.fullmatch(token)
+            syntax="suffix"
+        if member_match is not None:
+            archive_raw=member_match.group(1)
+            member=member_match.group(2)
+            if (
+                not member or member in (".","..") or
+                "\x00" in member or "\n" in member or "\r" in member
+            ):
+                raise AssertionError("linker archive member name invalid")
+            archive_path=bind_file(archive_raw,"traced linker archive")
+            records.append({
+                "kind":"archive_member",
+                "archive_path":archive_path,
+                "member":member,
+                "syntax":syntax,
+            })
+            archive_member_count+=1
+            raw_normalized.append(token)
+            continue
+
+        raise AssertionError("unrecognized nonempty linker trace record: "+token)
+
+    if candidate_object_count!=1:
+        raise AssertionError(
+            "linker trace candidate object cardinality invalid: "+
+            str(candidate_object_count)
+        )
+    if not file_identities:
         raise AssertionError("static linker trace did not yield regular inputs")
-    return [discovered[key] for key in sorted(discovered)]
+    if archive_member_count<1:
+        raise AssertionError("static linker trace did not expose archive members")
+
+    normalized_bytes=("\n".join(raw_normalized)+"\n").encode("utf-8")
+    return {
+        "raw_normalized_bytes":len(normalized_bytes),
+        "raw_normalized_sha256":sha256(normalized_bytes),
+        "record_count":len(records),
+        "candidate_object_record_count":candidate_object_count,
+        "archive_member_record_count":archive_member_count,
+        "records":records,
+        "file_identities":[
+            file_identities[key] for key in sorted(file_identities)
+        ],
+    }
 
 def inspect_static_elf(binary:bytes)->dict[str,bool|int]:
     if len(binary)<64 or binary[:4]!=b"\x7fELF":
@@ -335,16 +403,19 @@ def compile_one(output:Path)->tuple[bytes,dict[str,bool|int],dict]:
         )
     object_bytes=bounded_file(obj,MAX_BINARY_BYTES,"candidate object")
     link_result=subprocess.run(
-        [os.fspath(CC),*LINK_FLAGS,"-Wl,-t","-o",os.fspath(output),os.fspath(obj)],
+        [os.fspath(CC),*LINK_FLAGS,"-Wl,-t,-t","-o",os.fspath(output),os.fspath(obj)],
         stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=30,env=ENV,
     )
     if link_result.returncode!=0:
         raise AssertionError(
             "link failed: "+link_result.stderr.decode("utf-8","replace")[-2000:]
         )
-    link_inputs=trace_link_inputs(
-        link_result.stdout+b"\n"+link_result.stderr,obj
-    )
+    if link_result.stderr:
+        raise AssertionError(
+            "successful linker trace produced stderr: "+
+            link_result.stderr.decode("utf-8","replace")[-2000:]
+        )
+    link_trace=parse_link_trace(link_result.stdout,obj)
     strip_result=subprocess.run(
         [os.fspath(STRIP),"--strip-all",os.fspath(output)],
         stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=30,env=ENV,
@@ -372,7 +443,7 @@ def compile_one(output:Path)->tuple[bytes,dict[str,bool|int],dict]:
             "bytes":len(object_bytes),
             "sha256":sha256(object_bytes),
         },
-        "link_inputs":link_inputs,
+        "link_trace":link_trace,
     }
 
 def material(report:dict)->dict:
@@ -436,7 +507,7 @@ def derive()->dict:
         "compiler":compiler,
         "compile_recipe":{
             "compile_argv_prefix":[os.fspath(CC),*COMPILE_FLAGS],
-            "link_argv_prefix":[os.fspath(CC),*LINK_FLAGS],
+            "link_argv_prefix":[os.fspath(CC),*LINK_FLAGS,"-Wl,-t,-t"],
             "preprocess_argv_prefix":[os.fspath(CC),*PREPROCESS_FLAGS,"-E","-P"],
             "strip_argv":[os.fspath(STRIP),"--strip-all"],
             "source_date_epoch":"0",
@@ -448,7 +519,7 @@ def derive()->dict:
             **toolchain_base,
             "preprocessed_translation_unit":preprocessed,
             "compile_object":first_build["compile_object"],
-            "link_inputs":first_build["link_inputs"],
+            "link_trace":first_build["link_trace"],
         },
         "binary":{
             "bytes":len(first),
@@ -567,7 +638,7 @@ def validate(report:dict)->None:
     )
     if (
         report["compile_recipe"]["compile_argv_prefix"]!=[os.fspath(CC),*COMPILE_FLAGS] or
-        report["compile_recipe"]["link_argv_prefix"]!=[os.fspath(CC),*LINK_FLAGS] or
+        report["compile_recipe"]["link_argv_prefix"]!=[os.fspath(CC),*LINK_FLAGS,"-Wl,-t,-t"] or
         report["compile_recipe"]["preprocess_argv_prefix"]!=[os.fspath(CC),*PREPROCESS_FLAGS,"-E","-P"] or
         report["compile_recipe"]["strip_argv"]!=[os.fspath(STRIP),"--strip-all"] or
         report["compile_recipe"]["source_date_epoch"]!="0" or
@@ -581,7 +652,7 @@ def validate(report:dict)->None:
         report["toolchain"],
         (
             "compile_object","executables","gcc_search_dirs_sha256",
-            "gcc_specs_sha256","link_inputs","preprocessed_translation_unit",
+            "gcc_specs_sha256","link_trace","preprocessed_translation_unit",
         ),
         "toolchain",
     )
@@ -602,24 +673,98 @@ def validate(report:dict)->None:
         HEX64.fullmatch(compile_object["sha256"]) is None
     ):
         raise AssertionError("candidate compile object invalid")
-    link_inputs=report["toolchain"]["link_inputs"]
-    if not isinstance(link_inputs,list) or not link_inputs:
-        raise AssertionError("candidate link input closure invalid")
+    link_trace=report["toolchain"]["link_trace"]
+    exact_keys(
+        link_trace,
+        (
+            "archive_member_record_count","candidate_object_record_count",
+            "file_identities","raw_normalized_bytes","raw_normalized_sha256",
+            "record_count","records",
+        ),
+        "link trace",
+    )
+    if (
+        type(link_trace["raw_normalized_bytes"]) is not int or
+        link_trace["raw_normalized_bytes"]<1 or
+        link_trace["raw_normalized_bytes"]>MAX_REPORT_BYTES or
+        not isinstance(link_trace["raw_normalized_sha256"],str) or
+        HEX64.fullmatch(link_trace["raw_normalized_sha256"]) is None or
+        type(link_trace["record_count"]) is not int or
+        link_trace["record_count"]<2 or
+        link_trace["candidate_object_record_count"]!=1 or
+        type(link_trace["archive_member_record_count"]) is not int or
+        link_trace["archive_member_record_count"]<1
+    ):
+        raise AssertionError("candidate raw linker trace identity invalid")
+
+    identities=link_trace["file_identities"]
+    if not isinstance(identities,list) or not identities:
+        raise AssertionError("candidate linker file identity closure invalid")
+    identity_paths=set()
     previous=""
-    for index,entry in enumerate(link_inputs):
-        exact_keys(entry,("bytes","path","sha256"),"link input")
+    for index,entry in enumerate(identities):
+        exact_keys(entry,("bytes","path","sha256"),"link file identity")
         path_text=entry["path"]
         if (
             not isinstance(path_text,str) or not os.path.isabs(path_text) or
             os.path.realpath(path_text)!=path_text or path_text<=previous
         ):
-            raise AssertionError("candidate link input path invalid")
+            raise AssertionError("candidate linker file identity path invalid")
         previous=path_text
-        current_identity=regular_file_identity(
-            Path(path_text),"link input "+str(index)
+        if entry!=regular_file_identity(
+            Path(path_text),"link file identity "+str(index)
+        ):
+            raise AssertionError("candidate linker file identity drift")
+        identity_paths.add(path_text)
+
+    records=link_trace["records"]
+    if (
+        not isinstance(records,list) or
+        len(records)!=link_trace["record_count"]
+    ):
+        raise AssertionError("candidate linker record closure invalid")
+    candidate_records=0
+    archive_records=0
+    for index,entry in enumerate(records):
+        if not isinstance(entry,dict) or "kind" not in entry:
+            raise AssertionError("candidate linker record invalid")
+        kind=entry["kind"]
+        if kind=="candidate_object":
+            exact_keys(entry,("kind",),"candidate object record")
+            candidate_records+=1
+            continue
+        if kind=="file":
+            exact_keys(entry,("kind","path"),"link file record")
+            if entry["path"] not in identity_paths:
+                raise AssertionError("link file record lacks bound identity")
+            continue
+        if kind=="archive_member":
+            exact_keys(
+                entry,
+                ("archive_path","kind","member","syntax"),
+                "archive member record",
+            )
+            if entry["archive_path"] not in identity_paths:
+                raise AssertionError("archive member lacks bound archive identity")
+            if (
+                entry["syntax"] not in ("prefix","suffix") or
+                not isinstance(entry["member"],str) or
+                not entry["member"] or
+                "\x00" in entry["member"] or
+                "\n" in entry["member"] or
+                "\r" in entry["member"]
+            ):
+                raise AssertionError("archive member record value invalid")
+            archive_records+=1
+            continue
+        raise AssertionError(
+            "unknown candidate linker record kind at "+str(index)
         )
-        if entry!=current_identity:
-            raise AssertionError("candidate link input identity drift")
+    if (
+        candidate_records!=1 or
+        archive_records!=link_trace["archive_member_record_count"]
+    ):
+        raise AssertionError("candidate linker record counts invalid")
     for digest_key in ("gcc_specs_sha256","gcc_search_dirs_sha256"):
         digest=report["toolchain"][digest_key]
         if not isinstance(digest,str) or HEX64.fullmatch(digest) is None:
@@ -726,6 +871,10 @@ def derive_to(output:Path)->None:
     print("hostile_ld_preload_preentry_blocked=true")
     print("static_toolchain_closure_bound=true")
     print("traced_absolute_link_inputs_fail_closed=true")
+    print("linker_trace_closed_grammar=true")
+    print("linker_archive_member_records_bound=true")
+    print("raw_linker_trace_identity_bound=true")
+    print("unknown_nonempty_linker_trace_records_hold=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
@@ -762,6 +911,10 @@ def compare_dir(directory:Path)->None:
     print("hostile_ld_preload_preentry_blocked=true")
     print("static_toolchain_closure_bound=true")
     print("traced_absolute_link_inputs_fail_closed=true")
+    print("linker_trace_closed_grammar=true")
+    print("linker_archive_member_records_bound=true")
+    print("raw_linker_trace_identity_bound=true")
+    print("unknown_nonempty_linker_trace_records_hold=true")
     print("candidate_accepted=false")
     print("live_execution_authorized=false")
 
@@ -783,7 +936,7 @@ def self_test()->None:
         raise AssertionError("boolean version unexpectedly admitted")
 
     try:
-        trace_link_inputs(b"relative-link-input.a\n",Path("/tmp/own.o"))
+        parse_link_trace(b"relative-link-input.a\n",Path("/tmp/own.o"))
     except AssertionError as exc:
         if "traced linker input is not absolute" not in str(exc):
             raise
@@ -791,11 +944,51 @@ def self_test()->None:
         raise AssertionError("relative traced linker input unexpectedly skipped")
 
     with tempfile.TemporaryDirectory(prefix="void-epoch2-link-trace-negative-") as td:
+        root=Path(td)
+        own=root/"own.o"
+        own.write_bytes(b"own-object")
+        library=root/"libfixture.a"
+        library.write_bytes(b"fixture-archive")
+        raw=(
+            os.fspath(own)+"\n"+
+            os.fspath(library)+"\n"+
+            "("+os.fspath(library)+")member.o\n"
+        ).encode("utf-8")
+        parsed=parse_link_trace(raw,own)
+        if (
+            parsed["candidate_object_record_count"]!=1 or
+            parsed["archive_member_record_count"]!=1 or
+            not any(
+                record.get("kind")=="archive_member" and
+                record.get("archive_path")==os.path.realpath(library) and
+                record.get("member")=="member.o" and
+                record.get("syntax")=="prefix"
+                for record in parsed["records"]
+            )
+        ):
+            raise AssertionError("archive-member trace grammar self-test failed")
+
+        try:
+            parse_link_trace(
+                (os.fspath(own)+"\nrelative-or-unknown.o\n").encode("utf-8"),
+                own,
+            )
+        except AssertionError as exc:
+            if "unrecognized nonempty linker trace record" not in str(exc):
+                raise
+        else:
+            raise AssertionError(
+                "unknown nonabsolute linker trace record unexpectedly skipped"
+            )
+
         missing=os.path.join(td,"missing-link-input.a")
         try:
-            trace_link_inputs((missing+"\n").encode("utf-8"),Path(td)/"own.o")
+            parse_link_trace(
+                (os.fspath(own)+"\n"+missing+"\n").encode("utf-8"),
+                own,
+            )
         except AssertionError as exc:
-            if "traced absolute linker input" not in str(exc):
+            if "traced linker file" not in str(exc):
                 raise
         else:
             raise AssertionError(
@@ -834,6 +1027,10 @@ def self_test()->None:
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
     print("static_toolchain_closure_bound=true")
+    print("linker_trace_closed_grammar=true")
+    print("linker_archive_member_records_bound=true")
+    print("raw_linker_trace_identity_bound=true")
+    print("unknown_nonempty_linker_trace_records_hold=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
