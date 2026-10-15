@@ -87,7 +87,7 @@ const operatorDoc = fs.readFileSync(path.join(ROOT, OPERATOR_DOC), "utf8");
 assert.match(operatorDoc, /rev-parse --verify HEAD/u);
 assert.match(
   operatorDoc,
-  /show "\$\{head\}:scripts\/void_buy_void_epoch2_credential_attestation_sealed_v1[.]mjs"/u,
+  /show "\$\{head\}:scripts\/void_buy_void_epoch2_credential_attestation_sealed_v2[.]mjs"/u,
 );
 assert.match(operatorDoc, /--expected-head "\$head"/u);
 const workflowSource = fs.readFileSync(path.join(ROOT, WORKFLOW), "utf8");
