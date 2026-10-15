@@ -74,7 +74,9 @@ The policy also requires future live acceptance to prove both:
 - Cloudflare Pseudo IPv4 overwrite is disabled for this hostname or replaced by
   a separately reviewed identity contract.
 
-Those are policy requirements here, not live observations.
+Those are policy requirements here, not live observations. They require a
+separately reviewed **Cloudflare control-plane** observation; they cannot be
+proven from Precision process/filesystem state alone.
 
 ## Adapter and dispatcher
 
@@ -161,9 +163,9 @@ It must still report all of the following as false:
 - local transport trust;
 - runtime integration.
 
-## Required later host acceptance
+## Required later acceptance evidence
 
-A separate read-only designated-host collector must eventually bind at least:
+A read-only designated-host collector must eventually bind the local facts:
 
 - exact source/release generation;
 - system-manager cloudflared MainPID + start ticks + effective UID/GID;
@@ -173,13 +175,22 @@ A separate read-only designated-host collector must eventually bind at least:
 - `NoNewPrivileges` and effective capability sets;
 - canonical root-owned nftables ruleset and rule order;
 - current Tunnel public-hostname/path configuration;
-- Worker-route absence/configuration evidence;
-- Pseudo IPv4 configuration evidence;
-- adapter and dispatcher running source identity;
-- restart/rollback behavior; and
-- two independent external-source acceptance/rate-isolation evidence.
+- adapter and dispatcher running source identity; and
+- restart/rollback behavior.
 
-Any missing or ambiguous observation must HOLD.
+A **separate Cloudflare control-plane observation** must establish the zone-level
+facts the host cannot know:
+
+- no active Worker/subrequest path can rewrite the visitor source identity for
+  the three sensitive routes; and
+- Pseudo IPv4 is not in `Overwrite Headers` mode for the accepted source
+  contract.
+
+Finally, external acceptance must prove two independent source addresses reach
+distinct PROXY-v2 rate identities through the real public hostname.
+
+Any missing or ambiguous observation in any of these three evidence domains
+must HOLD.
 
 ## Authority
 
