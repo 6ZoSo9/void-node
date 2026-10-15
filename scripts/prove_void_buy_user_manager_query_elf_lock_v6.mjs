@@ -10,6 +10,7 @@ import {fileURLToPath} from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const CANDIDATE_HEAD="d7ebb60ca1bc59f16972ffe3671dfaa44ffb7cdf";
 const SOURCE_PARENT="0d635ccd9d07fd07bb086bef3202b8b67ec6e5f7";
+const CORRECTION_BASE_HEAD="a681546a3182d5f6f0c6d60e327546a6d7dcec30";
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v6.yml";
 const CANDIDATE_WORKFLOW_BLOB="fe914ecbf81fd6c42ad25e3b5ebf70b7623dbee4";
 const PREEXEC_SOURCE="ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c";
@@ -21,7 +22,20 @@ const PREDECESSOR_LOCK="ops/security/buy-void-user-manager-query-elf-lock-v4.jso
 const SELF="scripts/prove_void_buy_user_manager_query_elf_lock_v6.mjs";
 const WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-lock-v6.yml";
 const DOC="docs/operators/buy-void-user-manager-query-elf-lock-v6.md";
-const EXPECTED_DELTA=[CANDIDATE_FILE,LOCK_FILE,SELF,WORKFLOW,DOC].sort();
+const REPLACEMENT_SOURCE="ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py";
+const REPLACEMENT_PROOF="scripts/prove_void_buy_void_user_manager_query_protected_replace_v6.py";
+const REPLACEMENT_WORKFLOW=".github/workflows/buy-void-user-manager-query-protected-replace-v6.yml";
+const REPLACEMENT_DOC="docs/operators/buy-void-user-manager-query-protected-replace-v6.md";
+const EXPECTED_REPLACEMENT_BLOBS=Object.freeze({
+  [REPLACEMENT_SOURCE]:"f81d9fbead60593258d17dbb8720e1efc867b20f",
+  [REPLACEMENT_PROOF]:"fbe04dac1efb1a9f9a1a6b31130ea8e9e4bf2e7a",
+  [REPLACEMENT_WORKFLOW]:"a3c9d157c12bc05fc0ab108f454e6084b56d0e99",
+  [REPLACEMENT_DOC]:"4bb6920b3226300c401ac1145f439e46e8af4924",
+});
+const EXPECTED_CORRECTION_DELTA=[
+  LOCK_FILE,SELF,WORKFLOW,DOC,
+  REPLACEMENT_SOURCE,REPLACEMENT_PROOF,REPLACEMENT_WORKFLOW,REPLACEMENT_DOC,
+].sort();
 
 const CANDIDATE=Object.freeze({
   marker:"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V6",
@@ -57,7 +71,7 @@ const CANDIDATE_SHA256="d39409be8fbeb8a6237a5fd24acb6f19f00acfa2028f713679ad17e8
 const CANDIDATE_BLOB="a341112695b1abbc61e0b4d88db9675b4fa15d83";
 const PREDECESSOR_LOCK_BLOB="55ceccf61d59a18809e74979afa518ed150d62a0";
 const PREDECESSOR_LOCK_ID="voidbuyumqelflock4_846047629dd2dd58f73f926d85cddde5b0a1510493d59a2d7ef778d235a70301";
-const LOCK_ID="voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6";
+const LOCK_ID="voidbuyumqelflock6_3627a98945579452b01c79b4d114c54d858122496f2b20a20ddfd7fae6b0307c";
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
@@ -154,8 +168,20 @@ function expectedLock(){
       artifact_a:11984123866,
       artifact_b:11984563387,
       artifact_c:11984857851,
-      never_installed:true,
-      superseded_by_live_v6:true,
+      live_diagnostic_observed:true,
+      live_diagnostic_result:"security_policy_mismatch_bounding_set_raw_equality",
+      protected_install_performed:false,
+      live_query_authorized:false,
+      superseded_by_v6_candidate_generation:true,
+    },
+    v6_disposable_live_probe_evidence:{
+      disposable_live_probe_observed:true,
+      disposable_live_probe_status:"V6_LIVE_PROBE_GREEN",
+      disposable_live_probe_source_head:"4328b4d9cf830304de2f9dee3c2052684640f489",
+      disposable_live_probe_query_source_blob:CANDIDATE.query_source_git_blob_sha1,
+      protected_install_performed:false,
+      live_query_authorized:false,
+      production_host_evidence_authority:false,
     },
     manager_reexec_deserialize_argv_accepted:true,
     control_group_service_interface_required:true,
@@ -182,11 +208,25 @@ function expectedLock(){
 function verifyBranch(){
   git(["merge-base","--is-ancestor",CANDIDATE_HEAD,"HEAD"]);
   git(["merge-base","--is-ancestor",SOURCE_PARENT,"HEAD"]);
-  const changed=git(["diff","--name-only",CANDIDATE_HEAD,"HEAD","--"])
-    .split("\n").filter(Boolean).sort();
-  assert.deepEqual(changed,EXPECTED_DELTA,"lock_v6_branch_scope_drift");
+  git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,"HEAD"]);
 
+  const changed=git(["diff","--name-only",CORRECTION_BASE_HEAD,"HEAD","--"])
+    .split("\n").filter(Boolean).sort();
+  assert.deepEqual(
+    changed,
+    EXPECTED_CORRECTION_DELTA,
+    "lock_v6_truth_correction_scope_drift",
+  );
+
+  assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_FILE]),CANDIDATE_BLOB);
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_WORKFLOW]),CANDIDATE_WORKFLOW_BLOB);
+  for(const [relative,expected] of Object.entries(EXPECTED_REPLACEMENT_BLOBS)){
+    assert.equal(
+      git(["rev-parse","HEAD:"+relative]),
+      expected,
+      "replacement_consumer_blob_drift:"+relative,
+    );
+  }
   for(const [relative,expected] of [
     [PREEXEC_SOURCE,CANDIDATE.preexec_source_git_blob_sha1],
     [QUERY_SOURCE,CANDIDATE.query_source_git_blob_sha1],
@@ -268,6 +308,10 @@ if(args.length===1&&args[0]==="--derive"){
   console.log("kernel_capability_state_bound=true");
   console.log("private_users_false_required=true");
   console.log("candidate_accepted=true");
+  console.log("v5_live_diagnostic_observed=true");
+  console.log("v5_superseded_by_v6_candidate_generation=true");
+  console.log("v6_disposable_live_probe_observed=true");
+  console.log("v6_protected_install_performed=false");
   console.log("install_authorized=false");
   console.log("live_query_authorized=false");
   console.log("production_host_evidence_authority=false");
