@@ -198,6 +198,7 @@ try {
     "-Wextra",
     "-Werror",
     "-O2",
+    "-static",
     path.join(ROOT, PREENTRY),
     "-o",
     binary,
@@ -216,6 +217,50 @@ try {
   );
   assert.match(self.stdout, /stdin_javascript_source_forbidden=true/u);
   assert.match(self.stdout, /node_sha256_policy_bound=true/u);
+
+  const readelf = run("/usr/bin/readelf", ["-l", binary]);
+  assert.equal(readelf.status, 0, readelf.stderr);
+  assert.doesNotMatch(readelf.stdout, / INTERP /u);
+
+  const preloadSource = path.join(temp, "preload.c");
+  const preloadSo = path.join(temp, "preload.so");
+  const preloadMarker = path.join(temp, "preload-marker");
+  const dynamicControlSource = path.join(temp, "dynamic-control.c");
+  const dynamicControl = path.join(temp, "dynamic-control");
+  fs.writeFileSync(
+    preloadSource,
+    "#include <fcntl.h>\n#include <stdlib.h>\n#include <unistd.h>\n" +
+      "__attribute__((constructor)) static void p(void){" +
+      "const char*m=getenv(\"VOID_PRELOAD_MARKER\");if(!m)return;" +
+      "int f=open(m,O_WRONLY|O_CREAT|O_TRUNC,0600);" +
+      "if(f>=0){write(f,\"x\",1);close(f);}}\n",
+    "utf8",
+  );
+  fs.writeFileSync(dynamicControlSource, "int main(void){return 0;}\n", "utf8");
+  let preloadCompile = run(CC, [
+    "-shared", "-fPIC", preloadSource, "-o", preloadSo,
+  ]);
+  assert.equal(preloadCompile.status, 0, preloadCompile.stderr);
+  preloadCompile = run(CC, [dynamicControlSource, "-o", dynamicControl]);
+  assert.equal(preloadCompile.status, 0, preloadCompile.stderr);
+  const poisonEnv = {
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    LD_PRELOAD: preloadSo,
+    VOID_PRELOAD_MARKER: preloadMarker,
+  };
+  const dynamicControlRun = run(dynamicControl, [], { env: poisonEnv });
+  assert.equal(dynamicControlRun.status, 0, dynamicControlRun.stderr);
+  assert.equal(fs.existsSync(preloadMarker), true, "dynamic preload positive control");
+  fs.rmSync(preloadMarker, { force: true });
+  const staticPreentryRun = run(binary, ["--self-test"], { env: poisonEnv });
+  assert.equal(staticPreentryRun.status, 0, staticPreentryRun.stderr);
+  assert.equal(
+    fs.existsSync(preloadMarker),
+    false,
+    "static native preentry must not execute LD_PRELOAD constructor",
+  );
 
   for (const arg of ["--self-test", "--plan"]) {
     const check = run(process.execPath, [path.join(ROOT, RUNNER), arg]);
@@ -302,6 +347,9 @@ console.log("runner_descriptor_retained=true");
 console.log("node_descriptor_fexecve=true");
 console.log("caller_stdin_javascript_rejected_before_root_js=true");
 console.log("loader_environment_sanitized=true");
+console.log("native_preentry_static=true");
+console.log("native_preentry_no_pt_interp=true");
+console.log("native_preentry_ld_preload_blocked_before_main=true");
 console.log("live_credential_access=false");
 console.log("live_signing=false");
 console.log("transaction=false");
