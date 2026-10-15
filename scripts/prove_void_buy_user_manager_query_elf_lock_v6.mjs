@@ -22,7 +22,20 @@ const PREDECESSOR_LOCK="ops/security/buy-void-user-manager-query-elf-lock-v4.jso
 const SELF="scripts/prove_void_buy_user_manager_query_elf_lock_v6.mjs";
 const WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-lock-v6.yml";
 const DOC="docs/operators/buy-void-user-manager-query-elf-lock-v6.md";
-const EXPECTED_CORRECTION_DELTA=[LOCK_FILE,SELF,WORKFLOW,DOC].sort();
+const REPLACEMENT_SOURCE="ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py";
+const REPLACEMENT_PROOF="scripts/prove_void_buy_void_user_manager_query_protected_replace_v6.py";
+const REPLACEMENT_WORKFLOW=".github/workflows/buy-void-user-manager-query-protected-replace-v6.yml";
+const REPLACEMENT_DOC="docs/operators/buy-void-user-manager-query-protected-replace-v6.md";
+const EXPECTED_REPLACEMENT_BLOBS=Object.freeze({
+  [REPLACEMENT_SOURCE]:"dd4f1a9d83d95a70f2190d4b64afd14d0fabcbcf",
+  [REPLACEMENT_PROOF]:"45117533f3f49188a8538eb0ea4dec7a02831970",
+  [REPLACEMENT_WORKFLOW]:"a3c9d157c12bc05fc0ab108f454e6084b56d0e99",
+  [REPLACEMENT_DOC]:"c24f8379ae8210c2e894be732cac4192f3ac51e3",
+});
+const EXPECTED_CORRECTION_DELTA=[
+  LOCK_FILE,SELF,WORKFLOW,DOC,
+  REPLACEMENT_SOURCE,REPLACEMENT_PROOF,REPLACEMENT_WORKFLOW,REPLACEMENT_DOC,
+].sort();
 
 const CANDIDATE=Object.freeze({
   marker:"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V6",
@@ -196,6 +209,13 @@ function verifyBranch(){
 
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_FILE]),CANDIDATE_BLOB);
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_WORKFLOW]),CANDIDATE_WORKFLOW_BLOB);
+  for(const [relative,expected] of Object.entries(EXPECTED_REPLACEMENT_BLOBS)){
+    assert.equal(
+      git(["rev-parse","HEAD:"+relative]),
+      expected,
+      "replacement_consumer_blob_drift:"+relative,
+    );
+  }
   for(const [relative,expected] of [
     [PREEXEC_SOURCE,CANDIDATE.preexec_source_git_blob_sha1],
     [QUERY_SOURCE,CANDIDATE.query_source_git_blob_sha1],
