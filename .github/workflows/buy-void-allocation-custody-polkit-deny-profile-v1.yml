@@ -44,7 +44,7 @@ jobs:
           node scripts/prove_void_buy_allocation_custody_polkit_deny_profile_v1.mjs |
             tee "$RUNNER_TEMP/polkit-profile.log"
           grep -Fx 'VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_DENY_PROFILE_V1_GREEN' "$RUNNER_TEMP/polkit-profile.log"
-          grep -Fx 'runtime_user=zoso' "$RUNNER_TEMP/polkit-profile.log"
+          grep -Fx 'runtime_user=void-buy-runtime' "$RUNNER_TEMP/polkit-profile.log"
           grep -Fx 'denied_action_count=4' "$RUNNER_TEMP/polkit-profile.log"
           grep -Fx 'installed_rule_verified=false' "$RUNNER_TEMP/polkit-profile.log"
           grep -Fx 'runtime_control_denial_live_verified=false' "$RUNNER_TEMP/polkit-profile.log"
