@@ -138,7 +138,7 @@ try{
   fs.writeFileSync(survivingRequests,"",{mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1});
   fs.writeFileSync(
     survivingEvents,
-    JSON.stringify({schema:"synthetic_surviving_operator_history_v1"})+"\\n",
+    JSON.stringify({schema:"synthetic_surviving_operator_history_v1"})+"\n",
     {mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1},
   );
   fs.chmodSync(survivingRequests,VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
