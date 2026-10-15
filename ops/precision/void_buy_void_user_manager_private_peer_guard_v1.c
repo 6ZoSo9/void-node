@@ -144,14 +144,38 @@ static int exact_file_text(pid_t pid, const char *leaf, const char *expected) {
   return -1;
 }
 
+static int manager_cmdline_bytes(const unsigned char *raw, size_t len) {
+  static const unsigned char base[] = EXPECTED_EXE "\0--user\0";
+  static const unsigned char deserialize[] = "--deserialize=";
+  const size_t base_len = sizeof(base) - 1;
+  const size_t deserialize_len = sizeof(deserialize) - 1;
+
+  if (len == base_len && memcmp(raw, base, base_len) == 0) return 0;
+  if (len <= base_len + deserialize_len + 1 ||
+      memcmp(raw, base, base_len) != 0 ||
+      memcmp(raw + base_len, deserialize, deserialize_len) != 0 ||
+      raw[len - 1] != '\0') return -1;
+
+  unsigned long long fd = 0;
+  size_t digits = 0;
+  for (size_t i = base_len + deserialize_len; i < len - 1; ++i) {
+    unsigned char c = raw[i];
+    if (c < '0' || c > '9') return -1;
+    unsigned digit = (unsigned)(c - '0');
+    if (fd > (0x7fffffffULL - digit) / 10ULL) return -1;
+    fd = fd * 10ULL + digit;
+    digits += 1;
+  }
+  return digits > 0 && fd > 0 ? 0 : -1;
+}
+
 static int exact_cmdline(pid_t pid) {
   char path[128];
   if (snprintf(path, sizeof(path), "/proc/%ld/cmdline", (long)pid) >= (int)sizeof(path)) return -1;
-  static const unsigned char expected[] = EXPECTED_EXE "\0--user\0";
   unsigned char raw[4096];
   size_t len = 0;
   if (read_bounded(path, raw, sizeof(raw), &len) != 0) return -1;
-  return len == sizeof(expected) - 1 && memcmp(raw, expected, len) == 0 ? 0 : -1;
+  return manager_cmdline_bytes(raw, len);
 }
 
 static int exact_cgroup(pid_t pid, uid_t uid) {
@@ -371,8 +395,28 @@ static int self_test(void) {
   unsigned long long v = 0;
   if (parse_uint("1000", &v) != 0 || v != 1000) return 1;
   if (parse_uint("01x", &v) == 0) return 1;
+
+  static const unsigned char plain[] = EXPECTED_EXE "\0--user\0";
+  static const unsigned char reexec[] =
+      EXPECTED_EXE "\0--user\0--deserialize=44\0";
+  static const unsigned char bad_zero[] =
+      EXPECTED_EXE "\0--user\0--deserialize=0\0";
+  static const unsigned char bad_alpha[] =
+      EXPECTED_EXE "\0--user\0--deserialize=4x\0";
+  static const unsigned char bad_extra[] =
+      EXPECTED_EXE "\0--user\0--deserialize=44\0--extra\0";
+  if (manager_cmdline_bytes(plain, sizeof(plain) - 1) != 0) return 1;
+  if (manager_cmdline_bytes(reexec, sizeof(reexec) - 1) != 0) return 1;
+  if (manager_cmdline_bytes(bad_zero, sizeof(bad_zero) - 1) == 0) return 1;
+  if (manager_cmdline_bytes(bad_alpha, sizeof(bad_alpha) - 1) == 0) return 1;
+  if (manager_cmdline_bytes(bad_extra, sizeof(bad_extra) - 1) == 0) return 1;
+
   if (self_test_peer() != 0) return 1;
   printf("%s_SELF_TEST_GREEN\n", MARKER);
+  printf("manager_plain_argv_accepted=true\n");
+  printf("manager_reexec_deserialize_argv_accepted=true\n");
+  printf("manager_malformed_deserialize_rejected=true\n");
+  printf("manager_extra_argv_rejected=true\n");
   printf("so_peercred_live_socket_positive=true\n");
   printf("wrong_peer_pid_rejected_by_contract=true\n");
   printf("systemd_private_socket_selected=true\n");
