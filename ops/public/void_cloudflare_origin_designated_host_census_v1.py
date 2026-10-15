@@ -124,11 +124,14 @@ def run_read_only(
     return result.returncode, result.stdout, result.stderr
 
 def read_bounded(path: pathlib.Path, maximum: int) -> bytes:
-    info = path.stat()
-    if not stat.S_ISREG(info.st_mode) or info.st_size < 0 or info.st_size > maximum:
-        raise CensusError(f"bounded_read_metadata_invalid:{path.name}")
-    data = path.read_bytes()
-    if len(data) != info.st_size or len(data) > maximum:
+    if not isinstance(maximum, int) or maximum < 1:
+        raise CensusError("bounded_read_limit_invalid")
+    try:
+        with path.open("rb", buffering=0) as handle:
+            data = handle.read(maximum + 1)
+    except OSError as exc:
+        raise CensusError(f"bounded_read_unavailable:{path.name}") from exc
+    if len(data) > maximum:
         raise CensusError(f"bounded_read_size_invalid:{path.name}")
     return data
 
