@@ -89,6 +89,8 @@ const HASH=/^0x[0-9a-f]{64}$/u;
 const ADDRESS=/^0x[0-9a-f]{40}$/u;
 const QUANTITY=/^0x(?:0|[1-9a-f][0-9a-f]*)$/u;
 
+const VERIFIED_RPC_HOST_BINDINGS=new WeakSet();
+
 const RPC_ALLOWED=Object.freeze(new Set([
   "eth_chainId",
   "eth_blockNumber",
@@ -778,7 +780,7 @@ export async function observeRpcHostBinding(expectedHead){
   const service=systemdRpcServiceFacts(expected.service);
   const container=await dockerRpcContainerFacts(expected.container);
   const listener=listenerFacts();
-  return Object.freeze({
+  const result=Object.freeze({
     expected_runtime_observation_id:expected.observation_id,
     expected_runtime_observation_sha256:RPC_HOST_OBSERVATION_SHA256,
     service,
@@ -791,13 +793,27 @@ export async function observeRpcHostBinding(expectedHead){
     service_mutation:false,
     docker_mutation:false,
   });
+  VERIFIED_RPC_HOST_BINDINGS.add(result);
+  return result;
 }
 
-export function requireStableRpcHostBinding(before,after){
+function stableRpcHostBindingCore(before,after){
   if(canonical(before)!==canonical(after)){
     throw new Error("rpc_host_binding_changed_during_fee_window");
   }
   return before;
+}
+
+export function requireStableRpcHostBinding(before,after){
+  if(!VERIFIED_RPC_HOST_BINDINGS.has(before)||
+     !VERIFIED_RPC_HOST_BINDINGS.has(after)){
+    throw new Error("rpc_host_binding_live_provenance_required");
+  }
+  return stableRpcHostBindingCore(before,after);
+}
+
+export function testOnlyRequireStableRpcHostBinding(before,after){
+  return stableRpcHostBindingCore(before,after);
 }
 
 function loadCandidate(expectedHead){
@@ -1163,15 +1179,12 @@ export function buildReceipt(
     childBefore,childAfter,expectedHead
   );
   validateObservation(policy,observation);
-  let stableRpcHostBinding=null;
-  if(rpcHostBefore!==null||rpcHostAfter!==null){
-    if(rpcHostBefore===null||rpcHostAfter===null){
-      throw new Error("rpc_host_binding_pair_required");
-    }
-    stableRpcHostBinding=requireStableRpcHostBinding(
-      rpcHostBefore,rpcHostAfter
-    );
+  if(rpcHostBefore===null||rpcHostAfter===null){
+    throw new Error("rpc_host_binding_pair_required");
   }
+  const stableRpcHostBinding=requireStableRpcHostBinding(
+    rpcHostBefore,rpcHostAfter
+  );
   const zero=observation.zero_fee_envelope===true;
   const nonzero=observation.nonzero_fee_envelope===true;
 
@@ -1216,14 +1229,12 @@ export function buildReceipt(
     credential_signer_control_stable_identity:stableChildIdentity,
     credential_signer_control_stable_identity_sha256:
       sha256Bytes(Buffer.from(canonical(stableChildIdentity),"utf8")),
-    rpc_host_binding_freshly_observed:
-      stableRpcHostBinding!==null,
-    rpc_host_binding_stable_across_fee_window:
-      stableRpcHostBinding!==null,
+    rpc_host_binding_freshly_observed:true,
+    rpc_host_binding_live_provenance_verified:true,
+    rpc_host_binding_stable_across_fee_window:true,
     rpc_host_binding:stableRpcHostBinding,
-    rpc_host_binding_sha256:stableRpcHostBinding===null
-      ?null
-      :sha256Bytes(Buffer.from(canonical(stableRpcHostBinding),"utf8")),
+    rpc_host_binding_sha256:
+      sha256Bytes(Buffer.from(canonical(stableRpcHostBinding),"utf8")),
     live_fee_chain_receipt:chainReceipt,
     live_fee_chain_receipt_id:chainReceipt.chain_receipt_id,
     canonical_chain_id:2050,
@@ -1276,6 +1287,25 @@ function plan(){
   console.log("fresh_rpc_host_service_container_listener_binding_required=true");
   console.log("accepted_historical_rpc_observation_used_as_expected_generation_only=true");
   console.log("historical_runtime_observation_sufficient_without_fresh_revalidation=false");
+  const hostFixture=Object.freeze({
+    service:Object.freeze({main_pid:"1"}),
+    container:Object.freeze({container_id:"a".repeat(64)}),
+    listener:Object.freeze({listener_count:1}),
+  });
+  if(testOnlyRequireStableRpcHostBinding(hostFixture,hostFixture)!==hostFixture){
+    throw new Error("rpc_host_stability_self_test_failed");
+  }
+  let provenanceRejected=false;
+  try{requireStableRpcHostBinding(hostFixture,hostFixture);}
+  catch(error){
+    provenanceRejected=
+      error instanceof Error&&
+      error.message==="rpc_host_binding_live_provenance_required";
+  }
+  if(!provenanceRejected){
+    throw new Error("fabricated_rpc_host_binding_provenance_accepted");
+  }
+  console.log("fabricated_rpc_host_binding_provenance_rejected=true");
   console.log("live_eth_gasPrice_required=true");
   console.log("accepted_gas_ceiling=320000");
   console.log("fee_multiplier_bps=20000");
