@@ -36,6 +36,9 @@ must have:
 - non-root UID/GID;
 - `NoNewPrivileges=true`;
 - no effective `CAP_NET_ADMIN`;
+- an empty effective capability set;
+- an empty ambient capability set;
+- an empty capability bounding set; and
 - a UID and GID distinct from both the Cloudflare adapter and the public-443
   dispatcher.
 
@@ -107,7 +110,11 @@ The target services are fixed to:
 - `void-public-443-proxy-v2-dispatch-v1.service`.
 
 Both must be system-manager services with distinct non-root UID/GID identities,
-`NoNewPrivileges=true`, and no effective `CAP_NET_ADMIN`.
+`NoNewPrivileges=true`, no effective `CAP_NET_ADMIN`, and empty effective,
+ambient, and bounding capability sets. The same zero-capability requirement
+applies to cloudflared. This is required because nftables `skuid` isolation is
+not exclusive if an admitted service retains CAP_SETUID or process-control
+capabilities such as CAP_SYS_PTRACE/CAP_SYS_ADMIN.
 
 The adapter and dispatcher must each own exactly one IPv4-loopback listener for
 this policy surface, no IPv6 listener, and no additional listener.
