@@ -83,6 +83,7 @@ const TARGET_KEYS = Object.freeze([
   "expected_runtime_file_unreadable",
   "unexpected_entries",
   "opaque_unexpected_subtrees",
+  "symlink_entries",
   "unsafe_owner_write_entries",
   "accepted_runtime_tree_exact",
   "observed_status",
@@ -188,6 +189,7 @@ export function classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1(
     "expected_runtime_file_unreadable",
     "unexpected_entries",
     "opaque_unexpected_subtrees",
+    "symlink_entries",
     "unsafe_owner_write_entries",
   ]) {
     if (!natural(observed[key])) {
@@ -219,6 +221,7 @@ export function classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1(
         observed.expected_runtime_file_unreadable +
         observed.unexpected_entries <
       1 ||
+    observed.symlink_entries !== 0 ||
     observed.unsafe_owner_write_entries !== 0 ||
     observed.opaque_unexpected_subtrees > observed.unexpected_entries
   ) {
