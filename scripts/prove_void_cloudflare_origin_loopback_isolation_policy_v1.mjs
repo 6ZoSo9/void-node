@@ -420,6 +420,36 @@ const source = fs.readFileSync(
   ),
   "utf8",
 );
+const adapterRuntime = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "ops",
+    "public",
+    "void-cloudflare-origin-proxy-v2-adapter-v1.mjs",
+  ),
+  "utf8",
+);
+const dispatcherRuntime = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "ops",
+    "public",
+    "void-public-443-proxy-v2-dispatcher-v1.mjs",
+  ),
+  "utf8",
+);
+assert.ok(
+  adapterRuntime.includes(
+    'const MARKER = "VOID_CLOUDFLARE_ORIGIN_PROXY_V2_RUNTIME_V1";',
+  ),
+);
+assert.ok(adapterRuntime.includes('const HOST = "127.0.0.1";'));
+assert.ok(
+  dispatcherRuntime.includes(
+    'const MARKER = "VOID_PUBLIC_443_PROXY_V2_DISPATCH_RUNTIME_V1";',
+  ),
+);
+assert.ok(dispatcherRuntime.includes('const HOST = "127.0.0.1";'));
 for (const required of [
   "void-public-seed-named-tunnel-v1.service",
   "void-cloudflare-origin-proxy-v2-adapter-v1.service",
