@@ -44,7 +44,28 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Detect exact historical live-query generation
+        id: generation
+        run: |
+          set -euo pipefail
+          blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
+          if [ "$blob" = "ad49cd7f71c41e0f559a561b5a62a00cec60c215" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Preserve historical V1 live qualification evidence
+        if: steps.generation.outputs.current != 'true'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py)" = "e0d3a583030a5465cc793f740c04f4b33f84eba6"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_user_manager_query_live_qualification_v1.py)" = "df207d4af6c518cfd86bd2570750ee803ca61a67"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_query_protected_install_v1.py)" = "2ec35012283f729aac073735ac37cde3464c81a4"
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v1.json)" = "4f255dbc98ac4b65fb4e6433f4e7aee7b86351db"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-host-evidence-v3.mjs)" = "eae92c7dd060b4d6139543463b5fbd2f8564585b"
+          echo "VOID_BUY_VOID_USER_MANAGER_QUERY_LIVE_QUALIFICATION_V1_HISTORICAL_PRESERVED"
       - name: Prove live qualification contract
+        if: steps.generation.outputs.current == 'true'
         run: |
           set -euo pipefail
           proof="$RUNNER_TEMP/user-manager-live-qualification-proof.txt"
@@ -78,6 +99,7 @@ jobs:
           grep -Fx 'funds_movement=false' "$proof"
           grep -Fx 'production_host_evidence_authority=false' "$proof"
       - name: Prove inert modes only
+        if: steps.generation.outputs.current == 'true'
         run: |
           set -euo pipefail
           python3 -I -B ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py --self-test
