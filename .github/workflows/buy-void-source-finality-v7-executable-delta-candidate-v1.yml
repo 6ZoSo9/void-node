@@ -13,6 +13,7 @@ on:
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v3.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v3.md"
       - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "ops/precision/**"
@@ -42,6 +43,7 @@ on:
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v3.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v3.md"
       - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "ops/precision/**"
@@ -220,31 +222,29 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund
           npm run typecheck
           npm run build
-      - name: Derive protected whole-enforcement census
+      - name: Verify protected integration against frozen V4 census
         run: |
           set -euo pipefail
-          echo "CURRENT_V4_CENSUS_DISPATCH_V1"
-          node --check scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs
+          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --self-test
           receipt="$RUNNER_TEMP/protected-census-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs > "$receipt"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --receipt > "$receipt"
           node --input-type=module - "$receipt" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const v=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(v.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_ARTIFACT_CENSUS_V4");
-          assert.equal(v.economic_artifact_count,28);
-          assert.equal(v.economic_source_file_count,28);
-          assert.equal(v.protected_tracked_source_count,49);
-          assert.equal(v.exact_parent_protected_inventory_verified,true);
-          assert.equal(v.census_only,true);
-          assert.equal(v.complete_executable_closure_verified,false);
-          assert.equal(v.candidate_enforcement_identity_accepted,false);
+          assert.equal(v.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V1");
+          assert.equal(v.protected_path_count,49);
+          assert.equal(v.protected_path_identity_preserved,true);
+          assert.equal(v.current_built_census_identity_matches_frozen_v4,true);
+          assert.equal(v.nonprotected_economic_drift_count,3);
+          assert.equal(v.provider_source_identity_preserved,true);
+          assert.equal(v.current_generation_integration_verified,true);
           assert.equal(v.production_source_finality_authority_ready,false);
           assert.equal(v.public_presale_activation,false);
           assert.equal(v.funds_movement,false);
-          assert.match(v.protected_tracked_source_inventory_canonical_sha256,/^[0-9a-f]{64}$/u);
-          assert.match(v.census_id,/^voidbefv7c4_[0-9a-f]{64}$/u);
           NODE
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: buy-void-protected-census-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
@@ -262,23 +262,27 @@ jobs:
           pattern: buy-void-protected-census-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: protected-census
-      - name: Require exact Node 22 24 26 census equality
+      - name: Require exact Node 22 24 26 protected-integration equality
         run: |
           set -euo pipefail
           for node in 22 24 26; do test -s "protected-census/protected-census-$node.json"; done
           cmp protected-census/protected-census-22.json protected-census/protected-census-24.json
           cmp protected-census/protected-census-22.json protected-census/protected-census-26.json
           node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
           import fs from "node:fs";
           import crypto from "node:crypto";
           const b=fs.readFileSync("protected-census/protected-census-22.json");
           const v=JSON.parse(b);
-          console.log("VOID_BUY_VOID_FINAL_PROTECTED_CENSUS_V4_CROSS_NODE_GREEN");
-          console.log("census_id="+v.census_id);
-          console.log("census_json_sha256="+crypto.createHash("sha256").update(b).digest("hex"));
-          console.log("economic_artifact_inventory_sha256="+v.economic_hosted_artifact_inventory_sha256);
-          console.log("economic_source_inventory_sha256="+v.economic_hosted_source_inventory_sha256);
-          console.log("protected_inventory_sha256="+v.protected_tracked_source_inventory_canonical_sha256);
-          console.log("candidate_enforcement_identity_accepted=false");
+          assert.equal(v.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V1");
+          assert.equal(v.protected_path_count,49);
+          assert.equal(v.protected_path_identity_preserved,true);
+          assert.equal(v.current_built_census_identity_matches_frozen_v4,true);
+          console.log("VOID_BUY_VOID_CURRENT_PROTECTED_INTEGRATION_CROSS_NODE_GREEN");
+          console.log("receipt_sha256="+crypto.createHash("sha256").update(b).digest("hex"));
+          console.log("protected_path_count="+v.protected_path_count);
+          console.log("nonprotected_economic_drift_count="+v.nonprotected_economic_drift_count);
+          console.log("candidate_enforcement_identity_accepted="+v.candidate_enforcement_identity_accepted);
           console.log("funds_movement=false");
           NODE
+
