@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -9,6 +10,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #define MARKER "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1"
@@ -21,6 +23,8 @@
 #define FIXED_DEVNULL "/dev/null"
 #define CONFIRM "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V2"
 #define PREENTRY_ENV "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY=" MARKER
+#define PROOF_SCHEMA "VOID_BUY_VOID_EPOCH2_NATIVE_PARENT_PROOF_V1"
+#define PROOF_FD_ENV_PREFIX "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_PROOF_FD="
 #define MAX_POLICY_BYTES 1024U
 #define MAX_RUNNER_BYTES (4U * 1024U * 1024U)
 #define MAX_NODE_BYTES (512U * 1024U * 1024U)
@@ -283,6 +287,94 @@ static void require_devnull_stdin(void) {
     }
 }
 
+static bool write_all(int fd, const unsigned char *data, size_t length) {
+    size_t offset = 0;
+    while (offset < length) {
+        ssize_t written = write(fd, data + offset, length - offset);
+        if (written < 0) {
+            if (errno == EINTR) continue;
+            return false;
+        }
+        if (written == 0) return false;
+        offset += (size_t)written;
+    }
+    return true;
+}
+
+static bool read_process_start_ticks(pid_t pid, unsigned long long *out) {
+    char pathname[64];
+    int printed = snprintf(pathname, sizeof(pathname), "/proc/%ld/stat", (long)pid);
+    if (printed <= 0 || (size_t)printed >= sizeof(pathname)) return false;
+    int fd = open(pathname, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) return false;
+    char buffer[4096];
+    ssize_t count;
+    do {
+        count = read(fd, buffer, sizeof(buffer) - 1U);
+    } while (count < 0 && errno == EINTR);
+    close(fd);
+    if (count <= 0 || (size_t)count >= sizeof(buffer)) return false;
+    buffer[count] = '\0';
+    char *right = strrchr(buffer, ')');
+    if (right == NULL || right[1] != ' ') return false;
+    char *cursor = right + 2;
+    char *save = NULL;
+    unsigned field = 3U;
+    for (char *token = strtok_r(cursor, " ", &save);
+         token != NULL;
+         token = strtok_r(NULL, " ", &save), field++) {
+        if (field != 22U) continue;
+        errno = 0;
+        char *end = NULL;
+        unsigned long long value = strtoull(token, &end, 10);
+        if (errno != 0 || end == token || *end != '\0' || value == 0ULL) {
+            return false;
+        }
+        *out = value;
+        return true;
+    }
+    return false;
+}
+
+static void emit_parent_proof(
+    int fd,
+    pid_t child,
+    const char expected_head[41],
+    const struct stat *self_stat,
+    const struct stat *runner_stat,
+    const struct stat *node_stat,
+    unsigned long long parent_start_ticks,
+    unsigned long long child_start_ticks
+) {
+    char proof[2048];
+    int count = snprintf(
+        proof,
+        sizeof(proof),
+        "{\"schema\":\"%s\",\"parent_pid\":%ld,\"parent_start_ticks\":\"%llu\","
+        "\"child_pid\":%ld,\"child_start_ticks\":\"%llu\","
+        "\"preentry_dev\":\"%ju\",\"preentry_ino\":\"%ju\","
+        "\"runner_dev\":\"%ju\",\"runner_ino\":\"%ju\","
+        "\"node_dev\":\"%ju\",\"node_ino\":\"%ju\","
+        "\"expected_head\":\"%s\"}\n",
+        PROOF_SCHEMA,
+        (long)getpid(),
+        parent_start_ticks,
+        (long)child,
+        child_start_ticks,
+        (uintmax_t)self_stat->st_dev,
+        (uintmax_t)self_stat->st_ino,
+        (uintmax_t)runner_stat->st_dev,
+        (uintmax_t)runner_stat->st_ino,
+        (uintmax_t)node_stat->st_dev,
+        (uintmax_t)node_stat->st_ino,
+        expected_head
+    );
+    if (count <= 0 || (size_t)count >= sizeof(proof) ||
+        !write_all(fd, (const unsigned char *)proof, (size_t)count)) {
+        hold("native_preentry_parent_proof_write_failed");
+    }
+}
+
 static void sha256_fd_hex(int fd, char out[65]) {
     if (lseek(fd, 0, SEEK_SET) < 0) hold("digest_seek_failed");
     sha256_ctx c;
@@ -484,6 +576,10 @@ static int self_test(void) {
     puts("expected_head_policy_bound=true");
     puts("runner_descriptor_retained=true");
     puts("node_descriptor_fexecve=true");
+    puts("native_parent_retained_for_child_lifetime=true");
+    puts("parent_child_start_ticks_bound=true");
+    puts("installed_preentry_runner_generation_bound=true");
+    puts("private_parent_proof_channel=true");
     puts("stdin_javascript_source_forbidden=true");
     puts("loader_environment_sanitized=true");
     puts("credential_content_access=false");
@@ -530,52 +626,133 @@ int main(int argc, char **argv) {
         "native_preentry_node_digest_mismatch"
     );
 
-    int flags = fcntl(runner_fd, F_GETFD);
-    if (flags < 0 ||
-        fcntl(runner_fd, F_SETFD, flags & ~FD_CLOEXEC) != 0) {
+    struct stat self_stat;
+    struct stat runner_stat;
+    struct stat node_stat;
+    if (lstat(FIXED_SELF, &self_stat) != 0 ||
+        fstat(runner_fd, &runner_stat) != 0 ||
+        fstat(node_fd, &node_stat) != 0) {
         close(node_fd);
         close(runner_fd);
-        hold("native_preentry_runner_descriptor_inheritance_failed");
+        hold("native_preentry_generation_snapshot_failed");
     }
 
-    char fd_env[96];
-    int fd_env_n = snprintf(
-        fd_env,
-        sizeof(fd_env),
-        "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_RUNNER_FD=%d",
-        runner_fd
-    );
-    if (fd_env_n <= 0 || (size_t)fd_env_n >= sizeof(fd_env)) {
+    unsigned long long parent_start_ticks = 0ULL;
+    if (!read_process_start_ticks(getpid(), &parent_start_ticks)) {
         close(node_fd);
         close(runner_fd);
-        hold("native_preentry_runner_descriptor_env_failed");
+        hold("native_preentry_parent_generation_unavailable");
     }
 
-    char *const next_argv[] = {
-        (char *)FIXED_NODE,
-        (char *)FIXED_RUNNER,
-        (char *)"--run",
-        (char *)"--confirm",
-        (char *)CONFIRM,
-        (char *)"--expected-head",
-        policy.expected_head,
-        NULL
-    };
-    char *const envp[] = {
-        (char *)"PATH=/usr/bin:/bin",
-        (char *)"HOME=/root",
-        (char *)"LANG=C",
-        (char *)"LC_ALL=C",
-        (char *)"TZ=UTC",
-        (char *)PREENTRY_ENV,
-        fd_env,
-        NULL
-    };
+    int proof_pipe[2];
+    if (pipe2(proof_pipe, O_CLOEXEC) != 0) {
+        close(node_fd);
+        close(runner_fd);
+        hold("native_preentry_parent_proof_pipe_failed");
+    }
 
-    fexecve(node_fd, next_argv, envp);
-    int saved = errno;
+    pid_t child = fork();
+    if (child < 0) {
+        close(proof_pipe[0]);
+        close(proof_pipe[1]);
+        close(node_fd);
+        close(runner_fd);
+        hold("native_preentry_fork_failed");
+    }
+
+    if (child == 0) {
+        close(proof_pipe[1]);
+
+        int runner_flags = fcntl(runner_fd, F_GETFD);
+        int proof_flags = fcntl(proof_pipe[0], F_GETFD);
+        if (runner_flags < 0 || proof_flags < 0 ||
+            fcntl(runner_fd, F_SETFD, runner_flags & ~FD_CLOEXEC) != 0 ||
+            fcntl(proof_pipe[0], F_SETFD, proof_flags & ~FD_CLOEXEC) != 0) {
+            _exit(126);
+        }
+
+        char runner_fd_env[96];
+        char proof_fd_env[96];
+        int runner_env_n = snprintf(
+            runner_fd_env,
+            sizeof(runner_fd_env),
+            "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_RUNNER_FD=%d",
+            runner_fd
+        );
+        int proof_env_n = snprintf(
+            proof_fd_env,
+            sizeof(proof_fd_env),
+            PROOF_FD_ENV_PREFIX "%d",
+            proof_pipe[0]
+        );
+        if (runner_env_n <= 0 ||
+            (size_t)runner_env_n >= sizeof(runner_fd_env) ||
+            proof_env_n <= 0 ||
+            (size_t)proof_env_n >= sizeof(proof_fd_env)) {
+            _exit(126);
+        }
+
+        char *const next_argv[] = {
+            (char *)FIXED_NODE,
+            (char *)FIXED_RUNNER,
+            (char *)"--run",
+            (char *)"--confirm",
+            (char *)CONFIRM,
+            (char *)"--expected-head",
+            policy.expected_head,
+            NULL
+        };
+        char *const envp[] = {
+            (char *)"PATH=/usr/bin:/bin",
+            (char *)"HOME=/root",
+            (char *)"LANG=C",
+            (char *)"LC_ALL=C",
+            (char *)"TZ=UTC",
+            (char *)PREENTRY_ENV,
+            runner_fd_env,
+            proof_fd_env,
+            NULL
+        };
+
+        fexecve(node_fd, next_argv, envp);
+        _exit(126);
+    }
+
+    close(proof_pipe[0]);
     close(node_fd);
+
+    unsigned long long child_start_ticks = 0ULL;
+    if (!read_process_start_ticks(child, &child_start_ticks)) {
+        close(proof_pipe[1]);
+        close(runner_fd);
+        (void)kill(child, SIGTERM);
+        (void)waitpid(child, NULL, 0);
+        hold("native_preentry_child_generation_unavailable");
+    }
+
+    emit_parent_proof(
+        proof_pipe[1],
+        child,
+        policy.expected_head,
+        &self_stat,
+        &runner_stat,
+        &node_stat,
+        parent_start_ticks,
+        child_start_ticks
+    );
+    close(proof_pipe[1]);
     close(runner_fd);
-    errno = saved;
-    hold("native_preentry_node_fexecve_failed");
+
+    int status = 0;
+    pid_t waited;
+    do {
+        waited = waitpid(child, &status, 0);
+    } while (waited < 0 && errno == EINTR);
+    if (waited != child) {
+        hold("native_preentry_child_wait_failed");
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    hold("native_preentry_child_not_cleanly_exited");
 }
