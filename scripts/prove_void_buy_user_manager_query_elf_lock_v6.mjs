@@ -57,7 +57,7 @@ const CANDIDATE_SHA256="d39409be8fbeb8a6237a5fd24acb6f19f00acfa2028f713679ad17e8
 const CANDIDATE_BLOB="a341112695b1abbc61e0b4d88db9675b4fa15d83";
 const PREDECESSOR_LOCK_BLOB="55ceccf61d59a18809e74979afa518ed150d62a0";
 const PREDECESSOR_LOCK_ID="voidbuyumqelflock4_846047629dd2dd58f73f926d85cddde5b0a1510493d59a2d7ef778d235a70301";
-const LOCK_ID="voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6";
+const LOCK_ID="voidbuyumqelflock6_cede427c177e309cf23364b9092f3cbba63be405ad6458cc0c8ef93bc09abd77";
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
@@ -155,7 +155,8 @@ function expectedLock(){
       artifact_b:11984563387,
       artifact_c:11984857851,
       never_installed:true,
-      superseded_by_live_v6:true,
+      superseded_by_v6_candidate_generation:true,
+      superseded_by_live_v6:false,
     },
     manager_reexec_deserialize_argv_accepted:true,
     control_group_service_interface_required:true,
@@ -268,6 +269,8 @@ if(args.length===1&&args[0]==="--derive"){
   console.log("kernel_capability_state_bound=true");
   console.log("private_users_false_required=true");
   console.log("candidate_accepted=true");
+  console.log("v5_superseded_by_v6_candidate_generation=true");
+  console.log("superseded_by_live_v6=false");
   console.log("install_authorized=false");
   console.log("live_query_authorized=false");
   console.log("production_host_evidence_authority=false");
