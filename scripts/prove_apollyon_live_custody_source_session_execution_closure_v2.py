@@ -92,11 +92,16 @@ subprocess.run(
 )
 runner_test=subprocess.run(
     ["node",str(RUNNER),"--self-test"],
-    check=True,
+    check=False,
     text=True,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
 )
+if runner_test.returncode!=0:
+    raise AssertionError(
+        "runner self-test failed: "+
+        (runner_test.stderr or runner_test.stdout)[-2000:]
+    )
 assert "VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2_SELF_TEST=GREEN" in runner_test.stdout
 for marker in (
     "training_stop_attempt_precedes_cleanup=true",
