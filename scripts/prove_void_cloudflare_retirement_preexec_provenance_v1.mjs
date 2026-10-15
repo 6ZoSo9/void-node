@@ -60,6 +60,8 @@ assert.deepEqual(
   "pull_request/main push path sets diverged",
 );
 assert.ok(workflow.includes("  push:\n    branches: [main]\n"));
+assert.ok(workflow.includes('if [ -z "${BASE:-}" ]; then'));
+assert.ok(workflow.includes('BASE="$(git rev-parse "$HEAD^1")"'));
 
 for(const token of [
   "VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_PREEXEC_V2",
@@ -111,6 +113,7 @@ console.log("installed_query_generation_binding_required=true");
 console.log("direct_marker_invocation_rejected=true");
 console.log("forged_proof_channel_rejected=true");
 console.log("accepted_main_trigger_path_parity=true");
+console.log("non_pr_diff_base_fallback_proven=true");
 console.log("future_restart_prevented=false");
 console.log("historical_user_tunnel_retirement_verified=false");
 console.log("host_installation=false");
