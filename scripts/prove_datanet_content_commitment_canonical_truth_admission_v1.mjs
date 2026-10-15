@@ -10,7 +10,13 @@ import {
   canonicalJson,
   sha256,
 } from "../tools/datanet-content-commitment-compiler-profile-v1.mjs";
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "../tools/datanet-content-commitment-production-registry-identity-v1.mjs";
 
+const registry=
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1;
+const wrongRegistry="0x3333333333333333333333333333333333333333";
 const objectId="datanet-object-canonical-truth-v1";
 const objectDigest=crypto.createHash("sha256").update(Buffer.from(objectId,"utf8")).digest("hex");
 const txHash="0x"+"1".repeat(64);
@@ -30,7 +36,7 @@ function eventMembership(){
     finality_verification_id:"voiddccrfv1_"+"5".repeat(64),
     checkpoint_attestation_id:"voiddccfca1_"+"6".repeat(64),
     signed_transaction_hash:txHash,
-    registry_address:"0x1111111111111111111111111111111111111111",
+    registry_address:registry,
     publisher_address:"0x2222222222222222222222222222222222222222",
     object_id:objectId,
     commitment:{
@@ -165,10 +171,12 @@ assert.deepEqual(
   [
     "accepted_checkpoint_id","byte_length","chain_id","checkpoint_block_hash",
     "checkpoint_height","commitment_id","commitment_log_index",
-    "commitment_transaction_hash","content_sha256","marker","object_id","version",
+    "commitment_transaction_hash","content_sha256","marker","object_id",
+    "registry_address","version",
   ].sort(),
 );
 assert.equal(ref.chain_id,"2050");
+assert.equal(ref.registry_address,registry);
 assert.equal(ref.object_id,objectId);
 assert.equal(ref.content_sha256,"7".repeat(64));
 assert.equal(ref.byte_length,"4096");
@@ -178,6 +186,20 @@ assert.equal(ref.accepted_checkpoint_id,"mainnet0-checkpoint-finality-v1");
 assert.equal(ref.commitment_transaction_hash,txHash);
 assert.equal(ref.commitment_log_index,"7");
 assert.match(ref.commitment_id,/^voiddncommit1_[0-9a-f]{64}$/);
+
+{
+  const wrong=eventMembership();
+  wrong.registry_address=wrongRegistry;
+  recomputeEventId(wrong);
+  const rejected=admit(wrong);
+  assert.equal(rejected.ok,false);
+  assert.equal(
+    rejected.reason,
+    "datanet_canonical_truth_event_membership_invalid",
+  );
+  assert.equal(rejected.canonical_commitment_truth_admitted,false);
+  assert.equal(rejected.reconstruction_authority_granted,false);
+}
 
 const admissionSchema=JSON.parse(readFileSync(
   new URL(
@@ -316,6 +338,10 @@ out=admit(eventFalse);
 assert.equal(out.ok,false);
 assert.equal(out.reason,"datanet_canonical_truth_event_membership_invalid");
 
+assert.equal(
+  VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_AUTHORITY_V1.production_registry_identity_bound,
+  true,
+);
 assert.equal(VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_AUTHORITY_V1.canonical_commitment_truth_admitted,true);
 assert.equal(VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_AUTHORITY_V1.reconstruction_authority_granted,false);
 assert.equal(VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_AUTHORITY_V1.independent_custody_verified,false);
@@ -324,6 +350,8 @@ assert.equal(VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_AUTHORITY_V1.replic
 console.log("VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_ADMISSION_V1_PROOF_GREEN");
 console.log("finalized_event_membership_id_rederived=true");
 console.log("accepted_checkpoint_policy_bound=true");
+console.log("production_registry_identity_bound=true");
+console.log("alternate_registry_canonical_truth_rejected=true");
 console.log("object_id_preimage_verified=true");
 console.log("canonical_commitment_reference_emitted=true");
 console.log("canonical_commitment_reference_schema_satisfiable=true");
