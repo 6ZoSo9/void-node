@@ -39,6 +39,16 @@ for required in (
     'service_unit_file_state_required',
     'EXPECTED_UNSET_ENVIRONMENT=(',
     'loaded_unset_environment_invalid',
+    'class ApplyHold(Hold):',
+    'new_file_pending_reload',
+    'RESUME_DAEMON_RELOAD',
+    'persistent_filesystem_mutation_possible',
+    'recovery_snapshot_attempted',
+    'daemon_reload_command_succeeded',
+    'synthetic_after_helper_creation',
+    'synthetic_after_service_replace_fsync',
+    'synthetic_daemon_reload_failure',
+    'synthetic_loaded_postcheck_failure',
     'exact_dormant(TARGET_UNIT,"disabled")',
     'exact_dormant(SERVICE_UNIT,"static")',
     'os.replace(temp,SERVICE_PATH)',
@@ -57,6 +67,13 @@ for line in (
     "target_unit_file_state_disabled_required=true",
     "service_unit_file_state_static_required=true",
     "manager_environment_influence_unset=true",
+    "resumable_pending_reload_state=true",
+    "truthful_partial_mutation_receipt=true",
+    "failure_injection_after_helper_creation=true",
+    "failure_injection_after_service_replace=true",
+    "failure_injection_daemon_reload=true",
+    "failure_injection_loaded_postcheck=true",
+    "idempotent_resume_proven=true",
     "service_action=false","target_action=false",
     "socket_mutation=false","training_execution=false","durable_attempt_claim=false",
 ):
@@ -64,3 +81,6 @@ for line in (
 print("VOID_APOLLYON_CUSTODY_SOCKET_LIFECYCLE_UPDATE_V1_PROOF_GREEN")
 print("target_unit_file_state_disabled_required=true")
 print("service_unit_file_state_static_required=true")
+print("resumable_pending_reload_state=true")
+print("truthful_partial_mutation_receipt=true")
+print("idempotent_resume_proven=true")

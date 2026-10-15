@@ -42,7 +42,18 @@ EXPECTED_UNSET_ENVIRONMENT=(
 )
 
 class Hold(RuntimeError): pass
+
+class ApplyHold(Hold):
+    def __init__(self,reason:str,receipt:dict[str,object])->None:
+        super().__init__(reason)
+        self.receipt=receipt
+
 def hold(reason:str)->None: raise Hold(reason)
+
+def receipt_fact(value:object)->str:
+    if value is None:return "not_applicable"
+    if isinstance(value,bool):return str(value).lower()
+    return str(value)
 
 def git_blob(data:bytes)->str:
     h=hashlib.sha1();h.update(f"blob {len(data)}\0".encode("ascii"));h.update(data);return h.hexdigest()
@@ -139,32 +150,90 @@ def verify_target()->None:
     if SERVICE_UNIT not in relation.get("Wants","").split():hold("target_wants_missing")
     if SERVICE_UNIT not in relation.get("PropagatesStopTo","").split():hold("target_stop_propagation_missing")
 
-def verify_loaded_service()->None:
+def loaded_service_properties()->dict[str,str]:
     exact_dormant(SERVICE_UNIT,"static")
-    r=run([
-        "/usr/bin/systemctl","show",SERVICE_UNIT,"--no-pager",
-        "-p","RefuseManualStart","-p","RefuseManualStop","-p","ExecStopPost",
-        "-p","UnsetEnvironment",
-    ])
+    names=(
+        "FragmentPath","DropInPaths","NeedDaemonReload",
+        "RefuseManualStart","RefuseManualStop","ExecStopPost","UnsetEnvironment",
+    )
+    argv=["/usr/bin/systemctl","show",SERVICE_UNIT,"--no-pager"]
+    for name in names:argv.extend(["-p",name])
+    r=run(argv,check=False)
+    if r.returncode!=0:hold("loaded_service_probe_failed")
     props={}
     for line in r.stdout.splitlines():
-        if "=" in line:
-            k,v=line.split("=",1);props[k]=v
+        if "=" not in line:hold("loaded_service_probe_invalid")
+        k,v=line.split("=",1)
+        if k not in names or k in props:hold("loaded_service_probe_duplicate_or_extra")
+        props[k]=v
+    if set(props)!=set(names):hold("loaded_service_probe_incomplete")
+    return props
+
+def classify_loaded_service(file_state:str,props:dict[str,str])->str:
+    if props.get("FragmentPath")!=str(SERVICE_PATH):
+        hold("loaded_service_fragment_path_invalid")
+    if props.get("DropInPaths")!="":hold("loaded_service_dropins_present")
     if props.get("RefuseManualStart")!="yes" or props.get("RefuseManualStop")!="yes":
         hold("service_manual_refusal_missing")
+    need_reload=props.get("NeedDaemonReload")
+    command=props.get("ExecStopPost","").strip()
     unset=props.get("UnsetEnvironment","").split()
+    old_shape=(command=="" and unset==[])
+    new_shape=(
+        len(unset)==len(EXPECTED_UNSET_ENVIRONMENT)
+        and set(unset)==set(EXPECTED_UNSET_ENVIRONMENT)
+        and all(required in command for required in (
+            "/usr/bin/python3","-I","-B",
+            "/opt/void-apollyon-custody-lifecycle-v1/"
+            "apollyon_custody_stale_socket_cleanup_v1.py",
+            "--cleanup",
+        ))
+    )
+    if file_state=="old_exact" and need_reload=="no" and old_shape:
+        return "old_loaded"
     if (
-        len(unset)!=len(EXPECTED_UNSET_ENVIRONMENT) or
-        set(unset)!=set(EXPECTED_UNSET_ENVIRONMENT)
+        file_state=="new_exact" and need_reload=="yes" and old_shape
     ):
-        hold("loaded_unset_environment_invalid")
-    command=props.get("ExecStopPost","")
-    for required in (
-        "/usr/bin/python3","-I","-B",
-        "/opt/void-apollyon-custody-lifecycle-v1/apollyon_custody_stale_socket_cleanup_v1.py",
-        "--cleanup",
-    ):
-        if required not in command:hold("loaded_exec_stop_post_invalid")
+        return "new_file_pending_reload"
+    if file_state=="new_exact" and need_reload=="no" and new_shape:
+        return "new_loaded"
+    hold("loaded_service_generation_mismatch")
+
+def loaded_service_state(file_state:str)->str:
+    return classify_loaded_service(file_state,loaded_service_properties())
+
+def classify_lifecycle_state(
+    service_file_state:str,cleanup_helper_state:str,loaded_state:str
+)->dict[str,str]:
+    table={
+        ("old_exact","absent","old_loaded"):
+            ("initial","APPLY_SOCKET_LIFECYCLE_UPDATE"),
+        ("old_exact","exact","old_loaded"):
+            ("helper_only","RESUME_SERVICE_PUBLICATION"),
+        ("new_exact","exact","new_file_pending_reload"):
+            ("new_file_pending_reload","RESUME_DAEMON_RELOAD"),
+        ("new_exact","exact","new_loaded"):
+            ("complete","SOCKET_LIFECYCLE_ALREADY_EXACT"),
+    }
+    value=table.get((service_file_state,cleanup_helper_state,loaded_state))
+    if value is None:hold("lifecycle_state_invalid")
+    return {"lifecycle_state":value[0],"next_action":value[1]}
+
+def host_lifecycle_state()->dict[str,str]:
+    verify_target()
+    service_file=service_state()
+    helper=helper_state()
+    loaded=loaded_service_state(service_file)
+    state=classify_lifecycle_state(service_file,helper,loaded)
+    return {
+        "service_unit_state":service_file,
+        "cleanup_helper_state":helper,
+        "loaded_service_state":loaded,
+        **state,
+    }
+
+def daemon_reload()->None:
+    run(["/usr/bin/systemctl","daemon-reload"])
 
 def ensure_root_dir()->None:
     try:st=os.lstat(LIFECYCLE_ROOT)
@@ -222,43 +291,114 @@ def replace_service_unit()->bool:
     if service_state()!="new_exact":hold("service_unit_replace_failed")
     return True
 
+def apply_transition(
+    before:dict[str,object],
+    *,
+    _install_helper_fn=install_helper,
+    _replace_service_fn=replace_service_unit,
+    _reload_fn=daemon_reload,
+    _state_fn=host_lifecycle_state,
+)->dict[str,object]:
+    stage=str(before["lifecycle_state"])
+    receipt:dict[str,object]={
+        "helper_install_attempted":False,
+        "helper_install_returned_success":False,
+        "service_unit_replace_attempted":False,
+        "service_unit_replace_returned_success":False,
+        "daemon_reload_attempted":False,
+        "daemon_reload_command_succeeded":None,
+        "final_postcheck_attempted":False,
+        "persistent_filesystem_mutation_possible":False,
+        "recovery_snapshot_attempted":False,
+        "recovery_snapshot_reason":"not_needed",
+        "recovery_lifecycle_state":"not_needed",
+        "recovery_cleanup_helper_state":"not_needed",
+        "recovery_service_unit_state":"not_needed",
+        "recovery_loaded_service_state":"not_needed",
+        "recovery_next_action":"not_needed",
+    }
+    try:
+        if stage=="initial":
+            receipt["helper_install_attempted"]=True
+            receipt["helper_install_returned_success"]=bool(_install_helper_fn())
+        if stage in ("initial","helper_only"):
+            receipt["service_unit_replace_attempted"]=True
+            receipt["service_unit_replace_returned_success"]=bool(
+                _replace_service_fn()
+            )
+        if stage in ("initial","helper_only","new_file_pending_reload"):
+            receipt["daemon_reload_attempted"]=True
+            _reload_fn()
+            receipt["daemon_reload_command_succeeded"]=True
+        elif stage!="complete":
+            hold("apply_lifecycle_state_invalid:"+stage)
+        receipt["final_postcheck_attempted"]=True
+        after=_state_fn()
+        if after.get("lifecycle_state")!="complete":
+            hold("post_update_lifecycle_not_complete")
+        return {**receipt,**after}
+    except Exception as exc:
+        receipt["persistent_filesystem_mutation_possible"]=bool(
+            receipt["helper_install_attempted"]
+            or receipt["service_unit_replace_attempted"]
+        )
+        if receipt["daemon_reload_attempted"] is True and (
+            receipt["daemon_reload_command_succeeded"] is None
+        ):
+            receipt["daemon_reload_command_succeeded"]=False
+        receipt["recovery_snapshot_attempted"]=True
+        try:
+            recovery=_state_fn()
+        except Exception as recovery_exc:
+            receipt["recovery_snapshot_reason"]=(
+                type(recovery_exc).__name__+":"+str(recovery_exc)
+            )
+            receipt["recovery_lifecycle_state"]="unavailable"
+            receipt["recovery_cleanup_helper_state"]="unavailable"
+            receipt["recovery_service_unit_state"]="unavailable"
+            receipt["recovery_loaded_service_state"]="unavailable"
+            receipt["recovery_next_action"]="MANUAL_RECOVERY_REVIEW"
+        else:
+            receipt["recovery_snapshot_reason"]="none"
+            receipt["recovery_lifecycle_state"]=recovery["lifecycle_state"]
+            receipt["recovery_cleanup_helper_state"]=recovery["cleanup_helper_state"]
+            receipt["recovery_service_unit_state"]=recovery["service_unit_state"]
+            receipt["recovery_loaded_service_state"]=recovery["loaded_service_state"]
+            receipt["recovery_next_action"]=recovery["next_action"]
+        if isinstance(exc,(Hold,OSError,KeyError,ValueError,subprocess.SubprocessError)):
+            raise ApplyHold(str(exc),receipt) from exc
+        raise
+
 def plan()->dict:
     if socket.gethostname().casefold()!=TARGET_HOST.casefold():hold("wrong_host")
     load_manifest()
     read_source(SERVICE_REL,NEW_SERVICE_BLOB)
     read_source(TARGET_REL,TARGET_BLOB)
     read_source(HELPER_REL,HELPER_BLOB)
-    verify_target()
-    exact_dormant(SERVICE_UNIT,"static")
-    s=service_state();h=helper_state()
-    if s=="new_exact":
-        if h!="exact":hold("new_service_without_cleanup_helper")
-        verify_loaded_service()
+    state=host_lifecycle_state()
     return {
         "marker":MARKER,"mode":"--plan","target_host":TARGET_HOST,
-        "service_unit_state":s,"cleanup_helper_state":h,
+        **state,
         "target_stop_control_verified":True,
         "service_dormant":True,"target_dormant":True,
         "service_action":False,"target_action":False,"socket_mutation":False,
         "training_execution":False,"durable_attempt_claim":False,
         "operator_private_key_access":False,"funds_movement":False,
-        "next_action":"APPLY_SOCKET_LIFECYCLE_UPDATE" if s=="old_exact" or h=="absent" else "SOCKET_LIFECYCLE_ALREADY_EXACT",
     }
 
 def apply()->dict:
     if os.geteuid()!=0:hold("apply_requires_root")
     before=plan()
-    helper_changed=install_helper()
-    service_changed=replace_service_unit()
-    if helper_changed or service_changed:
-        run(["/usr/bin/systemctl","daemon-reload"])
-    verify_target();verify_loaded_service()
-    if helper_state()!="exact" or service_state()!="new_exact":
-        hold("post_update_identity_invalid")
+    transition=apply_transition(before)
     return {
-        **before,"mode":"--apply","service_unit_state":"new_exact","cleanup_helper_state":"exact",
-        "cleanup_helper_installed":True,"service_unit_updated":service_changed,
-        "daemon_reload_performed":helper_changed or service_changed,
+        **before,**transition,
+        "mode":"--apply",
+        "cleanup_helper_installed":
+            transition["cleanup_helper_state"]=="exact",
+        "service_unit_updated":
+            transition["service_unit_replace_returned_success"],
+        "daemon_reload_performed":
+            transition["daemon_reload_command_succeeded"] is True,
         "service_action":False,"target_action":False,"socket_mutation":False,
         "training_execution":False,"durable_attempt_claim":False,
         "operator_private_key_access":False,"funds_movement":False,
@@ -288,6 +428,140 @@ def self_test()->None:
         "linked-runtime","indirect","generated",
     ):
         assert rejected_target_state!="disabled"
+    assert classify_lifecycle_state(
+        "old_exact","absent","old_loaded"
+    )["lifecycle_state"]=="initial"
+    assert classify_lifecycle_state(
+        "old_exact","exact","old_loaded"
+    )["lifecycle_state"]=="helper_only"
+    assert classify_lifecycle_state(
+        "new_exact","exact","new_file_pending_reload"
+    )["next_action"]=="RESUME_DAEMON_RELOAD"
+    assert classify_lifecycle_state(
+        "new_exact","exact","new_loaded"
+    )["lifecycle_state"]=="complete"
+
+    def synthetic_snapshot(state:dict[str,str])->dict[str,str]:
+        return {
+            "service_unit_state":state["service"],
+            "cleanup_helper_state":state["helper"],
+            "loaded_service_state":state["loaded"],
+            **classify_lifecycle_state(
+                state["service"],state["helper"],state["loaded"]
+            ),
+        }
+
+    state={"service":"old_exact","helper":"absent","loaded":"old_loaded"}
+    before=synthetic_snapshot(state)
+    def helper_failure():
+        state["helper"]="exact"
+        raise Hold("synthetic_after_helper_creation")
+    try:
+        apply_transition(
+            before,
+            _install_helper_fn=helper_failure,
+            _replace_service_fn=lambda:False,
+            _reload_fn=lambda:None,
+            _state_fn=lambda:synthetic_snapshot(state),
+        )
+    except ApplyHold as exc:
+        assert str(exc)=="synthetic_after_helper_creation"
+        assert exc.receipt["persistent_filesystem_mutation_possible"] is True
+        assert exc.receipt["recovery_lifecycle_state"]=="helper_only"
+        assert exc.receipt["recovery_next_action"]=="RESUME_SERVICE_PUBLICATION"
+    else:
+        raise AssertionError("synthetic_helper_failure_not_reported")
+
+    state={"service":"old_exact","helper":"exact","loaded":"old_loaded"}
+    before=synthetic_snapshot(state)
+    def replace_failure():
+        state["service"]="new_exact"
+        state["loaded"]="new_file_pending_reload"
+        raise Hold("synthetic_after_service_replace_fsync")
+    try:
+        apply_transition(
+            before,
+            _replace_service_fn=replace_failure,
+            _reload_fn=lambda:None,
+            _state_fn=lambda:synthetic_snapshot(state),
+        )
+    except ApplyHold as exc:
+        assert str(exc)=="synthetic_after_service_replace_fsync"
+        assert exc.receipt["recovery_lifecycle_state"]=="new_file_pending_reload"
+        assert exc.receipt["recovery_next_action"]=="RESUME_DAEMON_RELOAD"
+    else:
+        raise AssertionError("synthetic_service_replace_failure_not_reported")
+
+    state={
+        "service":"new_exact","helper":"exact",
+        "loaded":"new_file_pending_reload",
+    }
+    before=synthetic_snapshot(state)
+    def reload_failure():
+        raise Hold("synthetic_daemon_reload_failure")
+    try:
+        apply_transition(
+            before,
+            _reload_fn=reload_failure,
+            _state_fn=lambda:synthetic_snapshot(state),
+        )
+    except ApplyHold as exc:
+        assert str(exc)=="synthetic_daemon_reload_failure"
+        assert exc.receipt["daemon_reload_attempted"] is True
+        assert exc.receipt["daemon_reload_command_succeeded"] is False
+        assert exc.receipt["persistent_filesystem_mutation_possible"] is False
+        assert exc.receipt["recovery_lifecycle_state"]=="new_file_pending_reload"
+    else:
+        raise AssertionError("synthetic_reload_failure_not_reported")
+
+    def reload_success():
+        state["loaded"]="new_loaded"
+    resumed=apply_transition(
+        synthetic_snapshot(state),
+        _reload_fn=reload_success,
+        _state_fn=lambda:synthetic_snapshot(state),
+    )
+    assert resumed["lifecycle_state"]=="complete"
+    assert resumed["daemon_reload_command_succeeded"] is True
+
+    state={
+        "service":"new_exact","helper":"exact",
+        "loaded":"new_file_pending_reload",
+    }
+    before=synthetic_snapshot(state)
+    postcheck_calls=0
+    def reload_then_new():
+        state["loaded"]="new_loaded"
+    def flaky_postcheck():
+        nonlocal postcheck_calls
+        postcheck_calls+=1
+        if postcheck_calls==1:
+            raise Hold("synthetic_loaded_postcheck_failure")
+        return synthetic_snapshot(state)
+    try:
+        apply_transition(
+            before,
+            _reload_fn=reload_then_new,
+            _state_fn=flaky_postcheck,
+        )
+    except ApplyHold as exc:
+        assert str(exc)=="synthetic_loaded_postcheck_failure"
+        assert exc.receipt["final_postcheck_attempted"] is True
+        assert exc.receipt["recovery_lifecycle_state"]=="complete"
+        assert exc.receipt["recovery_next_action"]=="SOCKET_LIFECYCLE_ALREADY_EXACT"
+    else:
+        raise AssertionError("synthetic_postcheck_failure_not_reported")
+
+    complete=apply_transition(
+        synthetic_snapshot(state),
+        _reload_fn=lambda:(_ for _ in ()).throw(
+            AssertionError("reload_must_not_run_for_complete_state")
+        ),
+        _state_fn=lambda:synthetic_snapshot(state),
+    )
+    assert complete["lifecycle_state"]=="complete"
+    assert complete["daemon_reload_attempted"] is False
+
     for forbidden_parts in (
         ("systemctl",'",',"start"),("systemctl",'",',"stop"),
         ("training_execution",'"',":True"),("durable_attempt_claim",'"',":True"),
@@ -301,6 +575,13 @@ def self_test()->None:
     print("target_unit_file_state_disabled_required=true")
     print("service_unit_file_state_static_required=true")
     print("manager_environment_influence_unset=true")
+    print("resumable_pending_reload_state=true")
+    print("truthful_partial_mutation_receipt=true")
+    print("failure_injection_after_helper_creation=true")
+    print("failure_injection_after_service_replace=true")
+    print("failure_injection_daemon_reload=true")
+    print("failure_injection_loaded_postcheck=true")
+    print("idempotent_resume_proven=true")
     print("service_action=false")
     print("target_action=false")
     print("socket_mutation=false")
@@ -315,8 +596,30 @@ def main()->int:
         if args.self_test:self_test();return 0
         out=apply() if args.apply else plan()
         print(json.dumps(out,sort_keys=True,separators=(",",":")));return 0
+    except ApplyHold as exc:
+        print("HOLD="+str(exc),file=sys.stderr)
+        for key in (
+            "helper_install_attempted","helper_install_returned_success",
+            "service_unit_replace_attempted",
+            "service_unit_replace_returned_success",
+            "daemon_reload_attempted","daemon_reload_command_succeeded",
+            "final_postcheck_attempted",
+            "persistent_filesystem_mutation_possible",
+            "recovery_snapshot_attempted","recovery_snapshot_reason",
+            "recovery_lifecycle_state","recovery_cleanup_helper_state",
+            "recovery_service_unit_state","recovery_loaded_service_state",
+            "recovery_next_action",
+        ):
+            print(key+"="+receipt_fact(exc.receipt.get(key)),file=sys.stderr)
+        print("service_action=false",file=sys.stderr);print("target_action=false",file=sys.stderr)
+        print("socket_mutation=false",file=sys.stderr);print("training_execution=false",file=sys.stderr)
+        print("durable_attempt_claim=false",file=sys.stderr);print("funds_movement=false",file=sys.stderr)
+        return 2
     except (Hold,OSError,KeyError) as exc:
         print("HOLD="+str(exc),file=sys.stderr)
+        print("persistent_filesystem_mutation_possible=false",file=sys.stderr)
+        print("recovery_snapshot_attempted=false",file=sys.stderr)
+        print("recovery_next_action=not_applicable",file=sys.stderr)
         print("service_action=false",file=sys.stderr);print("target_action=false",file=sys.stderr)
         print("socket_mutation=false",file=sys.stderr);print("training_execution=false",file=sys.stderr)
         print("durable_attempt_claim=false",file=sys.stderr);print("funds_movement=false",file=sys.stderr)
