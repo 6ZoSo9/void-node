@@ -9,13 +9,13 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const BINDER=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs";
-const BINDER_BLOB="20105c8ff7ac35aac0f0f2fcbe8884ba441f5870";
+const BINDER_BLOB="ed6e3400dcdaa157c13fafdae15ffe71248b64e7";
 const CHILD=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs";
-const CHILD_BLOB="8241a7172284381295b70bd55f5af3328b03605a";
+const CHILD_BLOB="8ab77a4f0782f228171a2895641a56cb37c5659e";
 const NATIVE=
   "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c";
-const NATIVE_BLOB="525dbf7c6ac36ee24bac75c009c03856feab0fdc";
+const NATIVE_BLOB="4aa091e7835b32aa5c4e7b8e4059651c69a64eb3";
 const CANDIDATE=
   "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json";
 const CANDIDATE_BLOB="2c861c021192c034c98404989cd25b26788cd0f0";
@@ -47,9 +47,9 @@ for(const required of [
   'VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_LIVE_BINDING_V2',
   'RUN_EPOCH2_DORMANT_CANDIDATE_LIVE_BINDING_V2',
   'ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs',
-  '8241a7172284381295b70bd55f5af3328b03605a',
+  '8ab77a4f0782f228171a2895641a56cb37c5659e',
   'ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c',
-  '525dbf7c6ac36ee24bac75c009c03856feab0fdc',
+  '4aa091e7835b32aa5c4e7b8e4059651c69a64eb3',
   '/opt/void-buy-void-epoch2-live-composition-v2/void_buy_void_epoch2_live_composition_native_preentry_v1',
   'const SUDO="/usr/bin/sudo"',
   'const DEVNULL="/dev/null"',
@@ -63,6 +63,10 @@ for(const required of [
   'native_preentry_policy_bound:true',
   'root_node_descriptor_execution_bound:true',
   'runner_retained_descriptor_bound:true',
+  'native_parent_retained_for_child_lifetime:true',
+  'native_parent_process_generation_bound:true',
+  'native_parent_installed_generation_bound:true',
+  'native_parent_revalidated_after_sensitive_sequence:true',
   'stdin_javascript_source_forbidden:true',
   'credential_generation_retained_through_signing:true',
   'credential_generation_revalidated_after_final_observation:true',
@@ -190,6 +194,10 @@ console.log("child_stdin_devnull_required=true");
 console.log("child_root_stdin_javascript_execution=false");
 console.log("child_live_composition_v2_required=true");
 console.log("sealed_v2_generation_retention_required=true");
+console.log("surviving_native_parent_required=true");
+console.log("native_parent_process_generation_required=true");
+console.log("native_parent_installed_generation_required=true");
+console.log("native_parent_closing_revalidation_required=true");
 console.log("closing_checkout_revalidation_before_receipt=true");
 console.log("systemd_credential_identity_promoted_only_from_protected_child=true");
 console.log("active_signing_capability_promoted_only_from_protected_child=true");
