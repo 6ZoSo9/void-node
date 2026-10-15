@@ -23,7 +23,7 @@ const raw=fs.readFileSync(
   "utf8",
 );
 const expected=
-  testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1("zoso");
+  testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1("void-buy-runtime");
 assert.equal(raw,expected,"rule_bytes_mismatch");
 new vm.Script(raw,{
   filename:"00-void-buy-allocation-custody-runtime-deny-v1.rules",
@@ -39,7 +39,7 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_RUNTIME_USER_V1,
-  "zoso",
+  "void-buy-runtime",
 );
 assert.deepEqual(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_ACTIONS_V1,
@@ -53,7 +53,7 @@ assert.deepEqual(
 for(const action of VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_ACTIONS_V1){
   assert.ok(raw.includes('action.id === "'+action+'"'),action);
 }
-assert.ok(raw.includes('subject.user === "zoso"'));
+assert.ok(raw.includes('subject.user === "void-buy-runtime"'));
 assert.ok(raw.includes("return polkit.Result.NO;"));
 assert.ok(raw.includes("return polkit.Result.NOT_HANDLED;"));
 for(const forbidden of [
@@ -103,7 +103,7 @@ console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_DENY_PROFILE_V1_GREEN");
 console.log("profile_id="+VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_DENY_PROFILE_ID_V1);
 console.log("rule_sha256="+VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_RULE_SHA256_V1);
 console.log("target_path="+VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_DENY_TARGET_V1);
-console.log("runtime_user=zoso");
+console.log("runtime_user=void-buy-runtime");
 console.log("denied_action_count=4");
 console.log("installed_rule_verified=false");
 console.log("runtime_control_denial_live_verified=false");
