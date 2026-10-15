@@ -57,7 +57,7 @@
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
-    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "ea6f9e03ac10cc13f688a0dd447906f76e4595e49672a30213fc1c3d47058d6b",
+    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "02255500e21b0b05fc8526eda352cf0359a14052612a08a9bb70f6baefdaab1b",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "c3280ee022e07dbb8a9c8fa35156563358a786477b9c3e28a0ecc3b1706813d1"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
@@ -143,5 +143,6 @@
   "wallet_http200_evidence_truth_refresh_date": "2026-10-11",
   "same_route_modal_navigation_focus_refresh_date": "2026-10-13",
   "advanced_unavailable_controls_truth_refresh_date": "2026-10-14",
-  "advanced_drawer_short_viewport_scroll_refresh_date": "2026-10-14"
+  "advanced_drawer_short_viewport_scroll_refresh_date": "2026-10-14",
+  "wallet_account_attribution_refresh_date": "2026-10-15"
 }
