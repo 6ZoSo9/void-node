@@ -123,7 +123,9 @@ def classify_loaded_contract_observation(
     if props["LoadState"]!="loaded":hold("target_not_loaded")
     if props["ActiveState"]!="inactive":hold("target_not_exactly_inactive")
     if props["UnitFileState"]=="enabled":hold("target_enabled")
-    if SERVICE_UNIT not in props["Wants"].split():hold("target_wants_service_missing")
+    wants=props["Wants"].split()
+    if SERVICE_UNIT not in wants:hold("target_wants_service_missing")
+    if wants!=[SERVICE_UNIT]:hold("target_wants_service_ambiguous")
 
     propagates=props["PropagatesStopTo"].split()
     if propagates==[SERVICE_UNIT]:
@@ -308,6 +310,18 @@ def self_test()->None:
         assert str(exc)=="target_stop_propagation_ambiguous"
     else:
         raise AssertionError("ambiguous loaded propagation accepted")
+    try:
+        classify_loaded_contract_observation(
+            0,stale_target.replace(
+                "Wants="+SERVICE_UNIT+"\n",
+                "Wants="+SERVICE_UNIT+" other.service\n",
+            ),
+            0,service_exact,
+        )
+    except Hold as exc:
+        assert str(exc)=="target_wants_service_ambiguous"
+    else:
+        raise AssertionError("ambiguous loaded wants accepted")
     own=Path(__file__).read_text()
     forbidden_parts=(
         ("systemctl",'","',"start"),
@@ -327,6 +341,7 @@ def self_test()->None:
     print("new_exact_stale_manager_reload_only=true")
     print("reload_only_target_file_rewrite=false")
     print("ambiguous_loaded_contract_fails_closed=true")
+    print("extra_loaded_wants_fails_closed=true")
     print("service_action=false")
     print("target_action=false")
     print("training_execution=false")
