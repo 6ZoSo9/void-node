@@ -122,7 +122,7 @@ def classify_loaded_contract_observation(
     )
     if props["LoadState"]!="loaded":hold("target_not_loaded")
     if props["ActiveState"]!="inactive":hold("target_not_exactly_inactive")
-    if props["UnitFileState"]=="enabled":hold("target_enabled")
+    if props["UnitFileState"]!="disabled":hold("target_unit_file_state_not_disabled")
     wants=props["Wants"].split()
     if SERVICE_UNIT not in wants:hold("target_wants_service_missing")
     if wants!=[SERVICE_UNIT]:hold("target_wants_service_ambiguous")
@@ -284,11 +284,11 @@ def self_test()->None:
     ):
         assert dormant_observation_valid(returncode,stdout) is expected,(returncode,stdout)
     exact_target=(
-        "LoadState=loaded\nActiveState=inactive\nUnitFileState=static\n"
+        "LoadState=loaded\nActiveState=inactive\nUnitFileState=disabled\n"
         "Wants="+SERVICE_UNIT+"\nPropagatesStopTo="+SERVICE_UNIT+"\n"
     )
     stale_target=(
-        "LoadState=loaded\nActiveState=inactive\nUnitFileState=static\n"
+        "LoadState=loaded\nActiveState=inactive\nUnitFileState=disabled\n"
         "Wants="+SERVICE_UNIT+"\nPropagatesStopTo=\n"
     )
     service_exact=(
@@ -297,6 +297,22 @@ def self_test()->None:
     )
     assert classify_loaded_contract_observation(0,exact_target,0,service_exact)[0]=="exact"
     assert classify_loaded_contract_observation(0,stale_target,0,service_exact)[0]=="reload_required"
+    for invalid_unit_file_state in (
+        "enabled","enabled-runtime","masked","static","linked","linked-runtime","indirect","generated",
+    ):
+        try:
+            classify_loaded_contract_observation(
+                0,
+                stale_target.replace(
+                    "UnitFileState=disabled",
+                    "UnitFileState="+invalid_unit_file_state,
+                ),
+                0,service_exact,
+            )
+        except Hold as exc:
+            assert str(exc)=="target_unit_file_state_not_disabled"
+        else:
+            raise AssertionError("non-disabled target unit-file state accepted")
     assert classify_plan_action("old_exact",None)=="replace_and_reload"
     assert classify_plan_action("new_exact","reload_required")=="reload_only"
     assert classify_plan_action("new_exact","exact")=="already_exact"
@@ -345,6 +361,7 @@ def self_test()->None:
     print("target_revalidated_before_and_after_manager_recheck=true")
     print("ambiguous_loaded_contract_fails_closed=true")
     print("extra_loaded_wants_fails_closed=true")
+    print("target_unit_file_state_disabled_required=true")
     print("service_action=false")
     print("target_action=false")
     print("training_execution=false")
