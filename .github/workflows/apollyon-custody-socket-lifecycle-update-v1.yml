@@ -1,3 +1,4 @@
+# Stacked-PR source gate; comment-only synchronization marker.
 name: Apollyon custody socket lifecycle update v1
 
 on:
