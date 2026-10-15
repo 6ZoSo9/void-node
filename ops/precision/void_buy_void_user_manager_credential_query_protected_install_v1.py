@@ -57,6 +57,28 @@ class InstallError(RuntimeError):
     pass
 
 
+class PublishedInstallError(InstallError):
+    def __init__(
+        self,
+        reason: str,
+        *,
+        phase: str,
+        parent_fsync_completed: bool | None,
+        final_verification_completed: bool | None,
+        original_failure_class: str,
+        original_failure_reason: str,
+    ) -> None:
+        super().__init__(reason)
+        self.phase = phase
+        self.parent_fsync_completed = parent_fsync_completed
+        self.final_verification_completed = final_verification_completed
+        self.original_failure_class = original_failure_class
+        self.original_failure_reason = original_failure_reason
+        self.install_parent_close_completed: bool | None = None
+        self.close_failure_class = "none"
+        self.close_failure_reason = "none"
+
+
 def git_blob_sha1(raw: bytes) -> str:
     return hashlib.sha1(
         b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw
@@ -449,6 +471,127 @@ def _cleanup_stage(opt_fd: int) -> bool:
         return False
 
 
+def _bounded_failure(exc: BaseException) -> tuple[str, str]:
+    if isinstance(exc, OSError):
+        errno_value = exc.errno if exc.errno is not None else "unknown"
+        return "OSError", "os_error_" + str(errno_value)
+    if isinstance(exc, InstallError):
+        if str(exc) == "post_publish_state_invalid":
+            return "InstallError", "post_publish_state_invalid"
+        return "InstallError", "install_error"
+    return "BaseException", "unexpected_failure"
+
+
+def _published_failure(
+    reason: str,
+    *,
+    phase: str,
+    parent_fsync_completed: bool | None,
+    final_verification_completed: bool | None,
+    cause: BaseException,
+) -> PublishedInstallError:
+    failure_class, failure_reason = _bounded_failure(cause)
+    return PublishedInstallError(
+        reason,
+        phase=phase,
+        parent_fsync_completed=parent_fsync_completed,
+        final_verification_completed=final_verification_completed,
+        original_failure_class=failure_class,
+        original_failure_reason=failure_reason,
+    )
+
+
+def _post_publication_checks(
+    opt_fd: int,
+    *,
+    _fsync_fn: Any = os.fsync,
+    _state_reader: Any = protected_state,
+) -> None:
+    try:
+        _fsync_fn(opt_fd)
+    except BaseException as exc:
+        raise _published_failure(
+            "post_publication_parent_fsync_failed",
+            phase="parent_fsync",
+            parent_fsync_completed=False,
+            final_verification_completed=False,
+            cause=exc,
+        ) from exc
+
+    try:
+        final_state = _state_reader()
+    except BaseException as exc:
+        raise _published_failure(
+            "post_publication_final_verification_failed",
+            phase="final_verification",
+            parent_fsync_completed=True,
+            final_verification_completed=False,
+            cause=exc,
+        ) from exc
+
+    if final_state != GREEN_STATE:
+        cause = InstallError("post_publish_state_invalid")
+        raise _published_failure(
+            "post_publish_state_invalid",
+            phase="final_verification",
+            parent_fsync_completed=True,
+            final_verification_completed=True,
+            cause=cause,
+        ) from cause
+
+
+def _bool_fact(value: bool | None) -> str:
+    if value is None:
+        return "unknown"
+    return str(value).lower()
+
+
+def _failure_receipt(exc: InstallError) -> dict[str, str]:
+    if isinstance(exc, PublishedInstallError):
+        return {
+            "protected_install_performed": "true",
+            "publication": "true",
+            "publication_state": "published_needs_inspection",
+            "final_state_verified": (
+                "true"
+                if (
+                    exc.phase == "install_parent_close"
+                    and exc.final_verification_completed is True
+                )
+                else "false"
+            ),
+            "publication_failure_phase": exc.phase,
+            "parent_fsync_completed": _bool_fact(
+                exc.parent_fsync_completed
+            ),
+            "final_verification_completed": _bool_fact(
+                exc.final_verification_completed
+            ),
+            "original_failure_class": exc.original_failure_class,
+            "original_failure_reason": exc.original_failure_reason,
+            "install_parent_close_completed": _bool_fact(
+                exc.install_parent_close_completed
+            ),
+            "close_failure_class": exc.close_failure_class,
+            "close_failure_reason": exc.close_failure_reason,
+        }
+    failure_class, failure_reason = _bounded_failure(exc)
+    return {
+        "protected_install_performed": "false",
+        "publication": "false",
+        "publication_state": "not_published",
+        "final_state_verified": "false",
+        "publication_failure_phase": "not_published",
+        "parent_fsync_completed": "not_applicable",
+        "final_verification_completed": "not_applicable",
+        "original_failure_class": failure_class,
+        "original_failure_reason": failure_reason,
+        "install_parent_close_completed": "not_applicable",
+        "close_failure_class": "not_applicable",
+        "close_failure_reason": "not_applicable",
+    }
+
+
 def source_plan() -> None:
     accepted_lock()
     print(MARKER)
@@ -462,6 +605,7 @@ def source_plan() -> None:
     print("create_only=true")
     print("atomic_root_publication_required=true")
     print("rename_noreplace_required=true")
+    print("truthful_post_publication_failure_receipt_required=true")
     print("query_execution=false")
     print("service_mutation=false")
     print("systemd_mutation=false")
@@ -591,23 +735,64 @@ def apply(
         _renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)
         published = True
         stage_created = False
-        os.fsync(opt_fd)
-
-        if protected_state() != GREEN_STATE:
-            raise InstallError("post_publish_state_invalid")
-    except BaseException:
+        _post_publication_checks(opt_fd)
+    except BaseException as exc:
         if stage_created and not published:
             cleanup_green = _cleanup_stage(opt_fd)
             print("automatic_stage_cleanup_attempted=true")
             print("automatic_stage_cleanup_green=" + str(cleanup_green).lower())
+        if published:
+            if isinstance(exc, PublishedInstallError):
+                post_failure = exc
+            else:
+                post_failure = _published_failure(
+                    "post_publication_unclassified_failure",
+                    phase="post_publication_unknown",
+                    parent_fsync_completed=None,
+                    final_verification_completed=None,
+                    cause=exc,
+                )
+            try:
+                os.close(opt_fd)
+                post_failure.install_parent_close_completed = True
+            except OSError as close_exc:
+                post_failure.install_parent_close_completed = False
+                (
+                    post_failure.close_failure_class,
+                    post_failure.close_failure_reason,
+                ) = _bounded_failure(close_exc)
+            raise post_failure from exc
+        try:
+            os.close(opt_fd)
+        except OSError as close_exc:
+            raise InstallError("install_parent_close_failed") from close_exc
         raise
-    finally:
-        os.close(opt_fd)
+    else:
+        try:
+            os.close(opt_fd)
+        except OSError as close_exc:
+            if published:
+                post_failure = _published_failure(
+                    "post_publication_close_requires_inspection",
+                    phase="install_parent_close",
+                    parent_fsync_completed=True,
+                    final_verification_completed=True,
+                    cause=close_exc,
+                )
+                post_failure.install_parent_close_completed = False
+                (
+                    post_failure.close_failure_class,
+                    post_failure.close_failure_reason,
+                ) = _bounded_failure(close_exc)
+                raise post_failure from close_exc
+            raise InstallError("install_parent_close_failed") from close_exc
 
     print(MARKER)
     print("mode=apply")
     print("accepted_lock_id=" + LOCK_ID)
     print("protected_install_performed=true")
+    print("publication_state=published_verified")
+    print("final_state_verified=true")
     print("atomic_root_publication=true")
     print("create_only=true")
     print("installed_preexec_sha256=" + PREEXEC_SHA256)
@@ -645,6 +830,52 @@ def self_test() -> None:
     libc = ctypes.CDLL(None)
     assert getattr(libc, "renameat2", None) is not None
 
+    def injected_fsync_failure(_fd: int) -> None:
+        raise OSError(5, "injected_fsync_failure")
+
+    try:
+        _post_publication_checks(
+            -1,
+            _fsync_fn=injected_fsync_failure,
+            _state_reader=lambda: GREEN_STATE,
+        )
+    except PublishedInstallError as exc:
+        receipt = _failure_receipt(exc)
+        assert str(exc) == "post_publication_parent_fsync_failed"
+        assert receipt["protected_install_performed"] == "true"
+        assert receipt["publication"] == "true"
+        assert receipt["publication_state"] == "published_needs_inspection"
+        assert receipt["publication_failure_phase"] == "parent_fsync"
+        assert receipt["parent_fsync_completed"] == "false"
+        assert receipt["final_verification_completed"] == "false"
+        assert receipt["original_failure_class"] == "OSError"
+        assert receipt["original_failure_reason"] == "os_error_5"
+    else:
+        raise AssertionError("post_publication_fsync_failure_not_classified")
+
+    def injected_final_readback_failure() -> str:
+        raise InstallError("injected_final_readback_failure")
+
+    try:
+        _post_publication_checks(
+            -1,
+            _fsync_fn=lambda _fd: None,
+            _state_reader=injected_final_readback_failure,
+        )
+    except PublishedInstallError as exc:
+        receipt = _failure_receipt(exc)
+        assert str(exc) == "post_publication_final_verification_failed"
+        assert receipt["protected_install_performed"] == "true"
+        assert receipt["publication"] == "true"
+        assert receipt["publication_state"] == "published_needs_inspection"
+        assert receipt["publication_failure_phase"] == "final_verification"
+        assert receipt["parent_fsync_completed"] == "true"
+        assert receipt["final_verification_completed"] == "false"
+        assert receipt["original_failure_class"] == "InstallError"
+        assert receipt["original_failure_reason"] == "install_error"
+    else:
+        raise AssertionError("post_publication_readback_failure_not_classified")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -663,6 +894,9 @@ def main() -> int:
         print(MARKER + "_SELF_TEST_GREEN")
         print("atomic_root_publication_required=true")
         print("rename_noreplace_required=true")
+        print("truthful_post_publication_failure_receipt=true")
+        print("post_publication_fsync_failure_receipt_truthful=true")
+        print("post_publication_final_readback_failure_receipt_truthful=true")
         return 0
     if args.source_plan:
         source_plan()
@@ -681,10 +915,31 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except InstallError as exc:
+        receipt = _failure_receipt(exc)
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc))
-        print("protected_install_performed=false")
+        print(
+            "protected_install_performed="
+            + receipt["protected_install_performed"]
+        )
+        print("publication=" + receipt["publication"])
+        print("publication_state=" + receipt["publication_state"])
+        print("final_state_verified=" + receipt["final_state_verified"])
+        print("publication_failure_phase=" + receipt["publication_failure_phase"])
+        print("parent_fsync_completed=" + receipt["parent_fsync_completed"])
+        print(
+            "final_verification_completed="
+            + receipt["final_verification_completed"]
+        )
+        print("original_failure_class=" + receipt["original_failure_class"])
+        print("original_failure_reason=" + receipt["original_failure_reason"])
+        print(
+            "install_parent_close_completed="
+            + receipt["install_parent_close_completed"]
+        )
+        print("close_failure_class=" + receipt["close_failure_class"])
+        print("close_failure_reason=" + receipt["close_failure_reason"])
         print("query_execution=false")
         print("service_mutation=false")
         print("systemd_mutation=false")

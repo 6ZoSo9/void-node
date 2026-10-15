@@ -53,7 +53,16 @@ member of the pair.
 
 A pre-publication failure attempts bounded staging cleanup. After publication,
 unexpected privileged interference fails closed rather than deleting the final
-root.
+root. Once the atomic rename succeeds, any later fsync, close, or final-state
+verification failure reports `protected_install_performed=true`,
+`publication=true`, and `publication_state=published_needs_inspection`;
+`final_state_verified` remains false unless the only later failure is closing
+the already-verified parent descriptor. It must never emit a false no-mutation
+receipt.
+The HOLD receipt also records the bounded failure phase, whether parent fsync
+completed, whether final verification completed, and a bounded original failure
+class/reason. Focused self-tests separately inject parent-fsync and final-readback
+failures after the publication boundary and require those phase facts.
 
 ## Authority boundary
 

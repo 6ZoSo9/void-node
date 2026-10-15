@@ -33,7 +33,7 @@ PREEXEC_PROOF_REL = (
 )
 
 EXPECTED_BLOBS = {
-    INSTALLER_REL: "e497ee1239865888303db56d0ff0ffeceb583516",
+    INSTALLER_REL: "0fb7abc266dd4b66dd9f087d4c0c2acff29a8014",
     LOCK_REL: "a434fa671c5a1ca3237efcb51f16223cc27cf4fa",
     CANDIDATE_REL: "beedebce690b8ed26422f3bc579f90d6d1405936",
     QUERY_REL: "e12e0b16df6e6eb5fd912a6dbf6ae970673246f9",
@@ -94,6 +94,21 @@ for token in (
     "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)",
     "atomic_root_publication_required=true",
     "rename_noreplace_required=true",
+    "truthful_post_publication_failure_receipt_required=true",
+    "truthful_post_publication_failure_receipt=true",
+    "PublishedInstallError",
+    "_post_publication_checks",
+    "_failure_receipt",
+    "publication_state=published_verified",
+    "final_state_verified=true",
+    "publication=true",
+    "publication_failure_phase=",
+    "parent_fsync_completed=",
+    "final_verification_completed=",
+    "original_failure_class=",
+    "original_failure_reason=",
+    "post_publication_parent_fsync_failed",
+    "post_publication_final_verification_failed",
     "candidate_pair_verified=",
     "automatic_stage_cleanup_attempted=true",
     "automatic_stage_cleanup_green=",
@@ -128,6 +143,22 @@ assert installer.index("_verify_pair_root(STAGE_ROOT)") < installer.index(
 )
 assert "os.unlink(INSTALL_NAME" not in installer
 assert "os.rmdir(INSTALL_NAME" not in installer
+assert installer.index(
+    "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)"
+) < installer.index("published = True")
+assert installer.index("published = True") < installer.index(
+    "_post_publication_checks(opt_fd)"
+)
+assert "published_needs_inspection" in installer
+assert "_fsync_fn=injected_fsync_failure" in installer
+assert "_state_reader=injected_final_readback_failure" in installer
+assert '"publication": "true"' in installer
+assert '"publication": "false"' in installer
+assert '"publication_failure_phase": exc.phase' in installer
+assert '"parent_fsync_completed": _bool_fact(' in installer
+assert '"final_verification_completed": _bool_fact(' in installer
+assert '"original_failure_class": exc.original_failure_class' in installer
+assert '"original_failure_reason": exc.original_failure_reason' in installer
 
 cmd = [
     sys.executable,
@@ -152,6 +183,9 @@ for line in (
     "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_INSTALL_V1_SELF_TEST_GREEN",
     "atomic_root_publication_required=true",
     "rename_noreplace_required=true",
+    "truthful_post_publication_failure_receipt=true",
+    "post_publication_fsync_failure_receipt_truthful=true",
+    "post_publication_final_readback_failure_receipt_truthful=true",
 ):
     assert line in self_lines, line
 
@@ -223,6 +257,11 @@ print("atomic_root_publication_required=true")
 print("rename_noreplace_required=true")
 print("staging_cleanup_before_publication_failure=true")
 print("explicit_apply_confirmation_required=true")
+print("truthful_post_publication_failure_receipt=true")
+print("post_publication_failure_requires_inspection=true")
+print("post_publication_fsync_failure_receipt_truthful=true")
+print("post_publication_final_readback_failure_receipt_truthful=true")
+print("bounded_post_publication_failure_phase_facts=true")
 print("query_execution=false")
 print("service_mutation=false")
 print("systemd_mutation=false")
