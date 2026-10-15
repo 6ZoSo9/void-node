@@ -191,8 +191,12 @@ child must independently prove kernel/process state: its real parent executable
 is fixed `/usr/bin/unshare` running as root; its mount-namespace inode differs
 from PID 1; namespace-local `/opt` and `/home` match the disposable backing
 directory generations derived from the running harness executable; and the
-checkout mirror is the expected read-only mount. A caller that merely exports
-the internal marker therefore fails before protected fixture writes.
+checkout mirror is the expected read-only mount. Mount topology is asymmetric:
+visible `/opt` and `/home` must be explicit mountpoints, while their
+bootstrap backing directories and the bootstrap root itself must not be
+mountpoints. This rejects reverse-bind constructions that alias host directories
+onto the claimed backing paths. A caller that merely exports the internal marker
+therefore fails before protected fixture writes.
 
 Missing/failed unshare, mount, install, setpriv, sudo, parent provenance, mount
 identity, or read-only checkout state fails the proof closed. The fixed
