@@ -238,7 +238,8 @@ if(args.length===1&&args[0]==="--derive"){
   console.log("candidate_sha256="+CANDIDATE_SHA256);
   console.log("preexec_binary_sha256="+v.binaries.preexec_sha256);
   console.log("query_binary_sha256="+v.binaries.query_sha256);
-  console.log("accepted_restack_blobs_verified=true");\n  console.log("candidate_accepted=true");
+  console.log("accepted_restack_blobs_verified=true");
+  console.log("candidate_accepted=true");
   console.log("install_authorized=false");
   console.log("production_host_evidence_authority=false");
   console.log("public_presale_activation=false");
