@@ -23,7 +23,7 @@ NEW_SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 HELPER_REL="ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py"
-HELPER_BLOB="65b80f5f175d0acf498af94110deb379c3165f4f"
+HELPER_BLOB="6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5"
 
 SERVICE_UNIT="void-apollyon-authorization-custody-v1.service"
 TARGET_UNIT="void-apollyon-authorization-custody-v1.target"
