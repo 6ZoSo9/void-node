@@ -511,8 +511,8 @@ def main() -> int:
     print("confirmed_closeout_status_stable=" + str(result["confirmed_closeout_status_stable"]).lower())
     print("target_metadata_generation_stable=" + str(result["target_metadata_generation_stable"]).lower())
     target = result["target_request_root"]
-    print("target_root_exists=" + str(target_before.get("exists") is True).lower())
-    print("target_root_metadata_qualified=" + str(target_before.get("metadata_qualified") is True).lower())
+    print("target_root_exists=" + str(target.get("exists") is True).lower())
+    print("target_root_metadata_qualified=" + str(target.get("metadata_qualified") is True).lower())
     print("target_live_binding_qualified=" + str(result["target_live_binding_qualified"]).lower())
     print("legacy_candidate_exists_count=" + str(result["legacy_candidate_exists_count"]))
     print("legacy_metadata_qualified_candidate_count=" + str(result["legacy_metadata_qualified_candidate_count"]))
