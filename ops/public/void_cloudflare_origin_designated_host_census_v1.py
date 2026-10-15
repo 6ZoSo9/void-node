@@ -835,6 +835,8 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
     rules: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     in_origin = False
+    ingress_seen = False
+    in_ingress = False
 
     def begin_rule() -> dict[str, Any]:
         return {
@@ -851,13 +853,35 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
             continue
         indent = len(raw_line) - len(raw_line.lstrip(" "))
         line = raw_line.strip()
-        if line.startswith("credentials-file:"):
+        if line == "ingress:":
             if indent != 0:
-                raise CensusError("tunnel_credentials_path_noncanonical_indent")
-            scalar = yaml_scalar(line.split(":", 1)[1])
-            if scalar is None:
-                raise CensusError("tunnel_credentials_path_invalid")
-            credentials.append(scalar)
+                raise CensusError("tunnel_ingress_noncanonical_indent")
+            if ingress_seen:
+                raise CensusError("tunnel_ingress_duplicate")
+            if current is not None:
+                rules.append(current)
+                current = None
+            ingress_seen = True
+            in_ingress = True
+            in_origin = False
+            continue
+
+        if indent == 0:
+            if current is not None:
+                rules.append(current)
+                current = None
+            in_ingress = False
+            in_origin = False
+            if line.startswith("credentials-file:"):
+                scalar = yaml_scalar(line.split(":", 1)[1])
+                if scalar is None:
+                    raise CensusError("tunnel_credentials_path_invalid")
+                credentials.append(scalar)
+            continue
+
+        if line.startswith("credentials-file:"):
+            raise CensusError("tunnel_credentials_path_noncanonical_indent")
+        if not in_ingress:
             continue
 
         if indent == 2 and line.startswith("- "):
@@ -886,7 +910,15 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
 
         if current is None:
             continue
-        if indent == 4 and line.startswith("path:"):
+        if indent == 4 and line.startswith("hostname:"):
+            if current["hostname"] is not None:
+                raise CensusError("tunnel_rule_duplicate_hostname")
+            scalar = yaml_scalar(line.split(":", 1)[1])
+            if scalar is None:
+                raise CensusError("tunnel_hostname_invalid")
+            current["hostname"] = scalar
+            in_origin = False
+        elif indent == 4 and line.startswith("path:"):
             if current["path"] is not None:
                 raise CensusError("tunnel_rule_duplicate_path")
             current["path"] = yaml_scalar(line.split(":", 1)[1])
@@ -915,6 +947,8 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
 
     if current is not None:
         rules.append(current)
+    if not ingress_seen:
+        raise CensusError("tunnel_ingress_missing")
     if len(credentials) != 1:
         raise CensusError("tunnel_credentials_path_ambiguous")
     credential_path = pathlib.Path(credentials[0])
