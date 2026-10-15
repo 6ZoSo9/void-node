@@ -277,6 +277,8 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
         "public_hostname",
         "sensitive_origin_host",
         "sensitive_origin_port",
+        "sensitive_origin_http_host_header",
+        "disable_chunked_encoding_required",
         "sensitive_paths",
         "ordinary_routes_preserved",
         "worker_route_absence_required",
@@ -287,6 +289,8 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
     if (
       cloudflared.public_hostname !== PUBLIC_HOSTNAME ||
       cloudflared.sensitive_origin_host !== HOST ||
+      cloudflared.sensitive_origin_http_host_header !== PUBLIC_HOSTNAME ||
+      cloudflared.disable_chunked_encoding_required !== true ||
       cloudflared.ordinary_routes_preserved !== true ||
       cloudflared.worker_route_absence_required !== true ||
       cloudflared.pseudo_ipv4_overwrite_disabled_required !== true
