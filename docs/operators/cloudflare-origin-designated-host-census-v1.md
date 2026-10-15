@@ -107,9 +107,11 @@ requires one operator-reviewed absolute canonical Tunnel config path through
 or other credential-bearing argv merely to discover the config location.
 
 The config text may be read, bounded to 1 MiB, to classify the fixed
-`seed.nullfeed.org` route shape. The emitted evidence contains only a SHA-256
-of the config bytes and classification booleans; it does not print the config,
-Tunnel ID or path.
+`seed.nullfeed.org` route shape. The read is performed through a retained
+`O_NOFOLLOW` descriptor and the descriptor generation plus visible pathname
+generation are revalidated before the route evidence is accepted. The emitted
+evidence contains only a SHA-256 of the config bytes and classification
+booleans; it does not print the config, Tunnel ID or path.
 
 The canonical v1 sensitive candidate is deliberately strict: three explicit
 seed-host rules, one for each sensitive path, all to one IPv4-loopback adapter
