@@ -198,8 +198,10 @@ def parse_exec_property(raw:str,label:str)->list[tuple[str,...]]:
     for body in bodies:
         fields={}
         for part in body.split(" ; "):
+            part=part.strip()
             if "=" not in part:hold("exec_property_field_invalid:"+label)
             key,value=part.split("=",1)
+            key=key.strip();value=value.strip()
             if key in fields:hold("exec_property_field_duplicate:"+label)
             fields[key]=value
         path=fields.get("path")
