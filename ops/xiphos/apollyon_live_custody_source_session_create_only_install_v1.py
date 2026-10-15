@@ -27,7 +27,7 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="cda12b960c8fc6a3258f3c4c770be97d5eb8162b"
+MANIFEST_BLOB="029ebeb82373ed8fea41e971c5ff940d526bf1e9"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"

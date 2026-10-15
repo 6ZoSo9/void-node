@@ -16,7 +16,7 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-socket-lifecycle-update-v1.json"
-MANIFEST_BLOB="8d7549a60e61fe6666364eac293b1aa99fefa18a"
+MANIFEST_BLOB="b9f9b90de547ffd399f5f069d0638ec9203a93e6"
 SERVICE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"
 NEW_SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
