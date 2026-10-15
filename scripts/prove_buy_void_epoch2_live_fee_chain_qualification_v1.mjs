@@ -12,13 +12,15 @@ import {
   validateCandidatePolicy,
   observeFeeChainWithTransport,
   requireStableChildRuntimeIdentity,
+  testOnlyValidateFeeChainObservation,
+  testOnlyRequireStableRpcHostBinding,
   buildReceipt,
 } from "../ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs";
-const SOURCE_BLOB="a386e6474996cd06ac40af760deb43e0107de291";
+const SOURCE_BLOB="8d40aafb5f0d1d12dd2edec0504d4fc1c89ea40f";
 const CHILD=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v1.mjs";
 const CHILD_BLOB="6d68b52ec036e422a151239f9c8f3ee7faa28055";
@@ -27,6 +29,15 @@ const CANDIDATE=
 const CANDIDATE_BLOB="6a0159e516d30ca8a4b9af4dcace79a4fcddfbb1";
 const MANIFEST=
   "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json";
+const RPC_TARGET=
+  "ops/mainnet0/production-epoch2-rpc-target-v1.json";
+const RPC_TARGET_BLOB="5bc18bfdf27d982a6ded3b1e1ae2f26353a84189";
+const RPC_HOST_OBSERVATION=
+  "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/runtime-observation.json";
+const RPC_HOST_OBSERVATION_BLOB=
+  "fc22b3ac09468a94c2eece01d210ff4998675baf";
+const RPC_HOST_OBSERVATION_SHA256=
+  "cd1630a9742b49f55e6bfed2b4c0344e4b7a994307f8945f1e5404d2eb681d32";
 
 const PRESALE="0x530bc90ba74f2539a9e484ccb1be9291c3bc35ce";
 const FULFILLER="0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a";
@@ -49,6 +60,8 @@ for(const [relative,expected] of [
   [SOURCE,SOURCE_BLOB],
   [CHILD,CHILD_BLOB],
   [CANDIDATE,CANDIDATE_BLOB],
+  [RPC_TARGET,RPC_TARGET_BLOB],
+  [RPC_HOST_OBSERVATION,RPC_HOST_OBSERVATION_BLOB],
 ]){
   assert.equal(
     gitBlob(fs.readFileSync(path.join(ROOT,relative))),
@@ -56,6 +69,12 @@ for(const [relative,expected] of [
     "blob_drift:"+relative,
   );
 }
+assert.equal(
+  crypto.createHash("sha256")
+    .update(fs.readFileSync(path.join(ROOT,RPC_HOST_OBSERVATION)))
+    .digest("hex"),
+  RPC_HOST_OBSERVATION_SHA256,
+);
 
 const source=fs.readFileSync(path.join(ROOT,SOURCE),"utf8");
 for(const required of [
@@ -79,6 +98,16 @@ for(const required of [
   'const observation=await observeFeeChainLive(policy);',
   'const childAfter=runChild(expectedHead);',
   'credential_signer_control_generation_stable_across_chain_window:true',
+  'VERIFIED_RPC_HOST_BINDINGS=new WeakSet()',
+  'fresh_rpc_host_service_container_listener_binding_required=true',
+  'historical_runtime_observation_sufficient_without_fresh_revalidation=false',
+  'rpc_host_binding_live_provenance_verified:true',
+  'const rpcHostBefore=await observeRpcHostBinding(expectedHead);',
+  'const rpcHostAfter=await observeRpcHostBinding(expectedHead);',
+  'requireStableRpcHostBinding(rpcHostBefore,rpcHostAfter);',
+  'rpc_service_systemd_generation_mismatch',
+  'rpc_container_generation_mismatch',
+  'rpc_listener_cardinality_invalid',
 ]){
   assert.ok(source.includes(required),required);
 }
@@ -326,60 +355,51 @@ const stableIdentity=requireStableChildRuntimeIdentity(
 assert.equal(stableIdentity.manager_pid,2693);
 assert.equal(stableIdentity.main_pid,4242);
 
-const receipt=buildReceipt(
-  "a".repeat(40),child,childAfter,policy,nonzero
-);
-assert.equal(receipt.marker,MARKER);
-assert.equal(receipt.status,STATUS);
-assert.equal(receipt.accepted_fee_policy_bound,true);
-assert.equal(receipt.zero_or_nonzero_fee_envelope_qualified,true);
-assert.equal(receipt.exact_chain_history_and_contract_identity_qualified,true);
-assert.equal(receipt.native_fee_funding_sufficient,true);
+testOnlyValidateFeeChainObservation(policy,nonzero);
+
+const hostFixture=Object.freeze({
+  expected_runtime_observation_id:"voidpe2rpcobs1_"+"1".repeat(64),
+  expected_runtime_observation_sha256:RPC_HOST_OBSERVATION_SHA256,
+  service:Object.freeze({
+    main_pid:"1207354",
+    invocation_id:"d735c11352cf44069157ebb23abd5b0d",
+  }),
+  container:Object.freeze({
+    container_id:
+      "7796b96376dac3e0cfd80f215c29ed7cab5f345fcabf0d9102c14263417fb97b",
+    started_at_utc:"2026-10-02T13:46:22.663596671Z",
+  }),
+  listener:Object.freeze({
+    listener_address:"127.0.0.1",
+    listener_port:18553,
+    listener_count:1,
+  }),
+});
 assert.equal(
-  receipt.credential_signer_control_generation_stable_across_chain_window,
-  true,
+  testOnlyRequireStableRpcHostBinding(hostFixture,hostFixture),
+  hostFixture,
 );
-assert.equal(
-  receipt.credential_signer_control_stable_identity.main_pid,
-  4242,
-);
-assert.match(
-  receipt.credential_signer_control_stable_identity_sha256,
-  /^[0-9a-f]{64}$/u,
-);
-assert.equal(
-  receipt.authenticated_credential_signer_control_receipt_before.receipt_id,
-  child.receipt_id,
-);
-assert.equal(
-  receipt.authenticated_credential_signer_control_receipt_after.receipt_id,
-  childAfter.receipt_id,
-);
-assert.equal(receipt.transaction_calldata_constructed,false);
-assert.equal(receipt.nonce_reserved,false);
-assert.equal(receipt.transaction_signing_proven,false);
-assert.equal(receipt.transaction_constructed,false);
-assert.equal(receipt.transaction_submitted,false);
-assert.equal(receipt.transaction_broadcast,false);
-assert.equal(receipt.customer_payment_record_access,false);
-assert.equal(receipt.customer_safe_to_pay,false);
-assert.equal(receipt.payment_acceptance,false);
-assert.equal(receipt.public_presale_activation,false);
-assert.equal(receipt.wc_void_market_activation,false);
-assert.equal(receipt.funds_movement,false);
-assert.equal(receipt.production_host_evidence_authority,false);
-assert.equal(receipt.next_action,NEXT_ACTION);
-assert.match(receipt.receipt_id,/^voide2feeq1_[0-9a-f]{64}$/u);
-assert.match(
-  receipt.live_fee_chain_receipt.chain_receipt_id,
-  /^voide2feechain1_[0-9a-f]{64}$/u,
+{
+  const driftedHost=structuredClone(hostFixture);
+  driftedHost.container.container_id="2".repeat(64);
+  assert.throws(
+    ()=>testOnlyRequireStableRpcHostBinding(hostFixture,driftedHost),
+    /rpc_host_binding_changed_during_fee_window/u,
+  );
+}
+assert.throws(
+  ()=>buildReceipt(
+    "a".repeat(40),child,childAfter,policy,nonzero,
+    hostFixture,hostFixture
+  ),
+  /rpc_host_binding_live_provenance_required/u,
 );
 
 {
   const forged=structuredClone(nonzero);
   forged.computed_max_fee_per_gas_wei="1";
   assert.throws(
-    ()=>buildReceipt("a".repeat(40),child,childAfter,policy,forged),
+    ()=>testOnlyValidateFeeChainObservation(policy,forged),
     /fee_chain_computed_envelope_invalid/u,
   );
 }
@@ -387,7 +407,7 @@ assert.match(
   const forged=structuredClone(nonzero);
   forged.maximum_gas_cost_wei="1";
   assert.throws(
-    ()=>buildReceipt("a".repeat(40),child,childAfter,policy,forged),
+    ()=>testOnlyValidateFeeChainObservation(policy,forged),
     /fee_chain_maximum_gas_cost_invalid/u,
   );
 }
@@ -395,11 +415,10 @@ assert.match(
   const forged=structuredClone(nonzero);
   forged.zero_fee_envelope=true;
   assert.throws(
-    ()=>buildReceipt("a".repeat(40),child,childAfter,policy,forged),
+    ()=>testOnlyValidateFeeChainObservation(policy,forged),
     /fee_envelope_classification_invalid/u,
   );
 }
-
 {
   const driftedChild=structuredClone(childAfter);
   driftedChild.authenticated_credential_binding_receipt
@@ -410,13 +429,8 @@ assert.match(
     ),
     /credential_signer_control_generation_changed_during_fee_window/u,
   );
-  assert.throws(
-    ()=>buildReceipt(
-      "a".repeat(40),child,driftedChild,policy,nonzero
-    ),
-    /credential_signer_control_generation_changed_during_fee_window/u,
-  );
 }
+
 
 console.log("VOID_BUY_VOID_EPOCH2_LIVE_FEE_CHAIN_QUALIFICATION_V1_PROOF_GREEN");
 console.log("candidate_v2_fee_policy_bound=true");
@@ -436,6 +450,11 @@ console.log("native_fee_funding_required=true");
 console.log("credential_signer_control_before_after_chain_window_required=true");
 console.log("credential_signer_control_runtime_generation_stability_required=true");
 console.log("credential_signer_control_runtime_drift_rejected=true");
+console.log("fresh_rpc_host_service_container_listener_binding_required=true");
+console.log("historical_runtime_observation_sufficient_without_fresh_revalidation=false");
+console.log("rpc_host_binding_live_provenance_required=true");
+console.log("fabricated_rpc_host_binding_provenance_rejected=true");
+console.log("rpc_host_generation_drift_rejected=true");
 console.log("forged_fee_receipt_rejected=true");
 console.log("transaction_calldata_constructed=false");
 console.log("nonce_reserved=false");
