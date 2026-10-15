@@ -178,15 +178,22 @@ assert.throws(
   ()=>binding({afterStartTicks:"778"}),
   /sponsored_host_trusted_clock_process_generation_changed/u,
 );
-assert.throws(
-  ()=>testOnlyCollectVoidEconomicSponsoredHostTrustedClockBindingV1({
-    host_time_sync_dependencies:hostDependencies(),
-    process_stat_before_text:procStat(4243,"777"),
-    process_stat_after_text:procStat(4243,"777"),
-    expected_pid:4242,
-  }),
-  /sponsored_host_trusted_clock_process_pid_invalid/u,
-);
+{
+  const deps=hostDependencies();
+  assert.throws(
+    ()=>testOnlyCollectVoidEconomicSponsoredHostTrustedClockBindingV1({
+      host_time_sync_dependencies:{
+        readText:deps.readText,
+        runCommand:deps.runCommand,
+        nowMs:deps.nowMs,
+      },
+      process_stat_before_text:procStat(4243,"777"),
+      process_stat_after_text:procStat(4243,"777"),
+      expected_pid:4242,
+    }),
+    /sponsored_host_trusted_clock_process_pid_invalid/u,
+  );
+}
 assert.throws(
   ()=>binding({
     host:{
