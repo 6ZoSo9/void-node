@@ -23,43 +23,121 @@ permissions:
   contents: read
 
 jobs:
-  generation-dispatch:
+  prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22,24,26]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Enforce closed V1 generation
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove source contract
         run: |
           set -euo pipefail
-          query=ops/precision/void_buy_void_user_manager_private_unit_query_v1.c
-          peer=ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c
-          v2_lock=ops/security/buy-void-user-manager-query-elf-lock-v2.json
-          v4_parser=tools/void-buy-allocation-custody-host-evidence-v4.mjs
+          node scripts/prove_void_buy_void_user_manager_private_unit_query_preexec_v1.mjs |
+            tee "$RUNNER_TEMP/preexec-proof.log"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_PREEXEC_V1_PROOF_GREEN' "$RUNNER_TEMP/preexec-proof.log"
+          grep -Fx 'static_link_required=true' "$RUNNER_TEMP/preexec-proof.log"
+          grep -Fx 'query_elf_content_lock_still_required=true' "$RUNNER_TEMP/preexec-proof.log"
+          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/preexec-proof.log"
+      - name: Build static preexec and dynamic query
+        run: |
+          set -euo pipefail
+          preexec="$RUNNER_TEMP/private-unit-query-preexec"
+          query="$RUNNER_TEMP/private-unit-query"
+          gcc -O2 -Wall -Wextra -Werror -std=c11 -static -fno-pie -no-pie \
+            -Wl,--build-id=none \
+            ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c \
+            -o "$preexec"
+          gcc -O2 -Wall -Wextra -Werror -std=c11 \
+            ops/precision/void_buy_void_user_manager_private_unit_query_v1.c \
+            -ldl -o "$query"
+          readelf -l "$preexec" | tee "$RUNNER_TEMP/preexec-readelf.log"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/preexec-readelf.log"; then
+            echo "static preexec unexpectedly has PT_INTERP" >&2
+            exit 1
+          fi
+          file "$preexec" | grep -F 'statically linked'
+      - name: Prove preload cannot enter query through static preexec
+        run: |
+          set -euo pipefail
+          root=/opt/void-buy-void-user-manager-query-v1
+          preexec="$RUNNER_TEMP/private-unit-query-preexec"
+          query="$RUNNER_TEMP/private-unit-query"
+          original_opt_mode="$(stat -Lc '%a' /opt)"
+          cleanup() {
+            sudo rm -f \
+              "$root/void_buy_void_user_manager_private_unit_query_preexec_v1" \
+              "$root/void_buy_void_user_manager_private_unit_query_v1" || true
+            sudo rmdir "$root" 2>/dev/null || true
+            sudo chmod "$original_opt_mode" /opt || true
+          }
+          trap cleanup EXIT
+          sudo chmod go-w /opt
+          sudo install -d -o root -g root -m 0755 "$root"
+          sudo install -o root -g root -m 0755 "$preexec" "$root/void_buy_void_user_manager_private_unit_query_preexec_v1"
+          sudo install -o root -g root -m 0755 "$query" "$root/void_buy_void_user_manager_private_unit_query_v1"
 
-          current_query_blob="$(git hash-object "$query")"
-          case "$current_query_blob" in
-            5355b7f177574ac4fa173a693605acaf9c5f26e4)
-              ;;
-            ad49cd7f71c41e0f559a561b5a62a00cec60c215)
-              echo "historical V1 query source was reintroduced; restore/review the historical workflow deliberately" >&2
-              exit 2
-              ;;
-            *)
-              echo "unknown authenticated-query source generation: $current_query_blob" >&2
-              exit 2
-              ;;
-          esac
+          fake="$RUNNER_TEMP/preload"
+          mkdir "$fake"
+          sentinel="$RUNNER_TEMP/preload-fired"
+          cat > "$fake/preload.c" <<'C'
+          #define _GNU_SOURCE
+          #include <fcntl.h>
+          #include <string.h>
+          #include <unistd.h>
+          #ifndef SENTINEL_PATH
+          #error SENTINEL_PATH required
+          #endif
+          __attribute__((constructor))
+          static void poison(void){
+            char exe[4096];
+            ssize_t n=readlink("/proc/self/exe",exe,sizeof(exe)-1);
+            if(n<=0)return;
+            exe[n]='\0';
+            if(strstr(exe,"private_unit_query_v1")==NULL &&
+               strstr(exe,"private-unit-query")==NULL)return;
+            int fd=open(SENTINEL_PATH,O_WRONLY|O_CREAT|O_TRUNC,0600);
+            if(fd>=0){(void)write(fd,"x",1);close(fd);}
+          }
+          C
+          gcc -shared -fPIC -DSENTINEL_PATH="\"$sentinel\"" "$fake/preload.c" -o "$fake/preload.so"
 
-          test "$(git hash-object "$peer")" = d8b30ac499c3bb8a5d223dbc6be687dd175be611
-          grep -Fq '#define MARKER "VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V2"' "$query"
-          grep -Fq '"private_users_false_required": true' "$v2_lock"
-          grep -Fq 'voidbuyumqelflock2_c643213ce46d6f2b4dfe04675a7fbbcaad2b6aea40418cb921586362a054f474' "$v2_lock"
-          grep -Fq 'VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V4' "$v4_parser"
+          rm -f "$sentinel"
+          if sudo env \
+               VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
+               LD_PRELOAD="$fake/preload.so" \
+               "$root/void_buy_void_user_manager_private_unit_query_v1" --self-test \
+               >"$RUNNER_TEMP/direct-query.log" 2>&1; then
+            echo "direct poisoned query unexpectedly succeeded" >&2
+            exit 1
+          fi
+          test -s "$sentinel"
+          rm -f "$sentinel"
 
-          echo 'VOID_BUY_USER_MANAGER_PREEXEC_V1_SUPERSEDED_BY_V2_GREEN'
-          echo 'historical_v1_active=false'
-          echo 'final_v2_query_generation_bound=true'
-          echo 'unknown_generation_fails_closed=true'
+          sudo env LD_PRELOAD="$fake/preload.so" \
+            "$root/void_buy_void_user_manager_private_unit_query_preexec_v1" --exec-self-test |
+            tee "$RUNNER_TEMP/preexec-query.log"
+          test ! -e "$sentinel"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/preexec-query.log"
+          grep -Fx 'sanitized_loader_environment=true' "$RUNNER_TEMP/preexec-query.log"
+
+          sudo chmod 0777 "$root/void_buy_void_user_manager_private_unit_query_v1"
+          if sudo "$root/void_buy_void_user_manager_private_unit_query_preexec_v1" --exec-self-test \
+               >"$RUNNER_TEMP/mutable-child.log" 2>&1; then
+            echo "mutable query unexpectedly admitted" >&2
+            exit 1
+          fi
+          grep -Fx 'reason=query_file_custody_invalid' "$RUNNER_TEMP/mutable-child.log"
+          sudo chmod 0755 "$root/void_buy_void_user_manager_private_unit_query_v1"
+
+          cleanup
+          trap - EXIT
+      - run: git diff --check

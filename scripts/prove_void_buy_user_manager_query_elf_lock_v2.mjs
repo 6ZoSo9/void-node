@@ -8,11 +8,10 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const RESTACK_PARENT="308432485cf6dc7899c58d6d6425f1c4294929b7";
-const INTEGRATION_BASE="b9aaf8944f1fe18ac00b436ad6e6223f8aa1c547";
-const CANDIDATE_HEAD="27de5f113826d6fb214f9a1fb49d54454d4a3cd4";
-const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v2.yml";
-const CANDIDATE_WORKFLOW_BLOB="9db27a805ff9e7df4cf850ecee4d49a3c824fe18";
+const RESTACK_PARENT="452206fbcba494b217158341e1b9195161aea91f";
+const CANDIDATE_HEAD="6619131d424e4e8e1f589da16e57b454dad7950c";
+const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml";
+const CANDIDATE_WORKFLOW_BLOB="5b21d57c00e5a4d97be1e79356b75e736de949d0";
 const PREEXEC_SOURCE="ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c";
 const QUERY_SOURCE="ops/precision/void_buy_void_user_manager_private_unit_query_v1.c";
 const PEER_SOURCE="ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c";
@@ -24,16 +23,16 @@ const DOC="docs/operators/buy-void-user-manager-query-elf-lock-v2.md";
 const EXPECTED_DELTA=[CANDIDATE_FILE,LOCK_FILE,SELF,WORKFLOW,DOC].sort();
 
 const CANDIDATE=Object.freeze({
-  marker:"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V2",
-  version:2,
+  marker:"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V1",
+  version:1,
   preexec_source_git_blob_sha1:"f0fbfaae97df3294097a281100f06ada2ef157ff",
-  query_source_git_blob_sha1:"5355b7f177574ac4fa173a693605acaf9c5f26e4",
+  query_source_git_blob_sha1:"ad49cd7f71c41e0f559a561b5a62a00cec60c215",
   peer_source_git_blob_sha1:"d8b30ac499c3bb8a5d223dbc6be687dd175be611",
   preexec_binary_sha256:"8963c77f02c83c04c386912525b7c6177a6ef99507c7f85113c8b7c74e245c11",
   preexec_binary_bytes:706504,
   preexec_static_no_interp:true,
-  query_binary_sha256:"d11304cb35be20dd4775677a2d5bf41c09f0f0b7a747ec7a8fea952e4bc8639c",
-  query_binary_bytes:43064,
+  query_binary_sha256:"3b0e03ab00f3e763e9e8525e2a732a6b43cf4e02bb8c72b3aae06d9097c54b3f",
+  query_binary_bytes:38968,
   cc_sha256:"1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
   strip_sha256:"0d980587ada7ab12193f39271f060d5663aa2f289b0e80d2a0274ce7306e4e42",
   candidate_accepted:false,
@@ -44,9 +43,9 @@ const CANDIDATE=Object.freeze({
   funds_movement:false,
 });
 const CANDIDATE_BYTES=901;
-const CANDIDATE_SHA256="a627245d6fede4fc1af7f32ecacafbbc24aa0af14de2e6cc0e7156e61a1d28ce";
-const CANDIDATE_BLOB="c73920dc02aaad5e99314fd981defe42db224749";
-const LOCK_ID="voidbuyumqelflock2_c643213ce46d6f2b4dfe04675a7fbbcaad2b6aea40418cb921586362a054f474";
+const CANDIDATE_SHA256="bd7b6dccb4ac1948928fa8cf56c9e15ae8a90798599aa67e31748e4f9d18e033";
+const CANDIDATE_BLOB="57026c4d8ca6cc9a40a3fa61f8cf4ee2c9df47be";
+const LOCK_ID="voidbuyumqelflock2_fa3cd31d2ba07c17daeb0dcea725dc72ad461af0afc6e336079be25b34e2b89c";
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
@@ -99,10 +98,10 @@ function expectedLock(){
     repository:"6ZoSo9/void-node",
     candidate_head:CANDIDATE_HEAD,
     candidate_hosted_evidence:{
-      workflow_run:38744405436,
-      artifact_a:11977696442,
-      artifact_b:11977916630,
-      artifact_c:11977112276,
+      workflow_run:38735005407,
+      artifact_a:11973295334,
+      artifact_b:11972720683,
+      artifact_c:11973455270,
       cross_job_byte_identity_verified:true,
       exact_stripped_pair_executed_before_hash:true,
     },
@@ -130,9 +129,6 @@ function expectedLock(){
       lock_id:"voidbuyumqelflock1_0b0b791995f7a3346c3562387e211e9e2bb54ca6a050a964950e70a0e4cd1a16",
     },
     manager_reexec_deserialize_argv_accepted:true,
-    kernel_capability_state_bound:true,
-    configured_kernel_bounding_set_equality_required:true,
-    private_users_false_required:true,
     candidate_accepted:true,
     install_authorized:false,
     protected_install_performed:false,
@@ -147,20 +143,9 @@ function expectedLock(){
   return Object.freeze({...body,lock_id:id});
 }
 function verifyBranch(){
-  const stackedBase=git(["merge-base",RESTACK_PARENT,"HEAD"]);
-  let verificationContext="";
-  if(stackedBase===RESTACK_PARENT){
-    const changed=git(["diff","--name-only",RESTACK_PARENT,"HEAD","--"]).split("\n").filter(Boolean).sort();
-    assert.deepEqual(changed,EXPECTED_DELTA,"lock_v2_branch_scope_drift");
-    verificationContext="stacked_exact_delta";
-  }else{
-    assert.equal(
-      git(["merge-base",INTEGRATION_BASE,"HEAD"]),
-      INTEGRATION_BASE,
-      "lock_v2_unrecognized_integration_ancestry",
-    );
-    verificationContext="current_main_integration";
-  }
+  git(["merge-base","--is-ancestor",RESTACK_PARENT,"HEAD"]);
+  const changed=git(["diff","--name-only",RESTACK_PARENT,"HEAD","--"]).split("\n").filter(Boolean).sort();
+  assert.deepEqual(changed,EXPECTED_DELTA,"lock_v2_branch_scope_drift");
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_WORKFLOW]),CANDIDATE_WORKFLOW_BLOB);
   for(const [relative,expected] of [
     [PREEXEC_SOURCE,CANDIDATE.preexec_source_git_blob_sha1],
@@ -189,7 +174,6 @@ function verifyBranch(){
       "workflow must trigger for PR and main push: "+relative,
     );
   }
-  return verificationContext;
 }
 function rederiveBinaries(){
   assert.equal(sha256(fs.readFileSync("/usr/bin/cc")),CANDIDATE.cc_sha256,"cc_identity_drift");
@@ -215,22 +199,18 @@ function rederiveBinaries(){
     const qout=run(query,["--self-test"],{env:{
       PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C",
       VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1:"1"}});
-    assert.match(qout,/VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V2_SELF_TEST_GREEN/u);
-    assert.match(qout,/kernel_no_new_privileges_required=true/u);
-    assert.match(qout,/private_users_false_required=true/u);
-    assert.match(qout,/kernel_active_capabilities_zero_required=true/u);
-    assert.match(qout,/configured_kernel_bounding_set_equality_required=true/u);
+    assert.match(qout,/VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN/u);
     return {preexec_sha256:sha256(pb),query_sha256:sha256(qb)};
   }finally{fs.rmSync(tmp,{recursive:true,force:true});}
 }
 function verify(){
-  const verificationContext=verifyBranch();
+  verifyBranch();
   exactCandidateBytes();
   const binaries=rederiveBinaries();
   const lock=expectedLock();
   const expected=Buffer.from(JSON.stringify(lock,null,2)+"\n","utf8");
   assert.ok(read(LOCK_FILE,8192).equals(expected),"committed_lock_bytes_mismatch");
-  return {lock,expected,binaries,verificationContext};
+  return {lock,expected,binaries};
 }
 const args=process.argv.slice(2);
 if(args.length===1&&args[0]==="--derive"){
@@ -238,15 +218,11 @@ if(args.length===1&&args[0]==="--derive"){
 }else if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   const v=verify();
   console.log("VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2_GREEN");
-  console.log("verification_context="+v.verificationContext);
   console.log("lock_id="+v.lock.lock_id);
   console.log("candidate_sha256="+CANDIDATE_SHA256);
   console.log("preexec_binary_sha256="+v.binaries.preexec_sha256);
   console.log("query_binary_sha256="+v.binaries.query_sha256);
   console.log("manager_reexec_deserialize_argv_accepted=true");
-  console.log("kernel_capability_state_bound=true");
-  console.log("configured_kernel_bounding_set_equality_required=true");
-  console.log("private_users_false_required=true");
   console.log("candidate_accepted=true");
   console.log("install_authorized=false");
   console.log("production_host_evidence_authority=false");
