@@ -16,7 +16,7 @@ def git_blob(path:Path)->str:
     h.update(f"blob {len(data)}\0".encode("ascii"));h.update(data)
     return h.hexdigest()
 
-assert git_blob(MANIFEST)=="f4ad88ab48029df982c23167c45934c128940e5c"
+assert git_blob(MANIFEST)=="cda12b960c8fc6a3258f3c4c770be97d5eb8162b"
 source=INSTALLER.read_text(encoding="utf-8")
 ast.parse(source)
 for required in (
@@ -26,6 +26,10 @@ for required in (
     'NODE_VERSION="v24.21.0"',
     'NODE_BYTES=126595440',
     'NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"',
+    'UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"',
+    'LIFECYCLE_BLOB="65b80f5f175d0acf498af94110deb379c3165f4f"',
+    'CLEANUP_HELPER=LIFECYCLE_ROOT/"apollyon_custody_stale_socket_cleanup_v1.py"',
+    'install_file(CLEANUP_HELPER,cleanup_helper,0o444,0,0)',
     'PREENTRY_BYTES=798736',
     'PREENTRY_SHA256="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"',
     '"/usr/sbin/groupadd","--system",name',

@@ -27,9 +27,9 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="f4ad88ab48029df982c23167c45934c128940e5c"
+MANIFEST_BLOB="cda12b960c8fc6a3258f3c4c770be97d5eb8162b"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
-UNIT_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"
+UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 ENV_TEMPLATE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.env.template"
@@ -42,6 +42,8 @@ LIVE_LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.p
 LIVE_LAUNCHER_BLOB="8e92a3337c9a4bba21fab6299e9e2ceb61d3e425"
 PREENTRY_SOURCE_REL="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 PREENTRY_SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
+LIFECYCLE_REL="ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py"
+LIFECYCLE_BLOB="65b80f5f175d0acf498af94110deb379c3165f4f"
 
 EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"
 NODE_RUNTIME=Path("/opt/void-apollyon-node-runtime-v1/node")
@@ -76,6 +78,8 @@ LIVE_SOURCE_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")
 LIVE_PREENTRY_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-preentry-v1")
 LIVE_PREENTRY=LIVE_PREENTRY_ROOT/"apollyon_live_custody_source_session_preentry_v2"
 LIVE_LAUNCHER=LIVE_PREENTRY_ROOT/"apollyon_live_custody_source_session_launcher_v2.py"
+LIFECYCLE_ROOT=Path("/opt/void-apollyon-custody-lifecycle-v1")
+CLEANUP_HELPER=LIFECYCLE_ROOT/"apollyon_custody_stale_socket_cleanup_v1.py"
 
 class Hold(RuntimeError):
     pass
@@ -453,9 +457,12 @@ def verify_source_contract()->dict[str,Any]:
     read_source(TMPFILES_REL,TMPFILES_BLOB)
     read_source(LIVE_LAUNCHER_REL,LIVE_LAUNCHER_BLOB)
     read_source(PREENTRY_SOURCE_REL,PREENTRY_SOURCE_BLOB)
+    read_source(LIFECYCLE_REL,LIFECYCLE_BLOB)
     for rel,blob in manifest["custody_service_closure"].items():
         read_source(rel,blob)
     for rel,blob in manifest["live_session_closure"].items():
+        read_source(rel,blob)
+    for rel,blob in manifest["host_lifecycle_closure"].items():
         read_source(rel,blob)
     return manifest
 
@@ -478,6 +485,7 @@ def plan(public_key:Path)->dict[str,Any]:
         "state_root_present":STATE_ROOT.exists(),
         "live_preentry_present":LIVE_PREENTRY.exists(),
         "live_launcher_present":LIVE_LAUNCHER.exists(),
+        "custody_socket_cleanup_present":CLEANUP_HELPER.exists(),
     }
     return {
         "marker":MARKER,
@@ -535,6 +543,7 @@ def apply(public_key:Path)->dict[str,Any]:
     ensure_root_dir(CUSTODY_SOURCE_ROOT,0o755)
     ensure_root_dir(LIVE_SOURCE_ROOT,0o755)
     ensure_root_dir(LIVE_PREENTRY_ROOT,0o755)
+    ensure_root_dir(LIFECYCLE_ROOT,0o755)
 
     manifest=load_manifest()
     install_source_tree(CUSTODY_SOURCE_ROOT,manifest["custody_service_closure"])
@@ -544,6 +553,8 @@ def apply(public_key:Path)->dict[str,Any]:
     install_file(LIVE_PREENTRY,preentry,0o755,0,0)
     live_launcher=read_source(LIVE_LAUNCHER_REL,LIVE_LAUNCHER_BLOB)
     install_file(LIVE_LAUNCHER,live_launcher,0o444,0,0)
+    cleanup_helper=read_source(LIFECYCLE_REL,LIFECYCLE_BLOB)
+    install_file(CLEANUP_HELPER,cleanup_helper,0o444,0,0)
 
     public_bytes=verify_public_key(public_key)
     install_file(PUBLIC_KEY_PATH,public_bytes,0o644,0,0)
@@ -589,6 +600,7 @@ def apply(public_key:Path)->dict[str,Any]:
         "live_session_reviewed_source_installed":True,
         "live_preentry_installed":True,
         "live_launcher_installed":True,
+        "custody_socket_cleanup_installed":True,
         "operator_public_key_installed":True,
         "custody_unit_installed":True,
         "custody_target_installed":True,
@@ -615,6 +627,8 @@ def self_test()->None:
     assert manifest["preentry_lock"]["bytes"]==PREENTRY_BYTES
     assert manifest["preentry_lock"]["sha256"]==PREENTRY_SHA256
     assert manifest["paths"]["node_runtime"]==os.fspath(NODE_RUNTIME)
+    assert manifest["paths"]["custody_stale_socket_cleanup"]==os.fspath(CLEANUP_HELPER)
+    assert manifest["host_lifecycle_closure"][LIFECYCLE_REL]==LIFECYCLE_BLOB
     assert manifest["node_runtime_contract"]["version"]==NODE_VERSION
     assert manifest["node_runtime_contract"]["bytes"]==NODE_BYTES
     assert manifest["node_runtime_contract"]["sha256"]==NODE_SHA256
