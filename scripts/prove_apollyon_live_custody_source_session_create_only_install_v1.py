@@ -16,11 +16,12 @@ def git_blob(path:Path)->str:
     h.update(f"blob {len(data)}\0".encode("ascii"));h.update(data)
     return h.hexdigest()
 
-assert git_blob(MANIFEST)=="9b362f4efdc3d91c42a95de4a96147294e478a09"
+assert git_blob(MANIFEST)=="84f131ff74883bb215a0c64652fb4b8c2b379ca8"
 source=INSTALLER.read_text(encoding="utf-8")
 ast.parse(source)
 for required in (
     'MARKER="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_CREATE_ONLY_INSTALL_V1"',
+    'MANIFEST_BLOB="84f131ff74883bb215a0c64652fb4b8c2b379ca8",'
     'EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"',
     'NODE_RUNTIME=Path("/opt/void-apollyon-node-runtime-v1/node")',
     'NODE_VERSION="v24.21.0"',
