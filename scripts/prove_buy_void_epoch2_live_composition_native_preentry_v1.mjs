@@ -147,14 +147,21 @@ function requireDelegatedPrivateNamespace() {
   const backingOpt = path.join(bootstrapRoot, "opt");
   const backingHome = path.join(bootstrapRoot, "home");
   const backingRepo = path.join(bootstrapRoot, "repo");
+  const backingUsrUpper = path.join(bootstrapRoot, "usr-bin-upper");
+  const backingUsrWork = path.join(bootstrapRoot, "usr-bin-work");
+  const backingUsrMerged = path.join(bootstrapRoot, "usr-bin-merged");
+  const backingNode = path.join(backingUsrMerged, "node");
   const mountEntries = fs.readFileSync("/proc/self/mountinfo", "utf8")
     .split("\n")
     .filter(Boolean)
     .map((line) => {
       const fields = line.split(" ");
+      const separator = fields.indexOf("-");
       return {
         mountPoint: mountInfoPath(fields[4] || ""),
         options: String(fields[5] || "").split(","),
+        fsType:
+          separator >= 0 ? String(fields[separator + 1] || "") : "",
       };
     });
   const mountPoints = new Set(mountEntries.map((entry) => entry.mountPoint));
@@ -201,6 +208,77 @@ function requireDelegatedPrivateNamespace() {
       visible + " private backing must not be group/world writable",
     );
   }
+
+  const visibleUsrBin = fs.lstatSync("/usr/bin", { bigint: true });
+  const mergedUsrBin = fs.lstatSync(backingUsrMerged, { bigint: true });
+  assert.equal(
+    visibleUsrBin.isDirectory() && !visibleUsrBin.isSymbolicLink(),
+    true,
+    "namespace-local /usr/bin must be a direct directory",
+  );
+  assert.equal(
+    mergedUsrBin.isDirectory() && !mergedUsrBin.isSymbolicLink(),
+    true,
+    "private /usr/bin merged root must be a direct directory",
+  );
+  assert.equal(
+    mountPoints.has("/usr/bin"),
+    true,
+    "namespace-local /usr/bin must be an explicit mountpoint",
+  );
+  const mergedUsrMount = mountEntries.find(
+    (entry) => entry.mountPoint === backingUsrMerged,
+  );
+  assert.ok(mergedUsrMount, "private /usr/bin overlay mount missing");
+  assert.equal(
+    mergedUsrMount.fsType,
+    "overlay",
+    "private /usr/bin backing must be an overlay mount",
+  );
+  assert.equal(
+    mountPoints.has(backingUsrUpper),
+    false,
+    "private /usr/bin upper directory must not itself be a mountpoint",
+  );
+  assert.equal(
+    mountPoints.has(backingUsrWork),
+    false,
+    "private /usr/bin work directory must not itself be a mountpoint",
+  );
+  assert.equal(
+    sameFsIdentity(visibleUsrBin, mergedUsrBin),
+    true,
+    "namespace-local /usr/bin must resolve to the private overlay generation",
+  );
+
+  const visibleNode = fs.lstatSync(FIXED_NODE, { bigint: true });
+  const backingNodeStat = fs.lstatSync(backingNode, { bigint: true });
+  assert.equal(
+    visibleNode.isFile() && !visibleNode.isSymbolicLink(),
+    true,
+    "namespace-local fixed Node must be a direct regular file",
+  );
+  assert.equal(
+    sameFsIdentity(visibleNode, backingNodeStat),
+    true,
+    "namespace-local fixed Node must be the private overlay generation",
+  );
+  assert.equal(visibleNode.uid, 0n, "private fixed Node must be root-owned");
+  assert.equal(
+    (visibleNode.mode & 0o022n) === 0n,
+    true,
+    "private fixed Node must not be group/world writable",
+  );
+  assert.equal(
+    (visibleNode.mode & 0o111n) !== 0n,
+    true,
+    "private fixed Node must be executable",
+  );
+  assert.equal(
+    crypto.createHash("sha256").update(fs.readFileSync(FIXED_NODE)).digest("hex"),
+    crypto.createHash("sha256").update(fs.readFileSync(process.execPath)).digest("hex"),
+    "private fixed Node must match the selected hosted Node bytes",
+  );
 
   assert.equal(
     mountPoints.has(bootstrapRoot),
@@ -273,6 +351,9 @@ function enterPrivateOptFixtureNamespace() {
   const safeOpt = path.join(bootstrapRoot, "opt");
   const safeHome = path.join(bootstrapRoot, "home");
   const safeRepo = path.join(bootstrapRoot, "repo");
+  const safeUsrUpper = path.join(bootstrapRoot, "usr-bin-upper");
+  const safeUsrWork = path.join(bootstrapRoot, "usr-bin-work");
+  const safeUsrMerged = path.join(bootstrapRoot, "usr-bin-merged");
   const proofRelative =
     "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs";
   fs.copyFileSync(process.execPath, harnessNode);
@@ -289,7 +370,14 @@ function enterPrivateOptFixtureNamespace() {
     'runtime_uid="$7"',
     'runtime_gid="$8"',
     'runtime_home="$9"',
+    'safe_usr_upper="${10}"',
+    'safe_usr_work="${11}"',
+    'safe_usr_merged="${12}"',
     "/usr/bin/mount --make-rprivate /",
+    '/usr/bin/install -d -o root -g root -m 0755 "$safe_usr_upper" "$safe_usr_work" "$safe_usr_merged"',
+    '/usr/bin/mount -t overlay overlay -o "lowerdir=/usr/bin,upperdir=$safe_usr_upper,workdir=$safe_usr_work" "$safe_usr_merged"',
+    '/usr/bin/install -o root -g root -m 0755 "$harness_node" "$safe_usr_merged/node"',
+    '/usr/bin/mount --bind "$safe_usr_merged" /usr/bin',
     '/usr/bin/install -d -o root -g root -m 0755 "$safe_opt" "$safe_home"',
     '/usr/bin/install -d -o "$runtime_uid" -g "$runtime_gid" -m 0755 "$safe_repo"',
     '/usr/bin/mount --bind "$source_repo" "$safe_repo"',
@@ -322,6 +410,9 @@ function enterPrivateOptFixtureNamespace() {
       String(process.getuid()),
       String(process.getgid()),
       String(process.env.HOME || "/home/runner"),
+      safeUsrUpper,
+      safeUsrWork,
+      safeUsrMerged,
     ], {
       timeout: 180_000,
     });
@@ -1012,6 +1103,8 @@ console.log("host_home_mount_mutation=false");
 console.log("fixed_checkout_parent_host_mutation=false");
 console.log("private_opt_mount_namespace=true");
 console.log("private_home_mount_namespace=true");
+console.log("private_usr_bin_overlay_namespace=true");
+console.log("private_fixed_node_matches_selected_node=true");
 console.log("host_fixed_mountpoints_preflight_read_only=true");
 console.log("delegated_namespace_kernel_state_verified=true");
 console.log("delegated_mount_topology_asymmetric=true");
