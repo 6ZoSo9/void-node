@@ -81,9 +81,22 @@ same inode with the same expected SHA-256, daemon-reloads the user manager, and
 performs at most one recovery restart. It then requires the pre-apply listener
 endpoint set to return.
 
-A foreign/substituted target inode is never unlinked. Receipt removal during
-deliberate rollback is likewise conditioned on the exact previously observed
-receipt inode and SHA-256.
+Before an existing target can be treated as idempotent, it must be the exact
+reviewed bytes, mode 0600, and owned by the runtime user.
+
+The installer checks target and receipt inode/SHA identity immediately before
+its own rollback deletion. It does **not** claim kernel-atomic protection
+against a hostile concurrent same-UID namespace swap, and a user-owned
+`~/.config/systemd/user` policy file is not durable tamper-resistant custody.
+Accordingly every mode keeps:
+
+```text
+same_uid_namespace_tamper_resistance_proven=false
+durable_policy_file_custody_proven=false
+```
+
+Post-restart host evidence, not the installer receipt, remains the acceptance
+authority for the live process policy.
 
 ## Deliberate rollback
 
