@@ -6,7 +6,7 @@ Status: **reproducible binary candidate only; unaccepted and uninstalled**.
 
 Parent source generation:
 
-`af33d14064164a6c27b6ef158aecc2c40c6c5b6a` (#3152 exact head).
+`a44308f094bc67841da2a7ce3eb22c36782318fe` (#3152 exact head).
 
 Pinned source/proof identities:
 
@@ -71,6 +71,6 @@ It does **not** accept the binary pair or authorize installation/live execution:
 A separate acceptance-lock successor must consume exact hosted artifact
 identities before any protected installer can be reviewed.
 
-This clean child is stacked on accepted #3152 exact head `af33d14064164a6c27b6ef158aecc2c40c6c5b6a`, which is 19/19 hosted SUCCESS and independently source-reviewed. Candidate derivation still grants no protected install or live-query authority.
+This clean child is stacked on accepted #3152 exact head `a44308f094bc67841da2a7ce3eb22c36782318fe`, which is 19/19 hosted SUCCESS and independently source-reviewed. Candidate derivation still grants no protected install or live-query authority.
 
 PROTECT THE CORE.
