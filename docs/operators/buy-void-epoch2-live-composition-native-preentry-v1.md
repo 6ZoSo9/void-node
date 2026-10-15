@@ -198,13 +198,21 @@ mountpoints. This rejects reverse-bind constructions that alias host directories
 onto the claimed backing paths. A caller that merely exports the internal marker
 therefore fails before protected fixture writes.
 
-Missing/failed unshare, mount, install, setpriv, sudo, parent provenance, mount
-identity, or read-only checkout state fails the proof closed. The fixed
-`/usr/bin/node` is also a read-only host prerequisite: it must already be a
-direct root-owned single-link executable with no group/world write or setid
-bits. The proof never creates, replaces, chmods, chowns, or removes that host
-path. The private mount namespace is synthetic proof infrastructure only and
-does not weaken the production native ancestry predicate.
+Missing/failed unshare, mount, overlay support, install, setpriv, sudo, parent
+provenance, mount identity, or read-only checkout state fails the proof closed.
+The hosted image does not need a real host `/usr/bin/node`. Inside the private
+mount namespace only, the proof creates a private overlay-backed `/usr/bin`
+whose lower layer is the existing host directory and whose private upper layer
+contains one root-owned copy of the selected setup-node executable at
+`/usr/bin/node`. The proof requires namespace-local `/usr/bin` to be an
+explicit mount, requires the merged backing to be an `overlay` mount while its
+upper/work directories are non-mountpoints, and requires fixed Node inode
+identity plus SHA-256 equality with the selected hosted Node bytes.
+
+No host `/usr/bin` entry is created, replaced, chmodded, chowned, removed, or
+mounted over outside the child namespace. The private mount namespace is
+synthetic proof infrastructure only and does not weaken the production native
+ancestry predicate.
 
 A real native `/dev/null` invocation must clear the parent-proof gates,
 execute the real runtime-user transition, and reach the later expected Git
