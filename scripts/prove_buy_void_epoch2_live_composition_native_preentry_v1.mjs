@@ -143,6 +143,43 @@ function requireDelegatedPrivateNamespace() {
     "node",
     "delegated harness executable name invalid",
   );
+  const bootstrapStat = fs.lstatSync(bootstrapRoot, { bigint: true });
+  assert.equal(
+    bootstrapStat.isDirectory() && !bootstrapStat.isSymbolicLink(),
+    true,
+    "delegated bootstrap root must be a direct directory",
+  );
+  assert.equal(
+    bootstrapStat.uid,
+    0n,
+    "delegated bootstrap root must be root-owned",
+  );
+  assert.equal(
+    (bootstrapStat.mode & 0o022n) === 0n,
+    true,
+    "delegated bootstrap root must not be group/world writable",
+  );
+  const harnessStat = fs.lstatSync(process.execPath, { bigint: true });
+  assert.equal(
+    harnessStat.isFile() && !harnessStat.isSymbolicLink(),
+    true,
+    "delegated harness Node must be a direct regular file",
+  );
+  assert.equal(
+    harnessStat.uid,
+    0n,
+    "delegated harness Node must be root-owned",
+  );
+  assert.equal(
+    harnessStat.nlink,
+    1n,
+    "delegated harness Node must have one link",
+  );
+  assert.equal(
+    (harnessStat.mode & 0o022n) === 0n,
+    true,
+    "delegated harness Node must not be group/world writable",
+  );
 
   const backingOpt = path.join(bootstrapRoot, "opt");
   const backingHome = path.join(bootstrapRoot, "home");
@@ -318,6 +355,8 @@ function enterPrivateOptFixtureNamespace() {
     "/usr/bin/unshare",
     "/usr/bin/mount",
     "/usr/bin/install",
+    "/usr/bin/mktemp",
+    "/usr/bin/rm",
     "/usr/bin/setpriv",
     "/usr/bin/env",
     "/usr/bin/bash",
@@ -344,10 +383,48 @@ function enterPrivateOptFixtureNamespace() {
     "passwordless sudo is required for the disposable mount namespace",
   );
 
-  const bootstrapRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), "void-e2-private-opt-v1-"),
+  const rootTemp = run(SUDO, [
+    "-n",
+    "/usr/bin/mktemp",
+    "-d",
+    "/tmp/void-e2-private-opt-v1-XXXXXXXX",
+  ]);
+  assert.equal(rootTemp.status, 0, "root bootstrap mktemp failed: " + rootTemp.stderr);
+  const bootstrapRoot = String(rootTemp.stdout || "").trim();
+  assert.match(
+    bootstrapRoot,
+    /^\/tmp\/void-e2-private-opt-v1-[A-Za-z0-9]{8}$/u,
+    "root bootstrap path invalid",
   );
+  const bootstrapStat = fs.lstatSync(bootstrapRoot);
+  assert.equal(
+    bootstrapStat.isDirectory() && !bootstrapStat.isSymbolicLink(),
+    true,
+    "root bootstrap must be a direct directory",
+  );
+  assert.equal(bootstrapStat.uid, 0, "root bootstrap must be root-owned");
+  assert.equal(
+    (bootstrapStat.mode & 0o022) === 0,
+    true,
+    "root bootstrap must not be group/world writable",
+  );
+
   const harnessNode = path.join(bootstrapRoot, "node");
+  const harnessInstall = run(SUDO, [
+    "-n",
+    "/usr/bin/install",
+    "-o", "root",
+    "-g", "root",
+    "-m", "0755",
+    process.execPath,
+    harnessNode,
+  ]);
+  assert.equal(
+    harnessInstall.status,
+    0,
+    "failed to install root-owned harness Node: " + harnessInstall.stderr,
+  );
+
   const safeOpt = path.join(bootstrapRoot, "opt");
   const safeHome = path.join(bootstrapRoot, "home");
   const safeRepo = path.join(bootstrapRoot, "repo");
@@ -356,9 +433,6 @@ function enterPrivateOptFixtureNamespace() {
   const safeUsrMerged = path.join(bootstrapRoot, "usr-bin-merged");
   const proofRelative =
     "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs";
-  fs.copyFileSync(process.execPath, harnessNode);
-  fs.chmodSync(harnessNode, 0o755);
-
   const shell = [
     "set -euo pipefail",
     'safe_opt="$1"',
@@ -417,7 +491,9 @@ function enterPrivateOptFixtureNamespace() {
       timeout: 180_000,
     });
   } finally {
-    const cleanup = run(SUDO, ["-n", "rm", "-rf", "--", bootstrapRoot]);
+    const cleanup = run(SUDO, [
+      "-n", "/usr/bin/rm", "-rf", "--", bootstrapRoot,
+    ]);
     assert.equal(
       cleanup.status,
       0,
@@ -1105,6 +1181,8 @@ console.log("private_opt_mount_namespace=true");
 console.log("private_home_mount_namespace=true");
 console.log("private_usr_bin_overlay_namespace=true");
 console.log("private_fixed_node_matches_selected_node=true");
+console.log("root_owned_bootstrap_generation=true");
+console.log("same_uid_bootstrap_replacement_blocked=true");
 console.log("host_fixed_mountpoints_preflight_read_only=true");
 console.log("delegated_namespace_kernel_state_verified=true");
 console.log("delegated_mount_topology_asymmetric=true");
