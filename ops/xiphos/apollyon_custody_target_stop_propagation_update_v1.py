@@ -126,7 +126,7 @@ def classify_loaded_contract_observation(
     if SERVICE_UNIT not in props["Wants"].split():hold("target_wants_service_missing")
 
     propagates=props["PropagatesStopTo"].split()
-    if SERVICE_UNIT in propagates:
+    if propagates==[SERVICE_UNIT]:
         loaded_state="exact"
     elif props["PropagatesStopTo"]=="":
         # The reviewed predecessor target differs from the new target only by
@@ -172,6 +172,15 @@ def classify_plan_action(target_state:str,loaded_state:str|None)->str:
     if target_state=="new_exact" and loaded_state=="exact":return "already_exact"
     hold("target_plan_state_invalid")
 
+def mutation_profile(action:str)->dict[str,bool]:
+    if action=="replace_and_reload":
+        return {"replace_target":True,"daemon_reload":True}
+    if action=="reload_only":
+        return {"replace_target":False,"daemon_reload":True}
+    if action=="already_exact":
+        return {"replace_target":False,"daemon_reload":False}
+    hold("target_apply_action_invalid")
+
 def plan()->dict:
     if socket.gethostname().casefold()!=TARGET_HOST.casefold():hold("wrong_host")
     load_manifest(); assert_dormant()
@@ -204,7 +213,9 @@ def plan()->dict:
 def apply()->dict:
     if os.geteuid()!=0:hold("apply_requires_root")
     before=plan()
-    action=before["plan_action"]\n    if action=="replace_and_reload":
+    action=before["plan_action"]
+    profile=mutation_profile(action)
+    if profile["replace_target"]:
         new=read_source(TARGET_REL,NEW_TARGET_BLOB)
         old_stat=os.lstat(TARGET_PATH)
         temp=TARGET_PATH.parent/(".void-apollyon-target.new."+str(os.getpid()))
@@ -230,6 +241,7 @@ def apply()->dict:
             try:os.unlink(temp)
             except FileNotFoundError:pass
         if state()!="new_exact":hold("target_post_replace_invalid")
+    if profile["daemon_reload"]:
         run(["/usr/bin/systemctl","daemon-reload"])
         reloaded=True
     else:
@@ -241,6 +253,7 @@ def apply()->dict:
         "daemon_reload_required":False,"daemon_reload_performed":reloaded,
         "reload_recovery_required":False,
         "reload_recovery_performed":action=="reload_only",
+        "target_file_replaced":profile["replace_target"],
         "stop_propagation_installed":True,
         "service_action":False,"target_action":False,
         "training_execution":False,"durable_attempt_claim":False,
@@ -283,6 +296,9 @@ def self_test()->None:
     assert classify_plan_action("old_exact",None)=="replace_and_reload"
     assert classify_plan_action("new_exact","reload_required")=="reload_only"
     assert classify_plan_action("new_exact","exact")=="already_exact"
+    assert mutation_profile("replace_and_reload")=={"replace_target":True,"daemon_reload":True}
+    assert mutation_profile("reload_only")=={"replace_target":False,"daemon_reload":True}
+    assert mutation_profile("already_exact")=={"replace_target":False,"daemon_reload":False}
     try:
         classify_loaded_contract_observation(
             0,stale_target.replace("PropagatesStopTo=\n","PropagatesStopTo=other.service\n"),
@@ -309,6 +325,7 @@ def self_test()->None:
     print("dormant_state_fail_closed=true")
     print("reload_failure_resume_supported=true")
     print("new_exact_stale_manager_reload_only=true")
+    print("reload_only_target_file_rewrite=false")
     print("ambiguous_loaded_contract_fails_closed=true")
     print("service_action=false")
     print("target_action=false")
