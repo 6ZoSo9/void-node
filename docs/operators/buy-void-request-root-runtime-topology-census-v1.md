@@ -17,6 +17,33 @@ request_root_live_path_qualified=false
 This census qualifies only the missing request-root/runtime-topology facts
 needed before a custody service installer can be planned.
 
+## Generation boundary
+
+This V1 census is intentionally scoped to the **currently installed private
+request-store generation** and identifies its metadata policy as:
+
+```text
+current_private_request_root_0700_0600_v1
+```
+
+It may diagnose today's legacy/private root only. It does **not** accept or
+reject the separate future custody-readable profile under active source work,
+whose proposed host shape is a pre-provisioned absolute root owned by the
+runtime UID and dedicated IPC group, directory mode `0750`, and fixed request
+journals mode `0640`.
+
+The machine-readable result therefore always keeps:
+
+```text
+future_custody_readable_profile_accepted=false
+future_profile_requires_successor_census=true
+```
+
+If that future profile is accepted and deployed, a separately versioned
+designated-host census must bind that generation. A post-migration `0750/0640`
+root must never be rejected merely because this V1 current-generation census
+expects `0700/0600`.
+
 ## Read-only boundary
 
 The collector performs only:
