@@ -498,11 +498,17 @@ def self_test()->None:
     assert "VOID_APOLLYON_CUSTODY_SOCKET_GROUP_GID=980" in env
     assert EXPECTED_PUBLIC_RAW_SHA256 in env
     source=Path(__file__).read_text(encoding="utf-8")
-    for forbidden in (
-        'systemctl","start','systemctl","enable','systemctl","restart',
-        "training_execution=True","durable_attempt_claim=True",
-        "createPrivateKey","eth_sendRawTransaction",
-    ):
+    forbidden_parts=(
+        ("systemctl",'","',"start"),
+        ("systemctl",'","',"enable"),
+        ("systemctl",'","',"restart"),
+        ("training_","execution","=True"),
+        ("durable_","attempt_claim","=True"),
+        ("create","PrivateKey"),
+        ("eth_sendRaw","Transaction"),
+    )
+    for parts in forbidden_parts:
+        forbidden="".join(parts)
         assert forbidden not in source,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
     print("create_only=true")
