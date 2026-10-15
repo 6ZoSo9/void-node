@@ -63,7 +63,7 @@ assert.equal(git(["rev-parse","HEAD:"+PREEXEC]),EXPECTED.preexec);
 const source=fs.readFileSync(path.join(ROOT,SOURCE),"utf8");
 const sealed=fs.readFileSync(path.join(ROOT,SEALED),"utf8");
 for(const needle of [
-  '#include "void_buy_void_user_manager_private_unit_query_v1.c"',
+  '#include "void_buy_void_user_manager_private_peer_guard_v1.c"',
   'E2_CREDENTIAL_ID "buy-void-epoch2-fulfiller-v1"',
   'E2_DROPIN_BASENAME "97-buy-void-epoch2-fulfiller-credential-v1.conf"',
   '"NeedDaemonReload"',
@@ -111,7 +111,8 @@ try{
   });
   for(const line of [
     "VOID_BUY_VOID_USER_MANAGER_PRIVATE_CREDENTIAL_UNIT_QUERY_V1_SELF_TEST_GREEN",
-    "accepted_v4_authenticated_manager_query_embedded=true",
+    "accepted_v4_peer_guard_embedded=true",
+    "accepted_v4_unit_query_pinned_as_integration_peer=true",
     "systemd_private_socket_required=true",
     "public_user_bus_used=false",
     "need_daemon_reload_queried_same_connection=true",
