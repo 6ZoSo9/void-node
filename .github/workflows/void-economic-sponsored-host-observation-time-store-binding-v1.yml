@@ -106,9 +106,9 @@ jobs:
             'production_caller_timestamp_input=false' \
             'production_caller_prior_receipt_input=false' \
             'one_host_binding_capture_per_operation=true' \
+            'one_store_clock_read_per_operation=true' \
             'preview_zero_durable_growth=true' \
-            'same_bound_sample_preview_and_observe=true' \
-            'durable_receipt_matches_preview_candidate_required=true' \
+            'durable_result_bound_to_same_host_sample=true' \
             'malformed_host_binding_rejected_before_durable_growth=true' \
             'production_host_sample_collected_in_ci=false' \
             'trusted_clock_runtime_authority=false' \
