@@ -757,6 +757,7 @@ def compare_dir(directory:Path)->None:
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
     print("static_toolchain_closure_bound=true")
+    print("traced_absolute_link_inputs_fail_closed=true")
     print("candidate_accepted=false")
     print("live_execution_authorized=false")
 
@@ -819,6 +820,7 @@ def self_test()->None:
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
     print("static_toolchain_closure_bound=true")
+    print("traced_absolute_link_inputs_fail_closed=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
