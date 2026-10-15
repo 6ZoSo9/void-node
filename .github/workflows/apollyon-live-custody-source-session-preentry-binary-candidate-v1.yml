@@ -64,8 +64,16 @@ jobs:
       - name: Require byte-identical hosted candidates
         run: |
           set -euo pipefail
-          python3 -I -B scripts/prove_apollyon_live_custody_source_session_preentry_binary_candidate_v1.py             --self-test
-          python3 -I -B scripts/prove_apollyon_live_custody_source_session_preentry_binary_candidate_v1.py             --compare-dir "$RUNNER_TEMP/candidates"
+          python3 -I -B scripts/prove_apollyon_live_custody_source_session_preentry_binary_candidate_v1.py \
+            --self-test | tee "$RUNNER_TEMP/preentry-self-test.txt"
+          grep -Fx 'static_link_required=true' "$RUNNER_TEMP/preentry-self-test.txt"
+          grep -Fx 'pt_interp_absent=true' "$RUNNER_TEMP/preentry-self-test.txt"
+          grep -Fx 'hostile_ld_preload_positive_control=true' "$RUNNER_TEMP/preentry-self-test.txt"
+          grep -Fx 'hostile_ld_preload_preentry_blocked=true' "$RUNNER_TEMP/preentry-self-test.txt"
+          python3 -I -B scripts/prove_apollyon_live_custody_source_session_preentry_binary_candidate_v1.py \
+            --compare-dir "$RUNNER_TEMP/candidates" | tee "$RUNNER_TEMP/preentry-compare.txt"
+          grep -Fx 'pt_interp_absent=true' "$RUNNER_TEMP/preentry-compare.txt"
+          grep -Fx 'hostile_ld_preload_preentry_blocked=true' "$RUNNER_TEMP/preentry-compare.txt"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
         env:

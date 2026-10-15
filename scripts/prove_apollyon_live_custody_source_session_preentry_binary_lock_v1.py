@@ -14,21 +14,21 @@ import tempfile
 MARKER="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1"
 VERIFY_MARKER=MARKER+"_VERIFIED"
 ROOT=Path(__file__).resolve().parents[1]
-PARENT="a625cebea7e540a8dea2a59c87b49c670520fe1c"
+PARENT="835e904f1cbea1b163a2e82132dd2240ac7a5a61"
 SOURCE="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 SOURCE_SHA="51625ad6bb3e570e77aef491483a7b4c0dccdeca971f524658f5ac401bdcb9d7"
 CANDIDATE_PROOF="scripts/prove_apollyon_live_custody_source_session_preentry_binary_candidate_v1.py"
-CANDIDATE_PROOF_BLOB="1135b9995b12156875973a185899cdaab1f71cd9"
+CANDIDATE_PROOF_BLOB="844d437047b60065271676bdf6cb263131409e16"
 CANDIDATE_WORKFLOW=".github/workflows/apollyon-live-custody-source-session-preentry-binary-candidate-v1.yml"
-CANDIDATE_WORKFLOW_BLOB="ecf4f81938b3ddde938bcc644faa175d32885554"
+CANDIDATE_WORKFLOW_BLOB="e38ee8fb584eebab98a6ad1ac3c8e3424f296ec1"
 LOCK="ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json"
-LOCK_ID="apollyon_live_custody_source_session_preentry_binary_lock_v1:195421a17318706c2340ac9a75f30424b9a1d7d4b10ede7b95f5895569de233e"
-CANDIDATE_ID="apollyon_live_custody_source_session_preentry_binary_candidate_v1:38fd4cda141c56f3f0526893f6d0c0eb5960e57f02eb348d003ded9581addb3c"
-BINARY_SHA="66d9b1c1fff316ecf96d7af73af7bf4a4442d6ce10f0e2df906fa1a79dc5580c"
-BINARY_BYTES=16912
+LOCK_ID="apollyon_live_custody_source_session_preentry_binary_lock_v1:7009aab71636ae4a06d880160e60b7131887f0ab7199b8da19ef65f399534439"
+CANDIDATE_ID="apollyon_live_custody_source_session_preentry_binary_candidate_v1:5007ad5368afd86679cd18811822b648bb4abc4c13169d55d2b27822609de5ab"
+BINARY_SHA="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"
+BINARY_BYTES=798736
 SELF_TEST_SHA="97d7358d1a6dfffd42e293e3a4b1f70a41b6eace5fe6eec8409ae7ff97cc0c69"
-HOSTED_RUN=38677126607
+HOSTED_RUN=38683823848
 
 GIT_ENV={
     "PATH":"/usr/bin:/bin","HOME":"/nonexistent","LANG":"C","LC_ALL":"C",
@@ -166,6 +166,13 @@ def validate(lock:dict,candidate:dict,require_reviewed_id:bool=True)->None:
         raise AssertionError("lock_binary_identity_mismatch")
     if lock["self_test"].get("stdout_sha256")!=SELF_TEST_SHA:
         raise AssertionError("lock_self_test_mismatch")
+    for key in (
+        "static_link_required","pt_interp_absent",
+        "hostile_ld_preload_positive_control",
+        "hostile_ld_preload_preentry_blocked",
+    ):
+        if lock["binary"].get(key) is not True:
+            raise AssertionError("lock_loader_independence_missing:"+key)
     if (
         lock.get("candidate_id")!=CANDIDATE_ID or
         lock["candidate_id"]!=candidate.get("candidate_id")
@@ -212,6 +219,10 @@ def receipt(lock:dict,candidate:dict)->dict:
         "source_git_blob_sha1":candidate["source"]["git_blob_sha1"],
         "binary_bytes":candidate["binary"]["bytes"],
         "binary_sha256":candidate["binary"]["sha256"],
+        "static_link_required":candidate["binary"]["static_link_required"],
+        "pt_interp_absent":candidate["binary"]["pt_interp_absent"],
+        "hostile_ld_preload_positive_control":candidate["binary"]["hostile_ld_preload_positive_control"],
+        "hostile_ld_preload_preentry_blocked":candidate["binary"]["hostile_ld_preload_preentry_blocked"],
         "comparison_rederived_elf":True,
         "candidate_binary_identity_accepted":True,
         "installed_preentry_identity_proven":False,
@@ -243,6 +254,10 @@ def self_test()->None:
     print("rehashed_forged_binary_lock_rejected=true")
     print("rehashed_forged_source_lock_rejected=true")
     print("candidate_binary_identity_accepted=true")
+    print("static_link_required=true")
+    print("pt_interp_absent=true")
+    print("hostile_ld_preload_positive_control=true")
+    print("hostile_ld_preload_preentry_blocked=true")
     print("installed_preentry_identity_proven=false")
     print("training_execution=false")
     print("funds_movement=false")
@@ -262,6 +277,9 @@ def verify_to(path:Path)->None:
     print("lock_id="+lock["lock_id"])
     print("binary_sha256="+candidate["binary"]["sha256"])
     print("candidate_binary_identity_accepted=true")
+    print("static_link_required=true")
+    print("pt_interp_absent=true")
+    print("hostile_ld_preload_preentry_blocked=true")
     print("installed_preentry_identity_proven=false")
     print("training_execution=false")
     print("funds_movement=false")
