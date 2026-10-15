@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import vm from "node:vm";
 
 import {
   testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1,
@@ -24,6 +25,9 @@ const raw=fs.readFileSync(
 const expected=
   testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1("zoso");
 assert.equal(raw,expected,"rule_bytes_mismatch");
+new vm.Script(raw,{
+  filename:"00-void-buy-allocation-custody-runtime-deny-v1.rules",
+});
 assert.equal(raw.endsWith("\n"),true);
 assert.equal(
   crypto.createHash("sha256").update(raw,"utf8").digest("hex"),
