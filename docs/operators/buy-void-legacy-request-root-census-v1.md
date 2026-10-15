@@ -4,22 +4,6 @@ Marker: `VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1`.
 
 Status: **read-only metadata census; never historical-disposition authority**.
 
-## Current-main dependency reconciliation
-
-This restack runs on main after merged #3068 hardened the V2 request-root
-topology census. The V2 dependency is now pinned to Git blob
-`305737478025e22ddc8f56da29f2a2dfde251d8b`.
-
-That successor only tightens V2 live-binding authority: it keeps
-`authenticated_user_manager_binding_verified=false` until separately
-authenticated user-manager evidence is integrated. The
-`machine_id_sha256()` routine consumed by this legacy census is byte-identical
-to the previously reviewed V2 generation.
-
-The focused proof binds the hardened V2 blob and requires its fail-closed
-manager-auth markers. This is an explicit current-main reconciliation, not a
-claim that every dependency remained byte-for-byte unchanged.
-
 ## Purpose
 
 The accepted stable request-root policy selects
@@ -29,8 +13,7 @@ or abandon historical request state until the pre-anchor era is dispositioned.
 This census enumerates a bounded set of *known current candidates*:
 
 - the historical repository working-directory default;
-- the current user-unit working-directory default;
-- the live process cwd default;
+- the live process cwd default, bound to the authenticated MainPID generation;
 - the live runtime's explicit `VOID_BUY_REQUEST_DIR`, when the already-reviewed
   confirmed-closeout loopback status route reports it from a stable runtime
   PID/listener generation;
@@ -41,18 +24,32 @@ This census enumerates a bounded set of *known current candidates*:
 It reads only root/fixed-leaf metadata and direct-entry **counts**. It never
 prints direct-entry names and never reads request/payment JSONL contents.
 
-The census is bound to the designated runtime identity `zoso` / UID 1000.
+The census is bound to the designated runtime identity `zoso` / UID 1000
+reported by the authenticated private user-manager query. Live `--run` now
+requires root only because the reviewed #3073 protected pre-exec must connect to
+and authenticate the private user-manager peer; the census itself remains
+read-only. Repository helper sources executed as root are loaded only after
+stable direct-file reads and exact Git-blob authentication.
+
 The historical repository candidate is the fixed
 `/home/zoso/dev/void-node/.runtime/public-buy-void-requests-v1`; caller
 `HOME` is never used to select it. The live-process cwd candidate is also
 cross-bound to the same stable process generation.
 
-The census does **not** read `/proc/<pid>/environ` or request the full systemd
-environment. That would unnecessarily expose unrelated same-process secrets.
-Explicit request-root discovery instead uses the bounded loopback GET already
-reviewed by the V1/V2 topology census. The loopback listener must remain owned
-by the same stable runtime PID generation across the observation. External
-network calls remain forbidden.
+The census does **not** read `/proc/<pid>/environ`, trust ordinary
+`systemctl --user`, or accept caller-controlled D-Bus environment authority.
+It executes the merged #3073 authenticated private-peer query before and after
+the complete process/listener/status/candidate observation window, requires the
+protected query installation and authenticated manager/service generation to
+remain identical, and binds every process/listener observation to that exact
+authenticated MainPID/start-tick generation.
+
+#3073 does not authenticate `WorkingDirectory`, so this census deliberately
+does **not** use unit WorkingDirectory as a candidate source. Live process cwd is
+read only from the authenticated MainPID generation. Explicit request-root
+discovery uses the bounded loopback GET already reviewed by the V1/V2 topology
+census, with listener ownership bound to the same authenticated MainPID.
+External network calls remain forbidden.
 
 The immutable-release candidate inventory is enumerated twice and must be
 identical. A 40-hex release entry that is not a direct directory makes the
@@ -99,7 +96,8 @@ basis truthfully; it must not masquerade as cryptographic historical proof.
 
 No host mutation, process-environment read, customer/payment content read,
 external network call, service/systemd change, payment acceptance, presale
-activation or funds movement occurs here. The only network observation is the
+activation or funds movement occurs here. A live census requires an explicit
+root read-only operator invocation; this source/CI PR does not execute it. The only network observation is the
 bounded loopback GET described above.
 
 PROTECT THE CORE.

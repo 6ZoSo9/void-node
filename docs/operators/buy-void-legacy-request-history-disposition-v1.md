@@ -18,15 +18,20 @@ candidate provides an explicit place for the economic owner to state a
 
 The candidate does not accept caller-supplied census hashes or summary counts.
 
-It consumes the exact canonical JSON bytes emitted by #3064 as
+It consumes the exact canonical JSON bytes emitted by the authenticated current-main census generation as
 `result_json`, parses the full census schema, and:
 
-- requires accepted #3064 source head
-  `a8e3b930a98eeef0f19f3df94822c2c104bfdde8`;
-- pins the exact census source Git blob
-  `be5b0034de608c6803eb09c80491afff89c7bf39`;
+- requires accepted census source head
+  `c4a0046dbadc7eb681e78c49090c9a17373f8682`;
+- pins the exact authenticated census source Git blob
+  `f8bfda9ff88a5278c950b1c23f5e1675e5362048`;
 - computes the census SHA-256 internally from those exact bytes;
 - requires the designated hostname, runtime user/UID and machine binding;
+- requires the root-only authenticated private user-manager query boundary while
+  retaining the runtime identity as `zoso` / UID 1000;
+- requires the authenticated MainPID to equal the service MainPID and keeps
+  unit WorkingDirectory explicitly untrusted;
+- accepts live-CWD provenance only as `authenticated_live_process_cwd_default`;
 - rejects process-environment access, external network access, request/payment
   content reads and directory-name output;
 - derives historical candidate partitions directly from the evidence rows;
@@ -48,9 +53,9 @@ The classifier recognizes exactly three candidate decisions:
 
 A no-liability declaration is admissible as a *candidate* only when the bound
 metadata census reports zero surviving-history roots, zero unverified roots,
-and `bounded_current_candidate_set_observed=true`. If release enumeration,
-the stable runtime generation/listener, or the confirmed-closeout request-root
-status was not observed cleanly, only `UNRESOLVED_HOLD` is admissible.
+and `bounded_current_candidate_set_observed=true`. If authenticated manager identity, release enumeration, the stable runtime
+generation/listener, or the confirmed-closeout request-root status was not
+observed cleanly, only `UNRESOLVED_HOLD` is admissible.
 
 A surviving-history result may still conservatively produce
 `SURVIVING_HISTORY_REQUIRES_MIGRATION` if some unrelated bounded-runtime
@@ -58,7 +63,10 @@ observation is incomplete. An unavailable/inactive runtime with no surviving
 history can only produce `UNRESOLVED_HOLD`.
 
 The bound census must attest the designated runtime identity `zoso` / UID
-1000 in addition to the designated hostname and machine identity.
+1000 in addition to the designated hostname and machine identity. Its effective
+UID is root only because the private-manager query requires root; this does not
+promote root into the runtime identity. The unit WorkingDirectory remains
+`null` and `unit_working_directory_authenticated=false`.
 
 The bound census must also attest `process_environment_access=false`,
 `external_network_calls=false`, and `loopback_get_only=true`; the

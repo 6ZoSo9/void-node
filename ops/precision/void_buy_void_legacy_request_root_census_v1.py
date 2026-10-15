@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
+import hashlib
 import json
 import os
 import pathlib
@@ -10,21 +10,112 @@ import pwd
 import re
 import socket
 import stat
+import types
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 V1_PATH = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
 V2_PATH = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
+AUTH_QUERY_PATH = (
+    ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py"
+)
+DEPENDENCY_BLOBS = {
+    V1_PATH: "9ca9cb948a08973d0d874c5473ad2743de14140c",
+    V2_PATH: "305737478025e22ddc8f56da29f2a2dfde251d8b",
+    AUTH_QUERY_PATH: "e0d3a583030a5465cc793f740c04f4b33f84eba6",
+}
+MAX_DEPENDENCY_SOURCE_BYTES = 2 * 1024 * 1024
 
-def _load(path: pathlib.Path, name: str):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+
+class CensusError(RuntimeError):
+    pass
+
+
+def _same_stat(a: os.stat_result, b: os.stat_result) -> bool:
+    return (
+        a.st_dev == b.st_dev
+        and a.st_ino == b.st_ino
+        and a.st_uid == b.st_uid
+        and a.st_gid == b.st_gid
+        and a.st_mode == b.st_mode
+        and a.st_nlink == b.st_nlink
+        and a.st_size == b.st_size
+        and a.st_mtime_ns == b.st_mtime_ns
+        and a.st_ctime_ns == b.st_ctime_ns
+    )
+
+
+def _git_blob_sha1(raw: bytes) -> str:
+    return hashlib.sha1(
+        b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw
+    ).hexdigest()
+
+
+def _authenticated_source_bytes(path: pathlib.Path) -> bytes:
+    try:
+        visible_before = path.lstat()
+    except OSError as exc:
+        raise CensusError("dependency_source_unavailable:" + path.name) from exc
+    if (
+        not stat.S_ISREG(visible_before.st_mode)
+        or stat.S_ISLNK(visible_before.st_mode)
+        or visible_before.st_nlink != 1
+        or visible_before.st_size < 1
+        or visible_before.st_size > MAX_DEPENDENCY_SOURCE_BYTES
+    ):
+        raise CensusError("dependency_source_metadata_invalid:" + path.name)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise CensusError("dependency_source_open_failed:" + path.name) from exc
+    try:
+        opened_before = os.fstat(fd)
+        if not _same_stat(visible_before, opened_before):
+            raise CensusError("dependency_source_rebound:" + path.name)
+        remaining = visible_before.st_size
+        chunks: list[bytes] = []
+        while remaining:
+            chunk = os.read(fd, min(256 * 1024, remaining))
+            if not chunk:
+                raise CensusError("dependency_source_short_read:" + path.name)
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(fd, 1):
+            raise CensusError("dependency_source_grew:" + path.name)
+        opened_after = os.fstat(fd)
+        visible_after = path.lstat()
+        if (
+            not _same_stat(opened_before, opened_after)
+            or not _same_stat(opened_after, visible_after)
+        ):
+            raise CensusError("dependency_source_changed:" + path.name)
+    finally:
+        os.close(fd)
+    return b"".join(chunks)
+
+
+def _load_authenticated(path: pathlib.Path, name: str):
+    raw = _authenticated_source_bytes(path)
+    expected = DEPENDENCY_BLOBS[path]
+    if _git_blob_sha1(raw) != expected:
+        raise CensusError("dependency_source_blob_mismatch:" + path.name)
+    module = types.ModuleType(name)
+    module.__file__ = str(path)
+    module.__package__ = ""
+    try:
+        code = compile(raw, str(path), "exec", dont_inherit=True)
+        exec(code, module.__dict__)
+    except Exception as exc:
+        raise CensusError("dependency_source_execution_failed:" + path.name) from exc
     return module
 
-v1 = _load(V1_PATH, "void_buy_request_root_runtime_topology_census_v1")
-v2 = _load(V2_PATH, "void_buy_request_root_runtime_topology_census_v2")
+
+v1 = _load_authenticated(V1_PATH, "void_buy_request_root_runtime_topology_census_v1")
+v2 = _load_authenticated(V2_PATH, "void_buy_request_root_runtime_topology_census_v2")
+auth = _load_authenticated(
+    AUTH_QUERY_PATH,
+    "void_buy_void_user_manager_query_live_qualification_v1",
+)
 
 MARKER = "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1"
 EXPECTED_HOSTNAME = "zoso-Precision-Tower-7810"
@@ -40,47 +131,37 @@ STABLE_ROOT = pathlib.Path("/var/lib/void-buy-request-journal-v1")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 MAX_DIRECT_ENTRIES = 100_000
 
-class CensusError(RuntimeError):
-    pass
-
 def _machine_id_sha256() -> str:
     value = v2.machine_id_sha256()
     if value is None:
         raise CensusError("machine_id_unqualified")
     return value
 
-def _service() -> dict[str, Any]:
-    code, raw = v1.run_systemctl(
-        [
-            "show", UNIT, "--no-pager",
-            "--property=LoadState", "--property=ActiveState",
-            "--property=SubState", "--property=MainPID",
-            "--property=WorkingDirectory",
-        ],
-        user_manager=True,
-        allow_failure=True,
-    )
-    rows: dict[str, str] = {}
-    for line in raw.splitlines():
-        if "=" in line:
-            key, value = line.split("=", 1)
-            rows[key] = value
-    pid = int(rows["MainPID"]) if rows.get("MainPID", "").isdigit() else None
-    live_cwd = None
-    if pid and pid > 1:
-        try:
-            live_cwd = os.path.realpath(f"/proc/{pid}/cwd")
-        except OSError:
-            live_cwd = None
+def _authenticated_query(installer: Any) -> dict[str, Any]:
+    native, output_sha256 = auth.run_authenticated_query(installer)
     return {
-        "status": code,
-        "load_state": rows.get("LoadState"),
-        "active_state": rows.get("ActiveState"),
-        "sub_state": rows.get("SubState"),
-        "main_pid": pid,
-        "working_directory": rows.get("WorkingDirectory") or None,
-        "live_process_cwd": live_cwd,
+        "native": native,
+        "output_sha256": output_sha256,
+        "identity": auth._stable_identity(native),
     }
+
+
+def _service_view(query: dict[str, Any], process: dict[str, Any]) -> dict[str, Any]:
+    native = query["native"]
+    identity = query["identity"]
+    return {
+        "authenticated_user_manager": True,
+        "load_state": native["LoadState"],
+        "active_state": native["ActiveState"],
+        "sub_state": native["SubState"],
+        "main_pid": identity["main_pid"],
+        "runtime_uid": identity["runtime_uid"],
+        "control_group": identity["control_group"],
+        "working_directory": None,
+        "working_directory_authenticated": False,
+        "live_process_cwd": process.get("cwd"),
+    }
+
 
 def _request_root_status(observation: dict[str, Any]) -> dict[str, Any]:
     body = observation.get("body")
@@ -295,21 +376,36 @@ def self_test() -> None:
         (fixed / "requests.jsonl").write_bytes(b"x")
         s = classify_candidate(fixed, ["synthetic"])
         assert s["classification"] == "SURVIVING_HISTORY_METADATA_OBSERVED"
+    for dependency, expected in DEPENDENCY_BLOBS.items():
+        assert _git_blob_sha1(_authenticated_source_bytes(dependency)) == expected
+    own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
+    plan_marker = "\ndef plan() -> None:"
+    production_source = (
+        own_source[:own_source.index("def self_test()")]
+        + own_source[own_source.index(plan_marker) + 1:]
+    )
+    assert "run_systemctl" not in production_source
+    assert "systemctl" not in production_source
     print(MARKER + "_SELF_TEST_GREEN")
     print("empty_metadata_is_not_genesis_proof=true")
     print("zero_length_fixed_journals_are_not_genesis_proof=true")
     print("directory_entry_names_output=false")
     print("request_or_payment_contents_read=false")
     print("historical_request_history_disposition_proven=false")
+    print("authenticated_dependency_sources_bound=true")
+    print("unauthenticated_user_manager_not_authority=true")
     print("production_gate_ready=false")
 
 def plan() -> None:
     print(MARKER)
     print("mode=--plan")
     print("read_only=true")
-    print("sudo_required=false")
+    print("sudo_required=true")
+    print("root_execution_required_for_authenticated_manager_query=true")
     print("designated_runtime_user=zoso")
     print("designated_runtime_uid=1000")
+    print("authenticated_user_manager_required=true")
+    print("unit_working_directory_authenticated=false")
     print("filesystem_write=false")
     print("service_mutation=false")
     print("external_network_calls=false")
@@ -321,27 +417,35 @@ def plan() -> None:
     print("historical_request_history_disposition_proven=false")
     print("migration_authorized=false")
     print("production_gate_ready=false")
-    print("next_action=RUN_METADATA_ONLY_DESIGNATED_HOST_CENSUS")
+    print("next_action=RUN_AUTHENTICATED_METADATA_ONLY_DESIGNATED_HOST_CENSUS")
+
 
 def collect() -> dict[str, Any]:
-    if os.geteuid() == 0:
-        raise CensusError("ordinary_user_required")
-    uid = os.geteuid()
+    if os.geteuid() != 0:
+        raise CensusError("root_required_for_authenticated_manager_query")
     try:
-        account = pwd.getpwuid(uid)
+        runtime_account = pwd.getpwuid(EXPECTED_UID)
     except KeyError as exc:
-        raise CensusError("observer_user_identity_unavailable") from exc
-    if uid != EXPECTED_UID or account.pw_name != EXPECTED_USER:
+        raise CensusError("designated_runtime_user_identity_unavailable") from exc
+    if runtime_account.pw_name != EXPECTED_USER:
         raise CensusError("designated_runtime_user_required")
+
     hostname = socket.gethostname()
     machine_sha = _machine_id_sha256()
-    service_before = _service()
-    process_before = v1.read_process_generation(
-        int(service_before.get("main_pid") or 0)
+    designated_host_identity_verified = (
+        hostname == EXPECTED_HOSTNAME
+        and machine_sha == EXPECTED_MACHINE_ID_SHA256
     )
-    listener_before = v1.runtime_http_listener_binding(
-        int(service_before.get("main_pid") or 0)
-    )
+
+    installer = auth._load_installer()
+    installed_before = auth.installed_pair_snapshot(installer)
+    authenticated_before = _authenticated_query(installer)
+    installed_middle = auth.installed_pair_snapshot(installer)
+    identity_before = authenticated_before["identity"]
+    main_pid = int(identity_before["main_pid"])
+
+    process_before = v1.read_process_generation(main_pid)
+    listener_before = v1.runtime_http_listener_binding(main_pid)
     status_before = _request_root_status(
         v1.bounded_local_json(v1.CONFIRMED_CLOSEOUT_STATUS_PATH)
     )
@@ -351,10 +455,11 @@ def collect() -> dict[str, Any]:
         candidates.setdefault(_absolute(path), []).append(source)
 
     add(REPO_ROOT / DEFAULT_RELATIVE, "repo_default")
-    if service_before.get("working_directory"):
-        add(pathlib.Path(service_before["working_directory"]) / DEFAULT_RELATIVE, "unit_working_directory_default")
-    if service_before.get("live_process_cwd"):
-        add(pathlib.Path(service_before["live_process_cwd"]) / DEFAULT_RELATIVE, "live_process_cwd_default")
+    if process_before.get("observed") is True and process_before.get("cwd"):
+        add(
+            pathlib.Path(str(process_before["cwd"])) / DEFAULT_RELATIVE,
+            "authenticated_live_process_cwd_default",
+        )
     if (
         status_before.get("observed") is True
         and status_before.get("source") == REQUEST_ENV
@@ -367,46 +472,6 @@ def collect() -> dict[str, Any]:
         add(release_path, "immutable_release_default")
     release_count = len(release_paths_before)
 
-    service_after = _service()
-    process_after = v1.read_process_generation(
-        int(service_after.get("main_pid") or 0)
-    )
-    listener_after = v1.runtime_http_listener_binding(
-        int(service_after.get("main_pid") or 0)
-    )
-    status_after = _request_root_status(
-        v1.bounded_local_json(v1.CONFIRMED_CLOSEOUT_STATUS_PATH)
-    )
-    runtime_process_generation_stable = (
-        service_before.get("load_state") == "loaded"
-        and service_after.get("load_state") == "loaded"
-        and service_before.get("active_state") == "active"
-        and service_after.get("active_state") == "active"
-        and service_before.get("sub_state") == "running"
-        and service_after.get("sub_state") == "running"
-        and service_before.get("working_directory")
-            == service_after.get("working_directory")
-        and service_before.get("live_process_cwd")
-            == service_after.get("live_process_cwd")
-        and process_before.get("observed") is True
-        and process_after.get("observed") is True
-        and process_before.get("pid") == process_after.get("pid")
-        and service_before.get("live_process_cwd") == process_before.get("cwd")
-        and service_after.get("live_process_cwd") == process_after.get("cwd")
-        and process_before.get("start_ticks") == process_after.get("start_ticks")
-        and process_before.get("cwd") == process_after.get("cwd")
-        and process_before.get("exe") == process_after.get("exe")
-    )
-    runtime_listener_stable = (
-        listener_before == listener_after
-        and listener_before.get("owned_by_runtime_pid") is True
-        and listener_before.get("loopback_listener_observed") is True
-    )
-    request_root_status_stable = (
-        status_before == status_after
-        and status_before.get("observed") is True
-    )
-
     add(STABLE_ROOT, "selected_future_stable_root")
     rows = [
         classify_candidate(pathlib.Path(path), sources)
@@ -417,42 +482,122 @@ def collect() -> dict[str, Any]:
         for path, sources in sorted(candidates.items())
     ]
     candidate_observations_stable = rows == rows_second
+
     release_paths_after, release_inventory_complete_after = _release_inventory()
+    process_after = v1.read_process_generation(main_pid)
+    listener_after = v1.runtime_http_listener_binding(main_pid)
+    status_after = _request_root_status(
+        v1.bounded_local_json(v1.CONFIRMED_CLOSEOUT_STATUS_PATH)
+    )
+
+    authenticated_after = _authenticated_query(installer)
+    installed_after = auth.installed_pair_snapshot(installer)
+    identity_after = authenticated_after["identity"]
+
+    installed_authenticated_query_pair_stable = (
+        installed_before == installed_middle == installed_after
+    )
+    authenticated_user_manager_query_stable = (
+        installed_authenticated_query_pair_stable
+        and authenticated_before["native"] == authenticated_after["native"]
+        and authenticated_before["output_sha256"]
+            == authenticated_after["output_sha256"]
+        and identity_before == identity_after
+        and int(identity_before["runtime_uid"]) == EXPECTED_UID
+        and int(identity_after["runtime_uid"]) == EXPECTED_UID
+        and int(identity_after["main_pid"]) == main_pid
+    )
+    runtime_process_generation_stable = (
+        authenticated_user_manager_query_stable
+        and process_before.get("observed") is True
+        and process_after.get("observed") is True
+        and process_before.get("pid") == main_pid
+        and process_after.get("pid") == main_pid
+        and str(process_before.get("start_ticks"))
+            == str(identity_before["service_start_ticks"])
+        and str(process_after.get("start_ticks"))
+            == str(identity_after["service_start_ticks"])
+        and process_before.get("start_ticks") == process_after.get("start_ticks")
+        and process_before.get("cwd") == process_after.get("cwd")
+        and process_before.get("exe") == process_after.get("exe")
+    )
+    runtime_listener_stable = (
+        authenticated_user_manager_query_stable
+        and listener_before == listener_after
+        and listener_before.get("owned_by_runtime_pid") is True
+        and listener_before.get("loopback_listener_observed") is True
+    )
+    request_root_status_stable = (
+        authenticated_user_manager_query_stable
+        and status_before == status_after
+        and status_before.get("observed") is True
+    )
     release_inventory_stable = (
         release_inventory_complete_before
         and release_inventory_complete_after
         and release_paths_before == release_paths_after
     )
-    historical = [row for row in rows if "selected_future_stable_root" not in row["sources"]]
-    surviving = [row["path"] for row in historical if row["classification"] == "SURVIVING_HISTORY_METADATA_OBSERVED"]
-    unverified = [row["path"] for row in historical if row["classification"].startswith(("HOLD_", "UNVERIFIED_"))]
-    empty_shape = [row["path"] for row in historical if "EXTERNAL_ANCHOR_REQUIRED" in row["classification"]]
-    absent = [row["path"] for row in historical if row["classification"] == "ABSENT_OBSERVED"]
+
+    historical = [
+        row for row in rows
+        if "selected_future_stable_root" not in row["sources"]
+    ]
+    surviving = [
+        row["path"] for row in historical
+        if row["classification"] == "SURVIVING_HISTORY_METADATA_OBSERVED"
+    ]
+    unverified = [
+        row["path"] for row in historical
+        if row["classification"].startswith(("HOLD_", "UNVERIFIED_"))
+    ]
+    empty_shape = [
+        row["path"] for row in historical
+        if "EXTERNAL_ANCHOR_REQUIRED" in row["classification"]
+    ]
+    absent = [
+        row["path"] for row in historical
+        if row["classification"] == "ABSENT_OBSERVED"
+    ]
 
     candidate_set_complete = (
-        release_inventory_stable
-        and candidate_observations_stable
+        designated_host_identity_verified
+        and authenticated_user_manager_query_stable
         and runtime_process_generation_stable
         and runtime_listener_stable
         and request_root_status_stable
+        and release_inventory_stable
+        and candidate_observations_stable
     )
+    service = _service_view(authenticated_before, process_before)
     return {
         "marker": MARKER,
         "version": 1,
         "read_only": True,
+        "root_execution_required": True,
         "designated_hostname_matches": hostname == EXPECTED_HOSTNAME,
         "designated_runtime_user_matches":
-            uid == EXPECTED_UID and account.pw_name == EXPECTED_USER,
-        "effective_uid": uid,
-        "designated_machine_id_matches": machine_sha == EXPECTED_MACHINE_ID_SHA256,
-        "service": service_before,
+            int(identity_before["runtime_uid"]) == EXPECTED_UID
+            and runtime_account.pw_name == EXPECTED_USER,
+        "effective_uid": os.geteuid(),
+        "designated_machine_id_matches":
+            machine_sha == EXPECTED_MACHINE_ID_SHA256,
+        "designated_host_identity_verified": designated_host_identity_verified,
+        "authenticated_private_manager_peer": True,
+        "authenticated_user_manager_query_stable":
+            authenticated_user_manager_query_stable,
+        "installed_authenticated_query_pair_stable":
+            installed_authenticated_query_pair_stable,
+        "authenticated_main_pid": main_pid,
+        "unit_working_directory_authenticated": False,
+        "service": service,
         "process_environment_access": False,
         "external_network_calls": False,
         "loopback_get_only": True,
         "runtime_process_generation_stable": runtime_process_generation_stable,
         "runtime_http_listener_stable": runtime_listener_stable,
         "confirmed_closeout_request_root_status": status_before,
-        "confirmed_closeout_request_root_status_stable": request_root_status_stable,
+        "confirmed_closeout_request_root_status_stable":
+            request_root_status_stable,
         "immutable_release_count": release_count,
         "immutable_release_inventory_complete":
             release_inventory_complete_before
@@ -478,6 +623,8 @@ def collect() -> dict[str, Any]:
         "request_or_payment_contents_read": False,
         "directory_entry_names_output": False,
         "host_mutation": False,
+        "service_mutation": False,
+        "systemd_mutation": False,
         "payment_acceptance": False,
         "public_presale_activation": False,
         "funds_movement": False,
@@ -488,6 +635,7 @@ def collect() -> dict[str, Any]:
             else "EXPLICIT_LEGACY_HISTORY_DISPOSITION_AND_EXTERNAL_WITNESS_REQUIRED"
         ),
     }
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -505,9 +653,15 @@ def main() -> int:
     result = collect()
     print(MARKER)
     for key in (
-        "read_only", "designated_hostname_matches", "designated_runtime_user_matches",
-        "designated_machine_id_matches",
-        "candidate_set_completeness_proven", "bounded_current_candidate_set_observed",
+        "read_only", "root_execution_required",
+        "designated_hostname_matches", "designated_runtime_user_matches",
+        "designated_machine_id_matches", "designated_host_identity_verified",
+        "authenticated_private_manager_peer",
+        "authenticated_user_manager_query_stable",
+        "installed_authenticated_query_pair_stable",
+        "unit_working_directory_authenticated",
+        "candidate_set_completeness_proven",
+        "bounded_current_candidate_set_observed",
         "process_environment_access", "external_network_calls", "loopback_get_only",
         "runtime_process_generation_stable", "runtime_http_listener_stable",
         "confirmed_closeout_request_root_status_stable",
@@ -515,7 +669,8 @@ def main() -> int:
         "request_or_payment_contents_read", "directory_entry_names_output",
         "historical_request_history_disposition_proven", "historical_origin_authenticated",
         "filesystem_rollback_prevention_proven", "migration_authorized",
-        "host_mutation", "payment_acceptance", "public_presale_activation",
+        "host_mutation", "service_mutation", "systemd_mutation",
+        "payment_acceptance", "public_presale_activation",
         "funds_movement", "production_gate_ready",
     ):
         value = result[key]
