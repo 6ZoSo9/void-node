@@ -1,0 +1,166 @@
+name: VOID Cloudflare historical user Tunnel retirement query v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/void_cloudflare_historical_user_tunnel_retirement_query_v1.c"
+      - "ops/public/void_cloudflare_historical_user_tunnel_retirement_preexec_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "scripts/prove_void_cloudflare_historical_user_tunnel_retirement_query_v1.mjs"
+      - "docs/architecture/cloudflare-historical-user-tunnel-retirement-query-v1.md"
+      - ".github/workflows/cloudflare-historical-user-tunnel-retirement-query-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/public/void_cloudflare_historical_user_tunnel_retirement_query_v1.c"
+      - "ops/public/void_cloudflare_historical_user_tunnel_retirement_preexec_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "scripts/prove_void_cloudflare_historical_user_tunnel_retirement_query_v1.mjs"
+      - "docs/architecture/cloudflare-historical-user-tunnel-retirement-query-v1.md"
+      - ".github/workflows/cloudflare-historical-user-tunnel-retirement-query-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove source contract
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_cloudflare_historical_user_tunnel_retirement_query_v1.mjs |
+            tee "$RUNNER_TEMP/retirement-query-proof.log"
+          grep -Fx 'VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_QUERY_V1_PROOF_GREEN' "$RUNNER_TEMP/retirement-query-proof.log"
+          grep -Fx 'authenticated_retirement_snapshot_only=true' "$RUNNER_TEMP/retirement-query-proof.log"
+          grep -Fx 'future_restart_prevented=false' "$RUNNER_TEMP/retirement-query-proof.log"
+          grep -Fx 'historical_user_tunnel_retirement_verified=false' "$RUNNER_TEMP/retirement-query-proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/retirement-query-proof.log"
+
+      - name: Build static preexec and dynamic retirement query
+        run: |
+          set -euo pipefail
+          preexec="$RUNNER_TEMP/cloudflare-retirement-preexec"
+          query="$RUNNER_TEMP/cloudflare-retirement-query"
+          gcc -O2 -Wall -Wextra -Werror -std=c11 -static -fno-pie -no-pie \
+            -Wl,--build-id=none \
+            ops/public/void_cloudflare_historical_user_tunnel_retirement_preexec_v1.c \
+            -o "$preexec"
+          gcc -O2 -Wall -Wextra -Werror -std=c11 \
+            ops/public/void_cloudflare_historical_user_tunnel_retirement_query_v1.c \
+            -ldl -o "$query"
+          env VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
+            "$query" --self-test | tee "$RUNNER_TEMP/query-self-test.log"
+          grep -Fx 'VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/query-self-test.log"
+          readelf -l "$preexec" | tee "$RUNNER_TEMP/preexec-readelf.log"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/preexec-readelf.log"; then
+            echo "static preexec unexpectedly has PT_INTERP" >&2
+            exit 1
+          fi
+          file "$preexec" | grep -F "statically linked"
+
+      - name: Prove caller preload cannot cross static preexec
+        run: |
+          set -euo pipefail
+          root=/opt/void-cloudflare-user-tunnel-retirement-query-v1
+          preexec="$RUNNER_TEMP/cloudflare-retirement-preexec"
+          query="$RUNNER_TEMP/cloudflare-retirement-query"
+          original_opt_mode="$(stat -Lc '%a' /opt)"
+          cleanup() {
+            sudo rm -f \
+              "$root/void_cloudflare_historical_user_tunnel_retirement_preexec_v1" \
+              "$root/void_cloudflare_historical_user_tunnel_retirement_query_v1" || true
+            sudo rmdir "$root" 2>/dev/null || true
+            sudo chmod "$original_opt_mode" /opt || true
+          }
+          trap cleanup EXIT
+          sudo chmod go-w /opt
+          sudo install -d -o root -g root -m 0755 "$root"
+          sudo install -o root -g root -m 0755 "$preexec" \
+            "$root/void_cloudflare_historical_user_tunnel_retirement_preexec_v1"
+          sudo install -o root -g root -m 0755 "$query" \
+            "$root/void_cloudflare_historical_user_tunnel_retirement_query_v1"
+
+          fake="$RUNNER_TEMP/preload"
+          mkdir "$fake"
+          sentinel="$RUNNER_TEMP/preload-fired"
+          cat > "$fake/preload.c" <<'C'
+          #define _GNU_SOURCE
+          #include <fcntl.h>
+          #include <stdlib.h>
+          #include <unistd.h>
+          __attribute__((constructor))
+          static void poison(void){
+            const char *path=getenv("VOID_PRELOAD_SENTINEL");
+            if(!path||!*path)return;
+            int fd=open(path,O_WRONLY|O_CREAT|O_TRUNC,0600);
+            if(fd>=0){(void)write(fd,"x",1);close(fd);}
+          }
+          C
+          gcc -shared -fPIC "$fake/preload.c" -o "$fake/preload.so"
+
+          rm -f "$sentinel"
+          if sudo env \
+               VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
+               VOID_PRELOAD_SENTINEL="$sentinel" \
+               LD_PRELOAD="$fake/preload.so" \
+               "$root/void_cloudflare_historical_user_tunnel_retirement_query_v1" \
+               --self-test >"$RUNNER_TEMP/direct-poison.log" 2>&1; then
+            echo "direct poisoned retirement query unexpectedly succeeded" >&2
+            exit 1
+          fi
+          test -s "$sentinel"
+          grep -Fx 'reason=sanitized_loader_environment_required' \
+            "$RUNNER_TEMP/direct-poison.log"
+          rm -f "$sentinel"
+
+          sudo env \
+            VOID_PRELOAD_SENTINEL="$sentinel" \
+            LD_PRELOAD="$fake/preload.so" \
+            "$root/void_cloudflare_historical_user_tunnel_retirement_preexec_v1" \
+            --exec-self-test | tee "$RUNNER_TEMP/preexec-query.log"
+          test ! -e "$sentinel"
+          grep -Fx 'VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_QUERY_V1_SELF_TEST_GREEN' \
+            "$RUNNER_TEMP/preexec-query.log"
+
+          sudo chmod 0777 \
+            "$root/void_cloudflare_historical_user_tunnel_retirement_query_v1"
+          if sudo \
+            "$root/void_cloudflare_historical_user_tunnel_retirement_preexec_v1" \
+            --exec-self-test >"$RUNNER_TEMP/mutable-child.log" 2>&1; then
+            echo "mutable retirement query unexpectedly admitted" >&2
+            exit 1
+          fi
+          grep -Fx 'reason=query_file_custody_invalid' \
+            "$RUNNER_TEMP/mutable-child.log"
+
+          cleanup
+          trap - EXIT
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -z "${BASE:-}" ]; then BASE="$(git rev-parse "$HEAD^1")"; fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
