@@ -530,6 +530,7 @@ function selfTest(){
      receipt.signer_credential_state.systemd_credential_identity_proven!==true||
      receipt.signer_credential_state.active_signing_capability_proven!==true||
      receipt.signer_credential_state.signer_offchain_control_proven!==false||
+     receipt.authenticated_credential_live_receipt?.receipt_id!==child.receipt_id||
      receipt.customer_safe_to_pay!==false||
      receipt.authority.transaction_signing!==false||
      receipt.authority.public_presale_activation!==false||
@@ -553,6 +554,7 @@ function selfTest(){
   console.log("exact_child_live_composition_required=true");
   console.log("systemd_credential_identity_proven_on_bound_receipt=true");
   console.log("active_signing_capability_proven_on_bound_receipt=true");
+  console.log("full_public_child_receipt_retained=true");
   console.log("launch_operator_signer_control_still_required=true");
   console.log("customer_safe_to_pay=false");
   console.log("transaction=false");
