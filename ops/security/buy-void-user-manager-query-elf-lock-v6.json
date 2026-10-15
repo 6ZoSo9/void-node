@@ -53,7 +53,6 @@
   "configured_kernel_bounding_set_projection_required": true,
   "private_users_false_required": true,
   "kernel_capability_state_rechecked": true,
-  "precision_live_v6_probe_green": true,
   "historical_v4_evidence_untouched": true,
   "candidate_accepted": true,
   "install_authorized": false,
@@ -64,5 +63,5 @@
   "payment_acceptance": false,
   "public_presale_activation": false,
   "funds_movement": false,
-  "lock_id": "voidbuyumqelflock6_d8b0f4f5b7b5541938976e02f336267869bd2705308e7a7600f8e4c415448a56"
+  "lock_id": "voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6"
 }
