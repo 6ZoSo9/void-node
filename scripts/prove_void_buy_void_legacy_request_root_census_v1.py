@@ -9,12 +9,16 @@ import tempfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 TARGET=ROOT/"ops/precision/void_buy_void_legacy_request_root_census_v1.py"
 V1=ROOT/"ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
-V2=ROOT/"ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 AUTH=ROOT/"ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py"
+INSTALLER=ROOT/"ops/precision/void_buy_void_user_manager_query_protected_install_v1.py"
+PARSER=ROOT/"tools/void-buy-allocation-custody-host-evidence-v3.mjs"
+LOCK=ROOT/"ops/security/buy-void-user-manager-query-elf-lock-v1.json"
 EXPECTED_DEPENDENCY_BLOBS={
     V1:"9ca9cb948a08973d0d874c5473ad2743de14140c",
-    V2:"305737478025e22ddc8f56da29f2a2dfde251d8b",
     AUTH:"e0d3a583030a5465cc793f740c04f4b33f84eba6",
+    INSTALLER:"2ec35012283f729aac073735ac37cde3464c81a4",
+    PARSER:"eae92c7dd060b4d6139543463b5fbd2f8564585b",
+    LOCK:"4f255dbc98ac4b65fb4e6433f4e7aee7b86351db",
 }
 
 def git_blob_sha1(raw: bytes) -> str:
@@ -60,6 +64,7 @@ for required in (
     "immutable_release_inventory_stable",
     "candidate_observations_stable",
     "auth.run_authenticated_query",
+    "_load_authenticated_installer",
     "authenticated_user_manager_query_stable",
     "installed_authenticated_query_pair_stable",
     "unit_working_directory_authenticated",
@@ -94,6 +99,9 @@ for forbidden in (
     "systemctl",
     "DBUS_SESSION_BUS_ADDRESS",
     "unit_working_directory_default",
+    "V2_PATH =",
+    "v2 = _load_authenticated",
+    "auth._load_installer()",
 ):
     assert forbidden not in production_source, forbidden
 
@@ -121,14 +129,19 @@ assert "zero_length_fixed_journals_are_not_genesis_proof=true" in cp.stdout
 assert "historical_request_history_disposition_proven=false" in cp.stdout
 assert "authenticated_dependency_sources_bound=true" in cp.stdout
 assert "unauthenticated_user_manager_not_authority=true" in cp.stdout
+assert "nested_repository_path_execution_forbidden=true" in cp.stdout
+assert "machine_id_descriptor_bound_local=true" in cp.stdout
 
 print("VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1_PROOF_GREEN")
 print("v1_topology_dependency_blob_bound=true")
-print("v2_designated_host_dependency_blob_bound=true")
+print("machine_id_reader_local=true")
+print("installer_lock_and_parser_dependency_blobs_bound=true")
 print("authenticated_user_manager_query_dependency_blob_bound=true")
 print("authenticated_mainpid_required=true")
 print("unit_working_directory_not_trusted=true")
 print("fake_user_bus_not_authority=true")
+print("nested_repository_path_execution_forbidden=true")
+print("machine_id_descriptor_bound_local=true")
 print("designated_runtime_user_bound=true")
 print("ambient_home_not_used_for_repo_candidate=true")
 print("stable_release_inventory_required=true")
