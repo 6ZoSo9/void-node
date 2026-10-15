@@ -1242,7 +1242,7 @@ try {
 
 /**
  * Exercise the ACTUAL mounted Wave 3 Wallet HTTP adapter, not a handwritten
- * snapshot, with three independent malformed HTTP-200 upstream bodies.
+ * snapshot, with malformed and wrong-account HTTP-200 upstream bodies.
  * This mock HTTP app and its three fixed sources are fully in-process.
  */
 const oldMountedWalletApp = (globalThis as any).__void_http_app;
@@ -1263,12 +1263,13 @@ const validUpstream = (): Map<string, Record<string, unknown>> => new Map([
       native_gas: "1",
     },
   ],
-  ["/wc/balance", { ok: true, balance: 3, count: 2 }],
+  ["/wc/balance", { ok: true, account: "account-A", balance: 3, count: 2 }],
   [
     "/wc/production/balance",
     {
       ok: true,
       marker: "VOID_WC_PRODUCTION_BALANCE_V1",
+      account: "account-A",
       balance: 1.5,
       count: 1,
       ledger_version: "v1",
@@ -1387,6 +1388,18 @@ try {
       wrongField: "count",
       wrongValue: "1",
     },
+    {
+      source: "ledger_wc",
+      route: "/wc/balance",
+      wrongField: "account",
+      wrongValue: "account-B",
+    },
+    {
+      source: "production_wc",
+      route: "/wc/production/balance",
+      wrongField: "account",
+      wrongValue: "account-B",
+    },
   ];
   for (const variant of variants) {
     upstreamBodies.clear();
@@ -1466,6 +1479,8 @@ for (const marker of [
   "export function walletAccountIdV1(raw: unknown): string | null",
   'if (typeof raw !== "string") return null;',
   "const account = walletAccountIdV1(req?.query?.account);",
+  "const ledgerAccountMatches = ledgerBody.account === account;",
+  "const productionAccountMatches = productionBody.account === account;",
 ]) {
   assert.ok(adapterSource.includes(marker), `missing Wallet adapter boundary: ${marker}`);
 }
@@ -1534,6 +1549,7 @@ for (const forbidden of [
 console.log("VOID_UI_WAVE3_WALLET_EVIDENCE_BOUNDARY_V1_GREEN");
 console.log("server_numeric_types_strict=true");
 console.log("server_account_query_type_strict=true");
+console.log("server_wc_source_account_bound=true");
 console.log("server_response_stream_bounded=true");
 console.log("server_deadline_owns_body=true");
 console.log("server_redirects_rejected=true");
