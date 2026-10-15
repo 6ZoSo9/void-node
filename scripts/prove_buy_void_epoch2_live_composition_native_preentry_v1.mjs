@@ -37,6 +37,8 @@ const PRIVATE_BOOTSTRAP_ROOT_ENV =
   "VOID_BUY_VOID_EPOCH2_PROOF_BOOTSTRAP_ROOT_V1";
 const PRIVATE_SELECTED_NODE_SHA256_ENV =
   "VOID_BUY_VOID_EPOCH2_PROOF_SELECTED_NODE_SHA256_V1";
+const PRIVATE_OUTER_MOUNT_NS_INO_ENV =
+  "VOID_BUY_VOID_EPOCH2_PROOF_OUTER_MOUNT_NS_INO_V1";
 
 function cleanEnv(extra = {}) {
   return {
@@ -199,11 +201,18 @@ function requireDelegatedPrivateNamespace() {
   );
 
   const selfMountNs = fs.statSync("/proc/self/ns/mnt", { bigint: true });
-  const initMountNs = fs.statSync("/proc/1/ns/mnt", { bigint: true });
+  const outerMountNsInoRaw = String(
+    process.env[PRIVATE_OUTER_MOUNT_NS_INO_ENV] || "",
+  );
+  assert.match(
+    outerMountNsInoRaw,
+    /^[1-9][0-9]*$/u,
+    "outer mount namespace inode binding invalid",
+  );
   assert.notEqual(
-    selfMountNs.ino,
-    initMountNs.ino,
-    "delegated proof must execute in a private mount namespace",
+    String(selfMountNs.ino),
+    outerMountNsInoRaw,
+    "delegated proof must execute in a mount namespace distinct from the authenticated outer process",
   );
 
   const bootstrapRoot = String(
@@ -477,6 +486,11 @@ function enterPrivateOptFixtureNamespace() {
     );
   }
 
+  requireAuthenticProcfsForCurrentProcess();
+  const outerMountNsIno = String(
+    fs.statSync("/proc/self/ns/mnt", { bigint: true }).ino,
+  );
+
   const sudoReady = run(SUDO, ["-n", "true"]);
   assert.equal(
     sudoReady.status,
@@ -577,6 +591,7 @@ function enterPrivateOptFixtureNamespace() {
     'safe_usr_merged="${12}"',
     'bootstrap_root="${13}"',
     'selected_node_sha256="${14}"',
+    'outer_mount_ns_ino="${15}"',
     "/usr/bin/mount --make-rprivate /",
     '/usr/bin/install -d -o root -g root -m 0755 "$safe_usr_upper" "$safe_usr_work" "$safe_usr_merged"',
     '/usr/bin/mount -t overlay overlay -o "lowerdir=/usr/bin,upperdir=$safe_usr_upper,workdir=$safe_usr_work" "$safe_usr_merged"',
@@ -594,6 +609,7 @@ function enterPrivateOptFixtureNamespace() {
       PRIVATE_OPT_FIXTURE_ENV + '=1 ' +
       PRIVATE_BOOTSTRAP_ROOT_ENV + '="$bootstrap_root" ' +
       PRIVATE_SELECTED_NODE_SHA256_ENV + '="$selected_node_sha256" ' +
+      PRIVATE_OUTER_MOUNT_NS_INO_ENV + '="$outer_mount_ns_ino" ' +
       '/usr/bin/node "$safe_repo/$proof_relative"',
   ].join("\n");
 
@@ -620,6 +636,7 @@ function enterPrivateOptFixtureNamespace() {
       safeUsrMerged,
       bootstrapRoot,
       selectedNodeSha256,
+      outerMountNsIno,
     ], {
       timeout: 180_000,
     });
