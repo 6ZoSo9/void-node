@@ -37,6 +37,18 @@ const CANDIDATE_REL =
   "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json";
 const CANDIDATE_BLOB="6a0159e516d30ca8a4b9af4dcace79a4fcddfbb1";
 
+const RPC_TARGET_REL="ops/mainnet0/production-epoch2-rpc-target-v1.json";
+const RPC_TARGET_BLOB="5bc18bfdf27d982a6ded3b1e1ae2f26353a84189";
+const RPC_HOST_OBSERVATION_REL=
+  "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/runtime-observation.json";
+const RPC_HOST_OBSERVATION_BLOB=
+  "fc22b3ac09468a94c2eece01d210ff4998675baf";
+const RPC_HOST_OBSERVATION_SHA256=
+  "cd1630a9742b49f55e6bfed2b4c0344e4b7a994307f8945f1e5404d2eb681d32";
+const RPC_SERVICE="void-economic-epoch2-qbft-validator-v1.service";
+const RPC_CONTAINER="void-e2-qbft-precision-v1";
+const RPC_DOCKER_SOCKET="/run/user/1000/docker.sock";
+
 const CHAIN_ID=2050n;
 const RPC_URL="http://127.0.0.1:18553/";
 const PRESALE="0x530bc90ba74f2539a9e484ccb1be9291c3bc35ce";
@@ -63,6 +75,8 @@ const RUNTIME_HOME="/home/zoso";
 const GIT="/usr/bin/git";
 const NODE="/usr/bin/node";
 const SETPRIV="/usr/bin/setpriv";
+const SYSTEMCTL="/usr/bin/systemctl";
+const SS="/usr/bin/ss";
 
 const OBSERVATION_WINDOW_MS=12_000;
 const RPC_DEADLINE_MS=6_000;
@@ -399,6 +413,391 @@ export function requireStableChildRuntimeIdentity(
     );
   }
   return first;
+}
+
+function cleanRuntimeUserBusEnv(){
+  return {
+    ...cleanGitEnv(),
+    XDG_RUNTIME_DIR:"/run/user/"+String(RUNTIME_UID),
+    DBUS_SESSION_BUS_ADDRESS:
+      "unix:path=/run/user/"+String(RUNTIME_UID)+"/bus",
+  };
+}
+
+function stableReadFile(file,maxBytes,label,{encoding=null}={}){
+  const before=fs.lstatSync(file,{bigint:true});
+  if(!before.isFile()||before.isSymbolicLink()||
+     before.nlink!==1n||before.size<1n||
+     before.size>BigInt(maxBytes)){
+    throw new Error(label+"_metadata_invalid");
+  }
+  const data=fs.readFileSync(file);
+  const after=fs.lstatSync(file,{bigint:true});
+  for(const key of ["dev","ino","mode","uid","gid","nlink","size","mtimeNs","ctimeNs"]){
+    if(before[key]!==after[key])throw new Error(label+"_changed");
+  }
+  if(encoding==="utf8")return data.toString("utf8");
+  return data;
+}
+
+function parseKeyValueOutput(text,label){
+  const out=Object.create(null);
+  for(const line of String(text||"").trim().split("\n")){
+    if(line==="")continue;
+    const at=line.indexOf("=");
+    if(at<=0)throw new Error(label+"_shape_invalid");
+    const key=line.slice(0,at);
+    if(Object.hasOwn(out,key))throw new Error(label+"_duplicate:"+key);
+    out[key]=line.slice(at+1);
+  }
+  return out;
+}
+
+function exactServiceCgroup(cgroup){
+  const expected=
+    "/user.slice/user-1000.slice/user@1000.service/app.slice/"+
+    RPC_SERVICE;
+  const rows=String(cgroup||"").trim().split("\n");
+  return rows.length===1&&rows[0]==="0::"+expected;
+}
+
+function procFacts(pid,expected){
+  if(!Number.isSafeInteger(pid)||pid<=1)throw new Error("rpc_service_pid_invalid");
+  const base="/proc/"+String(pid);
+  const cmdline=stableReadFile(base+"/cmdline",256*1024,"rpc_service_cmdline");
+  const cgroup=stableReadFile(
+    base+"/cgroup",64*1024,"rpc_service_cgroup",{encoding:"utf8"}
+  );
+  const environ=stableReadFile(base+"/environ",1024*1024,"rpc_service_environ");
+  const status=stableReadFile(
+    base+"/status",256*1024,"rpc_service_status",{encoding:"utf8"}
+  );
+  if(!exactServiceCgroup(cgroup))throw new Error("rpc_service_cgroup_invalid");
+  const uidLine=status.split("\n").find((row)=>row.startsWith("Uid:"));
+  const uids=String(uidLine||"").slice(4).trim().split(/\s+/u);
+  if(uids.length!==4||uids.some((value)=>value!=="1000")){
+    throw new Error("rpc_service_uid_invalid");
+  }
+  const envRows=environ.toString("utf8").split("\0").filter(Boolean);
+  const dockerHosts=envRows.filter((row)=>row.startsWith("DOCKER_HOST="));
+  if(dockerHosts.length!==1||
+     dockerHosts[0]!=="DOCKER_HOST=unix://"+RPC_DOCKER_SOCKET){
+    throw new Error("rpc_service_docker_host_invalid");
+  }
+  if(sha256Bytes(cmdline)!==expected.main_pid_argv_sha256||
+     sha256Bytes(Buffer.from(dockerHosts[0],"utf8"))!==
+       expected.main_pid_docker_host_environment_sha256){
+    throw new Error("rpc_service_process_identity_mismatch");
+  }
+  return Object.freeze({
+    main_pid:String(pid),
+    cmdline_sha256:sha256Bytes(cmdline),
+    cgroup_sha256:sha256Bytes(Buffer.from(cgroup,"utf8")),
+    docker_host_environment_sha256:
+      sha256Bytes(Buffer.from(dockerHosts[0],"utf8")),
+  });
+}
+
+function systemdRpcServiceFacts(expected){
+  const result=runAsRuntimeUser(SYSTEMCTL,[
+    "--user","show",RPC_SERVICE,"--no-pager",
+    "-p","ActiveState",
+    "-p","SubState",
+    "-p","MainPID",
+    "-p","InvocationID",
+    "-p","FragmentPath",
+    "-p","DropInPaths",
+  ],{
+    env:cleanRuntimeUserBusEnv(),
+    timeout:10_000,
+  });
+  if(result.status!==0||result.stderr!==""){
+    throw new Error("rpc_service_systemd_unavailable");
+  }
+  const map=parseKeyValueOutput(result.stdout,"rpc_service_systemd");
+  if(map.ActiveState!=="active"||map.SubState!=="running"||
+     map.DropInPaths!==""||
+     map.FragmentPath!==expected.fragment_path||
+     String(map.InvocationID||"").toLowerCase()!==expected.invocation_id||
+     String(map.MainPID||"")!==expected.main_pid){
+    throw new Error("rpc_service_systemd_generation_mismatch");
+  }
+  const fragment=stableReadFile(
+    map.FragmentPath,256*1024,"rpc_service_fragment"
+  );
+  if(sha256Bytes(fragment)!==expected.fragment_file_sha256){
+    throw new Error("rpc_service_fragment_identity_mismatch");
+  }
+  const pid=Number(map.MainPID);
+  const proc=procFacts(pid,expected);
+  return Object.freeze({
+    service_unit:RPC_SERVICE,
+    active_state:"active",
+    sub_state:"running",
+    main_pid:String(pid),
+    invocation_id:String(map.InvocationID).toLowerCase(),
+    fragment_path:map.FragmentPath,
+    fragment_file_sha256:sha256Bytes(fragment),
+    drop_in_paths:"",
+    ...proc,
+  });
+}
+
+async function dockerGetJson(requestPath){
+  const before=fs.lstatSync(RPC_DOCKER_SOCKET,{bigint:true});
+  if(!before.isSocket()||before.isSymbolicLink()||before.uid!==1000n){
+    throw new Error("rpc_docker_socket_invalid");
+  }
+  const value=await new Promise((resolve,reject)=>{
+    const request=http.request({
+      socketPath:RPC_DOCKER_SOCKET,
+      path:requestPath,
+      method:"GET",
+      headers:{host:"docker",Connection:"close"},
+    },(response)=>{
+      const chunks=[];
+      let total=0;
+      response.on("data",(chunk)=>{
+        total+=chunk.length;
+        if(total>2*1024*1024){
+          request.destroy(new Error("rpc_docker_response_oversize"));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end",()=>{
+        if(response.statusCode!==200){
+          reject(new Error("rpc_docker_http_status_"+String(response.statusCode||0)));
+          return;
+        }
+        try{
+          const parsed=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          if(!parsed||typeof parsed!=="object"||Array.isArray(parsed)){
+            throw new Error("rpc_docker_json_invalid");
+          }
+          resolve(parsed);
+        }catch(error){reject(error);}
+      });
+      response.on("error",reject);
+    });
+    request.setTimeout(5_000,()=>request.destroy(new Error("rpc_docker_timeout")));
+    request.on("error",reject);
+    request.end();
+  });
+  const after=fs.lstatSync(RPC_DOCKER_SOCKET,{bigint:true});
+  if(!after.isSocket()||after.dev!==before.dev||after.ino!==before.ino||
+     after.uid!==before.uid){
+    throw new Error("rpc_docker_socket_changed");
+  }
+  return Object.freeze({
+    value,
+    socket_dev:String(before.dev),
+    socket_ino:String(before.ino),
+    socket_uid:String(before.uid),
+  });
+}
+
+function normalizePorts(raw){
+  if(!raw||typeof raw!=="object"||Array.isArray(raw)){
+    throw new Error("rpc_docker_ports_invalid");
+  }
+  const rows=[];
+  for(const key of Object.keys(raw).sort()){
+    const bindings=raw[key];
+    if(bindings===null||(Array.isArray(bindings)&&bindings.length===0))continue;
+    if(!Array.isArray(bindings)||bindings.length!==1){
+      throw new Error("rpc_docker_port_cardinality_invalid");
+    }
+    const row=bindings[0];
+    if(!row||typeof row!=="object"||
+       typeof row.HostIp!=="string"||!/^[0-9]+$/u.test(String(row.HostPort||""))){
+      throw new Error("rpc_docker_port_binding_invalid");
+    }
+    rows.push(Object.freeze({
+      container_port:key,
+      host_ip:row.HostIp,
+      host_port:String(row.HostPort),
+    }));
+  }
+  return Object.freeze(rows);
+}
+
+async function dockerRpcContainerFacts(expected){
+  const infoResult=await dockerGetJson("/info");
+  const security=Array.isArray(infoResult.value.SecurityOptions)
+    ?infoResult.value.SecurityOptions.map(String):[];
+  if(!security.some((value)=>value.toLowerCase().includes("rootless"))){
+    throw new Error("rpc_docker_daemon_not_rootless");
+  }
+  const inspectResult=await dockerGetJson(
+    "/containers/"+encodeURIComponent(RPC_CONTAINER)+"/json"
+  );
+  if(inspectResult.socket_dev!==infoResult.socket_dev||
+     inspectResult.socket_ino!==infoResult.socket_ino||
+     inspectResult.socket_uid!==infoResult.socket_uid){
+    throw new Error("rpc_docker_socket_generation_changed");
+  }
+  const inspect=inspectResult.value;
+  const configured=normalizePorts(inspect.HostConfig?.PortBindings);
+  const live=normalizePorts(inspect.NetworkSettings?.Ports);
+  const capDrop=Array.isArray(inspect.HostConfig?.CapDrop)
+    ?inspect.HostConfig.CapDrop.map((value)=>String(value).toUpperCase()):[];
+  const securityOpt=Array.isArray(inspect.HostConfig?.SecurityOpt)
+    ?inspect.HostConfig.SecurityOpt.map(String):[];
+  const actual={
+    container_name:String(inspect.Name||"").replace(/^\//u,""),
+    container_id:String(inspect.Id||"").toLowerCase(),
+    image_reference:String(inspect.Config?.Image||""),
+    image_id:String(inspect.Image||"").toLowerCase(),
+    running:inspect.State?.Running===true&&String(inspect.State?.Status||"")==="running",
+    started_at_utc:String(inspect.State?.StartedAt||""),
+    auto_remove:inspect.HostConfig?.AutoRemove===true,
+    user:String(inspect.Config?.User||""),
+    entrypoint:Array.isArray(inspect.Config?.Entrypoint)
+      ?inspect.Config.Entrypoint.map(String):[],
+    command:Array.isArray(inspect.Config?.Cmd)?inspect.Config.Cmd.map(String):[],
+    binds:Array.isArray(inspect.HostConfig?.Binds)
+      ?inspect.HostConfig.Binds.map(String).sort():[],
+    port_bindings:configured,
+    live_port_bindings:live,
+    cap_drop_all:capDrop.includes("ALL"),
+    no_new_privileges:securityOpt.some(
+      (value)=>value==="no-new-privileges"||value==="no-new-privileges:true"
+    ),
+    docker_socket_dev:inspectResult.socket_dev,
+    docker_socket_ino:inspectResult.socket_ino,
+    docker_socket_uid:inspectResult.socket_uid,
+  };
+  for(const [key,want] of Object.entries({
+    container_name:expected.container_name,
+    container_id:expected.container_id,
+    image_reference:expected.image_reference,
+    image_id:expected.image_id,
+    running:true,
+    started_at_utc:expected.started_at_utc,
+    auto_remove:true,
+    user:"0:0",
+    cap_drop_all:true,
+    no_new_privileges:true,
+    docker_socket_uid:"1000",
+  })){
+    if(actual[key]!==want)throw new Error("rpc_container_generation_mismatch:"+key);
+  }
+  for(const [key,want] of [
+    ["entrypoint",expected.entrypoint],
+    ["command",expected.command],
+    ["binds",[...expected.binds].sort()],
+    ["port_bindings",expected.port_bindings],
+    ["live_port_bindings",expected.port_bindings],
+  ]){
+    if(canonical(actual[key])!==canonical(want)){
+      throw new Error("rpc_container_contract_mismatch:"+key);
+    }
+  }
+  return Object.freeze(actual);
+}
+
+function listenerFacts(){
+  const result=runAsRuntimeUser(SS,[
+    "-H","-lnt","sport","=",":18553",
+  ],{env:cleanGitEnv(),timeout:5_000});
+  if(result.status!==0||result.stderr!==""){
+    throw new Error("rpc_listener_observation_failed");
+  }
+  const matches=String(result.stdout||"").split("\n")
+    .filter((line)=>/\b127\.0\.0\.1:18553\b/u.test(line));
+  if(matches.length!==1)throw new Error("rpc_listener_cardinality_invalid");
+  return Object.freeze({
+    listener_address:"127.0.0.1",
+    listener_port:18553,
+    listener_count:1,
+  });
+}
+
+function loadExpectedRpcHostContract(expectedHead){
+  const targetRaw=gitObject(expectedHead,RPC_TARGET_REL,RPC_TARGET_BLOB);
+  const observationRaw=gitObject(
+    expectedHead,RPC_HOST_OBSERVATION_REL,RPC_HOST_OBSERVATION_BLOB
+  );
+  try{
+    if(sha256Bytes(observationRaw)!==RPC_HOST_OBSERVATION_SHA256){
+      throw new Error("rpc_host_observation_sha256_mismatch");
+    }
+    const target=parseJson(targetRaw.toString("utf8"),"rpc_target_json_invalid");
+    const observation=parseJson(
+      observationRaw.toString("utf8"),"rpc_host_observation_json_invalid"
+    );
+    if(target.marker!=="VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1"||
+       target.status!=="PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY"||
+       target.chain_id!==2050||target.execution_epoch!==2||
+       target.selection?.production_rpc_target_selected!==true||
+       target.selection?.rpc_url!==RPC_URL||
+       target.selection?.service_unit!==RPC_SERVICE||
+       target.selection?.runtime_observation_id!==observation.observation_id||
+       target.selection?.runtime_observation_sha256!==RPC_HOST_OBSERVATION_SHA256||
+       target.selection?.independent_host_acceptance!==true||
+       target.authority?.authoritative_chain2050_write!==false||
+       target.authority?.transaction_broadcast!==false||
+       target.authority?.funds_movement!==false){
+      throw new Error("rpc_target_contract_invalid");
+    }
+    if(observation.marker!=="VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1"||
+       observation.status!=="PRODUCTION_EPOCH2_RPC_HOST_OBSERVATION_ACCEPTED"||
+       observation.hostname!=="zoso-Precision-Tower-7810"||
+       observation.chain_id!==2050||observation.execution_epoch!==2||
+       observation.service?.service_unit!==RPC_SERVICE||
+       observation.service?.listener_address!=="127.0.0.1"||
+       observation.service?.listener_port!==18553||
+       observation.service?.listener_present!==true||
+       observation.service?.service_container_contract_verified!==true||
+       observation.service_container_listener_binding_verified!==true||
+       observation.container?.container_name!==RPC_CONTAINER||
+       observation.container?.running!==true||
+       observation.container?.rootless_security_verified!==true||
+       observation.container?.cap_drop_all!==true||
+       observation.container?.no_new_privileges!==true||
+       observation.rpc?.url!==RPC_URL||
+       observation.rpc?.chain_id!==2050||
+       observation.independent_host_acceptance!==true||
+       observation.authority?.transaction_broadcast!==false||
+       observation.authority?.funds_movement!==false){
+      throw new Error("rpc_host_observation_contract_invalid");
+    }
+    return Object.freeze({
+      target:Object.freeze(target),
+      historical:Object.freeze(observation),
+    });
+  }finally{
+    targetRaw.fill(0);
+    observationRaw.fill(0);
+  }
+}
+
+export async function observeRpcHostBinding(expectedHead){
+  const expected=loadExpectedRpcHostContract(expectedHead).historical;
+  const service=systemdRpcServiceFacts(expected.service);
+  const container=await dockerRpcContainerFacts(expected.container);
+  const listener=listenerFacts();
+  return Object.freeze({
+    expected_runtime_observation_id:expected.observation_id,
+    expected_runtime_observation_sha256:RPC_HOST_OBSERVATION_SHA256,
+    service,
+    container,
+    listener,
+    selected_rpc_url:RPC_URL,
+    selected_service_unit:RPC_SERVICE,
+    historical_generation_still_live:true,
+    persistent_filesystem_write:false,
+    service_mutation:false,
+    docker_mutation:false,
+  });
+}
+
+export function requireStableRpcHostBinding(before,after){
+  if(canonical(before)!==canonical(after)){
+    throw new Error("rpc_host_binding_changed_during_fee_window");
+  }
+  return before;
 }
 
 function loadCandidate(expectedHead){
@@ -757,12 +1156,22 @@ function validateObservation(policy,observation){
 }
 
 export function buildReceipt(
-  expectedHead,childBefore,childAfter,policy,observation
+  expectedHead,childBefore,childAfter,policy,observation,
+  rpcHostBefore=null,rpcHostAfter=null
 ){
   const stableChildIdentity=requireStableChildRuntimeIdentity(
     childBefore,childAfter,expectedHead
   );
   validateObservation(policy,observation);
+  let stableRpcHostBinding=null;
+  if(rpcHostBefore!==null||rpcHostAfter!==null){
+    if(rpcHostBefore===null||rpcHostAfter===null){
+      throw new Error("rpc_host_binding_pair_required");
+    }
+    stableRpcHostBinding=requireStableRpcHostBinding(
+      rpcHostBefore,rpcHostAfter
+    );
+  }
   const zero=observation.zero_fee_envelope===true;
   const nonzero=observation.nonzero_fee_envelope===true;
 
@@ -807,6 +1216,14 @@ export function buildReceipt(
     credential_signer_control_stable_identity:stableChildIdentity,
     credential_signer_control_stable_identity_sha256:
       sha256Bytes(Buffer.from(canonical(stableChildIdentity),"utf8")),
+    rpc_host_binding_freshly_observed:
+      stableRpcHostBinding!==null,
+    rpc_host_binding_stable_across_fee_window:
+      stableRpcHostBinding!==null,
+    rpc_host_binding:stableRpcHostBinding,
+    rpc_host_binding_sha256:stableRpcHostBinding===null
+      ?null
+      :sha256Bytes(Buffer.from(canonical(stableRpcHostBinding),"utf8")),
     live_fee_chain_receipt:chainReceipt,
     live_fee_chain_receipt_id:chainReceipt.chain_receipt_id,
     canonical_chain_id:2050,
@@ -856,6 +1273,9 @@ function plan(){
   console.log("arbitrary_child_receipt_input_accepted=false");
   console.log("exact_candidate_v2_fee_policy_required=true");
   console.log("fixed_loopback_rpc=http://127.0.0.1:18553/");
+  console.log("fresh_rpc_host_service_container_listener_binding_required=true");
+  console.log("accepted_historical_rpc_observation_used_as_expected_generation_only=true");
+  console.log("historical_runtime_observation_sufficient_without_fresh_revalidation=false");
   console.log("live_eth_gasPrice_required=true");
   console.log("accepted_gas_ceiling=320000");
   console.log("fee_multiplier_bps=20000");
@@ -913,6 +1333,8 @@ function selfTest(){
   console.log("credential_signer_control_runtime_generation_stability_required=true");
   console.log("zero_fee_envelope_supported_for_exact_e2_presale=true");
   console.log("nonzero_fee_envelope_bounded_by_runtime_policy=true");
+  console.log("fresh_rpc_host_service_container_listener_binding_required=true");
+  console.log("historical_runtime_observation_sufficient_without_fresh_revalidation=false");
   console.log("transaction_calldata_constructed=false");
   console.log("nonce_reserved=false");
   console.log("transaction=false");
@@ -929,20 +1351,30 @@ async function live(expectedHead,confirm){
   assertTrustedExecutable(GIT);
   assertTrustedExecutable(NODE);
   assertTrustedExecutable(SETPRIV);
+  assertTrustedExecutable(SYSTEMCTL);
+  assertTrustedExecutable(SS);
   requireExactCheckout(expectedHead);
 
   const {policy}=loadCandidate(expectedHead);
   const childBefore=runChild(expectedHead);
   requireExactCheckout(expectedHead);
 
+  const rpcHostBefore=await observeRpcHostBinding(expectedHead);
+  requireExactCheckout(expectedHead);
+
   const observation=await observeFeeChainLive(policy);
+  requireExactCheckout(expectedHead);
+
+  const rpcHostAfter=await observeRpcHostBinding(expectedHead);
+  requireStableRpcHostBinding(rpcHostBefore,rpcHostAfter);
   requireExactCheckout(expectedHead);
 
   const childAfter=runChild(expectedHead);
   requireExactCheckout(expectedHead);
 
   const receipt=buildReceipt(
-    expectedHead,childBefore,childAfter,policy,observation
+    expectedHead,childBefore,childAfter,policy,observation,
+    rpcHostBefore,rpcHostAfter
   );
   console.log(JSON.stringify(receipt,null,2));
 }
