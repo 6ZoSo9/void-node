@@ -36,6 +36,9 @@ for required in [
     "STALE_INSTALLATION_RECEIPT",
     "installation_receipt_already_exists",
     "installation_receipt_identity_changed",
+    "target_dropin_existing_custody_invalid",
+    "same_uid_namespace_tamper_resistance_proven=false",
+    "durable_policy_file_custody_proven=false",
     "listener_set_preserved=true",
     "automatic_rollback_attempted=",
     "HARDENING_INSTALLED_GREEN",
@@ -73,6 +76,8 @@ print("success_path_restart_count=1")
 print("failure_path_recovery_restart_count_max=1")
 print("listener_set_equality_required=true")
 print("rollback_receipt_required=true")
+print("same_uid_namespace_tamper_resistance_proven=false")
+print("durable_policy_file_custody_proven=false")
 print("apply_authorized=false")
 print("payment_acceptance=false")
 print("public_presale_activation=false")
