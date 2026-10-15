@@ -73,7 +73,7 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V
     "tools/void-economic-epoch2-public-read-runtime-promotion-v1.mjs":
       "fe7849f9612cf8b17e307c1eb115a58457e5af4a",
     "tools/void-economic-epoch2-public-state-root-anchor-import-promotion-v1.mjs":
-      "5f96e32291085af9072d74805acd34a17609b564",
+      "032d7addede02f156f5a0bcc4706621aeaf326c3",
     [LOOPBACK_REL]:
       "7482f36f97049b79072953e6ea0af7dbfb8968c8",
     [MIGRATION_REL]:
@@ -87,7 +87,9 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V
     "tools/void-economic-epoch2-public-void-state-root-anchor-v1.mjs":
       "3f42b09a8d0861cc2c34056b85b410065ac43892",
     "tools/datanet-content-commitment-canonical-truth-admission-v1.mjs":
-      "ee92747e3109e3b8940c1d8657d51c9a14fc961e",
+      "c46827f2ec68c16af59b7aaef05ed1e331247488",
+    "tools/datanet-content-commitment-production-registry-identity-v1.mjs":
+      "9154771decf989155bf4e6c5f94caf819f784fac",
     "tools/datanet-content-commitment-compiler-profile-v1.mjs":
       "d02d94a11f7f8df89c3e9886866dd4929147f2a1",
   });
