@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 import http from "node:http";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  existsSync,
+  fstatSync,
+  openSync,
+  readFileSync,
+} from "node:fs";
 import { hostname } from "node:os";
-import { extname, join, resolve, sep } from "node:path";
+import { extname, join, relative, resolve, sep } from "node:path";
 
 const args = process.argv.slice(2);
 let port = Number(process.env.VOID_PUBLIC_NODE_PORT || "8088");
@@ -19,6 +26,8 @@ for (let i = 0; i < args.length; i++) {
 
 const root = resolve(process.cwd(), "public");
 const publicNodeIndex = resolve(root, "public-node", "index.json");
+const PROC_SELF_FD = "/proc/self/fd";
+let publicRootFd = null;
 
 function fail(message) {
   console.error("VOID_PUBLIC_NODE_SAFE_SERVE_V1_FAIL");
@@ -52,12 +61,161 @@ function contentType(path) {
   return "application/octet-stream";
 }
 
-function preflight() {
-  if (!existsSync(root)) fail(`public root missing: ${root}`);
-  if (!existsSync(publicNodeIndex)) fail(`public-node index missing: ${publicNodeIndex}`);
+function requireDescriptorTraversalSupport() {
+  if (
+    typeof constants.O_NOFOLLOW !== "number" ||
+    constants.O_NOFOLLOW <= 0 ||
+    typeof constants.O_DIRECTORY !== "number" ||
+    constants.O_DIRECTORY <= 0
+  ) {
+    throw new Error("required no-follow directory flags unavailable");
+  }
+  if (!existsSync(PROC_SELF_FD)) {
+    throw new Error("/proc/self/fd unavailable");
+  }
+}
+
+function bindPublicRoot() {
+  if (publicRootFd !== null) return;
+  requireDescriptorTraversalSupport();
+  const fd = openSync(
+    root,
+    constants.O_RDONLY |
+      constants.O_DIRECTORY |
+      constants.O_NOFOLLOW |
+      Number(constants.O_NONBLOCK || 0),
+  );
+  const st = fstatSync(fd);
+  if (!st.isDirectory()) {
+    closeSync(fd);
+    throw new Error("public root is not a directory");
+  }
+  publicRootFd = fd;
+}
+
+function descriptorChildPath(parentFd, name) {
+  return join(PROC_SELF_FD, String(parentFd), name);
+}
+
+function classifyPathError(error) {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String(error.code || "")
+      : "";
+  if (code === "ELOOP" || code === "EACCES" || code === "EPERM") {
+    return 403;
+  }
+  if (code === "ENOENT" || code === "ENOTDIR") {
+    return 404;
+  }
+  return 500;
+}
+
+function openChildNoFollow(parentFd, name) {
+  return openSync(
+    descriptorChildPath(parentFd, name),
+    constants.O_RDONLY |
+      constants.O_NOFOLLOW |
+      Number(constants.O_NONBLOCK || 0),
+  );
+}
+
+function openPublicTarget(target) {
+  if (publicRootFd === null) {
+    throw new Error("public root descriptor not bound");
+  }
+
+  const rel = relative(root, target);
+  if (rel === ".." || rel.startsWith(".." + sep) || resolve(root, rel) !== target) {
+    return { status: 403 };
+  }
+
+  const parts = rel === "" ? [] : rel.split(sep).filter(Boolean);
+  const directoryFds = [];
+  let parentFd = publicRootFd;
 
   try {
-    JSON.parse(readFileSync(publicNodeIndex, "utf8"));
+    if (parts.length === 0) {
+      const fd = openChildNoFollow(parentFd, "index.html");
+      const st = fstatSync(fd);
+      if (!st.isFile()) {
+        closeSync(fd);
+        return { status: 404 };
+      }
+      return { status: 200, fd, size: st.size, file: join(target, "index.html") };
+    }
+
+    for (let index = 0; index < parts.length; index += 1) {
+      const fd = openChildNoFollow(parentFd, parts[index]);
+      const st = fstatSync(fd);
+      const final = index === parts.length - 1;
+
+      if (!final) {
+        if (!st.isDirectory()) {
+          closeSync(fd);
+          return { status: 404 };
+        }
+        directoryFds.push(fd);
+        parentFd = fd;
+        continue;
+      }
+
+      if (st.isDirectory()) {
+        directoryFds.push(fd);
+        const indexFd = openChildNoFollow(fd, "index.html");
+        const indexStat = fstatSync(indexFd);
+        if (!indexStat.isFile()) {
+          closeSync(indexFd);
+          return { status: 404 };
+        }
+        return {
+          status: 200,
+          fd: indexFd,
+          size: indexStat.size,
+          file: join(target, "index.html"),
+        };
+      }
+
+      if (!st.isFile()) {
+        closeSync(fd);
+        return { status: 404 };
+      }
+
+      return { status: 200, fd, size: st.size, file: target };
+    }
+
+    return { status: 404 };
+  } catch (error) {
+    return { status: classifyPathError(error) };
+  } finally {
+    for (let index = directoryFds.length - 1; index >= 0; index -= 1) {
+      closeSync(directoryFds[index]);
+    }
+  }
+}
+
+function readOpenedPublicFile(opened) {
+  try {
+    return readFileSync(opened.fd);
+  } finally {
+    closeSync(opened.fd);
+  }
+}
+
+function preflight() {
+  try {
+    bindPublicRoot();
+  } catch (error) {
+    fail(`public root binding failed: ${error.message}`);
+  }
+
+  const opened = openPublicTarget(publicNodeIndex);
+  if (opened.status !== 200) {
+    fail(`public-node index unavailable through retained root: status=${opened.status}`);
+  }
+
+  try {
+    JSON.parse(readOpenedPublicFile(opened).toString("utf8"));
   } catch (err) {
     fail(`public-node index JSON parse failed: ${err.message}`);
   }
@@ -66,6 +224,8 @@ function preflight() {
   console.log(`host=${hostname()}`);
   console.log(`root=${root}`);
   console.log(`public_node_index=${publicNodeIndex}`);
+  console.log("descriptor_relative_path_custody=true");
+  console.log("symlink_components_followed=false");
 }
 
 if (checkOnly) {
@@ -82,27 +242,42 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const target = safeResolve(req.url || "/");
+  let target;
+  try {
+    target = safeResolve(req.url || "/");
+  } catch (error) {
+    void error;
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+    res.end("bad request\n");
+    return;
+  }
+
   if (!target) {
     res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
     res.end("forbidden\n");
     return;
   }
 
-  let file = target;
-  if (existsSync(file) && statSync(file).isDirectory()) {
-    file = join(file, "index.html");
-  }
-
-  if (!existsSync(file) || !statSync(file).isFile()) {
-    res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-    res.end("not found\n");
+  const opened = openPublicTarget(target);
+  if (opened.status !== 200) {
+    const status = opened.status === 403 ? 403 : opened.status === 404 ? 404 : 500;
+    res.writeHead(status, { "content-type": "text/plain; charset=utf-8" });
+    res.end(status === 403 ? "forbidden\n" : status === 404 ? "not found\n" : "internal error\n");
     return;
   }
 
-  const body = readFileSync(file);
+  let body;
+  try {
+    body = readOpenedPublicFile(opened);
+  } catch (error) {
+    void error;
+    res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+    res.end("internal error\n");
+    return;
+  }
+
   res.writeHead(200, {
-    "content-type": contentType(file),
+    "content-type": contentType(opened.file),
     "content-length": body.length,
     "cache-control": "no-store",
   });
@@ -112,11 +287,18 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, bindHost, () => {
+  const address = server.address();
+  const actualPort =
+    address && typeof address === "object" ? address.port : port;
   console.log("VOID_PUBLIC_NODE_SAFE_SERVE_V1_READY");
   console.log(`host=${hostname()}`);
   console.log(`bind=${bindHost}`);
-  console.log(`port=${port}`);
+  console.log(`port=${actualPort}`);
   console.log(`root=${root}`);
-  console.log(`local_url=http://127.0.0.1:${port}/public-node/index.json`);
+  console.log(
+    `local_url=http://127.0.0.1:${actualPort}/public-node/index.json`,
+  );
+  console.log("descriptor_relative_path_custody=true");
+  console.log("symlink_components_followed=false");
   console.log("dangerous_paths_touched=false");
 });
