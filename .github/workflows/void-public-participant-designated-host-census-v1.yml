@@ -1,0 +1,115 @@
+name: VOID public participant designated-host census v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-public-participant-designated-host-census-v1.mjs"
+      - "scripts/prove_void_public_participant_designated_host_census_v1.mjs"
+      - "docs/operators/void-public-participant-designated-host-census-v1.md"
+      - ".github/workflows/void-public-participant-designated-host-census-v1.yml"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/void-public-participant-session-http-v1.mjs"
+      - "ops/public/void-public-participant-account-read-http-edge-v1.mjs"
+      - "ops/public/void-public-participant-session-state-file-v1.mjs"
+      - "ops/public/void-public-participant-live-role-authority-v1.mjs"
+      - "tools/void-public-participant-production-composition-current-gateway-v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-public-participant-designated-host-census-v1.mjs"
+      - "scripts/prove_void_public_participant_designated_host_census_v1.mjs"
+      - "docs/operators/void-public-participant-designated-host-census-v1.md"
+      - ".github/workflows/void-public-participant-designated-host-census-v1.yml"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/void-public-participant-session-http-v1.mjs"
+      - "ops/public/void-public-participant-account-read-http-edge-v1.mjs"
+      - "ops/public/void-public-participant-session-state-file-v1.mjs"
+      - "ops/public/void-public-participant-live-role-authority-v1.mjs"
+      - "tools/void-public-participant-production-composition-current-gateway-v2.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: participant designated-host census / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove designated-host census source
+        run: |
+          set -euo pipefail
+          node --check tools/void-public-participant-designated-host-census-v1.mjs
+          node --check scripts/prove_void_public_participant_designated_host_census_v1.mjs
+          node tools/void-public-participant-designated-host-census-v1.mjs --self-test
+          plan="$RUNNER_TEMP/participant-designated-host-plan.txt"
+          node tools/void-public-participant-designated-host-census-v1.mjs --plan | tee "$plan"
+          grep -Fx 'read_only=true' "$plan"
+          grep -Fx 'loopback_get_only=true' "$plan"
+          grep -Fx 'process_environment_access=false' "$plan"
+          grep -Fx 'final_process_listener_bracket_required=true' "$plan"
+          grep -Fx 'continuous_listener_ownership_proven=false' "$plan"
+          grep -Fx 'runtime_activation_authorized=false' "$plan"
+          proof="$RUNNER_TEMP/participant-designated-host-proof.txt"
+          node scripts/prove_void_public_participant_designated_host_census_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_PUBLIC_PARTICIPANT_DESIGNATED_HOST_CENSUS_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'reviewed_source_blobs_bound=true' "$proof"
+          grep -Fx 'participant_status_route_only=true' "$proof"
+          grep -Fx 'account_or_bearer_data_read=false' "$proof"
+          grep -Fx 'final_generation_bracket_required=true' "$proof"
+          grep -Fx 'restart_after_middle_snapshot_fails_closed=true' "$proof"
+          grep -Fx 'bounded_file_preallocation_limit=true' "$proof"
+          grep -Fx 'exact_session_ttl_required=true' "$proof"
+          grep -Fx 'closed_status_schema_required=true' "$proof"
+          grep -Fx 'main_push_trigger_closure=true' "$proof"
+          grep -Fx 'continuous_listener_ownership_proven=false' "$proof"
+          grep -Fx 'runtime_activation_authorized=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Repository typecheck
+        run: npm run typecheck -- --pretty false
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
