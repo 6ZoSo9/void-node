@@ -56,7 +56,10 @@ the `zoso` user manager. It records only loaded/active/retirement booleans.
 It does not read the user service's environment or print its process command
 line.
 
-A live historical user Tunnel remains a HOLD.
+A live historical user Tunnel remains a HOLD. Inactivity alone is not treated
+as retirement: the observed user unit must also be disabled, masked, or absent.
+A merely inactive but still enabled/static candidate does not satisfy the
+retirement gate.
 
 ## System service process identity
 
@@ -115,6 +118,9 @@ port, each with:
 
 An additional ordinary seed route must be present so the census does not treat a
 sensitive-only Tunnel configuration as preserving the public site/read surface.
+Any additional seed-host rule that also targets the sensitive adapter port makes
+the sensitive-route candidate fail closed, even when all three canonical rules
+are present.
 
 The config's `credentials-file` path is used for **metadata only**. Credential
 contents are never opened. Both config and credential paths are checked for the
