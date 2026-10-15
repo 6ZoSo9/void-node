@@ -208,13 +208,24 @@ def require_trusted_ancestor_chain(
     include_leaf:bool,
     expected_uid:int=0,
     expected_gid:int=0,
+    anchor:Path=Path("/"),
 )->None:
     target=path if include_leaf else path.parent
     raw=os.fspath(target)
-    if not target.is_absolute() or os.path.normpath(raw)!=raw:
+    anchor_raw=os.fspath(anchor)
+    if (
+        not target.is_absolute() or os.path.normpath(raw)!=raw or
+        not anchor.is_absolute() or os.path.normpath(anchor_raw)!=anchor_raw
+    ):
         hold("trusted_ancestor_path_invalid:"+raw)
-    current=Path("/")
-    for part in target.parts[1:]:
+    try:
+        relative=target.relative_to(anchor)
+    except ValueError:
+        hold("trusted_ancestor_outside_anchor:"+raw)
+    current=anchor
+    for part in (Path(".")/relative).parts:
+        if part in ("","."):
+            continue
         current=current/part
         try:
             st=os.lstat(current)
@@ -1233,6 +1244,7 @@ def self_test()->None:
         require_trusted_ancestor_chain(
             safe,include_leaf=True,
             expected_uid=os.getuid(),expected_gid=os.getgid(),
+            anchor=root,
         )
         unsafe=root/"unsafe"
         unsafe.mkdir(mode=0o777)
@@ -1241,6 +1253,7 @@ def self_test()->None:
             lambda:require_trusted_ancestor_chain(
                 unsafe,include_leaf=True,
                 expected_uid=os.getuid(),expected_gid=os.getgid(),
+                anchor=root,
             ),
             "trusted_ancestor_invalid:"+os.fspath(unsafe),
         )
