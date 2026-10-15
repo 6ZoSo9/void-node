@@ -26,9 +26,10 @@ When that variable is present, the process captures one exact positive numeric
 GID at module load and requires:
 
 - an **absolute, already-provisioned** request root;
+- canonical path identity: `realpath(request_root) === request_root`, rejecting symlinked ancestor aliases;
 - owner = the runtime UID;
 - group = the configured custody IPC GID;
-- exact directory mode `0750` (setgid + owner rwx + group r-x);
+- exact directory mode `0750` (owner rwx + group r-x);
 - both fixed `requests.jsonl` and `operator-events.jsonl` must already exist;
 - fixed-journal owner = runtime UID;
 - exact fixed-journal mode `0640`;
