@@ -202,6 +202,86 @@ def verify_systemd_generation()->dict[str,object]:
         installed.stdout.splitlines()[0],owner.stdout,running.stdout
     )
 
+def require_trusted_ancestor_chain(
+    path:Path,
+    *,
+    include_leaf:bool,
+    expected_uid:int=0,
+    expected_gid:int=0,
+)->None:
+    target=path if include_leaf else path.parent
+    raw=os.fspath(target)
+    if not target.is_absolute() or os.path.normpath(raw)!=raw:
+        hold("trusted_ancestor_path_invalid:"+raw)
+    current=Path("/")
+    for part in target.parts[1:]:
+        current=current/part
+        try:
+            st=os.lstat(current)
+        except OSError as exc:
+            raise Hold("trusted_ancestor_unavailable:"+os.fspath(current)) from exc
+        if (
+            not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+            st.st_uid!=expected_uid or st.st_gid!=expected_gid or
+            (stat.S_IMODE(st.st_mode)&0o022)!=0
+        ):
+            hold("trusted_ancestor_invalid:"+os.fspath(current))
+
+def exact_group_closure(ids:dict[str,int])->set[int]:
+    try:
+        groups=set(os.getgrouplist("voidapollyoncustody",ids["custody_gid"]))
+    except OSError as exc:
+        raise Hold("custody_group_closure_unavailable") from exc
+    expected={ids["custody_gid"],ids["ipc_gid"]}
+    if groups!=expected:
+        hold("custody_group_closure_invalid")
+    return groups-{ids["custody_gid"]}
+
+def exact_runtime_supplementary_groups(
+    observed:list[int],
+    expected:set[int],
+)->bool:
+    return len(observed)==len(set(observed)) and set(observed)==expected
+
+def verify_path_custody(ids:dict[str,int])->None:
+    for path in (
+        NODE_PATH,LAUNCHER_PATH,HELPER_PATH,TARGET_PATH,SERVICE_PATH,
+        ENV_PATH,PUBLIC_KEY_PATH,
+    ):
+        require_trusted_ancestor_chain(path,include_leaf=False)
+    require_trusted_ancestor_chain(CONFIG_DIR,include_leaf=True)
+    require_trusted_ancestor_chain(STATE_ROOT,include_leaf=False)
+    require_trusted_ancestor_chain(SOCKET_PARENT,include_leaf=False)
+
+    config=os.lstat(CONFIG_DIR)
+    if (
+        not stat.S_ISDIR(config.st_mode) or stat.S_ISLNK(config.st_mode) or
+        config.st_uid!=0 or config.st_gid!=0 or
+        stat.S_IMODE(config.st_mode)!=0o755
+    ):hold("config_directory_custody_invalid")
+    state=os.lstat(STATE_ROOT)
+    if (
+        not stat.S_ISDIR(state.st_mode) or stat.S_ISLNK(state.st_mode) or
+        state.st_uid!=ids["custody_uid"] or state.st_gid!=ids["custody_gid"] or
+        stat.S_IMODE(state.st_mode)!=0o700
+    ):hold("state_root_custody_invalid")
+    consumed=os.lstat(CONSUMED)
+    if (
+        not stat.S_ISDIR(consumed.st_mode) or stat.S_ISLNK(consumed.st_mode) or
+        consumed.st_uid!=ids["custody_uid"] or
+        consumed.st_gid!=ids["custody_gid"] or
+        stat.S_IMODE(consumed.st_mode)!=0o700
+    ):hold("consumed_directory_custody_invalid")
+    socket_parent=os.lstat(SOCKET_PARENT)
+    if (
+        not stat.S_ISDIR(socket_parent.st_mode) or
+        stat.S_ISLNK(socket_parent.st_mode) or
+        socket_parent.st_uid!=ids["custody_uid"] or
+        socket_parent.st_gid!=ids["ipc_gid"] or
+        stat.S_IMODE(socket_parent.st_mode)!=0o750
+    ):hold("socket_parent_custody_invalid")
+    exact_group_closure(ids)
+
 def exact_file(path:Path,mode:int,uid:int=0,gid:int=0,blob:str|None=None)->os.stat_result:
     st=os.lstat(path)
     if (
@@ -481,6 +561,7 @@ def verify_static_install()->dict[str,int]:
     verify_environment_file(ids["ipc_gid"])
     verify_public_key()
     loaded_relations()
+    verify_path_custody(ids)
     return ids
 
 def proc_start_ticks(pid:int,proc_root:Path=Path("/proc"))->str:
@@ -685,8 +766,13 @@ def live_observation(ids:dict[str,int])->dict[str,object]:
     gid_slots=status.get("Gid","").split()
     if uid_slots!=[str(ids["custody_uid"])]*4:hold("custody_uid_slots_invalid")
     if gid_slots!=[str(ids["custody_gid"])]*4:hold("custody_gid_slots_invalid")
-    groups=[int(x) for x in status.get("Groups","").split() if x.isdigit()]
-    if ids["ipc_gid"] not in groups:hold("custody_ipc_group_missing")
+    raw_groups=status.get("Groups","").split()
+    if not raw_groups or any(not x.isdigit() for x in raw_groups):
+        hold("custody_supplementary_groups_invalid")
+    groups=[int(x) for x in raw_groups]
+    expected_groups=exact_group_closure(ids)
+    if not exact_runtime_supplementary_groups(groups,expected_groups):
+        hold("custody_supplementary_groups_unreviewed")
     for cap in ("CapInh","CapPrm","CapEff","CapAmb"):
         rawcap=status.get(cap)
         if rawcap is None or int(rawcap,16)!=0:hold("custody_capability_nonzero:"+cap)
@@ -803,6 +889,7 @@ def qualify()->dict:
             require_no_custody_uid_processes(
                 ids["custody_uid"],"prestart_custody_uid_process"
             )
+            verify_path_custody(ids)
             target_maybe_started=True
             start_attempts+=1
             run(["/usr/bin/systemctl","start",TARGET_UNIT])
@@ -923,6 +1010,10 @@ def self_test()->None:
         'assert_no_unreviewed_dependency_directories(TARGET_UNIT)',
         'assert_no_unreviewed_dependency_directories(SERVICE_UNIT)',
         'unreviewed_systemd_dependency_entry:',
+        'require_trusted_ancestor_chain(',
+        'verify_path_custody(ids)',
+        'custody_group_closure_invalid',
+        'custody_supplementary_groups_unreviewed',
         'REVIEWED_SYSTEMD_MAJOR=255',
         'REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(',
         'verify_systemd_generation()',
@@ -1129,6 +1220,31 @@ def self_test()->None:
         target=dict(good_target);service=dict(good_service)
         (target if which=="target" else service)[key]=value
         expect_hold(lambda t=target,s=service:validate_loaded_relations(t,s),reason)
+    assert exact_runtime_supplementary_groups([980],{980})
+    assert not exact_runtime_supplementary_groups([980,981],{980})
+    assert not exact_runtime_supplementary_groups([980,980],{980})
+
+    with tempfile.TemporaryDirectory(
+        prefix="apollyon-ancestor-custody-"
+    ) as td:
+        root=Path(td)
+        safe=root/"safe"
+        safe.mkdir(mode=0o755)
+        require_trusted_ancestor_chain(
+            safe,include_leaf=True,
+            expected_uid=os.getuid(),expected_gid=os.getgid(),
+        )
+        unsafe=root/"unsafe"
+        unsafe.mkdir(mode=0o777)
+        unsafe.chmod(0o777)
+        expect_hold(
+            lambda:require_trusted_ancestor_chain(
+                unsafe,include_leaf=True,
+                expected_uid=os.getuid(),expected_gid=os.getgid(),
+            ),
+            "trusted_ancestor_invalid:"+os.fspath(unsafe),
+        )
+
     with tempfile.TemporaryDirectory(
         prefix="apollyon-systemd-dependency-closure-"
     ) as td:
@@ -1275,6 +1391,10 @@ def self_test()->None:
     print("manager_environment_influence_unset=true")
     print("systemd_dependency_directories_closed=true")
     print("unreviewed_systemd_dependency_entries_rejected=true")
+    print("retained_ancestor_custody_required=true")
+    print("world_writable_execution_parent_rejected=true")
+    print("custody_group_closure_required=true")
+    print("extra_custody_supplementary_group_rejected=true")
     print("failure_cleanup_receipt_truthful=true")
     print("emergency_cleanup_adversaries_executed=true")
     print("failed_stop_cleanup_reported=true")
