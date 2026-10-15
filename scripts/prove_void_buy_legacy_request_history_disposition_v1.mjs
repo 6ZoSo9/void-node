@@ -10,6 +10,7 @@ const base=()=>({
   metadata_census_sha256:"sha256:"+"a".repeat(64),
   metadata_census_source_head:"b".repeat(40),
   designated_hostname_matches:true,
+  designated_runtime_user_matches:true,
   designated_machine_id_matches:true,
   bounded_current_candidate_set_observed:true,
   process_environment_access:false,
@@ -97,6 +98,10 @@ assert.equal(classify({
 }).ok,false);
 assert.equal(classify({
   ...base(),
+  designated_runtime_user_matches:false,
+}).ok,false);
+assert.equal(classify({
+  ...base(),
   designated_machine_id_matches:false,
 }).ok,false);
 assert.equal(classify({
@@ -110,6 +115,7 @@ for(const [key,expected] of Object.entries({
   technical_historical_origin_proven:false,
   technical_candidate_set_completeness_proven:false,
   bounded_current_candidate_set_required_for_disposition:true,
+  designated_runtime_user_required:true,
   process_environment_access_forbidden:true,
   external_network_access_forbidden:true,
   cryptographic_never_used_proof_claimed:false,
@@ -136,6 +142,7 @@ console.log("human_accounting_disposition_separate_from_technical_origin=true");
 console.log("surviving_history_requires_migration_disposition=true");
 console.log("unverified_history_requires_hold=true");
 console.log("bounded_current_candidate_set_required=true");
+console.log("designated_runtime_user_required=true");
 console.log("process_environment_access_forbidden=true");
 console.log("external_network_access_forbidden=true");
 console.log("sovereign_signature_required=true");
