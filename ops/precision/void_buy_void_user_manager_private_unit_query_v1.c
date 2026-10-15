@@ -387,7 +387,7 @@ static int query_unit(struct sd_api *api, sd_bus *bus, const char *unit,
   if (get_string_prop(api,bus,object_copy,"org.freedesktop.systemd1.Unit","LoadState",out->load_state,sizeof(out->load_state)) != 0 ||
       get_string_prop(api,bus,object_copy,"org.freedesktop.systemd1.Unit","ActiveState",out->active_state,sizeof(out->active_state)) != 0 ||
       get_string_prop(api,bus,object_copy,"org.freedesktop.systemd1.Unit","SubState",out->sub_state,sizeof(out->sub_state)) != 0 ||
-      get_string_prop(api,bus,object_copy,"org.freedesktop.systemd1.Unit","ControlGroup",out->control_group,sizeof(out->control_group)) != 0 ||
+      get_string_prop(api,bus,object_copy,"org.freedesktop.systemd1.Service","ControlGroup",out->control_group,sizeof(out->control_group)) != 0 ||
       get_string_prop(api,bus,object_copy,"org.freedesktop.systemd1.Service","User",out->user,sizeof(out->user)) != 0 ||
       get_string_prop(api,bus,object_copy,"org.freedesktop.systemd1.Service","Group",out->group,sizeof(out->group)) != 0) return -1;
   if (api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","MainPID",NULL,'u',&out->main_pid) < 0 ||
