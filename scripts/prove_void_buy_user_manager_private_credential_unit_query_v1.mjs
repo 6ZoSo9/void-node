@@ -79,7 +79,13 @@ for(const needle of [
   'public_user_bus_used=false',
 ]) assert.ok(source.includes(needle),needle);
 
-assert.match(\n  source,\n  /get_string_prop\\(\\s*api,\\s*bus,\\s*object,\\s*"org\\.freedesktop\\.systemd1\\.Service"\\s*,\\s*"ControlGroup"/u,\n  "controlgroup_service_interface_binding_missing",\n);\n\nassert.ok(
+assert.match(
+  source,
+  /get_string_prop\(\s*api,\s*bus,\s*object,\s*"org\.freedesktop\.systemd1\.Service"\s*,\s*"ControlGroup"/u,
+  "controlgroup_service_interface_binding_missing",
+);
+
+assert.ok(
   sealed.includes('const CREDENTIAL_ID = "buy-void-epoch2-fulfiller-v1";'),
   "sealed_credential_id_drift",
 );
@@ -131,7 +137,7 @@ try{
   ]) assert.ok(self.stdout.split("\n").includes(line),line);
 
   console.log("VOID_BUY_VOID_USER_MANAGER_PRIVATE_CREDENTIAL_UNIT_QUERY_V1_PROOF_GREEN");
-  console.log("accepted_v4_query_git_blob_sha1="+EXPECTED.query);
+  console.log("accepted_v5_query_git_blob_sha1="+EXPECTED.query);
   console.log("accepted_peer_guard_git_blob_sha1="+EXPECTED.peer);
   console.log("accepted_preexec_git_blob_sha1="+EXPECTED.preexec);
   console.log("credential_effective_properties_same_authenticated_connection=true");
