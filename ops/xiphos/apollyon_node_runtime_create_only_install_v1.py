@@ -167,40 +167,80 @@ def copy_exact(source_fd:int)->None:
     if destination_exact():
         return
     ensure_dest_root()
-    fd=os.open(
-        DEST_NODE,
-        os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0)|
-        getattr(os,"O_CLOEXEC",0),
-        0o755,
-    )
+    temp_name=".node.new."+str(os.getpid())
+    temp_path=DEST_ROOT/temp_name
     try:
-        os.lseek(source_fd,0,os.SEEK_SET)
-        h=hashlib.sha256()
-        total=0
-        while True:
-            chunk=os.read(source_fd,COPY_CHUNK)
-            if not chunk:
-                break
-            h.update(chunk)
-            total+=len(chunk)
-            view=memoryview(chunk)
-            sent=0
-            while sent<len(view):
-                sent+=os.write(fd,view[sent:])
-        if total!=EXPECTED_BYTES or h.hexdigest()!=EXPECTED_SHA256:
-            hold("source_node_changed_during_copy")
-        os.fsync(fd)
-        os.fchmod(fd,0o755)
-        os.fchown(fd,0,0)
-    finally:
-        os.close(fd)
-    if not destination_exact():
-        hold("destination_node_postinstall_invalid")
-    dirfd=os.open(DEST_ROOT,os.O_RDONLY|getattr(os,"O_DIRECTORY",0))
+        fd=os.open(
+            temp_path,
+            os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0)|
+            getattr(os,"O_CLOEXEC",0),
+            0o600,
+        )
+    except FileExistsError:
+        hold("destination_temp_collision")
+    published=False
     try:
-        os.fsync(dirfd)
+        try:
+            os.lseek(source_fd,0,os.SEEK_SET)
+            h=hashlib.sha256()
+            total=0
+            while True:
+                chunk=os.read(source_fd,COPY_CHUNK)
+                if not chunk:
+                    break
+                h.update(chunk)
+                total+=len(chunk)
+                view=memoryview(chunk)
+                sent=0
+                while sent<len(view):
+                    sent+=os.write(fd,view[sent:])
+            if total!=EXPECTED_BYTES or h.hexdigest()!=EXPECTED_SHA256:
+                hold("source_node_changed_during_copy")
+            os.fsync(fd)
+            os.fchmod(fd,0o755)
+            os.fchown(fd,0,0)
+            staged=os.fstat(fd)
+            if (
+                not stat.S_ISREG(staged.st_mode) or staged.st_uid!=0 or staged.st_gid!=0 or
+                stat.S_IMODE(staged.st_mode)!=0o755 or staged.st_size!=EXPECTED_BYTES or
+                staged.st_nlink!=1
+            ):
+                hold("destination_temp_metadata_invalid")
+        finally:
+            os.close(fd)
+
+        try:
+            os.link(temp_path,DEST_NODE,follow_symlinks=False)
+        except FileExistsError:
+            if destination_exact():
+                return
+            hold("destination_node_collision")
+        published=True
+
+        dirfd=os.open(DEST_ROOT,os.O_RDONLY|getattr(os,"O_DIRECTORY",0))
+        try:
+            os.fsync(dirfd)
+        finally:
+            os.close(dirfd)
+
+        os.unlink(temp_path)
+
+        dirfd=os.open(DEST_ROOT,os.O_RDONLY|getattr(os,"O_DIRECTORY",0))
+        try:
+            os.fsync(dirfd)
+        finally:
+            os.close(dirfd)
+
+        if not destination_exact():
+            hold("destination_node_postinstall_invalid")
     finally:
-        os.close(dirfd)
+        if not published:
+            try:
+                os.unlink(temp_path)
+            except FileNotFoundError:
+                pass
+        elif temp_path.exists():
+            hold("destination_temp_cleanup_failed")
 
 def plan()->dict:
     if socket.gethostname().casefold()!=TARGET_HOST.casefold():
@@ -276,6 +316,14 @@ def self_test()->None:
     assert EXPECTED_BYTES==126595440
     assert EXPECTED_SHA256=="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"
     source=Path(__file__).read_text(encoding="utf-8")
+    for required_parts in (
+        ("os",".link(temp_path,DEST_NODE,follow_symlinks=False)"),
+        ("os",".fsync(dirfd)"),
+        ("os",".unlink(temp_path)"),
+        ("destination_temp_","collision"),
+    ):
+        required="".join(required_parts)
+        assert required in source,required
     forbidden_parts=(
         ("apt","-get"),("apt"," "),("dnf"," "),("yum"," "),("snap"," install"),
         ("systemctl",'","',"start"),("systemctl",'","',"enable"),
