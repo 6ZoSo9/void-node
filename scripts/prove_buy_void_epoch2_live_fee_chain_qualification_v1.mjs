@@ -20,7 +20,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs";
-const SOURCE_BLOB="8d40aafb5f0d1d12dd2edec0504d4fc1c89ea40f";
+const SOURCE_BLOB="fa58122832642670773fa7175a6e04fb0f818195";
 const CHILD=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v1.mjs";
 const CHILD_BLOB="6d68b52ec036e422a151239f9c8f3ee7faa28055";
@@ -107,6 +107,8 @@ for(const required of [
   'requireStableRpcHostBinding(rpcHostBefore,rpcHostAfter);',
   'rpc_service_systemd_generation_mismatch',
   'rpc_container_generation_mismatch',
+  'BESU_OPTS=-Dbesu.plugins.dir=/plugins',
+  'rpc_container_besu_plugins_env_invalid',
   'rpc_listener_cardinality_invalid',
 ]){
   assert.ok(source.includes(required),required);
