@@ -13,7 +13,7 @@ V1 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
 V2 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 AUTH = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
 
-TARGET_BLOB = "2106be873e9f0a53c8ca331426507778dbdfe608"
+TARGET_BLOB = "e8293868d87b995185de6fc3a8b09a92033b549e"
 EXPECTED_DEPENDENCY_BLOBS = {
     V1: "9ca9cb948a08973d0d874c5473ad2743de14140c",
     V2: "305737478025e22ddc8f56da29f2a2dfde251d8b",
@@ -84,6 +84,15 @@ for required in (
     "path_swap_adversary_forces_hold",
     "generation_fingerprint_serialized",
     "same_shape_journal_replacement_forces_unstable",
+    "post_candidate_runtime_revalidation_required",
+    "post_candidate_runtime_revalidation_stable",
+    "release_paths_final",
+    "process_final",
+    "listener_final",
+    "status_final",
+    "authenticated_final",
+    "installed_final",
+    "cap_last_cap_final",
     "_open_directory_component",
     "_open_absolute_directory_nofollow",
     "_revalidate_candidate_generation",
@@ -151,10 +160,36 @@ second_candidate_snapshot = collect_source.index("rows_second = _classify_candid
 candidate_stability_decision = collect_source.index(
     "candidate_observations_stable = rows == rows_second"
 )
+final_release_revalidation = collect_source.index(
+    "release_paths_final, release_inventory_complete_final = _release_inventory()"
+)
+final_process_revalidation = collect_source.index(
+    "process_final = v1.read_process_generation(main_pid)"
+)
+final_status_revalidation = collect_source.index(
+    "status_final = _request_root_status("
+)
+final_authentication = collect_source.index(
+    "authenticated_final = _authenticated_query(replacement)"
+)
+final_capability_revalidation = collect_source.index(
+    "cap_last_cap_final, supported_mask_final = auth._read_kernel_cap_last_cap()"
+)
+final_runtime_gate = collect_source.index(
+    "post_candidate_runtime_revalidation_stable = ("
+)
+candidate_set_decision = collect_source.index("candidate_set_complete = (")
 assert first_candidate_snapshot < closing_authentication
 assert closing_authentication < closing_capability_revalidation
 assert closing_capability_revalidation < second_candidate_snapshot
 assert second_candidate_snapshot < candidate_stability_decision
+assert candidate_stability_decision < final_release_revalidation
+assert final_release_revalidation < final_process_revalidation
+assert final_process_revalidation < final_status_revalidation
+assert final_status_revalidation < final_authentication
+assert final_authentication < final_capability_revalidation
+assert final_capability_revalidation < final_runtime_gate
+assert final_runtime_gate < candidate_set_decision
 
 cp = subprocess.run(
     ["/usr/bin/python3", "-I", "-B", str(TARGET), "--self-test"],
@@ -187,6 +222,7 @@ for line in (
     "path_swap_adversary_forces_hold=true",
     "generation_fingerprint_serialized=true",
     "same_shape_journal_replacement_forces_unstable=true",
+    "post_candidate_runtime_revalidation_required=true",
     "production_gate_ready=false",
 ):
     assert line in self_lines, line
@@ -261,6 +297,7 @@ print("descriptor_bound_candidate_snapshot=true")
 print("path_swap_adversary_forces_hold=true")
 print("generation_fingerprint_serialized=true")
 print("same_shape_journal_replacement_forces_unstable=true")
+print("post_candidate_runtime_revalidation_required=true")
 print("process_environment_access=false")
 print("external_network_calls=false")
 print("loopback_get_only=true")

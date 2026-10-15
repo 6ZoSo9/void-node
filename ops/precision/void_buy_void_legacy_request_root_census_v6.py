@@ -669,6 +669,7 @@ def self_test() -> None:
     print("path_swap_adversary_forces_hold=true")
     print("generation_fingerprint_serialized=true")
     print("same_shape_journal_replacement_forces_unstable=true")
+    print("post_candidate_runtime_revalidation_required=true")
     print("production_gate_ready=false")
 
 def plan() -> None:
@@ -775,53 +776,93 @@ def collect() -> dict[str, Any]:
     rows_second = _classify_candidates(candidates)
     candidate_observations_stable = rows == rows_second
 
+    # The late candidate pass can itself be long. Close the evidence window again
+    # after it so candidate equality cannot outlive the runtime/status/release
+    # observations that defined the candidate set.
+    release_paths_final, release_inventory_complete_final = _release_inventory()
+    process_final = v1.read_process_generation(main_pid)
+    listener_final = v1.runtime_http_listener_binding(main_pid)
+    status_final = _request_root_status(
+        v1.bounded_local_json(v1.CONFIRMED_CLOSEOUT_STATUS_PATH)
+    )
+    authenticated_final = _authenticated_query(replacement)
+    auth._require_projected_mask_within_supported(
+        authenticated_final["native"], supported_mask_before
+    )
+    installed_final = auth.installed_generation_snapshot(replacement)
+    identity_final = authenticated_final["identity"]
+    cap_last_cap_final, supported_mask_final = auth._read_kernel_cap_last_cap()
+
     kernel_cap_last_cap_stable = (
-        cap_last_cap_before == cap_last_cap_after
-        and supported_mask_before == supported_mask_after
+        cap_last_cap_before == cap_last_cap_after == cap_last_cap_final
+        and supported_mask_before == supported_mask_after == supported_mask_final
     )
     installed_authenticated_query_generation_stable = (
-        installed_before == installed_middle == installed_after
+        installed_before == installed_middle == installed_after == installed_final
     )
     authenticated_user_manager_query_stable = (
         installed_authenticated_query_generation_stable
-        and authenticated_before["native"] == authenticated_after["native"]
+        and authenticated_before["native"]
+            == authenticated_after["native"]
+            == authenticated_final["native"]
         and authenticated_before["output_sha256"]
             == authenticated_after["output_sha256"]
-        and identity_before == identity_after
+            == authenticated_final["output_sha256"]
+        and identity_before == identity_after == identity_final
         and kernel_cap_last_cap_stable
         and int(identity_before["runtime_uid"]) == EXPECTED_UID
         and int(identity_after["runtime_uid"]) == EXPECTED_UID
+        and int(identity_final["runtime_uid"]) == EXPECTED_UID
         and int(identity_after["main_pid"]) == main_pid
+        and int(identity_final["main_pid"]) == main_pid
     )
     runtime_process_generation_stable = (
         authenticated_user_manager_query_stable
         and process_before.get("observed") is True
         and process_after.get("observed") is True
+        and process_final.get("observed") is True
         and process_before.get("pid") == main_pid
         and process_after.get("pid") == main_pid
+        and process_final.get("pid") == main_pid
         and str(process_before.get("start_ticks"))
             == str(identity_before["service_start_ticks"])
         and str(process_after.get("start_ticks"))
             == str(identity_after["service_start_ticks"])
-        and process_before.get("start_ticks") == process_after.get("start_ticks")
-        and process_before.get("cwd") == process_after.get("cwd")
-        and process_before.get("exe") == process_after.get("exe")
+        and str(process_final.get("start_ticks"))
+            == str(identity_final["service_start_ticks"])
+        and process_before.get("start_ticks")
+            == process_after.get("start_ticks")
+            == process_final.get("start_ticks")
+        and process_before.get("cwd")
+            == process_after.get("cwd")
+            == process_final.get("cwd")
+        and process_before.get("exe")
+            == process_after.get("exe")
+            == process_final.get("exe")
     )
     runtime_listener_stable = (
         authenticated_user_manager_query_stable
-        and listener_before == listener_after
+        and listener_before == listener_after == listener_final
         and listener_before.get("owned_by_runtime_pid") is True
         and listener_before.get("loopback_listener_observed") is True
     )
     request_root_status_stable = (
         authenticated_user_manager_query_stable
-        and status_before == status_after
+        and status_before == status_after == status_final
         and status_before.get("observed") is True
     )
     release_inventory_stable = (
         release_inventory_complete_before
         and release_inventory_complete_after
-        and release_paths_before == release_paths_after
+        and release_inventory_complete_final
+        and release_paths_before == release_paths_after == release_paths_final
+    )
+    post_candidate_runtime_revalidation_stable = (
+        authenticated_user_manager_query_stable
+        and runtime_process_generation_stable
+        and runtime_listener_stable
+        and request_root_status_stable
+        and release_inventory_stable
     )
 
     historical = [
@@ -852,6 +893,7 @@ def collect() -> dict[str, Any]:
         and runtime_listener_stable
         and request_root_status_stable
         and release_inventory_stable
+        and post_candidate_runtime_revalidation_stable
         and candidate_observations_stable
     )
     service = _service_view(authenticated_before, process_before)
@@ -892,8 +934,11 @@ def collect() -> dict[str, Any]:
         "immutable_release_count": release_count,
         "immutable_release_inventory_complete":
             release_inventory_complete_before
-            and release_inventory_complete_after,
+            and release_inventory_complete_after
+            and release_inventory_complete_final,
         "immutable_release_inventory_stable": release_inventory_stable,
+        "post_candidate_runtime_revalidation_stable":
+            post_candidate_runtime_revalidation_stable,
         "candidate_observations_stable": candidate_observations_stable,
         "candidate_set_completeness_proven": False,
         "bounded_current_candidate_set_observed": candidate_set_complete,
