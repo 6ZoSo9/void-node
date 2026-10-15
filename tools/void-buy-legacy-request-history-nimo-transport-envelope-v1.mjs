@@ -323,7 +323,14 @@ function serverClassifyWithPlanner(input,planner){
       });
     }
     const materials=appendMaterials(parsed.request);
-    if(parsed.request.prior_witness_sha256!==current.witness_sha256){
+    const priorMatches=
+      parsed.request.prior_witness_sha256===current.witness_sha256;
+    const committedRetryCandidate=(
+      priorMatches===false&&
+      parsed.request.expected_append_required===true&&
+      parsed.request.expected_next_witness_sha256===current.witness_sha256
+    );
+    if(!priorMatches&&!committedRetryCandidate){
       fail("legacy_history_nimo_transport_prior_compare_and_swap_mismatch");
     }
     const planned=planner({
@@ -335,11 +342,20 @@ function serverClassifyWithPlanner(input,planner){
     });
     if(planned?.ok!==true)fail("legacy_history_nimo_transport_server_parent_"+String(planned?.reason||"held"));
     const next=witnessSummary(planned.next_witness_jsonl);
-    if(
+    if(committedRetryCandidate){
+      if(
+        planned.event?.event_id!==parsed.request.expected_event_id||
+        planned.append_required!==false||
+        next.witness_sha256!==current.witness_sha256||
+        next.witness_sha256!==parsed.request.expected_next_witness_sha256
+      )fail("legacy_history_nimo_transport_committed_retry_mismatch");
+    }else if(
       planned.event?.event_id!==parsed.request.expected_event_id||
       planned.append_required!==parsed.request.expected_append_required||
       next.witness_sha256!==parsed.request.expected_next_witness_sha256
-    )fail("legacy_history_nimo_transport_server_plan_mismatch");
+    ){
+      fail("legacy_history_nimo_transport_server_plan_mismatch");
+    }
     return Object.freeze({
       ok:true,
       status:planned.append_required?"APPEND_READY_SOURCE_ONLY":"IDEMPOTENT_READY_SOURCE_ONLY",
@@ -348,6 +364,7 @@ function serverClassifyWithPlanner(input,planner){
       next_witness_jsonl:next.bytes,
       event:planned.event,
       append_required:planned.append_required,
+      committed_retry:committedRetryCandidate,
       operation_performed:false,remote_filesystem_write_authorized:false,
       authority:VOID_BUY_VOID_LEGACY_HISTORY_NIMO_TRANSPORT_AUTHORITY_V1,
     });
