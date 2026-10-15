@@ -325,6 +325,126 @@ try {
   );
   assert.deepEqual(clockState.snapshot(now), clockBefore);
 
+  const regressionState = new VoidRelayServerStateV1();
+  const regressionTarget = keypair().nodeId;
+  const regressionSource = keypair().nodeId;
+  const regressionBase = 3_000_000;
+  regressionState.reserve(regressionTarget, 60_000, regressionBase);
+  const regressionStream = regressionState.openStream(
+    regressionSource,
+    regressionTarget,
+    regressionBase + 1,
+  );
+  regressionState.markReady(
+    regressionSource,
+    regressionStream.stream_id,
+    regressionBase + 2,
+  );
+  regressionState.markReady(
+    regressionTarget,
+    regressionStream.stream_id,
+    regressionBase + 3,
+  );
+  regressionState.routeData(
+    regressionSource,
+    regressionStream.stream_id,
+    1,
+    regressionBase + 4,
+  );
+  assert.equal(
+    regressionState.snapshot(regressionBase + 4).stream_count,
+    1,
+  );
+  const regressionClosed = regressionState.sweep(regressionBase + 3);
+  assert.equal(regressionClosed.length, 1);
+  assert.equal(regressionClosed[0]?.stream_id, regressionStream.stream_id);
+  const regressionCleared = regressionState.snapshot(regressionBase + 3);
+  assert.equal(regressionCleared.reservation_count, 0);
+  assert.equal(regressionCleared.stream_count, 0);
+
+  const freshReservation = regressionState.reserve(
+    regressionTarget,
+    60_000,
+    regressionBase + 3,
+  );
+  const freshStream = regressionState.openStream(
+    regressionSource,
+    regressionTarget,
+    regressionBase + 4,
+  );
+  assert.equal(
+    freshStream.target_reservation_id,
+    freshReservation.reservation_id,
+  );
+  regressionState.markReady(
+    regressionSource,
+    freshStream.stream_id,
+    regressionBase + 5,
+  );
+  regressionState.markReady(
+    regressionTarget,
+    freshStream.stream_id,
+    regressionBase + 6,
+  );
+  assert.equal(
+    regressionState.routeData(
+      regressionSource,
+      freshStream.stream_id,
+      1,
+      regressionBase + 7,
+    ).stream.last_activity_at_ms,
+    regressionBase + 7,
+  );
+
+  const refreshState = new VoidRelayServerStateV1();
+  const refreshTarget = keypair().nodeId;
+  const refreshSource = keypair().nodeId;
+  const firstRefreshReservation = refreshState.reserve(
+    refreshTarget,
+    60_000,
+    regressionBase,
+  );
+  const refreshStream = refreshState.openStream(
+    refreshSource,
+    refreshTarget,
+    regressionBase + 1,
+  );
+  refreshState.markReady(
+    refreshSource,
+    refreshStream.stream_id,
+    regressionBase + 2,
+  );
+  refreshState.markReady(
+    refreshTarget,
+    refreshStream.stream_id,
+    regressionBase + 3,
+  );
+  const secondRefreshReservation = refreshState.reserve(
+    refreshTarget,
+    60_000,
+    regressionBase + 4,
+  );
+  assert.notEqual(
+    secondRefreshReservation.reservation_id,
+    firstRefreshReservation.reservation_id,
+  );
+  assert.equal(refreshState.hasStream(refreshStream.stream_id), true);
+  const refreshRouted = refreshState.routeData(
+    refreshSource,
+    refreshStream.stream_id,
+    1,
+    regressionBase + 5,
+  );
+  assert.equal(
+    refreshRouted.stream.target_reservation_id,
+    firstRefreshReservation.reservation_id,
+  );
+  assert.equal(
+    refreshState.reservationFor(refreshTarget, regressionBase + 5)
+      ?.reservation_id,
+    secondRefreshReservation.reservation_id,
+  );
+
   const loopState = new VoidRelayServerStateV1();
   loopState.reserve(stateTarget, 60_000, now);
   assert.throws(
@@ -596,6 +716,8 @@ try {
   console.log("[PASS] expired reservations, relay loops, and oversized frames fail closed");
   console.log("[PASS] relay reservation TTL is bounded by the local request clock");
   console.log("[PASS] relay reservation expiry arithmetic fails closed atomically");
+  console.log("[PASS] relay server clock regression clears transient state");
+  console.log("[PASS] monotonic reservation refresh preserves established streams");
   console.log("[PASS] ignored relay requests expire and free pending capacity");
   console.log("[PASS] relay forwarding queue has an explicit byte ceiling");
   console.log("[PASS] incoming streams require the exact active reservation ID");
@@ -617,6 +739,9 @@ try {
   console.log("relay_reservation_client_ttl_bounded=true");
   console.log("relay_reservation_expiry_safe_integer_bound=true");
   console.log("relay_invalid_clock_mutates_state=false");
+  console.log("relay_clock_regression_clears_transient_state=true");
+  console.log("relay_clock_regression_fresh_state_recovery=true");
+  console.log("relay_monotonic_reservation_refresh_preserves_stream=true");
   console.log("relay_pending_request_timeout_bounded=true");
   console.log("relay_forwarding_queue_bounded=true");
   console.log("incoming_reservation_id_bound=true");
