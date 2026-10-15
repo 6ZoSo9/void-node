@@ -1206,6 +1206,7 @@ async function main() {
       privileged_first_entry_authenticated: false,
       credential_generation_retained_through_signing: true,
       credential_generation_revalidated_after_final_observation: true,
+      credential_generation_revalidated_immediately_before_close: true,
       raw_private_key_output: false,
       private_key_string_materialization: false,
       raw_signed_transaction_output: false,
@@ -1231,6 +1232,13 @@ async function main() {
   } catch (error) {
     operationError = error;
   } finally {
+    if (operationError === null) {
+      try {
+        credentialGeneration.revalidate();
+      } catch (closingRevalidationError) {
+        operationError = closingRevalidationError;
+      }
+    }
     credential.fill(0);
     if (privateKey !== null) privateKey.fill(0);
     if (signature !== null) signature.fill(0);
