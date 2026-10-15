@@ -13,7 +13,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_DENY_TARGET_V1 =
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_DENY_SOURCE_V1 =
   "ops/polkit/00-void-buy-allocation-custody-runtime-deny-v1.rules";
 
-export const VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_RUNTIME_USER_V1 = "zoso";
+export const VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_RUNTIME_USER_V1 = "void-buy-runtime";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_POLKIT_ACTIONS_V1 =
   Object.freeze([
