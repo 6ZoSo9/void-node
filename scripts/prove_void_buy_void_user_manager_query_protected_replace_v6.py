@@ -25,8 +25,8 @@ PREEXEC_SOURCE_REL = (
 PEER_SOURCE_REL = "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
 
 EXPECTED_BLOBS = {
-    SOURCE_REL: "1d5501d883a82202834629d8112d4b20a165fb8b",
-    LOCK_REL: "0cda9daecb2aa294f0a10041d81be7673705f1d8",
+    SOURCE_REL: "dd4f1a9d83d95a70f2190d4b64afd14d0fabcbcf",
+    LOCK_REL: "99c2c162504e690091e733e15345d9ecc42d22c4",
     CANDIDATE_REL: "a341112695b1abbc61e0b4d88db9675b4fa15d83",
     HISTORICAL_REPLACE_REL: "25753737ac7719b0ceddc759904c81db0f7a1cae",
     QUERY_SOURCE_REL: "fc1f640689b7da7278ff013669ef8a10cd8f6659",
@@ -35,7 +35,7 @@ EXPECTED_BLOBS = {
 }
 
 LOCK_ID = (
-    "voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6"
+    "voidbuyumqelflock6_cede427c177e309cf23364b9092f3cbba63be405ad6458cc0c8ef93bc09abd77"
 )
 INSTALLED_V2_LOCK_ID = (
     "voidbuyumqelflock2_c643213ce46d6f2b4dfe04675a7fbbcaad2b6aea40418cb921586362a054f474"
@@ -203,6 +203,7 @@ assert "reason=explicit_rollback_confirmation_required" in (
 
 print("VOID_BUY_VOID_USER_MANAGER_QUERY_PROTECTED_REPLACE_V6_PROOF_GREEN")
 print("accepted_v6_lock_bound=true")
+print("corrected_v6_lock_truth_bound=true")
 print("installed_v2_identity_bound=true")
 print("fixed_preexec_unchanged=true")
 print("v1_predecessor_preserved=true")
