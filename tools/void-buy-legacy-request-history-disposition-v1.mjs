@@ -174,16 +174,14 @@ function deriveCensus(raw,sourceHead){
     "legacy_history_disposition_service_shape_invalid",
   );
   if(
-    service.status!==0||
-    service.load_state!=="loaded"||
-    service.active_state!=="active"||
-    service.sub_state!=="running"||
-    !Number.isSafeInteger(service.main_pid)||
-    service.main_pid<=1||
-    typeof service.working_directory!=="string"||
-    !service.working_directory.startsWith("/")||
-    typeof service.live_process_cwd!=="string"||
-    !service.live_process_cwd.startsWith("/")
+    !Number.isSafeInteger(service.status)||
+    ![service.load_state,service.active_state,service.sub_state]
+      .every(value=>value===null||typeof value==="string")||
+    !(service.main_pid===null||Number.isSafeInteger(service.main_pid))||
+    !(service.working_directory===null||
+      typeof service.working_directory==="string")||
+    !(service.live_process_cwd===null||
+      typeof service.live_process_cwd==="string")
   ){
     fail("legacy_history_disposition_service_state_invalid");
   }
@@ -192,12 +190,18 @@ function deriveCensus(raw,sourceHead){
     STATUS_KEYS,
     "legacy_history_disposition_request_status_shape_invalid",
   );
-  if(
-    requestStatus.observed!==true||
-    !["server_default","VOID_BUY_REQUEST_DIR"].includes(requestStatus.source)||
-    typeof requestStatus.request_dir!=="string"||
-    !requestStatus.request_dir.startsWith("/")
-  ){
+  if(typeof requestStatus.observed!=="boolean"){
+    fail("legacy_history_disposition_request_status_invalid");
+  }
+  if(requestStatus.observed===true){
+    if(
+      !["server_default","VOID_BUY_REQUEST_DIR"].includes(requestStatus.source)||
+      typeof requestStatus.request_dir!=="string"||
+      !requestStatus.request_dir.startsWith("/")
+    ){
+      fail("legacy_history_disposition_request_status_invalid");
+    }
+  }else if(requestStatus.source!==null||requestStatus.request_dir!==null){
     fail("legacy_history_disposition_request_status_invalid");
   }
   requireBool(census.read_only,true,"legacy_history_disposition_census_not_read_only");
@@ -266,6 +270,22 @@ function deriveCensus(raw,sourceHead){
     census.candidate_observations_stable===true;
   if(census.bounded_current_candidate_set_observed!==boundedExpected){
     fail("legacy_history_disposition_bounded_census_flag_inconsistent");
+  }
+  if(census.bounded_current_candidate_set_observed===true&&(
+    census.immutable_release_inventory_complete!==true||
+    service.status!==0||
+    service.load_state!=="loaded"||
+    service.active_state!=="active"||
+    service.sub_state!=="running"||
+    !Number.isSafeInteger(service.main_pid)||
+    service.main_pid<=1||
+    typeof service.working_directory!=="string"||
+    !service.working_directory.startsWith("/")||
+    typeof service.live_process_cwd!=="string"||
+    !service.live_process_cwd.startsWith("/")||
+    requestStatus.observed!==true
+  )){
+    fail("legacy_history_disposition_bounded_census_runtime_invalid");
   }
 
   if(!Array.isArray(census.candidates)){
