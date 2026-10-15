@@ -1,0 +1,146 @@
+name: Buy VOID Epoch-2 native live preentry v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs"
+      - "docs/operators/buy-void-epoch2-live-composition-native-preentry-v1.md"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs"
+      - "docs/operators/buy-void-epoch2-live-composition-native-preentry-v1.md"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-native-live-preentry-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax and inert runner surfaces
+        run: |
+          set -euo pipefail
+          node --check \
+            ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs
+          node --check \
+            scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs
+          cc -std=c11 -Wall -Wextra -Werror -O2 -static \
+            ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c \
+            -o "$RUNNER_TEMP/epoch2-native-preentry"
+          file "$RUNNER_TEMP/epoch2-native-preentry" | grep -F 'statically linked'
+          readelf -l "$RUNNER_TEMP/epoch2-native-preentry" > "$RUNNER_TEMP/native-readelf.txt"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/native-readelf.txt"; then
+            echo native_preentry_has_dynamic_interpreter >&2
+            exit 1
+          fi
+          "$RUNNER_TEMP/epoch2-native-preentry" --self-test \
+            >"$RUNNER_TEMP/native-self-test-${{ matrix.node }}.txt"
+          node \
+            ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs \
+            --self-test \
+            >"$RUNNER_TEMP/runner-self-test-${{ matrix.node }}.txt"
+          node \
+            ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs \
+            --plan \
+            >"$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
+          grep -Fx \
+            'VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1_SELF_TEST_GREEN' \
+            "$RUNNER_TEMP/native-self-test-${{ matrix.node }}.txt"
+          grep -Fx \
+            'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V2_SELF_TEST_GREEN' \
+            "$RUNNER_TEMP/runner-self-test-${{ matrix.node }}.txt"
+          grep -Fx 'native_preentry_required_for_live=true' \
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
+          grep -Fx 'native_parent_retained_for_child_lifetime_required=true' \
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
+          grep -Fx 'native_parent_process_generation_proof_required=true' \
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
+          grep -Fx 'native_parent_revalidation_after_sensitive_sequence_required=true' \
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
+          grep -Fx 'stdin_javascript_source_forbidden=true' \
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
+
+      - name: Prove native privileged first entry
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/epoch2-native-preentry-proof-${{ matrix.node }}.txt"
+          node scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs \
+            | tee "$OUT"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1_PROOF_GREEN' \
+            'stack_parent_sealed_v2=true' \
+            'native_first_instruction=true' \
+            'root_owned_fixed_runner=true' \
+            'runner_generation_policy_bound=true' \
+            'node_generation_policy_bound=true' \
+            'expected_head_policy_bound=true' \
+            'runner_descriptor_retained=true' \
+            'node_descriptor_fexecve=true' \
+            'native_parent_retained_for_child_lifetime=true' \
+            'native_parent_process_generation_bound=true' \
+            'native_parent_installed_generation_bound=true' \
+            'native_parent_revalidated_after_sensitive_sequence=true' \
+            'direct_root_node_marker_fd_forgery_rejected=true' \
+            'caller_stdin_javascript_rejected_before_root_js=true' \
+            'loader_environment_sanitized=true' \
+            'native_preentry_static=true' \
+            'native_preentry_no_pt_interp=true' \
+            'native_preentry_ld_preload_blocked_before_main=true' \
+            'live_credential_access=false' \
+            'live_signing=false' \
+            'transaction=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'wc_void_market_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$OUT"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1)"
