@@ -11,7 +11,7 @@ TARGET=ROOT/"ops/xiphos/void-apollyon-authorization-custody-v1.target"
 manifest=json.loads(MANIFEST.read_text())
 assert manifest["marker"]=="VOID_APOLLYON_CUSTODY_TARGET_STOP_PROPAGATION_UPDATE_V1"
 assert manifest["old_blob_sha1"]=="d37ffefddb747d4c49f3ee70ea94a3612307a696"
-assert manifest["new_blob_sha1"]=="@NEW_TARGET_BLOB@"
+assert manifest["new_blob_sha1"]=="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 assert manifest["propagates_stop_to_service"] is True
 assert manifest["restart_propagation"] is False
 assert manifest["authority"]["service_action"] is False
@@ -26,7 +26,7 @@ source=INSTALLER.read_text()
 ast.parse(source)
 for required in (
     'OLD_TARGET_BLOB="d37ffefddb747d4c49f3ee70ea94a3612307a696"',
-    'NEW_TARGET_BLOB="@NEW_TARGET_BLOB@"',
+    'NEW_TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"',
     '"PropagatesStopTo"',
     'os.replace(temp,TARGET_PATH)',
     'run(["/usr/bin/systemctl","daemon-reload"])',
