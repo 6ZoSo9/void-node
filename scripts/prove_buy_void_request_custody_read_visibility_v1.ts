@@ -8,6 +8,7 @@ import {
 } from "../src/economic/buy_void_public_request_under_launch_lock_v1.js";
 import {
   testOnlyReadStrictCapacityCensusV1,
+  writeBuyVoidOperatorEventWithCapacityAdmissionV1,
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
 import {
   VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1,
@@ -112,7 +113,8 @@ try{
   fs.chmodSync(requests,VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
   fs.chmodSync(events,VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
 
-  const created=await persist(shared,req("buyvoid_shared_aaaaaaaa","1"));
+  const sharedRequest=req("buyvoid_shared_aaaaaaaa","1");
+  const created=await persist(shared,sharedRequest);
   assert.equal(created.reused_request,null);
   assert.equal(created.file!==null,true);
   assert.equal(mode(shared),VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1);
@@ -126,6 +128,57 @@ try{
   const sidecar=path.join(shared,"buyvoid_shared_aaaaaaaa.json");
   assert.equal(mode(sidecar),0o600);
   assert.equal((mode(sidecar)&0o040)!==0,false,"customer sidecar must not become group-readable");
+
+  const reviewedEvent=Object.freeze({
+    schema:"void_buy_void_operator_mark_v1",
+    ok:true,
+    request_id:sharedRequest.request_id,
+    operator_status:"reviewed",
+    marked_at_ms:1800000000100,
+    quoted_void:sharedRequest.quoted_void,
+  });
+  const terminalResult=await writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+    event:reviewedEvent,
+    request:sharedRequest,
+    request_dir:shared,
+    with_launch_authority_mutation:async()=>{
+      assert.fail("reviewed status must not invoke payment launch");
+    },
+    read_sale_state:async()=>{
+      assert.fail("reviewed status must not read sale state");
+    },
+  });
+  assert.equal(terminalResult.ok,true);
+  assert.equal(rows(events).length,1);
+  const operatorSidecar=path.join(
+    shared,
+    "operator-event-"+sharedRequest.request_id+"-1800000000100.json",
+  );
+  assert.equal(mode(operatorSidecar),0o600);
+  assert.equal(
+    (mode(operatorSidecar)&0o040)!==0,
+    false,
+    "operator sidecar must remain private in custody-readable mode",
+  );
+  const capacitySource=fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "src/economic/buy_void_verified_payment_capacity_admission_v1.ts",
+    ),
+    "utf8",
+  );
+  assert.match(
+    capacitySource,
+    /function openPinnedPrivateSidecarV1\(/u,
+  );
+  assert.match(
+    capacitySource,
+    /const final = openPinnedPrivateSidecarV1\([\s\S]*?sidecarName, code,/u,
+  );
+  assert.match(
+    capacitySource,
+    /function validatePrivateSidecarStatV1\([\s\S]*?\(Number\(stat\.mode\) & 0o7777\) !== 0o600/u,
+  );
 
   const census=testOnlyReadStrictCapacityCensusV1(shared,10_000_000n,()=>{});
   assert.equal(census.verified_void_micro,0n);
@@ -253,6 +306,8 @@ console.log(MARKER+"_GREEN");
 console.log("request_directory_mode=0750");
 console.log("fixed_journal_mode=0640");
 console.log("customer_sidecar_mode=0600");
+console.log("operator_sidecar_mode=0600");
+console.log("operator_sidecar_private_reopen_path=true");
 console.log("operator_sidecar_group_readable=false");
 console.log("shared_mode_preprovision_required=true");
 console.log("legacy_mode_default_preserved=true");
