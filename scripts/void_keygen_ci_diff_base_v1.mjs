@@ -52,17 +52,31 @@ function firstParent(head) {
   return sha(parent, "first_parent");
 }
 
-export function resolveVoidKeygenDiffBaseV1({
+function mergeBase(base, head) {
+  const merged = git(["merge-base", base, head]);
+  return sha(merged, "merge_base");
+}
+
+function resolveVoidKeygenDiffBaseWithV1({
   eventName,
   headSha,
   pullRequestBaseSha = "",
   pushBeforeSha = "",
+} = {}, {
+  pullRequestMergeBase = mergeBase,
 } = {}) {
   const event = String(eventName || "");
   const head = sha(headSha, "head");
   let base;
   if (event === "pull_request") {
-    base = sha(pullRequestBaseSha, "pull_request_base");
+    const requestedBase = sha(
+      pullRequestBaseSha,
+      "pull_request_base",
+    );
+    base = sha(
+      pullRequestMergeBase(requestedBase, head),
+      "pull_request_merge_base",
+    );
   } else if (event === "push") {
     const before = String(pushBeforeSha || "").trim().toLowerCase();
     if (before && SHA40.test(before) && !ZERO40.test(before)) {
@@ -102,6 +116,10 @@ export function resolveVoidKeygenDiffBaseV1({
   return base;
 }
 
+export function resolveVoidKeygenDiffBaseV1(input = {}) {
+  return resolveVoidKeygenDiffBaseWithV1(input);
+}
+
 function selfTest() {
   const head = sha(git(["rev-parse", "HEAD"]), "self_test_head");
   const parent = firstParent(head);
@@ -113,6 +131,28 @@ function selfTest() {
     }),
     parent,
   );
+
+  const simulatedDivergedBase = "1".repeat(40);
+  let simulatedMergeBaseCalls = 0;
+  assert.equal(
+    resolveVoidKeygenDiffBaseWithV1(
+      {
+        eventName: "pull_request",
+        headSha: head,
+        pullRequestBaseSha: simulatedDivergedBase,
+      },
+      {
+        pullRequestMergeBase(base, candidateHead) {
+          simulatedMergeBaseCalls += 1;
+          assert.equal(base, simulatedDivergedBase);
+          assert.equal(candidateHead, head);
+          return parent;
+        },
+      },
+    ),
+    parent,
+  );
+  assert.equal(simulatedMergeBaseCalls, 1);
   assert.equal(
     resolveVoidKeygenDiffBaseV1({
       eventName: "push",
@@ -145,6 +185,8 @@ function selfTest() {
   );
   console.log("VOID_KEYGEN_CI_DIFF_BASE_V1_SELF_TEST_GREEN");
   console.log("pull_request_base_supported=true");
+  console.log("pull_request_merge_base_supported=true");
+  console.log("pull_request_raw_base_ancestry_required=false");
   console.log("push_before_supported=true");
   console.log("push_zero_before_parent_fallback=true");
   console.log("workflow_dispatch_parent_fallback=true");
