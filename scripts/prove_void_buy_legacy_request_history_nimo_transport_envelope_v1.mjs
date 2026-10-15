@@ -282,6 +282,17 @@ assert.equal(validateVoidBuyVoidLegacyHistoryNimoResponseV1({
   policy,request_json:appendB.request_json,response_json:responseB.response_json,
 }).ok,true);
 
+const stalePastExpected=
+  testOnlyClassifyVoidBuyVoidLegacyHistoryNimoServerRequestAgainstFingerprintV1(
+    {policy,request_json:append.request_json,current_witness_jsonl:serverB.next_witness_jsonl},
+    fingerprint,
+  );
+assert.equal(stalePastExpected.ok,false);
+assert.equal(
+  stalePastExpected.reason,
+  "legacy_history_nimo_transport_prior_compare_and_swap_mismatch",
+);
+
 const retryA=testOnlyBuildVoidBuyVoidLegacyHistoryNimoAppendRequestAgainstFingerprintV1(
   {
     policy,
@@ -344,11 +355,28 @@ const validatedRead=validateVoidBuyVoidLegacyHistoryNimoResponseV1({
 assert.equal(validatedRead.ok,true);
 assert.ok(validatedRead.witness_jsonl.equals(server.next_witness_jsonl));
 
-const staleCurrent=testOnlyClassifyVoidBuyVoidLegacyHistoryNimoServerRequestAgainstFingerprintV1(
-  {policy,request_json:append.request_json,current_witness_jsonl:server.next_witness_jsonl},
-  fingerprint,
-);
-assert.equal(staleCurrent.ok,false);
+const committedRetryServer=
+  testOnlyClassifyVoidBuyVoidLegacyHistoryNimoServerRequestAgainstFingerprintV1(
+    {policy,request_json:append.request_json,current_witness_jsonl:server.next_witness_jsonl},
+    fingerprint,
+  );
+assert.equal(committedRetryServer.ok,true);
+if(!committedRetryServer.ok)throw Error(committedRetryServer.reason||"committed retry held");
+assert.equal(committedRetryServer.status,"IDEMPOTENT_READY_SOURCE_ONLY");
+assert.equal(committedRetryServer.append_required,false);
+assert.equal(committedRetryServer.committed_retry,true);
+assert.ok(committedRetryServer.next_witness_jsonl.equals(server.next_witness_jsonl));
+const committedRetryResponse=buildVoidBuyVoidLegacyHistoryNimoServerResponseV1({
+  policy,
+  request_json:append.request_json,
+  observed_witness_jsonl:committedRetryServer.next_witness_jsonl,
+  operation_performed:false,
+});
+assert.equal(committedRetryResponse.ok,true);
+assert.equal(committedRetryResponse.response.status,"idempotent");
+assert.equal(validateVoidBuyVoidLegacyHistoryNimoResponseV1({
+  policy,request_json:append.request_json,response_json:committedRetryResponse.response_json,
+}).ok,true);
 
 const tampered=Buffer.from(append.request_json);
 tampered[tampered.length-2]^=1;
@@ -409,6 +437,8 @@ console.log("arbitrary_append_bytes_from_client=false");
 console.log("append_compare_and_swap_required=true");
 console.log("round_trip_witness_bytes_verified=true");
 console.log("crash_retry_idempotent_response_supported=true");
+console.log("committed_response_loss_retry_idempotent=true");
+console.log("retry_beyond_expected_next_witness_rejected=true");
 console.log("network_access=false");
 console.log("ssh_execution=false");
 console.log("external_transport_authenticated=false");
