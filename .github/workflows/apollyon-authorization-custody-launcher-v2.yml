@@ -1,0 +1,44 @@
+name: Apollyon authorization custody launcher v2
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-authorization-custody-launcher-v2.mjs"
+      - "scripts/prove_apollyon_authorization_custody_launcher_v2.mjs"
+      - "docs/security/apollyon-authorization-custody-launcher-v2.md"
+      - ".github/workflows/apollyon-authorization-custody-launcher-v2.yml"
+      - "tools/apollyon-authorization-custody-service-v1.mjs"
+      - "tools/apollyon-authorization-custody-core-v1.mjs"
+      - "scripts/apollyon_operator_authorization_packet_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prove custody launcher v2
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-authorization-custody-launcher-v2.mjs
+          node --check scripts/prove_apollyon_authorization_custody_launcher_v2.mjs
+          node scripts/prove_apollyon_authorization_custody_launcher_v2.mjs
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
