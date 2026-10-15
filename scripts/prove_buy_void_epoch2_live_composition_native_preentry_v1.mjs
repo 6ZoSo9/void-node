@@ -33,6 +33,10 @@ const CC = "/usr/bin/cc";
 const SUDO = "/usr/bin/sudo";
 const PRIVATE_OPT_FIXTURE_ENV =
   "VOID_BUY_VOID_EPOCH2_PROOF_PRIVATE_OPT_NAMESPACE_V1";
+const PRIVATE_BOOTSTRAP_ROOT_ENV =
+  "VOID_BUY_VOID_EPOCH2_PROOF_BOOTSTRAP_ROOT_V1";
+const PRIVATE_SELECTED_NODE_SHA256_ENV =
+  "VOID_BUY_VOID_EPOCH2_PROOF_SELECTED_NODE_SHA256_V1";
 
 function cleanEnv(extra = {}) {
   return {
@@ -190,21 +194,26 @@ function requireDelegatedPrivateNamespace() {
     "delegated proof must execute in a private mount namespace",
   );
 
-  const bootstrapRoot = path.dirname(process.execPath);
+  const bootstrapRoot = String(
+    process.env[PRIVATE_BOOTSTRAP_ROOT_ENV] || "",
+  );
   assert.equal(
     path.dirname(bootstrapRoot),
-    os.tmpdir(),
-    "delegated harness root must be directly beneath the system temp root",
+    "/tmp",
+    "delegated harness root must be directly beneath fixed /tmp",
   );
   assert.match(
     path.basename(bootstrapRoot),
     /^void-e2-private-opt-v1-[A-Za-z0-9_-]+$/u,
     "delegated harness root name invalid",
   );
-  assert.equal(
-    path.basename(process.execPath),
-    "node",
-    "delegated harness executable name invalid",
+  const selectedNodeSha256 = String(
+    process.env[PRIVATE_SELECTED_NODE_SHA256_ENV] || "",
+  );
+  assert.match(
+    selectedNodeSha256,
+    /^[0-9a-f]{64}$/u,
+    "delegated selected Node SHA-256 invalid",
   );
   const bootstrapStat = fs.lstatSync(bootstrapRoot, { bigint: true });
   assert.equal(
@@ -227,7 +236,8 @@ function requireDelegatedPrivateNamespace() {
     0o755n,
     "delegated bootstrap root must be exact mode 0755",
   );
-  const harnessStat = fs.lstatSync(process.execPath, { bigint: true });
+  const harnessNode = path.join(bootstrapRoot, "node");
+  const harnessStat = fs.lstatSync(harnessNode, { bigint: true });
   assert.equal(
     harnessStat.isFile() && !harnessStat.isSymbolicLink(),
     true,
@@ -247,6 +257,11 @@ function requireDelegatedPrivateNamespace() {
     (harnessStat.mode & 0o022n) === 0n,
     true,
     "delegated harness Node must not be group/world writable",
+  );
+  assert.equal(
+    crypto.createHash("sha256").update(fs.readFileSync(harnessNode)).digest("hex"),
+    selectedNodeSha256,
+    "root-owned harness Node must match the selected hosted Node bytes",
   );
 
   const backingOpt = path.join(bootstrapRoot, "opt");
@@ -381,8 +396,13 @@ function requireDelegatedPrivateNamespace() {
   );
   assert.equal(
     crypto.createHash("sha256").update(fs.readFileSync(FIXED_NODE)).digest("hex"),
-    crypto.createHash("sha256").update(fs.readFileSync(process.execPath)).digest("hex"),
+    selectedNodeSha256,
     "private fixed Node must match the selected hosted Node bytes",
+  );
+  assert.equal(
+    crypto.createHash("sha256").update(fs.readFileSync(FIXED_NODE)).digest("hex"),
+    crypto.createHash("sha256").update(fs.readFileSync(harnessNode)).digest("hex"),
+    "private fixed Node must match the root-owned harness generation",
   );
 
   assert.equal(
@@ -498,6 +518,8 @@ function enterPrivateOptFixtureNamespace() {
     "root bootstrap must be exact mode 0755",
   );
 
+  const selectedNodeSha256 =
+    crypto.createHash("sha256").update(fs.readFileSync(process.execPath)).digest("hex");
   const harnessNode = path.join(bootstrapRoot, "node");
   const harnessInstall = run(SUDO, [
     "-n",
@@ -512,6 +534,11 @@ function enterPrivateOptFixtureNamespace() {
     harnessInstall.status,
     0,
     "failed to install root-owned harness Node: " + harnessInstall.stderr,
+  );
+  assert.equal(
+    crypto.createHash("sha256").update(fs.readFileSync(harnessNode)).digest("hex"),
+    selectedNodeSha256,
+    "root-owned harness Node copy must match selected hosted Node bytes",
   );
 
   const safeOpt = path.join(bootstrapRoot, "opt");
@@ -536,6 +563,8 @@ function enterPrivateOptFixtureNamespace() {
     'safe_usr_upper="${10}"',
     'safe_usr_work="${11}"',
     'safe_usr_merged="${12}"',
+    'bootstrap_root="${13}"',
+    'selected_node_sha256="${14}"',
     "/usr/bin/mount --make-rprivate /",
     '/usr/bin/install -d -o root -g root -m 0755 "$safe_usr_upper" "$safe_usr_work" "$safe_usr_merged"',
     '/usr/bin/mount -t overlay overlay -o "lowerdir=/usr/bin,upperdir=$safe_usr_upper,workdir=$safe_usr_work" "$safe_usr_merged"',
@@ -550,7 +579,10 @@ function enterPrivateOptFixtureNamespace() {
     'cd "$safe_repo"',
     'exec /usr/bin/setpriv --reuid="$runtime_uid" --regid="$runtime_gid" --clear-groups ' +
       '/usr/bin/env -i PATH=/usr/bin:/bin HOME="$runtime_home" LANG=C LC_ALL=C ' +
-      PRIVATE_OPT_FIXTURE_ENV + '=1 "$harness_node" "$safe_repo/$proof_relative"',
+      PRIVATE_OPT_FIXTURE_ENV + '=1 ' +
+      PRIVATE_BOOTSTRAP_ROOT_ENV + '="$bootstrap_root" ' +
+      PRIVATE_SELECTED_NODE_SHA256_ENV + '="$selected_node_sha256" ' +
+      '/usr/bin/node "$safe_repo/$proof_relative"',
   ].join("\n");
 
     delegated = run(SUDO, [
@@ -574,6 +606,8 @@ function enterPrivateOptFixtureNamespace() {
       safeUsrUpper,
       safeUsrWork,
       safeUsrMerged,
+      bootstrapRoot,
+      selectedNodeSha256,
     ], {
       timeout: 180_000,
     });
