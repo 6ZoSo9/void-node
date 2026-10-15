@@ -11,6 +11,7 @@ const UNIT=path.join(ROOT,"ops/xiphos/void-apollyon-authorization-custody-v1.ser
 const TARGET=path.join(ROOT,"ops/xiphos/void-apollyon-authorization-custody-v1.target");
 const ENV_TEMPLATE=path.join(ROOT,"ops/xiphos/void-apollyon-authorization-custody-v1.env.template");
 const POLKIT=path.join(ROOT,"ops/xiphos/00-void-apollyon-training-custody-deny-v1.rules");
+const TMPFILES=path.join(ROOT,"ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf");
 
 function canonical(v){
   if(Array.isArray(v))return v.map(canonical);
@@ -106,6 +107,16 @@ assert.equal(
   "66d9b1c1fff316ecf96d7af73af7bf4a4442d6ce10f0e2df906fa1a79dc5580c",
 );
 assert.equal(manifest.required_operator_input.private_key_required,false);
+assert.equal(manifest.required_operator_input.public_identity_cross_attested,true);
+assert.equal(
+  manifest.required_operator_input.expected_operator_public_key_raw_sha256,
+  "c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134",
+);
+assert.equal(
+  fs.readFileSync(TMPFILES,"utf8"),
+  "d /run/void-apollyon-custody-v1 0750 voidapollyoncustody voidapollyonipc - -\n",
+);
+assert.equal(manifest.filesystem_contract.socket_parent_recreated_by_tmpfiles,true);
 for(const key of [
   "host_installation","account_mutation","group_mutation","systemd_mutation",
   "polkit_mutation","service_start","service_enable","training_execution",
@@ -126,6 +137,8 @@ console.log("training_ipc_membership_additive_required=true");
 console.log("custody_service_refuse_manual_start_stop=true");
 console.log("activation_target_separate=true");
 console.log("operator_public_key_required=true");
+console.log("operator_public_key_raw_sha256=c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134");
+console.log("socket_parent_tmpfiles_bound=true");
 console.log("operator_private_key_required=false");
 console.log("service_start=false");
 console.log("service_enable=false");

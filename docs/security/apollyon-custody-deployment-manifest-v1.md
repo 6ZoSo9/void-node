@@ -38,6 +38,19 @@ shared IPC group needed for the AF_UNIX socket.
 
 The socket/state roots are intentionally disjoint.
 
+Because `/run` is ephemeral, the deployment also installs:
+
+`/usr/lib/tmpfiles.d/void-apollyon-custody-v1.conf`
+
+with the exact rule:
+
+```text
+d /run/void-apollyon-custody-v1 0750 voidapollyoncustody voidapollyonipc - -
+```
+
+The installer invokes `systemd-tmpfiles --create` only after the custody and
+IPC identities exist.
+
 ## Service activation model
 
 `void-apollyon-authorization-custody-v1.service` carries
@@ -63,9 +76,13 @@ SHA-256:
 
 ## Operator key boundary
 
-Custody requires only the operator **public** Ed25519 key. The create-only
-installer must receive the public-key source path plus expected raw-key
-SHA-256, verify them, and install a public copy at:
+Custody requires only the operator **public** Ed25519 key. The two existing
+public identity records independently agree on the accepted raw-key SHA-256:
+
+`c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134`
+
+The create-only installer must receive a public PEM source path, verify that
+exact fingerprint, and install a public copy at:
 
 `/etc/void/apollyon-custody-v1/operator-public-key.pem`
 

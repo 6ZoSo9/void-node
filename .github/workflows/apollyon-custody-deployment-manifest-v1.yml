@@ -8,6 +8,7 @@ on:
       - "ops/xiphos/void-apollyon-authorization-custody-v1.target"
       - "ops/xiphos/void-apollyon-authorization-custody-v1.env.template"
       - "ops/xiphos/00-void-apollyon-training-custody-deny-v1.rules"
+      - "ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf"
       - "scripts/prove_apollyon_custody_deployment_manifest_v1.mjs"
       - "docs/security/apollyon-custody-deployment-manifest-v1.md"
       - ".github/workflows/apollyon-custody-deployment-manifest-v1.yml"
