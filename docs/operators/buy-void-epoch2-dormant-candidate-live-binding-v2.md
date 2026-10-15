@@ -14,9 +14,9 @@ The binder itself remains unprivileged.
 Source provenance is pinned to:
 
 - V2 live runner Git blob
-  `8241a7172284381295b70bd55f5af3328b03605a`;
+  `8ab77a4f0782f228171a2895641a56cb37c5659e`;
 - native preentry source Git blob
-  `525dbf7c6ac36ee24bac75c009c03856feab0fdc`;
+  `4aa091e7835b32aa5c4e7b8e4059651c69a64eb3`;
 - dormant candidate Git blob
   `2c861c021192c034c98404989cd25b26788cd0f0`.
 
@@ -63,6 +63,10 @@ prove:
 - native preentry policy bound;
 - root Node descriptor execution bound;
 - retained runner descriptor bound;
+- native parent retained for the complete Node-child lifetime;
+- parent/child Linux process start-time generations bound;
+- installed native/runner/Node generations bound;
+- native parent + installed generations revalidated after the sensitive sequence;
 - stdin JavaScript forbidden;
 - sealed V2 credential generation retained through signing;
 - sealed V2 final-observation generation revalidation;
@@ -85,7 +89,8 @@ The binding may promote these facts from the protected child:
 - active non-transaction signing capability proven;
 - runtime source generation bound;
 - authenticated private-manager generation bound;
-- protected first entry authenticated.
+- protected first entry authenticated;
+- surviving native-parent process/installed-generation provenance proven.
 
 It still leaves the following HOLD:
 
