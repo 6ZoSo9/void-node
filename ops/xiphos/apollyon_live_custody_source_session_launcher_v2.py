@@ -27,19 +27,19 @@ REVIEWED_FILES={
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
-        "676c41dc5cdaea88135611190901ec24edad95a4",
+        "2a285b5b1da2597a8b9eae6d08cd42d010bf7f71",
     "tools/apollyon-candidate-training-preclaim-v2.mjs":
-        "9db6154ba2b6c539ad6462e008024d52f7356d5c",
+        "33a7f0d51d7ce1ab6e7ee48e4e205c0b639cca82",
     "tools/apollyon-v2-raw-collector-adapter-v1.mjs":
-        "749813bd9bc473481ab0cd5281f1ab0b507961f5",
+        "9890285cde6a1ed4491d0eafb6c73b853ab6fad3",
     "tools/apollyon-candidate-training-attempt-claim-contract-v2.mjs":
-        "722558eca8055cd3b4dd495887e849d7eeb1530c",
+        "b61f2f0982de47c5e11cc1f82e6ea7946ab4a8b2",
     "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
-        "c64983ed20c12ff797b250b65581de54919363d3",
+        "981935515e08634be96446e58922c16be56d33ad",
     "tools/apollyon-authorization-custody-launcher-v2.mjs":
         "d23ff045d8c355401fed499c6bcffd503ba4c7fd",
     "tools/apollyon-designated-host-custody-live-qualification-v2.mjs":
-        "c242cd056bd6f87864c3000b4d038f6f12433efb",
+        "435e23d26fa32405e36d5dad17b033ea4ec910e0",
     "tools/apollyon-custody-host-policy-qualification-v2.mjs":
         "db5493a513a42780865e7194580eec3b770dc8e1",
     "tools/apollyon-custody-host-policy-qualification-v1.mjs":
