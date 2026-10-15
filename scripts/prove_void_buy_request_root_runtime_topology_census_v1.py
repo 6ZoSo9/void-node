@@ -34,6 +34,8 @@ for required in [
     "REQUEST_ROOT_STATUS_BINDING_REQUIRED",
     "metadata_qualified_candidate_count",
     "confirmed_closeout_status",
+    "runtime_http_listener_binding",
+    "owned_by_runtime_pid",
     "process_environment_access",
     "request_payment_contents_read",
 ]:
