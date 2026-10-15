@@ -1,0 +1,118 @@
+name: Buy VOID Epoch-2 native candidate lock v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v2.mjs"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-lock-v2.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-lock-v2.yml"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v2.yml"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-v2.md"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v2.mjs"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-lock-v2.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-lock-v2.yml"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v2.yml"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-v2.md"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-native-candidate-lock-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact accepted lock inputs
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor de1d19d8782405afa4d62ae670b11087d9c7e93e HEAD
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v2.json)" = \
+            "83968ee655824e44d8e2c2eb243c2136b2dbe0e9"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v2.mjs)" = \
+            "e2c9f756c376b4d92f01630823ec9d8b5ae8d3d9"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-candidate-lock-v2.md)" = \
+            "10c3dfedbdde4a396f07b9247784ef1a29c0834d"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-live-composition-native-candidate-v2.yml)" = \
+            "f3f644ad6c1ee916465a5a471e5b8edb23d18e8d"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-candidate-v2.md)" = \
+            "e1a0b0cf19947bd6364d980e08b571fdc37fa479"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove accepted native candidate identity
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v2.mjs
+          out="$RUNNER_TEMP/epoch2-native-candidate-lock-v2-${{ matrix.node }}.log"
+          node scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v2.mjs |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_LOCK_V2_PROOF_GREEN"
+            "candidate_pr_head_bound=true"
+            "candidate_workflow_bound=true"
+            "candidate_doc_bound=true"
+            "native_source_bound=true"
+            "runner_source_bound=true"
+            "native_binary_rederived=true"
+            "runner_identity_rederived=true"
+            "native_static_no_interp=true"
+            "toolchain_identity_bound=true"
+            "candidate_accepted=true"
+            "native_binary_identity_accepted=true"
+            "runner_identity_accepted=true"
+            "policy_expected_head_host_bound_later=true"
+            "policy_node_identity_host_bound_later=true"
+            "install_authorized=false"
+            "live_execution_authorized=false"
+            "credential_access=false"
+            "transaction=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1)"
