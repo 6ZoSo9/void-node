@@ -64,7 +64,7 @@ jobs:
           grep -Fx 'runtime_main_pid_kernel_binding_required=true' "$proof"
           grep -Fx 'double_authenticated_query_required=true' "$proof"
           grep -Fx 'installed_pair_stability_required=true' "$proof"
-          grep -Fx 'hold_query_execution_not_overclaimed=false' "$proof"
+          grep -Fx 'hold_query_execution_state_explicit=true' "$proof"
           grep -Fx 'host_mutation=false' "$proof"
           grep -Fx 'filesystem_write=false' "$proof"
           grep -Fx 'service_mutation=false' "$proof"
