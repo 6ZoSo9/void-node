@@ -125,6 +125,11 @@ custody facts from one inode with route bytes from another. The emitted evidence
 contains only a SHA-256 of the config bytes and classification booleans; it does
 not print the config, Tunnel ID or path.
 
+The parser binds route classification to exactly one top-level `ingress:`
+mapping. Two-space list items under any other top-level key cannot contribute
+route evidence. A missing or duplicate top-level `ingress:` block and duplicate
+`hostname` keys within one ingress rule fail closed.
+
 The canonical v1 sensitive candidate is deliberately strict: three explicit
 seed-host rules, one for each sensitive path, all to one IPv4-loopback adapter
 port. Because cloudflared interprets the `path` field as a regular expression,
