@@ -107,11 +107,15 @@ requires one operator-reviewed absolute canonical Tunnel config path through
 or other credential-bearing argv merely to discover the config location.
 
 The config text may be read, bounded to 1 MiB, to classify the fixed
-`seed.nullfeed.org` route shape. The read is performed through a retained
-`O_NOFOLLOW` descriptor and the descriptor generation plus visible pathname
-generation are revalidated before the route evidence is accepted. The emitted
-evidence contains only a SHA-256 of the config bytes and classification
-booleans; it does not print the config, Tunnel ID or path.
+`seed.nullfeed.org` route shape. Custody metadata and parsed bytes come from
+one retained `O_NOFOLLOW` descriptor generation opened relative to one retained
+parent-directory descriptor. The initial visible file/parent generation, opened
+file/parent generation, post-read descriptor generation, and final visible
+file/parent generation must all match before route or custody evidence is
+accepted. A config pathname swap therefore fails closed instead of mixing
+custody facts from one inode with route bytes from another. The emitted evidence
+contains only a SHA-256 of the config bytes and classification booleans; it does
+not print the config, Tunnel ID or path.
 
 The canonical v1 sensitive candidate is deliberately strict: three explicit
 seed-host rules, one for each sensitive path, all to one IPv4-loopback adapter
@@ -127,9 +131,12 @@ the sensitive-route candidate fail closed, even when all three canonical rules
 are present.
 
 The config's `credentials-file` path is used for **metadata only**. Credential
-contents are never opened. Both config and credential paths are checked for the
-reviewed owner/mode/link/immediate-parent custody shape, and only path SHA-256
-values are emitted.
+contents are never read. The configured pathname itself must be canonical and
+non-symlink; it is opened with Linux `O_PATH|O_NOFOLLOW` relative to a retained
+parent-directory descriptor, then its file and parent generations are rebound
+against the visible path before custody can qualify. Both config and credential
+paths therefore bind owner/mode/link/immediate-parent custody to the exact
+retained generation, and only path SHA-256 values are emitted.
 
 ## nftables boundary
 
