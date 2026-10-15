@@ -155,7 +155,7 @@ It must still report all of the following as false:
 - historical user Tunnel retirement;
 - live Tunnel path ownership;
 - Worker rewrite absence;
-- Pseudo IPv4 configuration;
+- Pseudo IPv4 `Off` state;
 - live nftables ruleset;
 - listener ownership;
 - cloudflared UID isolation;
