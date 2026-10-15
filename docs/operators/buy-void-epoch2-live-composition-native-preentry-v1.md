@@ -197,9 +197,10 @@ inside the private namespace. The namespace disappears with the child; the host
 No `GITHUB_ACTIONS`, `CI`, `RUNNER_TEMP`, or other caller-controlled
 hosted marker grants fixture authority. The internal delegated-child marker is
 also insufficient by itself. Before skipping outer namespace creation, the
-child must independently prove kernel/process state: its real parent executable
-is fixed `/usr/bin/unshare` running as root; its mount-namespace inode differs
-from PID 1; the delegated bootstrap root is an exact root-owned mode-0755
+child must independently prove kernel/process state from genuine procfs: its
+parent has process name `unshare`, all four UID slots are root, and its fixed
+launch argv begins `/usr/bin/unshare --mount --fork /usr/bin/bash`; its
+mount-namespace inode differs from PID 1; the delegated bootstrap root is an exact root-owned mode-0755
 `/tmp/void-e2-private-opt-v1-*` generation supplied by the root namespace
 bootstrap; namespace-local `/opt` and `/home` match that bootstrap's
 disposable backing directory generations; and the checkout mirror is the
