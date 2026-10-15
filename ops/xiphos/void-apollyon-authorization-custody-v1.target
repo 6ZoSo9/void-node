@@ -1,6 +1,7 @@
 [Unit]
 Description=VOID Apollyon authorization custody activation target v1
 Wants=void-apollyon-authorization-custody-v1.service
+PropagatesStopTo=void-apollyon-authorization-custody-v1.service
 After=void-apollyon-authorization-custody-v1.service
 
 [Install]

@@ -111,8 +111,13 @@ assert.deepEqual(manifest.systemd_package_review,{
 });
 assert.equal(manifest.service_contract.node_runtime_path,"/opt/void-apollyon-node-runtime-v1/node");
 
+assert.equal(manifest.service_contract.activation_target_stop_propagates_to_service,true);
+assert.equal(manifest.service_contract.activation_target_restart_propagation,false);
+assert.equal(manifest.service_contract.direct_service_start_stop_refused,true);
+
 const target=fs.readFileSync(TARGET,"utf8");
 assert.equal(target.includes("Wants=void-apollyon-authorization-custody-v1.service"),true);
+assert.equal(target.includes("PropagatesStopTo=void-apollyon-authorization-custody-v1.service"),true);
 assert.equal(target.includes("After=void-apollyon-authorization-custody-v1.service"),true);
 assert.equal(target.includes("WantedBy=multi-user.target"),true);
 
@@ -254,6 +259,8 @@ console.log("custody_identity_create_only_required=true");
 console.log("training_ipc_membership_additive_required=true");
 console.log("custody_service_refuse_manual_start_stop=true");
 console.log("activation_target_separate=true");
+console.log("activation_target_stop_propagates_to_service=true");
+console.log("direct_service_start_stop_refused=true");
 console.log("operator_public_key_required=true");
 console.log("operator_public_key_raw_sha256=c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134");
 console.log("preentry_static_lock_bound=true");

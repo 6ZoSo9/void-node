@@ -106,8 +106,16 @@ V2 evidence. The create-only installer therefore does not start or enable it.
 
 A separate
 `void-apollyon-authorization-custody-v1.target` may be activated by a later
-explicit gate. Dependency activation can start the custody service without
-weakening its manual-control refusal.
+explicit gate. Dependency activation can start the custody service without weakening its
+manual-control refusal.
+
+The target also declares:
+
+`PropagatesStopTo=void-apollyon-authorization-custody-v1.service`
+
+so an explicit stop of the activation target queues an indirect stop of the
+custody service. This is intentionally stop-only; target restart propagation is
+not part of the contract. Direct service start/stop remains refused.
 
 ## Polkit boundary
 
