@@ -27,7 +27,7 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="809234fd8877992e1804c83ba7a3d0552bec22cb"
+MANIFEST_BLOB="d3080463072a2bbb5278918c54c0b69267b32b3e"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
@@ -131,6 +131,20 @@ def load_manifest()->dict[str,Any]:
     lock=value.get("preentry_lock",{})
     if lock.get("bytes")!=PREENTRY_BYTES or lock.get("sha256")!=PREENTRY_SHA256:
         hold("manifest_preentry_lock_invalid")
+    socket_contract=value.get("socket_lifecycle_contract",{})
+    if (
+        socket_contract.get("custody_uid_process_exclusivity_required") is not True or
+        socket_contract.get("custody_uid_process_census_uid_slots") !=
+            ["real","effective","saved","filesystem"] or
+        socket_contract.get("unclassifiable_process_status_holds") is not True
+    ):
+        hold("manifest_socket_lifecycle_contract_invalid")
+    service_contract=value.get("service_contract",{})
+    if (
+        service_contract.get("activation_target_unit_file_state_required")!="disabled" or
+        service_contract.get("custody_service_unit_file_state_required")!="static"
+    ):
+        hold("manifest_unit_file_state_contract_invalid")
     return value
 
 def run(argv:list[str],*,check:bool=True,timeout:int=30)->subprocess.CompletedProcess[str]:
@@ -629,6 +643,11 @@ def self_test()->None:
     assert manifest["paths"]["node_runtime"]==os.fspath(NODE_RUNTIME)
     assert manifest["paths"]["custody_stale_socket_cleanup"]==os.fspath(CLEANUP_HELPER)
     assert manifest["host_lifecycle_closure"][LIFECYCLE_REL]==LIFECYCLE_BLOB
+    assert manifest["socket_lifecycle_contract"]["custody_uid_process_exclusivity_required"] is True
+    assert manifest["socket_lifecycle_contract"]["custody_uid_process_census_uid_slots"]==["real","effective","saved","filesystem"]
+    assert manifest["socket_lifecycle_contract"]["unclassifiable_process_status_holds"] is True
+    assert manifest["service_contract"]["activation_target_unit_file_state_required"]=="disabled"
+    assert manifest["service_contract"]["custody_service_unit_file_state_required"]=="static"
     assert manifest["node_runtime_contract"]["version"]==NODE_VERSION
     assert manifest["node_runtime_contract"]["bytes"]==NODE_BYTES
     assert manifest["node_runtime_contract"]["sha256"]==NODE_SHA256
