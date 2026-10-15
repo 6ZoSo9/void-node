@@ -18,7 +18,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const EXPECTED_BLOBS=Object.freeze({
   "tools/void-economic-sponsored-host-trusted-clock-binding-v1.mjs":
-    "9cfbe1c56a477d5001385cf4f5a4f36333f8bb66",
+    "f93f55c97a71eebedb7566f49ff112d5640c110e",
   "tools/void-economic-sponsored-host-time-sync-evidence-v1.mjs":
     "24266dc04f4a740b4cbd438b51ed54703b919393",
   "tools/void-economic-system-sponsored-observation-time-v1.mjs":
