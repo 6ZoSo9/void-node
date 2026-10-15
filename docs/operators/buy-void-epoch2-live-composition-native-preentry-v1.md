@@ -58,9 +58,30 @@ The native binary requires:
 Caller-streamed stdin JavaScript is rejected before policy, runner, or Node
 execution.
 
-The runner descriptor is retained across the Node \`fexecve()\`. V2 requires
-the inherited descriptor to identify the same root-owned runner generation
-visible at its fixed path before any sensitive child is invoked.
+The native process does **not** disappear into Node. It forks a child, retains
+its own fixed native process for the complete Node-child lifetime, and enters
+Node by retained descriptor only in that child.
+
+Before the child can execute sensitive helpers, the native parent sends one
+bounded private proof record over an inherited pipe. That record binds:
+
+- native parent PID and Linux process start-time ticks;
+- Node child PID and process start-time ticks;
+- fixed installed native preentry device/inode generation;
+- fixed installed runner device/inode generation;
+- fixed root Node device/inode generation;
+- the protected policy's exact expected source head.
+
+The runner separately requires its real PPID to equal the proved parent PID,
+requires /proc/<ppid>/exe to resolve to the fixed native preentry, validates
+both process start-time generations, and revalidates installed preentry,
+runner, and Node generations. The retained runner FD must still identify the
+same visible root-owned runner.
+
+The same parent/process/installed-generation proof is revalidated again after
+the credential/signing sequence and before receipt output. A caller-visible
+marker plus a valid runner FD is therefore insufficient to claim native
+provenance.
 
 ## Policy format
 
@@ -138,9 +159,16 @@ root_javascript_started=false
 
 No Node process or credential child is reached.
 
-A second \`/dev/null\` invocation must pass the stdin gate and fail at the next
-missing protected-policy gate. This proves the negative is specifically the
-stdin provenance boundary rather than a generic argument failure.
+The root fixture also installs a synthetic exact policy and fixed runner. A
+real native /dev/null invocation must clear the new parent-proof gates and
+reach the later expected checkout HOLD, proving that the native-parent channel
+is usable.
+
+A separate forged direct-root-Node adversary supplies the correct native marker,
+a valid retained runner FD, and a syntactically valid forged proof record. It
+must still HOLD on fixed parent-executable provenance because its real parent is
+not the installed native preentry. This proves caller-controlled marker/FD
+state cannot manufacture native origin.
 
 ## Static first instruction
 
@@ -149,7 +177,7 @@ The accepted native preentry build must be statically linked and have no
 constructor and requires that constructor to execute for the dynamic control
 but remain absent when the native preentry self-test runs under the same hostile
 environment. This closes the loader-before-`main()` ambiguity at the privileged
-first instruction without changing the runner or native source blobs.
+first instruction with fresh proof. The surviving-parent repair is a later source generation and\nmust receive fresh candidate derivation; predecessor candidate identity cannot\nbe promoted.
 
 ## Authority boundary
 
