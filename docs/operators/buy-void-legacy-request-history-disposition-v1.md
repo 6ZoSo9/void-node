@@ -14,6 +14,30 @@ The metadata census therefore remains technical observation only. This
 candidate provides an explicit place for the economic owner to state a
 **human/accounting disposition** without rewriting that technical fact.
 
+## Evidence binding
+
+The candidate does not accept caller-supplied census hashes or summary counts.
+
+It consumes the exact canonical JSON bytes emitted by #3064 as
+`result_json`, parses the full census schema, and:
+
+- requires accepted #3064 source head
+  `4c9dbe0d05865911ae55db88d1d2c05ce7c5306c`;
+- pins the exact census source Git blob
+  `be5b0034de608c6803eb09c80491afff89c7bf39`;
+- computes the census SHA-256 internally from those exact bytes;
+- requires the designated hostname, runtime user/UID and machine binding;
+- rejects process-environment access, external network access, request/payment
+  content reads and directory-name output;
+- derives historical candidate partitions directly from the evidence rows;
+- cross-checks every surviving/unverified/empty/absent count and root list;
+- rejects duplicate candidate paths, unknown classifications, truncated schema,
+  noncanonical JSON and summary mismatches.
+
+This binds the accounting candidate to one exact reviewed evidence object rather
+than to a caller's restatement of it. It still does **not** turn the pre-anchor
+filesystem into cryptographic proof of never-used history.
+
 ## Decisions
 
 The classifier recognizes exactly three candidate decisions:
@@ -27,6 +51,11 @@ metadata census reports zero surviving-history roots, zero unverified roots,
 and `bounded_current_candidate_set_observed=true`. If release enumeration,
 the stable runtime generation/listener, or the confirmed-closeout request-root
 status was not observed cleanly, only `UNRESOLVED_HOLD` is admissible.
+
+A surviving-history result may still conservatively produce
+`SURVIVING_HISTORY_REQUIRES_MIGRATION` if some unrelated bounded-runtime
+observation is incomplete. An unavailable/inactive runtime with no surviving
+history can only produce `UNRESOLVED_HOLD`.
 
 The bound census must attest the designated runtime identity `zoso` / UID
 1000 in addition to the designated hostname and machine identity.
