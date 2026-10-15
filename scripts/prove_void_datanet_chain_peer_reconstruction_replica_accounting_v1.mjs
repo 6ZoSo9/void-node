@@ -15,6 +15,10 @@ function fixtureJson(value) {
   if (Array.isArray(value)) return `[${value.map(fixtureJson).join(",")}]`;
   return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${fixtureJson(value[k])}`).join(",")}}`;
 }
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "../tools/datanet-content-commitment-production-registry-identity-v1.mjs";
+
 const wire = value => Buffer.from(fixtureJson(value), "utf8");
 const createDatanetChainCommitmentV1 = value => rawCreate(wire(value));
 const planDatanetChainPeerReconstructionV1 = value => rawEvaluate(wire(value));
@@ -42,6 +46,8 @@ function check(name, fn) {
 function commitment() {
   return createDatanetChainCommitmentV1({
     chain_id: "2050",
+    registry_address:
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
     object_id: "datanet-object-control-v1",
     content_sha256: CONTENT_SHA256,
     byte_length: String(PAYLOAD.length),
