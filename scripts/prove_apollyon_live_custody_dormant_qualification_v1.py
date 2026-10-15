@@ -8,7 +8,7 @@ Q=ROOT/"ops/xiphos/apollyon_live_custody_dormant_qualification_v1.py"
 source=Q.read_text();ast.parse(source)
 for required in (
     'TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"',
-    'SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"',
+    'SERVICE_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"',
     'HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
     'LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"',
     'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
