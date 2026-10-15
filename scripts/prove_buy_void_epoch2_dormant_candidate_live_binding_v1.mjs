@@ -9,10 +9,10 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const BINDER=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs";
-const BINDER_BLOB="c3be6b50d5dad15b9e75229cd258ca9cf04692e7";
+const BINDER_BLOB="e31b6728247188a2ffe7b9587dd0017413fcb716";
 const OPERATOR_DOC=
   "docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v1.md";
-const OPERATOR_DOC_BLOB="5225af7ace2c17ea44a74181a148a7a593246dad";
+const OPERATOR_DOC_BLOB="32d6df68f4387b007689077a846dfbb57e918ce7";
 const CHILD=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs";
 const CHILD_BLOB="28d718eb4155e47dbe8d476a4cf45f2d3871e4db";
@@ -53,7 +53,7 @@ for(const required of [
   "branch --show-current",
   "status --porcelain=v1 --untracked-files=all",
   "binder_blob=",
-  "c3be6b50d5dad15b9e75229cd258ca9cf04692e7",
+  "e31b6728247188a2ffe7b9587dd0017413fcb716",
   "cat-file blob",
 ]){
   assert.ok(operatorDoc.includes(required),"operator_launcher_contract:"+required);
@@ -127,7 +127,7 @@ for(const line of [
   "active_signing_capability_proven_on_bound_receipt=true",
   "full_public_child_receipt_retained=true",
   "closing_checkout_revalidation_before_receipt=true",
-  "launch_operator_signer_control_still_required=true",
+  "accepted_signer_control_evidence_binding_still_required=true",
   "customer_safe_to_pay=false",
   "transaction=false",
   "public_presale_activation=false",
@@ -184,7 +184,7 @@ console.log("dormant_candidate_git_object_required=true");
 console.log("closing_checkout_revalidation_before_receipt=true");
 console.log("systemd_credential_identity_promoted_only_from_live_child=true");
 console.log("active_signing_capability_promoted_only_from_live_child=true");
-console.log("launch_operator_signer_control_still_required=true");
+console.log("accepted_signer_control_evidence_binding_still_required=true");
 console.log("customer_safe_to_pay=false");
 console.log("transaction=false");
 console.log("payment_acceptance=false");
