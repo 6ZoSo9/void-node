@@ -54,6 +54,7 @@ jobs:
           grep -Fx 'archive_lock_git_blob=099e81e1185a1590eb987e4b231889c571af6f49' "$proof"
           grep -Fx 'archive_lock_bytes=2185' "$proof"
           grep -Fx 'archive_lock_sha256=4d0a169bbc1dec33a3ef72fa9b93ff2ae3fd42dae7ae197fda61bd6e91e7791b' "$proof"
+          grep -Fx 'symlink_entries=0' "$proof"
           grep -Fx 'replacement_required=true' "$proof"
           grep -Fx 'replacement_authorized=false' "$proof"
           grep -Fx 'replacement_apply_authorized=false' "$proof"
