@@ -12,6 +12,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const WORKFLOW_REL=".github/workflows/void-datanet-registry-exact-single-broadcast-execution-v1.yml";
+const PROOF_REL="scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1_historical_refusal_v2.mjs";
 const EXECUTOR_REL="ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const V1_PROFILE_REL="ops/security/reviewed-node-package-runtime-ethers-v1.json";
 
@@ -124,7 +125,7 @@ for(const broad of [
   assert.equal(workflow.includes(broad),false,"broad sibling trigger remains: "+broad);
 }
 for(const relative of [
-  proofPath,
+  PROOF_REL,
   "package.json",
   "package-lock.json",
   "tools/void-datanet-reviewed-node-package-runtime-v1.mjs",
