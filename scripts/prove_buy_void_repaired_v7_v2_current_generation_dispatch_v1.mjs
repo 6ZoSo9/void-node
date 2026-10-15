@@ -10,6 +10,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const HISTORICAL_BASE="be959daf147a25f594ba705c6bead1e2e622b00e";
 const HISTORICAL_HEAD="af9646827b25e8103004f96525623ba248b41d2a";
+const HISTORICAL_MERGE_BASE="58c140232cb7bb7fd4f8d4680a413299c74fa57e";
 const RESTACK_BASE="f894cc5cbdccab0265a9a2265df45efa07170c4a";
 const PROTECTED_PARENT="16563121f8d6c2a1fa7cd2f99ca4be2f88aa3cca";
 const PROVIDER_PARENT="bc510343c5c418a75154bedcc445cbf1251dc037";
@@ -156,10 +157,16 @@ function sourcePath(artifact){return "src/economic/"+path.basename(artifact,".js
 function verifyRestackScope(){
   git(["cat-file","-e",HISTORICAL_BASE+"^{commit}"]);
   git(["cat-file","-e",HISTORICAL_HEAD+"^{commit}"]);
+  git(["cat-file","-e",HISTORICAL_MERGE_BASE+"^{commit}"]);
   git(["cat-file","-e",RESTACK_BASE+"^{commit}"]);
   git(["merge-base","--is-ancestor",RESTACK_BASE,"HEAD"]);
+  assert.equal(
+    git(["merge-base",HISTORICAL_BASE,HISTORICAL_HEAD]),
+    HISTORICAL_MERGE_BASE,
+    "historical_merge_base_drift",
+  );
 
-  const historical=names(HISTORICAL_BASE,HISTORICAL_HEAD);
+  const historical=names(HISTORICAL_MERGE_BASE,HISTORICAL_HEAD);
   const current=names(RESTACK_BASE,"HEAD");
   assert.equal(historical.length,106,"historical_reconciliation_path_count");
   assert.equal(current.length,106,"current_reconciliation_path_count");
