@@ -456,6 +456,7 @@ def historical_user_tunnel_snapshot() -> dict[str, Any]:
         "query_observed": False,
         "loaded": None,
         "active_running": None,
+        "unit_file_state": None,
         "retired_candidate_observed": False,
     }
     try:
@@ -464,6 +465,11 @@ def historical_user_tunnel_snapshot() -> dict[str, Any]:
         return result
     runuser = next((p for p in RUNUSER_CANDIDATES if p.exists()), None)
     if runuser is None or not ENV.exists():
+        return result
+    try:
+        command_identity(ENV)
+        command_identity(SYSTEMCTL)
+    except CensusError:
         return result
     args = [
         "-u", EXPECTED_USER, "--", str(ENV), "-i",
@@ -476,14 +482,18 @@ def historical_user_tunnel_snapshot() -> dict[str, Any]:
         str(SYSTEMCTL), "--user", "show", HISTORICAL_USER_UNIT, "--no-pager",
         "--property=LoadState", "--property=ActiveState",
         "--property=SubState", "--property=MainPID",
+        "--property=UnitFileState",
     ]
     try:
         code, stdout, _ = run_read_only(runuser, args, allow_failure=True)
         values = parse_key_values(stdout.decode("utf-8", "strict")) if stdout else {}
     except (CensusError, UnicodeDecodeError):
         return result
+    if "LoadState" not in values or "ActiveState" not in values:
+        return result
     result["query_observed"] = True
     result["loaded"] = code == 0 and values.get("LoadState") == "loaded"
+    result["unit_file_state"] = values.get("UnitFileState") or None
     pid_text = values.get("MainPID", "")
     pid = int(pid_text) if pid_text.isdigit() else 0
     active = (
@@ -494,7 +504,8 @@ def historical_user_tunnel_snapshot() -> dict[str, Any]:
         and pid > 0
     )
     result["active_running"] = active
-    result["retired_candidate_observed"] = not active
+    retirement_state = values.get("UnitFileState") in {"disabled", "masked", "not-found"}
+    result["retired_candidate_observed"] = (not active) and retirement_state
     return result
 
 def parse_ss(raw: str) -> list[dict[str, Any]]:
@@ -656,23 +667,37 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
                 "service": None,
                 "http_host_header": None,
                 "disable_chunked_encoding": None,
+                "_origin_request_seen": False,
             }
             in_origin = False
             continue
         if current is None:
             continue
         if indent == 4 and line.startswith("path:"):
+            if current["path"] is not None:
+                raise CensusError("tunnel_rule_duplicate_path")
             current["path"] = yaml_scalar(line.split(":", 1)[1])
             in_origin = False
         elif indent == 4 and line.startswith("service:"):
+            if current["service"] is not None:
+                raise CensusError("tunnel_rule_duplicate_service")
             current["service"] = yaml_scalar(line.split(":", 1)[1])
             in_origin = False
         elif indent == 4 and line == "originRequest:":
+            if current["_origin_request_seen"]:
+                raise CensusError("tunnel_rule_duplicate_origin_request")
+            current["_origin_request_seen"] = True
             in_origin = True
         elif in_origin and indent == 6 and line.startswith("httpHostHeader:"):
+            if current["http_host_header"] is not None:
+                raise CensusError("tunnel_rule_duplicate_http_host_header")
             current["http_host_header"] = yaml_scalar(line.split(":", 1)[1])
         elif in_origin and indent == 6 and line.startswith("disableChunkedEncoding:"):
+            if current["disable_chunked_encoding"] is not None:
+                raise CensusError("tunnel_rule_duplicate_chunked_encoding")
             scalar = yaml_scalar(line.split(":", 1)[1])
+            if scalar not in {"true", "false"}:
+                raise CensusError("tunnel_rule_chunked_encoding_invalid")
             current["disable_chunked_encoding"] = scalar == "true"
     if current is not None:
         rules.append(current)
@@ -683,16 +708,18 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         raise CensusError("tunnel_credentials_path_invalid")
     try:
         credential_resolved = credential_path.resolve(strict=True)
-    except OSError:
-        credential_resolved = credential_path
+    except OSError as exc:
+        raise CensusError("tunnel_credentials_path_unavailable") from exc
+    if credential_resolved != credential_path:
+        raise CensusError("tunnel_credentials_path_not_canonical")
     sensitive: list[dict[str, Any]] = []
-    ordinary_seed_rules = 0
+    non_sensitive_seed_rules: list[dict[str, Any]] = []
     for rule in rules:
         if rule["hostname"] != PUBLIC_HOSTNAME:
             continue
         canonical_path = canonical_sensitive_path(rule["path"])
         if canonical_path is None:
-            ordinary_seed_rules += 1
+            non_sensitive_seed_rules.append(rule)
             continue
         service = rule["service"]
         match = re.fullmatch(r"http://127\.0\.0\.1:([1-9][0-9]*)", service or "")
@@ -704,7 +731,7 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         })
     unique_paths = [row["path"] for row in sensitive]
     ports = [row["adapter_port"] for row in sensitive]
-    shape = (
+    base_shape = (
         len(sensitive) == len(SENSITIVE_PATHS)
         and sorted(unique_paths) == sorted(SENSITIVE_PATHS)
         and len(set(unique_paths)) == len(unique_paths)
@@ -713,10 +740,27 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         and all(row["http_host_header_bound"] for row in sensitive)
         and all(row["disable_chunked_encoding"] for row in sensitive)
     )
+    sensitive_port = ports[0] if base_shape else None
+    adapter_service = (
+        f"http://127.0.0.1:{sensitive_port}"
+        if isinstance(sensitive_port, int)
+        else None
+    )
+    extra_adapter_seed_rule = any(
+        adapter_service is not None and row.get("service") == adapter_service
+        for row in non_sensitive_seed_rules
+    )
+    shape = base_shape and not extra_adapter_seed_rule
+    ordinary_seed_rules = sum(
+        1
+        for row in non_sensitive_seed_rules
+        if adapter_service is None or row.get("service") != adapter_service
+    )
     return {
         "credential_path": credential_resolved,
         "sensitive_route_shape_observed": shape,
-        "sensitive_adapter_port": ports[0] if shape else None,
+        "sensitive_adapter_port": sensitive_port if shape else None,
+        "extra_adapter_seed_rule_observed": extra_adapter_seed_rule,
         "ordinary_seed_route_count": ordinary_seed_rules,
         "ordinary_routes_preserved_candidate": ordinary_seed_rules > 0,
     }
@@ -863,6 +907,9 @@ def collect() -> dict[str, Any]:
         and len(set(uids)) == 3
         and len(set(gids)) == 3
         and all(services[name].get("no_new_privileges") is True for name in SYSTEM_UNITS)
+        and all(services[name].get("systemd_no_new_privileges") is True for name in SYSTEM_UNITS)
+        and all(services[name].get("systemd_capability_bounding_set_empty") is True for name in SYSTEM_UNITS)
+        and all(services[name].get("systemd_ambient_capabilities_empty") is True for name in SYSTEM_UNITS)
         and all(services[name].get("all_capability_sets_empty") is True for name in SYSTEM_UNITS)
         and all(services[name].get("cap_net_admin") is False for name in SYSTEM_UNITS)
     )
