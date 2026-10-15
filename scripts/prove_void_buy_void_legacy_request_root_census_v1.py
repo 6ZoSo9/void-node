@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import pathlib
 import subprocess
+import tempfile
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 TARGET=ROOT/"ops/precision/void_buy_void_legacy_request_root_census_v1.py"
@@ -54,6 +55,8 @@ for required in (
     "runtime_process_generation_stable",
     "runtime_http_listener_stable",
     "confirmed_closeout_request_root_status_stable",
+    "immutable_release_inventory_stable",
+    "candidate_observations_stable",
     "v1.run_systemctl",
     "designated_runtime_user_matches",
     "designated_runtime_user_required",
@@ -88,6 +91,19 @@ cp=subprocess.run(
     cwd=ROOT,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
     text=True,check=True,env={"PATH":"/usr/bin:/bin","HOME":"/tmp","LANG":"C","LC_ALL":"C"},
 )
+with tempfile.TemporaryDirectory(prefix="void-legacy-release-inventory-") as td:
+    prior_root = module.RELEASES_ROOT
+    module.RELEASES_ROOT = pathlib.Path(td)
+    release = module.RELEASES_ROOT / ("a" * 40)
+    release.mkdir()
+    paths, complete = module._release_inventory()
+    assert complete is True
+    assert paths == [release / module.DEFAULT_RELATIVE]
+    (module.RELEASES_ROOT / ("b" * 40)).symlink_to(release)
+    _, complete_with_symlink = module._release_inventory()
+    assert complete_with_symlink is False
+    module.RELEASES_ROOT = prior_root
+
 assert "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1_SELF_TEST_GREEN" in cp.stdout
 assert "empty_metadata_is_not_genesis_proof=true" in cp.stdout
 assert "zero_length_fixed_journals_are_not_genesis_proof=true" in cp.stdout
@@ -98,6 +114,8 @@ print("v1_topology_dependency_blob_bound=true")
 print("v2_designated_host_dependency_blob_bound=true")
 print("designated_runtime_user_bound=true")
 print("ambient_home_not_used_for_repo_candidate=true")
+print("stable_release_inventory_required=true")
+print("repeat_candidate_observation_required=true")
 print("process_environment_access=false")
 print("external_network_calls=false")
 print("loopback_get_only=true")
