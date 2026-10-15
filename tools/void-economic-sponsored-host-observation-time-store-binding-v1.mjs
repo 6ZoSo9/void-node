@@ -32,7 +32,7 @@ export const
     caller_timestamp_input: false,
     caller_prior_receipt_input: false,
     one_host_binding_capture_per_operation: true,
-    one_store_clock_read_per_operation: true,
+    one_store_clock_read_per_successful_operation: true,
     preview_zero_durable_growth: true,
     durable_result_bound_to_same_host_sample: true,
     production_host_sample_collected_in_ci: false,
@@ -253,6 +253,17 @@ function held(reason, {
   storeResult = null,
   clockReads = 0,
 } = {}) {
+  const durableAdvanced =
+    storeResult?.ok === true && storeResult?.status === "source_accepted";
+  const committedIdentityAvailable =
+    durableAdvanced &&
+    RECEIPT_SHA.test(String(storeResult?.head_receipt_sha256 || "")) &&
+    typeof storeResult?.generation === "string" &&
+    /^(?:0|[1-9][0-9]*)$/u.test(storeResult.generation) &&
+    Number.isSafeInteger(storeResult?.durable_receipt_count) &&
+    storeResult.durable_receipt_count > 0 &&
+    Number.isSafeInteger(storeResult?.accepted_observed_at_ms) &&
+    storeResult.accepted_observed_at_ms > 0;
   return Object.freeze({
     ok: false,
     status: "held",
@@ -269,8 +280,15 @@ function held(reason, {
     host_binding_capture_count: hostBinding === null ? 0 : 1,
     store_clock_read_count: clockReads,
     mutation_performed: storeResult?.mutation_performed === true,
-    durable_time_authority_advanced:
-      storeResult?.ok === true && storeResult?.status === "source_accepted",
+    durable_time_authority_advanced: durableAdvanced,
+    committed_durable_receipt_identity_preserved: committedIdentityAvailable,
+    durable_head_receipt_sha256:
+      committedIdentityAvailable ? storeResult.head_receipt_sha256 : null,
+    generation: committedIdentityAvailable ? storeResult.generation : null,
+    durable_receipt_count:
+      committedIdentityAvailable ? storeResult.durable_receipt_count : null,
+    accepted_observed_at_ms:
+      committedIdentityAvailable ? storeResult.accepted_observed_at_ms : null,
     trusted_clock_source_proven: false,
     trusted_clock_host_binding_proven: false,
     trusted_clock_runtime_authority: false,
@@ -402,7 +420,12 @@ function observeSuccess(
   });
 }
 
-function createBinding({ root_dir, collectBinding, productionExpected }) {
+function createBinding({
+  root_dir,
+  collectBinding,
+  createStore,
+  productionExpected,
+}) {
   if (
     typeof root_dir !== "string" ||
     !path.isAbsolute(root_dir) ||
@@ -413,6 +436,9 @@ function createBinding({ root_dir, collectBinding, productionExpected }) {
   }
   if (typeof collectBinding !== "function") {
     fail("SPONSORED_HOST_DURABLE_TIME_COLLECTOR_INVALID");
+  }
+  if (typeof createStore !== "function") {
+    fail("SPONSORED_HOST_DURABLE_TIME_STORE_FACTORY_INVALID");
   }
 
   function capture() {
@@ -425,11 +451,10 @@ function createBinding({ root_dir, collectBinding, productionExpected }) {
       clockReads += 1;
       return normalized.sample;
     };
-    const store =
-      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
-        root_dir,
-        trustedClock,
-      });
+    const store = createStore({
+      root_dir,
+      trustedClock,
+    });
     return Object.freeze({
       normalized,
       store,
@@ -575,6 +600,8 @@ export function createVoidEconomicSponsoredHostObservationTimeStoreBindingV1(
     root_dir: request.root_dir,
     collectBinding:
       collectVoidEconomicSponsoredHostTrustedClockBindingV1,
+    createStore:
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1,
     productionExpected: true,
   });
 }
@@ -590,6 +617,24 @@ export function testOnlyCreateVoidEconomicSponsoredHostObservationTimeStoreBindi
   return createBinding({
     root_dir: request.root_dir,
     collectBinding: request.collectBinding,
+    createStore:
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1,
+    productionExpected: false,
+  });
+}
+
+export function testOnlyCreateVoidEconomicSponsoredHostObservationTimeStoreBindingWithStoreV1(
+  input,
+) {
+  const request = exactSnapshot(
+    input,
+    ["root_dir", "collectBinding", "createStore"],
+    "SPONSORED_HOST_DURABLE_TIME_TEST_BINDING_INVALID",
+  );
+  return createBinding({
+    root_dir: request.root_dir,
+    collectBinding: request.collectBinding,
+    createStore: request.createStore,
     productionExpected: false,
   });
 }

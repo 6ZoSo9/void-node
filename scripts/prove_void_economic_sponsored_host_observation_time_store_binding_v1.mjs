@@ -10,6 +10,7 @@ import {
   VOID_ECONOMIC_SPONSORED_HOST_OBSERVATION_TIME_STORE_BINDING_V1,
   createVoidEconomicSponsoredHostObservationTimeStoreBindingV1,
   testOnlyCreateVoidEconomicSponsoredHostObservationTimeStoreBindingV1,
+  testOnlyCreateVoidEconomicSponsoredHostObservationTimeStoreBindingWithStoreV1,
 } from "../tools/void-economic-sponsored-host-observation-time-store-binding-v1.mjs";
 import {
   VOID_ECONOMIC_SPONSORED_HOST_TRUSTED_CLOCK_BINDING_AUTHORITY_V1,
@@ -28,6 +29,8 @@ const STORE=
   "tools/void-economic-system-sponsored-observation-time-store-v1.mjs";
 const OBSERVATION=
   "tools/void-economic-system-sponsored-observation-time-v1.mjs";
+const WORKFLOW=
+  ".github/workflows/void-economic-sponsored-host-observation-time-store-binding-v1.yml";
 
 const EXPECTED_BLOBS=Object.freeze({
   [HOST_BINDING]:"0f9c97785866aeafd54e24e4847183e9c8518501",
@@ -165,6 +168,8 @@ for(const required of [
   "observed.head_receipt_sha256",
   "captured.clockReads() !== 1",
   "SPONSORED_HOST_DURABLE_TIME_OBSERVE_BINDING_MISMATCH",
+  "committed_durable_receipt_identity_preserved",
+  "durable_head_receipt_sha256:",
   "trusted_clock_source_proven: productionExpected",
   "trusted_clock_host_binding_proven: productionExpected",
   "receipt_store_rollback_resistance_proven: false",
@@ -186,6 +191,16 @@ assert.equal(
   true,
   "production constructor must hard-wire the fixed collector internally",
 );
+const workflowSource=fs.readFileSync(path.join(ROOT,WORKFLOW),"utf8");
+for(const required of [
+  'BASE: ${{ github.event.pull_request.base.sha }}',
+  'HEAD: ${{ github.event.pull_request.head.sha || github.sha }}',
+  'BASE="$(git rev-parse "$HEAD^1")"',
+  'git merge-base --is-ancestor "$BASE" "$HEAD"',
+  'git diff --check "$BASE" "$HEAD"',
+]){
+  assert.ok(workflowSource.includes(required),"workflow_contract:"+required);
+}
 for(const forbidden of [
   "Date.now(",
   "process.hrtime",
@@ -208,7 +223,7 @@ for(const [key,value] of Object.entries(
     "fixed_host_trusted_clock_collector_wired",
     "durable_observation_store_reused",
     "one_host_binding_capture_per_operation",
-    "one_store_clock_read_per_operation",
+    "one_store_clock_read_per_successful_operation",
     "preview_zero_durable_growth",
     "durable_result_bound_to_same_host_sample",
   ]);
@@ -324,6 +339,43 @@ try{
   );
   assert.equal(observed2.durable_result_bound_to_same_host_sample,true);
 
+  let committedResult=null;
+  const third=hostBinding({
+    wall:1_800_000_002_000,
+    uptimeBefore:"1002.000000000",
+    uptimeAfter:"1002.400000000",
+  });
+  const postcommitBinding=
+    testOnlyCreateVoidEconomicSponsoredHostObservationTimeStoreBindingWithStoreV1({
+      root_dir:root,
+      collectBinding:()=>third.value,
+      createStore({root_dir,trustedClock}){
+        const base=createVoidEconomicSystemSponsoredObservationTimeStoreV1({root_dir,trustedClock});
+        return Object.freeze({
+          preview:()=>base.preview(),
+          async observe(){
+            committedResult=await base.observe();
+            assert.equal(committedResult.ok,true,JSON.stringify(committedResult));
+            trustedClock();
+            return committedResult;
+          },
+        });
+      },
+    });
+  const beforePostcommit=records(root).length;
+  const postcommitHold=await postcommitBinding.observe();
+  assert.equal(postcommitHold.ok,false);
+  assert.equal(postcommitHold.reason,"SPONSORED_HOST_DURABLE_TIME_OBSERVE_BINDING_MISMATCH");
+  assert.equal(postcommitHold.store_clock_read_count,2);
+  assert.equal(postcommitHold.mutation_performed,true);
+  assert.equal(postcommitHold.durable_time_authority_advanced,true);
+  assert.equal(postcommitHold.committed_durable_receipt_identity_preserved,true);
+  assert.equal(postcommitHold.durable_head_receipt_sha256,committedResult.head_receipt_sha256);
+  assert.equal(postcommitHold.generation,committedResult.generation);
+  assert.equal(postcommitHold.durable_receipt_count,committedResult.durable_receipt_count);
+  assert.equal(postcommitHold.accepted_observed_at_ms,committedResult.accepted_observed_at_ms);
+  assert.equal(records(root).length,beforePostcommit+1);
+
   const beforeForbidden=records(root).length;
   const forbidden=await secondBinding.observe("caller-input");
   assert.equal(forbidden.ok,false);
@@ -332,6 +384,9 @@ try{
     "SPONSORED_HOST_DURABLE_TIME_REQUEST_INPUT_FORBIDDEN",
   );
   assert.equal(forbidden.host_binding_capture_count,0);
+  assert.equal(forbidden.store_clock_read_count,0);
+  assert.equal(forbidden.authority.one_store_clock_read_per_successful_operation,true);
+  assert.equal(Object.hasOwn(forbidden.authority,"one_store_clock_read_per_operation"),false);
   assert.equal(records(root).length,beforeForbidden);
 
   const malformed={
@@ -372,7 +427,9 @@ console.log("production_caller_clock_input=false");
 console.log("production_caller_timestamp_input=false");
 console.log("production_caller_prior_receipt_input=false");
 console.log("one_host_binding_capture_per_operation=true");
-console.log("one_store_clock_read_per_operation=true");
+console.log("one_store_clock_read_per_successful_operation=true");
+console.log("postcommit_hold_preserves_durable_receipt_identity=true");
+console.log("committed_diff_hygiene_bound=true");
 console.log("preview_zero_durable_growth=true");
 console.log("durable_result_bound_to_same_host_sample=true");
 console.log("malformed_host_binding_rejected_before_durable_growth=true");

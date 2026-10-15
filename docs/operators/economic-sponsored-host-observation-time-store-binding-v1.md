@@ -120,9 +120,7 @@ The authoritative store already serializes and revalidates its own current head
 at \`observe()\` time.
 
 This avoids a bad failure mode where a stale preview could be compared only
-after the underlying store had already appended a valid later receipt. Each
-operation instead has one independently captured host sample and one store
-clock read.
+after the underlying store had already appended a valid later receipt. Each successful preview/observe operation instead has one independently captured host sample and exactly one store clock read. An operation that HOLDs before the store consumes the sample may truthfully report zero store clock reads.
 
 The source bridge for a positive observe is therefore:
 
@@ -134,9 +132,14 @@ The source bridge for a positive observe is therefore:
 \`\`\`
 
 If the store rejects the sample, history, custody, or serialization state, the
-wrapper propagates HOLD. If the store reports success but the returned accepted
-time does not equal the bound host wall sample, the wrapper HOLDS and reports
-the underlying mutation state truthfully; it does not claim rollback.
+wrapper propagates HOLD. If the store reports success but any wrapper
+postcondition later fails, the wrapper HOLDS and reports the underlying mutation
+state truthfully; it does not claim rollback. Because the durable append may
+already have happened, that HOLD also preserves the exact committed durable head
+receipt SHA-256, generation, receipt count, and accepted observed time whenever
+the parent returned a valid accepted-receipt identity. This lets an operator
+identify the committed append without blindly retrying and advancing the store
+again.
 
 ## Provenance claims
 
@@ -210,8 +213,11 @@ The focused proof requires:
 - fixed collector wiring;
 - empty-store preview with zero durable growth;
 - exact preview candidate SHA-256;
-- one host-binding capture and one store clock read per operation;
+- one host-binding capture and exactly one store clock read per successful
+  preview/observe operation, while pre-clock HOLDs may report zero reads;
 - direct durable-observe result binding to the same operation's host sample;
+- post-publication HOLD preservation of the exact committed durable receipt
+  identity;
 - forward generation on a second later host sample;
 - caller-input rejection before host capture;
 - malformed host-binding rejection before durable growth;
