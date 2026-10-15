@@ -97,35 +97,80 @@ def assert_dormant()->None:
     if not unit_dormant(TARGET_UNIT):hold("activation_target_not_exactly_inactive")
     if not unit_dormant(SERVICE_UNIT):hold("custody_service_not_exactly_inactive")
 
-def verify_loaded_contract()->dict:
+def parse_systemctl_properties(
+    returncode:int,stdout:str,expected:tuple[str,...],code:str
+)->dict[str,str]:
+    if returncode!=0:hold(code+"_command_failed")
+    props:dict[str,str]={}
+    expected_set=set(expected)
+    for line in stdout.splitlines():
+        if "=" not in line:hold(code+"_malformed")
+        k,v=line.split("=",1)
+        if k not in expected_set or k in props:hold(code+"_malformed")
+        props[k]=v
+    if set(props)!=expected_set:hold(code+"_malformed")
+    return props
+
+def classify_loaded_contract_observation(
+    target_returncode:int,target_stdout:str,
+    service_returncode:int,service_stdout:str,
+)->tuple[str,dict[str,str]]:
+    props=parse_systemctl_properties(
+        target_returncode,target_stdout,
+        ("LoadState","ActiveState","UnitFileState","Wants","PropagatesStopTo"),
+        "target_loaded_contract",
+    )
+    if props["LoadState"]!="loaded":hold("target_not_loaded")
+    if props["ActiveState"]!="inactive":hold("target_not_exactly_inactive")
+    if props["UnitFileState"]=="enabled":hold("target_enabled")
+    if SERVICE_UNIT not in props["Wants"].split():hold("target_wants_service_missing")
+
+    propagates=props["PropagatesStopTo"].split()
+    if SERVICE_UNIT in propagates:
+        loaded_state="exact"
+    elif props["PropagatesStopTo"]=="":
+        # The reviewed predecessor target differs from the new target only by
+        # the missing PropagatesStopTo line. This is the one admissible
+        # post-replace/pre-reload manager state.
+        loaded_state="reload_required"
+    else:
+        hold("target_stop_propagation_ambiguous")
+
+    sprops=parse_systemctl_properties(
+        service_returncode,service_stdout,
+        ("LoadState","ActiveState","RefuseManualStart","RefuseManualStop"),
+        "custody_service_loaded_contract",
+    )
+    if sprops["LoadState"]!="loaded":hold("custody_service_not_loaded")
+    if sprops["ActiveState"]!="inactive":hold("custody_service_not_exactly_inactive")
+    if sprops["RefuseManualStart"]!="yes" or sprops["RefuseManualStop"]!="yes":
+        hold("service_manual_refusal_missing")
+    return loaded_state,{**props,"ServiceRefuseManualStart":"yes","ServiceRefuseManualStop":"yes"}
+
+def observe_loaded_contract()->tuple[str,dict[str,str]]:
     target=run([
         "/usr/bin/systemctl","show",TARGET_UNIT,"--no-pager",
         "-p","LoadState","-p","ActiveState","-p","UnitFileState",
         "-p","Wants","-p","PropagatesStopTo",
-    ])
-    props={}
-    for line in target.stdout.splitlines():
-        if "=" in line:
-            k,v=line.split("=",1);props[k]=v
-    if props.get("LoadState")!="loaded":hold("target_not_loaded")
-    if props.get("ActiveState")!="inactive":hold("target_not_exactly_inactive")
-    if props.get("UnitFileState")=="enabled":hold("target_enabled")
-    if SERVICE_UNIT not in props.get("Wants","").split():hold("target_wants_service_missing")
-    if SERVICE_UNIT not in props.get("PropagatesStopTo","").split():hold("target_stop_propagation_missing")
-
+    ],check=False)
     service=run([
         "/usr/bin/systemctl","show",SERVICE_UNIT,"--no-pager",
         "-p","LoadState","-p","ActiveState","-p","RefuseManualStart","-p","RefuseManualStop",
-    ])
-    sprops={}
-    for line in service.stdout.splitlines():
-        if "=" in line:
-            k,v=line.split("=",1);sprops[k]=v
-    if sprops.get("LoadState")!="loaded":hold("custody_service_not_loaded")
-    if sprops.get("ActiveState")!="inactive":hold("custody_service_not_exactly_inactive")
-    if sprops.get("RefuseManualStart")!="yes" or sprops.get("RefuseManualStop")!="yes":
-        hold("service_manual_refusal_missing")
-    return {**props,"ServiceRefuseManualStart":"yes","ServiceRefuseManualStop":"yes"}
+    ],check=False)
+    return classify_loaded_contract_observation(
+        target.returncode,target.stdout,service.returncode,service.stdout
+    )
+
+def verify_loaded_contract()->dict[str,str]:
+    loaded_state,props=observe_loaded_contract()
+    if loaded_state!="exact":hold("target_stop_propagation_missing")
+    return props
+
+def classify_plan_action(target_state:str,loaded_state:str|None)->str:
+    if target_state=="old_exact" and loaded_state is None:return "replace_and_reload"
+    if target_state=="new_exact" and loaded_state=="reload_required":return "reload_only"
+    if target_state=="new_exact" and loaded_state=="exact":return "already_exact"
+    hold("target_plan_state_invalid")
 
 def plan()->dict:
     if socket.gethostname().casefold()!=TARGET_HOST.casefold():hold("wrong_host")
@@ -134,23 +179,32 @@ def plan()->dict:
     if b"PropagatesStopTo=void-apollyon-authorization-custody-v1.service\n" not in source:
         hold("source_stop_propagation_missing")
     current=state()
-    loaded=None
-    if current=="new_exact":loaded=verify_loaded_contract()
+    loaded_state=None
+    if current=="new_exact":
+        loaded_state,_loaded=observe_loaded_contract()
+    action=classify_plan_action(current,loaded_state)
     return {
         "marker":MARKER,"mode":"--plan","target_host":TARGET_HOST,
         "target_state":current,"new_source_verified":True,
+        "loaded_contract_state":loaded_state or "not_checked_pre_replace",
+        "plan_action":action,
         "service_dormant":True,"target_dormant":True,
-        "daemon_reload_required":current=="old_exact",
+        "daemon_reload_required":action in {"replace_and_reload","reload_only"},
+        "reload_recovery_required":action=="reload_only",
         "service_action":False,"target_action":False,
         "training_execution":False,"durable_attempt_claim":False,
         "operator_private_key_access":False,"funds_movement":False,
-        "next_action":"APPLY_TARGET_STOP_PROPAGATION_UPDATE" if current=="old_exact" else "TARGET_STOP_PROPAGATION_ALREADY_EXACT",
+        "next_action":{
+            "replace_and_reload":"APPLY_TARGET_STOP_PROPAGATION_UPDATE",
+            "reload_only":"APPLY_DAEMON_RELOAD_RECOVERY",
+            "already_exact":"TARGET_STOP_PROPAGATION_ALREADY_EXACT",
+        }[action],
     }
 
 def apply()->dict:
     if os.geteuid()!=0:hold("apply_requires_root")
     before=plan()
-    if before["target_state"]=="old_exact":
+    action=before["plan_action"]\n    if action=="replace_and_reload":
         new=read_source(TARGET_REL,NEW_TARGET_BLOB)
         old_stat=os.lstat(TARGET_PATH)
         temp=TARGET_PATH.parent/(".void-apollyon-target.new."+str(os.getpid()))
@@ -185,6 +239,8 @@ def apply()->dict:
     return {
         **before,"mode":"--apply","target_state":"new_exact",
         "daemon_reload_required":False,"daemon_reload_performed":reloaded,
+        "reload_recovery_required":False,
+        "reload_recovery_performed":action=="reload_only",
         "stop_propagation_installed":True,
         "service_action":False,"target_action":False,
         "training_execution":False,"durable_attempt_claim":False,
@@ -210,6 +266,32 @@ def self_test()->None:
         (0,"LoadState=loaded\nActiveState=failed\n",False),
     ):
         assert dormant_observation_valid(returncode,stdout) is expected,(returncode,stdout)
+    exact_target=(
+        "LoadState=loaded\nActiveState=inactive\nUnitFileState=static\n"
+        "Wants="+SERVICE_UNIT+"\nPropagatesStopTo="+SERVICE_UNIT+"\n"
+    )
+    stale_target=(
+        "LoadState=loaded\nActiveState=inactive\nUnitFileState=static\n"
+        "Wants="+SERVICE_UNIT+"\nPropagatesStopTo=\n"
+    )
+    service_exact=(
+        "LoadState=loaded\nActiveState=inactive\n"
+        "RefuseManualStart=yes\nRefuseManualStop=yes\n"
+    )
+    assert classify_loaded_contract_observation(0,exact_target,0,service_exact)[0]=="exact"
+    assert classify_loaded_contract_observation(0,stale_target,0,service_exact)[0]=="reload_required"
+    assert classify_plan_action("old_exact",None)=="replace_and_reload"
+    assert classify_plan_action("new_exact","reload_required")=="reload_only"
+    assert classify_plan_action("new_exact","exact")=="already_exact"
+    try:
+        classify_loaded_contract_observation(
+            0,stale_target.replace("PropagatesStopTo=\n","PropagatesStopTo=other.service\n"),
+            0,service_exact,
+        )
+    except Hold as exc:
+        assert str(exc)=="target_stop_propagation_ambiguous"
+    else:
+        raise AssertionError("ambiguous loaded propagation accepted")
     own=Path(__file__).read_text()
     forbidden_parts=(
         ("systemctl",'","',"start"),
@@ -225,6 +307,9 @@ def self_test()->None:
     print("target_stop_propagates_to_service=true")
     print("direct_service_start_stop_refused=true")
     print("dormant_state_fail_closed=true")
+    print("reload_failure_resume_supported=true")
+    print("new_exact_stale_manager_reload_only=true")
+    print("ambiguous_loaded_contract_fails_closed=true")
     print("service_action=false")
     print("target_action=false")
     print("training_execution=false")
