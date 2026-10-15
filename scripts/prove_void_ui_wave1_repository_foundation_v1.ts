@@ -604,6 +604,76 @@ if (
   fail("command and mobile navigation links must share the same-route focus repair");
 }
 
+const commandMenuHtmlStart = html.indexOf(
+  '<div class="command-menu" id="command-menu"'
+);
+const commandMenuHtmlEnd = html.indexOf(
+  '\n  </div>\n\n  <div class="toast-region"',
+  commandMenuHtmlStart
+);
+if (commandMenuHtmlStart < 0 || commandMenuHtmlEnd < 0) {
+  fail("command menu markup boundary is incomplete");
+}
+const commandMenuHtml = html.slice(commandMenuHtmlStart, commandMenuHtmlEnd);
+for (const marker of [
+  'id="command-search"',
+  'autocomplete="off"',
+  'aria-describedby="command-search-help command-empty"',
+  'aria-controls="command-results"',
+  'id="command-results"',
+  'id="command-empty"',
+  'role="status"',
+  'aria-live="polite"',
+  'aria-atomic="true"',
+  'hidden>No matching destinations.</p>',
+]) {
+  if (!commandMenuHtml.includes(marker)) {
+    fail(`command search accessibility contract missing: ${marker}`);
+  }
+}
+
+const commandFilterStart = appJs.indexOf("function filterCommandResults() {");
+const commandFilterEnd = appJs.indexOf(
+  "\nfunction currentRoute() {",
+  commandFilterStart
+);
+if (commandFilterStart < 0 || commandFilterEnd < 0) {
+  fail("command search filter boundary is incomplete");
+}
+const commandFilterBlock = appJs.slice(commandFilterStart, commandFilterEnd);
+for (const marker of [
+  "commandSearch.value.trim().toLocaleLowerCase()",
+  "link.textContent.toLocaleLowerCase().includes(query)",
+  "link.hidden = !matches;",
+  "commandEmpty.hidden = visibleCount !== 0;",
+  "commandSearch.value = '';",
+  "filterCommandResults();",
+]) {
+  if (!commandFilterBlock.includes(marker)) {
+    fail(`command search filter missing: ${marker}`);
+  }
+}
+for (const marker of [
+  "if (name === 'command') resetCommandSearch();",
+  "commandSearch.addEventListener('input', filterCommandResults);",
+  "if (!['Enter', 'ArrowDown'].includes(event.key)) return;",
+  "const firstVisible = filterCommandResults()[0];",
+  "if (event.key === 'Enter') firstVisible.click();",
+  "else firstVisible.focus();",
+]) {
+  if (!appJs.includes(marker)) {
+    fail(`command search keyboard/reset contract missing: ${marker}`);
+  }
+}
+for (const marker of [
+  ".command-results a[hidden] { display: none; }",
+  ".command-empty {",
+]) {
+  if (!componentsCss.includes(marker)) {
+    fail(`command search CSS contract missing: ${marker}`);
+  }
+}
+
 const advancedSettingsStart = html.indexOf(
   '<div class="settings-list" role="list">'
 );
