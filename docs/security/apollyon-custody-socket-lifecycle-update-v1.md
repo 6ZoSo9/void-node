@@ -22,8 +22,12 @@ The updater requires:
 
 It stages the helper into a private pending file, fsyncs and verifies the full
 bytes/metadata, publishes it with a create-only hardlink, fsyncs the lifecycle
-directory, removes the pending link and fsyncs again. The service unit is staged
-separately and atomically replaced when required. Any pre-replacement service
+directory, removes the pending link and fsyncs again. If a process crash leaves
+a private pending name before publication, or leaves the exact final helper with
+its one same-inode pending hardlink, plan classifies that state explicitly and
+apply removes only the reviewed private pending link(s), fsyncs the lifecycle
+directory, and resumes. The service unit is staged separately and atomically
+replaced when required. Any pre-replacement service
 temporary file is removed on failure. It then performs daemon-reload and verifies
 the loaded
 `ExecStopPost`, exact `UnsetEnvironment` set, and direct manual start/stop

@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import stat
@@ -39,6 +40,9 @@ SERVICE_PATH=Path("/etc/systemd/system/void-apollyon-authorization-custody-v1.se
 TARGET_PATH=Path("/etc/systemd/system/void-apollyon-authorization-custody-v1.target")
 LIFECYCLE_ROOT=Path("/opt/void-apollyon-custody-lifecycle-v1")
 HELPER_PATH=LIFECYCLE_ROOT/"apollyon_custody_stale_socket_cleanup_v1.py"
+HELPER_PENDING_RE=re.compile(
+    r"^\."+re.escape(HELPER_PATH.name)+r"\.pending\.[0-9]+$"
+)
 EXPECTED_EXEC_STOP_POST=(
     "/usr/bin/python3 -I -B "
     "/opt/void-apollyon-custody-lifecycle-v1/"
@@ -147,11 +151,79 @@ def service_state()->str:
     if digest==NEW_SERVICE_BLOB:return "new_exact"
     hold("service_unit_collision")
 
+def same_inode(a:os.stat_result,b:os.stat_result)->bool:
+    return a.st_dev==b.st_dev and a.st_ino==b.st_ino
+
+def helper_pending_paths_at(
+    root:Path,path:Path,uid:int,gid:int
+)->list[Path]:
+    if not root.exists():return []
+    out=[]
+    try:
+        with os.scandir(root) as entries:
+            names=sorted(entry.name for entry in entries)
+    except OSError as exc:
+        raise Hold("helper_pending_inventory_failed") from exc
+    for name in names:
+        if not HELPER_PENDING_RE.fullmatch(name):continue
+        candidate=root/name
+        st=os.lstat(candidate)
+        if (
+            not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+            st.st_uid!=uid or st.st_gid!=gid or st.st_nlink not in (1,2) or
+            stat.S_IMODE(st.st_mode) not in (0o600,0o444)
+        ):
+            hold("helper_pending_metadata_invalid")
+        out.append(candidate)
+    return out
+
+def helper_state_at(
+    path:Path,root:Path,expected_blob:str,uid:int,gid:int
+)->str:
+    pending=helper_pending_paths_at(root,path,uid,gid)
+    try:st=os.lstat(path)
+    except FileNotFoundError:
+        return "absent_pending" if pending else "absent"
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_uid!=uid or st.st_gid!=gid or
+        stat.S_IMODE(st.st_mode)!=0o444 or st.st_nlink not in (1,2)
+    ):
+        hold("cleanup_helper_collision")
+    data=path.read_bytes()
+    if len(data)!=st.st_size or git_blob(data)!=expected_blob:
+        hold("cleanup_helper_collision")
+    matching=[
+        candidate for candidate in pending
+        if same_inode(st,os.lstat(candidate))
+    ]
+    if st.st_nlink==2:
+        if len(matching)!=1 or len(pending)!=1:
+            hold("helper_pending_link_identity_invalid")
+        return "exact_pending"
+    if matching:
+        hold("helper_pending_link_count_invalid")
+    if pending:return "exact_orphan_pending"
+    return "exact"
+
 def helper_state()->str:
-    try:digest=installed_blob(HELPER_PATH,0o444)
-    except FileNotFoundError:return "absent"
-    if digest==HELPER_BLOB:return "exact"
-    hold("cleanup_helper_collision")
+    return helper_state_at(HELPER_PATH,LIFECYCLE_ROOT,HELPER_BLOB,0,0)
+
+def cleanup_helper_pending(state:str)->str:
+    pending=helper_pending_paths_at(
+        LIFECYCLE_ROOT,HELPER_PATH,0,0
+    )
+    if state not in (
+        "absent_pending","exact_pending","exact_orphan_pending"
+    ):
+        hold("helper_pending_cleanup_state_invalid")
+    for candidate in pending:
+        os.unlink(candidate)
+    fsync_directory(LIFECYCLE_ROOT)
+    after=helper_state()
+    expected="absent" if state=="absent_pending" else "exact"
+    if after!=expected:hold("helper_pending_cleanup_failed")
+    return after
 
 def verify_target()->None:
     if installed_blob(TARGET_PATH,0o644)!=TARGET_BLOB:hold("target_blob_mismatch")
@@ -246,6 +318,12 @@ def classify_lifecycle_state(
     table={
         ("old_exact","absent","old_loaded"):
             ("initial","APPLY_SOCKET_LIFECYCLE_UPDATE"),
+        ("old_exact","absent_pending","old_loaded"):
+            ("helper_pending_absent","RESUME_HELPER_PENDING_CLEANUP"),
+        ("old_exact","exact_pending","old_loaded"):
+            ("helper_pending_exact","RESUME_HELPER_PENDING_CLEANUP"),
+        ("old_exact","exact_orphan_pending","old_loaded"):
+            ("helper_pending_exact","RESUME_HELPER_PENDING_CLEANUP"),
         ("old_exact","exact","old_loaded"):
             ("helper_only","RESUME_SERVICE_PUBLICATION"),
         ("lifecycle_exact","exact","predecessor_loaded"):
@@ -375,8 +453,19 @@ def publish_create_only_file(
             pass
 
 def stabilize_published_state(stage:str)->None:
+    if stage=="helper_pending_absent":
+        if cleanup_helper_pending("absent_pending")!="absent":
+            hold("helper_pending_absent_recovery_failed")
+        return
+    if stage=="helper_pending_exact":
+        current=helper_state()
+        if current not in ("exact_pending","exact_orphan_pending"):
+            hold("helper_pending_exact_recovery_state_invalid")
+        if cleanup_helper_pending(current)!="exact":
+            hold("helper_pending_exact_recovery_failed")
     if stage in (
-        "helper_only","predecessor_ready","new_file_pending_reload",
+        "helper_pending_exact","helper_only",
+        "predecessor_ready","new_file_pending_reload",
     ):
         if helper_state()!="exact":hold("durability_helper_not_exact")
         fsync_directory(LIFECYCLE_ROOT)
@@ -446,6 +535,7 @@ def apply_transition(
 )->dict[str,object]:
     stage=str(before["lifecycle_state"])
     persistent_present_before=stage in (
+        "helper_pending_absent","helper_pending_exact",
         "helper_only","predecessor_ready",
         "new_file_pending_reload","complete",
     )
@@ -480,15 +570,19 @@ def apply_transition(
     }
     try:
         if stage in (
+            "helper_pending_absent","helper_pending_exact",
             "helper_only","predecessor_ready","new_file_pending_reload",
         ):
             receipt["durability_repair_attempted"]=True
             _stabilize_fn(stage)
             receipt["durability_repair_succeeded"]=True
-        if stage=="initial":
+        if stage in ("initial","helper_pending_absent"):
             receipt["helper_install_attempted"]=True
             receipt["helper_install_returned_success"]=bool(_install_helper_fn())
-        if stage in ("initial","helper_only","predecessor_ready"):
+        if stage in (
+            "initial","helper_pending_absent","helper_pending_exact",
+            "helper_only","predecessor_ready",
+        ):
             receipt["service_unit_replace_attempted"]=True
             receipt["service_unit_replace_returned_success"]=bool(
                 _replace_service_fn()
@@ -502,8 +596,8 @@ def apply_transition(
             or receipt["persistent_filesystem_mutation_possible_this_apply"]
         )
         if stage in (
-            "initial","helper_only","predecessor_ready",
-            "new_file_pending_reload",
+            "initial","helper_pending_absent","helper_pending_exact",
+            "helper_only","predecessor_ready","new_file_pending_reload",
         ):
             receipt["daemon_reload_attempted"]=True
             _reload_fn()
@@ -619,6 +713,12 @@ def self_test()->None:
         "old_exact","absent","old_loaded"
     )["lifecycle_state"]=="initial"
     assert classify_lifecycle_state(
+        "old_exact","absent_pending","old_loaded"
+    )["lifecycle_state"]=="helper_pending_absent"
+    assert classify_lifecycle_state(
+        "old_exact","exact_pending","old_loaded"
+    )["lifecycle_state"]=="helper_pending_exact"
+    assert classify_lifecycle_state(
         "old_exact","exact","old_loaded"
     )["lifecycle_state"]=="helper_only"
     assert classify_lifecycle_state(
@@ -699,6 +799,39 @@ def self_test()->None:
         ) is False
         exact_published_file(test_path,test_data,0o444,uid,gid)
         assert os.lstat(test_path).st_nlink==1
+
+        # Crash-before-link: unpublished private pending file is recoverable.
+        orphan=test_root/("."+test_path.name+".pending.9001")
+        orphan.write_bytes(test_data[:4])
+        os.chmod(orphan,0o600)
+        assert helper_state_at(
+            test_path,test_root,git_blob(test_data),uid,gid
+        )=="exact_orphan_pending"
+        orphan.unlink()
+
+        # Crash-after-link-before-unlink: exact final + same-inode pending.
+        test_path.unlink()
+        pending=test_root/("."+test_path.name+".pending.9002")
+        pending.write_bytes(test_data)
+        os.chmod(pending,0o444)
+        os.link(pending,test_path)
+        assert helper_state_at(
+            test_path,test_root,git_blob(test_data),uid,gid
+        )=="exact_pending"
+        pending.unlink()
+        assert helper_state_at(
+            test_path,test_root,git_blob(test_data),uid,gid
+        )=="exact"
+
+        # Final absent with a private partial pending file is classified.
+        test_path.unlink()
+        partial=test_root/("."+test_path.name+".pending.9003")
+        partial.write_bytes(test_data[:3])
+        os.chmod(partial,0o600)
+        assert helper_state_at(
+            test_path,test_root,git_blob(test_data),uid,gid
+        )=="absent_pending"
+        partial.unlink()
 
     def synthetic_snapshot(state:dict[str,str])->dict[str,str]:
         return {
@@ -957,6 +1090,8 @@ def self_test()->None:
     print("successful_apply_mutation_receipt_truthful=true")
     print("helper_create_only_hardlink_publication=true")
     print("helper_partial_pending_cleanup_proven=true")
+    print("helper_crash_link_state_classified=true")
+    print("helper_pending_resume_states=true")
     print("resume_directory_durability_repair=true")
     print("service_temp_cleanup_on_prepublication_failure=true")
     print("failure_injection_after_helper_creation=true")
