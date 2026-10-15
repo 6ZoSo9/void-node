@@ -9,10 +9,10 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const RUNNER=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs";
-const RUNNER_BLOB="a1d2d715c860cf9c4d42bcbbf021436d3477c934";
+const RUNNER_BLOB="a50b759809198c666a7a3ba52a1cb495c8fda176";
 const QUALIFIER=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v1.py";
-const QUALIFIER_BLOB="5dec0f9534c3b2d6c8d4a0647e69d3c89ab91cd6";
+const QUALIFIER_BLOB="8dc5d53dfcc52c261a3da0ee692f3a4fcc0bfc4c";
 const SEALED=
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v1.mjs";
 const SEALED_BLOB="bb58ec88472b724e23aeccf65f44f4582c4a1440";
