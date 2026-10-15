@@ -285,4 +285,3 @@ jobs:
           console.log("candidate_enforcement_identity_accepted="+v.candidate_enforcement_identity_accepted);
           console.log("funds_movement=false");
           NODE
-
