@@ -1,0 +1,61 @@
+name: VOID Buy user runtime custody hardening installer v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_runtime_custody_hardening_installer_v1.py"
+      - "scripts/prove_void_buy_void_user_runtime_custody_hardening_installer_v1.py"
+      - "docs/operators/buy-void-user-runtime-custody-hardening-installer-v1.md"
+      - ".github/workflows/buy-void-user-runtime-custody-hardening-installer-v1.yml"
+      - "ops/systemd/void-node-live.service.d/98-buy-void-allocation-custody-runtime-hardening-v1.conf.example"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_runtime_custody_hardening_installer_v1.py"
+      - "scripts/prove_void_buy_void_user_runtime_custody_hardening_installer_v1.py"
+      - "docs/operators/buy-void-user-runtime-custody-hardening-installer-v1.md"
+      - ".github/workflows/buy-void-user-runtime-custody-hardening-installer-v1.yml"
+      - "ops/systemd/void-node-live.service.d/98-buy-void-allocation-custody-runtime-hardening-v1.conf.example"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: user runtime hardening installer source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Prove installer source
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_user_runtime_custody_hardening_installer_v1.py --self-test
+          python3 -I -B scripts/prove_void_buy_void_user_runtime_custody_hardening_installer_v1.py
+      - name: Prove inert source plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/user-runtime-hardening-source-plan.txt"
+          python3 -I -B ops/precision/void_buy_void_user_runtime_custody_hardening_installer_v1.py --source-plan | tee "$plan"
+          grep -Fx 'source_only=true' "$plan"
+          grep -Fx 'host_read=false' "$plan"
+          grep -Fx 'host_write=false' "$plan"
+          grep -Fx 'success_path_restart_count=1' "$plan"
+          grep -Fx 'enable_disable=false' "$plan"
+          grep -Fx 'same_uid_namespace_tamper_resistance_proven=false' "$plan"
+          grep -Fx 'durable_policy_file_custody_proven=false' "$plan"
+          grep -Fx 'payment_acceptance=false' "$plan"
+          grep -Fx 'public_presale_activation=false' "$plan"
+          grep -Fx 'funds_movement=false' "$plan"
+      - name: Diff hygiene
+        run: git diff --check
