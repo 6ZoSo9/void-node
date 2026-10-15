@@ -16,7 +16,7 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-socket-lifecycle-update-v1.json"
-MANIFEST_BLOB="ff86c530112d68adde6b81425f5ce951289ec71d"
+MANIFEST_BLOB="36f3d7b9228486364afa31b13b7aa6a228963389"
 SERVICE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"
 NEW_SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
@@ -62,7 +62,10 @@ def load_manifest()->dict:
         value.get("new_service_blob_sha1")!=NEW_SERVICE_BLOB or
         value.get("target_blob_sha1")!=TARGET_BLOB or
         value.get("cleanup_blob_sha1")!=HELPER_BLOB or
-        value.get("exec_stop_post")!=EXPECTED_EXEC_STOP_POST
+        value.get("exec_stop_post")!=EXPECTED_EXEC_STOP_POST or
+        value.get("cleanup_custody_uid_process_exclusivity_required") is not True or
+        value.get("target_unit_file_state_required")!="disabled" or
+        value.get("service_unit_file_state_required")!="static"
     ): hold("manifest_identity_invalid")
     return value
 
