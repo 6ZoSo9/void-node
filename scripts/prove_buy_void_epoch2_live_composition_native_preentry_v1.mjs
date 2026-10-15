@@ -158,6 +158,51 @@ function requireAuthenticProcfsForCurrentProcess() {
   return mountInfo;
 }
 
+function retainedDirectoryMountId(target) {
+  const noFollow = Number(fs.constants.O_NOFOLLOW || 0);
+  const directory = Number(fs.constants.O_DIRECTORY || 0);
+  assert.equal(
+    noFollow > 0 && directory > 0,
+    true,
+    "Linux nofollow/directory open flags required",
+  );
+  const before = fs.lstatSync(target, { bigint: true });
+  assert.equal(
+    before.isDirectory() && !before.isSymbolicLink(),
+    true,
+    target + " must be a direct directory before mount-id binding",
+  );
+  const fd = fs.openSync(
+    target,
+    fs.constants.O_RDONLY | noFollow | directory,
+  );
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    const visible = fs.lstatSync(target, { bigint: true });
+    assert.equal(
+      sameFsIdentity(before, opened) && sameFsIdentity(opened, visible),
+      true,
+      target + " changed across retained mount-id observation",
+    );
+    const fdInfo = "/proc/self/fdinfo/" + String(fd);
+    assert.equal(
+      fs.statfsSync(fdInfo, { bigint: true }).type,
+      PROC_SUPER_MAGIC,
+      fdInfo + " must be backed by genuine procfs",
+    );
+    const raw = fs.readFileSync(fdInfo, "utf8");
+    const matches = [...raw.matchAll(/^mnt_id:\s+([1-9][0-9]*)\s*$/gmu)];
+    assert.equal(
+      matches.length,
+      1,
+      target + " retained fdinfo must expose exactly one mount id",
+    );
+    return matches[0][1];
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function requireDelegatedPrivateNamespace() {
   assert.equal(
     process.env[PRIVATE_OPT_FIXTURE_ENV],
@@ -299,6 +344,8 @@ function requireDelegatedPrivateNamespace() {
       const fields = line.split(" ");
       const separator = fields.indexOf("-");
       return {
+        mountId: String(fields[0] || ""),
+        parentMountId: String(fields[1] || ""),
         mountPoint: mountInfoPath(fields[4] || ""),
         options: String(fields[5] || "").split(","),
         fsType:
@@ -306,6 +353,34 @@ function requireDelegatedPrivateNamespace() {
       };
     });
   const mountPoints = new Set(mountEntries.map((entry) => entry.mountPoint));
+  const exactMountEntry = (target) => {
+    const rows = mountEntries.filter((entry) => entry.mountPoint === target);
+    assert.equal(
+      rows.length,
+      1,
+      target + " must have exactly one visible mountinfo row",
+    );
+    assert.match(rows[0].mountId, /^[1-9][0-9]*$/u);
+    assert.equal(
+      rows[0].mountId,
+      retainedDirectoryMountId(target),
+      target + " mountinfo id must match the current process retained directory fd",
+    );
+    return rows[0];
+  };
+  const bootstrapMountId = retainedDirectoryMountId(bootstrapRoot);
+  for (const backing of [
+    backingOpt,
+    backingHome,
+    backingUsrUpper,
+    backingUsrWork,
+  ]) {
+    assert.equal(
+      retainedDirectoryMountId(backing),
+      bootstrapMountId,
+      backing + " must remain on the bootstrap root mount generation",
+    );
+  }
 
   for (const [visible, backing] of [
     ["/opt", backingOpt],
@@ -328,6 +403,7 @@ function requireDelegatedPrivateNamespace() {
       true,
       visible + " must be an explicit namespace-local mountpoint",
     );
+    exactMountEntry(visible);
     assert.equal(
       mountPoints.has(backing),
       false,
@@ -367,10 +443,8 @@ function requireDelegatedPrivateNamespace() {
     true,
     "namespace-local /usr/bin must be an explicit mountpoint",
   );
-  const mergedUsrMount = mountEntries.find(
-    (entry) => entry.mountPoint === backingUsrMerged,
-  );
-  assert.ok(mergedUsrMount, "private /usr/bin overlay mount missing");
+  exactMountEntry("/usr/bin");
+  const mergedUsrMount = exactMountEntry(backingUsrMerged);
   assert.equal(
     mergedUsrMount.fsType,
     "overlay",
@@ -436,10 +510,7 @@ function requireDelegatedPrivateNamespace() {
     backingRepo,
     "delegated proof cwd must be the private checkout mirror",
   );
-  const repoMount = mountEntries.find(
-    (entry) => entry.mountPoint === backingRepo,
-  );
-  assert.ok(repoMount, "private checkout mirror mount missing");
+  const repoMount = exactMountEntry(backingRepo);
   assert.equal(
     repoMount.options.includes("ro"),
     true,
