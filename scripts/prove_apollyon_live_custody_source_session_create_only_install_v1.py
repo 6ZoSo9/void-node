@@ -16,7 +16,7 @@ def git_blob(path:Path)->str:
     h.update(f"blob {len(data)}\0".encode("ascii"));h.update(data)
     return h.hexdigest()
 
-assert git_blob(MANIFEST)=="d67b449c5d28acd2aef502cd1b86867890dc30ff"
+assert git_blob(MANIFEST)=="9b362f4efdc3d91c42a95de4a96147294e478a09"
 source=INSTALLER.read_text(encoding="utf-8")
 ast.parse(source)
 for required in (
@@ -33,6 +33,9 @@ for required in (
     'unclassifiable_process_status_holds',
     'activation_target_unit_file_state_required',
     'custody_service_unit_file_state_required',
+    'require_exact_post_install_systemd_state',
+    'custody_service_unit_file_state_not_static',
+    'custody_target_unit_file_state_not_disabled',
     'CLEANUP_HELPER=LIFECYCLE_ROOT/"apollyon_custody_stale_socket_cleanup_v1.py"',
     'install_file(CLEANUP_HELPER,cleanup_helper,0o444,0,0)',
     'PREENTRY_BYTES=798736',
@@ -79,6 +82,7 @@ for line in (
     "preentry_static_rederived=true",
     "public_key_retained_generation=true",
     "public_key_path_swap_rejected=true",
+    "exact_post_install_unit_states_required=true",
     "service_start=false","service_enable=false","training_execution=false",
     "durable_attempt_claim=false","funds_movement=false",
 ):
@@ -89,6 +93,7 @@ print("installer_self_test_green=true")
 print("preentry_static_rederived=true")
 print("public_key_retained_generation=true")
 print("public_key_path_swap_rejected=true")
+print("exact_post_install_unit_states_required=true")
 print("create_only=true")
 print("service_start=false")
 print("service_enable=false")

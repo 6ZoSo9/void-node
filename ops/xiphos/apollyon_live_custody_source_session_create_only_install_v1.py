@@ -27,7 +27,7 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="d67b449c5d28acd2aef502cd1b86867890dc30ff"
+MANIFEST_BLOB="9b362f4efdc3d91c42a95de4a96147294e478a09"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 UNIT_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
@@ -447,20 +447,45 @@ def make_env(ipc_gid:int)->bytes:
 
 def systemctl_state()->dict[str,str]:
     props={}
-    result=run([
+    service=run([
         "/usr/bin/systemctl","show","void-apollyon-authorization-custody-v1.service",
         "--no-pager","-p","LoadState","-p","ActiveState","-p","UnitFileState",
         "-p","MainPID",
     ],check=False)
-    for line in result.stdout.splitlines():
+    props["ServiceProbeReturncode"]=str(service.returncode)
+    for line in service.stdout.splitlines():
         if "=" in line:
             k,v=line.split("=",1);props[k]=v
-    target_enabled=run(
-        ["/usr/bin/systemctl","is-enabled","void-apollyon-authorization-custody-v1.target"],
-        check=False,
-    ).stdout.strip()
-    props["TargetEnabled"]=target_enabled
+
+    target=run([
+        "/usr/bin/systemctl","show","void-apollyon-authorization-custody-v1.target",
+        "--no-pager","-p","LoadState","-p","ActiveState","-p","UnitFileState",
+    ],check=False)
+    props["TargetProbeReturncode"]=str(target.returncode)
+    for line in target.stdout.splitlines():
+        if "=" in line:
+            k,v=line.split("=",1);props["Target"+k]=v
     return props
+
+def require_exact_post_install_systemd_state(state:dict[str,str])->None:
+    if state.get("ServiceProbeReturncode")!="0":
+        hold("custody_service_state_probe_failed")
+    if state.get("LoadState")!="loaded":
+        hold("custody_unit_not_loaded")
+    if state.get("ActiveState")!="inactive":
+        hold("custody_service_not_inactive")
+    if state.get("MainPID") not in ("","0",None):
+        hold("custody_service_mainpid_nonzero")
+    if state.get("UnitFileState")!="static":
+        hold("custody_service_unit_file_state_not_static")
+    if state.get("TargetProbeReturncode")!="0":
+        hold("custody_target_state_probe_failed")
+    if state.get("TargetLoadState")!="loaded":
+        hold("custody_target_not_loaded")
+    if state.get("TargetActiveState")!="inactive":
+        hold("custody_target_not_inactive")
+    if state.get("TargetUnitFileState")!="disabled":
+        hold("custody_target_unit_file_state_not_disabled")
 
 def verify_source_contract()->dict[str,Any]:
     manifest=load_manifest()
@@ -533,8 +558,12 @@ def plan(public_key:Path)->dict[str,Any]:
 def apply(public_key:Path)->dict[str,Any]:
     if os.geteuid()!=0:hold("apply_requires_root")
     before=plan(public_key)
-    if systemctl_state().get("ActiveState")=="active":
-        hold("custody_service_already_active")
+    initial_state=systemctl_state()
+    if (
+        initial_state.get("ActiveState")=="active" or
+        initial_state.get("TargetActiveState")=="active"
+    ):
+        hold("custody_lifecycle_already_active")
 
     ensure_group(IPC_GROUP)
     ensure_group(CUSTODY_GROUP)
@@ -589,14 +618,7 @@ def apply(public_key:Path)->dict[str,Any]:
 
     run(["/usr/bin/systemctl","daemon-reload"])
     state=systemctl_state()
-    if state.get("LoadState")!="loaded":
-        hold("custody_unit_not_loaded")
-    if state.get("ActiveState")=="active" or state.get("MainPID") not in ("","0",None):
-        hold("custody_service_unexpectedly_active")
-    if state.get("UnitFileState")=="enabled":
-        hold("custody_service_unexpectedly_enabled")
-    if state.get("TargetEnabled")=="enabled":
-        hold("custody_target_unexpectedly_enabled")
+    require_exact_post_install_systemd_state(state)
 
     return {
         **before,
@@ -651,6 +673,36 @@ def self_test()->None:
     assert manifest["node_runtime_contract"]["version"]==NODE_VERSION
     assert manifest["node_runtime_contract"]["bytes"]==NODE_BYTES
     assert manifest["node_runtime_contract"]["sha256"]==NODE_SHA256
+
+    good_state={
+        "ServiceProbeReturncode":"0",
+        "LoadState":"loaded",
+        "ActiveState":"inactive",
+        "UnitFileState":"static",
+        "MainPID":"0",
+        "TargetProbeReturncode":"0",
+        "TargetLoadState":"loaded",
+        "TargetActiveState":"inactive",
+        "TargetUnitFileState":"disabled",
+    }
+    require_exact_post_install_systemd_state(good_state)
+    for key,value,reason in (
+        ("ServiceProbeReturncode","1","custody_service_state_probe_failed"),
+        ("ActiveState","active","custody_service_not_inactive"),
+        ("UnitFileState","masked","custody_service_unit_file_state_not_static"),
+        ("TargetProbeReturncode","1","custody_target_state_probe_failed"),
+        ("TargetActiveState","active","custody_target_not_inactive"),
+        ("TargetUnitFileState","enabled-runtime","custody_target_unit_file_state_not_disabled"),
+        ("TargetUnitFileState","masked","custody_target_unit_file_state_not_disabled"),
+    ):
+        bad=dict(good_state);bad[key]=value
+        try:
+            require_exact_post_install_systemd_state(bad)
+        except Hold as exc:
+            assert str(exc)==reason,(key,str(exc),reason)
+        else:
+            raise AssertionError("noncanonical_post_install_state_accepted:"+key+":"+value)
+
     compiled=compile_preentry()
     assert len(compiled)==PREENTRY_BYTES
     assert sha256(compiled)==PREENTRY_SHA256
@@ -741,6 +793,7 @@ def self_test()->None:
     print("preentry_static_rederived=true")
     print("public_key_retained_generation=true")
     print("public_key_path_swap_rejected=true")
+    print("exact_post_install_unit_states_required=true")
     print("service_start=false")
     print("service_enable=false")
     print("training_execution=false")

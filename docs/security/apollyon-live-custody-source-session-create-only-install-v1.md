@@ -26,7 +26,12 @@ deployment:
 - exact environment, systemd service/activation target and Polkit rule.
 
 The installer runs `systemd-tmpfiles --create` and `systemctl daemon-reload`
-after installing exact bytes.
+after installing exact bytes. Post-reload acceptance is exact: the custody
+service must be loaded, inactive, `MainPID=0`, and `UnitFileState=static`;
+the activation target must be loaded, inactive, and
+`UnitFileState=disabled`. Masked, linked, enabled-runtime, active, failed
+probe, or other noncanonical states HOLD rather than being reported as a
+successful installation.
 
 ## Root-custodied Node prerequisite
 
