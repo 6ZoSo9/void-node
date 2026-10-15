@@ -31,6 +31,11 @@ for(const needle of [
   'EXPECTED_EXE "/usr/lib/systemd/systemd"',
   "manager_private_socket_peer_mismatch",
   "manager_generation_changed",
+  "manager_cmdline_bytes",
+  "--deserialize=",
+  "manager_reexec_deserialize_argv_accepted=true",
+  "manager_malformed_deserialize_rejected=true",
+  "manager_extra_argv_rejected=true",
   "unit_properties_queried=false",
   "public_presale_activation=false",
 ]){
@@ -51,6 +56,10 @@ try{
   const lines=self.stdout.trim().split("\n");
   assert.ok(lines.includes(MARKER+"_SELF_TEST_GREEN"));
   for(const expected of [
+    "manager_plain_argv_accepted=true",
+    "manager_reexec_deserialize_argv_accepted=true",
+    "manager_malformed_deserialize_rejected=true",
+    "manager_extra_argv_rejected=true",
     "so_peercred_live_socket_positive=true",
     "wrong_peer_pid_rejected_by_contract=true",
     "systemd_private_socket_selected=true",
@@ -68,6 +77,9 @@ assert.match(sourceSha,/^[0-9a-f]{64}$/u);
 
 console.log(MARKER+"_PROOF_GREEN");
 console.log("root_kernel_manager_selection_required=true");
+console.log("plain_user_manager_argv_accepted=true");
+console.log("reexec_deserialize_user_manager_argv_accepted=true");
+console.log("malformed_or_extra_manager_argv_rejected=true");
 console.log("manager_pidfd_retention_required=true");
 console.log("systemd_private_socket_so_peercred_required=true");
 console.log("generic_user_bus_authority=false");

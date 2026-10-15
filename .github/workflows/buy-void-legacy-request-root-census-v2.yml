@@ -1,0 +1,78 @@
+name: VOID Buy legacy request-root census v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_legacy_request_root_census_v2.py"
+      - "scripts/prove_void_buy_void_legacy_request_root_census_v2.py"
+      - "docs/operators/buy-void-legacy-request-root-census-v2.md"
+      - ".github/workflows/buy-void-legacy-request-root-census-v2.yml"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
+      - "ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py"
+      - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_legacy_request_root_census_v2.py"
+      - "scripts/prove_void_buy_void_legacy_request_root_census_v2.py"
+      - "docs/operators/buy-void-legacy-request-root-census-v2.md"
+      - ".github/workflows/buy-void-legacy-request-root-census-v2.yml"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
+      - "ops/precision/void_buy_void_user_manager_query_live_qualification_v2.py"
+      - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Syntax and focused proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for p in (
+              "ops/precision/void_buy_void_legacy_request_root_census_v2.py",
+              "scripts/prove_void_buy_void_legacy_request_root_census_v2.py",
+          ):
+              compile(Path(p).read_text("utf-8"), p, "exec", dont_inherit=True)
+          print("VOID_LEGACY_REQUEST_ROOT_CENSUS_V2_SYNTAX_GREEN")
+          PY
+          python3 -I -B scripts/prove_void_buy_void_legacy_request_root_census_v2.py |
+            tee "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V2_PROOF_GREEN' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'v1_topology_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'v2_designated_host_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'authenticated_user_manager_query_v2_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'protected_v2_generation_required=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'kernel_active_capabilities_zero_required=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'authenticated_mainpid_required=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'empty_shape_not_promoted_to_genesis=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'historical_request_history_disposition_proven=false' "$RUNNER_TEMP/legacy-root-census-v2.log"
+          grep -Fx 'external_witness_required=true' "$RUNNER_TEMP/legacy-root-census-v2.log"
+      - name: Plan is inert
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_legacy_request_root_census_v2.py --plan |
+            tee "$RUNNER_TEMP/legacy-root-plan-v2.log"
+          grep -Fx 'read_only=true' "$RUNNER_TEMP/legacy-root-plan-v2.log"
+          grep -Fx 'sudo_required=true' "$RUNNER_TEMP/legacy-root-plan-v2.log"
+          grep -Fx 'root_execution_required_for_authenticated_manager_query=true' "$RUNNER_TEMP/legacy-root-plan-v2.log"
+          grep -Fx 'authenticated_user_manager_required=true' "$RUNNER_TEMP/legacy-root-plan-v2.log"
+          grep -Fx 'process_environment_access=false' "$RUNNER_TEMP/legacy-root-plan-v2.log"
+          grep -Fx 'request_or_payment_contents_read=false' "$RUNNER_TEMP/legacy-root-plan-v2.log"
+          grep -Fx 'historical_request_history_disposition_proven=false' "$RUNNER_TEMP/legacy-root-plan-v2.log"
+          grep -Fx 'production_gate_ready=false' "$RUNNER_TEMP/legacy-root-plan-v2.log"
+      - run: git diff --check
