@@ -25,7 +25,7 @@ SERVICE_PROPERTIES=(
  'RefuseManualStart','RefuseManualStop','ActiveState','MainPID',
 )
 REVIEWED_SYSTEMD_MAJOR=255
-REVIEWED_SYSTEMD_PACKAGE_VERSIONS=('255.4-1ubuntu8.11',)
+REVIEWED_SYSTEMD_PACKAGE_VERSIONS=('255.4-1ubuntu8.11','255.4-1ubuntu8.18')
 SYSTEMD_MANAGE_UNIT_VERBS=(
  'start','verify-active','stop','reload','reload-or-start','restart','try-restart',
  'try-reload','nop','reload-or-restart','reload-or-try-restart','kill','clean',
