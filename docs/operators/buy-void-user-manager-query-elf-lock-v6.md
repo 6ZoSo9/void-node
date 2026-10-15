@@ -101,3 +101,24 @@ A separately reviewed protected replacement successor is required before
 Precision may consume V6 from `/opt`.
 
 PROTECT THE CORE.
+
+## Post-merge gate semantics
+
+The original eight-file V6 truth correction is fixed historical evidence from
+base `a681546a3182d5f6f0c6d60e327546a6d7dcec30` through merged correction
+head `5efc57ddc8382259e470d65c9be8140be445434a`.
+
+The lock proof verifies that exact historical delta and requires the current
+repository HEAD to descend from the accepted correction head. It does not apply
+the frozen correction base directly to integrated main, so unrelated later main
+changes cannot create false `lock_v6_truth_correction_scope_drift` failures.
+
+The four protected-replacement consumer paths pinned by exact Git blob are also
+explicit inputs to the lock workflow. Both pull-request and main-push path
+filters include all four, and the proof requires each pinned path to appear in
+both trigger sets. This makes replacement-consumer drift fail at the lock gate
+when it is introduced rather than on an unrelated later change.
+
+These CI/source corrections do not change the accepted V6 candidate, lock ID,
+binary identities, installation authority, live-query authority, payment or
+presale state, or funds authority.

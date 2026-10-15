@@ -1,0 +1,72 @@
+name: Buy VOID Epoch-2 dormant candidate v3 fee truth
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json"
+      - "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v3.mjs"
+      - "docs/operators/buy-void-payment-keyed-epoch2-dormant-candidate-v3.md"
+      - ".github/workflows/buy-void-payment-keyed-epoch2-dormant-candidate-v3.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json"
+      - "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v3.mjs"
+      - "docs/operators/buy-void-payment-keyed-epoch2-dormant-candidate-v3.md"
+      - ".github/workflows/buy-void-payment-keyed-epoch2-dormant-candidate-v3.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Bind exact truth-correction generation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json)" =             "6a0159e516d30ca8a4b9af4dcace79a4fcddfbb1"
+          test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json)" =             "04061934a537a1d91213cdd1f9110b46faca4cc7"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v3.mjs)" =             "0801320c147515a1d71b8a9b9f3d8101c31fec90"
+      - name: Prove fee-gate truth correction
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e2-dormant-v3.log"
+          node scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v3.mjs |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_PAYMENT_KEYED_EPOCH2_DORMANT_CANDIDATE_V3_PROOF_GREEN"
+            "predecessor_v2_git_blob_bound=true"
+            "candidate_configuration_unchanged=true"
+            "signer_credential_state_unchanged=true"
+            "authority_unchanged=true"
+            "standing_balance_fee_gate_retired=true"
+            "zero_fee_chain_receipt_gate_preserved=true"
+            "per_payment_native_gas_funding_required_for_nonzero_fee=true"
+            "runtime_enabled=false"
+            "runtime_apply_enabled=false"
+            "credential_access=false"
+            "transaction_signing=false"
+            "transaction_broadcast=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+      - run: git diff --check
