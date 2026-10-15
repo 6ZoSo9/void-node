@@ -120,8 +120,18 @@ The manifest pins both:
 - the complete current-V2 live-session closure under
   `/opt/void-apollyon-live-custody-binding-v2-reviewed-v1`.
 
-The locked 16,912-byte native pre-entry is installed separately beneath
+The accepted 798,736-byte loader-independent native pre-entry is installed separately beneath
 `/opt/void-apollyon-live-custody-binding-v2-preentry-v1`.
+
+The deployment contract binds the exact repository lock
+`ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json`
+(Git blob `aaa4d3265fcd3471fb433928df1cf9f9b4ef42a6`, lock ID
+`apollyon_live_custody_source_session_preentry_binary_lock_v1:7009aab71636ae4a06d880160e60b7131887f0ab7199b8da19ef65f399534439`). The lock accepts SHA-256
+`2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d`, requires static/no-`PT_INTERP` execution and the hostile
+`LD_PRELOAD` positive-control proof, while keeping installed identity and live
+execution false. The lock verifier/workflow blobs and hosted verification run
+`38684203856` are also bound so copied hash values cannot substitute for the
+reviewed lock evidence.
 
 ## Authority
 

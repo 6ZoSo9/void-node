@@ -12,6 +12,12 @@ const TARGET=path.join(ROOT,"ops/xiphos/void-apollyon-authorization-custody-v1.t
 const ENV_TEMPLATE=path.join(ROOT,"ops/xiphos/void-apollyon-authorization-custody-v1.env.template");
 const POLKIT=path.join(ROOT,"ops/xiphos/00-void-apollyon-training-custody-deny-v1.rules");
 const TMPFILES=path.join(ROOT,"ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf");
+const PREENTRY_LOCK=path.join(ROOT,"ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json");
+const PREENTRY_LOCK_PROOF=path.join(ROOT,"scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py");
+const PREENTRY_LOCK_WORKFLOW=path.join(ROOT,".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml");
+const PREENTRY_LOCK_BLOB="aaa4d3265fcd3471fb433928df1cf9f9b4ef42a6";
+const PREENTRY_LOCK_PROOF_BLOB="8c21671892667d65fe3e528a2286ed557ad25780";
+const PREENTRY_LOCK_WORKFLOW_BLOB="4f848605ab8e54584900cac44aff73c9649ff3f5";
 
 function canonical(v){
   if(Array.isArray(v))return v.map(canonical);
@@ -114,11 +120,38 @@ assert.equal(
   "1d0d9893939d1a457970b3b1f16dae06e7fef067",
 );
 
-assert.equal(manifest.preentry_lock.bytes,16912);
-assert.equal(
-  manifest.preentry_lock.sha256,
-  "66d9b1c1fff316ecf96d7af73af7bf4a4442d6ce10f0e2df906fa1a79dc5580c",
-);
+const lockRaw=fs.readFileSync(PREENTRY_LOCK);
+assert.equal(gitBlob(lockRaw),PREENTRY_LOCK_BLOB);
+assert.equal(gitBlob(fs.readFileSync(PREENTRY_LOCK_PROOF)),PREENTRY_LOCK_PROOF_BLOB);
+assert.equal(gitBlob(fs.readFileSync(PREENTRY_LOCK_WORKFLOW)),PREENTRY_LOCK_WORKFLOW_BLOB);
+const acceptedLock=JSON.parse(lockRaw.toString("utf8"));
+assert.equal(JSON.stringify(canonical(acceptedLock))+"\n",lockRaw.toString("utf8"));
+assert.equal(acceptedLock.lock_id,"apollyon_live_custody_source_session_preentry_binary_lock_v1:7009aab71636ae4a06d880160e60b7131887f0ab7199b8da19ef65f399534439");
+assert.equal(acceptedLock.candidate_id,"apollyon_live_custody_source_session_preentry_binary_candidate_v1:5007ad5368afd86679cd18811822b648bb4abc4c13169d55d2b27822609de5ab");
+assert.equal(acceptedLock.binary.bytes,798736);
+assert.equal(acceptedLock.binary.sha256,"2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d");
+for(const key of ["static_link_required","pt_interp_absent","hostile_ld_preload_positive_control","hostile_ld_preload_preentry_blocked"]){
+  assert.equal(acceptedLock.binary[key],true,"accepted-lock:"+key);
+  assert.equal(manifest.preentry_lock[key],true,"manifest-lock:"+key);
+}
+assert.equal(acceptedLock.candidate_binary_identity_accepted,true);
+assert.equal(acceptedLock.installed_preentry_identity_proven,false);
+assert.equal(manifest.preentry_lock.bytes,acceptedLock.binary.bytes);
+assert.equal(manifest.preentry_lock.sha256,acceptedLock.binary.sha256);
+assert.equal(manifest.preentry_lock.candidate_id,acceptedLock.candidate_id);
+assert.equal(manifest.preentry_lock.lock_id,acceptedLock.lock_id);
+assert.equal(manifest.preentry_lock.candidate_binary_identity_accepted,true);
+assert.equal(manifest.preentry_lock.installed_preentry_identity_proven,false);
+assert.deepEqual(manifest.preentry_lock_evidence,{
+  git_blob_sha1:PREENTRY_LOCK_BLOB,
+  lock_id:"apollyon_live_custody_source_session_preentry_binary_lock_v1:7009aab71636ae4a06d880160e60b7131887f0ab7199b8da19ef65f399534439",
+  path:"ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json",
+  verification_proof_git_blob_sha1:PREENTRY_LOCK_PROOF_BLOB,
+  verification_proof_path:"scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py",
+  verification_workflow_git_blob_sha1:PREENTRY_LOCK_WORKFLOW_BLOB,
+  verification_workflow_path:".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml",
+  verification_workflow_run:38684203856,
+});
 assert.equal(manifest.required_operator_input.private_key_required,false);
 assert.equal(manifest.required_operator_input.public_identity_cross_attested,true);
 assert.equal(
@@ -182,6 +215,10 @@ console.log("custody_service_refuse_manual_start_stop=true");
 console.log("activation_target_separate=true");
 console.log("operator_public_key_required=true");
 console.log("operator_public_key_raw_sha256=c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134");
+console.log("preentry_static_lock_bound=true");
+console.log("preentry_pt_interp_absent=true");
+console.log("preentry_hostile_ld_preload_blocked=true");
+console.log("preentry_lock_artifact_bound=true");
 console.log("configuration_files_root_owned=true");
 console.log("environment_exact_five_keys=true");
 console.log("loader_environment_keys_forbidden=true");
