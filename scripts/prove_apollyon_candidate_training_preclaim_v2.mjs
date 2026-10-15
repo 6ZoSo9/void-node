@@ -21,7 +21,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-custody-host-policy-qualification-v2.mjs":
     "db5493a513a42780865e7194580eec3b770dc8e1",
   "tools/apollyon-designated-host-custody-live-qualification-v2.mjs":
-    "a46cae54131bd25c25f2efb2d67c24b57a872a7e",
+    "435e23d26fa32405e36d5dad17b033ea4ec910e0",
   "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
     "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
 })){
