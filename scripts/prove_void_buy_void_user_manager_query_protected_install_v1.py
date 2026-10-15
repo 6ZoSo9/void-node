@@ -59,6 +59,9 @@ for required in (
     "st.st_nlink != 1",
     "os.fchown(fd, 0, 0)",
     "os.fchmod(fd, 0o555)",
+    "sys.flags.isolated != 1",
+    "python_isolated_mode_required_for_apply",
+    "forbidden_apply_environment:",
     "_target_absent(INSTALL_ROOT)",
     "query_execution=false",
     "service_mutation=false",
@@ -151,6 +154,8 @@ print("target_root_create_only=true")
 print("target_files_o_excl_nofollow=true")
 print("failed_file_creation_cleanup_required=true")
 print("root_owned_0555_targets_required=true")
+print("isolated_python_apply_required=true")
+print("loader_and_python_env_injection_rejected=true")
 print("query_execution=false")
 print("service_mutation=false")
 print("systemd_mutation=false")
