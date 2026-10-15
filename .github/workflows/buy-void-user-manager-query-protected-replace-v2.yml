@@ -1,0 +1,77 @@
+name: VOID Buy protected user-manager query replacement v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "scripts/prove_void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "docs/operators/buy-void-user-manager-query-protected-replace-v2.md"
+      - ".github/workflows/buy-void-user-manager-query-protected-replace-v2.yml"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "scripts/prove_void_buy_void_user_manager_query_protected_replace_v2.py"
+      - "docs/operators/buy-void-user-manager-query-protected-replace-v2.md"
+      - ".github/workflows/buy-void-user-manager-query-protected-replace-v2.yml"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Prove atomic replacement source
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py --self-test |
+            tee "$RUNNER_TEMP/replace-self.log"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_PROTECTED_REPLACE_V2_SELF_TEST_GREEN' "$RUNNER_TEMP/replace-self.log"
+          grep -Fx 'renameat2_exchange_available=true' "$RUNNER_TEMP/replace-self.log"
+          grep -Fx 'preexec_replacement=false' "$RUNNER_TEMP/replace-self.log"
+          grep -Fx 'v1_predecessor_retained_after_success=true' "$RUNNER_TEMP/replace-self.log"
+
+          python3 -I -B scripts/prove_void_buy_void_user_manager_query_protected_replace_v2.py |
+            tee "$RUNNER_TEMP/replace-proof.log"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_PROTECTED_REPLACE_V2_PROOF_GREEN' "$RUNNER_TEMP/replace-proof.log"
+          grep -Fx 'accepted_v2_lock_bound=true' "$RUNNER_TEMP/replace-proof.log"
+          grep -Fx 'fixed_preexec_unchanged=true' "$RUNNER_TEMP/replace-proof.log"
+          grep -Fx 'atomic_query_exchange_required=true' "$RUNNER_TEMP/replace-proof.log"
+          grep -Fx 'v1_predecessor_retained=true' "$RUNNER_TEMP/replace-proof.log"
+          grep -Fx 'automatic_failure_rollback=true' "$RUNNER_TEMP/replace-proof.log"
+          grep -Fx 'query_execution=false' "$RUNNER_TEMP/replace-proof.log"
+          grep -Fx 'service_mutation=false' "$RUNNER_TEMP/replace-proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/replace-proof.log"
+      - name: Prove inert source plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/replace-source-plan.log"
+          python3 -I -B ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py --source-plan |
+            tee "$out"
+          grep -Fx 'source_only=true' "$out"
+          grep -Fx 'host_read=false' "$out"
+          grep -Fx 'host_write=false' "$out"
+          grep -Fx 'preexec_replacement=false' "$out"
+          grep -Fx 'query_atomic_exchange_required=true' "$out"
+          grep -Fx 'v1_predecessor_retained_after_success=true' "$out"
+          grep -Fx 'query_execution=false' "$out"
+          grep -Fx 'service_mutation=false' "$out"
+          grep -Fx 'payment_acceptance=false' "$out"
+          grep -Fx 'public_presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+      - run: git diff --check
