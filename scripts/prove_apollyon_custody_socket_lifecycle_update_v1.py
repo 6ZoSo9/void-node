@@ -14,6 +14,7 @@ def git_blob(path:Path)->str:
 
 m=json.loads(MANIFEST.read_text())
 assert m["marker"]=="VOID_APOLLYON_CUSTODY_SOCKET_LIFECYCLE_UPDATE_V1"
+assert git_blob(MANIFEST)=="8d7549a60e61fe6666364eac293b1aa99fefa18a"
 assert m["old_service_blob_sha1"]=="6ff5315f3ada3607d86c865742c34d9de3238659"
 assert m["new_service_blob_sha1"]=="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 assert m["target_blob_sha1"]=="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
@@ -23,6 +24,7 @@ assert git_blob(UNIT)==m["new_service_blob_sha1"]
 
 source=UPDATER.read_text();ast.parse(source)
 for required in (
+    'MANIFEST_BLOB="8d7549a60e61fe6666364eac293b1aa99fefa18a"',
     'OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"',
     'NEW_SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"',
     'HELPER_BLOB="65b80f5f175d0acf498af94110deb379c3165f4f"',
