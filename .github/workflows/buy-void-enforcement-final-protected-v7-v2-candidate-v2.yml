@@ -93,57 +93,48 @@ jobs:
           set -euo pipefail
           npm run typecheck
           npm run build
-      - name: Derive protected census-bound candidate
+      - name: Verify frozen candidate against current protected integration
         run: |
           set -euo pipefail
-          proof="scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v2.mjs"
-          npx tsx "$proof" --self-test
-          out="$RUNNER_TEMP/final-protected-v7-v2-candidate-${{ matrix.node }}.json"
-          npx tsx "$proof" --derive > "$out"
-          node --input-type=module - "$out" <<'NODE'
+          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"
+          integration="$RUNNER_TEMP/current-protected-integration-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --self-test
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --receipt > "$integration"
+          candidate="$RUNNER_TEMP/final-protected-v7-v2-candidate-${{ matrix.node }}.json"
+          cp ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json "$candidate"
+          node --input-type=module - "$candidate" "$integration" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          const i=JSON.parse(fs.readFileSync(process.argv[3],"utf8"));
           assert.equal(c.schema,"void_buy_void_enforcement_final_protected_v7_v2_candidate_v2");
           assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V2");
-          assert.equal(c.version,2);
-          assert.equal(c.protected_census_parent,"3faa7ba803b479d0f709bdc1f437b553154787d9");
-          assert.equal(
-            c.protected_census_evidence.census_id,
-            "voidbefv7c4_9c8fa20632d3cfb431c0d13229153d19f076613720c7402e5374eab1f833401d",
-          );
-          assert.equal(
-            c.protected_census_evidence.census_json_sha256,
-            "c9d910cd461b87c6b4722ada7505ceffe9a8d3c266387f3d9bbebddaf8f586f8",
-          );
-          assert.equal(
-            c.protected_census_evidence.protected_tracked_source_inventory_canonical_sha256,
-            "224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2",
-          );
           assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
-          assert.equal(c.current_enforcement_tracked_source_inventory_v1.length,49);
-          assert.equal(c.current_enforcement_tracked_source_inventory_verified,true);
-          assert.equal(
-            c.current_enforcement_tracked_source_inventory_sha256,
-            c.protected_census_evidence.protected_tracked_source_inventory_canonical_sha256,
-          );
           assert.equal(c.complete_executable_closure_verified,true);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
-          assert.equal(c.deployed_artifact_generation_verified,false);
-          assert.equal(c.runtime_mount_authority,false);
-          assert.equal(c.production_source_finality_authority_ready,false);
           assert.equal(c.public_presale_activation,false);
           assert.equal(c.funds_movement,false);
-          assert.match(c.candidate_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
-          console.log("VOID_BUY_VOID_FINAL_PROTECTED_V7_V2_CANDIDATE_V2_NODE_GREEN");
+          assert.equal(i.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V1");
+          assert.equal(i.protected_path_count,49);
+          assert.equal(i.protected_path_identity_preserved,true);
+          assert.equal(i.current_built_census_identity_matches_frozen_v4,true);
+          assert.equal(i.provider_source_identity_preserved,true);
+          assert.equal(i.frozen_candidate_rederived_on_current_head,false);
+          assert.equal(i.current_generation_integration_verified,true);
+          assert.equal(i.public_presale_activation,false);
+          assert.equal(i.funds_movement,false);
           NODE
+          test "$(wc -c < "$candidate")" -eq 16342
+          test "$(sha256sum "$candidate" | awk '{print $1}')" = "092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb"
+          test "$(git hash-object "$candidate")" = "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718"
+
       - name: Verify exact hosted candidate and acceptance lock
         run: |
           set -euo pipefail
           candidate="$RUNNER_TEMP/final-protected-v7-v2-candidate-${{ matrix.node }}.json"
           cmp "$candidate" ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json
           lock="$RUNNER_TEMP/final-protected-v7-v2-lock-${{ matrix.node }}.json"
-          echo "CURRENT_GENERATION_DISPATCH_V1"
+          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --self-test
           cp ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json "$lock"
           cmp "$lock" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json
@@ -175,6 +166,7 @@ jobs:
           path: |
             ${{ runner.temp }}/final-protected-v7-v2-candidate-${{ matrix.node }}.json
             ${{ runner.temp }}/final-protected-v7-v2-lock-${{ matrix.node }}.json
+            ${{ runner.temp }}/current-protected-integration-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
       - name: Diff hygiene
