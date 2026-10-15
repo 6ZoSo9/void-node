@@ -10,7 +10,7 @@ import {fileURLToPath} from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const CANDIDATE_HEAD="d7ebb60ca1bc59f16972ffe3671dfaa44ffb7cdf";
 const SOURCE_PARENT="0d635ccd9d07fd07bb086bef3202b8b67ec6e5f7";
-const CORRECTION_BASE_HEAD="a248b2299b05a0445333b751b584c302eed66971";
+const CORRECTION_BASE_HEAD="2a47dcc0d6d0cd34685c07f6513154c59d7fa6e0";
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v6.yml";
 const CANDIDATE_WORKFLOW_BLOB="fe914ecbf81fd6c42ad25e3b5ebf70b7623dbee4";
 const PREEXEC_SOURCE="ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c";
@@ -186,18 +186,7 @@ function verifyBranch(){
   git(["merge-base","--is-ancestor",SOURCE_PARENT,"HEAD"]);
   git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,"HEAD"]);
 
-  const lineage=git(["rev-list","--parents","-n","1","HEAD"])
-    .split(/\s+/u).filter(Boolean);
-  assert.ok(lineage.length===2||lineage.length===3,"unexpected_head_parent_count");
-  let scopeBase=CORRECTION_BASE_HEAD;
-  if(lineage.length===3){
-    const firstParent=lineage[1];
-    const secondParent=lineage[2];
-    git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,firstParent]);
-    git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,secondParent]);
-    scopeBase=firstParent;
-  }
-  const changed=git(["diff","--name-only",scopeBase,"HEAD","--"])
+  const changed=git(["diff","--name-only",CORRECTION_BASE_HEAD,"HEAD","--"])
     .split("\n").filter(Boolean).sort();
   assert.deepEqual(
     changed,
