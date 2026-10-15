@@ -15,7 +15,7 @@ for required in (
     'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',
     'st.st_nlink!=2',
     'wait_socket(False)',
-    'assert_socket_parent_empty()',
+    'assert_socket_parent_empty(ids)',
     'target_maybe_started=True',
     'active not in ("inactive","failed")',
     'expected_unit_file_state="disabled"',
@@ -26,6 +26,9 @@ for required in (
     'consumed_state_changed_before_cycle_',
     'consumed_state_changed_after_cycle_',
     'observations[-1]["consumed_state_unchanged"]=True',
+    'directory_metadata_invalid:',
+    '"dev":root.st_dev,"ino":root.st_ino',
+    '"mtime_ns":root.st_mtime_ns,"ctime_ns":root.st_ctime_ns',
     'first_generation=(observations[0]["live"]["pid"],observations[0]["live"]["start_ticks"])',
     'second_generation=(observations[1]["live"]["pid"],observations[1]["live"]["start_ticks"])',
     'restart_safe_second_cycle_proven',
@@ -97,6 +100,8 @@ for line in (
     "failure_preserves_original_reason=true",
     "consumed_state_unchanged_required=true",
     "consumed_state_checked_after_each_cycle=true",
+    "consumed_directory_generation_bound=true",
+    "critical_directory_metadata_bound=true",
     "prestart_static_boundary_reverified=true",
     "training_execution=false","durable_attempt_claim=false","funds_movement=false",
 ):
@@ -125,4 +130,6 @@ print("alternate_runtime_config_rejected_by_exact_argv=true")
 print("failure_final_dormant_recheck_required=true")
 print("failure_preserves_original_reason=true")
 print("consumed_state_checked_after_each_cycle=true")
+print("consumed_directory_generation_bound=true")
+print("critical_directory_metadata_bound=true")
 print("prestart_static_boundary_reverified=true")

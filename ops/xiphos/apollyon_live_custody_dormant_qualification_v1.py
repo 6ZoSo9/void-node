@@ -122,6 +122,15 @@ def exact_file(path:Path,mode:int,uid:int=0,gid:int=0,blob:str|None=None)->os.st
         hold("file_blob_invalid:"+str(path))
     return st
 
+def exact_directory(path:Path,mode:int,uid:int,gid:int)->os.stat_result:
+    st=os.lstat(path)
+    if (
+        not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_uid!=uid or st.st_gid!=gid or stat.S_IMODE(st.st_mode)!=mode
+    ):
+        hold("directory_metadata_invalid:"+str(path))
+    return st
+
 def exact_dormant(
     unit:str,
     allow_failed:bool=False,
@@ -322,6 +331,16 @@ def verify_static_install()->dict[str,int]:
         "ipc_gid":grp.getgrnam("voidapollyonipc").gr_gid,
         "training_uid":pwd.getpwnam("voidapollyontrain").pw_uid,
     }
+    exact_directory(ENV_PATH.parent,0o755,0,0)
+    exact_directory(
+        STATE_ROOT,0o700,ids["custody_uid"],ids["custody_gid"]
+    )
+    exact_directory(
+        CONSUMED,0o700,ids["custody_uid"],ids["custody_gid"]
+    )
+    exact_directory(
+        SOCKET_PARENT,0o750,ids["custody_uid"],ids["ipc_gid"]
+    )
     verify_environment_file(ids["ipc_gid"])
     verify_public_key()
     loaded_relations()
@@ -405,16 +424,31 @@ def exact_live_custody_process_set(
 def require_no_custody_uid_processes(uid:int,reason:str)->None:
     if uid_process_generations(uid):hold(reason)
 
-def consumed_snapshot()->list[dict[str,object]]:
-    if not CONSUMED.is_dir():hold("consumed_directory_missing")
+def consumed_snapshot(ids:dict[str,int])->dict[str,object]:
+    root=exact_directory(
+        CONSUMED,0o700,ids["custody_uid"],ids["custody_gid"]
+    )
     rows=[]
     for entry in sorted(CONSUMED.iterdir(),key=lambda p:p.name):
         st=os.lstat(entry)
         rows.append({
-            "name":entry.name,"mode":stat.S_IFMT(st.st_mode),
+            "name":entry.name,
+            "dev":st.st_dev,"ino":st.st_ino,
+            "file_type":stat.S_IFMT(st.st_mode),
+            "mode":stat.S_IMODE(st.st_mode),
+            "uid":st.st_uid,"gid":st.st_gid,"nlink":st.st_nlink,
             "size":st.st_size,"mtime_ns":st.st_mtime_ns,"ctime_ns":st.st_ctime_ns,
         })
-    return rows
+    return {
+        "directory":{
+            "dev":root.st_dev,"ino":root.st_ino,
+            "mode":stat.S_IMODE(root.st_mode),
+            "uid":root.st_uid,"gid":root.st_gid,"nlink":root.st_nlink,
+            "size":root.st_size,
+            "mtime_ns":root.st_mtime_ns,"ctime_ns":root.st_ctime_ns,
+        },
+        "entries":rows,
+    }
 
 def wait_unit(unit:str,state:str,timeout_s:float=8.0)->dict[str,str]:
     deadline=time.monotonic()+timeout_s
@@ -443,9 +477,10 @@ def wait_socket(present:bool,timeout_s:float=8.0)->None:
         time.sleep(0.05)
     hold("socket_transition_timeout:"+("present" if present else "absent"))
 
-def assert_socket_parent_empty()->None:
-    if not SOCKET_PARENT.is_dir():
-        hold("socket_parent_missing")
+def assert_socket_parent_empty(ids:dict[str,int])->None:
+    exact_directory(
+        SOCKET_PARENT,0o750,ids["custody_uid"],ids["ipc_gid"]
+    )
     names=sorted(entry.name for entry in os.scandir(SOCKET_PARENT))
     if names:
         hold("socket_parent_not_empty:"+",".join(names))
@@ -454,7 +489,7 @@ def attest_dormant_boundary(ids:dict[str,int],prefix:str)->None:
     exact_dormant(TARGET_UNIT,expected_unit_file_state="disabled")
     exact_dormant(SERVICE_UNIT,expected_unit_file_state="static")
     if SOCKET_PATH.exists():hold(prefix+"_socket_present")
-    assert_socket_parent_empty()
+    assert_socket_parent_empty(ids)
     require_no_custody_uid_processes(
         ids["custody_uid"],prefix+"_custody_uid_process"
     )
@@ -560,7 +595,7 @@ def stop_and_attest(ids:dict[str,int])->dict[str,object]:
     wait_unit(TARGET_UNIT,"inactive")
     wait_unit(SERVICE_UNIT,"inactive")
     wait_socket(False)
-    assert_socket_parent_empty()
+    assert_socket_parent_empty(ids)
     if not no_training_uid_processes(ids["training_uid"]):
         hold("training_uid_process_after_stop")
     require_no_custody_uid_processes(
@@ -580,7 +615,7 @@ def plan()->dict:
     exact_dormant(SERVICE_UNIT,expected_unit_file_state="static")
     exact_dormant(TRAINING_UNIT,allow_failed=True)
     if SOCKET_PATH.exists():hold("preexisting_socket_path")
-    assert_socket_parent_empty()
+    assert_socket_parent_empty(ids)
     require_no_custody_uid_processes(
         ids["custody_uid"],"preexisting_custody_uid_process"
     )
@@ -605,7 +640,7 @@ def qualify()->dict:
     if os.geteuid()!=0:hold("run_requires_root")
     before=plan()
     ids=verify_static_install()
-    consumed_before=consumed_snapshot()
+    consumed_before=consumed_snapshot(ids)
     observations=[]
     target_maybe_started=False
     start_attempts=0
@@ -623,7 +658,7 @@ def qualify()->dict:
             cycle_ids=verify_static_install()
             if cycle_ids!=ids:
                 hold("static_install_identity_changed_before_start")
-            if consumed_snapshot()!=consumed_before:
+            if consumed_snapshot(ids)!=consumed_before:
                 hold("consumed_state_changed_before_cycle_"+str(cycle))
             require_no_custody_uid_processes(
                 ids["custody_uid"],"prestart_custody_uid_process"
@@ -639,14 +674,14 @@ def qualify()->dict:
             normal_stop_attestations+=1
             observations[-1]["stopped"]=stopped
             target_maybe_started=False
-            if consumed_snapshot()!=consumed_before:
+            if consumed_snapshot(ids)!=consumed_before:
                 hold("consumed_state_changed_after_cycle_"+str(cycle))
             observations[-1]["consumed_state_unchanged"]=True
         first_generation=(observations[0]["live"]["pid"],observations[0]["live"]["start_ticks"])
         second_generation=(observations[1]["live"]["pid"],observations[1]["live"]["start_ticks"])
         if first_generation==second_generation:
             hold("custody_process_generation_not_renewed")
-        if consumed_snapshot()!=consumed_before:
+        if consumed_snapshot(ids)!=consumed_before:
             hold("consumed_state_changed")
     except BaseException as exc:
         error=exc
@@ -690,7 +725,7 @@ def qualify()->dict:
         ) from error
 
     attest_dormant_boundary(ids,"final")
-    if consumed_snapshot()!=consumed_before:hold("final_consumed_state_changed")
+    if consumed_snapshot(ids)!=consumed_before:hold("final_consumed_state_changed")
 
     return {
         **before,"mode":"--run","cycles_completed":2,
@@ -712,14 +747,18 @@ def self_test()->None:
         'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
         'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',
         'wait_socket(False)',
-        'assert_socket_parent_empty()',
+        'assert_socket_parent_empty(ids)',
+        'directory_metadata_invalid:',
+        '"directory":{',
+        '"dev":root.st_dev,"ino":root.st_ino',
+        '"mtime_ns":root.st_mtime_ns,"ctime_ns":root.st_ctime_ns',
         'target_maybe_started=True',
         'active not in ("inactive","failed")',
         'expected_unit_file_state="disabled"',
         'expected_unit_file_state="static"',
         'unit_file_state_mismatch:',
         'st.st_nlink!=2',
-        'consumed_snapshot()!=consumed_before',
+        'consumed_snapshot(ids)!=consumed_before',
         'static_install_identity_changed_before_start',
         'consumed_state_changed_before_cycle_',
         'consumed_state_changed_after_cycle_',
@@ -1017,6 +1056,8 @@ def self_test()->None:
     print("failure_preserves_original_reason=true")
     print("consumed_state_unchanged_required=true")
     print("consumed_state_checked_after_each_cycle=true")
+    print("consumed_directory_generation_bound=true")
+    print("critical_directory_metadata_bound=true")
     print("prestart_static_boundary_reverified=true")
     print("training_execution=false")
     print("durable_attempt_claim=false")

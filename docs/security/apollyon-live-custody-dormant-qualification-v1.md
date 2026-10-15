@@ -42,9 +42,17 @@ command arrays fail closed before start.
 The consumed-record directory must be byte-metadata stable across both cycles.
 Stability is checked before each start and immediately after each completed stop,
 so a mutation in cycle 1 halts before cycle 2 instead of being deferred to the
-final check. The exact installed files, environment, effective systemd command
-arrays and other static boundary facts are also reverified before every target
-start; identity drift between cycles therefore HOLDs before another activation.
+final check. The snapshot includes the consumed directory's own device/inode,
+ownership, mode, link count, size, mtime and ctime as well as each visible entry,
+so create-then-delete activity cannot disappear behind an empty final listing.
+
+The config directory must remain real root:root 0755; the custody state root and
+consumed directory must remain real custody-owned 0700 directories; and the
+socket parent must remain a real custody:IPC 0750 directory. Symlink or metadata
+substitution HOLDs. The exact installed files, environment, effective systemd
+command arrays and other static boundary facts are also reverified before every
+target start; identity drift between cycles therefore HOLDs before another
+activation.
 
 The custody UID lifecycle is therefore 0 -> exact service generation -> 0 for
 each cycle, and no process carrying the dedicated training UID may appear before,
