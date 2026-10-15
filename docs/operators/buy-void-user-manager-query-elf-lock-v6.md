@@ -55,12 +55,19 @@ The last merged predecessor lock remains V4:
 
 `voidbuyumqelflock4_846047629dd2dd58f73f926d85cddde5b0a1510493d59a2d7ef778d235a70301`.
 
-V5 hosted evidence is retained only as superseded evidence. V5 was never
-installed and was superseded by the successful Precision V6 live proof.
+V5 hosted evidence is retained only as superseded candidate-generation
+evidence. V5 was never installed. The hosted V6 derivation supersedes the V5
+candidate generation only; V6 has not been protected-installed or executed live
+by this lock.
+
+The corrected lifecycle truth is explicit:
+
+- `superseded_by_v6_candidate_generation=true`;
+- `superseded_by_live_v6=false`.
 
 ## Lock identity
 
-`voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6`.
+`voidbuyumqelflock6_cede427c177e309cf23364b9092f3cbba63be405ad6458cc0c8ef93bc09abd77`.
 
 Node 22, 24 and 26 independently recompile/strip the exact source pair,
 verify compiler/strip identities, execute the V6 self-test and require
