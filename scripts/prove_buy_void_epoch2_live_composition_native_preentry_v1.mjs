@@ -621,26 +621,6 @@ try {
       "direct root Node with forged marker/fds must fail fixed-parent provenance",
     );
   } finally {
-    if (fixedRepoFixtureCreated) {
-      run(SUDO, ["-n", "rm", "-f", "--", FIXED_REPO_ROOT]);
-    }
-    if (fixedRepoParentsCreated) {
-      run(SUDO, ["-n", "rmdir", "--ignore-fail-on-non-empty", "/home/zoso/dev"]);
-      run(SUDO, ["-n", "rmdir", "--ignore-fail-on-non-empty", "/home/zoso"]);
-    }
-    if (fixtureInstalled) {
-      run(SUDO, ["-n", "rm", "-rf", "--", FIXED_ROOT]);
-    }
-    if (fixedNodeFixtureCreated) {
-      const nodeCleanup = run(SUDO, [
-        "-n", "rm", "-f", "--", FIXED_NODE,
-      ]);
-      assert.equal(
-        nodeCleanup.status,
-        0,
-        "failed to remove fixed Node fixture: " + nodeCleanup.stderr,
-      );
-    }
     if (hostedOptMetadataChanged) {
       const restoreOwner = run(SUDO, [
         "-n", "chown",
@@ -674,6 +654,26 @@ try {
       );
     }
     hostedOptRestorationVerified = true;
+    if (fixedRepoFixtureCreated) {
+      run(SUDO, ["-n", "rm", "-f", "--", FIXED_REPO_ROOT]);
+    }
+    if (fixedRepoParentsCreated) {
+      run(SUDO, ["-n", "rmdir", "--ignore-fail-on-non-empty", "/home/zoso/dev"]);
+      run(SUDO, ["-n", "rmdir", "--ignore-fail-on-non-empty", "/home/zoso"]);
+    }
+    if (fixtureInstalled) {
+      run(SUDO, ["-n", "rm", "-rf", "--", FIXED_ROOT]);
+    }
+    if (fixedNodeFixtureCreated) {
+      const nodeCleanup = run(SUDO, [
+        "-n", "rm", "-f", "--", FIXED_NODE,
+      ]);
+      assert.equal(
+        nodeCleanup.status,
+        0,
+        "failed to remove fixed Node fixture: " + nodeCleanup.stderr,
+      );
+    }
   }
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
