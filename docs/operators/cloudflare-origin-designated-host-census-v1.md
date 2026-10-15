@@ -262,11 +262,20 @@ rule also requires:
 - `httpHostHeader: seed.nullfeed.org`;
 - `disableChunkedEncoding: true`.
 
-An additional ordinary seed route must be present so the census does not treat a
-sensitive-only Tunnel configuration as preserving the public site/read surface.
-Any additional seed-host rule that also targets the sensitive adapter port makes
-the sensitive-route candidate fail closed, even when all three canonical rules
-are present.
+Cloudflared evaluates ingress rules from top to bottom and uses the first match.
+The three sensitive rules must therefore appear before exactly one ordinary
+`seed.nullfeed.org` rule with no path. An ordinary seed rule placed first would
+shadow every later sensitive path and now fails the census.
+
+A wildcard hostname that can match `seed.nullfeed.org` must not appear before
+that ordinary seed rule, because it could likewise shadow the intended public
+route. The configuration must also end with exactly one hostless/pathless global
+catch-all rule, as required by cloudflared ingress semantics.
+
+The ordinary seed rule must target a service other than the sensitive adapter so
+the census does not treat a sensitive-only Tunnel configuration as preserving
+the public site/read surface. Any additional exact seed-host rule makes the
+canonical v1 rule set fail closed.
 
 The config's `credentials-file` path is used for **metadata only**. Credential
 contents are never read. The configured pathname itself must be canonical and
