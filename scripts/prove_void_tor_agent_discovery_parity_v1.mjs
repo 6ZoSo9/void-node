@@ -17,6 +17,13 @@ async function startServer(root,hostnameFile,bindingFile){return await new Promi
 async function main(){
  const root=process.cwd();
  const profile=load(resolve(root,"config/void-tor-agent-discovery-parity-v1.json"));
+ const parityWorkflow=readFileSync(resolve(root,".github/workflows/void-tor-agent-discovery-parity-v1.yml"),"utf8");
+ const surveyWorkflow=readFileSync(resolve(root,".github/workflows/void-tor-agent-discovery-activation-survey-v1.yml"),"utf8");
+ for(const boundPath of Object.keys(profile.source_bindings)){
+   for(const [label,workflow] of [["parity workflow",parityWorkflow],["activation survey workflow",surveyWorkflow]]){
+     eq(workflow.split(`      - "${boundPath}"`).length-1,2,`${label} source-binding trigger ${boundPath}`);
+   }
+ }
  eq(profile.marker,"VOID_TOR_AGENT_DISCOVERY_PARITY_PROFILE_V1","profile marker"); eq(profile.version,1,"profile version"); eq(profile.routes.length,14,"route count");
  const paths=profile.routes.map(r=>r.path); eq(new Set(paths).size,paths.length,"unique route paths");
  for(const [path,digest] of Object.entries(profile.source_bindings)){eq(sha(resolve(root,path)),digest,`source binding ${path}`)}
