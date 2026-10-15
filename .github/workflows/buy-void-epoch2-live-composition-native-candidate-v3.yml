@@ -35,7 +35,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor \
-            234db8c379e8564f6617b4139085fdce6f2cd56a \
+            a1a4a1b8e7f508dbd13628d28c32514a1632041a \
             "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c)" = \
             4aa091e7835b32aa5c4e7b8e4059651c69a64eb3
