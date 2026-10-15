@@ -227,6 +227,78 @@ assert.match(doc, /No live invocation is authorized by this source PR/u);
 assert.match(workflow, /prove_buy_void_epoch2_live_composition_native_preentry_v1[.]mjs/u);
 assert.match(workflow, /void_buy_void_epoch2_credential_attestation_sealed_v2[.]mjs/u);
 
+const privateOptNamespaceFixture =
+  process.argv.includes("--private-opt-fixture");
+const initialOpt = fs.lstatSync("/opt");
+assert.equal(
+  initialOpt.isDirectory() && !initialOpt.isSymbolicLink(),
+  true,
+  "/opt must be a direct directory before any privileged fixture action",
+);
+const initialOptUnsafe =
+  initialOpt.uid !== 0 || (initialOpt.mode & 0o022) !== 0;
+if (initialOptUnsafe) {
+  assert.equal(
+    privateOptNamespaceFixture,
+    false,
+    "private /opt namespace failed to establish trusted ancestry",
+  );
+  const namespaceBootstrap = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-e2-private-opt-bootstrap-"),
+  );
+  try {
+    const namespaceNode = path.join(namespaceBootstrap, "node");
+    fs.copyFileSync(process.execPath, namespaceNode);
+    fs.chmodSync(namespaceNode, 0o755);
+
+    const sudoReady = run(SUDO, ["-n", "true"]);
+    assert.equal(
+      sudoReady.status,
+      0,
+      "passwordless sudo is required by private /opt fixture",
+    );
+
+    const namespaceProof = path.join(
+      ROOT,
+      "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs",
+    );
+    const namespaceScript = [
+      "set -euo pipefail",
+      "/usr/bin/mount -t tmpfs " +
+        "-o mode=0755,uid=0,gid=0,size=16m tmpfs /opt",
+      'exec "$1" "$2" --private-opt-fixture',
+    ].join("; ");
+    const namespaced = run(
+      SUDO,
+      [
+        "-n",
+        "/usr/bin/unshare",
+        "--mount",
+        "--fork",
+        "--propagation",
+        "private",
+        "/usr/bin/bash",
+        "-c",
+        namespaceScript,
+        "void-e2-private-opt",
+        namespaceNode,
+        namespaceProof,
+      ],
+      { timeout: 120_000 },
+    );
+    process.stdout.write(namespaced.stdout);
+    process.stderr.write(namespaced.stderr);
+    assert.equal(
+      namespaced.status,
+      0,
+      "private /opt mount-namespace proof failed: " + namespaced.stderr,
+    );
+  } finally {
+    fs.rmSync(namespaceBootstrap, { recursive: true, force: true });
+  }
+  process.exit(0);
+}
+
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-e2-native-preentry-v1-"),
 );
@@ -636,6 +708,11 @@ console.log(
     String(hostedOptPreflightVerified),
 );
 console.log("hosted_opt_metadata_mutation=false");
+console.log(
+  "private_opt_mount_namespace_fixture=" +
+    String(privateOptNamespaceFixture),
+);
+console.log("caller_controlled_ci_flags_authorize_opt_mutation=false");
 console.log("hosted_self_custody_shape_prechecked=true");
 console.log("hosted_fixed_node_fixture_created_only_if_absent=true");
 console.log("live_credential_access=false");
