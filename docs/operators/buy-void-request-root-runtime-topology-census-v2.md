@@ -4,6 +4,8 @@ Marker: VOID_BUY_VOID_REQUEST_ROOT_RUNTIME_TOPOLOGY_CENSUS_V2.
 
 Status: source/CI definition of a read-only designated-host census. It does not provision, migrate, install, restart, or activate anything.
 
+Current V2 is explicitly fail-closed for authenticated user-manager authority: the merged source still uses ordinary user-manager diagnostics, so `target_live_binding_qualified` remains false until the merged #3057 authenticated private-peer/unit-query authority is consumed by a later reviewed generation.
+
 ## Purpose
 
 The V1 topology census intentionally recognizes only the currently installed private 0700/0600 request-store generation. The accepted stable-root policy selects the future custody-readable profile:
@@ -23,9 +25,13 @@ A V2 run may read only host/process/service metadata plus the existing loopback 
 
 For the fixed target it checks only directory and fixed-journal metadata. It never reads request or payment JSONL contents.
 
-The live binding can qualify only when the ordinary zoso observer is on the designated Precision host and the descriptor-bound /etc/machine-id digest matches the already accepted Precision custody identity, the user service is the sole active void-node-live.service generation, TCP/4100 is owned by that stable process, the confirmed-closeout status explicitly reports VOID_BUY_REQUEST_DIR, the reported request root equals the fixed target, and the target metadata matches the accepted 0750/0640 IPC profile.
+The current source may observe a diagnostic candidate when the ordinary zoso observer is on the designated Precision host and the descriptor-bound /etc/machine-id digest matches the already accepted Precision custody identity, the user-service-shaped observation is stable, TCP/4100 is owned by that selected process, the confirmed-closeout status explicitly reports VOID_BUY_REQUEST_DIR, the reported request root equals the fixed target, and the target metadata matches the accepted 0750/0640 IPC profile.
+
+That diagnostic candidate is **not authenticated service-manager evidence**. Ordinary `systemctl --user` remains vulnerable to same-UID user-bus substitution and therefore cannot promote `target_live_binding_qualified=true`. V2 emits `authenticated_user_manager_binding_verified=false` and, when all other diagnostics qualify, stops at `AUTHENTICATED_USER_MANAGER_BINDING_REQUIRED`. A later successor must consume/re-execute the merged #3057 authenticated private-peer/unit-query chain and bind its exact MainPID before live binding may become true.
 
 The collector performs a second observation before qualification. The machine-ID digest, IPC-group name/GID, target directory and fixed-journal inode/metadata, absence of a competing system service, runtime process generation, loopback listener ownership, and confirmed-closeout binding must remain stable across the observation window. Any drift keeps target_live_binding_qualified=false.
+
+Endpoint equality is diagnostic endpoint-stability evidence only; it is not a proof that a same-UID-owned pathname could never have undergone an A→B→A replacement between samples.
 
 ## Historical disposition remains a separate gate
 

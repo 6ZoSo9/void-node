@@ -56,6 +56,8 @@ jobs:
           grep -Fx 'accepted_custody_readable_source_blobs_bound=true' "$proof"
           grep -Fx 'double_census_stability_required=true' "$proof"
           grep -Fx 'designated_machine_id_binding_required=true' "$proof"
+          grep -Fx 'authenticated_user_manager_binding_verified=false' "$proof"
+          grep -Fx 'target_live_binding_fail_closed_until_authenticated_manager=true' "$proof"
           grep -Fx 'request_payment_contents_read=false' "$proof"
           grep -Fx 'historical_request_history_disposition_proven=false' "$proof"
           grep -Fx 'migration_authorized=false' "$proof"
@@ -69,10 +71,12 @@ jobs:
           grep -Fx 'sudo_required=false' "$plan"
           grep -Fx 'filesystem_write=false' "$plan"
           grep -Fx 'request_payment_contents_read=false' "$plan"
+          grep -Fx 'authenticated_user_manager_binding_verified=false' "$plan"
           grep -Fx 'historical_request_history_disposition_proven=false' "$plan"
           grep -Fx 'migration_authorized=false' "$plan"
           grep -Fx 'public_presale_activation=false' "$plan"
           grep -Fx 'funds_movement=false' "$plan"
           grep -Fx 'production_gate_ready=false' "$plan"
+          grep -Fx 'next_action=INTEGRATE_MERGED_3057_AUTHENTICATED_USER_MANAGER_BINDING' "$plan"
       - name: Diff hygiene
         run: git diff --check

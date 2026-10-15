@@ -10,9 +10,11 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 TARGET=ROOT/"ops/precision/void_buy_void_legacy_request_root_census_v1.py"
 V1=ROOT/"ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
 V2=ROOT/"ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
+AUTH=ROOT/"ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py"
 EXPECTED_DEPENDENCY_BLOBS={
     V1:"9ca9cb948a08973d0d874c5473ad2743de14140c",
     V2:"3c99359bf4ae020ce29c871d0bfcbf8043a44150",
+    AUTH:"e0d3a583030a5465cc793f740c04f4b33f84eba6",
 }
 
 def git_blob_sha1(raw: bytes) -> str:
@@ -57,9 +59,13 @@ for required in (
     "confirmed_closeout_request_root_status_stable",
     "immutable_release_inventory_stable",
     "candidate_observations_stable",
-    "v1.run_systemctl",
+    "auth.run_authenticated_query",
+    "authenticated_user_manager_query_stable",
+    "installed_authenticated_query_pair_stable",
+    "unit_working_directory_authenticated",
+    "designated_host_identity_verified",
+    "root_required_for_authenticated_manager_query",
     "designated_runtime_user_matches",
-    "designated_runtime_user_required",
 ):
     assert required in source, required
 
@@ -83,6 +89,10 @@ for forbidden in (
     "targeted_live_process_request_env",
     "env={**os.environ",
     "subprocess.run",
+    "v1.run_systemctl",
+    "systemctl",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "unit_working_directory_default",
 ):
     assert forbidden not in production_source, forbidden
 
@@ -108,10 +118,16 @@ assert "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1_SELF_TEST_GREEN" in cp.stdou
 assert "empty_metadata_is_not_genesis_proof=true" in cp.stdout
 assert "zero_length_fixed_journals_are_not_genesis_proof=true" in cp.stdout
 assert "historical_request_history_disposition_proven=false" in cp.stdout
+assert "authenticated_dependency_sources_bound=true" in cp.stdout
+assert "unauthenticated_user_manager_not_authority=true" in cp.stdout
 
 print("VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1_PROOF_GREEN")
 print("v1_topology_dependency_blob_bound=true")
 print("v2_designated_host_dependency_blob_bound=true")
+print("authenticated_user_manager_query_dependency_blob_bound=true")
+print("authenticated_mainpid_required=true")
+print("unit_working_directory_not_trusted=true")
+print("fake_user_bus_not_authority=true")
 print("designated_runtime_user_bound=true")
 print("ambient_home_not_used_for_repo_candidate=true")
 print("stable_release_inventory_required=true")
