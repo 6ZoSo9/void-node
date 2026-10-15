@@ -3,267 +3,57 @@ name: VOID Buy user manager query ELF candidate v4
 on:
   pull_request:
     paths:
-      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
       - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
-      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
       - ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
-      - "docs/operators/buy-void-user-manager-query-elf-candidate-v4.md"
       - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
-      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
       - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
 
 permissions:
   contents: read
 
 jobs:
-  derive:
+  preserve:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
-    strategy:
-      fail-fast: false
-      matrix:
-        slot: [a, b, c]
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-          fetch-depth: 0
-
-      - name: Prove exact canonical source and dispatch scope
-        id: scope
+      - name: Preserve accepted V4 candidate on exact V5 successor
         run: |
           set -euo pipefail
-          parent=1f46c16d272f7eb1917719f1f0c17d7cf398819e
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c)" = "f0fbfaae97df3294097a281100f06ada2ef157ff"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "6aefc385bcc4212d3c45e36871bfde0da3529baa"
-
-          if git merge-base --is-ancestor "$parent" HEAD; then
-            mapfile -t changed < <(git diff --name-only "$parent" HEAD | sort)
-            expected=(
-              ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
-              "docs/operators/buy-void-user-manager-query-elf-candidate-v4.md"
-            )
-            mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
-            test "${#changed[@]}" -eq "${#expected_sorted[@]}"
-            for i in "${!changed[@]}"; do
-              test "${changed[$i]}" = "${expected_sorted[$i]}"
-            done
-            echo "integration=false" >> "$GITHUB_OUTPUT"
-          else
-            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v4.json)" = "988542122028843b2848063dbbaf7a94c32d6cd4"
-            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v2.json)" = "347951dbaa2d9bb5c31c8b718d9965ab3fdf7301"
-            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
-            echo "integration=true" >> "$GITHUB_OUTPUT"
-          fi
-          git diff --check
-
-      - name: Derive exact PrivateUsers-bound query pair
-        run: |
-          set -euo pipefail
-          peer_src=ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c
-          pre_src=ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c
-          query_src=ops/precision/void_buy_void_user_manager_private_unit_query_v1.c
-          pre="$RUNNER_TEMP/user-manager-query-preexec"
-          query="$RUNNER_TEMP/user-manager-query"
-          meta="$RUNNER_TEMP/user-manager-query-elf-candidate-v4.json"
-
-          for src in "$peer_src" "$pre_src" "$query_src"; do
-            test "$(git hash-object "$src")" = "$(git rev-parse HEAD:"$src")"
-          done
-
-          SOURCE_DATE_EPOCH=0 /usr/bin/cc \
-            -std=c11 -Wall -Wextra -Werror -O2 -fno-ident \
-            -static -fno-pie -no-pie -Wl,--build-id=none \
-            -o "$pre" "$pre_src"
-          SOURCE_DATE_EPOCH=0 /usr/bin/cc \
-            -std=c11 -Wall -Wextra -Werror -O2 -fno-ident \
-            -Wl,--build-id=none \
-            -o "$query" "$query_src" -ldl
-          /usr/bin/strip --strip-all "$pre"
-          /usr/bin/strip --strip-all "$query"
-          chmod 0555 "$pre" "$query"
-
-          readelf -l "$pre" > "$RUNNER_TEMP/preexec.readelf"
-          if grep -F ' INTERP ' "$RUNNER_TEMP/preexec.readelf"; then
-            echo preexec_has_dynamic_interpreter >&2
-            exit 1
-          fi
-          file "$pre" | grep -F 'statically linked'
-
-          env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C \
-            VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
-            "$query" --self-test | tee "$RUNNER_TEMP/query-self-test.log"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/query-self-test.log"
-          grep -Fx 'kernel_capability_status_parser_verified=true' "$RUNNER_TEMP/query-self-test.log"
-          grep -Fx 'nonbounding_process_capabilities_zero_required=true' "$RUNNER_TEMP/query-self-test.log"
-          grep -Fx 'systemd_kernel_bounding_set_match_required=true' "$RUNNER_TEMP/query-self-test.log"
-          grep -Fx 'kernel_no_new_privileges_required=true' "$RUNNER_TEMP/query-self-test.log"
-          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/query-self-test.log"
-
-          root=/opt/void-buy-void-user-manager-query-v1
-          original_opt_mode="$(stat -Lc '%a' /opt)"
-          cleanup() {
-            sudo rm -f \
-              "$root/void_buy_void_user_manager_private_unit_query_preexec_v1" \
-              "$root/void_buy_void_user_manager_private_unit_query_v1" || true
-            sudo rmdir "$root" 2>/dev/null || true
-            sudo chmod "$original_opt_mode" /opt || true
-          }
-          trap cleanup EXIT
-          sudo chmod go-w /opt
-          sudo install -d -o root -g root -m 0755 "$root"
-          sudo install -o root -g root -m 0555 "$pre" \
-            "$root/void_buy_void_user_manager_private_unit_query_preexec_v1"
-          sudo install -o root -g root -m 0555 "$query" \
-            "$root/void_buy_void_user_manager_private_unit_query_v1"
-
-          fake="$RUNNER_TEMP/stripped-preload"
-          mkdir "$fake"
-          sentinel="$RUNNER_TEMP/stripped-preload-fired"
-          cat > "$fake/preload.c" <<'C'
-          #define _GNU_SOURCE
-          #include <fcntl.h>
-          #include <string.h>
-          #include <unistd.h>
-          #ifndef SENTINEL_PATH
-          #error SENTINEL_PATH required
-          #endif
-          __attribute__((constructor))
-          static void poison(void){
-            char exe[4096];
-            ssize_t n=readlink("/proc/self/exe",exe,sizeof(exe)-1);
-            if(n<=0)return;
-            exe[n]='\0';
-            if(strstr(exe,"private_unit_query_v1")==NULL &&
-               strstr(exe,"user-manager-query")==NULL)return;
-            int fd=open(SENTINEL_PATH,O_WRONLY|O_CREAT|O_TRUNC,0600);
-            if(fd>=0){(void)write(fd,"x",1);close(fd);}
-          }
-          C
-          /usr/bin/cc -shared -fPIC -DSENTINEL_PATH="\"$sentinel\"" \
-            "$fake/preload.c" -o "$fake/preload.so"
-
-          rm -f "$sentinel"
-          if sudo env \
-               VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
-               LD_PRELOAD="$fake/preload.so" \
-               "$root/void_buy_void_user_manager_private_unit_query_v1" --self-test \
-               >"$RUNNER_TEMP/stripped-direct-query.log" 2>&1; then
-            echo stripped_direct_poisoned_query_unexpectedly_succeeded >&2
-            exit 1
-          fi
-          test -s "$sentinel"
-          rm -f "$sentinel"
-
-          sudo env LD_PRELOAD="$fake/preload.so" \
-            "$root/void_buy_void_user_manager_private_unit_query_preexec_v1" --exec-self-test |
-            tee "$RUNNER_TEMP/stripped-preexec-query.log"
-          test ! -e "$sentinel"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/stripped-preexec-query.log"
-          grep -Fx 'sanitized_loader_environment=true' "$RUNNER_TEMP/stripped-preexec-query.log"
-          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/stripped-preexec-query.log"
-          cleanup
-          trap - EXIT
-
-          pre_sha="$(sha256sum "$pre" | awk '{print $1}')"
-          pre_bytes="$(stat -Lc '%s' "$pre")"
-          query_sha="$(sha256sum "$query" | awk '{print $1}')"
-          query_bytes="$(stat -Lc '%s' "$query")"
-          cc_sha="$(sha256sum /usr/bin/cc | awk '{print $1}')"
-          strip_sha="$(sha256sum /usr/bin/strip | awk '{print $1}')"
-
-          META="$meta" PRE_SHA="$pre_sha" PRE_BYTES="$pre_bytes" \
-          QUERY_SHA="$query_sha" QUERY_BYTES="$query_bytes" \
-          CC_SHA="$cc_sha" STRIP_SHA="$strip_sha" \
+          query_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
+          case "$query_blob" in
+            ddca2c544ce14261dffb80a202c0a4ae2979ec1e) ;;
+            6aefc385bcc4212d3c45e36871bfde0da3529baa)
+              echo "accepted V4 source reintroduced; V4 is historical after V5" >&2
+              exit 2
+              ;;
+            *) echo "unknown query generation: $query_blob" >&2; exit 2 ;;
+          esac
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v4.json)" = "988542122028843b2848063dbbaf7a94c32d6cd4"
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-user-manager-query-elf-candidate-v4.md)" = "6662213a705f6e23b00dd5790a933c492142b0b4"
           node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
           import fs from "node:fs";
-          const out={
-            marker:"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V4",
-            version:4,
-            source_parent:"1f46c16d272f7eb1917719f1f0c17d7cf398819e",
-            peer_source_git_blob_sha1:"d8b30ac499c3bb8a5d223dbc6be687dd175be611",
-            preexec_source_git_blob_sha1:"f0fbfaae97df3294097a281100f06ada2ef157ff",
-            query_source_git_blob_sha1:"6aefc385bcc4212d3c45e36871bfde0da3529baa",
-            preexec_binary_sha256:process.env.PRE_SHA,
-            preexec_binary_bytes:Number(process.env.PRE_BYTES),
-            preexec_static_no_interp:true,
-            query_binary_sha256:process.env.QUERY_SHA,
-            query_binary_bytes:Number(process.env.QUERY_BYTES),
-            kernel_capability_binding_v3:true,
-            private_users_false_required:true,
-            configured_bounding_set_may_be_nonzero:true,
-            kernel_capability_state_rechecked:true,
-            cc_sha256:process.env.CC_SHA,
-            strip_sha256:process.env.STRIP_SHA,
-            historical_v1_v2_evidence_untouched:true,
-            candidate_accepted:false,
-            install_authorized:false,
-            live_query_authorized:false,
-            complete_host_evidence_collector:false,
-            payment_acceptance:false,
-            public_presale_activation:false,
-            funds_movement:false
-          };
-          fs.writeFileSync(process.env.META,JSON.stringify(out)+"\n");
+          const c=JSON.parse(fs.readFileSync("ops/security/buy-void-user-manager-query-elf-candidate-v4.json","utf8"));
+          assert.equal(c.query_source_git_blob_sha1,"6aefc385bcc4212d3c45e36871bfde0da3529baa");
+          assert.equal(c.query_binary_sha256,"e8df6ed33ed798e2e3015f7c9a8a3548031049eb1867029e35e3e20953aeed56");
+          assert.equal(c.candidate_accepted,false);
+          assert.equal(c.install_authorized,false);
+          assert.equal(c.live_query_authorized,false);
           NODE
-
-          if [ -f ops/security/buy-void-user-manager-query-elf-candidate-v4.json ]; then
-            cmp "$meta" ops/security/buy-void-user-manager-query-elf-candidate-v4.json
-            echo "integration_candidate_bytes_match=true"
-          fi
-
-          echo "preexec_binary_sha256=$pre_sha"
-          echo "preexec_binary_bytes=$pre_bytes"
-          echo "query_binary_sha256=$query_sha"
-          echo "query_binary_bytes=$query_bytes"
-          echo "private_users_false_required=true"
-          echo "candidate_accepted=false"
-          echo "install_authorized=false"
-          echo "live_query_authorized=false"
-          echo "funds_movement=false"
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: void-buy-user-manager-query-elf-v4-${{ github.event.pull_request.head.sha || github.sha }}-${{ matrix.slot }}
-          path: |
-            ${{ runner.temp }}/user-manager-query-preexec
-            ${{ runner.temp }}/user-manager-query
-            ${{ runner.temp }}/user-manager-query-elf-candidate-v4.json
-          if-no-files-found: error
-          retention-days: 7
-
-  cross-job:
-    needs: [derive]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          pattern: void-buy-user-manager-query-elf-v4-${{ github.event.pull_request.head.sha || github.sha }}-*
-          path: candidates
-      - name: Require exact three-job equality
-        run: |
-          set -euo pipefail
-          stem="void-buy-user-manager-query-elf-v4-${{ github.event.pull_request.head.sha || github.sha }}"
-          for slot in a b c; do
-            test -s "candidates/$stem-$slot/user-manager-query-preexec"
-            test -s "candidates/$stem-$slot/user-manager-query"
-            test -s "candidates/$stem-$slot/user-manager-query-elf-candidate-v4.json"
-          done
-          for slot in b c; do
-            cmp "candidates/$stem-a/user-manager-query-preexec" "candidates/$stem-$slot/user-manager-query-preexec"
-            cmp "candidates/$stem-a/user-manager-query" "candidates/$stem-$slot/user-manager-query"
-            cmp "candidates/$stem-a/user-manager-query-elf-candidate-v4.json" "candidates/$stem-$slot/user-manager-query-elf-candidate-v4.json"
-          done
-          sha256sum "candidates/$stem-a/user-manager-query-preexec"
-          sha256sum "candidates/$stem-a/user-manager-query"
-          cat "candidates/$stem-a/user-manager-query-elf-candidate-v4.json"
-          grep -F '"private_users_false_required":true' "candidates/$stem-a/user-manager-query-elf-candidate-v4.json"
-          grep -F '"candidate_accepted":false' "candidates/$stem-a/user-manager-query-elf-candidate-v4.json"
-          grep -F '"install_authorized":false' "candidates/$stem-a/user-manager-query-elf-candidate-v4.json"
-          grep -F '"live_query_authorized":false' "candidates/$stem-a/user-manager-query-elf-candidate-v4.json"
-          grep -F '"funds_movement":false' "candidates/$stem-a/user-manager-query-elf-candidate-v4.json"
-          echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V4_CROSS_JOB_GREEN
+          echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V4_HISTORICAL_PRESERVED
+          echo v5_query_source_exact=true
+          echo install_authorized=false
+          echo funds_movement=false
+      - run: git diff --check
