@@ -606,7 +606,7 @@ function selfTest(){
   try{
     stopApollyonTrainingServiceStrictV2({
       run_systemctl:(args,check)=>{
-        nonzeroStopEvents.push("stop:"+args.join(":")+":"+String(check));
+        nonzeroStopEvents.push(args.join(":")+":"+String(check));
         return {status:1,error:null,signal:null};
       },
       systemd_value:(unit,property)=>{
@@ -629,7 +629,7 @@ function selfTest(){
   try{
     stopApollyonTrainingServiceStrictV2({
       run_systemctl:(args,check)=>{
-        activeAfterStopEvents.push("stop:"+args.join(":")+":"+String(check));
+        activeAfterStopEvents.push(args.join(":")+":"+String(check));
         return {status:0,error:null,signal:null};
       },
       systemd_value:(unit,property)=>{
