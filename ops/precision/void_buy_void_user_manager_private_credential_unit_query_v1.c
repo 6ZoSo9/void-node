@@ -364,7 +364,7 @@ static int query_unit(
           api, bus, object, "org.freedesktop.systemd1.Unit",
           "SubState", out->sub_state, sizeof(out->sub_state)) != 0 ||
       get_string_prop(
-          api, bus, object, "org.freedesktop.systemd1.Unit",
+          api, bus, object, "org.freedesktop.systemd1.Service",
           "ControlGroup", out->control_group, sizeof(out->control_group)) != 0 ||
       api->get_property_trivial(
           bus, NULL, object, "org.freedesktop.systemd1.Service",
