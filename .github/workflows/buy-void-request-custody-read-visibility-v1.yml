@@ -60,6 +60,7 @@ jobs:
           grep -Fx 'customer_sidecar_mode=0600' "$RUNNER_TEMP/custody-read.log"
           grep -Fx 'operator_sidecar_mode=0600' "$RUNNER_TEMP/custody-read.log"
           grep -Fx 'operator_sidecar_private_reopen_path=true' "$RUNNER_TEMP/custody-read.log"
+          grep -Fx 'shared_journal_preflight_precedes_reader_callbacks=true' "$RUNNER_TEMP/custody-read.log"
           grep -Fx 'custody_write_authority=false' "$RUNNER_TEMP/custody-read.log"
           grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/custody-read.log"
       - name: Preserve legacy default behavior
