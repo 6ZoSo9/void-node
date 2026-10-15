@@ -620,6 +620,11 @@ def qualify()->dict:
     error:BaseException|None=None
     try:
         for cycle in (1,2):
+            cycle_ids=verify_static_install()
+            if cycle_ids!=ids:
+                hold("static_install_identity_changed_before_start")
+            if consumed_snapshot()!=consumed_before:
+                hold("consumed_state_changed_before_cycle_"+str(cycle))
             require_no_custody_uid_processes(
                 ids["custody_uid"],"prestart_custody_uid_process"
             )
@@ -634,6 +639,9 @@ def qualify()->dict:
             normal_stop_attestations+=1
             observations[-1]["stopped"]=stopped
             target_maybe_started=False
+            if consumed_snapshot()!=consumed_before:
+                hold("consumed_state_changed_after_cycle_"+str(cycle))
+            observations[-1]["consumed_state_unchanged"]=True
         first_generation=(observations[0]["live"]["pid"],observations[0]["live"]["start_ticks"])
         second_generation=(observations[1]["live"]["pid"],observations[1]["live"]["start_ticks"])
         if first_generation==second_generation:
@@ -712,6 +720,10 @@ def self_test()->None:
         'unit_file_state_mismatch:',
         'st.st_nlink!=2',
         'consumed_snapshot()!=consumed_before',
+        'static_install_identity_changed_before_start',
+        'consumed_state_changed_before_cycle_',
+        'consumed_state_changed_after_cycle_',
+        'observations[-1]["consumed_state_unchanged"]=True',
         'custody_process_generation_not_renewed',
         'training_uid_process_observed',
         'custody_uid_process_exclusivity_failed',
@@ -1004,6 +1016,8 @@ def self_test()->None:
     print("failure_final_dormant_recheck_required=true")
     print("failure_preserves_original_reason=true")
     print("consumed_state_unchanged_required=true")
+    print("consumed_state_checked_after_each_cycle=true")
+    print("prestart_static_boundary_reverified=true")
     print("training_execution=false")
     print("durable_attempt_claim=false")
     print("funds_movement=false")

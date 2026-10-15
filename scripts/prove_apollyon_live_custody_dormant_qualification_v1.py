@@ -22,6 +22,10 @@ for required in (
     'expected_unit_file_state="static"',
     'unit_file_state_mismatch:',
     'consumed_state_unchanged',
+    'static_install_identity_changed_before_start',
+    'consumed_state_changed_before_cycle_',
+    'consumed_state_changed_after_cycle_',
+    'observations[-1]["consumed_state_unchanged"]=True',
     'first_generation=(observations[0]["live"]["pid"],observations[0]["live"]["start_ticks"])',
     'second_generation=(observations[1]["live"]["pid"],observations[1]["live"]["start_ticks"])',
     'restart_safe_second_cycle_proven',
@@ -92,6 +96,8 @@ for line in (
     "failure_final_dormant_recheck_required=true",
     "failure_preserves_original_reason=true",
     "consumed_state_unchanged_required=true",
+    "consumed_state_checked_after_each_cycle=true",
+    "prestart_static_boundary_reverified=true",
     "training_execution=false","durable_attempt_claim=false","funds_movement=false",
 ):
     assert line in r.stdout,line
@@ -118,3 +124,5 @@ print("socket_timeout_cleanup_reported=true")
 print("alternate_runtime_config_rejected_by_exact_argv=true")
 print("failure_final_dormant_recheck_required=true")
 print("failure_preserves_original_reason=true")
+print("consumed_state_checked_after_each_cycle=true")
+print("prestart_static_boundary_reverified=true")
