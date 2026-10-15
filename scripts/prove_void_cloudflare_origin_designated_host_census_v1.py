@@ -207,6 +207,64 @@ expect_config_error(
     ),
     "tunnel_rule_http_host_header_invalid",
 )
+
+origin_sibling_chunked_spoof = module.parse_tunnel_config(
+    config_text.replace(
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "      disableChunkedEncoding: true\n",
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "    unrelated:\n"
+        "      disableChunkedEncoding: true\n",
+        1,
+    )
+)
+assert origin_sibling_chunked_spoof["sensitive_route_shape_observed"] is False
+
+origin_sibling_header_spoof = module.parse_tunnel_config(
+    config_text.replace(
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "      disableChunkedEncoding: true\n",
+        "    originRequest:\n"
+        "      disableChunkedEncoding: true\n"
+        "    unrelated:\n"
+        "      httpHostHeader: seed.nullfeed.org\n",
+        1,
+    )
+)
+assert origin_sibling_header_spoof["sensitive_route_shape_observed"] is False
+
+sibling_before_origin_spoof = module.parse_tunnel_config(
+    config_text.replace(
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "      disableChunkedEncoding: true\n",
+        "    unrelated:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "    originRequest:\n"
+        "      disableChunkedEncoding: true\n",
+        1,
+    )
+)
+assert sibling_before_origin_spoof["sensitive_route_shape_observed"] is False
+
+expect_config_error(
+    config_text.replace(
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "      disableChunkedEncoding: true\n",
+        "    originRequest:\n"
+        "      httpHostHeader: seed.nullfeed.org\n"
+        "    unrelated:\n"
+        "      disableChunkedEncoding: true\n"
+        "    originRequest:\n",
+        1,
+    ),
+    "tunnel_rule_duplicate_origin_request",
+)
+
 assert module.canonical_sensitive_path(module.SENSITIVE_PATHS[0]) is None
 assert (
     module.canonical_sensitive_path("^" + module.SENSITIVE_PATHS[0] + "$")
@@ -443,6 +501,7 @@ print("tunnel_duplicate_hostname_rejected=true")
 print("tunnel_duplicate_ingress_rejected=true")
 print("tunnel_missing_ingress_rejected=true")
 print("tunnel_malformed_scalar_duplicate_smuggling_rejected=true")
+print("tunnel_origin_request_scope_exit_rejected=true")
 print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
