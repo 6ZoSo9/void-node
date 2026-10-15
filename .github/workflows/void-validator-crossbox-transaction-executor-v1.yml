@@ -8,6 +8,7 @@ on:
       - "scripts/prove_void_validator_crossbox_transaction_executor_v1.mjs"
       - "tools/void-validator-crossbox-transaction-executor-v1.mjs"
       - "tools/void-crossbox-mutation-transaction-v1.mjs"
+      - "ops/mainnet/validator-crossbox-closeout.sh"
   push:
     branches: [main]
     paths:
@@ -16,6 +17,7 @@ on:
       - "scripts/prove_void_validator_crossbox_transaction_executor_v1.mjs"
       - "tools/void-validator-crossbox-transaction-executor-v1.mjs"
       - "tools/void-crossbox-mutation-transaction-v1.mjs"
+      - "ops/mainnet/validator-crossbox-closeout.sh"
 
 permissions:
   contents: read
@@ -61,6 +63,7 @@ jobs:
           tool="tools/void-validator-crossbox-transaction-executor-v1.mjs"
           proof="scripts/prove_void_validator_crossbox_transaction_executor_v1.mjs"
           doc="docs/operators/void-validator-crossbox-transaction-executor-v1.md"
+          legacy="ops/mainnet/validator-crossbox-closeout.sh"
 
           grep -F 'source_journal_executor_only: true' "$tool" >/dev/null
           grep -F 'append_only_replay_required: true' "$tool" >/dev/null
@@ -77,12 +80,21 @@ jobs:
           grep -F 'inactive_service_preserved=true' "$proof" >/dev/null
           grep -F 'checkpoint_requires_fresh_tag_absence=true' "$proof" >/dev/null
 
-          grep -F 'does **not** edit or execute that shell yet' "$doc" >/dev/null
+          grep -F 'legacy validator closeout is now retired fail-closed' "$doc" >/dev/null
+          grep -F 'HOLD-only compatibility entrypoint' "$doc" >/dev/null
           grep -F 'grants no live mutation authority' "$doc" >/dev/null
+
+          grep -F 'legacy_sequential_mutation_retired=true' "$legacy" >/dev/null
+          grep -F 'reviewed_transaction_journal_present=true' "$legacy" >/dev/null
+          grep -F 'validator transaction live integration required; legacy sequential closeout is retired' "$legacy" >/dev/null
 
           for forbidden in 'systemctl ' 'ssh ' 'git push' 'git tag ' 'eth_sendRawTransaction'; do
             if grep -F "$forbidden" "$tool" >/dev/null; then
               echo "forbidden execution surface in journal controller: $forbidden" >&2
+              exit 1
+            fi
+            if grep -F "$forbidden" "$legacy" >/dev/null; then
+              echo "forbidden execution surface in retired validator shell: $forbidden" >&2
               exit 1
             fi
           done
