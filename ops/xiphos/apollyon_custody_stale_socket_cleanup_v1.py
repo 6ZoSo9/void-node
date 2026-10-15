@@ -19,7 +19,7 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 SOCKET_PARENT=Path("/run/void-apollyon-custody-v1")
 SOCKET_PATH=SOCKET_PARENT/"custody.sock"
-HIDDEN_RE=re.compile(r"^\\.v[0-9a-f]{4}$")
+HIDDEN_RE=re.compile(r"^\.v[0-9a-f]{4}$")
 
 class Hold(RuntimeError): pass
 def hold(reason:str)->None: raise Hold(reason)
