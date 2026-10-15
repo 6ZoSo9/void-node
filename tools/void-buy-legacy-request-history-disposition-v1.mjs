@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import path from "node:path";
 
 export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_CANDIDATE_V1 =
   "VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_CANDIDATE_V1";
@@ -60,6 +61,20 @@ const MAX_CENSUS_JSON_BYTES=8*1024*1024;
 const SAFE_OPERATOR=/^[A-Za-z0-9_.:@/-]{1,128}$/u;
 const UTC=/^20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{3})?Z$/u;
 const SHA1=/^[0-9a-f]{40}$/u;
+const REPO_DEFAULT=
+  "/home/zoso/dev/void-node/.runtime/public-buy-void-requests-v1";
+const STABLE_ROOT="/var/lib/void-buy-request-journal-v1";
+const DEFAULT_RELATIVE=".runtime/public-buy-void-requests-v1";
+const RELEASE_DEFAULT=
+  /^\/opt\/void-node-live\/releases\/[0-9a-f]{40}\/\.runtime\/public-buy-void-requests-v1$/u;
+const KNOWN_SOURCES=Object.freeze([
+  "repo_default",
+  "unit_working_directory_default",
+  "live_process_cwd_default",
+  "live_status_explicit_request_dir",
+  "immutable_release_default",
+  "selected_future_stable_root",
+]);
 const INPUT_KEYS=Object.freeze([
   "metadata_census_json",
   "metadata_census_source_head",
@@ -303,6 +318,7 @@ function deriveCensus(raw,sourceHead){
   }
   const paths=new Set();
   const historical=[];
+  const sourceCounts=Object.fromEntries(KNOWN_SOURCES.map(source=>[source,0]));
   for(const row of census.candidates){
     if(!row||typeof row!=="object"||Array.isArray(row)){
       fail("legacy_history_disposition_candidate_row_invalid");
@@ -324,13 +340,67 @@ function deriveCensus(raw,sourceHead){
       "legacy_history_disposition_candidate_sources_invalid",
     );
     if(sources.length===0)fail("legacy_history_disposition_candidate_sources_invalid");
+    const canonicalSources=[...new Set(sources)].sort();
+    if(canonicalSources.length!==sources.length||
+       canonicalSources.some((source,index)=>source!==sources[index])||
+       sources.some(source=>!KNOWN_SOURCES.includes(source))){
+      fail("legacy_history_disposition_candidate_sources_invalid");
+    }
     if(paths.has(row.path))fail("legacy_history_disposition_duplicate_candidate_path");
     paths.add(row.path);
+
+    const expectedDefault=(base)=>{
+      if(typeof base!=="string"||!base.startsWith("/"))return null;
+      return path.posix.resolve(base,DEFAULT_RELATIVE);
+    };
+    for(const source of sources){
+      sourceCounts[source]+=1;
+      if(source==="repo_default"&&row.path!==REPO_DEFAULT){
+        fail("legacy_history_disposition_repo_source_path_mismatch");
+      }
+      if(source==="unit_working_directory_default"&&
+         row.path!==expectedDefault(service.working_directory)){
+        fail("legacy_history_disposition_working_directory_source_path_mismatch");
+      }
+      if(source==="live_process_cwd_default"&&
+         row.path!==expectedDefault(service.live_process_cwd)){
+        fail("legacy_history_disposition_live_cwd_source_path_mismatch");
+      }
+      if(source==="live_status_explicit_request_dir"&&(
+        requestStatus.observed!==true||
+        requestStatus.source!=="VOID_BUY_REQUEST_DIR"||
+        row.path!==requestStatus.request_dir
+      )){
+        fail("legacy_history_disposition_status_source_path_mismatch");
+      }
+      if(source==="immutable_release_default"&&!RELEASE_DEFAULT.test(row.path)){
+        fail("legacy_history_disposition_release_source_path_mismatch");
+      }
+      if(source==="selected_future_stable_root"&&row.path!==STABLE_ROOT){
+        fail("legacy_history_disposition_stable_source_path_mismatch");
+      }
+    }
+    if(sources.includes("selected_future_stable_root")&&sources.length!==1){
+      fail("legacy_history_disposition_future_stable_root_mixed_provenance");
+    }
+
     requireBool(row.request_or_payment_contents_read,false,
       "legacy_history_disposition_candidate_content_read_forbidden");
     requireBool(row.directory_entry_names_output,false,
       "legacy_history_disposition_candidate_names_output_forbidden");
     if(!sources.includes("selected_future_stable_root"))historical.push(row);
+  }
+  if(sourceCounts.repo_default!==1||
+     sourceCounts.selected_future_stable_root!==1||
+     sourceCounts.immutable_release_default!==census.immutable_release_count||
+     sourceCounts.unit_working_directory_default!==
+       (service.working_directory===null?0:1)||
+     sourceCounts.live_process_cwd_default!==
+       (service.live_process_cwd===null?0:1)||
+     sourceCounts.live_status_explicit_request_dir!==
+       (requestStatus.observed===true&&
+        requestStatus.source==="VOID_BUY_REQUEST_DIR"?1:0)){
+    fail("legacy_history_disposition_candidate_source_coverage_invalid");
   }
   if(count(census.historical_candidate_count,
       "legacy_history_disposition_historical_count_invalid")!==historical.length){
