@@ -201,7 +201,7 @@ for (const required of [
 }
 assert.equal(runner.includes("runner_git_object_stdin_required"), false);
 assert.equal(runner.includes("git_object_stdin_required_for_live=true"), false);
-const nativeGateAt = runner.indexOf("requireNativePreentry();");
+const nativeGateAt = runner.indexOf("requireNativePreentry(expectedHead);");
 const sensitiveAt = runner.indexOf("const receipt=runSensitiveSequence({expectedHead});");
 assert.ok(nativeGateAt > 0 && sensitiveAt > nativeGateAt);
 
