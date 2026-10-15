@@ -59,6 +59,7 @@ jobs:
           grep -Fx 'replacement_authorized=false' "$proof"
           grep -Fx 'replacement_apply_authorized=false' "$proof"
           grep -Fx 'rollback_content_scan_required=false' "$proof"
+          grep -Fx 'opaque_legacy_content_read_authorized=false' "$proof"
           grep -Fx 'durable_install_intent_required=true' "$proof"
           grep -Fx 'crash_recovery_required=true' "$proof"
           grep -Fx 'live_at_use_target_reverification_required=true' "$proof"
