@@ -21,8 +21,8 @@
   "authority_added": false,
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "fb5b5a260e95c2282757c1eeb0e7a3237229b406883bab6896d121e8db9566dc",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "e08e944e2b10fa2a38f14e8cc4f867a440b6c12966592b2fb4766e1fb8213c1f",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "067e4340b964faba7432a6d08cba240618aa4a77754fdd123b21430b234eff11",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "fbf717152c1aa18cb97eafbacae716d1bcb2702b9dcc34d98e22ef8f24ad58f5",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
@@ -33,7 +33,7 @@
     "public/void-app-wave1-v1/assets/js/earn-live.js": "1ec51efe296a1d1a9817eb8e9e0cd7b022ebaceb9de9fff2ae00280fba0f13a2",
     "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "6c57387c41ca70bc844eda6f29a84f95544133bb52f51cc1b6eeb5a777dd1037",
-    "public/void-app-wave1-v1/index.html": "b8ec43af415f6a9b67cb544f6d560445cd9a2bb36867ff60f89b8244912f4993",
+    "public/void-app-wave1-v1/index.html": "d629ab00117ad6534651d66789887de2d9a0d101b7bb4b7d29eb0816acc37743",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "ea6f9e03ac10cc13f688a0dd447906f76e4595e49672a30213fc1c3d47058d6b",
@@ -73,5 +73,6 @@
   "wallet_http200_evidence_truth_refresh_date": "2026-10-11",
   "same_route_modal_navigation_focus_refresh_date": "2026-10-13",
   "advanced_unavailable_controls_truth_refresh_date": "2026-10-14",
-  "advanced_drawer_short_viewport_scroll_refresh_date": "2026-10-14"
+  "advanced_drawer_short_viewport_scroll_refresh_date": "2026-10-14",
+  "command_search_filter_refresh_date": "2026-10-15"
 }
