@@ -11,7 +11,7 @@ import {
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const EXPECTED_WRITER_BLOB="d2410a871c0318502654acd2428b2a4366d27185";
+const EXPECTED_WRITER_BLOB="ac8bf352979e0e24d2cab45c3b23949e1bd2b026";
 const source=fs.readFileSync(path.join(ROOT,"src/economic/buy_void_verified_payment_capacity_admission_v1.ts"));
 const blob=crypto.createHash("sha1")
   .update(Buffer.from("blob "+source.length+"\0","utf8")).update(source).digest("hex");
@@ -29,8 +29,11 @@ assert.ok(text.includes("Object.create(null)"));
 assert.ok(text.includes('Object.defineProperty(clone, "toJSON"'));
 assert.ok(text.includes("CANONICAL_EVENT_MAX_JSON_BYTES_V1"));
 assert.ok(text.includes("serializedBytes !== canonicalBudget.bytes"));
+assert.ok(writer.includes("prepareRequestDirectoryV1(requestDir)"),
+  "writer must route request-root admission through the reviewed storage policy");
 assert.ok(writer.indexOf('fail("buy_void_operator_event_capacity_status_noncanonical")') <
-  writer.indexOf("fs.mkdirSync(requestDir"),"status admission must precede filesystem mutation");
+  writer.indexOf("prepareRequestDirectoryV1(requestDir)"),
+  "status admission must precede request-root admission or filesystem mutation");
 assert.equal(writer.includes('JSON.stringify(event) + "\\n"'),false,
   "legacy writer must append the detached snapshot bytes, not reserialize caller event");
 assert.ok(text.includes("buy_void_verified_payment_capacity_operator_status_noncanonical"));
