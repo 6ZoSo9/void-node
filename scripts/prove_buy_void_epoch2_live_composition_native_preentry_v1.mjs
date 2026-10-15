@@ -262,11 +262,25 @@ if (initialOptUnsafe) {
       ROOT,
       "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs",
     );
+    const namespaceUid = process.getuid();
+    const namespaceGid = process.getgid();
+    assert.equal(
+      Number.isSafeInteger(namespaceUid) && namespaceUid > 0,
+      true,
+      "private /opt fixture requires an unprivileged calling uid",
+    );
+    assert.equal(
+      Number.isSafeInteger(namespaceGid) && namespaceGid > 0,
+      true,
+      "private /opt fixture requires an unprivileged calling gid",
+    );
     const namespaceScript = [
       "set -euo pipefail",
       "/usr/bin/mount -t tmpfs " +
         "-o mode=0755,uid=0,gid=0,size=16m tmpfs /opt",
-      'exec "$1" "$2" --private-opt-fixture',
+      "exec " + JSON.stringify(SETPRIV) +
+        ' --reuid "$1" --regid "$2" --init-groups ' +
+        '"$3" "$4" --private-opt-fixture',
     ].join("; ");
     const namespaced = run(
       SUDO,
@@ -281,6 +295,8 @@ if (initialOptUnsafe) {
         "-c",
         namespaceScript,
         "void-e2-private-opt",
+        String(namespaceUid),
+        String(namespaceGid),
         namespaceNode,
         namespaceProof,
       ],
