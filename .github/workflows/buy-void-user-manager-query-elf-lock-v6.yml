@@ -59,6 +59,10 @@ jobs:
           grep -Fx 'kernel_cap_last_cap_projection_required=true' "$RUNNER_TEMP/query-elf-lock-v6-proof.log"
           grep -Fx 'configured_kernel_bounding_set_projection_required=true' "$RUNNER_TEMP/query-elf-lock-v6-proof.log"
           grep -Fx 'candidate_accepted=true' "$RUNNER_TEMP/query-elf-lock-v6-proof.log"
+          grep -Fx 'v5_live_diagnostic_observed=true' "$RUNNER_TEMP/query-elf-lock-v6-proof.log"
+          grep -Fx 'v5_superseded_by_v6_candidate_generation=true' "$RUNNER_TEMP/query-elf-lock-v6-proof.log"
+          grep -Fx 'v6_disposable_live_probe_observed=true' "$RUNNER_TEMP/query-elf-lock-v6-proof.log"
+          grep -Fx 'v6_protected_install_performed=false' "$RUNNER_TEMP/query-elf-lock-v6-proof.log"
           grep -Fx 'install_authorized=false' "$RUNNER_TEMP/query-elf-lock-v6-proof.log"
           grep -Fx 'live_query_authorized=false' "$RUNNER_TEMP/query-elf-lock-v6-proof.log"
 
@@ -93,5 +97,5 @@ jobs:
           done
           cmp locks/user-manager-query-elf-lock-v6-22.json locks/user-manager-query-elf-lock-v6-24.json
           cmp locks/user-manager-query-elf-lock-v6-22.json locks/user-manager-query-elf-lock-v6-26.json
-          grep -F '"lock_id": "voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6"'             locks/user-manager-query-elf-lock-v6-22.json
+          grep -F '"lock_id": "voidbuyumqelflock6_3627a98945579452b01c79b4d114c54d858122496f2b20a20ddfd7fae6b0307c"'             locks/user-manager-query-elf-lock-v6-22.json
           echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V6_CROSS_NODE_GREEN
