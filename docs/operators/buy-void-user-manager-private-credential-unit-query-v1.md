@@ -17,8 +17,10 @@ The query embeds the accepted authenticated user-manager private peer guard
 The current V5 PrivateUsers-bound unit-query source
 `ddca2c544ce14261dffb80a202c0a4ae2979ec1e` is pinned as the integration
 peer. Accepted V4 binary evidence remains frozen in its historical lock, and
-the accepted preexec source remains independently pinned at
-`f0fbfaae97df3294097a281100f06ada2ef157ff`.
+the current unit-query preexec source is pinned at
+`f0fbfaae97df3294097a281100f06ada2ef157ff` only as historical/integration
+context. It executes the ordinary unit-query binary, not this credential-query
+binary, and therefore supplies no live execution authority for this lane.
 
 A future live execution must run as root and:
 
@@ -30,15 +32,22 @@ A future live execution must run as root and:
 5. hand that exact retained file descriptor to `sd-bus`;
 6. query the target unit and credential-effective properties over that same
    authenticated connection;
-7. bind MainPID back to cgroup, executable, parent-manager, kernel capability,
-   NoNewPrivileges and PrivateUsers evidence;
-8. re-query both ordinary and credential properties and revalidate manager,
+7. bind MainPID to cgroup, executable, parent-manager, UID/GID and process
+   generation inside this primitive;
+8. compose that exact MainPID/start-ticks generation with the separately
+   accepted current capability/NoNewPrivileges/PrivateUsers security transcript;
+9. run this binary only through a new protected preexec generation that binds
+   its exact installed identity and constructs the minimal loader environment;
+10. re-query both ordinary and credential properties and revalidate manager,
    service, pidfds and retained socket peer before success.
 
 This primitive independently kernel-binds the returned MainPID to the same
 manager, exact cgroup, UID/GID generation and root-owned `/usr/bin/node`
-executable. A later integration must require this MainPID/start-ticks generation
-to match the separately accepted V4 security transcript.
+executable. It does not itself query or prove CapabilityBoundingSet,
+AmbientCapabilities, kernel capability sets, NoNewPrivileges or PrivateUsers.
+A later integration must require this exact MainPID/start-ticks generation to
+match whichever canonical security-transcript generation is accepted at that
+time; the source-only primitive carries no such policy authority by itself.
 
 The public `/run/user/<uid>/bus` endpoint is never used.
 
@@ -51,8 +60,12 @@ For `void-node-live.service`, the primitive requires and emits:
 
 - `NeedDaemonReload=no`;
 - one canonical absolute `FragmentPath`;
-- exactly one canonical absolute `DropInPath`, whose basename is
+- a bounded set of at most 32 canonical absolute `DropInPaths`, with at most
+  16 KiB of canonical path bytes retained for same-generation comparison;
+- exactly one member whose basename is
   `97-buy-void-epoch2-fulfiller-credential-v1.conf`;
+- unrelated canonical hardening drop-ins are allowed, including the current
+  `98-buy-void-allocation-custody-runtime-hardening-v2.conf`;
 - exactly one `LoadCredential` pair;
 - credential ID `buy-void-epoch2-fulfiller-v1`;
 - one canonical absolute credential source path;
@@ -88,7 +101,9 @@ Still false:
 - public presale activation;
 - transaction or funds movement.
 
-Next gate: reproducible candidate/lock acceptance for this exact source
-generation, followed by a separately reviewed #2870 integration successor.
+Next gate: a protected credential-query preexec generation plus reproducible
+candidate/lock acceptance. Before any live integration, refresh the composition
+against the accepted current security-transcript generation, then build a
+separately reviewed #2870 integration successor.
 
 PROTECT THE CORE.
