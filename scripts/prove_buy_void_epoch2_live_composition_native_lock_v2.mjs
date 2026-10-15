@@ -321,7 +321,7 @@ function rederiveCandidate(){
     );
 
     const runnerSelf=run(
-      "/usr/bin/node",
+      process.execPath,
       [path.join(ROOT,RUNNER_SOURCE),"--self-test"],
       {env:{PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"}},
     );
@@ -331,7 +331,7 @@ function rederiveCandidate(){
     );
 
     const runnerPlan=run(
-      "/usr/bin/node",
+      process.execPath,
       [path.join(ROOT,RUNNER_SOURCE),"--plan"],
       {env:{PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"}},
     );
