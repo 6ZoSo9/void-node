@@ -283,6 +283,39 @@ async function main(): Promise<void> {
   );
   assert.equal(failAtomicSender.acknowledge(0), 1);
 
+  const retransmitAtomicSender = new VoidUdpSecureReliableSenderV1(keysA);
+  retransmitAtomicSender.createData(Buffer.from("would-be-acked"), -1, 0);
+  retransmitAtomicSender.createData(Buffer.from("would-retransmit"), -1, 0);
+  const retransmitInternals = retransmitAtomicSender as unknown as {
+    nextPacketNo: number;
+    pending: Map<number, {
+      dataSeq: number;
+      plaintext: Buffer;
+      lastSentAtMs: number;
+      retries: number;
+    }>;
+  };
+  const dueBefore = retransmitInternals.pending.get(1);
+  assert(dueBefore);
+  const retryBefore = dueBefore.retries;
+  const lastSentBefore = dueBefore.lastSentAtMs;
+  retransmitInternals.nextPacketNo = Number.MAX_SAFE_INTEGER;
+  assert.throws(
+    () => retransmitAtomicSender.retransmitDue(
+      0,
+      VOID_P2P_UDP_SECURE_RELIABLE_RTO_MS_V1,
+    ),
+    /packet sequence exhausted/,
+  );
+  assert.equal(retransmitInternals.nextPacketNo, Number.MAX_SAFE_INTEGER);
+  assert.equal(retransmitInternals.pending.size, 2);
+  assert.equal(retransmitInternals.pending.has(0), true);
+  assert.equal(retransmitInternals.pending.has(1), true);
+  const dueAfter = retransmitInternals.pending.get(1);
+  assert(dueAfter);
+  assert.equal(dueAfter.retries, retryBefore);
+  assert.equal(dueAfter.lastSentAtMs, lastSentBefore);
+
   const senderA = new VoidUdpSecureReliableSenderV1(keysA);
   const receiverB = new VoidUdpSecureReliableReceiverV1(keysB);
 
@@ -446,6 +479,7 @@ async function main(): Promise<void> {
   console.log("encrypted_ack_supported=true");
   console.log("invalid_send_header_failure_atomic=true");
   console.log("invalid_retransmit_clock_failure_atomic=true");
+  console.log("retransmit_counter_exhaustion_failure_atomic=true");
   console.log("send_window_bounded=true");
   console.log("receive_window_bounded=true");
   console.log("retransmission_retry_limit_bounded=true");

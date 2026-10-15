@@ -706,27 +706,52 @@ export class VoidUdpSecureReliableSenderV1 {
   }> {
     const now = safeInteger(nowMs, 0, Number.MAX_SAFE_INTEGER);
     if (now === undefined) throw new Error("retransmit time invalid");
-    this.acknowledge(peerAckSeq);
-    const packets: VoidUdpSecurePacketV1[] = [];
+    const ack = safeInteger(peerAckSeq, -1, Number.MAX_SAFE_INTEGER);
+    if (ack === undefined) throw new Error("ACK invalid");
+
+    const due: Array<readonly [number, Pending]> = [];
     const exhausted: number[] = [];
     for (const [seq, p] of [...this.pending.entries()].sort((a, b) => a[0] - b[0])) {
+      if (seq <= ack) continue;
       if (now - p.lastSentAtMs < VOID_P2P_UDP_SECURE_RELIABLE_RTO_MS_V1) continue;
       if (p.retries >= VOID_P2P_UDP_SECURE_RELIABLE_MAX_RETRIES_V1) {
         exhausted.push(seq);
-        this.pending.delete(seq);
         continue;
       }
-      p.retries += 1;
-      p.lastSentAtMs = now;
+      due.push([seq, p] as const);
+    }
+
+    const packetNoStart = safeInteger(this.nextPacketNo, 0, Number.MAX_SAFE_INTEGER);
+    if (packetNoStart === undefined) throw new Error("packet sequence exhausted");
+    if (
+      due.length > 0 &&
+      packetNoStart > Number.MAX_SAFE_INTEGER - due.length
+    ) {
+      throw new Error("packet sequence exhausted");
+    }
+
+    const packets: VoidUdpSecurePacketV1[] = [];
+    for (let index = 0; index < due.length; index += 1) {
+      const [, p] = due[index]!;
       packets.push(encodeVoidUdpSecurePacketV1({
         keys: this.keys,
         kind: "data",
-        packetNo: this.nextPacketNo++,
+        packetNo: packetNoStart + index,
         dataSeq: p.dataSeq,
-        ackSeq: peerAckSeq,
+        ackSeq: ack,
         plaintext: p.plaintext,
       }));
     }
+
+    for (const seq of [...this.pending.keys()]) {
+      if (seq <= ack) this.pending.delete(seq);
+    }
+    for (const seq of exhausted) this.pending.delete(seq);
+    for (const [, p] of due) {
+      p.retries += 1;
+      p.lastSentAtMs = now;
+    }
+    this.nextPacketNo = packetNoStart + due.length;
     return Object.freeze({ packets: Object.freeze(packets), exhausted_data_seqs: Object.freeze(exhausted) });
   }
 }
