@@ -86,6 +86,7 @@ function held(reason) {
     cloudflared_uid_isolation_proven: false,
     dispatcher_exclusive_reachability_proven: false,
     tunnel_path_ownership_verified: false,
+    credential_content_access: false,
     runtime_integration: false,
     funds_movement: false,
     authority:
