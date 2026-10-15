@@ -16,7 +16,7 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 UPGRADE_MANIFEST_REL="ops/xiphos/apollyon-live-custody-reviewed-root-v2-upgrade-v1.json"
-UPGRADE_MANIFEST_BLOB="bdf89b4ea5ca39f3af5599fb2fbfbd45fbb54bd1"
+UPGRADE_MANIFEST_BLOB="0548d4b672b97847464b9d5c2b86eee70d9ca26f"
 OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")
 NEW_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")
 FIXED_LAUNCHER=Path(
@@ -25,7 +25,7 @@ FIXED_LAUNCHER=Path(
 )
 LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
 OLD_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"
-NEW_LAUNCHER_BLOB="8e92a3337c9a4bba21fab6299e9e2ceb61d3e425"
+NEW_LAUNCHER_BLOB="6899930d48f7057197a31183da44865da72f6269"
 CUSTODY_UNIT="void-apollyon-authorization-custody-v1.service"
 TRAINING_UNIT="void-apollyon-training-bus-isolation-v1.service"
 
@@ -296,7 +296,7 @@ def self_test()->None:
     manifest=load_upgrade_manifest()
     assert manifest["to"]["systemd_reviewed_versions"]==["255.4-1ubuntu8.11","255.4-1ubuntu8.18"]
     assert manifest["to"]["closure"]["ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"]=="2a285b5b1da2597a8b9eae6d08cd42d010bf7f71"
-    assert manifest["to"]["closure"]["tools/apollyon-v2-raw-collector-adapter-v1.mjs"]=="9890285cde6a1ed4491d0eafb6c73b853ab6fad3"
+    assert manifest["to"]["closure"]["tools/apollyon-v2-raw-collector-adapter-v1.mjs"]=="1cce303c25317b66e5f264f1b3f8c05712879cfe"
     assert manifest["to"]["closure"][LAUNCHER_REL]==NEW_LAUNCHER_BLOB
     source=Path(__file__).read_text(encoding="utf-8")
     for forbidden_parts in (

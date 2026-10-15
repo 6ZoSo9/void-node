@@ -28,7 +28,7 @@ expected={
     "tools/apollyon-candidate-training-preclaim-v2.mjs":
         "33a7f0d51d7ce1ab6e7ee48e4e205c0b639cca82",
     "tools/apollyon-v2-raw-collector-adapter-v1.mjs":
-        "9890285cde6a1ed4491d0eafb6c73b853ab6fad3",
+        "1cce303c25317b66e5f264f1b3f8c05712879cfe",
     "tools/apollyon-candidate-training-attempt-claim-contract-v2.mjs":
         "b61f2f0982de47c5e11cc1f82e6ea7946ab4a8b2",
     "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
