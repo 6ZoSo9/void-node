@@ -1,0 +1,69 @@
+name: VOID Buy legacy request-root census v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_legacy_request_root_census_v1.py"
+      - "scripts/prove_void_buy_void_legacy_request_root_census_v1.py"
+      - "docs/operators/buy-void-legacy-request-root-census-v1.md"
+      - ".github/workflows/buy-void-legacy-request-root-census-v1.yml"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_legacy_request_root_census_v1.py"
+      - "scripts/prove_void_buy_void_legacy_request_root_census_v1.py"
+      - "docs/operators/buy-void-legacy-request-root-census-v1.md"
+      - ".github/workflows/buy-void-legacy-request-root-census-v1.yml"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
+      - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Syntax and focused proof
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ops/precision/void_buy_void_legacy_request_root_census_v1.py
+          python3 -m py_compile scripts/prove_void_buy_void_legacy_request_root_census_v1.py
+          python3 -I -B scripts/prove_void_buy_void_legacy_request_root_census_v1.py |
+            tee "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1_PROOF_GREEN' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'v1_topology_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'v2_designated_host_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'designated_runtime_user_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'ambient_home_not_used_for_repo_candidate=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'stable_release_inventory_required=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'repeat_candidate_observation_required=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'process_environment_access=false' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'external_network_calls=false' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'loopback_get_only=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'stable_runtime_status_binding_required=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'empty_shape_not_promoted_to_genesis=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'historical_request_history_disposition_proven=false' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'external_witness_required=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+      - name: Plan is inert
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_legacy_request_root_census_v1.py --plan |
+            tee "$RUNNER_TEMP/legacy-root-plan.log"
+          grep -Fx 'read_only=true' "$RUNNER_TEMP/legacy-root-plan.log"
+          grep -Fx 'designated_runtime_user=zoso' "$RUNNER_TEMP/legacy-root-plan.log"
+          grep -Fx 'designated_runtime_uid=1000' "$RUNNER_TEMP/legacy-root-plan.log"
+          grep -Fx 'process_environment_access=false' "$RUNNER_TEMP/legacy-root-plan.log"
+          grep -Fx 'external_network_calls=false' "$RUNNER_TEMP/legacy-root-plan.log"
+          grep -Fx 'loopback_get_only=true' "$RUNNER_TEMP/legacy-root-plan.log"
+          grep -Fx 'request_or_payment_contents_read=false' "$RUNNER_TEMP/legacy-root-plan.log"
+          grep -Fx 'historical_request_history_disposition_proven=false' "$RUNNER_TEMP/legacy-root-plan.log"
+          grep -Fx 'production_gate_ready=false' "$RUNNER_TEMP/legacy-root-plan.log"
+      - run: git diff --check
