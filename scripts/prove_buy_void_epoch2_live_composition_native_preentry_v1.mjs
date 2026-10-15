@@ -337,20 +337,6 @@ try {
   let fixedRepoParentsCreated = false;
   let fixtureInstalled = false;
   try {
-    for (const [target, mode] of [["/opt", "0755"]]) {
-      let normalize = run(SUDO, ["-n", "chown", "root:root", target]);
-      assert.equal(
-        normalize.status,
-        0,
-        "failed to root-own hosted ancestry " + target + ": " + normalize.stderr,
-      );
-      normalize = run(SUDO, ["-n", "chmod", mode, target]);
-      assert.equal(
-        normalize.status,
-        0,
-        "failed to normalize hosted ancestry " + target + ": " + normalize.stderr,
-      );
-    }
     for (const target of ["/", "/opt"]) {
       const st = fs.lstatSync(target);
       assert.equal(st.isDirectory() && !st.isSymbolicLink(), true, target);
@@ -377,6 +363,11 @@ try {
       fixedNodeFixtureCreated = true;
     }
 
+    assert.equal(
+      fs.existsSync(FIXED_ROOT),
+      false,
+      "hosted protected-root fixture must begin absent",
+    );
     let install = run(SUDO, [
       "-n", "install",
       "-d", "-o", "root", "-g", "root", "-m", "0755",
@@ -468,6 +459,13 @@ try {
       "missing fixed checkout cwd must fail closed before runtime-user work",
     );
 
+    for (const target of ["/home/zoso", "/home/zoso/dev"]) {
+      assert.equal(
+        fs.existsSync(target),
+        false,
+        "hosted fixed-checkout parent must begin absent: " + target,
+      );
+    }
     let fixedRepoInstall = run(SUDO, [
       "-n", "install",
       "-d", "-o", "root", "-g", "root", "-m", "0755",
