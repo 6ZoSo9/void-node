@@ -187,8 +187,8 @@ function validateFinalReview(value){
     text(candidate.value_wei)!=="0"||
     !/^(0|[1-9][0-9]*)$/.test(nonce)||
     !/^[1-9][0-9]*$/.test(gasLimit)||
-    !/^[1-9][0-9]*$/.test(maxFee)||
-    !/^(0|[1-9][0-9]*)$/.test(priority)||
+    maxFee!=="0"||
+    priority!=="0"||
     !/^0x(?:[0-9a-f]{2})+$/.test(calldata)
   ){
     return {ok:false,reason:"sovereign_authorization_candidate_invalid"};

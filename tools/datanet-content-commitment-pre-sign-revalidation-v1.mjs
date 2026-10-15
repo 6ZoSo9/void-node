@@ -149,7 +149,7 @@ function normalizePolicy(input){
   );
   const maxFee=decimal(
     input.max_fee_per_gas_wei,
-    {positive:true,max:MAX_POLICY_FEE_WEI},
+    {max:MAX_POLICY_FEE_WEI},
   );
   const priority=decimal(
     input.max_priority_fee_per_gas_wei,
@@ -157,15 +157,15 @@ function normalizePolicy(input){
   );
   const maxTotal=decimal(
     input.max_total_gas_cost_wei,
-    {positive:true,max:MAX_POLICY_TOTAL_GAS_COST_WEI},
+    {max:MAX_POLICY_TOTAL_GAS_COST_WEI},
   );
   if(
     gasMultiplier===null||gasMultiplier<10_000n||
     maxGas===null||
     feeMultiplier===null||feeMultiplier<10_000n||
-    maxFee===null||
-    priority===null||priority>maxFee||
-    maxTotal===null
+    maxFee===null||maxFee!==0n||
+    priority===null||priority!==0n||
+    maxTotal===null||maxTotal!==0n
   ) return null;
 
   const rendered=hostname==="::1"?"[::1]":hostname;
@@ -420,7 +420,7 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
       }));
       if(
         nonce===null||
-        gasPrice===null||gasPrice===0n||
+        gasPrice===null||gasPrice!==0n||
         estimate===null||estimate===0n||
         balance===null
       ){
@@ -514,9 +514,9 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
       BPS,
     );
     if(
-      computedMaxFee===0n||
-      computedMaxFee>policy.max_fee_per_gas_wei||
-      policy.max_priority_fee_per_gas_wei>computedMaxFee
+      computedMaxFee!==0n||
+      policy.max_fee_per_gas_wei!==0n||
+      policy.max_priority_fee_per_gas_wei!==0n
     ){
       return held(
         "datanet_pre_sign_fee_exceeds_policy",
@@ -529,7 +529,8 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
 
     const maxGasCost=gasLimit*computedMaxFee;
     if(
-      maxGasCost>policy.max_total_gas_cost_wei||
+      maxGasCost!==0n||
+      policy.max_total_gas_cost_wei!==0n||
       secondDynamic.balance<maxGasCost
     ){
       return held(

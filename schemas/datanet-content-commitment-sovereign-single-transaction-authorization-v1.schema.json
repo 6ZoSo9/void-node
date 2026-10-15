@@ -62,9 +62,9 @@
         "to_address":{"type":"string","pattern":"^0x[0-9a-f]{40}$"},
         "value_wei":{"const":"0"},
         "gas_limit":{"type":"string","pattern":"^[1-9][0-9]*$"},
-        "max_fee_per_gas_wei":{"type":"string","pattern":"^[1-9][0-9]*$"},
+        "max_fee_per_gas_wei":{"type":"string","const":"0"},
         "max_priority_fee_per_gas_wei":{
-          "type":"string","pattern":"^(0|[1-9][0-9]*)$"
+          "type":"string","const":"0"
         },
         "calldata_sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"}
       }

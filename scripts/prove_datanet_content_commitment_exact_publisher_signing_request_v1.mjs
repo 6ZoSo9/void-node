@@ -40,8 +40,8 @@ const candidate={
   value_wei:"0",
   calldata:"0x1234",
   gas_limit:"60000",
-  max_fee_per_gas_wei:"2000000000",
-  max_priority_fee_per_gas_wei:"1000000000",
+  max_fee_per_gas_wei:"0",
+  max_priority_fee_per_gas_wei:"0",
 };
 const candidateFingerprint=sha256(canonicalJson(candidate));
 
@@ -419,6 +419,9 @@ for(const forbidden of [
   assert.equal(source.includes(forbidden),false,"source contains "+forbidden);
 }
 
+assert.equal(source.includes('maxFee!=="0"'),true,"nonzero max fee must fail closed");
+assert.equal(source.includes('priority!=="0"'),true,"nonzero priority fee must fail closed");
+
 console.log(
   "VOID_DATANET_CONTENT_COMMITMENT_EXACT_PUBLISHER_SIGNING_REQUEST_V1_PROOF_GREEN",
 );
@@ -440,3 +443,6 @@ console.log("raw_signed_transaction_application_output=false");
 console.log("transaction_broadcast_authorized=false");
 console.log("transaction_broadcast=false");
 console.log("chain2050_write=false");
+
+console.log("epoch2_zero_fee_candidate_accepted=true");
+console.log("nonzero_fee_drift_rejected=true");
