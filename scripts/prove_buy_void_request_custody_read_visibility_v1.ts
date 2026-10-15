@@ -113,6 +113,8 @@ try{
   fs.chmodSync(requests,VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
   fs.chmodSync(events,VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
 
+  // Shared mode requires both fixed journals to exist before first use.
+  // A zero-byte operator journal must not be mistaken for prior history.
   const sharedRequest=req("buyvoid_shared_aaaaaaaa","1");
   const created=await persist(shared,sharedRequest);
   assert.equal(created.reused_request,null);
@@ -125,6 +127,27 @@ try{
   assert.equal(mode(events),VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
   assert.equal(fs.lstatSync(events).gid,gid);
   assert.equal(rows(requests).length,1);
+
+  // Preserve the original rollback fence: an empty request journal plus
+  // nonempty operator history is still surviving history and must HOLD.
+  const surviving=path.join(root,"surviving-operator-history");
+  fs.mkdirSync(surviving,{mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1});
+  fs.chmodSync(surviving,VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1);
+  const survivingRequests=path.join(surviving,REQUESTS);
+  const survivingEvents=path.join(surviving,EVENTS);
+  fs.writeFileSync(survivingRequests,"",{mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1});
+  fs.writeFileSync(
+    survivingEvents,
+    JSON.stringify({schema:"synthetic_surviving_operator_history_v1"})+"\\n",
+    {mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1},
+  );
+  fs.chmodSync(survivingRequests,VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
+  fs.chmodSync(survivingEvents,VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
+  await rejects(
+    ()=>persist(surviving,req("buyvoid_shared_survivor","9")),
+    /missing_or_empty_with_surviving_history/u,
+  );
+
   const sidecar=path.join(shared,"buyvoid_shared_aaaaaaaa.json");
   assert.equal(mode(sidecar),0o600);
   assert.equal((mode(sidecar)&0o040)!==0,false,"customer sidecar must not become group-readable");
