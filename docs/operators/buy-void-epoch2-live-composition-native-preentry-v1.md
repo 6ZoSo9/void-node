@@ -177,7 +177,9 @@ The accepted native preentry build must be statically linked and have no
 constructor and requires that constructor to execute for the dynamic control
 but remain absent when the native preentry self-test runs under the same hostile
 environment. This closes the loader-before-`main()` ambiguity at the privileged
-first instruction with fresh proof. The surviving-parent repair is a later source generation and\nmust receive fresh candidate derivation; predecessor candidate identity cannot\nbe promoted.
+first instruction with fresh proof. The surviving-parent repair is a later source generation and
+must receive fresh candidate derivation; predecessor candidate identity cannot
+be promoted.
 
 ## Authority boundary
 
