@@ -12,9 +12,11 @@ its normal daemon-reexec argv was:
 
 `/usr/lib/systemd/systemd --user --deserialize=44`
 
-#3084 repairs only that closed argv boundary. Because the private-peer source is
-embedded into the dynamic unit-query binary, the historical V1 ELF lock cannot
-be silently repinned.
+#3092 is the clean current-main restack of that same closed argv repair. The
+hosted candidate evidence remains #3084 exact head `6619131d424e4e8e1f589da16e57b454dad7950c`
+because #3092 preserves the exact peer/query/preexec source blobs. Because the
+private-peer source is embedded into the dynamic unit-query binary, the
+historical V1 ELF lock cannot be silently repinned.
 
 ## Hosted candidate
 
