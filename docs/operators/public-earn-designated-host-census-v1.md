@@ -39,8 +39,11 @@ The census binds the exact reviewed runtime blobs inherited from Ready #2997:
 - #2997 isolation policy:
   `a87ecb2a8bd053aba3c6753f0677e2c524e7e24f`.
 
-A running Node process is compared to the reviewed Git blob by reading only its
-entry-script bytes from argv[1]. The entry path itself is not emitted.
+The collector no longer reads a running process command line to discover its
+entry script. Under the no-credential authority boundary, arbitrary argv bytes
+are not treated as safe configuration evidence. The reviewed checkout source
+blobs remain bound, while live running-entry source binding is explicitly
+unobserved until a separate non-secret process-source evidence contract exists.
 
 The collector also independently re-hashes the four reviewed source files in
 the checkout and requires those Git blobs to match before
@@ -66,8 +69,8 @@ The collector may read:
 
 - hostname and effective UID;
 - `systemctl show` for the three canonical services;
-- `/proc/<pid>/stat` kernel start ticks, `status`, argv[1], cwd,
-  executable identity and only a strict allowlist of relevant environment keys;
+- `/proc/<pid>/stat` kernel start ticks, `status`, and executable identity;
+- exact IPv4-loopback listener/PID metadata from `ss -H -ltnp`;
 - `ss -H -ltnp` for listener/PID ownership;
 - filesystem **metadata only** for the Earn-edge rate-state parent/file;
 - `nft -j list table inet void_public_earn_edge_v1`;
@@ -75,10 +78,10 @@ The collector may read:
 
 It never reads the rate-state file contents.
 
-Environment values are consumed only in memory to derive the topology and are
-removed from the emitted service evidence. The rate-state path is represented
-only by SHA-256 plus file metadata; neither the full process environment nor the
-raw state path is emitted.
+The collector does **not** read `/proc/<pid>/environ`, the full systemd
+environment, or `/proc/<pid>/cmdline`. This is an access boundary, not merely
+an output-redaction rule. Consequently, configured upstream targets and the
+rate-state path are not inferred from secret-bearing process state.
 
 The raw nftables JSON is never printed or written into the census result; only
 presence, byte count and SHA-256 are emitted.
@@ -87,34 +90,27 @@ Each run records `observed_at_utc` in canonical whole-second UTC form. The
 census does not promote that timestamp into a freshness acceptance claim; a
 later verifier must apply its own bounded age/skew policy.
 
-## Derived topology
+## Safe observed topology metadata
 
-The census derives, without inventing values:
+Without reading process environment or command-line bytes, the census may still
+report:
 
-- dispatcher listener port;
-- dispatcher-selected Earn-edge port;
-- Earn-edge listener port;
-- Earn-edge loopback adapter-upstream port;
-- shared gateway port;
-- dedicated gateway mutation port;
-- whether dispatcher target == Earn-edge listener;
-- whether Earn-edge upstream == dedicated mutation listener;
-- whether all three effective UIDs are non-root and pairwise distinct;
-- whether NoNewPrivileges is active and CAP_NET_ADMIN absent;
-- whether running entry scripts match the reviewed Git blobs;
-- exact IPv4-loopback listener ownership for the Earn edge and both gateway
-  listener surfaces;
-- private same-UID rate-state custody shape.
+- stable systemd MainPID + kernel start-tick generations;
+- effective UID/GID, NoNewPrivileges and CAP_NET_ADMIN absence;
+- exact IPv4-loopback ports owned by each observed service PID;
+- reviewed checkout source blobs; and
+- presence plus digest/size of the dedicated nftables table.
 
-The collector binds every active service to `MainPID + /proc start ticks`
-before process evidence reads. After listener, state and nftables observations,
-it re-reads systemd MainPID and kernel start ticks. A restart, PID replacement
-or numeric PID reuse makes that service generation unstable and prevents
-`policy_candidate_observed=true`.
+It deliberately does **not** assign those observed ports to configured
+dispatcher targets, Earn-edge upstreams, shared-vs-dedicated gateway roles, or
+the rate-state path. Those relationships require a later reviewed **non-secret
+topology evidence contract** that is actually bound to the installed services.
 
-A `policy_candidate_observed=true` result is still **not** live acceptance.
-It only means the census found one stable observed process generation with
-enough matching metadata to justify a later exact nftables/publication verifier.
+Therefore this generation always keeps
+`topology_configuration_observed=false`,
+`running_entry_source_binding_observed=false`, and
+`non_secret_topology_evidence_required=true`. A live census is safe HOLD
+evidence, not a path to `policy_candidate_observed=true` by itself.
 
 ## Deliberate nonclaims
 
@@ -163,9 +159,10 @@ The output file is create-only and mode 0600.
 
 ## Expected current behavior
 
-Before the future dedicated services/firewall are installed, a Precision run is
-expected to return `HOST_INTEGRATION_HOLD`. That is useful evidence, not a
-failure of the collector.
+A Precision run is expected to return
+`NON_SECRET_TOPOLOGY_EVIDENCE_REQUIRED` even if some services/listeners are
+present. That result is useful safe HOLD evidence: this generation will not
+trade the no-credential boundary for a positive topology claim.
 
 The collector must not be used as authority to install missing components.
 
