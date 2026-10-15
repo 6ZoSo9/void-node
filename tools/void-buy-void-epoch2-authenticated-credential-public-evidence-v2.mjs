@@ -26,6 +26,7 @@ const SHA256_TAG=/^sha256:[0-9a-f]{64}$/u;
 const HEX16=/^[0-9a-f]{16}$/u;
 const SAFE_UINT=/^[1-9][0-9]*$/u;
 const COMPOSITE_ID=/^voide2authv2_[0-9a-f]{64}$/u;
+const EXPECTED_RUNTIME_UID=1000;
 
 const QUALIFICATION_KEYS=Object.freeze([
   "marker","version","read_only","root_execution_required",
@@ -166,8 +167,11 @@ function validateQualification(q){
   ]){
     if(positiveInt(q[key])===null)return "qualification_integer_invalid:"+key;
   }
+  if(q.runtime_uid!==EXPECTED_RUNTIME_UID){
+    return "runtime_uid_mismatch";
+  }
   for(const key of ["dropin_path_count","dropin_paths_canonical_bytes"]){
-    if(!Number.isSafeInteger(q[key])||q[key]<0){
+    if(!Number.isSafeInteger(q[key])||q[key]<=0){
       return "qualification_integer_invalid:"+key;
     }
   }
@@ -182,6 +186,10 @@ function validateQualification(q){
   if(path.posix.basename(q.credential_dropin_path)!==
      "97-buy-void-epoch2-fulfiller-credential-v1.conf"){
     return "credential_dropin_invalid";
+  }
+  if(q.fragment_path===q.credential_dropin_path||
+     q.credential_source===q.credential_dropin_path){
+    return "credential_path_relation_invalid";
   }
   if(!Number.isSafeInteger(q.v6_kernel_cap_last_cap)||
      q.v6_kernel_cap_last_cap<0||q.v6_kernel_cap_last_cap>63){
