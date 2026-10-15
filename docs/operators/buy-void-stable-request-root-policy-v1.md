@@ -56,7 +56,9 @@ irrelevant.
 
 ## Relationship to current source
 
-This policy is stacked on the independently accepted custody-readable request-journal source generation from #3054 exact head `c09f3d7bcaded69d12a0c901ffbf36e91bbde605`. The three production source blobs remain the reviewed #3003 identities. That source keeps the legacy private mode as default and enables the shared profile only when `VOID_BUY_REQUEST_CUSTODY_READ_GID` is explicitly present.\n\nThe historical #3020 policy semantics are preserved. This successor repairs only its proof binding: the capacity writer now assembles fixed-journal metadata errors through `validateLedgerStatV1(stat, code)`, so the proof binds that helper plus the exact `requests.jsonl` / `operator-events.jsonl` callsites instead of requiring a monolithic literal error string.
+This policy is stacked on the reconciled custody-readable request-journal successor #3058 exact head `4a9322d250d0c10eb1e57ac4c8c00c175596fe59`. The three production source blobs remain the reviewed #3003 identities. That source keeps the legacy private mode as default and enables the shared profile only when `VOID_BUY_REQUEST_CUSTODY_READ_GID` is explicitly present. #3058 remains a source/CI dependency and must be accepted before this child can land.
+
+The historical #3020 policy semantics are preserved. This successor repairs only its proof binding: the capacity writer now assembles fixed-journal metadata errors through `validateLedgerStatV1(stat, code)`, so the proof binds that helper plus the exact `requests.jsonl` / `operator-events.jsonl` callsites instead of requiring a monolithic literal error string.
 
 ## Authority
 
