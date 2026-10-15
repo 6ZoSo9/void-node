@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Builtin-only live credential capability probe.
-// Live authority requires execution from the reviewed Git object on stdin.
+// Source identity uses the reviewed Git object on stdin.
+// This file is not privileged first-entry authority; #3177 remains required.
 // No repository module, node_modules package, RPC client, or transaction codec is loaded.
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -1037,8 +1038,9 @@ async function main() {
   const argv = process.argv.slice(2);
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(
-      "Run this reviewed file from one pinned current-main Git object on stdin " +
-      "with --expected-head <40-hex-sha>. Direct worktree execution is non-authoritative.",
+      "Source-only V2 invocation uses one pinned current-main Git object on stdin " +
+      "with --expected-head <40-hex-sha>. Live authority additionally requires " +
+      "the protected privileged first-entry tracked in #3177.",
     );
     return;
   }
@@ -1201,6 +1203,7 @@ async function main() {
       credential_content_read: true,
       immutable_fulfiller_identity_proven: true,
       active_signing_capability_proven: true,
+      privileged_first_entry_authenticated: false,
       credential_generation_retained_through_signing: true,
       credential_generation_revalidated_after_final_observation: true,
       raw_private_key_output: false,
