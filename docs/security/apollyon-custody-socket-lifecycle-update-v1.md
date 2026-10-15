@@ -5,9 +5,8 @@ Installed-host successor for Xiphos before the first live custody start.
 The existing custody service source deliberately leaves its advertised socket
 pathname behind after stop. This update installs the reviewed root-owned cleanup
 helper, adds exactly one `ExecStopPost=`, and adds an explicit
-`UnsetEnvironment=LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH` boundary
-to the existing service unit. This removes those manager-level influence
-variables at service execution without reading their values.
+`UnsetEnvironment=GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF` boundary
+to the existing service unit. This removes the reviewed glibc/Node/OpenSSL manager-level influence variables at service execution without reading their values.
 
 The updater requires:
 
