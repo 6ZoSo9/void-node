@@ -13,7 +13,7 @@ V1 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
 V2 = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 AUTH = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
 
-TARGET_BLOB = "4d7f2b5c7766e2dc5f0f82aafbee5f46cc167865"
+TARGET_BLOB = "2106be873e9f0a53c8ca331426507778dbdfe608"
 EXPECTED_DEPENDENCY_BLOBS = {
     V1: "9ca9cb948a08973d0d874c5473ad2743de14140c",
     V2: "305737478025e22ddc8f56da29f2a2dfde251d8b",
@@ -82,6 +82,8 @@ for required in (
     "late_candidate_mutation_blocks_bounded_current_set",
     "descriptor_bound_candidate_snapshot",
     "path_swap_adversary_forces_hold",
+    "generation_fingerprint_serialized",
+    "same_shape_journal_replacement_forces_unstable",
     "_open_directory_component",
     "_open_absolute_directory_nofollow",
     "_revalidate_candidate_generation",
@@ -104,6 +106,12 @@ assert "after = os.stat(component, dir_fd=parent_fd, follow_symlinks=False)" in 
 assert "_same_stat(before, opened)" in source
 assert "_same_stat(opened, after)" in source
 assert "not _same_stat(initial_stat, retained_after)" in source
+assert '"mtime_ns": st.st_mtime_ns' in source
+assert '"ctime_ns": st.st_ctime_ns' in source
+assert '"ino": item.get("ino")' in source
+assert '"mtime_ns": item.get("mtime_ns")' in source
+assert '"ctime_ns": item.get("ctime_ns")' in source
+assert "os.replace(replacement, same_shape_journal)" in source
 
 plan_marker = "\ndef plan() -> None:"
 production_source = (
@@ -177,6 +185,8 @@ for line in (
     "late_candidate_mutation_blocks_bounded_current_set=true",
     "descriptor_bound_candidate_snapshot=true",
     "path_swap_adversary_forces_hold=true",
+    "generation_fingerprint_serialized=true",
+    "same_shape_journal_replacement_forces_unstable=true",
     "production_gate_ready=false",
 ):
     assert line in self_lines, line
@@ -249,6 +259,8 @@ print("late_candidate_mutation_window_guarded=true")
 print("late_candidate_mutation_blocks_bounded_current_set=true")
 print("descriptor_bound_candidate_snapshot=true")
 print("path_swap_adversary_forces_hold=true")
+print("generation_fingerprint_serialized=true")
+print("same_shape_journal_replacement_forces_unstable=true")
 print("process_environment_access=false")
 print("external_network_calls=false")
 print("loopback_get_only=true")

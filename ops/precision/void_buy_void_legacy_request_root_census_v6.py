@@ -210,6 +210,8 @@ def _meta_from_stat(st: os.stat_result) -> dict[str, Any]:
         "size": st.st_size,
         "dev": st.st_dev,
         "ino": st.st_ino,
+        "mtime_ns": st.st_mtime_ns,
+        "ctime_ns": st.st_ctime_ns,
         "symlink": stat.S_ISLNK(st.st_mode),
     }
 
@@ -501,6 +503,10 @@ def classify_candidate(
                 "mode": item.get("mode"),
                 "nlink": item.get("nlink"),
                 "size": item.get("size"),
+                "dev": item.get("dev"),
+                "ino": item.get("ino"),
+                "mtime_ns": item.get("mtime_ns"),
+                "ctime_ns": item.get("ctime_ns"),
                 "symlink": item.get("symlink"),
                 "contents_read": False,
             }
@@ -612,6 +618,31 @@ def self_test() -> None:
         assert swapped["descriptor_bound_snapshot"] is True
         assert swapped["snapshot_generation_stable"] is False
         assert swapped["classification"] == "HOLD_CANDIDATE_GENERATION_CHANGED"
+
+        same_shape = root / "same-shape"
+        same_shape.mkdir()
+        same_shape_journal = same_shape / "requests.jsonl"
+        same_shape_journal.write_bytes(b"a")
+        same_shape_journal.chmod(0o600)
+        replacement = root / "same-shape-replacement"
+        replacement.write_bytes(b"b")
+        replacement.chmod(0o600)
+        before_replace = _classify_candidates({
+            _absolute(same_shape): ["synthetic"],
+        })
+        before_journal = before_replace[0]["fixed_journals"]["requests.jsonl"]
+        os.replace(replacement, same_shape_journal)
+        after_replace = _classify_candidates({
+            _absolute(same_shape): ["synthetic"],
+        })
+        after_journal = after_replace[0]["fixed_journals"]["requests.jsonl"]
+        assert before_journal["size"] == after_journal["size"] == 1
+        assert before_journal["mode"] == after_journal["mode"] == "0600"
+        assert before_journal["ino"] != after_journal["ino"]
+        assert before_journal["contents_read"] is False
+        assert after_journal["contents_read"] is False
+        assert before_replace != after_replace
+        assert (before_replace == after_replace) is False
     for dependency, expected in DEPENDENCY_BLOBS.items():
         assert _git_blob_sha1(_authenticated_source_bytes(dependency)) == expected
     own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
@@ -636,6 +667,8 @@ def self_test() -> None:
     print("late_candidate_mutation_blocks_bounded_current_set=true")
     print("descriptor_bound_candidate_snapshot=true")
     print("path_swap_adversary_forces_hold=true")
+    print("generation_fingerprint_serialized=true")
+    print("same_shape_journal_replacement_forces_unstable=true")
     print("production_gate_ready=false")
 
 def plan() -> None:
