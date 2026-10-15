@@ -45,12 +45,17 @@ const GIT="/usr/bin/git";
 const PYTHON="/usr/bin/python3";
 const NODE="/usr/bin/node";
 const SETPRIV="/usr/bin/setpriv";
+const FIXED_ROOT="/opt/void-buy-void-epoch2-live-composition-v2";
+const FIXED_PREENTRY=
+  FIXED_ROOT+"/void_buy_void_epoch2_live_composition_native_preentry_v1";
 const FIXED_RUNNER=
-  "/opt/void-buy-void-epoch2-live-composition-v2/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs";
+  FIXED_ROOT+"/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs";
 const PREENTRY_MARKER=
   "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1";
 const PREENTRY_ENV="VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY";
 const PREENTRY_RUNNER_FD_ENV="VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_RUNNER_FD";
+const PREENTRY_PROOF_FD_ENV="VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_PROOF_FD";
+const PREENTRY_PROOF_SCHEMA="VOID_BUY_VOID_EPOCH2_NATIVE_PARENT_PROOF_V1";
 const MAX_OUTPUT=2*1024*1024;
 const SHA40=/^[0-9a-f]{40}$/u;
 const HEX64=/^[0-9a-f]{64}$/u;
@@ -140,30 +145,139 @@ function sameFileIdentity(left,right){
     left.size===right.size;
 }
 
-function requireNativePreentry(){
+function readProcStartTicks(pid){
+  if(!Number.isSafeInteger(pid)||pid<=1){
+    throw new Error("native_preentry_process_pid_invalid");
+  }
+  const raw=fs.readFileSync("/proc/"+String(pid)+"/stat","utf8");
+  const right=raw.lastIndexOf(")");
+  if(right<0||raw[right+1]!==" "){
+    throw new Error("native_preentry_process_stat_invalid");
+  }
+  const fields=raw.slice(right+2).trim().split(/\s+/u);
+  const value=fields[19];
+  if(!/^[1-9][0-9]*$/u.test(String(value||""))){
+    throw new Error("native_preentry_process_start_ticks_invalid");
+  }
+  return String(value);
+}
+
+function parseNativeParentProof(fd){
+  let raw;
+  try{
+    raw=fs.readFileSync(fd,{encoding:"utf8"});
+  }finally{
+    try{fs.closeSync(fd);}catch{}
+  }
+  if(Buffer.byteLength(raw,"utf8")<2||Buffer.byteLength(raw,"utf8")>2048){
+    throw new Error("native_preentry_parent_proof_size_invalid");
+  }
+  let proof;
+  try{proof=JSON.parse(raw);}
+  catch{throw new Error("native_preentry_parent_proof_json_invalid");}
+  if(!proof||typeof proof!=="object"||Array.isArray(proof)){
+    throw new Error("native_preentry_parent_proof_object_invalid");
+  }
+  const keys=Object.keys(proof).sort();
+  const expected=[
+    "schema",
+    "parent_pid",
+    "parent_start_ticks",
+    "child_pid",
+    "child_start_ticks",
+    "preentry_dev",
+    "preentry_ino",
+    "runner_dev",
+    "runner_ino",
+    "node_dev",
+    "node_ino",
+    "expected_head",
+  ].sort();
+  if(JSON.stringify(keys)!==JSON.stringify(expected)){
+    throw new Error("native_preentry_parent_proof_schema_invalid");
+  }
+  if(proof.schema!==PREENTRY_PROOF_SCHEMA||
+     !Number.isSafeInteger(proof.parent_pid)||proof.parent_pid<=1||
+     !Number.isSafeInteger(proof.child_pid)||proof.child_pid<=1||
+     !SHA40.test(String(proof.expected_head||""))){
+    throw new Error("native_preentry_parent_proof_identity_invalid");
+  }
+  for(const key of [
+    "parent_start_ticks","child_start_ticks",
+    "preentry_dev","preentry_ino",
+    "runner_dev","runner_ino",
+    "node_dev","node_ino",
+  ]){
+    if(!/^[1-9][0-9]*$/u.test(String(proof[key]||""))){
+      throw new Error("native_preentry_parent_proof_field_invalid:"+key);
+    }
+  }
+  return Object.freeze(proof);
+}
+
+function revalidateNativePreentry(proof,expectedHead){
+  if(proof.expected_head!==expectedHead){
+    throw new Error("native_preentry_expected_head_proof_mismatch");
+  }
+  if(process.pid!==proof.child_pid||process.ppid!==proof.parent_pid){
+    throw new Error("native_preentry_parent_child_pid_mismatch");
+  }
+  if(readProcStartTicks(process.pid)!==proof.child_start_ticks||
+     readProcStartTicks(process.ppid)!==proof.parent_start_ticks){
+    throw new Error("native_preentry_parent_child_generation_mismatch");
+  }
+
+  let parentExe;
+  try{parentExe=fs.realpathSync.native("/proc/"+String(process.ppid)+"/exe");}
+  catch{throw new Error("native_preentry_parent_executable_unavailable");}
+  if(parentExe!==FIXED_PREENTRY){
+    throw new Error("native_preentry_parent_executable_mismatch");
+  }
+
+  const preentry=fs.lstatSync(FIXED_PREENTRY,{bigint:true});
+  const visibleRunner=fs.lstatSync(FIXED_RUNNER,{bigint:true});
+  const node=fs.lstatSync(fs.realpathSync(NODE),{bigint:true});
+  const fdRaw=String(process.env[PREENTRY_RUNNER_FD_ENV]??"");
+  if(!/^[0-9]{1,3}$/u.test(fdRaw)){
+    throw new Error("native_preentry_runner_fd_invalid");
+  }
+  const runnerFd=Number(fdRaw);
+  if(!Number.isSafeInteger(runnerFd)||runnerFd<3){
+    throw new Error("native_preentry_runner_fd_invalid");
+  }
+  const retainedRunner=fs.fstatSync(runnerFd,{bigint:true});
+
+  const pairs=[
+    ["preentry_dev",preentry.dev],
+    ["preentry_ino",preentry.ino],
+    ["runner_dev",retainedRunner.dev],
+    ["runner_ino",retainedRunner.ino],
+    ["node_dev",node.dev],
+    ["node_ino",node.ino],
+  ];
+  for(const [key,value] of pairs){
+    if(String(value)!==proof[key]){
+      throw new Error("native_preentry_installed_generation_mismatch:"+key);
+    }
+  }
+  if(!retainedRunner.isFile()||visibleRunner.isSymbolicLink()||
+     !visibleRunner.isFile()||retainedRunner.uid!==0n||
+     (retainedRunner.mode&0o022n)!==0n||
+     !sameFileIdentity(retainedRunner,visibleRunner)){
+    throw new Error("native_preentry_runner_generation_invalid");
+  }
+  if(fs.realpathSync(process.execPath)!==fs.realpathSync(NODE)){
+    throw new Error("native_preentry_node_executable_mismatch");
+  }
+  return true;
+}
+
+function requireNativePreentry(expectedHead){
   if(process.argv[1]!==FIXED_RUNNER){
     throw new Error("native_preentry_fixed_runner_required");
   }
   if(process.env[PREENTRY_ENV]!==PREENTRY_MARKER){
     throw new Error("native_preentry_marker_required");
-  }
-  const fdRaw=String(process.env[PREENTRY_RUNNER_FD_ENV]??"");
-  if(!/^[0-9]{1,3}$/u.test(fdRaw)){
-    throw new Error("native_preentry_runner_fd_invalid");
-  }
-  const fd=Number(fdRaw);
-  if(!Number.isSafeInteger(fd)||fd<3){
-    throw new Error("native_preentry_runner_fd_invalid");
-  }
-  const retained=fs.fstatSync(fd,{bigint:true});
-  const visible=fs.lstatSync(FIXED_RUNNER,{bigint:true});
-  if(!retained.isFile()||visible.isSymbolicLink()||!visible.isFile()||
-     retained.uid!==0n||(retained.mode&0o022n)!==0n||
-     !sameFileIdentity(retained,visible)){
-    throw new Error("native_preentry_runner_generation_invalid");
-  }
-  if(fs.realpathSync(process.execPath)!==fs.realpathSync(NODE)){
-    throw new Error("native_preentry_node_executable_mismatch");
   }
   for(const name of [
     "NODE_OPTIONS","NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH","LD_AUDIT",
@@ -172,7 +286,17 @@ function requireNativePreentry(){
       throw new Error("native_preentry_loader_environment_not_clean:"+name);
     }
   }
-  return true;
+  const proofFdRaw=String(process.env[PREENTRY_PROOF_FD_ENV]??"");
+  if(!/^[0-9]{1,3}$/u.test(proofFdRaw)){
+    throw new Error("native_preentry_proof_fd_invalid");
+  }
+  const proofFd=Number(proofFdRaw);
+  if(!Number.isSafeInteger(proofFd)||proofFd<3){
+    throw new Error("native_preentry_proof_fd_invalid");
+  }
+  const proof=parseNativeParentProof(proofFd);
+  revalidateNativePreentry(proof,expectedHead);
+  return proof;
 }
 
 function runAsRuntimeUser(command,args,options={}){
@@ -470,6 +594,10 @@ export function buildReceipt({
     native_preentry_policy_bound:true,
     root_node_descriptor_execution_bound:true,
     runner_retained_descriptor_bound:true,
+    native_parent_retained_for_child_lifetime:true,
+    native_parent_process_generation_bound:true,
+    native_parent_installed_generation_bound:true,
+    native_parent_revalidated_after_sensitive_sequence:true,
     stdin_javascript_source_forbidden:true,
     qualification_stable_before_after_sealed_probe:true,
     checkout_revalidated_after_sensitive_sequence:true,
@@ -510,6 +638,10 @@ function plan(){
   console.log("native_preentry_required_for_live=true");
   console.log("root_owned_fixed_runner_required=true");
   console.log("retained_runner_descriptor_required=true");
+  console.log("native_parent_retained_for_child_lifetime_required=true");
+  console.log("native_parent_process_generation_proof_required=true");
+  console.log("native_parent_installed_generation_proof_required=true");
+  console.log("native_parent_revalidation_after_sensitive_sequence_required=true");
   console.log("root_node_descriptor_execution_required=true");
   console.log("stdin_javascript_source_forbidden=true");
   console.log("root_required_for_run=true");
@@ -573,6 +705,10 @@ function selfTest(){
      receipt.funds_movement!==false||
      receipt.credential_content_access_in_runner_parent!==false||
      receipt.privileged_first_entry_authenticated!==true||
+     receipt.native_parent_retained_for_child_lifetime!==true||
+     receipt.native_parent_process_generation_bound!==true||
+     receipt.native_parent_installed_generation_bound!==true||
+     receipt.native_parent_revalidated_after_sensitive_sequence!==true||
      receipt.stdin_javascript_source_forbidden!==true){
     throw new Error("authority_self_test_failed");
   }
@@ -611,6 +747,10 @@ function selfTest(){
   }
   console.log(MARKER+"_SELF_TEST_GREEN");
   console.log("native_preentry_required_for_live=true");
+  console.log("native_parent_retained_for_child_lifetime=true");
+  console.log("native_parent_process_generation_bound=true");
+  console.log("native_parent_installed_generation_bound=true");
+  console.log("native_parent_revalidated_after_sensitive_sequence=true");
   console.log("qualification_parser_closed=true");
   console.log("receipt_content_addressed=true");
   console.log("final_checkout_revalidation_required=true");
@@ -656,7 +796,7 @@ function live(expectedHead,confirm){
   if(typeof process.geteuid!=="function"||process.geteuid()!==0){
     throw new Error("root_required_for_live_composition");
   }
-  requireNativePreentry();
+  const nativeProof=requireNativePreentry(expectedHead);
 
   assertTrustedExecutable(GIT);
   assertTrustedExecutable(PYTHON);
@@ -664,6 +804,7 @@ function live(expectedHead,confirm){
   assertTrustedExecutable(SETPRIV);
 
   const receipt=runSensitiveSequence({expectedHead});
+  revalidateNativePreentry(nativeProof,expectedHead);
   console.log(JSON.stringify(receipt,null,2));
 }
 
