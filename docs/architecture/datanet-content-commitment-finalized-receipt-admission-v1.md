@@ -111,3 +111,15 @@ This is an admission artifact only.
 That gate must bind this exact admission artifact to an independently verified \`VOID_DATANET_CHAIN2050_COMMITMENT_RECEIPT_V1\` result for the same transaction, registry, finalized block, object digest, content digest, and byte length.
 
 Only after that exact event-membership binding may a later gate claim canonical commitment truth.
+
+## Production registry identity binding
+
+Finalized admission no longer treats the signing request's internally consistent
+`to_address` as sufficient registry authority. The candidate target must equal
+the reviewed Mainnet-0 production `DatanetContentCommitmentRegistryV1` address
+`0xe60b15ed8df7c4ec5334067ead18c924744c2681`, bound by
+`VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_IDENTITY_V1` and deployment
+attestation
+`voiddccda1_895702727c043bb38f6b85cb356b3b536635941ae48ba9d45cf89342ddc6c995`.
+A fully self-consistent signing/finality chain targeting another contract fails
+before a finalized admission artifact is constructed.
