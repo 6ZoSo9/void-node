@@ -30,6 +30,9 @@ function canonical() {
       effective_gid: 991,
       cap_net_admin: false,
       no_new_privileges: true,
+      capabilities_effective: [],
+      capabilities_ambient: [],
+      capabilities_bounding: [],
       public_hostname: "seed.nullfeed.org",
       sensitive_origin_host: "127.0.0.1",
       sensitive_origin_port: 4311,
@@ -67,6 +70,9 @@ function canonical() {
       effective_gid: 992,
       cap_net_admin: false,
       no_new_privileges: true,
+      capabilities_effective: [],
+      capabilities_ambient: [],
+      capabilities_bounding: [],
       runtime_marker: "VOID_CLOUDFLARE_ORIGIN_PROXY_V2_RUNTIME_V1",
       listen_host: "127.0.0.1",
       listen_port: 4311,
@@ -82,6 +88,9 @@ function canonical() {
       effective_gid: 993,
       cap_net_admin: false,
       no_new_privileges: true,
+      capabilities_effective: [],
+      capabilities_ambient: [],
+      capabilities_bounding: [],
       runtime_marker: "VOID_PUBLIC_443_PROXY_V2_DISPATCH_RUNTIME_V1",
       listen_host: "127.0.0.1",
       listen_port: 4312,
@@ -181,6 +190,9 @@ assert.equal(result.cloudflare_control_plane_evidence_required, true);
 assert.equal(result.cloudflared_to_adapter_policy_shape_qualified, true);
 assert.equal(result.adapter_to_dispatcher_policy_shape_qualified, true);
 assert.equal(result.closed_world_listener_sets_required, true);
+assert.equal(result.zero_effective_capability_sets_required, true);
+assert.equal(result.zero_ambient_capability_sets_required, true);
+assert.equal(result.zero_bounding_capability_sets_required, true);
 assert.equal(result.public_hostname, "seed.nullfeed.org");
 assert.deepEqual(
   [...result.sensitive_paths].sort(),
@@ -236,6 +248,24 @@ expectHold(
     x.cloudflared.no_new_privileges = false;
   },
   "cloudflare_isolation_cloudflared_no_new_privileges_required",
+);
+expectHold(
+  (x) => {
+    x.cloudflared.capabilities_effective.push("CAP_SETUID");
+  },
+  "cloudflare_isolation_cloudflared_effective_capabilities_forbidden",
+);
+expectHold(
+  (x) => {
+    x.adapter.capabilities_ambient.push("CAP_SYS_PTRACE");
+  },
+  "cloudflare_isolation_adapter_ambient_capabilities_forbidden",
+);
+expectHold(
+  (x) => {
+    x.dispatcher.capabilities_bounding.push("CAP_SYS_ADMIN");
+  },
+  "cloudflare_isolation_dispatcher_bounding_capabilities_forbidden",
 );
 expectHold(
   (x) => {
@@ -467,6 +497,9 @@ for (const [key, expected] of Object.entries({
   ipv4_loopback_only_required: true,
   closed_world_listener_sets_required: true,
   root_owned_ruleset_required: true,
+  zero_effective_capability_sets_required: true,
+  zero_ambient_capability_sets_required: true,
+  zero_bounding_capability_sets_required: true,
   root_equivalent_bypass_out_of_scope: true,
   live_host_evidence_verified: false,
   cloudflared_process_live_verified: false,
@@ -547,6 +580,12 @@ for (const required of [
   "void-public-443-proxy-v2-dispatch-v1.service",
   "manager_scope !== \"system\"",
   "ordinary_user_shared_identity_accepted !== false",
+  "capabilities_effective",
+  "capabilities_ambient",
+  "capabilities_bounding",
+  "_effective_capabilities_forbidden",
+  "_ambient_capabilities_forbidden",
+  "_bounding_capabilities_forbidden",
   'firewall.engine !== "nftables"',
   "cloudflared_uid_isolation_proven: false",
   "historical_user_tunnel_retired_verified: false",
@@ -584,6 +623,12 @@ console.log("pseudo_ipv4_mode_off_required=true");
 console.log("cloudflared_to_adapter_policy_shape_qualified=true");
 console.log("adapter_to_dispatcher_policy_shape_qualified=true");
 console.log("closed_world_listener_sets_required=true");
+console.log("zero_effective_capability_sets_required=true");
+console.log("zero_ambient_capability_sets_required=true");
+console.log("zero_bounding_capability_sets_required=true");
+console.log("cap_setuid_adversary_rejected=true");
+console.log("cap_sys_ptrace_adversary_rejected=true");
+console.log("cap_sys_admin_adversary_rejected=true");
 console.log("noncloudflared_adapter_direct_connect_allowed=false");
 console.log("nonadapter_dispatcher_direct_connect_allowed=false");
 console.log("cloudflared_uid_isolation_proven=false");
