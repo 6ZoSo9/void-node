@@ -921,12 +921,18 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         elif indent == 4 and line.startswith("path:"):
             if current["path"] is not None:
                 raise CensusError("tunnel_rule_duplicate_path")
-            current["path"] = yaml_scalar(line.split(":", 1)[1])
+            scalar = yaml_scalar(line.split(":", 1)[1])
+            if scalar is None:
+                raise CensusError("tunnel_path_invalid")
+            current["path"] = scalar
             in_origin = False
         elif indent == 4 and line.startswith("service:"):
             if current["service"] is not None:
                 raise CensusError("tunnel_rule_duplicate_service")
-            current["service"] = yaml_scalar(line.split(":", 1)[1])
+            scalar = yaml_scalar(line.split(":", 1)[1])
+            if scalar is None:
+                raise CensusError("tunnel_service_invalid")
+            current["service"] = scalar
             in_origin = False
         elif indent == 4 and line == "originRequest:":
             if current["_origin_request_seen"]:
@@ -936,7 +942,10 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         elif in_origin and indent == 6 and line.startswith("httpHostHeader:"):
             if current["http_host_header"] is not None:
                 raise CensusError("tunnel_rule_duplicate_http_host_header")
-            current["http_host_header"] = yaml_scalar(line.split(":", 1)[1])
+            scalar = yaml_scalar(line.split(":", 1)[1])
+            if scalar is None:
+                raise CensusError("tunnel_rule_http_host_header_invalid")
+            current["http_host_header"] = scalar
         elif in_origin and indent == 6 and line.startswith("disableChunkedEncoding:"):
             if current["disable_chunked_encoding"] is not None:
                 raise CensusError("tunnel_rule_duplicate_chunked_encoding")
