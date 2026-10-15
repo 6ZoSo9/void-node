@@ -1,0 +1,103 @@
+name: DataNet chunk snapshot budget v1
+
+on:
+  pull_request:
+    paths:
+      - "src/http/datanet_routes.ts"
+      - "src/http/datanet_chunk_snapshot_budget_v1.ts"
+      - "scripts/prove_datanet_chunk_snapshot_budget_v1.mjs"
+      - "scripts/prove_datanet_chunk_descriptor_custody_v1.mjs"
+      - "docs/security/datanet-chunk-snapshot-budget-v1.md"
+      - ".github/workflows/datanet-chunk-snapshot-budget-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: snapshot budget / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact candidate without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install reviewed dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build and prove snapshot admission
+        run: |
+          set -euo pipefail
+          npm run build
+          proof_file="$RUNNER_TEMP/datanet-chunk-snapshot-budget-v1.txt"
+          node scripts/prove_datanet_chunk_snapshot_budget_v1.mjs | tee "$proof_file"
+          grep -Fx 'VOID_DATANET_CHUNK_SNAPSHOT_BUDGET_V1_GREEN' "$proof_file"
+          grep -Fx 'aggregate_budget_bytes=134217728' "$proof_file"
+          grep -Fx 'max_in_flight_snapshots=8' "$proof_file"
+          grep -Fx 'reservation_before_allocation=true' "$proof_file"
+          grep -Fx 'overload_no_snapshot_allocation=true' "$proof_file"
+          grep -Fx 'concurrent_snapshot_recovery_proven=true' "$proof_file"
+          grep -Fx 'aggregate_byte_ceiling_proven=true' "$proof_file"
+          grep -Fx 'max_chunk_budget_shape_proven=true' "$proof_file"
+          grep -Fx 'concurrency_count_ceiling_proven=true' "$proof_file"
+          grep -Fx 'request_owned_release_token=true' "$proof_file"
+          grep -Fx 'double_release_idempotent=true' "$proof_file"
+          grep -Fx 'hash_failure_releases=true' "$proof_file"
+          grep -Fx 'finish_releases=true' "$proof_file"
+          grep -Fx 'close_releases=true' "$proof_file"
+          grep -Fx 'response_error_releases=true' "$proof_file"
+          grep -Fx 'client_abort_releases=true' "$proof_file"
+          grep -Fx 'synchronous_send_failure_releases=true' "$proof_file"
+          grep -Fx 'stable_overload_status_503=true' "$proof_file"
+          grep -Fx 'descriptor_snapshot_semantics_preserved=true' "$proof_file"
+          grep -Fx 'put_create_only_semantics_preserved=true' "$proof_file"
+          grep -Fx 'wallet_signer_validator_wc_money_authority=0' "$proof_file"
+
+      - name: Re-prove descriptor custody predecessor
+        run: |
+          set -euo pipefail
+          predecessor="$RUNNER_TEMP/datanet-chunk-descriptor-custody-v1.txt"
+          node scripts/prove_datanet_chunk_descriptor_custody_v1.mjs | tee "$predecessor"
+          grep -Fx 'VOID_DATANET_CHUNK_DESCRIPTOR_CUSTODY_V1_GREEN' "$predecessor"
+          grep -Fx 'chunk_get_verified_snapshot_served=true' "$predecessor"
+          grep -Fx 'same_inode_mutation_after_verification_not_served=true' "$predecessor"
+          grep -Fx 'path_swap_after_verification_not_served=true' "$predecessor"
+          grep -Fx 'chunk_put_create_only=true' "$predecessor"
+          grep -Fx 'foreign_substitution_preserved_not_accepted=true' "$predecessor"
+
+      - name: Repository typecheck
+        run: npm run typecheck -- --pretty false
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check "$BASE" "$HEAD"
