@@ -13,6 +13,8 @@
 #define SANITIZED_ENV_MARKER "VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1"
 #define E2_CREDENTIAL_ID "buy-void-epoch2-fulfiller-v1"
 #define E2_DROPIN_BASENAME "97-buy-void-epoch2-fulfiller-credential-v1.conf"
+#define MAX_DROPIN_PATHS 32
+#define MAX_DROPIN_TOTAL_BYTES (16 * 1024)
 
 typedef struct sd_bus sd_bus;
 typedef struct sd_bus_message sd_bus_message;
@@ -57,12 +59,19 @@ struct unit_observation {
   uint32_t main_pid;
 };
 
+struct dropin_set_observation {
+  size_t count;
+  size_t credential_match_count;
+  size_t canonical_bytes;
+  char credential_dropin_path[PATH_MAX];
+  char canonical_paths[MAX_DROPIN_TOTAL_BYTES + 1];
+};
+
 struct credential_observation {
   int need_daemon_reload;
-  size_t dropin_count;
   size_t load_credential_count;
   char fragment_path[PATH_MAX];
-  char dropin_path[PATH_MAX];
+  struct dropin_set_observation dropins;
   char credential_source[PATH_MAX];
 };
 
@@ -263,6 +272,36 @@ static const char *path_basename_const(const char *value) {
   return slash ? slash + 1 : value;
 }
 
+static int add_dropin_path(
+    struct dropin_set_observation *out,
+    const char *value) {
+  if (!out || canonical_absolute_path(value) != 0 ||
+      out->count >= MAX_DROPIN_PATHS) return -1;
+  size_t n = strlen(value);
+  if (n + 1 > MAX_DROPIN_TOTAL_BYTES - out->canonical_bytes) return -1;
+
+  memcpy(out->canonical_paths + out->canonical_bytes, value, n);
+  out->canonical_bytes += n;
+  out->canonical_paths[out->canonical_bytes++] = '\n';
+  out->canonical_paths[out->canonical_bytes] = '\0';
+  ++out->count;
+
+  if (strcmp(path_basename_const(value), E2_DROPIN_BASENAME) == 0) {
+    ++out->credential_match_count;
+    if (out->credential_match_count != 1 ||
+        copy_string(
+            out->credential_dropin_path,
+            sizeof(out->credential_dropin_path),
+            value) != 0) return -1;
+  }
+  return 0;
+}
+
+static int dropin_set_complete(
+    const struct dropin_set_observation *out) {
+  return out && out->count > 0 && out->credential_match_count == 1 ? 0 : -1;
+}
+
 static int exact_service_cgroup(pid_t pid, uid_t uid, const char *unit) {
   char proc_path[128];
   if (snprintf(
@@ -415,14 +454,15 @@ static int validate_unit(
   return 0;
 }
 
-static int get_exact_single_dropin(
+static int get_bounded_dropins(
     struct sd_api *api,
     const struct credential_sd_api *extra,
     sd_bus *bus,
     const char *object,
-    char *dst,
-    size_t cap,
-    size_t *out_count) {
+    struct dropin_set_observation *out) {
+  if (!out) return -1;
+  memset(out, 0, sizeof(*out));
+
   sd_bus_message *reply = NULL;
   int r = extra->get_property(
       bus, NULL, object, "org.freedesktop.systemd1.Unit", "DropInPaths",
@@ -433,11 +473,9 @@ static int get_exact_single_dropin(
     return -1;
   }
 
-  size_t count = 0;
   const char *value = NULL;
   while ((r = api->message_read(reply, "s", &value)) > 0) {
-    ++count;
-    if (count == 1 && copy_string(dst, cap, value) != 0) {
+    if (add_dropin_path(out, value) != 0) {
       api->message_unref(reply);
       return -1;
     }
@@ -447,8 +485,7 @@ static int get_exact_single_dropin(
     return -1;
   }
   api->message_unref(reply);
-  *out_count = count;
-  return count == 1 ? 0 : -1;
+  return dropin_set_complete(out);
 }
 
 static int get_exact_single_load_credential(
@@ -504,10 +541,9 @@ static int query_credential_observation(
       get_string_prop(
           api, bus, object, "org.freedesktop.systemd1.Unit",
           "FragmentPath", out->fragment_path, sizeof(out->fragment_path)) != 0 ||
-      get_exact_single_dropin(
+      get_bounded_dropins(
           api, extra, bus, object,
-          out->dropin_path, sizeof(out->dropin_path),
-          &out->dropin_count) != 0 ||
+          &out->dropins) != 0 ||
       get_exact_single_load_credential(
           api, extra, bus, object,
           out->credential_source, sizeof(out->credential_source),
@@ -515,12 +551,15 @@ static int query_credential_observation(
 
   if (out->need_daemon_reload != 0 ||
       canonical_absolute_path(out->fragment_path) != 0 ||
-      canonical_absolute_path(out->dropin_path) != 0 ||
+      canonical_absolute_path(out->dropins.credential_dropin_path) != 0 ||
       canonical_absolute_path(out->credential_source) != 0 ||
+      out->dropins.credential_match_count != 1 ||
       strcmp(
-          path_basename_const(out->dropin_path),
+          path_basename_const(out->dropins.credential_dropin_path),
           E2_DROPIN_BASENAME) != 0 ||
-      strcmp(out->fragment_path, out->dropin_path) == 0) return -1;
+      strcmp(
+          out->fragment_path,
+          out->dropins.credential_dropin_path) == 0) return -1;
   return 0;
 }
 
@@ -538,10 +577,17 @@ static int same_credential_observation(
     const struct credential_observation *a,
     const struct credential_observation *b) {
   return a->need_daemon_reload == b->need_daemon_reload &&
-      a->dropin_count == b->dropin_count &&
       a->load_credential_count == b->load_credential_count &&
+      a->dropins.count == b->dropins.count &&
+      a->dropins.credential_match_count == b->dropins.credential_match_count &&
+      a->dropins.canonical_bytes == b->dropins.canonical_bytes &&
       strcmp(a->fragment_path, b->fragment_path) == 0 &&
-      strcmp(a->dropin_path, b->dropin_path) == 0 &&
+      strcmp(
+          a->dropins.credential_dropin_path,
+          b->dropins.credential_dropin_path) == 0 &&
+      strcmp(
+          a->dropins.canonical_paths,
+          b->dropins.canonical_paths) == 0 &&
       strcmp(a->credential_source, b->credential_source) == 0;
 }
 
@@ -716,8 +762,16 @@ static int live_credential_query(uid_t uid, const char *unit) {
   printf("service_start_ticks=%llu\n", service_before.start_ticks);
   printf("NeedDaemonReload=no\n");
   printf("FragmentPath=%s\n", credential_before.fragment_path);
-  printf("DropInPathCount=%zu\n", credential_before.dropin_count);
-  printf("DropInPath=%s\n", credential_before.dropin_path);
+  printf("DropInPathCount=%zu\n", credential_before.dropins.count);
+  printf(
+      "CredentialDropInMatchCount=%zu\n",
+      credential_before.dropins.credential_match_count);
+  printf(
+      "DropInPathsCanonicalBytes=%zu\n",
+      credential_before.dropins.canonical_bytes);
+  printf(
+      "DropInPath=%s\n",
+      credential_before.dropins.credential_dropin_path);
   printf("LoadCredentialCount=%zu\n", credential_before.load_credential_count);
   printf("LoadCredentialId=%s\n", E2_CREDENTIAL_ID);
   printf("LoadCredentialSource=%s\n", credential_before.credential_source);
@@ -762,26 +816,61 @@ static int self_test_credential_query(void) {
   }
   unload_sd_api(&api);
 
+  struct dropin_set_observation zero_match;
+  memset(&zero_match, 0, sizeof(zero_match));
+  if (add_dropin_path(
+          &zero_match,
+          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
+          "98-buy-void-allocation-custody-runtime-hardening-v2.conf") != 0 ||
+      dropin_set_complete(&zero_match) == 0) return 1;
+
+  struct dropin_set_observation duplicate_match;
+  memset(&duplicate_match, 0, sizeof(duplicate_match));
+  if (add_dropin_path(
+          &duplicate_match,
+          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
+          E2_DROPIN_BASENAME) != 0 ||
+      add_dropin_path(
+          &duplicate_match,
+          "/etc/systemd/user/void-node-live.service.d/"
+          E2_DROPIN_BASENAME) == 0) return 1;
+
+  struct dropin_set_observation malformed;
+  memset(&malformed, 0, sizeof(malformed));
+  if (add_dropin_path(&malformed, "relative/dropin.conf") == 0 ||
+      add_dropin_path(
+          &malformed,
+          "/home/zoso/.config/systemd/user/../bad.conf") == 0) return 1;
+
   struct credential_observation a;
   struct credential_observation b;
   memset(&a, 0, sizeof(a));
   memset(&b, 0, sizeof(b));
-  a.dropin_count = b.dropin_count = 1;
   a.load_credential_count = b.load_credential_count = 1;
-  if (copy_string(
+  if (add_dropin_path(
+          &a.dropins,
+          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
+          E2_DROPIN_BASENAME) != 0 ||
+      add_dropin_path(
+          &a.dropins,
+          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
+          "98-buy-void-allocation-custody-runtime-hardening-v2.conf") != 0 ||
+      add_dropin_path(
+          &b.dropins,
+          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
+          E2_DROPIN_BASENAME) != 0 ||
+      add_dropin_path(
+          &b.dropins,
+          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
+          "98-buy-void-allocation-custody-runtime-hardening-v2.conf") != 0 ||
+      dropin_set_complete(&a.dropins) != 0 ||
+      dropin_set_complete(&b.dropins) != 0 ||
+      copy_string(
           a.fragment_path, sizeof(a.fragment_path),
           "/usr/lib/systemd/user/void-node-live.service") != 0 ||
       copy_string(
           b.fragment_path, sizeof(b.fragment_path),
           "/usr/lib/systemd/user/void-node-live.service") != 0 ||
-      copy_string(
-          a.dropin_path, sizeof(a.dropin_path),
-          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
-          E2_DROPIN_BASENAME) != 0 ||
-      copy_string(
-          b.dropin_path, sizeof(b.dropin_path),
-          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
-          E2_DROPIN_BASENAME) != 0 ||
       copy_string(
           a.credential_source, sizeof(a.credential_source),
           "/home/zoso/.local/share/void-epoch2/credential") != 0 ||
@@ -789,6 +878,19 @@ static int self_test_credential_query(void) {
           b.credential_source, sizeof(b.credential_source),
           "/home/zoso/.local/share/void-epoch2/credential") != 0 ||
       !same_credential_observation(&a, &b)) return 1;
+
+  struct credential_observation changed = b;
+  memset(&changed.dropins, 0, sizeof(changed.dropins));
+  if (add_dropin_path(
+          &changed.dropins,
+          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
+          "98-buy-void-allocation-custody-runtime-hardening-v2.conf") != 0 ||
+      add_dropin_path(
+          &changed.dropins,
+          "/home/zoso/.config/systemd/user/void-node-live.service.d/"
+          E2_DROPIN_BASENAME) != 0 ||
+      same_credential_observation(&a, &changed)) return 1;
+
   b.need_daemon_reload = 1;
   if (same_credential_observation(&a, &b)) return 1;
 
@@ -802,6 +904,12 @@ static int self_test_credential_query(void) {
   printf("dropin_paths_queried_same_connection=true\n");
   printf("load_credential_queried_same_connection=true\n");
   printf("main_pid_kernel_bound=true\n");
+  printf("bounded_dropin_set_observed=true\n");
+  printf("exactly_one_credential_dropin_match_required=true\n");
+  printf("unrelated_hardening_dropin_allowed=true\n");
+  printf("dropin_set_generation_stability_required=true\n");
+  printf("security_transcript_composed=false\n");
+  printf("credential_query_preexec_execution_path_proven=false\n");
   printf("credential_contents_read=false\n");
   printf("binary_acceptance=false\n");
   printf("live_query_authorized=false\n");
