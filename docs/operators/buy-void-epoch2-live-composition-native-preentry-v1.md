@@ -169,9 +169,17 @@ The host's real `/home/zoso`, `/home/zoso/dev`, ownership and permission
 metadata are never created, chowned or chmodded by this proof.
 
 The proof never normalizes or rewrites the host's real `/opt` or `/home`.
-The outer unprivileged process copies only its current Node executable into a
-disposable user-private bootstrap directory and invokes fixed
-`/usr/bin/unshare --mount --fork` through passwordless sudo.
+The outer unprivileged process asks fixed `/usr/bin/mktemp` through
+passwordless sudo to create the disposable bootstrap root as root from the
+start, then uses fixed `/usr/bin/install` through sudo to place the selected
+harness Node there as a root-owned, non-group/world-writable executable. The
+delegated child independently revalidates both bootstrap-root and harness
+custody. The root is removed with fixed `/usr/bin/rm` on every later
+success/failure path. This prevents a same-UID process from replacing the
+bootstrap backing generation while the privileged fixture is assembled.
+
+The proof then invokes fixed `/usr/bin/unshare --mount --fork` through
+passwordless sudo.
 
 Inside that new mount namespace, the root bootstrap first makes mount
 propagation private, bind-mounts the exact hosted checkout to a read-only mirror
