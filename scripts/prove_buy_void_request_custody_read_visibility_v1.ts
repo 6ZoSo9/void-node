@@ -341,7 +341,7 @@ try{
         ()=>true,
       ],
     ),
-    /private_directory_metadata_unavailable/u,
+    /custody_readable_directory_realpath_unavailable/u,
   );
   assert.equal(fs.existsSync(absent),false,"shared mode must not create an unprovisioned root");
 }finally{
