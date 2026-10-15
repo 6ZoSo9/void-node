@@ -62,6 +62,30 @@ assert.deepEqual(
 assert.ok(workflow.includes("  push:\n    branches: [main]\n"));
 assert.ok(workflow.includes('if [ -z "${BASE:-}" ]; then'));
 assert.ok(workflow.includes('BASE="$(git rev-parse "$HEAD^1")"'));
+assert.equal(
+  (workflow.match(/if sudo test -e "\$root" \|\| sudo test -L "\$root"; then/gu)||[]).length,
+  2,
+);
+assert.equal(
+  (workflow.match(/sudo rm -rf --one-file-system "\$root"/gu)||[]).length,
+  2,
+);
+assert.equal(workflow.includes('sudo rm -rf "$root" || true'),false);
+assert.equal(
+  (workflow.match(/\.void-fixture-owner-v1/gu)||[]).length >= 3,
+  true,
+);
+for(const marker of [
+  "fixture_preflight_file_rejected=true",
+  "fixture_preflight_symlink_rejected=true",
+  "fixture_preflight_directory_rejected=true",
+  "fixture_preflight_stale_owned_rejected=true",
+]){
+  assert.ok(workflow.includes(marker),marker);
+}
+assert.ok(workflow.includes('refusing cleanup of unverified fixture root'));
+assert.ok(workflow.includes('fixture root still exists after cleanup'));
+assert.ok(workflow.includes('exit 97'));
 
 for(const token of [
   "VOID_CLOUDFLARE_HISTORICAL_USER_TUNNEL_RETIREMENT_PREEXEC_V2",
@@ -114,6 +138,9 @@ console.log("direct_marker_invocation_rejected=true");
 console.log("forged_proof_channel_rejected=true");
 console.log("accepted_main_trigger_path_parity=true");
 console.log("non_pr_diff_base_fallback_proven=true");
+console.log("fixture_preexisting_state_rejected=true");
+console.log("fixture_cleanup_run_owned_only=true");
+console.log("fixture_cleanup_failure_is_fatal=true");
 console.log("future_restart_prevented=false");
 console.log("historical_user_tunnel_retirement_verified=false");
 console.log("host_installation=false");
