@@ -188,7 +188,7 @@ async function main(){
   process.stdout.write(
     JSON.stringify({
       marker:VOID_APOLLYON_AUTHORIZATION_CUSTODY_LAUNCHER_V2,
-      version:1,
+      version:2,
       status:"custody_service_started",
       attempt_claimed:false,
       training_execution_performed:false,
