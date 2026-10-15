@@ -10,6 +10,7 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/public/void_cloudflare_origin_designated_host_census_v1.py"
 DOC = ROOT / "docs/operators/cloudflare-origin-designated-host-census-v1.md"
+WORKFLOW = ROOT / ".github/workflows/cloudflare-origin-designated-host-census-v1.yml"
 
 spec = importlib.util.spec_from_file_location(
     "void_cloudflare_origin_designated_host_census_v1",
@@ -60,6 +61,51 @@ assert 'process.env.VOID_PUBLIC_FRONTDOOR_PORT || "8083"' in frontdoor_text
 assert 'if (BIND !== "127.0.0.1")' in frontdoor_text
 assert module.ORDINARY_FRONTDOOR_SERVICE == "http://127.0.0.1:8083"
 assert module.GLOBAL_CATCHALL_SERVICE == "http_status:404"
+
+workflow_lines = WORKFLOW.read_text(encoding="utf-8").splitlines()
+
+def workflow_trigger_paths(trigger: str) -> tuple[str, ...]:
+    marker = f"  {trigger}:"
+    assert workflow_lines.count(marker) == 1, trigger
+    start = workflow_lines.index(marker) + 1
+    end = len(workflow_lines)
+    for index in range(start, len(workflow_lines)):
+        if re.fullmatch(r"  [A-Za-z0-9_-]+:", workflow_lines[index]):
+            end = index
+            break
+    block = workflow_lines[start:end]
+    assert block.count("    paths:") == 1, trigger
+    path_start = block.index("    paths:") + 1
+    paths: list[str] = []
+    for line in block[path_start:]:
+        match = re.fullmatch(r'      - "([^"]+)"', line)
+        if match:
+            paths.append(match.group(1))
+            continue
+        if line.startswith("      - "):
+            raise AssertionError(("noncanonical workflow path", trigger, line))
+        if line and not line.startswith("      "):
+            break
+    assert paths, trigger
+    return tuple(paths)
+
+expected_workflow_paths = (
+    "ops/public/void_cloudflare_origin_designated_host_census_v1.py",
+    "scripts/prove_void_cloudflare_origin_designated_host_census_v1.py",
+    "docs/operators/cloudflare-origin-designated-host-census-v1.md",
+    module.SOURCE_BLOBS["policy"]["path"],
+    module.SOURCE_BLOBS["adapter"]["path"],
+    module.SOURCE_BLOBS["dispatcher"]["path"],
+    frontdoor["path"],
+    ".github/workflows/cloudflare-origin-designated-host-census-v1.yml",
+)
+pull_request_paths = workflow_trigger_paths("pull_request")
+push_paths = workflow_trigger_paths("push")
+assert pull_request_paths == expected_workflow_paths
+assert push_paths == expected_workflow_paths
+push_start = workflow_lines.index("  push:")
+push_end = workflow_lines.index("  workflow_dispatch:")
+assert "    branches: [main]" in workflow_lines[push_start:push_end]
 
 status = module.parse_proc_status(
     "Uid:\t991 991 991 991\n"
@@ -558,6 +604,8 @@ print("tunnel_origin_request_scope_exit_rejected=true")
 print("reviewed_frontdoor_source_blob_bound=true")
 print("ordinary_frontdoor_target_exact=true")
 print("global_catchall_http_status_404_required=true")
+print("focused_workflow_pr_main_path_parity=true")
+print("focused_workflow_frontdoor_dependency_bound=true")
 print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
