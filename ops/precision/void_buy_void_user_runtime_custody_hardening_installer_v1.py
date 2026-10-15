@@ -293,6 +293,15 @@ def validate_user_path(path: pathlib.Path, uid: int) -> None:
     if stat.S_IMODE(st.st_mode) & 0o022:
         raise Hold("user_systemd_parent_group_world_writable")
 
+def validate_user_file(path: pathlib.Path, uid: int) -> None:
+    st = path.lstat()
+    if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_nlink != 1:
+        raise Hold("user_systemd_fragment_not_direct_single_link_regular")
+    if st.st_uid != uid:
+        raise Hold("user_systemd_fragment_not_owned_by_runtime_user")
+    if stat.S_IMODE(st.st_mode) & 0o022:
+        raise Hold("user_systemd_fragment_group_world_writable")
+
 def host_context(root: pathlib.Path) -> dict[str, Any]:
     if socket.gethostname() != EXPECTED_HOSTNAME:
         raise Hold("wrong_designated_host")
@@ -320,6 +329,10 @@ def host_context(root: pathlib.Path) -> dict[str, Any]:
     receipt = state_dir / "installation.json"
     env = safe_env(uid, home)
     service = service_snapshot(env)
+    expected_fragment = service_dir / UNIT
+    if service["fragment_path"] != str(expected_fragment):
+        raise Hold("runtime_unit_fragment_path_unexpected")
+    validate_user_file(expected_fragment, uid)
     process = process_snapshot(service["main_pid"])
     listeners = listener_snapshot(env, service["main_pid"])
     target_state = file_state(target)
@@ -462,8 +475,11 @@ def source_plan() -> None:
 def plan(root: pathlib.Path) -> None:
     ctx = host_context(root)
     print_common(ctx, "--plan")
-    already = bool(ctx["target_state"].get("exists")) and installed_policy_green(
-        ctx["service"], ctx["process"]
+    already = (
+        bool(ctx["target_state"].get("exists"))
+        and str(ctx["target"]) in ctx["service"]["dropin_paths"]
+        and ctx["service"]["need_daemon_reload"] is False
+        and installed_policy_green(ctx["service"], ctx["process"])
     )
     if ctx["target_state"].get("exists") and not already:
         print("apply_candidate=false")
@@ -486,7 +502,11 @@ def apply(root: pathlib.Path, confirm: str) -> None:
     ctx = host_context(root)
     print_common(ctx, "--apply")
     if ctx["target_state"].get("exists"):
-        if installed_policy_green(ctx["service"], ctx["process"]):
+        if (
+            str(ctx["target"]) in ctx["service"]["dropin_paths"]
+            and ctx["service"]["need_daemon_reload"] is False
+            and installed_policy_green(ctx["service"], ctx["process"])
+        ):
             print("already_hardened=true")
             print("filesystem_write=false")
             print("systemd_mutation=false")
