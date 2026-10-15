@@ -15,13 +15,27 @@ This census enumerates a bounded set of *known current candidates*:
 - the historical repository working-directory default;
 - the current user-unit working-directory default;
 - the live process cwd default;
-- the live process's current explicit `VOID_BUY_REQUEST_DIR`, when readable;
+- the live runtime's explicit `VOID_BUY_REQUEST_DIR`, when the already-reviewed
+  confirmed-closeout loopback status route reports it from a stable runtime
+  PID/listener generation;
 - every direct 40-hex immutable release beneath
   `/opt/void-node-live/releases`;
 - the future stable target.
 
 It reads only root/fixed-leaf metadata and direct-entry **counts**. It never
 prints direct-entry names and never reads request/payment JSONL contents.
+
+The census does **not** read `/proc/<pid>/environ` or request the full systemd
+environment. That would unnecessarily expose unrelated same-process secrets.
+Explicit request-root discovery instead uses the bounded loopback GET already
+reviewed by the V1/V2 topology census. The loopback listener must remain owned
+by the same stable runtime PID generation across the observation. External
+network calls remain forbidden.
+
+The designated machine identity is read through the hardened V2 descriptor-bound
+`/etc/machine-id` routine, including no-symlink, root-owned/non-writable,
+single-link and before/after identity checks. Subprocesses use the V1 minimal
+user environment rather than inheriting the caller's ambient environment.
 
 ## Critical nonclaim
 
@@ -55,7 +69,9 @@ this census generation, followed by an independently witnessed genesis for the
 new stable root. That governance disposition must state its human/accounting
 basis truthfully; it must not masquerade as cryptographic historical proof.
 
-No host mutation, customer/payment content read, service/systemd change,
-payment acceptance, presale activation or funds movement occurs here.
+No host mutation, process-environment read, customer/payment content read,
+external network call, service/systemd change, payment acceptance, presale
+activation or funds movement occurs here. The only network observation is the
+bounded loopback GET described above.
 
 PROTECT THE CORE.
