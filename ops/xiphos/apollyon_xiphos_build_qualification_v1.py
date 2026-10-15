@@ -402,6 +402,7 @@ def self_test() -> int:
     print("persistent_filesystem_write=false")
     print("ephemeral_temp_write=false")
     print("sudo_required=false")
+    print("network_calls=false")
     print("service_mutation=false")
     print("account_mutation=false")
     print("training_execution=false")
@@ -416,16 +417,27 @@ def qualify() -> int:
         raise Hold("wrong_host:" + hostname)
 
     unit_bytes = read_exact(UNIT, EXPECTED_UNIT_BLOB)
-    read_exact(PREENTRY_SOURCE, EXPECTED_PREENTRY_SOURCE_BLOB)
-    read_exact(ENTRYPOINT_SOURCE, EXPECTED_ENTRYPOINT_SOURCE_BLOB)
+    preentry_source_bytes = read_exact(
+        PREENTRY_SOURCE, EXPECTED_PREENTRY_SOURCE_BLOB
+    )
+    entrypoint_source_bytes = read_exact(
+        ENTRYPOINT_SOURCE, EXPECTED_ENTRYPOINT_SOURCE_BLOB
+    )
     compiler = compiler_identity()
 
     with tempfile.TemporaryDirectory(
         prefix="void-xiphos-apollyon-build-qualification-v1-"
     ) as temporary:
         work = Path(temporary)
+        preentry_source_snapshot = work / "apollyon_training_bus_isolation_preentry_v1.c"
+        entrypoint_source_snapshot = work / "apollyon_candidate_training_entrypoint_v1.c"
+        preentry_source_snapshot.write_bytes(preentry_source_bytes)
+        entrypoint_source_snapshot.write_bytes(entrypoint_source_bytes)
+        preentry_source_snapshot.chmod(0o400)
+        entrypoint_source_snapshot.chmod(0o400)
+
         preentry = qualify_binary(
-            source=PREENTRY_SOURCE,
+            source=preentry_source_snapshot,
             name="preentry",
             expected_bytes=EXPECTED_PREENTRY_BYTES,
             expected_sha=EXPECTED_PREENTRY_SHA256,
@@ -433,13 +445,17 @@ def qualify() -> int:
             work=work,
         )
         entrypoint = qualify_binary(
-            source=ENTRYPOINT_SOURCE,
+            source=entrypoint_source_snapshot,
             name="entrypoint",
             expected_bytes=EXPECTED_ENTRYPOINT_BYTES,
             expected_sha=EXPECTED_ENTRYPOINT_SHA256,
             self_test_marker=ENTRYPOINT_SELF_TEST_MARKER,
             work=work,
         )
+        if preentry_source_snapshot.read_bytes() != preentry_source_bytes:
+            raise Hold("preentry_source_snapshot_integrity_drift")
+        if entrypoint_source_snapshot.read_bytes() != entrypoint_source_bytes:
+            raise Hold("entrypoint_source_snapshot_integrity_drift")
         systemd = verify_adjusted_unit(
             unit_bytes.decode("utf-8"),
             work,
@@ -477,6 +493,9 @@ def qualify() -> int:
             "hostname": hostname,
             "designated_host": True,
             "read_only_host_state": True,
+            "network_calls": False,
+            "verified_source_snapshot": True,
+            "source_snapshot_integrity_revalidated": True,
             "ephemeral_temp_write": True,
             "persistent_filesystem_write": False,
             "sudo_required": False,
@@ -517,6 +536,7 @@ def qualify() -> int:
         print("ephemeral_temp_write=true")
         print("persistent_filesystem_write=false")
         print("sudo_required=false")
+        print("network_calls=false")
         print("service_mutation=false")
         print("account_mutation=false")
         print("training_execution=false")
@@ -541,6 +561,7 @@ def main() -> int:
     except Hold as exc:
         print("HOLD=" + str(exc), file=os.sys.stderr)
         print("persistent_filesystem_write=false", file=os.sys.stderr)
+        print("network_calls=false", file=os.sys.stderr)
         print("service_mutation=false", file=os.sys.stderr)
         print("account_mutation=false", file=os.sys.stderr)
         print("training_execution=false", file=os.sys.stderr)
