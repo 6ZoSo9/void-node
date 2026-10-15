@@ -2,6 +2,43 @@
 
 Marker: `VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1`
 
+## V7 checkout bridge successor — 2026-10-13
+
+This revision switches the Ethereum checkout's direct source-finality authority
+bridge from historical V6 to V7. It is stacked on the V7 execution-preflight
+integration and reuses that exact server-controlled policy surface: existing
+primary Ethereum RPC fields, a required independent secondary Ethereum RPC
+URL/identity, an absolute canonical deployment-receipt path, immutable process
+commit/tree identity, and the existing canonical dual-rail USDC/receiver policy.
+
+Payment-instruction readiness now requires the V7 capability contract as a
+static prerequisite, but that static descriptor is explicitly **not**
+payment-instruction authority. It states what a successful at-use observation
+must prove: operator deployment receipt, immutable process identity, reviewed
+source/deployed generation, two independent provider transports,
+two-provider ancestry/quorum, and production authority. Until a separately
+reviewed freshness-bounded live-admission receipt binds those facts to the
+current process, new Ethereum payment instructions remain HOLD. Existing paid
+attempt reconciliation may still perform the real V7 observation path.
+
+V7 deliberately reports remote legal-provider identity as false; the checkout
+therefore requires independent transport verification rather than relabeling
+transport diversity as legal identity.
+
+The pre-attempt bridge rebuilds the latest-head V2 payment event exactly as
+before, then calls V7 with primary + secondary finalized observers, the retained
+root-custodied deployment receipt, and the same remaining end-to-end deadline.
+A finality observation is transition-ready only with the exact V7 marker,
+receipt-bound source verification mode, accepted enforcement identity
+`ea7abb9300215e4f76caea4706fa4c4c81465c32f30a3350fe4f01177f845cfb`,
+content-addressed deployment receipt ID, independent-provider transport fact,
+source/deployed generation, ancestry and quorum.
+
+This source change does not enable intake. The currently deployed environment
+still lacks the new V7 runtime configuration/receipt, and the separate coupled
+launch gate remains required. Sections below describing V6 as the active bridge
+are retained as historical rationale; this section controls where they conflict.
+
 ## Outcome
 
 Provide one fail-closed prerequisite for the Ethereum public Buy VOID checkout
@@ -36,8 +73,12 @@ an identity-misconfigured process from accepting a payment that the later
 pre-attempt bridge would necessarily HOLD.
 
 Payment-instruction readiness and the pre-attempt bridge share one strict
-classifier over the canonical V6 finality capability authority. The classifier
-requires the full reviewed-success contract, not a hand-picked subset:
+classifier over the canonical finality capability authority. The classifier
+requires the full reviewed-success contract, not a hand-picked subset, but its
+positive result is **capability/configuration evidence only**. The participant
+instruction path still returns
+`ethereum_payment_instructions_live_admission_required` until a later reviewed
+live-admission receipt is composed. The classifier requires:
 runtime source reads enabled with runtime source writes forbidden, caller
 generation assertions forbidden, reviewed-source verification, authenticated
 transport identity, total deadline, in-composition observation, source/deployed

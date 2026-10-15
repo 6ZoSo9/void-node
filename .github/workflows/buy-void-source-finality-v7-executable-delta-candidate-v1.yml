@@ -1,0 +1,284 @@
+name: VOID Buy VOID V7 executable delta candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
+      - "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts"
+      - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
+      - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v3.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v3.md"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/precision/**"
+      - "ops/security/**"
+      - "ops/run-void-node-live-v1.sh"
+      - "runtime/**"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
+      - "src/economic/**"
+      - "src/index.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
+      - "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts"
+      - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
+      - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v3.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v3.md"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/precision/**"
+      - "ops/security/**"
+      - "ops/run-void-node-live-v1.sh"
+      - "runtime/**"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
+      - "src/economic/**"
+      - "src/index.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    name: derive / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install exact audited lock
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build exact candidate
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Derive non-authoritative V7 executable delta
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs
+          receipt="$RUNNER_TEMP/v7-executable-delta-node-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs > "$receipt"
+          node --input-type=module - "$receipt" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const value=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(
+            value.marker,
+            "VOID_BUY_VOID_SOURCE_FINALITY_V7_EXECUTABLE_DELTA_CANDIDATE_V1",
+          );
+          assert.equal(value.module_count,6);
+          assert.equal(value.modules.length,6);
+          assert.equal(value.predecessor_enforcement_lock.historical_identity_preserved,true);
+          assert.equal(value.cross_node_byte_identity_required,true);
+          assert.equal(value.candidate_only,true);
+          assert.equal(value.complete_executable_closure_verified,false);
+          assert.equal(value.candidate_enforcement_identity_accepted,false);
+          assert.equal(value.deployed_artifact_generation_verified,false);
+          assert.equal(value.production_source_finality_authority_ready,false);
+          assert.equal(value.public_presale_activation,false);
+          assert.equal(value.funds_movement,false);
+          assert.match(value.source_inventory_sha256,/^[0-9a-f]{64}$/u);
+          assert.match(value.artifact_inventory_sha256,/^[0-9a-f]{64}$/u);
+          assert.match(value.candidate_generation_sha256,/^[0-9a-f]{64}$/u);
+          console.log("VOID_BUY_VOID_V7_EXECUTABLE_DELTA_CANDIDATE_NODE_GREEN");
+          NODE
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+      - name: Upload exact candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-v7-executable-delta-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/v7-executable-delta-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node-major candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-v7-executable-delta-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+
+      - name: Require Node 22 24 26 byte identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "receipts/v7-executable-delta-node-$node.json"
+          done
+          cmp receipts/v7-executable-delta-node-22.json receipts/v7-executable-delta-node-24.json
+          cmp receipts/v7-executable-delta-node-22.json receipts/v7-executable-delta-node-26.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const value=JSON.parse(
+            fs.readFileSync("receipts/v7-executable-delta-node-22.json","utf8"),
+          );
+          assert.equal(value.module_count,6);
+          assert.equal(value.candidate_only,true);
+          assert.equal(value.complete_executable_closure_verified,false);
+          assert.equal(value.candidate_enforcement_identity_accepted,false);
+          assert.equal(value.production_source_finality_authority_ready,false);
+          assert.equal(value.funds_movement,false);
+          console.log("VOID_BUY_VOID_V7_EXECUTABLE_DELTA_CANDIDATE_CROSS_NODE_GREEN");
+          console.log("candidate_generation_sha256="+value.candidate_generation_sha256);
+          console.log("artifact_inventory_sha256="+value.artifact_inventory_sha256);
+          NODE
+
+
+  protected-census:
+    name: protected census / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact census head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install and build exact generation
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+      - name: Derive protected whole-enforcement census
+        run: |
+          set -euo pipefail
+          echo "CURRENT_V4_CENSUS_DISPATCH_V1"
+          node --check scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs
+          receipt="$RUNNER_TEMP/protected-census-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs > "$receipt"
+          node --input-type=module - "$receipt" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const v=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(v.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_ARTIFACT_CENSUS_V4");
+          assert.equal(v.economic_artifact_count,28);
+          assert.equal(v.economic_source_file_count,28);
+          assert.equal(v.protected_tracked_source_count,49);
+          assert.equal(v.exact_parent_protected_inventory_verified,true);
+          assert.equal(v.census_only,true);
+          assert.equal(v.complete_executable_closure_verified,false);
+          assert.equal(v.candidate_enforcement_identity_accepted,false);
+          assert.equal(v.production_source_finality_authority_ready,false);
+          assert.equal(v.public_presale_activation,false);
+          assert.equal(v.funds_movement,false);
+          assert.match(v.protected_tracked_source_inventory_canonical_sha256,/^[0-9a-f]{64}$/u);
+          assert.match(v.census_id,/^voidbefv7c4_[0-9a-f]{64}$/u);
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-protected-census-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/protected-census-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  protected-census-cross-node:
+    needs: [protected-census]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-protected-census-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: protected-census
+      - name: Require exact Node 22 24 26 census equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "protected-census/protected-census-$node.json"; done
+          cmp protected-census/protected-census-22.json protected-census/protected-census-24.json
+          cmp protected-census/protected-census-22.json protected-census/protected-census-26.json
+          node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          import crypto from "node:crypto";
+          const b=fs.readFileSync("protected-census/protected-census-22.json");
+          const v=JSON.parse(b);
+          console.log("VOID_BUY_VOID_FINAL_PROTECTED_CENSUS_V4_CROSS_NODE_GREEN");
+          console.log("census_id="+v.census_id);
+          console.log("census_json_sha256="+crypto.createHash("sha256").update(b).digest("hex"));
+          console.log("economic_artifact_inventory_sha256="+v.economic_hosted_artifact_inventory_sha256);
+          console.log("economic_source_inventory_sha256="+v.economic_hosted_source_inventory_sha256);
+          console.log("protected_inventory_sha256="+v.protected_tracked_source_inventory_canonical_sha256);
+          console.log("candidate_enforcement_identity_accepted=false");
+          console.log("funds_movement=false");
+          NODE

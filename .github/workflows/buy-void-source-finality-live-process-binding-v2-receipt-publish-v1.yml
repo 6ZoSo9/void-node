@@ -1,0 +1,263 @@
+name: VOID Buy VOID protected V2 receipt publisher
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
+      - "scripts/prove_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "docs/operators/buy-void-source-finality-live-process-binding-v2-receipt-publish-v1.md"
+      - ".github/workflows/buy-void-source-finality-live-process-binding-v2-receipt-publish-v1.yml"
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash"
+      - "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c"
+      - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
+      - "scripts/prove_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "docs/operators/buy-void-source-finality-live-process-binding-v2-receipt-publish-v1.md"
+      - ".github/workflows/buy-void-source-finality-live-process-binding-v2-receipt-publish-v1.yml"
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash"
+      - "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c"
+      - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Bind exact head
+        env:
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Typecheck and prove publisher
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          node --import "file://$PWD/node_modules/tsx/dist/loader.mjs"             scripts/prove_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts |
+            tee "$RUNNER_TEMP/v2-publisher.log"
+          grep -Fx 'VOID_BUY_VOID_V2_LIVE_PROCESS_RECEIPT_PUBLISHER_V1_PROOF_GREEN' "$RUNNER_TEMP/v2-publisher.log"
+          grep -Fx 'generation_recheck_before_and_after_publication=true' "$RUNNER_TEMP/v2-publisher.log"
+          grep -Fx 'stale_new_receipt_exact_rollback=true' "$RUNNER_TEMP/v2-publisher.log"
+          grep -Fx 'systemctl_user_selector_authority=false' "$RUNNER_TEMP/v2-publisher.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v2-publisher.log"
+      - name: Reprove protected launcher package runtime
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs
+          json="$RUNNER_TEMP/protected-v2-package-runtime-${{ matrix.node }}.json"
+          report="$RUNNER_TEMP/protected-v2-package-runtime-${{ matrix.node }}.txt"
+          node scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs --derive > "$json"
+          node --input-type=module - "$json" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.native_preentry_contract_verified,true);
+          assert.equal(j.launcher_gate_contract_verified,true);
+          assert.equal(j.package_runtime_identity_rederived,true);
+          assert.equal(j.privileged_launcher_package_runtime_verified,true);
+          assert.equal(j.tsx_runtime_id,"voidtsxpr1_0f2bf2dba60718942e7db9b83779a2aeb2e9db32e74610a96a8ec978ad35e4d4");
+          assert.equal(j.protected_source_install_authorized,false);
+          assert.equal(j.privileged_receipt_execution_authorized,false);
+          assert.equal(j.public_presale_activation,false);
+          assert.equal(j.funds_movement,false);
+          NODE
+          node scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs --report | tee "$report"
+          grep -Fx 'native_preentry_contract_verified=true' "$report"
+          grep -Fx 'launcher_gate_contract_verified=true' "$report"
+          grep -Fx 'privileged_launcher_package_runtime_verified=true' "$report"
+          grep -Fx 'privileged_receipt_execution_authorized=false' "$report"
+          grep -Fx 'funds_movement=false' "$report"
+      - name: Prove native protected launcher
+        if: matrix.node == 24
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs
+          node scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs |
+            tee "$RUNNER_TEMP/protected-v2-launcher.log"
+          grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_V7_PROTECTED_PRIVILEGED_LAUNCHER_V1_PROOF_GREEN' "$RUNNER_TEMP/protected-v2-launcher.log"
+          grep -Fx 'native_preentry_first_instruction=true' "$RUNNER_TEMP/protected-v2-launcher.log"
+          grep -Fx 'host_opt_fixture_mode_restored=true' "$RUNNER_TEMP/protected-v2-launcher.log"
+          grep -Fx 'native_launcher_exact_sha256_bound=true' "$RUNNER_TEMP/protected-v2-launcher.log"
+          grep -Fx 'direct_shell_privileged_invocation_supported=false' "$RUNNER_TEMP/protected-v2-launcher.log"
+          grep -Fx 'privileged_launcher_package_runtime_verified=true' "$RUNNER_TEMP/protected-v2-launcher.log"
+          grep -Fx 'persistent_host_mutation=false' "$RUNNER_TEMP/protected-v2-launcher.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/protected-v2-launcher.log"
+      - name: Prove deployment inventory and protected dispatch contract
+        run: |
+          set -euo pipefail
+          node --import "file://$PWD/node_modules/tsx/dist/loader.mjs" \
+            scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts |
+            tee "$RUNNER_TEMP/v7-deployment-receipt.log"
+          grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1_PROOF_GREEN' "$RUNNER_TEMP/v7-deployment-receipt.log"
+          grep -Fx 'current_enforcement_tracked_source_inventory_verified=true' "$RUNNER_TEMP/v7-deployment-receipt.log"
+          grep -Fx 'current_enforcement_tracked_source_inventory_count=49' "$RUNNER_TEMP/v7-deployment-receipt.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v7-deployment-receipt.log"
+
+      - name: Reject direct root mutation CLI bypass
+        if: matrix.node == 24
+        run: |
+          set -euo pipefail
+          nodebin="$(command -v node)"
+          loader="file://$PWD/node_modules/tsx/dist/loader.mjs"
+          expect_hold() {
+            label="$1"
+            shift
+            out="$RUNNER_TEMP/direct-root-$label.log"
+            set +e
+            sudo /usr/bin/env -i \
+              PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C TZ=UTC \
+              "$nodebin" --import "$loader" "$@" >"$out" 2>&1
+            rc=$?
+            set -e
+            test "$rc" -ne 0
+            grep -Fq 'protected_dispatch_context_required' "$out"
+          }
+          expect_hold deployment \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --apply \
+            --expected-commit 0000000000000000000000000000000000000000 \
+            --expected-tree 0000000000000000000000000000000000000000 \
+            --accepted-enforcement-lock-path ops/security/buy-void-enforcement-post2865-lock-v1.json
+          expect_hold provider-pair \
+            ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts \
+            --apply
+          expect_hold live-process-v2 \
+            ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts \
+            --apply --runtime-uid 1000 --runtime-gid 1000
+          echo VOID_BUY_VOID_V7_DIRECT_ROOT_MUTATION_CLI_REFUSAL_GREEN
+
+      - name: Prove current-generation provider-pair installer
+        run: |
+          set -euo pipefail
+          npx tsx scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts |
+            tee "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_RECEIPT_INSTALL_V1_CURRENT_ENFORCEMENT_PROOF_GREEN' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'historical_enforcement_constant_dependency=false' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'provider_pair_dynamic_enforcement_crossbinding=true' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'rpc_contact=false' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+
+      - name: Root provider-pair custody fixture
+        if: matrix.node == 24
+        run: |
+          set -euo pipefail
+          nodebin="$(command -v node)"
+          sudo env PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C TZ=UTC \
+            "$nodebin" --import "file://$PWD/node_modules/tsx/dist/loader.mjs" \
+            scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts |
+            tee "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_RECEIPT_INSTALL_V1_CURRENT_ENFORCEMENT_PROOF_GREEN' "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'current_reviewed_source_digest_crossbinding=true' "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'provider_pair_dynamic_enforcement_crossbinding=true' "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'root_custody_positive_exercised=true' "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/provider-pair-current-root.log"
+
+      - name: Root create-once publisher fixture
+        if: matrix.node == 24
+        run: |
+          set -euo pipefail
+          nodebin="$(command -v node)"
+          sudo env PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C TZ=UTC             "$nodebin" --import "file://$PWD/node_modules/tsx/dist/loader.mjs"             scripts/prove_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts             --root-fixture |
+            tee "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'root_create_once_and_exact_rollback=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'root_stale_receipt_rotation=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'concurrent_rotation_refused=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'publication_lock_exclusive=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'rollback_publication_lock_required=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'publication_lock_serializes_rotation_and_rollback=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'crash_stale_publication_lock_fails_closed=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'rotation_rollback_leaves_missing_fail_closed=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'malformed_existing_receipt_preserved=true' "$RUNNER_TEMP/v2-publisher-root.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v2-publisher-root.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: protected-v2-package-runtime-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            ${{ runner.temp }}/protected-v2-package-runtime-${{ matrix.node }}.json
+            ${{ runner.temp }}/protected-v2-package-runtime-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 2
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git fetch --no-tags --depth=1 origin "$BASE" || true
+          git cat-file -e "$BASE^{commit}"
+          git diff --check "$BASE" "$HEAD"
+
+  package-runtime-cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: protected-v2-package-runtime-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: runtime
+      - name: Require Node 22 24 26 byte identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "runtime/protected-v2-package-runtime-$node.json"
+            test -s "runtime/protected-v2-package-runtime-$node.txt"
+          done
+          cmp runtime/protected-v2-package-runtime-22.json runtime/protected-v2-package-runtime-24.json
+          cmp runtime/protected-v2-package-runtime-22.json runtime/protected-v2-package-runtime-26.json
+          cmp runtime/protected-v2-package-runtime-22.txt runtime/protected-v2-package-runtime-24.txt
+          cmp runtime/protected-v2-package-runtime-22.txt runtime/protected-v2-package-runtime-26.txt
+          grep -Fx 'privileged_launcher_package_runtime_verified=true' runtime/protected-v2-package-runtime-22.txt
+          grep -Fx 'privileged_receipt_execution_authorized=false' runtime/protected-v2-package-runtime-22.txt
+          grep -Fx 'funds_movement=false' runtime/protected-v2-package-runtime-22.txt
+          echo VOID_BUY_VOID_PROTECTED_V2_PACKAGE_RUNTIME_CROSS_NODE_GREEN
