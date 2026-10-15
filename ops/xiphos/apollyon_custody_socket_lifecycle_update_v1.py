@@ -16,14 +16,14 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-socket-lifecycle-update-v1.json"
-MANIFEST_BLOB="b9f9b90de547ffd399f5f069d0638ec9203a93e6"
+MANIFEST_BLOB="ff86c530112d68adde6b81425f5ce951289ec71d"
 SERVICE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"
 NEW_SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 HELPER_REL="ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py"
-HELPER_BLOB="6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5"
+HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"
 
 SERVICE_UNIT="void-apollyon-authorization-custody-v1.service"
 TARGET_UNIT="void-apollyon-authorization-custody-v1.target"
@@ -75,7 +75,7 @@ def run(argv:list[str],check=True)->subprocess.CompletedProcess[str]:
     if check and r.returncode!=0:hold("command_failed:"+Path(argv[0]).name)
     return r
 
-def exact_dormant(unit:str)->dict[str,str]:
+def exact_dormant(unit:str,expected_unit_file_state:str)->dict[str,str]:
     r=run([
         "/usr/bin/systemctl","show",unit,"--no-pager",
         "-p","LoadState","-p","ActiveState","-p","UnitFileState","-p","MainPID",
@@ -89,8 +89,8 @@ def exact_dormant(unit:str)->dict[str,str]:
         props[k]=v
     if props.get("LoadState")!="loaded" or props.get("ActiveState")!="inactive":
         hold("unit_not_exactly_dormant:"+unit)
-    if props.get("UnitFileState")=="enabled":
-        hold("unit_unexpectedly_enabled:"+unit)
+    if props.get("UnitFileState")!=expected_unit_file_state:
+        hold("unit_file_state_unexpected:"+unit)
     if props.get("MainPID") not in ("","0",None):
         hold("unit_mainpid_nonzero:"+unit)
     return props
@@ -119,7 +119,7 @@ def helper_state()->str:
 
 def verify_target()->None:
     if installed_blob(TARGET_PATH,0o644)!=TARGET_BLOB:hold("target_blob_mismatch")
-    props=exact_dormant(TARGET_UNIT)
+    props=exact_dormant(TARGET_UNIT,"disabled")
     r=run([
         "/usr/bin/systemctl","show",TARGET_UNIT,"--no-pager",
         "-p","Wants","-p","PropagatesStopTo",
@@ -132,7 +132,7 @@ def verify_target()->None:
     if SERVICE_UNIT not in relation.get("PropagatesStopTo","").split():hold("target_stop_propagation_missing")
 
 def verify_loaded_service()->None:
-    exact_dormant(SERVICE_UNIT)
+    exact_dormant(SERVICE_UNIT,"static")
     r=run([
         "/usr/bin/systemctl","show",SERVICE_UNIT,"--no-pager",
         "-p","RefuseManualStart","-p","RefuseManualStop","-p","ExecStopPost",
@@ -214,7 +214,7 @@ def plan()->dict:
     read_source(TARGET_REL,TARGET_BLOB)
     read_source(HELPER_REL,HELPER_BLOB)
     verify_target()
-    exact_dormant(SERVICE_UNIT)
+    exact_dormant(SERVICE_UNIT,"static")
     s=service_state();h=helper_state()
     if s=="new_exact":
         if h!="exact":hold("new_service_without_cleanup_helper")
@@ -259,6 +259,15 @@ def self_test()->None:
     service=read_source(SERVICE_REL,NEW_SERVICE_BLOB).decode()
     assert "ExecStopPost="+EXPECTED_EXEC_STOP_POST in service
     own=Path(__file__).read_text(encoding="utf-8")
+    assert 'exact_dormant(TARGET_UNIT,"disabled")' in own
+    assert own.count('exact_dormant(SERVICE_UNIT,"static")')>=2
+    assert 'props.get("UnitFileState")!=expected_unit_file_state' in own
+    assert 'unit_file_state_unexpected:' in own
+    for rejected_target_state in (
+        "enabled","enabled-runtime","masked","static","linked",
+        "linked-runtime","indirect","generated",
+    ):
+        assert rejected_target_state!="disabled"
     for forbidden_parts in (
         ("systemctl",'",',"start"),("systemctl",'",',"stop"),
         ("training_execution",'"',":True"),("durable_attempt_claim",'"',":True"),
@@ -269,6 +278,8 @@ def self_test()->None:
     print("cleanup_helper_blob="+HELPER_BLOB)
     print("service_unit_blob="+NEW_SERVICE_BLOB)
     print("target_stop_control_required=true")
+    print("target_unit_file_state_disabled_required=true")
+    print("service_unit_file_state_static_required=true")
     print("service_action=false")
     print("target_action=false")
     print("socket_mutation=false")
