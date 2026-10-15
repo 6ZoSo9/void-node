@@ -52,12 +52,15 @@ The target policy requires both files to be:
 
 - owned by the dedicated cloudflared UID;
 - inaccessible to group/other permission bits;
-- single-link regular-file generations; and
-- outside the repository.
+- single-link regular non-symlink file generations;
+- addressed by canonical paths;
+- outside the repository; and
+- contained in real parent directories that are also owned by the dedicated
+  cloudflared UID and have no group/other permission bits.
 
 This closes the migration loophole where the historical ordinary user could
-retain readable Tunnel credentials and start a competing connector after the
-service UID changes.
+retain readable Tunnel credentials, replace them through a writable parent
+directory, or start a competing connector after the service UID changes.
 
 Live qualification must inspect only file metadata/path custody for this gate.
 Credential **contents are not authorized to be read** by this policy.
@@ -90,8 +93,7 @@ required to remain outside the sensitive adapter path.
 The policy also requires future live acceptance to prove both:
 
 - no active Worker/subrequest path can rewrite the visitor source identity; and
-- Cloudflare Pseudo IPv4 is set to `Off` for this hostname or replaced by
-  a separately reviewed identity contract.
+- Cloudflare Pseudo IPv4 is exactly `Off` for this hostname.
 
 Those are policy requirements here, not live observations. They require a
 separately reviewed **Cloudflare control-plane** observation; they cannot be
