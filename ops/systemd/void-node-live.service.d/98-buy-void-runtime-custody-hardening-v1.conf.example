@@ -1,0 +1,11 @@
+# Buy VOID user-runtime custody hardening v1
+#
+# Source-only example. Do not install without designated-host plan/apply review.
+#
+# This policy intentionally changes only privilege/capability posture. It does
+# not change networking, filesystem roots, credentials, environment, ExecStart,
+# payment acceptance, presale state, or runtime enablement.
+[Service]
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
