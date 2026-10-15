@@ -66,6 +66,17 @@ for required in (
     'durability_repair_attempted',
     'durability_repair_succeeded',
     'durability_repair_succeeded"]="indeterminate"',
+    'dormancy_revalidation_count',
+    'last_dormancy_revalidation_boundary',
+    'require_dormancy("before_durability_repair")',
+    'require_dormancy("before_helper_publication")',
+    'require_dormancy("before_service_publication")',
+    'require_dormancy("before_daemon_reload")',
+    'synthetic_mutation_boundary_not_dormant',
+    'final_file_metadata_fsync_before_publication=true',
+    'lifecycle_root_parent_fsync_on_create=true',
+    'mutation_boundary_dormancy_revalidation=true',
+    'durability_repair_mutation_receipt_truthful=true',
     'recovery_snapshot_attempted',
     'daemon_reload_command_succeeded',
     'daemon_reload_command_succeeded"]="indeterminate"',
@@ -103,6 +114,10 @@ for line in (
     "helper_crash_link_state_classified=true",
     "helper_pending_resume_states=true",
     "resume_directory_durability_repair=true",
+    "final_file_metadata_fsync_before_publication=true",
+    "lifecycle_root_parent_fsync_on_create=true",
+    "mutation_boundary_dormancy_revalidation=true",
+    "durability_repair_mutation_receipt_truthful=true",
     "durability_failure_outcome_indeterminate=true",
     "service_temp_cleanup_on_prepublication_failure=true",
     "failure_injection_after_helper_creation=true",
@@ -122,4 +137,8 @@ print("reviewed_predecessor_generations_accepted=true")
 print("deployed_lifecycle_predecessor_upgrade_proven=true")
 print("resumable_pending_reload_state=true")
 print("truthful_partial_mutation_receipt=true")
+print("final_file_metadata_fsync_before_publication=true")
+print("lifecycle_root_parent_fsync_on_create=true")
+print("mutation_boundary_dormancy_revalidation=true")
+print("durability_repair_mutation_receipt_truthful=true")
 print("idempotent_resume_proven=true")
