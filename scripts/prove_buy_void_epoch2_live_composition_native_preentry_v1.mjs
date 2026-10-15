@@ -133,7 +133,7 @@ const runnerOpenAt = preentry.indexOf(
   "int runner_fd = open_trusted_regular(",
 );
 const forkAt = preentry.indexOf("pid_t child = fork()");
-const proofAt = preentry.indexOf("emit_parent_proof(");
+const proofAt = preentry.indexOf("emit_parent_proof(", forkAt);
 const execAt = preentry.lastIndexOf("fexecve(node_fd, next_argv, envp);");
 const waitAt = preentry.indexOf("waitpid(child, &status, 0)");
 assert.ok(stdinAt > 0);
