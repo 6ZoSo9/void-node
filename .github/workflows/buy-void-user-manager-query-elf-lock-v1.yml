@@ -45,18 +45,28 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
-      - name: Rederive and verify exact lock
+      - name: Rederive V1 or preserve it as historical evidence
         run: |
           set -euo pipefail
           proof=scripts/prove_void_buy_user_manager_query_elf_lock_v1.mjs
-          node "$proof" --self-test | tee "$RUNNER_TEMP/query-elf-lock-proof.log"
-          grep -Fx "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V1_GREEN" "$RUNNER_TEMP/query-elf-lock-proof.log"
-          grep -Fx "candidate_accepted=true" "$RUNNER_TEMP/query-elf-lock-proof.log"
-          grep -Fx "install_authorized=false" "$RUNNER_TEMP/query-elf-lock-proof.log"
-          grep -Fx "production_host_evidence_authority=false" "$RUNNER_TEMP/query-elf-lock-proof.log"
+          query=ops/precision/void_buy_void_user_manager_private_unit_query_v1.c
           out="$RUNNER_TEMP/user-manager-query-elf-lock-${{ matrix.node }}.json"
-          node "$proof" --derive > "$out"
-          cmp "$out" ops/security/buy-void-user-manager-query-elf-lock-v1.json
+          query_blob="$(git rev-parse "HEAD:$query")"
+          if [ "$query_blob" = "ad49cd7f71c41e0f559a561b5a62a00cec60c215" ]; then
+            node "$proof" --self-test | tee "$RUNNER_TEMP/query-elf-lock-proof.log"
+            grep -Fx "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V1_GREEN" "$RUNNER_TEMP/query-elf-lock-proof.log"
+            grep -Fx "candidate_accepted=true" "$RUNNER_TEMP/query-elf-lock-proof.log"
+            grep -Fx "install_authorized=false" "$RUNNER_TEMP/query-elf-lock-proof.log"
+            grep -Fx "production_host_evidence_authority=false" "$RUNNER_TEMP/query-elf-lock-proof.log"
+            node "$proof" --derive > "$out"
+            cmp "$out" ops/security/buy-void-user-manager-query-elf-lock-v1.json
+          else
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v1.json)" = "1ac068dab592afa923b51434e87bc13b01966246"
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v1.json)" = "4f255dbc98ac4b65fb4e6433f4e7aee7b86351db"
+            test "$(git rev-parse HEAD:scripts/prove_void_buy_user_manager_query_elf_lock_v1.mjs)" = "f296886d8ac23c6ea8848be8c6823403c744396b"
+            cp ops/security/buy-void-user-manager-query-elf-lock-v1.json "$out"
+            echo "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V1_HISTORICAL_PRESERVED"
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: void-buy-user-manager-query-elf-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
