@@ -71,7 +71,7 @@ required to remain outside the sensitive adapter path.
 The policy also requires future live acceptance to prove both:
 
 - no active Worker/subrequest path can rewrite the visitor source identity; and
-- Cloudflare Pseudo IPv4 overwrite is disabled for this hostname or replaced by
+- Cloudflare Pseudo IPv4 is set to `Off` for this hostname or replaced by
   a separately reviewed identity contract.
 
 Those are policy requirements here, not live observations. They require a
@@ -183,7 +183,7 @@ facts the host cannot know:
 
 - no active Worker/subrequest path can rewrite the visitor source identity for
   the three sensitive routes; and
-- Pseudo IPv4 is not in `Overwrite Headers` mode for the accepted source
+- Pseudo IPv4 is exactly `Off` for the accepted source
   contract.
 
 Finally, external acceptance must prove two independent source addresses reach
