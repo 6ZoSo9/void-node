@@ -31,6 +31,7 @@ The V2 query additionally reads the selected MainPID's bounded
 `/proc/<pid>/status` and requires:
 
 - systemd `NoNewPrivileges=true`;
+- authenticated systemd `PrivateUsers=false`;
 - kernel `NoNewPrivs=1`;
 - systemd `AmbientCapabilities=0`;
 - kernel `CapInh=0`;
@@ -42,8 +43,8 @@ The V2 query additionally reads the selected MainPID's bounded
 It re-reads the complete kernel security snapshot before returning and requires
 it to remain identical.
 
-The transcript emits both configured and kernel masks as fixed 16-digit
-lowercase hexadecimal values plus:
+The transcript emits `PrivateUsers=no`, both configured and kernel masks as
+fixed 16-digit lowercase hexadecimal values, plus:
 
 `configured_kernel_bounding_set_equal=true`
 
