@@ -54,7 +54,7 @@ const PROC_SELF_STAT_PATH = "/proc/self/stat";
 const MAX_PROC_STAT_BYTES = 4096;
 const MAX_BINDING_CAPTURE_SPAN_NS = 2_000_000_000n;
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/u;
-const SHA256_ID = /^[a-z0-9_]+_[0-9a-f]{64}$/u;
+const HOST_EVIDENCE_ID = /^voideshtse1_[0-9a-f]{64}$/u;
 const HOST_EVIDENCE_KEYS = Object.freeze([
   "marker",
   "schema",
@@ -248,10 +248,35 @@ function normalizeHostEvidence(value, productionExpected) {
   }
   if (
     typeof evidence.evidence_id !== "string" ||
-    !evidence.evidence_id.startsWith("voideshtse1_") ||
-    !SHA256_ID.test(evidence.evidence_id)
+    !HOST_EVIDENCE_ID.test(evidence.evidence_id)
   ) {
     fail("sponsored_host_trusted_clock_host_evidence_id_invalid");
+  }
+  if (
+    evidence.boot_id_source !== "/proc/sys/kernel/random/boot_id" ||
+    evidence.boot_uptime_source !== "/proc/uptime" ||
+    evidence.time_sync_command !== "/usr/bin/timedatectl" ||
+    evidence.wall_clock_source !== "Date.now" ||
+    !Array.isArray(evidence.time_sync_args) ||
+    utilTypes.isProxy(evidence.time_sync_args) ||
+    evidence.time_sync_args.length !== 3 ||
+    evidence.time_sync_args[0] !== "show" ||
+    evidence.time_sync_args[1] !== "--property=NTPSynchronized" ||
+    evidence.time_sync_args[2] !== "--value"
+  ) {
+    fail("sponsored_host_trusted_clock_fixed_source_mismatch");
+  }
+  const env = exactSnapshot(
+    evidence.time_sync_environment,
+    ["LANG", "LC_ALL", "PATH"],
+    "sponsored_host_trusted_clock_fixed_source_mismatch",
+  );
+  if (
+    env.LANG !== "C" ||
+    env.LC_ALL !== "C" ||
+    env.PATH !== "/usr/bin:/bin"
+  ) {
+    fail("sponsored_host_trusted_clock_fixed_source_mismatch");
   }
   if (
     !Number.isSafeInteger(evidence.wall_time_ms) ||
