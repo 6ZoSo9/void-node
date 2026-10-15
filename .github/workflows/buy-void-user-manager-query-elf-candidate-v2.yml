@@ -75,6 +75,7 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V2_SELF_TEST_GREEN' "$RUNNER_TEMP/query-self-test.log"
           grep -Fx 'kernel_security_status_parser=true' "$RUNNER_TEMP/query-self-test.log"
           grep -Fx 'kernel_no_new_privileges_required=true' "$RUNNER_TEMP/query-self-test.log"
+          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/query-self-test.log"
           grep -Fx 'kernel_active_capabilities_zero_required=true' "$RUNNER_TEMP/query-self-test.log"
           grep -Fx 'configured_kernel_bounding_set_equality_required=true' "$RUNNER_TEMP/query-self-test.log"
 
