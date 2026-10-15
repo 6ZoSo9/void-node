@@ -27,6 +27,12 @@ import {
 import {
   VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
 } from "./buy_void_fulfilled_reconciliation_mode_v1.js";
+import {
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1,
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1,
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_V1,
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1,
+} from "./buy_void_request_custody_read_policy_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1 =
   "VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1";
@@ -222,6 +228,7 @@ function sameFileInodeCustodyV1(left: any, right: any): boolean {
 }
 
 function validateLedgerStatV1(stat: any, code: string): void {
+  const shared = VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1;
   if (
     !stat.isFile() ||
     stat.isSymbolicLink() ||
@@ -232,10 +239,58 @@ function validateLedgerStatV1(stat: any, code: string): void {
       typeof process.getuid === "function" &&
       stat.uid !== BigInt(process.getuid())
     ) ||
-    (Number(stat.mode) & 0o022) !== 0
+    (
+      shared
+        ? (
+            (Number(stat.mode) & 0o7777) !==
+              VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1 ||
+            stat.gid !== BigInt(
+              VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_V1 ?? -1
+            )
+          )
+        : (Number(stat.mode) & 0o022) !== 0
+    )
   ) {
     fail(code + "_file_invalid");
   }
+}
+
+function validatePrivateSidecarStatV1(
+  stat: any,
+  code: string,
+): void {
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink < 1n ||
+    stat.size < 0n ||
+    stat.size > BigInt(LEDGER_MAX_BYTES) ||
+    (
+      typeof process.getuid === "function" &&
+      stat.uid !== BigInt(process.getuid())
+    ) ||
+    (Number(stat.mode) & 0o022) !== 0
+  ) {
+    fail(code + "_conflict");
+  }
+}
+
+function prepareRequestDirectoryV1(requestDir: string): void {
+  if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+    if (!path.isAbsolute(requestDir) || path.resolve(requestDir) !== requestDir) {
+      fail("buy_void_verified_payment_capacity_request_directory_not_absolute");
+    }
+    try {
+      fs.lstatSync(requestDir);
+    } catch (error: any) {
+      if (String(error?.code || "") === "ENOENT") {
+        fail("buy_void_verified_payment_capacity_request_directory_not_preprovisioned");
+      }
+      throw error;
+    }
+    return;
+  }
+  fs.mkdirSync(requestDir, { recursive: true });
 }
 
 function openPinnedRequestDirectoryV1(
@@ -250,7 +305,17 @@ function openPinnedRequestDirectoryV1(
       typeof process.getuid === "function" &&
       visible.uid !== BigInt(process.getuid())
     ) ||
-    (Number(visible.mode) & 0o022) !== 0
+    (
+      VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1
+        ? (
+            (Number(visible.mode) & 0o7777) !==
+              VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1 ||
+            visible.gid !== BigInt(
+              VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_V1 ?? -1
+            )
+          )
+        : (Number(visible.mode) & 0o022) !== 0
+    )
   ) {
     fail("buy_void_verified_payment_capacity_request_directory_invalid");
   }
@@ -317,7 +382,9 @@ function openPinnedLedgerV1(
         fs.constants.O_CREAT |
         fs.constants.O_EXCL |
         O_NOFOLLOW,
-      0o600,
+      VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1
+        ? VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1
+        : 0o600,
     );
     fs.fsyncSync(fd);
     fs.fsyncSync(directory.fd);
@@ -2362,7 +2429,7 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
   }
 
   const requestDir = path.resolve(requestDirRaw);
-  fs.mkdirSync(requestDir, { recursive: true });
+  prepareRequestDirectoryV1(requestDir);
 
   const admission =
     await withBuyVoidVerifiedPaymentCapacityAdmissionV1({
@@ -2628,8 +2695,8 @@ function publishOperatorTerminalSidecarAtomicallyV1(
       }
       const finalFd = fs.fstatSync(fd, { bigint: true });
       const finalVisible = fs.lstatSync(visiblePath, { bigint: true });
-      validateLedgerStatV1(finalFd, code);
-      validateLedgerStatV1(finalVisible, code);
+      validatePrivateSidecarStatV1(finalFd, code);
+      validatePrivateSidecarStatV1(finalVisible, code);
       if (finalFd.size !== BigInt(expectedBytes.length) ||
           !sameFileIdentityV1(finalFd, finalVisible) ||
           finalFd.dev !== before.dev || finalFd.ino !== before.ino) {
@@ -2662,7 +2729,7 @@ function publishOperatorTerminalSidecarAtomicallyV1(
     }
     fs.fsyncSync(fd);
     const temporary = fs.fstatSync(fd, { bigint: true });
-    validateLedgerStatV1(temporary, code);
+    validatePrivateSidecarStatV1(temporary, code);
     if (temporary.size !== BigInt(expectedBytes.length)) {
       fail(code + "_temp_bytes_changed");
     }
@@ -2792,7 +2859,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   }
 
   const requestDir = path.resolve(requestDirRaw);
-  fs.mkdirSync(requestDir, { recursive: true });
+  prepareRequestDirectoryV1(requestDir);
 
   const paymentVerified = operatorStatus === "payment_verified";
 
