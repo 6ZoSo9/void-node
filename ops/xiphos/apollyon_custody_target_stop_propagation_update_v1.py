@@ -76,12 +76,26 @@ def state()->str:
     if digest==NEW_TARGET_BLOB:return "new_exact"
     hold("target_collision")
 
-def inactive(unit:str)->bool:
-    return run(["/usr/bin/systemctl","is-active",unit],check=False).stdout.strip()!="active"
+def dormant_observation_valid(returncode:int,stdout:str)->bool:
+    if returncode!=0:return False
+    props={}
+    for line in stdout.splitlines():
+        if "=" not in line:return False
+        k,v=line.split("=",1)
+        if k in props:return False
+        props[k]=v
+    return props=={"LoadState":"loaded","ActiveState":"inactive"}
+
+def unit_dormant(unit:str)->bool:
+    r=run([
+        "/usr/bin/systemctl","show",unit,"--no-pager",
+        "-p","LoadState","-p","ActiveState",
+    ],check=False)
+    return dormant_observation_valid(r.returncode,r.stdout)
 
 def assert_dormant()->None:
-    if not inactive(TARGET_UNIT):hold("activation_target_active")
-    if not inactive(SERVICE_UNIT):hold("custody_service_active")
+    if not unit_dormant(TARGET_UNIT):hold("activation_target_not_exactly_inactive")
+    if not unit_dormant(SERVICE_UNIT):hold("custody_service_not_exactly_inactive")
 
 def verify_loaded_contract()->dict:
     target=run([
@@ -94,20 +108,21 @@ def verify_loaded_contract()->dict:
         if "=" in line:
             k,v=line.split("=",1);props[k]=v
     if props.get("LoadState")!="loaded":hold("target_not_loaded")
-    if props.get("ActiveState")=="active":hold("target_active")
+    if props.get("ActiveState")!="inactive":hold("target_not_exactly_inactive")
     if props.get("UnitFileState")=="enabled":hold("target_enabled")
     if SERVICE_UNIT not in props.get("Wants","").split():hold("target_wants_service_missing")
     if SERVICE_UNIT not in props.get("PropagatesStopTo","").split():hold("target_stop_propagation_missing")
 
     service=run([
         "/usr/bin/systemctl","show",SERVICE_UNIT,"--no-pager",
-        "-p","ActiveState","-p","RefuseManualStart","-p","RefuseManualStop",
+        "-p","LoadState","-p","ActiveState","-p","RefuseManualStart","-p","RefuseManualStop",
     ])
     sprops={}
     for line in service.stdout.splitlines():
         if "=" in line:
             k,v=line.split("=",1);sprops[k]=v
-    if sprops.get("ActiveState")=="active":hold("custody_service_active")
+    if sprops.get("LoadState")!="loaded":hold("custody_service_not_loaded")
+    if sprops.get("ActiveState")!="inactive":hold("custody_service_not_exactly_inactive")
     if sprops.get("RefuseManualStart")!="yes" or sprops.get("RefuseManualStop")!="yes":
         hold("service_manual_refusal_missing")
     return {**props,"ServiceRefuseManualStart":"yes","ServiceRefuseManualStop":"yes"}
@@ -183,6 +198,18 @@ def self_test()->None:
     source=read_source(TARGET_REL,NEW_TARGET_BLOB).decode()
     assert "Wants=void-apollyon-authorization-custody-v1.service" in source
     assert "PropagatesStopTo=void-apollyon-authorization-custody-v1.service" in source
+    for returncode,stdout,expected in (
+        (0,"LoadState=loaded\nActiveState=inactive\n",True),
+        (1,"LoadState=loaded\nActiveState=inactive\n",False),
+        (0,"",False),
+        (0,"LoadState=not-found\nActiveState=inactive\n",False),
+        (0,"LoadState=loaded\nActiveState=unknown\n",False),
+        (0,"LoadState=loaded\nActiveState=active\n",False),
+        (0,"LoadState=loaded\nActiveState=activating\n",False),
+        (0,"LoadState=loaded\nActiveState=deactivating\n",False),
+        (0,"LoadState=loaded\nActiveState=failed\n",False),
+    ):
+        assert dormant_observation_valid(returncode,stdout) is expected,(returncode,stdout)
     own=Path(__file__).read_text()
     forbidden_parts=(
         ("systemctl",'","',"start"),
@@ -197,6 +224,7 @@ def self_test()->None:
     print("target_start_indirect_via_wants=true")
     print("target_stop_propagates_to_service=true")
     print("direct_service_start_stop_refused=true")
+    print("dormant_state_fail_closed=true")
     print("service_action=false")
     print("target_action=false")
     print("training_execution=false")
