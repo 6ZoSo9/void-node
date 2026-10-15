@@ -22,7 +22,7 @@ const ROOT="/home/zoso/dev/void-node";
 
 const CHILD_REL=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs";
-const CHILD_BLOB="20105c8ff7ac35aac0f0f2fcbe8884ba441f5870";
+const CHILD_BLOB="ed6e3400dcdaa157c13fafdae15ffe71248b64e7";
 const CHILD_CONFIRM=
   "RUN_EPOCH2_DORMANT_CANDIDATE_LIVE_BINDING_V2";
 const CHILD_MARKER=
@@ -218,6 +218,10 @@ function validateChild(child,expectedHead){
     native_preentry_policy_bound:true,
     root_node_descriptor_execution_bound:true,
     runner_retained_descriptor_bound:true,
+    native_parent_retained_for_child_lifetime:true,
+    native_parent_process_generation_bound:true,
+    native_parent_installed_generation_bound:true,
+    native_parent_revalidated_after_sensitive_sequence:true,
     stdin_javascript_source_forbidden:true,
     customer_safe_to_pay:false,
     production_host_evidence_authority:false,
@@ -416,6 +420,14 @@ export function buildReceipt(expectedHead,child,candidate,evidence){
     native_preentry_policy_bound:child.native_preentry_policy_bound,
     root_node_descriptor_execution_bound:child.root_node_descriptor_execution_bound,
     runner_retained_descriptor_bound:child.runner_retained_descriptor_bound,
+    native_parent_retained_for_child_lifetime:
+      child.native_parent_retained_for_child_lifetime,
+    native_parent_process_generation_bound:
+      child.native_parent_process_generation_bound,
+    native_parent_installed_generation_bound:
+      child.native_parent_installed_generation_bound,
+    native_parent_revalidated_after_sensitive_sequence:
+      child.native_parent_revalidated_after_sensitive_sequence,
     stdin_javascript_source_forbidden:child.stdin_javascript_source_forbidden,
     authenticated_credential_binding_receipt_sha256:
       sha256(Buffer.from(canonical(child),"utf8")),
@@ -518,6 +530,10 @@ function selfTest(){
     native_preentry_policy_bound:true,
     root_node_descriptor_execution_bound:true,
     runner_retained_descriptor_bound:true,
+    native_parent_retained_for_child_lifetime:true,
+    native_parent_process_generation_bound:true,
+    native_parent_installed_generation_bound:true,
+    native_parent_revalidated_after_sensitive_sequence:true,
     stdin_javascript_source_forbidden:true,
     signer_credential_state:{
       signer_offchain_control_proven:false,
