@@ -55,6 +55,9 @@ Only metadata is observed. A candidate is metadata-qualified when:
 - the directory is direct, owned by the runtime UID, and mode 0700;
 - `requests.jsonl` and `operator-events.jsonl` are direct regular
   single-link files owned by the runtime UID;
+- `requests.jsonl` is non-empty and at most 64 MiB, while
+  `operator-events.jsonl` may be empty but is also at most 64 MiB, matching
+  the custody payment-ledger reader's fixed bounds;
 - each leaf has owner read/write and no group/other permission bits; and
 - the candidate does not overlap either protected allocation/custody root.
 
