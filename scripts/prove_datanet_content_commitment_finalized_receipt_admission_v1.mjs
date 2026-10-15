@@ -12,13 +12,19 @@ import {
   canonicalJson,
   sha256,
 } from "../tools/datanet-content-commitment-compiler-profile-v1.mjs";
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_IDENTITY_V1,
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "../tools/datanet-content-commitment-production-registry-identity-v1.mjs";
 
 const COMMIT=new Interface([
   "function commit(bytes32 objectIdSha256,bytes32 contentSha256,uint64 byteLength)",
 ]);
 
 const PUBLISHER="0x1111111111111111111111111111111111111111";
-const REGISTRY="0x2222222222222222222222222222222222222222";
+const REGISTRY=
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1;
+const WRONG_REGISTRY="0x3333333333333333333333333333333333333333";
 const OBJECT_ID_SHA256="3".repeat(64);
 const CONTENT_SHA256="4".repeat(64);
 const BYTE_LENGTH=1234n;
@@ -374,6 +380,19 @@ const commitCalldata=COMMIT.encodeFunctionData(
 }
 
 {
+  const f=fixture(commitCalldata,{to_address:WRONG_REGISTRY});
+  const result=admitDatanetContentCommitmentFinalizedReceiptV1(f.input);
+  assert.equal(result.ok,false);
+  assert.equal(
+    result.reason,
+    "datanet_finalized_admission_registry_address_mismatch",
+  );
+  assert.equal(result.admission_constructed,false);
+  assert.equal(result.event_receipt_membership_verified,false);
+  assert.equal(result.canonical_commitment_truth_admitted,false);
+}
+
+{
   const f=fixture(commitCalldata);
   f.finality.receipt_status="reverted";
   const result=admitDatanetContentCommitmentFinalizedReceiptV1(f.input);
@@ -465,6 +484,7 @@ for(const [key,expected] of Object.entries({
   exact_finality_verification_required:true,
   exact_signing_request_rederivation_required:true,
   exact_unsigned_candidate_fingerprint_rederived:true,
+  production_registry_identity_bound:true,
   exact_commit_calldata_decoded:true,
   finalized_confirmed_transaction_required:true,
   operator_recognized_checkpoint_finality_required:true,
@@ -492,6 +512,37 @@ for(const [key,expected] of Object.entries({
     key,
   );
 }
+
+const currentTruth=fs.readFileSync(
+  path.join(process.cwd(),"ops/mainnet/CURRENT_TRUTH.md"),
+  "utf8",
+);
+assert.equal(
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_IDENTITY_V1.chain_id,
+  "2050",
+);
+assert.equal(
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_IDENTITY_V1.registry_address,
+  REGISTRY,
+);
+assert.equal(
+  currentTruth.includes(REGISTRY),
+  true,
+);
+assert.equal(
+  currentTruth.includes(
+    VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_IDENTITY_V1
+      .deployment_attestation_id,
+  ),
+  true,
+);
+assert.equal(
+  currentTruth.includes(
+    VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_IDENTITY_V1
+      .deployment_transaction_hash,
+  ),
+  true,
+);
 
 const source=fs.readFileSync(
   path.join(
