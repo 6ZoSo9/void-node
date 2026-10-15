@@ -38,6 +38,12 @@ reviewed by the V1/V2 topology census. The loopback listener must remain owned
 by the same stable runtime PID generation across the observation. External
 network calls remain forbidden.
 
+The immutable-release candidate inventory is enumerated twice and must be
+identical. A 40-hex release entry that is not a direct directory makes the
+inventory incomplete. Candidate metadata/count observations are also repeated
+and must be byte-for-byte equal before
+`bounded_current_candidate_set_observed=true` is possible.
+
 The designated machine identity is read through the hardened V2 descriptor-bound
 `/etc/machine-id` routine, including no-symlink, root-owned/non-writable,
 single-link and before/after identity checks. Subprocesses use the V1 minimal
