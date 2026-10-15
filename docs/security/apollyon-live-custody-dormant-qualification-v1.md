@@ -21,6 +21,22 @@ The run performs two complete cycles:
    `ExecStopPost`, and zero custody-UID processes;
 9. repeat the cycle once and require a new custody process generation.
 
+Before either start, the qualifier also closes the effective systemd and
+environment boundary. The installed custody environment file must be the exact
+five-key root-owned generation for the observed IPC GID and reviewed public-key
+fingerprint; extra keys such as `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`
+or `LD_LIBRARY_PATH` therefore HOLD. The current system-manager environment is
+also checked for those influence variables before activation.
+
+For both the target and service, the loaded fragment path must be the reviewed
+`/etc/systemd/system` path, `DropInPaths` must be empty, and
+`NeedDaemonReload=no`. The target dependency and stop-propagation sets are
+closed to the custody service. The service's complete loaded execution arrays
+are checked: exactly one reviewed `ExecStart`, no `ExecCondition`,
+`ExecStartPre`, `ExecStartPost` or `ExecStop`, and exactly one reviewed
+`ExecStopPost`. Extra commands, runtime/persistent drop-ins, stale daemon
+configuration, or alternate effective command arrays fail closed before start.
+
 The consumed-record directory must be byte-metadata stable across both cycles.
 The custody UID lifecycle is therefore 0 -> exact service generation -> 0 for
 each cycle, and no process carrying the dedicated training UID may appear before,

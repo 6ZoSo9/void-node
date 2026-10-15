@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
+import shlex
 import socket
 import stat
 import subprocess
@@ -46,6 +48,23 @@ EXPECTED_EXEC_STOP_POST=(
     "/usr/bin/python3 -I -B "
     "/opt/void-apollyon-custody-lifecycle-v1/"
     "apollyon_custody_stale_socket_cleanup_v1.py --cleanup"
+)
+EXPECTED_EXEC_START_ARGV=(
+    os.fspath(NODE_PATH),
+    os.fspath(LAUNCHER_PATH),
+    "--socket-path","$"+"{VOID_APOLLYON_CUSTODY_SOCKET_PATH}",
+    "--state-root","$"+"{VOID_APOLLYON_CUSTODY_STATE_ROOT}",
+    "--socket-group-gid","$"+"{VOID_APOLLYON_CUSTODY_SOCKET_GROUP_GID}",
+    "--expected-operator-public-key-raw-sha256",
+    "$"+"{VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_RAW_SHA256}",
+    "--operator-public-key-file",
+    "$"+"{VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_FILE}",
+)
+EXPECTED_EXEC_STOP_POST_ARGV=(
+    "/usr/bin/python3","-I","-B",os.fspath(HELPER_PATH),"--cleanup",
+)
+FORBIDDEN_MANAGER_ENV=(
+    "LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH",
 )
 
 class Hold(RuntimeError): pass
@@ -137,34 +156,135 @@ def exact_dormant(
     if props.get("MainPID") not in ("","0",None):hold("unit_mainpid_nonzero:"+unit)
     return props
 
-def loaded_relations()->None:
-    target=run([
-        "/usr/bin/systemctl","show",TARGET_UNIT,"--no-pager",
-        "-p","Wants","-p","PropagatesStopTo",
-    ])
+def show_properties(unit:str,names:tuple[str,...])->dict[str,str]:
+    argv=["/usr/bin/systemctl","show",unit,"--no-pager"]
+    for name in names:
+        argv.extend(["-p",name])
+    r=run(argv,check=False)
+    if r.returncode!=0:hold("unit_effective_config_probe_failed:"+unit)
     props={}
-    for line in target.stdout.splitlines():
-        if "=" in line:
-            k,v=line.split("=",1);props[k]=v
-    if SERVICE_UNIT not in props.get("Wants","").split():hold("target_wants_missing")
-    if SERVICE_UNIT not in props.get("PropagatesStopTo","").split():hold("target_stop_propagation_missing")
+    expected=set(names)
+    for line in r.stdout.splitlines():
+        if "=" not in line:hold("unit_effective_config_invalid:"+unit)
+        k,v=line.split("=",1)
+        if k not in expected or k in props:
+            hold("unit_effective_config_duplicate_or_extra:"+unit)
+        props[k]=v
+    if set(props)!=expected:hold("unit_effective_config_incomplete:"+unit)
+    return props
 
-    service=run([
-        "/usr/bin/systemctl","show",SERVICE_UNIT,"--no-pager",
-        "-p","RefuseManualStart","-p","RefuseManualStop","-p","ExecStopPost",
-        "-p","RestrictAddressFamilies","-p","NoNewPrivileges",
-    ])
-    s={}
-    for line in service.stdout.splitlines():
-        if "=" in line:
-            k,v=line.split("=",1);s[k]=v
-    if s.get("RefuseManualStart")!="yes" or s.get("RefuseManualStop")!="yes":
-        hold("service_manual_refusal_missing")
-    if s.get("NoNewPrivileges")!="yes":hold("service_nnp_missing")
-    if s.get("RestrictAddressFamilies")!="AF_UNIX":hold("service_address_family_invalid")
-    command=s.get("ExecStopPost","")
-    for part in ("/usr/bin/python3","-I","-B",os.fspath(HELPER_PATH),"--cleanup"):
-        if part not in command:hold("exec_stop_post_invalid")
+def parse_exec_property(raw:str,label:str)->list[tuple[str,...]]:
+    raw=raw.strip()
+    if raw=="":return []
+    matches=list(re.finditer(r"\{([^{}]*)\}",raw))
+    if not matches or re.sub(r"\{[^{}]*\}","",raw).strip():
+        hold("exec_property_shape_invalid:"+label)
+    commands=[]
+    for match in matches:
+        fields={}
+        for part in match.group(1).split(" ; "):
+            if "=" not in part:hold("exec_property_field_invalid:"+label)
+            key,value=part.split("=",1)
+            if key in fields:hold("exec_property_field_duplicate:"+label)
+            fields[key]=value
+        path=fields.get("path")
+        argv_raw=fields.get("argv[]")
+        if not path or argv_raw is None or fields.get("ignore_errors")!="no":
+            hold("exec_property_required_field_invalid:"+label)
+        try:
+            argv=tuple(shlex.split(argv_raw,posix=True))
+        except ValueError as exc:
+            raise Hold("exec_property_argv_invalid:"+label) from exc
+        if not argv or argv[0]!=path:
+            hold("exec_property_path_argv_mismatch:"+label)
+        commands.append(argv)
+    return commands
+
+def expected_environment_bytes(ipc_gid:int)->bytes:
+    return (
+        "VOID_APOLLYON_CUSTODY_SOCKET_PATH="+os.fspath(SOCKET_PATH)+"\n"
+        "VOID_APOLLYON_CUSTODY_STATE_ROOT="+os.fspath(STATE_ROOT)+"\n"
+        "VOID_APOLLYON_CUSTODY_SOCKET_GROUP_GID="+str(ipc_gid)+"\n"
+        "VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_FILE="+
+            os.fspath(PUBLIC_KEY_PATH)+"\n"
+        "VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_RAW_SHA256="+
+            EXPECTED_PUBLIC_RAW_SHA256+"\n"
+    ).encode("utf-8")
+
+def verify_environment_file(ipc_gid:int)->None:
+    exact_file(ENV_PATH,0o600,0,0)
+    if ENV_PATH.read_bytes()!=expected_environment_bytes(ipc_gid):
+        hold("custody_environment_file_invalid")
+
+def manager_environment_names(raw:str)->set[str]:
+    names=set()
+    for line in raw.splitlines():
+        if not line:continue
+        if "=" not in line:hold("manager_environment_shape_invalid")
+        name,_=line.split("=",1)
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*",name):
+            hold("manager_environment_name_invalid")
+        names.add(name)
+    return names
+
+def reject_forbidden_manager_environment(names:set[str])->None:
+    for name in FORBIDDEN_MANAGER_ENV:
+        if name in names:hold("forbidden_manager_environment:"+name)
+
+def verify_manager_environment()->None:
+    r=run(["/usr/bin/systemctl","show-environment"],check=False)
+    if r.returncode!=0:hold("manager_environment_probe_failed")
+    reject_forbidden_manager_environment(manager_environment_names(r.stdout))
+
+def validate_loaded_relations(
+    target:dict[str,str],service:dict[str,str]
+)->None:
+    if target.get("FragmentPath")!=os.fspath(TARGET_PATH):
+        hold("target_fragment_path_invalid")
+    if target.get("DropInPaths")!="":hold("target_dropins_present")
+    if target.get("NeedDaemonReload")!="no":hold("target_needs_daemon_reload")
+    if set(target.get("Wants","").split())!={SERVICE_UNIT}:
+        hold("target_wants_invalid")
+    if set(target.get("PropagatesStopTo","").split())!={SERVICE_UNIT}:
+        hold("target_stop_propagation_invalid")
+
+    if service.get("FragmentPath")!=os.fspath(SERVICE_PATH):
+        hold("service_fragment_path_invalid")
+    if service.get("DropInPaths")!="":hold("service_dropins_present")
+    if service.get("NeedDaemonReload")!="no":hold("service_needs_daemon_reload")
+    if (
+        service.get("RefuseManualStart")!="yes" or
+        service.get("RefuseManualStop")!="yes"
+    ):hold("service_manual_refusal_missing")
+    if service.get("NoNewPrivileges")!="yes":hold("service_nnp_missing")
+    if service.get("RestrictAddressFamilies")!="AF_UNIX":
+        hold("service_address_family_invalid")
+
+    if parse_exec_property(service.get("ExecStart",""),"ExecStart")!=[
+        EXPECTED_EXEC_START_ARGV
+    ]:
+        hold("service_effective_execstart_invalid")
+    for name in ("ExecCondition","ExecStartPre","ExecStartPost","ExecStop"):
+        if parse_exec_property(service.get(name,""),name):
+            hold("service_unexpected_exec_command:"+name)
+    if parse_exec_property(service.get("ExecStopPost",""),"ExecStopPost")!=[
+        EXPECTED_EXEC_STOP_POST_ARGV
+    ]:
+        hold("service_effective_execstoppost_invalid")
+
+def loaded_relations()->None:
+    target=show_properties(TARGET_UNIT,(
+        "FragmentPath","DropInPaths","NeedDaemonReload",
+        "Wants","PropagatesStopTo",
+    ))
+    service=show_properties(SERVICE_UNIT,(
+        "FragmentPath","DropInPaths","NeedDaemonReload",
+        "RefuseManualStart","RefuseManualStop","NoNewPrivileges",
+        "RestrictAddressFamilies","ExecCondition","ExecStartPre","ExecStart",
+        "ExecStartPost","ExecStop","ExecStopPost",
+    ))
+    validate_loaded_relations(target,service)
+    verify_manager_environment()
 
 def verify_public_key()->None:
     exact_file(PUBLIC_KEY_PATH,0o644,0,0)
@@ -194,14 +314,16 @@ def verify_static_install()->dict[str,int]:
             if not b:break
             h.update(b)
     if h.hexdigest()!=NODE_SHA256:hold("node_sha256_invalid")
-    verify_public_key()
-    loaded_relations()
-    return {
+    ids={
         "custody_uid":pwd.getpwnam("voidapollyoncustody").pw_uid,
         "custody_gid":grp.getgrnam("voidapollyoncustody").gr_gid,
         "ipc_gid":grp.getgrnam("voidapollyonipc").gr_gid,
         "training_uid":pwd.getpwnam("voidapollyontrain").pw_uid,
     }
+    verify_environment_file(ids["ipc_gid"])
+    verify_public_key()
+    loaded_relations()
+    return ids
 
 def proc_start_ticks(pid:int,proc_root:Path=Path("/proc"))->str:
     text=(proc_root/str(pid)/"stat").read_text(
@@ -468,6 +590,9 @@ def plan()->dict:
         "socket_absent":True,"training_uid_processes_absent":True,
         "custody_uid_processes_absent":True,
         "exact_runtime_argv_binding_required":True,
+        "custody_environment_exact":True,
+        "effective_systemd_configuration_bound":True,
+        "forbidden_manager_environment_absent":True,
         "planned_cycles":2,"target_start_stop":False,"service_direct_action":False,
         "training_execution":False,"durable_attempt_claim":False,
         "operator_private_key_access":False,"funds_movement":False,
@@ -592,6 +717,15 @@ def self_test()->None:
         'prestart_custody_uid_process',
         'custody_uid_process_after_stop',
         'custody_argv_exact_mismatch',
+        'target_dropins_present',
+        'service_dropins_present',
+        'service_effective_execstart_invalid',
+        'service_effective_execstoppost_invalid',
+        'service_unexpected_exec_command:',
+        'target_needs_daemon_reload',
+        'service_needs_daemon_reload',
+        'custody_environment_file_invalid',
+        'forbidden_manager_environment:',
         'emergency_cleanup_attempted=True',
         'final_dormant_recheck_attempted=True',
         'final_dormant_recheck_reason',
@@ -706,6 +840,58 @@ def self_test()->None:
         else:
             raise AssertionError("expected HOLD: "+reason)
 
+    exec_start_record=(
+        "{ path="+EXPECTED_EXEC_START_ARGV[0]
+        +" ; argv[]="+shlex.join(EXPECTED_EXEC_START_ARGV)
+        +" ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a]"
+        +" ; pid=0 ; code=(null) ; status=0/0 }"
+    )
+    exec_stop_post_record=(
+        "{ path="+EXPECTED_EXEC_STOP_POST_ARGV[0]
+        +" ; argv[]="+shlex.join(EXPECTED_EXEC_STOP_POST_ARGV)
+        +" ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a]"
+        +" ; pid=0 ; code=(null) ; status=0/0 }"
+    )
+    good_target={
+        "FragmentPath":os.fspath(TARGET_PATH),
+        "DropInPaths":"","NeedDaemonReload":"no",
+        "Wants":SERVICE_UNIT,"PropagatesStopTo":SERVICE_UNIT,
+    }
+    good_service={
+        "FragmentPath":os.fspath(SERVICE_PATH),
+        "DropInPaths":"","NeedDaemonReload":"no",
+        "RefuseManualStart":"yes","RefuseManualStop":"yes",
+        "NoNewPrivileges":"yes","RestrictAddressFamilies":"AF_UNIX",
+        "ExecCondition":"","ExecStartPre":"","ExecStart":exec_start_record,
+        "ExecStartPost":"","ExecStop":"","ExecStopPost":exec_stop_post_record,
+    }
+    validate_loaded_relations(good_target,good_service)
+    assert parse_exec_property(exec_start_record,"ExecStart")==[
+        EXPECTED_EXEC_START_ARGV
+    ]
+    assert manager_environment_names("LANG=C\nPATH=/usr/bin\n")=={
+        "LANG","PATH"
+    }
+    expected_env=expected_environment_bytes(321).decode("utf-8")
+    assert "NODE_OPTIONS" not in expected_env
+    assert "LD_PRELOAD" not in expected_env
+    for which,key,value,reason in (
+        ("target","DropInPaths","/run/systemd/system/x.conf","target_dropins_present"),
+        ("target","NeedDaemonReload","yes","target_needs_daemon_reload"),
+        ("service","DropInPaths","/run/systemd/system/x.conf","service_dropins_present"),
+        ("service","NeedDaemonReload","yes","service_needs_daemon_reload"),
+        ("service","ExecStartPre",exec_stop_post_record,"service_unexpected_exec_command:ExecStartPre"),
+        ("service","ExecStart",exec_start_record+" "+exec_stop_post_record,"service_effective_execstart_invalid"),
+        ("service","ExecStopPost",exec_stop_post_record+" "+exec_stop_post_record,"service_effective_execstoppost_invalid"),
+    ):
+        target=dict(good_target);service=dict(good_service)
+        (target if which=="target" else service)[key]=value
+        expect_hold(lambda t=target,s=service:validate_loaded_relations(t,s),reason)
+    expect_hold(
+        lambda:reject_forbidden_manager_environment({"NODE_OPTIONS"}),
+        "forbidden_manager_environment:NODE_OPTIONS",
+    )
+
     custody_uid=4242
     training_uid=4343
     with tempfile.TemporaryDirectory(prefix="apollyon-child-proc-zero-") as td:
@@ -807,6 +993,11 @@ def self_test()->None:
     print("unreadable_live_process_status_rejected=true")
     print("training_uid_unreadable_status_rejected=true")
     print("exact_runtime_argv_binding_required=true")
+    print("custody_environment_exact_required=true")
+    print("effective_systemd_configuration_bound=true")
+    print("systemd_dropins_rejected=true")
+    print("unexpected_systemd_exec_commands_rejected=true")
+    print("forbidden_manager_environment_rejected=true")
     print("failure_cleanup_receipt_truthful=true")
     print("emergency_cleanup_adversaries_executed=true")
     print("failed_stop_cleanup_reported=true")

@@ -27,6 +27,13 @@ for required in (
     'restart_safe_second_cycle_proven',
     'STATE_ROOT=Path("/var/lib/void-apollyon-custody-v1")',
     'custody_argv_exact_mismatch',
+    'custody_environment_file_invalid',
+    'effective_systemd_configuration_bound',
+    'service_effective_execstart_invalid',
+    'service_effective_execstoppost_invalid',
+    'service_dropins_present',
+    'target_dropins_present',
+    'forbidden_manager_environment:',
     'custody_uid_process_exclusivity_failed',
     'preexisting_custody_uid_process',
     'prestart_custody_uid_process',
@@ -71,6 +78,11 @@ for line in (
     "unreadable_live_process_status_rejected=true",
     "training_uid_unreadable_status_rejected=true",
     "exact_runtime_argv_binding_required=true",
+    "custody_environment_exact_required=true",
+    "effective_systemd_configuration_bound=true",
+    "systemd_dropins_rejected=true",
+    "unexpected_systemd_exec_commands_rejected=true",
+    "forbidden_manager_environment_rejected=true",
     "failure_cleanup_receipt_truthful=true",
     "emergency_cleanup_adversaries_executed=true",
     "failed_stop_cleanup_reported=true",
@@ -93,6 +105,11 @@ print("malformed_live_process_status_rejected=true")
 print("unreadable_live_process_status_rejected=true")
 print("training_uid_unreadable_status_rejected=true")
 print("exact_runtime_argv_binding_required=true")
+print("custody_environment_exact_required=true")
+print("effective_systemd_configuration_bound=true")
+print("systemd_dropins_rejected=true")
+print("unexpected_systemd_exec_commands_rejected=true")
+print("forbidden_manager_environment_rejected=true")
 print("failure_cleanup_receipt_truthful=true")
 print("emergency_cleanup_adversaries_executed=true")
 print("failed_stop_cleanup_reported=true")
