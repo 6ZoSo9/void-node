@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import {
   inspectVoidBuyVoidCustodyNodeBinaryProfileV1,
 } from "./void-buy-allocation-custody-node-binary-profile-v1.mjs";
@@ -24,6 +26,17 @@ export const VOID_BUY_VOID_CUSTODY_ACCEPTED_ARCHIVE_SHA256_V1 =
   "1fec540e1bac3f728bfa438512a6e0149eea1cda2ae5f2a05f4ec9f19a5a5c9d";
 
 export const VOID_BUY_VOID_CUSTODY_ACCEPTED_ARCHIVE_BYTES_V1 = 256000;
+
+export const VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_PATH_V1 =
+  "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v1.json";
+
+export const VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_GIT_BLOB_V1 =
+  "099e81e1185a1590eb987e4b231889c571af6f49";
+
+export const VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_BYTES_V1 = 2185;
+
+export const VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_SHA256_V1 =
+  "4d0a169bbc1dec33a3ef72fa9b93ff2ae3fd42dae7ae197fda61bd6e91e7791b";
 
 export const VOID_BUY_VOID_CUSTODY_EXISTING_TARGET_REPLACEMENT_AUTHORITY_V1 =
   Object.freeze({
@@ -101,7 +114,26 @@ function natural(value) {
   return Number.isSafeInteger(value) && value >= 0;
 }
 
-function acceptedArchiveLock(lock) {
+function acceptedArchiveLock(raw) {
+  if (!Buffer.isBuffer(raw)) return false;
+  if (raw.length !== VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_BYTES_V1) return false;
+  const sha256 = crypto.createHash("sha256").update(raw).digest("hex");
+  if (sha256 !== VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_SHA256_V1) return false;
+  const gitBlob = crypto
+    .createHash("sha1")
+    .update(Buffer.concat([
+      Buffer.from("blob " + raw.length + "\0", "utf8"),
+      raw,
+    ]))
+    .digest("hex");
+  if (gitBlob !== VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_GIT_BLOB_V1) return false;
+
+  let lock;
+  try {
+    lock = JSON.parse(raw.toString("utf8"));
+  } catch {
+    return false;
+  }
   if (!lock || typeof lock !== "object" || Array.isArray(lock)) return false;
   return (
     lock.marker === "VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_LOCK_V1" &&
@@ -126,7 +158,7 @@ function acceptedArchiveLock(lock) {
 
 export function classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1(
   observed,
-  archiveLock,
+  archiveLockRaw,
 ) {
   if (!exactObject(observed, TARGET_KEYS)) {
     return hold("custody_existing_target_observation_shape_invalid");
@@ -192,7 +224,7 @@ export function classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1(
   ) {
     return hold("custody_existing_target_replacement_preconditions_invalid");
   }
-  if (!acceptedArchiveLock(archiveLock)) {
+  if (!acceptedArchiveLock(archiveLockRaw)) {
     return hold("custody_existing_target_archive_lock_invalid");
   }
 
@@ -227,6 +259,12 @@ export function classifyVoidBuyVoidCustodyExistingTargetReplacementPlanV1(
     version: 1,
     target: Object.freeze({ ...observed }),
     dependencies: Object.freeze({
+      accepted_archive_lock_path: VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_PATH_V1,
+      accepted_archive_lock_git_blob:
+        VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_GIT_BLOB_V1,
+      accepted_archive_lock_bytes: VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_BYTES_V1,
+      accepted_archive_lock_sha256:
+        VOID_BUY_VOID_CUSTODY_ARCHIVE_LOCK_SHA256_V1,
       accepted_archive_id: VOID_BUY_VOID_CUSTODY_ACCEPTED_ARCHIVE_ID_V1,
       accepted_archive_bytes: VOID_BUY_VOID_CUSTODY_ACCEPTED_ARCHIVE_BYTES_V1,
       accepted_archive_sha256:
