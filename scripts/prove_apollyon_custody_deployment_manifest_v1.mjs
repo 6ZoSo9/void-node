@@ -75,15 +75,28 @@ assert.equal(target.includes("After=void-apollyon-authorization-custody-v1.servi
 assert.equal(target.includes("WantedBy=multi-user.target"),true);
 
 const env=fs.readFileSync(ENV_TEMPLATE,"utf8");
-for(const required of [
+const expectedEnvLines=[
   "VOID_APOLLYON_CUSTODY_SOCKET_PATH=/run/void-apollyon-custody-v1/custody.sock",
   "VOID_APOLLYON_CUSTODY_STATE_ROOT=/var/lib/void-apollyon-custody-v1",
   "VOID_APOLLYON_CUSTODY_SOCKET_GROUP_GID=@IPC_GID@",
   "VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_FILE=/etc/void/apollyon-custody-v1/operator-public-key.pem",
   "VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_RAW_SHA256=@OPERATOR_PUBLIC_KEY_RAW_SHA256@",
-]){
-  assert.equal(env.includes(required),true,required);
+];
+assert.equal(env,expectedEnvLines.join("\n")+"\n");
+const envKeys=expectedEnvLines.map(line=>line.slice(0,line.indexOf("=")));
+assert.deepEqual(
+  manifest.configuration_file_contract.environment_file.exact_keys,
+  envKeys,
+);
+for(const forbidden of ["NODE_OPTIONS","NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH"]){
+  assert.equal(envKeys.includes(forbidden),false,forbidden);
+  assert.equal(
+    manifest.configuration_file_contract.environment_file.forbidden_keys.includes(forbidden),
+    true,
+    forbidden,
+  );
 }
+assert.equal(manifest.configuration_file_contract.environment_file.extra_keys_forbidden,true);
 
 const polkit=fs.readFileSync(POLKIT);
 assert.equal(polkit.length,443);
@@ -112,6 +125,37 @@ assert.equal(
   manifest.required_operator_input.expected_operator_public_key_raw_sha256,
   "c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134",
 );
+assert.deepEqual(manifest.configuration_file_contract.config_directory,{
+  acceptance_revalidation_required:true,
+  canonical_real_directory_required:true,
+  group_world_writable_forbidden:true,
+  mode:"0755",
+  owner:"root:root",
+  path:"/etc/void/apollyon-custody-v1",
+  symlink_forbidden:true,
+});
+for(const [name,expected] of Object.entries({
+  environment_file:{mode:"0600",path:"/etc/void/apollyon-custody-v1/custody.env"},
+  operator_public_key_file:{mode:"0644",path:"/etc/void/apollyon-custody-v1/operator-public-key.pem"},
+})){
+  const row=manifest.configuration_file_contract[name];
+  assert.equal(row.owner,"root:root",name+":owner");
+  assert.equal(row.mode,expected.mode,name+":mode");
+  assert.equal(row.path,expected.path,name+":path");
+  assert.equal(row.canonical_path_required,true,name+":canonical");
+  assert.equal(row.symlink_forbidden,true,name+":symlink");
+  assert.equal(row.single_link_required,true,name+":links");
+  assert.equal(row.group_world_writable_forbidden,true,name+":writable");
+  assert.equal(row.acceptance_revalidation_required,true,name+":revalidation");
+}
+assert.equal(
+  manifest.configuration_file_contract.operator_public_key_file.expected_raw_sha256,
+  manifest.required_operator_input.expected_operator_public_key_raw_sha256,
+);
+assert.equal(
+  manifest.configuration_file_contract.operator_public_key_file.private_key_bytes_forbidden,
+  true,
+);
 assert.equal(
   fs.readFileSync(TMPFILES,"utf8"),
   "d /run/void-apollyon-custody-v1 0750 voidapollyoncustody voidapollyonipc - -\n",
@@ -138,6 +182,10 @@ console.log("custody_service_refuse_manual_start_stop=true");
 console.log("activation_target_separate=true");
 console.log("operator_public_key_required=true");
 console.log("operator_public_key_raw_sha256=c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134");
+console.log("configuration_files_root_owned=true");
+console.log("environment_exact_five_keys=true");
+console.log("loader_environment_keys_forbidden=true");
+console.log("configuration_acceptance_revalidation_required=true");
 console.log("socket_parent_tmpfiles_bound=true");
 console.log("operator_private_key_required=false");
 console.log("service_start=false");

@@ -51,6 +51,29 @@ d /run/void-apollyon-custody-v1 0750 voidapollyoncustody voidapollyonipc - -
 The installer invokes `systemd-tmpfiles --create` only after the custody and
 IPC identities exist.
 
+## Configuration-file custody
+
+Systemd reads the custody `EnvironmentFile` before the service sandbox is
+entered, so this file is part of the pre-exec trust boundary.
+
+The deployment contract therefore requires:
+
+- `/etc/void/apollyon-custody-v1`: real root-owned `0755` directory,
+  symlinks and group/world-writable parents forbidden;
+- `custody.env`: root-owned `0600`, regular single-link nonsymlink at its
+  canonical path, revalidated at deployment acceptance;
+- the environment file contains exactly the five reviewed
+  `VOID_APOLLYON_CUSTODY_*` keys from the source template and no extras;
+- `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, and `LD_LIBRARY_PATH`
+  are explicitly forbidden keys;
+- `operator-public-key.pem`: root-owned `0644`, regular single-link
+  nonsymlink at its canonical path, not writable by custody/training users; and
+- the installed public-key bytes must rederive the separately accepted raw
+  Ed25519 SHA-256 before deployment acceptance.
+
+These checks are source-contract requirements only in this PR; the installer and
+installed-host attestation must enforce and revalidate them separately.
+
 ## Service activation model
 
 `void-apollyon-authorization-custody-v1.service` carries
