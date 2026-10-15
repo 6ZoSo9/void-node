@@ -13,7 +13,7 @@ import tempfile
 MARKER = "VOID_APOLLYON_XIPHOS_BUILD_QUALIFICATION_V1_PROOF_GREEN"
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "ops/xiphos/apollyon_xiphos_build_qualification_v1.py"
-EXPECTED_RUNNER_GIT_BLOB = "5c5de3a392753824cb818e8ee9f1aceb9aeaf441"
+EXPECTED_RUNNER_GIT_BLOB = "df100566567bcc1bb722e48b0509d38493f9e675"
 
 
 def git_blob_sha1(data: bytes) -> str:
@@ -49,6 +49,15 @@ def prove_static_boundary(source: str) -> None:
         'NVIDIA_SMI = Path("/usr/bin/nvidia-smi")',
         'with tempfile.TemporaryDirectory(',
         '"persistent_filesystem_write": False',
+        '"network_calls": False',
+        '"verified_source_snapshot": True',
+        '"source_snapshot_integrity_revalidated": True',
+        'preentry_source_snapshot.write_bytes(preentry_source_bytes)',
+        'entrypoint_source_snapshot.write_bytes(entrypoint_source_bytes)',
+        'source=preentry_source_snapshot',
+        'source=entrypoint_source_snapshot',
+        'preentry_source_snapshot.read_bytes() != preentry_source_bytes',
+        'entrypoint_source_snapshot.read_bytes() != entrypoint_source_bytes',
         '"service_mutation": False',
         '"systemd_mutation": False',
         '"account_mutation": False',
@@ -66,6 +75,11 @@ def prove_static_boundary(source: str) -> None:
         "http://",
         "https://",
         "socket.create_connection",
+        "socket.socket(",
+        "socket.getaddrinfo(",
+        "urlopen(",
+        '"curl"',
+        '"wget"',
         "subprocess.Popen",
         'Path("/etc/',
         'Path("/opt/',
@@ -100,6 +114,7 @@ def prove_self_test(module) -> None:
         "VOID_XIPHOS_APOLLYON_BUILD_QUALIFICATION_V1_SELF_TEST=GREEN",
         "persistent_filesystem_write=false",
         "sudo_required=false",
+        "network_calls=false",
         "service_mutation=false",
         "account_mutation=false",
         "training_execution=false",
@@ -124,7 +139,7 @@ def prove_wrong_host_hold(module) -> None:
         module.socket.gethostname = original
 
 
-def prove_locked_builds(module) -> tuple[dict, dict, tempfile.TemporaryDirectory]:
+def prove_locked_builds(module) -> tuple[dict, dict, Path]:
     temporary = tempfile.TemporaryDirectory(
         prefix="void-apollyon-xiphos-build-proof-v1-"
     )
