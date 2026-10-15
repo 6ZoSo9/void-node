@@ -207,7 +207,7 @@ assert.ok(nativeGateAt > 0 && sensitiveAt > nativeGateAt);
 
 assert.match(
   doc,
-  /stdin JavaScript is rejected before policy, runner, or Node execution/u,
+  /Caller-streamed stdin JavaScript is rejected before policy, runner, or Node\s+execution/u,
 );
 assert.match(doc, /policy-v1[.]conf/u);
 assert.match(doc, /No live invocation is authorized by this source PR/u);
