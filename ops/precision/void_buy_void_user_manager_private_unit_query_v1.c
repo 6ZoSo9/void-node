@@ -5,9 +5,12 @@
 
 #include <dlfcn.h>
 #include <inttypes.h>
+#include <limits.h>
 
 #define MARKER "VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1"
 #define NODE_EXE "/usr/bin/node"
+#define LIBSYSTEMD_SONAME "/usr/lib/x86_64-linux-gnu/libsystemd.so.0"
+#define SANITIZED_ENV_MARKER "VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1"
 
 static void query_die(const char *code) { fprintf(stderr, "%s_HOLD\nreason=%s\n", MARKER, code); exit(2); }
 
@@ -16,6 +19,8 @@ typedef struct sd_bus_message sd_bus_message;
 
 struct sd_api {
   void *handle;
+  int library_fd;
+  char library_path[PATH_MAX];
   int (*bus_new)(sd_bus **);
   int (*bus_set_fd)(sd_bus *, int, int);
   int (*bus_set_bus_client)(sd_bus *, int);
@@ -30,18 +35,95 @@ struct sd_api {
   sd_bus *(*bus_unref)(sd_bus *);
 };
 
-static int load_symbol(void *handle, const char *name, void *target) {
+static int clean_loader_environment(void) {
+  const char *marker = getenv(SANITIZED_ENV_MARKER);
+  if (!marker || strcmp(marker, "1") != 0) return -1;
+  const char *forbidden[] = {
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "LD_DEBUG",
+    "LD_PROFILE", "LD_ORIGIN_PATH", "LD_ASSUME_KERNEL", "LD_BIND_NOW",
+    "LD_DYNAMIC_WEAK", "LD_HWCAP_MASK", "LD_POINTER_GUARD",
+    "LD_SHOW_AUXV", "LD_USE_LOAD_BIAS", "GLIBC_TUNABLES", NULL
+  };
+  for (size_t i = 0; forbidden[i] != NULL; ++i) {
+    if (getenv(forbidden[i]) != NULL) return -1;
+  }
+  return 0;
+}
+
+static int trusted_directory(const char *p) {
+  struct stat st;
+  if (lstat(p, &st) != 0 || !S_ISDIR(st.st_mode) || S_ISLNK(st.st_mode) ||
+      st.st_uid != 0 || (st.st_mode & 0022) != 0) return -1;
+  return 0;
+}
+
+static int open_verified_libsystemd(int *out_fd, char *resolved, size_t cap) {
+  if (!out_fd || !resolved || cap < 2) return -1;
+  if (trusted_directory("/") != 0 ||
+      trusted_directory("/usr") != 0 ||
+      trusted_directory("/usr/lib") != 0 ||
+      trusted_directory("/usr/lib/x86_64-linux-gnu") != 0) return -1;
+
+  struct stat link_st;
+  if (lstat(LIBSYSTEMD_SONAME, &link_st) != 0 || link_st.st_uid != 0 ||
+      link_st.st_nlink != 1) return -1;
+  if (!S_ISLNK(link_st.st_mode) && !S_ISREG(link_st.st_mode)) return -1;
+  if (S_ISREG(link_st.st_mode) && (link_st.st_mode & 0022) != 0) return -1;
+
+  char target[PATH_MAX];
+  if (!realpath(LIBSYSTEMD_SONAME, target)) return -1;
+  const char *prefix = "/usr/lib/x86_64-linux-gnu/libsystemd.so.0";
+  if (strncmp(target, prefix, strlen(prefix)) != 0 ||
+      target[strlen(prefix)] == '/') return -1;
+  size_t n = strlen(target);
+  if (n + 1 > cap) return -1;
+
+  struct stat visible;
+  if (lstat(target, &visible) != 0 || !S_ISREG(visible.st_mode) ||
+      S_ISLNK(visible.st_mode) || visible.st_uid != 0 ||
+      (visible.st_mode & 0022) != 0 || visible.st_nlink != 1 ||
+      visible.st_size <= 0) return -1;
+
+  int fd = open(target, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (fd < 0) return -1;
+  struct stat held;
+  if (fstat(fd, &held) != 0 || held.st_dev != visible.st_dev ||
+      held.st_ino != visible.st_ino || held.st_uid != visible.st_uid ||
+      held.st_gid != visible.st_gid || held.st_mode != visible.st_mode ||
+      held.st_nlink != visible.st_nlink || held.st_size != visible.st_size) {
+    close(fd);
+    return -1;
+  }
+  memcpy(resolved, target, n + 1);
+  *out_fd = fd;
+  return 0;
+}
+
+static int load_symbol(void *handle, const char *name, const char *expected_path, void *target) {
   void *value = dlsym(handle, name);
   if (!value) return -1;
+  Dl_info info;
+  memset(&info, 0, sizeof(info));
+  if (dladdr(value, &info) == 0 || !info.dli_fname) return -1;
+  char loaded[PATH_MAX];
+  if (!realpath(info.dli_fname, loaded) || strcmp(loaded, expected_path) != 0) return -1;
   memcpy(target, &value, sizeof(value));
   return 0;
 }
 
 static int load_sd_api(struct sd_api *api) {
   memset(api, 0, sizeof(*api));
-  api->handle = dlopen("libsystemd.so.0", RTLD_NOW | RTLD_LOCAL);
-  if (!api->handle) return -1;
-#define LOAD(field, symbol) do { if (load_symbol(api->handle, symbol, &api->field) != 0) return -1; } while (0)
+  api->library_fd = -1;
+  if (clean_loader_environment() != 0) return -1;
+  if (open_verified_libsystemd(&api->library_fd, api->library_path,
+                               sizeof(api->library_path)) != 0) return -1;
+
+  char procfd[64];
+  if (snprintf(procfd, sizeof(procfd), "/proc/self/fd/%d", api->library_fd) >=
+      (int)sizeof(procfd)) goto fail;
+  api->handle = dlopen(procfd, RTLD_NOW | RTLD_LOCAL);
+  if (!api->handle) goto fail;
+#define LOAD(field, symbol) do {   if (load_symbol(api->handle, symbol, api->library_path, &api->field) != 0) goto fail; } while (0)
   LOAD(bus_new, "sd_bus_new");
   LOAD(bus_set_fd, "sd_bus_set_fd");
   LOAD(bus_set_bus_client, "sd_bus_set_bus_client");
@@ -55,12 +137,30 @@ static int load_sd_api(struct sd_api *api) {
   LOAD(message_unref, "sd_bus_message_unref");
   LOAD(bus_unref, "sd_bus_unref");
 #undef LOAD
+
+  struct stat held, visible;
+  if (fstat(api->library_fd, &held) != 0 ||
+      lstat(api->library_path, &visible) != 0 ||
+      !S_ISREG(visible.st_mode) || S_ISLNK(visible.st_mode) ||
+      held.st_dev != visible.st_dev || held.st_ino != visible.st_ino ||
+      held.st_uid != visible.st_uid || held.st_gid != visible.st_gid ||
+      held.st_mode != visible.st_mode || held.st_nlink != visible.st_nlink ||
+      held.st_size != visible.st_size) goto fail;
   return 0;
+
+fail:
+  if (api->handle) dlclose(api->handle);
+  if (api->library_fd >= 0) close(api->library_fd);
+  memset(api, 0, sizeof(*api));
+  api->library_fd = -1;
+  return -1;
 }
 
 static void unload_sd_api(struct sd_api *api) {
   if (api->handle) dlclose(api->handle);
+  if (api->library_fd >= 0) close(api->library_fd);
   memset(api, 0, sizeof(*api));
+  api->library_fd = -1;
 }
 
 static int safe_unit_name(const char *unit) {
@@ -274,6 +374,10 @@ static int live_query(uid_t uid, const char *unit) {
   printf("manager_start_ticks=%llu\n",manager.start_ticks);
   printf("manager_peer_authenticated=true\n");
   printf("same_private_fd_used_for_query=true\n");
+  printf("sanitized_loader_environment=true\n");
+  printf("libsystemd_fixed_path_verified=true\n");
+  printf("libsystemd_retained_fd_load=true\n");
+  printf("libsystemd_symbol_provenance_verified=true\n");
   printf("runtime_service_unit=%s\n",unit);
   printf("LoadState=%s\n",obs.load_state);
   printf("ActiveState=%s\n",obs.active_state);
@@ -313,6 +417,10 @@ static int self_test_query(void) {
   if (safe_unit_name("bad.socket") == 0) return 1;
   printf("%s_SELF_TEST_GREEN\n",MARKER);
   printf("libsystemd_runtime_symbols_available=true\n");
+  printf("sanitized_loader_environment=true\n");
+  printf("libsystemd_fixed_soname_path=%s\n",LIBSYSTEMD_SONAME);
+  printf("libsystemd_retained_fd_load=true\n");
+  printf("libsystemd_symbol_provenance_verified=true\n");
   printf("sd_bus_set_fd_same_connection_required=true\n");
   printf("direct_peer_mode_required=true\n");
   printf("systemd_private_socket_required=true\n");
@@ -323,6 +431,7 @@ static int self_test_query(void) {
 }
 
 int main(int argc,char **argv) {
+  if (clean_loader_environment() != 0) query_die("sanitized_loader_environment_required");
   if (argc==2 && strcmp(argv[1],"--self-test")==0) return self_test_query();
   if (argc==5 && strcmp(argv[1],"--uid")==0 && strcmp(argv[3],"--unit")==0) {
     unsigned long long raw=0;
