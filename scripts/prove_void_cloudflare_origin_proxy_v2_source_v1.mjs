@@ -322,8 +322,11 @@ const source = fs.readFileSync(
 for (const forbidden of [
   "createServer(",
   ".listen(",
+  "node:child_process",
   "systemctl",
-  "nft",
+  // Match executable command text without colliding with the intentional
+  // authority field nftables_or_service_mutation=false.
+  "nft ",
   "cloudflared tunnel route",
   "tailscale funnel",
 ]) {
