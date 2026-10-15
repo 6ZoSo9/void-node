@@ -236,6 +236,18 @@ hold("credential lock mismatch",q=>{q.credential_lock_id="wrong";});
 hold("payment authority overclaim",q=>{q.payment_acceptance=true;});
 hold("credential content read overclaim",q=>{q.credential_contents_read=true;});
 hold("bad capability projection",q=>{q.v6_kernel_cap_bnd="000000ffffffffff";});
+hold("forged supported capability mask",q=>{
+  q.v6_kernel_cap_last_cap=0;
+  q.v6_kernel_supported_capability_mask="ffffffffffffffff";
+  q.v6_capability_bounding_set="0000000000000001";
+  q.v6_kernel_cap_bnd="0000000000000001";
+});
+hold("bounding bits above kernel ceiling",q=>{
+  q.v6_kernel_cap_last_cap=0;
+  q.v6_kernel_supported_capability_mask="0000000000000001";
+  q.v6_capability_bounding_set="0000000000000003";
+  q.v6_kernel_cap_bnd="0000000000000003";
+});
 hold("sealed signature tamper",null,r=>{
   const sig=Buffer.from(r.challenge.public_signature_p1363_hex,"hex");
   sig[0]^=1;
@@ -262,6 +274,8 @@ console.log("production_runtime_authority=false");
 console.log("main_pid_crosscheck=true");
 console.log("loadcredential_binding_crosscheck=true");
 console.log("service_cgroup_hash_crosscheck=true");
+console.log("cap_last_cap_projection_revalidated=true");
+console.log("above_kernel_capability_bits_rejected=true");
 console.log("public_user_bus_sufficient_authority=false");
 console.log("credential_source_reemitted=false");
 console.log("credential_contents_read_by_composer=false");
