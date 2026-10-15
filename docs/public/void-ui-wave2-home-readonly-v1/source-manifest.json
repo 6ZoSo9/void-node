@@ -36,7 +36,7 @@
   },
   "payload_hashes_are_source_bundle_only": true,
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "fb5b5a260e95c2282757c1eeb0e7a3237229b406883bab6896d121e8db9566dc",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "067e4340b964faba7432a6d08cba240618aa4a77754fdd123b21430b234eff11",
     "docs/public/void-ui-wave2-home-readonly-v1/ACCEPTANCE_CRITERIA.md": "f652dfbaa3f1a934b75a97c8c0707db75de4042cec65b1a24186f0018cdfa6d3",
     "docs/public/void-ui-wave2-home-readonly-v1/ADAPTER_CONTRACT.md": "f0e623daabd67a920a275f803c92f199b4acf452f6a45e5e6760bccdf9728e57",
     "docs/public/void-ui-wave2-home-readonly-v1/READINESS_HONESTY.md": "7ff731e046e970ecacf2196b57ac83506d3733b80caea3f5a577ab69ff5fa7ee",
@@ -51,8 +51,8 @@
     "public/void-app-wave1-v1/assets/js/home-live.js": "c41092b10b50cb902df02649684bf82f993183d408940f5b4453c693d689c0a9",
     "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "6c57387c41ca70bc844eda6f29a84f95544133bb52f51cc1b6eeb5a777dd1037",
-    "public/void-app-wave1-v1/index.html": "b8ec43af415f6a9b67cb544f6d560445cd9a2bb36867ff60f89b8244912f4993",
-    "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "9831de6179af0192859461d451bd68177b29f521ad265db872153654ac1cd4e4",
+    "public/void-app-wave1-v1/index.html": "d629ab00117ad6534651d66789887de2d9a0d101b7bb4b7d29eb0816acc37743",
+    "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "83619d1e7913635e9adb3876f1e51b691d9ae916f398f5a56431380f00e1be27",
     "src/index.ts": "0911349bc7b63975478cd48ba0f3d3ab70938eeb9515946cb2acbbd191afb3a7",
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
@@ -143,5 +143,6 @@
   "wallet_http200_evidence_truth_refresh_date": "2026-10-11",
   "same_route_modal_navigation_focus_refresh_date": "2026-10-13",
   "advanced_unavailable_controls_truth_refresh_date": "2026-10-14",
-  "advanced_drawer_short_viewport_scroll_refresh_date": "2026-10-14"
+  "advanced_drawer_short_viewport_scroll_refresh_date": "2026-10-14",
+  "command_search_filter_refresh_date": "2026-10-15"
 }
