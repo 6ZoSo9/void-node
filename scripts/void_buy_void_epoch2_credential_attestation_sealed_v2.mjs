@@ -785,7 +785,7 @@ function openCredentialGeneration(directory) {
       if (bytes !== null) bytes.fill(0);
       for (const fd of [keyFd, dirFd]) {
         if (fd >= 0) {
-          try { fs.closeSync(fd); } catch {}
+          try { fs.closeSync(fd); } catch (_closeError) { void _closeError; }
         }
       }
     }
