@@ -185,10 +185,19 @@ inside the private namespace. The namespace disappears with the child; the host
 `/opt` and `/home` inode/ownership/mode/content state remains unchanged.
 
 No `GITHUB_ACTIONS`, `CI`, `RUNNER_TEMP`, or other caller-controlled
-hosted marker grants fixture authority. Missing/failed unshare, mount, install,
-setpriv, or sudo support fails the proof closed. The private mount namespace is
-synthetic proof infrastructure only and does not weaken the production native
-ancestry predicate.
+hosted marker grants fixture authority. The internal delegated-child marker is
+also insufficient by itself. Before skipping outer namespace creation, the
+child must independently prove kernel/process state: its real parent executable
+is fixed `/usr/bin/unshare` running as root; its mount-namespace inode differs
+from PID 1; namespace-local `/opt` and `/home` match the disposable backing
+directory generations derived from the running harness executable; and the
+checkout mirror is the expected read-only mount. A caller that merely exports
+the internal marker therefore fails before protected fixture writes.
+
+Missing/failed unshare, mount, install, setpriv, sudo, parent provenance, mount
+identity, or read-only checkout state fails the proof closed. The private mount
+namespace is synthetic proof infrastructure only and does not weaken the
+production native ancestry predicate.
 
 A real native `/dev/null` invocation must clear the parent-proof gates,
 execute the real runtime-user transition, and reach the later expected Git
