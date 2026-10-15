@@ -42,7 +42,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs)" = \
             92e8c8696ea7e2bb81b6ef089db8baa657188935
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs)" = \
-            944453d7876a21568207479375467ff1eebcf218
+            25d0a7baa1035cd2497ef75e199ccdb220bb8d18
           test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml)" = \
             85c28fdf03345240332cbf41d46fbda065958ec7
           test "$(git rev-parse HEAD:scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs)" = \
@@ -62,6 +62,8 @@ jobs:
           for marker in \
             'VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1_PROOF_GREEN' \
             'native_parent_revalidated_after_sensitive_sequence=true' \
+            'direct_statx_mount_topology_bound=true' \
+            'proc_mountinfo_topology_authority=false' \
             'caller_stdin_javascript_rejected_before_root_js=true' \
             'native_preentry_static=true' \
             'native_preentry_no_pt_interp=true' \
