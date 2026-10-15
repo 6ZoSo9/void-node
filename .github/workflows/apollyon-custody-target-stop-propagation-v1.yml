@@ -37,6 +37,7 @@ jobs:
           grep -Fx 'reload_failure_resume_supported=true' "$proof"
           grep -Fx 'new_exact_stale_manager_reload_only=true' "$proof"
           grep -Fx 'reload_only_target_file_rewrite=false' "$proof"
+          grep -Fx 'target_revalidated_before_and_after_manager_recheck=true' "$proof"
           grep -Fx 'ambiguous_loaded_contract_fails_closed=true' "$proof"
           grep -Fx 'extra_loaded_wants_fails_closed=true' "$proof"
           grep -Fx 'service_action=false' "$proof"
