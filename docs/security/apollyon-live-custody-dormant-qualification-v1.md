@@ -47,6 +47,17 @@ are checked: exactly one reviewed `ExecStart`, no `ExecCondition`,
 configuration, an altered `UnsetEnvironment` set, or alternate effective
 command arrays fail closed before start.
 
+The qualifier also closes systemd dependency-directory authority without
+guessing implicit manager dependency sets. Across the complete reviewed
+system-manager unit search roots under `/etc`, `/run`,
+`/usr/local/lib` and `/usr/lib`, any visible
+`<target-or-service>.wants/` or `<target-or-service>.requires/`
+entry is unreviewed authority and HOLDs before start. Missing dependency
+directories are accepted; unreadable, symlinked, non-directory or non-empty
+dependency directories fail closed. Focused self-tests inject both an extra
+target `.requires/foreign.service` and an extra service
+`.wants/foreign.service` and require rejection.
+
 The consumed-record directory must be byte-metadata stable across both cycles.
 Stability is checked before each start and immediately after each completed stop,
 so a mutation in cycle 1 halts before cycle 2 instead of being deferred to the
