@@ -135,6 +135,56 @@ def read_bounded(path: pathlib.Path, maximum: int) -> bytes:
         raise CensusError(f"bounded_read_size_invalid:{path.name}")
     return data
 
+def read_regular_descriptor_bound(
+    path: pathlib.Path,
+    maximum: int,
+) -> tuple[bytes, bool]:
+    try:
+        visible_before = path.lstat()
+        if (
+            not stat.S_ISREG(visible_before.st_mode)
+            or stat.S_ISLNK(visible_before.st_mode)
+            or visible_before.st_size < 1
+            or visible_before.st_size > maximum
+        ):
+            return b"", False
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            opened = os.fstat(fd)
+            if (
+                opened.st_dev != visible_before.st_dev
+                or opened.st_ino != visible_before.st_ino
+                or opened.st_size != visible_before.st_size
+            ):
+                return b"", False
+            chunks: list[bytes] = []
+            remaining = opened.st_size
+            while remaining:
+                chunk = os.read(fd, min(65536, remaining))
+                if not chunk:
+                    return b"", False
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            after = os.fstat(fd)
+            visible_after = path.lstat()
+        finally:
+            os.close(fd)
+    except OSError:
+        return b"", False
+    stable = (
+        after.st_dev == opened.st_dev
+        and after.st_ino == opened.st_ino
+        and after.st_size == opened.st_size
+        and after.st_mtime_ns == opened.st_mtime_ns
+        and after.st_ctime_ns == opened.st_ctime_ns
+        and visible_after.st_dev == after.st_dev
+        and visible_after.st_ino == after.st_ino
+        and visible_after.st_size == after.st_size
+        and visible_after.st_mtime_ns == after.st_mtime_ns
+        and visible_after.st_ctime_ns == after.st_ctime_ns
+    )
+    return b"".join(chunks), stable
+
 def parse_key_values(raw: str) -> dict[str, str]:
     out: dict[str, str] = {}
     for line in raw.splitlines():
@@ -763,6 +813,7 @@ def tunnel_config_snapshot(
     result = {
         "config_path_observed": False,
         "config_sha256": None,
+        "config_generation_stable": False,
         "config_custody": file_custody(None, cloudflared_uid),
         "credentials_custody": file_custody(None, cloudflared_uid),
         "sensitive_route_shape_observed": False,
@@ -773,11 +824,17 @@ def tunnel_config_snapshot(
     }
     result["config_path_observed"] = True
     result["config_custody"] = file_custody(config, cloudflared_uid)
-    try:
-        data = read_bounded(config, MAX_CONFIG_BYTES)
-        parsed = parse_tunnel_config(data.decode("utf-8", "strict"))
-    except (OSError, CensusError, UnicodeDecodeError):
+    data, generation_stable = read_regular_descriptor_bound(
+        config,
+        MAX_CONFIG_BYTES,
+    )
+    if not generation_stable:
         return result
+    try:
+        parsed = parse_tunnel_config(data.decode("utf-8", "strict"))
+    except (CensusError, UnicodeDecodeError):
+        return result
+    result["config_generation_stable"] = True
     result["config_text_read"] = True
     result["config_sha256"] = sha256_bytes(data)
     result["sensitive_route_shape_observed"] = parsed["sensitive_route_shape_observed"]
@@ -879,6 +936,8 @@ def next_action(result: dict[str, Any]) -> str:
         return "LISTENER_OWNERSHIP_HOLD"
     if not result["tunnel"]["private_custody_shape_observed"]:
         return "TUNNEL_PRIVATE_CUSTODY_HOLD"
+    if not result["tunnel"]["config_generation_stable"]:
+        return "TUNNEL_CONFIG_GENERATION_HOLD"
     if not result["tunnel"]["sensitive_route_shape_observed"]:
         return "TUNNEL_SENSITIVE_ROUTE_HOLD"
     if not result["tunnel"]["ordinary_routes_preserved_candidate"]:
@@ -1015,6 +1074,7 @@ def collect(tunnel_config: pathlib.Path) -> dict[str, Any]:
         and services["cloudflared"]["process"]["executable_group_world_writable"] is False
         and listener_shape
         and tunnel["private_custody_shape_observed"]
+        and tunnel["config_generation_stable"]
         and tunnel["sensitive_route_shape_observed"]
         and tunnel["ordinary_routes_preserved_candidate"]
         and tunnel["adapter_route_matches_listener"]
