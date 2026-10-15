@@ -48,6 +48,8 @@ for forbidden in (
     "requests.",
     "http.client",
     "socket.socket",
+    "spec_from_file_location",
+    "exec_module(",
 ):
     assert forbidden not in source, f"unsafe_execution_or_network_primitive:{forbidden}"
 
@@ -73,6 +75,9 @@ for required in (
     'double_authenticated_query_stable',
     'query_execution_state=unknown_or_partial',
     'production_host_evidence_authority=false',
+    'types.ModuleType(',
+    'compile(raw, str(source_path), "exec", dont_inherit=True)',
+    'exec(code, module.__dict__)',
 ):
     assert required in source, f"required_qualification_boundary_missing:{required}"
 
@@ -84,6 +89,22 @@ assert spec is not None and spec.loader is not None
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 module.self_test()
+
+trusted_installer = b'VALUE = "authenticated"\n'
+replacement_pathname = (
+    b'raise AssertionError("replacement pathname bytes executed")\n'
+    b'VALUE = "replacement"\n'
+)
+authenticated_installer = trusted_installer
+authenticated_blob = module.git_blob_sha1(authenticated_installer)
+pathname_bytes_after_authentication = replacement_pathname
+loaded = module._module_from_authenticated_source(
+    authenticated_installer,
+    pathlib.Path("/simulated/replaced-installer.py"),
+)
+assert module.git_blob_sha1(authenticated_installer) == authenticated_blob
+assert pathname_bytes_after_authentication == replacement_pathname
+assert loaded.VALUE == "authenticated"
 
 positive = module.parse_native_output(module.synthetic_native_output())
 assert positive["runtime_uid"] == "1000"
@@ -156,6 +177,9 @@ print("runtime_main_pid_kernel_binding_required=true")
 print("double_authenticated_query_required=true")
 print("installed_pair_stability_required=true")
 print("hold_query_execution_state_explicit=true")
+print("authenticated_source_bytes_executed=true")
+print("post_auth_path_reopen_forbidden=true")
+print("post_auth_path_replacement_adversary_rejected=true")
 print("host_mutation=false")
 print("filesystem_write=false")
 print("service_mutation=false")
