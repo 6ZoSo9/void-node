@@ -243,11 +243,13 @@ def apply()->dict:
             try:os.unlink(temp)
             except FileNotFoundError:pass
         if state()!="new_exact":hold("target_post_replace_invalid")
+    if state()!="new_exact":hold("target_changed_before_manager_recheck")
     if profile["daemon_reload"]:
         run(["/usr/bin/systemctl","daemon-reload"])
         reloaded=True
     else:
         reloaded=False
+    if state()!="new_exact":hold("target_changed_during_manager_recheck")
     assert_dormant()
     verify_loaded_contract()
     return {
@@ -340,6 +342,7 @@ def self_test()->None:
     print("reload_failure_resume_supported=true")
     print("new_exact_stale_manager_reload_only=true")
     print("reload_only_target_file_rewrite=false")
+    print("target_revalidated_before_and_after_manager_recheck=true")
     print("ambiguous_loaded_contract_fails_closed=true")
     print("extra_loaded_wants_fails_closed=true")
     print("service_action=false")
