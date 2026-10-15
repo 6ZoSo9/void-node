@@ -60,7 +60,7 @@ jobs:
           fi
 
           case "$query_blob" in
-            6aefc385bcc4212d3c45e36871bfde0da3529baa|ddca2c544ce14261dffb80a202c0a4ae2979ec1e) ;;
+            6aefc385bcc4212d3c45e36871bfde0da3529baa|ddca2c544ce14261dffb80a202c0a4ae2979ec1e|fc1f640689b7da7278ff013669ef8a10cd8f6659) ;;
             *) echo "unknown canonical query successor: $query_blob" >&2; exit 2 ;;
           esac
           test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v2.json)" = "57026c4d8ca6cc9a40a3fa61f8cf4ee2c9df47be"
