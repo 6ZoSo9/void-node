@@ -47,7 +47,11 @@ inactive and the loaded target to have exactly the custody service in both
 This deliberately does not treat an arbitrary stale manager view as recoverable.
 Extra loaded `Wants=` dependencies, a different/nonempty
 `PropagatesStopTo=` set, active/transitional units, malformed systemctl output,
-unknown file bytes, or another target-generation mismatch all HOLD.
+unknown file bytes, or another target-generation mismatch all HOLD. Because both
+reviewed target generations contain an `[Install]` section and the installer
+never enables the target, the loaded `UnitFileState` must be exactly
+`disabled`; enabled, runtime-enabled, masked, static, linked, indirect, generated,
+or other states HOLD.
 
 Therefore a transient daemon-reload failure after a successful atomic replace
 can be resumed without a second pathname replacement, while every other drift
