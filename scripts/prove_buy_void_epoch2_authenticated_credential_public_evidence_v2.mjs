@@ -208,7 +208,9 @@ assert.equal(good.next_action,NEXT_ACTION);
 assert.equal(isCompositeEvidenceIdV2(good.composite_evidence_id),true);
 assert.equal(JSON.stringify(good).includes(credentialSource),false);
 
-function hold(label,mutateQualification,mutateRecord=null){
+function hold(
+  label,mutateQualification,mutateRecord=null,expectedReason=null
+){
   const q=structuredClone(qualification());
   const r=structuredClone(record);
   if(mutateQualification)mutateQualification(q);
@@ -218,6 +220,7 @@ function hold(label,mutateQualification,mutateRecord=null){
   );
   assert.equal(out.ok,false,label);
   assert.equal(out.status,"HOLD",label);
+  if(expectedReason!==null)assert.equal(out.reason,expectedReason,label);
   assert.equal(out.qualification_provenance_authenticated,false,label);
   assert.equal(out.production_runtime_authority,false,label);
   assert.equal(out.live_payment_signing_authorized,false,label);
@@ -235,6 +238,36 @@ hold("unstable native transcript",q=>{
 hold("credential lock mismatch",q=>{q.credential_lock_id="wrong";});
 hold("payment authority overclaim",q=>{q.payment_acceptance=true;});
 hold("credential content read overclaim",q=>{q.credential_contents_read=true;});
+hold(
+  "runtime uid not exact",
+  q=>{q.runtime_uid=1001;},
+  null,
+  "runtime_uid_mismatch",
+);
+hold(
+  "zero dropin count",
+  q=>{q.dropin_path_count=0;},
+  null,
+  "qualification_integer_invalid:dropin_path_count",
+);
+hold(
+  "zero dropin canonical bytes",
+  q=>{q.dropin_paths_canonical_bytes=0;},
+  null,
+  "qualification_integer_invalid:dropin_paths_canonical_bytes",
+);
+hold(
+  "fragment equals credential dropin",
+  q=>{q.fragment_path=q.credential_dropin_path;},
+  null,
+  "credential_path_relation_invalid",
+);
+hold(
+  "credential source equals dropin",
+  q=>{q.credential_source=q.credential_dropin_path;},
+  null,
+  "credential_path_relation_invalid",
+);
 hold("bad capability projection",q=>{q.v6_kernel_cap_bnd="000000ffffffffff";});
 hold("forged supported capability mask",q=>{
   q.v6_kernel_cap_last_cap=0;
@@ -276,6 +309,8 @@ console.log("loadcredential_binding_crosscheck=true");
 console.log("service_cgroup_hash_crosscheck=true");
 console.log("cap_last_cap_projection_revalidated=true");
 console.log("above_kernel_capability_bits_rejected=true");
+console.log("exact_qualifier_schema_mirrored=true");
+console.log("credential_path_relations_revalidated=true");
 console.log("public_user_bus_sufficient_authority=false");
 console.log("credential_source_reemitted=false");
 console.log("credential_contents_read_by_composer=false");
