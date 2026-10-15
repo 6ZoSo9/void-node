@@ -407,6 +407,7 @@ export function buildReceipt({
     signer_address:sealedRecord.immutable_fulfiller,
     qualification_provenance_authenticated_by_runner:true,
     qualification_stable_before_after_sealed_probe:true,
+    checkout_revalidated_after_sensitive_sequence:true,
     main_pid_crosscheck:true,
     loadcredential_binding_crosscheck:true,
     service_cgroup_hash_crosscheck:true,
@@ -446,6 +447,7 @@ function plan(){
   console.log("runtime_uid="+String(RUNTIME_UID));
   console.log("credential_v6_qualification_required=true");
   console.log("qualification_before_after_sealed_probe_required=true");
+  console.log("checkout_revalidation_after_sensitive_sequence_required=true");
   console.log("sealed_git_object_probe_required=true");
   console.log("sealed_probe_runs_as_runtime_uid=true");
   console.log("credential_content_access=false");
@@ -503,15 +505,79 @@ function selfTest(){
      receipt.credential_content_access_in_runner_parent!==false){
     throw new Error("authority_self_test_failed");
   }
+
+  let checkoutCount=0;
+  const stableSequence=runSensitiveSequence({
+    expectedHead:"d".repeat(40),
+    checkoutFn:()=>{checkoutCount+=1; return "d".repeat(40);},
+    qualificationFn:()=>({...q}),
+    sealedFn:()=>({...sealed}),
+    crossFn:()=>{},
+  });
+  if(checkoutCount!==2||
+     stableSequence.checkout_revalidated_after_sensitive_sequence!==true){
+    throw new Error("final_checkout_revalidation_self_test_failed");
+  }
+
+  let driftChecks=0;
+  try{
+    runSensitiveSequence({
+      expectedHead:"e".repeat(40),
+      checkoutFn:()=>{
+        driftChecks+=1;
+        if(driftChecks===2)throw new Error("late_source_drift");
+        return "e".repeat(40);
+      },
+      qualificationFn:()=>({...q}),
+      sealedFn:()=>({...sealed}),
+      crossFn:()=>{},
+    });
+  }catch(error){
+    if(error?.message!=="late_source_drift")throw error;
+  }
+  if(driftChecks!==2){
+    throw new Error("late_source_drift_not_detected");
+  }
   console.log(MARKER+"_SELF_TEST_GREEN");
   console.log("git_object_stdin_required_for_live=true");
   console.log("qualification_parser_closed=true");
   console.log("receipt_content_addressed=true");
+  console.log("final_checkout_revalidation_required=true");
+  console.log("late_source_drift_blocks_receipt=true");
   console.log("runner_parent_credential_content_access=false");
   console.log("sealed_child_credential_content_access=true");
   console.log("nontransaction_signature_only=true");
   console.log("transaction=false");
   console.log("funds_movement=false");
+}
+
+function runSensitiveSequence({
+  expectedHead,
+  checkoutFn=requireExactCheckout,
+  qualificationFn=runQualification,
+  sealedFn=runSealedProbe,
+  crossFn=crossCheck,
+}){
+  checkoutFn(expectedHead);
+
+  const before=qualificationFn(expectedHead);
+  const sealedRecord=sealedFn(expectedHead);
+  const after=qualificationFn(expectedHead);
+
+  if(canonical(before)!==canonical(after)){
+    throw new Error("qualification_changed_across_sealed_probe");
+  }
+  crossFn(sealedRecord,before);
+
+  // Close the source-generation window after all sensitive observations and
+  // before constructing or emitting a receipt.
+  checkoutFn(expectedHead);
+
+  return buildReceipt({
+    expectedHead,
+    qualification:before,
+    sealedRecord,
+  });
 }
 
 function live(expectedHead,confirm){
@@ -525,22 +591,8 @@ function live(expectedHead,confirm){
   assertTrustedExecutable(PYTHON);
   assertTrustedExecutable(NODE);
   assertTrustedExecutable(SETPRIV);
-  requireExactCheckout(expectedHead);
 
-  const before=runQualification(expectedHead);
-  const sealedRecord=runSealedProbe(expectedHead);
-  const after=runQualification(expectedHead);
-
-  if(canonical(before)!==canonical(after)){
-    throw new Error("qualification_changed_across_sealed_probe");
-  }
-  crossCheck(sealedRecord,before);
-
-  const receipt=buildReceipt({
-    expectedHead,
-    qualification:before,
-    sealedRecord,
-  });
+  const receipt=runSensitiveSequence({expectedHead});
   console.log(JSON.stringify(receipt,null,2));
 }
 
