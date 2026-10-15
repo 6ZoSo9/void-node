@@ -41,6 +41,13 @@ Every packaged runtime file is then re-opened directly with `O_NOFOLLOW`,
 read under stable inode/metadata, and required to match the exact per-file byte
 count and SHA-256 in the rederived candidate.
 
+The independent archive inspector does not trust a manifest merely because it
+repeats the accepted aggregate candidate ID. It carries the exact ten hosted
+per-file records from #3013 (path, bytes, SHA-256, runtime kind and tracked
+source Git blob where applicable) and requires byte-for-byte semantic equality.
+A self-consistent forged manifest plus substituted payload therefore HOLDs even
+if it leaves the aggregate candidate label unchanged.
+
 ## Deterministic archive
 
 The archive is canonical USTAR and contains exactly twelve regular files:
