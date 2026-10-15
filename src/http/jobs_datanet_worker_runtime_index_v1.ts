@@ -323,11 +323,11 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       completion = this.completionSnapshotV1(input);
     } catch (error) {
       const message = String((error as Error)?.message || error);
-      if (
-        message.startsWith(
-          `VOID_AGENT_PICK2_JSONL_RECORD_TOO_LARGE file=${input.jobsFile} `,
-        )
-      ) {
+      const oversized =
+        /^VOID_AGENT_PICK2_JSONL_RECORD_TOO_LARGE file=(.*) kind=([^ ]+) bytes=([0-9]+) max=([0-9]+)$/su.exec(
+          message,
+        );
+      if (oversized?.[1] === input.jobsFile) {
         this.rejectJobsSourceV1("jobs_record_too_large");
       }
       throw error;

@@ -501,6 +501,61 @@ try {
     `ready=${crCeilingRetry.ready} jobs=${crCeilingRetry.jobs.length} reason=${crCeilingRetry.holdReason || ""}`,
   );
 
+  // Oversized completion sources other than jobsFile must not poison the jobs
+  // generation. Deliberately make the receipts pathname begin with the exact
+  // jobs pathname plus a space so prefix-only error matching would fail this
+  // adversary.
+  const foreignJobsFile = path.join(root, "completion-foreign-jobs.jsonl");
+  const foreignReceiptsFile = foreignJobsFile + " receipt-shadow.jsonl";
+  const foreignJobStateFile = path.join(
+    root,
+    "completion-foreign-job-state.jsonl",
+  );
+  fs.writeFileSync(foreignJobsFile, "");
+  fs.writeFileSync(foreignJobStateFile, "");
+  fs.writeFileSync(
+    foreignReceiptsFile,
+    Buffer.concat([
+      Buffer.alloc(VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 + 1, 0x20),
+      Buffer.from("\n", "ascii"),
+    ]),
+  );
+  const foreignCompletionIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4 * 1024 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 2 * 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  let foreignCompletionHeld = false;
+  try {
+    foreignCompletionIndex.scan({
+      jobsFile: foreignJobsFile,
+      receiptsFile: foreignReceiptsFile,
+      jobStateFile: foreignJobStateFile,
+    });
+  } catch (error) {
+    foreignCompletionHeld = String(
+      (error as Error)?.message || error,
+    ).includes("VOID_AGENT_PICK2_JSONL_RECORD_TOO_LARGE");
+  }
+  assert(
+    foreignCompletionHeld,
+    "oversized-foreign-completion-source-first-fails",
+    `held=${foreignCompletionHeld}`,
+  );
+  fs.writeFileSync(foreignReceiptsFile, "");
+  const foreignCompletionRetry = foreignCompletionIndex.scan({
+    jobsFile: foreignJobsFile,
+    receiptsFile: foreignReceiptsFile,
+    jobStateFile: foreignJobStateFile,
+  });
+  assert(
+    foreignCompletionRetry.ready === true &&
+      foreignCompletionRetry.holdReason === null,
+    "oversized-foreign-completion-source-does-not-quarantine-jobs",
+    `ready=${foreignCompletionRetry.ready} reason=${foreignCompletionRetry.holdReason || ""}`,
+  );
+
   // Only the shared canonical writer may advance an already-admitted jobs
   // generation. Direct same-inode growth is rejected before completion truth
   // is derived from the changed source.
