@@ -9,6 +9,15 @@ on:
       - "ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json"
       - "scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py"
       - ".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
+      - "scripts/prove_apollyon_live_custody_source_session_preentry_binary_candidate_v1.py"
+      - ".github/workflows/apollyon-live-custody-source-session-preentry-binary-candidate-v1.yml"
+      - "ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json"
+      - "scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py"
+      - ".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml"
   workflow_dispatch:
 
 permissions:
@@ -38,6 +47,7 @@ jobs:
           python3 -I -B scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py             --self-test | tee "$proof"
           grep -Fx 'VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1_SELF_TEST_GREEN' "$proof"
           grep -Fx 'candidate_rederived_before_lock_acceptance=true' "$proof"
+          grep -Fx 'historical_candidate_parent_blobs_verified=true' "$proof"
           grep -Fx 'rehashed_forged_binary_lock_rejected=true' "$proof"
           grep -Fx 'rehashed_forged_source_lock_rejected=true' "$proof"
           grep -Fx 'candidate_binary_identity_accepted=true' "$proof"

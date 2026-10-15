@@ -82,7 +82,8 @@ def git(args:list[str])->str:
     return result.stdout.strip()
 
 def bind_repository()->None:
-    git(["merge-base","--is-ancestor",PARENT,"HEAD"])
+    if git(["rev-parse","--verify",PARENT+"^{commit}"])!=PARENT:
+        raise AssertionError("historical_candidate_parent_missing")
     if git(["status","--porcelain=v1","--untracked-files=all"]):
         raise AssertionError("worktree_not_clean")
     for rel,expected in (
@@ -90,6 +91,8 @@ def bind_repository()->None:
         (CANDIDATE_PROOF,CANDIDATE_PROOF_BLOB),
         (CANDIDATE_WORKFLOW,CANDIDATE_WORKFLOW_BLOB),
     ):
+        if git(["rev-parse","--verify",PARENT+":"+rel])!=expected:
+            raise AssertionError("historical_candidate_parent_blob_drift:"+rel)
         data=bounded(ROOT/rel,rel)
         if (
             git_blob(data)!=expected or
@@ -251,6 +254,7 @@ def self_test()->None:
             raise AssertionError("rehashed_forged_"+field+"_lock_accepted")
     print(MARKER+"_SELF_TEST_GREEN")
     print("candidate_rederived_before_lock_acceptance=true")
+    print("historical_candidate_parent_blobs_verified=true")
     print("rehashed_forged_binary_lock_rejected=true")
     print("rehashed_forged_source_lock_rejected=true")
     print("candidate_binary_identity_accepted=true")
