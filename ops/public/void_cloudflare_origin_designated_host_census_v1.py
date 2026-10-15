@@ -39,6 +39,17 @@ SOURCE_BLOBS = {
         "git_blob_sha1": "13f78dfef5634f4ff9f930d6d2be9a29447674cd",
     },
 }
+REVIEWED_FRONTDOOR_SOURCE = {
+    "path": "ops/public/void-public-frontdoor-v1.mjs",
+    "git_blob_sha1": "176f4a99c42ac3432d5797efaebf851cc0503737",
+    "bind": "127.0.0.1",
+    "port": 8083,
+}
+ORDINARY_FRONTDOOR_SERVICE = (
+    f"http://{REVIEWED_FRONTDOOR_SOURCE['bind']}:"
+    f"{REVIEWED_FRONTDOOR_SOURCE['port']}"
+)
+GLOBAL_CATCHALL_SERVICE = "http_status:404"
 SENSITIVE_PATHS = (
     "/__void/agents/paid-work/credential-requests/v1",
     "/wc/public-earning-pilot-v1/claim-ticket",
@@ -1051,15 +1062,16 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         len(hostless) == 1
         and hostless[0][0] == len(rules) - 1
         and hostless[0][1].get("path") is None
-        and isinstance(hostless[0][1].get("service"), str)
+        and hostless[0][1].get("service") == GLOBAL_CATCHALL_SERVICE
     )
     exact_public_rule_set = (
         len(public_other) == 1
         and len(ordinary_seed_rules) == 1
     )
-    ordinary_service_not_adapter = (
+    ordinary_frontdoor_target_bound = (
         len(ordinary_seed_rules) == 1
-        and ordinary_seed_rules[0][1].get("service") != adapter_service
+        and ordinary_seed_rules[0][1].get("service")
+        == ORDINARY_FRONTDOOR_SERVICE
     )
     extra_adapter_seed_rule = any(
         adapter_service is not None and rule.get("service") == adapter_service
@@ -1072,7 +1084,7 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
     )
     ordinary_preserved = (
         exact_public_rule_set
-        and ordinary_service_not_adapter
+        and ordinary_frontdoor_target_bound
         and first_match_order_verified
     )
     shape = (
@@ -1088,8 +1100,10 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         "extra_adapter_seed_rule_observed": extra_adapter_seed_rule,
         "ordinary_seed_route_count": len(ordinary_seed_rules),
         "ordinary_routes_preserved_candidate": ordinary_preserved,
+        "ordinary_frontdoor_target_bound": ordinary_frontdoor_target_bound,
         "first_match_order_verified": first_match_order_verified,
         "global_catchall_last": global_catchall_last,
+        "global_catchall_http_status_404_bound": global_catchall_last,
         "public_hostname_wildcard_shadow_absent": wildcard_shadow_absent,
     }
 
