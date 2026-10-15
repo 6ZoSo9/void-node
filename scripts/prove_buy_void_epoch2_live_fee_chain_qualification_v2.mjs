@@ -20,7 +20,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v2.mjs";
-const SOURCE_BLOB="16361aabbf8a77d2c167f1b5a78614e6932508f3";
+const SOURCE_BLOB="f52540b81b7ae86c352395d927fdc5f3286bf6f5";
 const CHILD=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v2.mjs";
 const CHILD_BLOB="5ff0fe527c4e66fce446a26dabb8abaf9b1a01d5";
@@ -79,8 +79,9 @@ assert.equal(
 const source=fs.readFileSync(path.join(ROOT,SOURCE),"utf8");
 for(const required of [
   '"eth_gasPrice"',
-  '"eth_getBalance"',
   '"eth_chainId"',
+  '"nonzero_fee_requires_per_payment_native_gas_funding"',
+  'standing_native_gas_balance_used_as_authority:false',
   '"qbft_getValidatorsByBlockNumber"',
   'const computedMaxFee=ceilMulDiv(',
   'policy.fee_multiplier_bps',
@@ -121,6 +122,7 @@ for(const required of [
   assert.ok(source.includes(required),required);
 }
 for(const forbidden of [
+  '"eth_getBalance"',
   "eth_sendRawTransaction",
   "eth_sendTransaction",
   "eth_getTransactionCount",
@@ -212,8 +214,6 @@ function fake(options={}){
         const values=options.gasPrices||["0x0","0x0"];
         return values[Math.min(gasCalls-1,values.length-1)];
       }
-      case "eth_getBalance":
-        return options.balance??"0xde0b6b3a7640000";
       default:
         throw new Error("unexpected_method:"+method);
     }
@@ -223,7 +223,7 @@ function fake(options={}){
 
 const noSleep=async()=>{};
 
-const zeroFixture=fake({gasPrices:["0x0","0x0"],balance:"0x0"});
+const zeroFixture=fake({gasPrices:["0x0","0x0"]});
 const zero=await observeFeeChainWithTransport(
   policy,zeroFixture.transport,noSleep
 );
@@ -231,7 +231,11 @@ assert.equal(zero.zero_fee_envelope,true);
 assert.equal(zero.nonzero_fee_envelope,false);
 assert.equal(zero.computed_max_fee_per_gas_wei,"0");
 assert.equal(zero.maximum_gas_cost_wei,"0");
-assert.equal(zero.fulfiller_native_balance_wei,"0");
+assert.equal(zero.standing_native_gas_balance_used_as_authority,false);
+assert.equal(zero.per_payment_native_gas_funding_required_for_nonzero_fee,true);
+assert.equal(zero.native_funding_required_for_qualified_zero_fee_path,false);
+assert.equal(Object.hasOwn(zero,"fulfiller_native_balance_wei"),false);
+assert.equal(Object.hasOwn(zero,"native_balance_sufficient"),false);
 assert.equal(zero.gas_limit_multiplier_bps,"15000");
 assert.equal(zero.fee_multiplier_bps,"20000");
 assert.equal(zero.accepted_max_gas_limit,"320000");
@@ -240,17 +244,12 @@ assert.equal(zero.final_block_hash_revalidated,true);
 const nonzeroFixture=fake({
   gasPrices:["0x3b9aca00","0x47868c00"], // 1.0 and 1.2 Gwei
 });
-const nonzero=await observeFeeChainWithTransport(
-  policy,nonzeroFixture.transport,noSleep
+await assert.rejects(
+  observeFeeChainWithTransport(
+    policy,nonzeroFixture.transport,noSleep
+  ),
+  /nonzero_fee_requires_per_payment_native_gas_funding/u,
 );
-assert.equal(nonzero.zero_fee_envelope,false);
-assert.equal(nonzero.nonzero_fee_envelope,true);
-assert.equal(nonzero.conservative_observed_gas_price_wei,"1200000000");
-assert.equal(nonzero.computed_max_fee_per_gas_wei,"2400000000");
-assert.equal(nonzero.configured_priority_fee_per_gas_wei,"0");
-assert.equal(nonzero.maximum_fee_per_gas_wei,"3000000000");
-assert.equal(nonzero.maximum_gas_cost_wei,"768000000000000");
-assert.equal(nonzero.native_balance_sufficient,true);
 
 await assert.rejects(
   observeFeeChainWithTransport(
@@ -259,17 +258,6 @@ await assert.rejects(
     noSleep,
   ),
   /computed_max_fee_exceeds_policy/u,
-);
-await assert.rejects(
-  observeFeeChainWithTransport(
-    policy,
-    fake({
-      gasPrices:["0x3b9aca00","0x47868c00"],
-      balance:"0x1",
-    }).transport,
-    noSleep,
-  ),
-  /fulfiller_native_balance_insufficient/u,
 );
 for(const [label,options,pattern] of [
   ["wrong chain",{wrongChain:true},/chain_id_mismatch/u],
@@ -288,17 +276,17 @@ for(const [label,options,pattern] of [
   );
 }
 
-const methods=[...new Set(nonzeroFixture.calls.map((row)=>row.method))].sort();
+const methods=[...new Set(zeroFixture.calls.map((row)=>row.method))].sort();
 assert.deepEqual(methods,[
   "eth_blockNumber",
   "eth_chainId",
   "eth_gasPrice",
-  "eth_getBalance",
   "eth_getBlockByNumber",
   "eth_getCode",
   "net_peerCount",
   "qbft_getValidatorsByBlockNumber",
 ].sort());
+assert.equal(methods.includes("eth_getBalance"),false);
 
 const child={
   marker:"VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_SIGNER_CONTROL_BINDING_V2",
@@ -369,7 +357,7 @@ const stableIdentity=requireStableChildRuntimeIdentity(
 assert.equal(stableIdentity.manager_pid,2693);
 assert.equal(stableIdentity.main_pid,4242);
 
-testOnlyValidateFeeChainObservation(policy,nonzero);
+testOnlyValidateFeeChainObservation(policy,zero);
 
 const hostFixture=Object.freeze({
   expected_runtime_observation_id:"voidpe2rpcobs1_"+"1".repeat(64),
@@ -403,14 +391,14 @@ assert.equal(
 }
 assert.throws(
   ()=>buildReceipt(
-    "a".repeat(40),child,childAfter,policy,nonzero,
+    "a".repeat(40),child,childAfter,policy,zero,
     hostFixture,hostFixture
   ),
   /rpc_host_binding_live_provenance_required/u,
 );
 
 {
-  const forged=structuredClone(nonzero);
+  const forged=structuredClone(zero);
   forged.computed_max_fee_per_gas_wei="1";
   assert.throws(
     ()=>testOnlyValidateFeeChainObservation(policy,forged),
@@ -418,7 +406,7 @@ assert.throws(
   );
 }
 {
-  const forged=structuredClone(nonzero);
+  const forged=structuredClone(zero);
   forged.maximum_gas_cost_wei="1";
   assert.throws(
     ()=>testOnlyValidateFeeChainObservation(policy,forged),
@@ -426,8 +414,8 @@ assert.throws(
   );
 }
 {
-  const forged=structuredClone(nonzero);
-  forged.zero_fee_envelope=true;
+  const forged=structuredClone(zero);
+  forged.nonzero_fee_envelope=true;
   assert.throws(
     ()=>testOnlyValidateFeeChainObservation(policy,forged),
     /fee_envelope_classification_invalid/u,
@@ -454,7 +442,8 @@ console.log("protected_first_entry_provenance_required=true");
 console.log("candidate_v2_fee_policy_bound=true");
 console.log("production_eth_gasPrice_semantics_mirrored=true");
 console.log("zero_fee_envelope_proven_inert=true");
-console.log("bounded_nonzero_fee_envelope_proven_inert=true");
+console.log("nonzero_fee_envelope_rejected_without_per_payment_funding=true");
+console.log("standing_native_gas_balance_used_as_authority=false");
 console.log("fee_multiplier_bps=20000");
 console.log("accepted_max_gas_limit=320000");
 console.log("max_fee_per_gas_wei=3000000000");
@@ -464,7 +453,8 @@ console.log("exact_validator_roster_before_after_required=true");
 console.log("contract_code_identity_bound=true");
 console.log("chain_progress_required=true");
 console.log("final_block_hash_revalidated=true");
-console.log("native_fee_funding_required=true");
+console.log("native_funding_required_for_qualified_zero_fee_path=false");
+console.log("per_payment_native_gas_funding_required_for_nonzero_fee=true");
 console.log("credential_signer_control_before_after_chain_window_required=true");
 console.log("credential_signer_control_runtime_generation_stability_required=true");
 console.log("credential_signer_control_runtime_drift_rejected=true");
