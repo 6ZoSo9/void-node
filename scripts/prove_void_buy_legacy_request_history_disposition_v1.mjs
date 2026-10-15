@@ -11,6 +11,10 @@ const base=()=>({
   metadata_census_source_head:"b".repeat(40),
   designated_hostname_matches:true,
   designated_machine_id_matches:true,
+  bounded_current_candidate_set_observed:true,
+  process_environment_access:false,
+  external_network_calls:false,
+  loopback_get_only:true,
   candidate_count:7,
   surviving_history_metadata_root_count:0,
   unverified_root_count:0,
@@ -48,6 +52,31 @@ assert.equal(classify({
   surviving_history_metadata_root_count:1,
 }).ok,false);
 
+const incomplete=classify({
+  ...base(),
+  bounded_current_candidate_set_observed:false,
+});
+assert.equal(incomplete.ok,false);
+assert.equal(
+  incomplete.reason,
+  "legacy_history_disposition_incomplete_bounded_census_requires_hold",
+);
+const incompleteHold=classify({
+  ...base(),
+  bounded_current_candidate_set_observed:false,
+  decision:D.UNRESOLVED_HOLD,
+});
+assert.equal(incompleteHold.ok,true);
+assert.equal(incompleteHold.human_accounting_disposition_declared,false);
+
+for(const unsafe of [
+  {process_environment_access:true},
+  {external_network_calls:true},
+  {loopback_get_only:false},
+]){
+  assert.equal(classify({...base(),...unsafe}).ok,false);
+}
+
 const unresolved=classify({
   ...base(),
   unverified_root_count:1,
@@ -80,6 +109,9 @@ for(const [key,expected] of Object.entries({
   human_accounting_disposition_may_be_recorded:true,
   technical_historical_origin_proven:false,
   technical_candidate_set_completeness_proven:false,
+  bounded_current_candidate_set_required_for_disposition:true,
+  process_environment_access_forbidden:true,
+  external_network_access_forbidden:true,
   cryptographic_never_used_proof_claimed:false,
   sovereign_signature_required_for_acceptance:true,
   external_witness_required_for_acceptance:true,
@@ -103,6 +135,9 @@ console.log("technical_never_used_proof_claimed=false");
 console.log("human_accounting_disposition_separate_from_technical_origin=true");
 console.log("surviving_history_requires_migration_disposition=true");
 console.log("unverified_history_requires_hold=true");
+console.log("bounded_current_candidate_set_required=true");
+console.log("process_environment_access_forbidden=true");
+console.log("external_network_access_forbidden=true");
 console.log("sovereign_signature_required=true");
 console.log("external_witness_required=true");
 console.log("historical_request_history_disposition_accepted=false");
