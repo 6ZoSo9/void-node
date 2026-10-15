@@ -22,7 +22,7 @@ It consumes the exact canonical JSON bytes emitted by #3064 as
 `result_json`, parses the full census schema, and:
 
 - requires accepted #3064 source head
-  `7f2f2af3e48747a40f215f86cd3646a3f6557779`;
+  `a8e3b930a98eeef0f19f3df94822c2c104bfdde8`;
 - pins the exact census source Git blob
   `be5b0034de608c6803eb09c80491afff89c7bf39`;
 - computes the census SHA-256 internally from those exact bytes;
