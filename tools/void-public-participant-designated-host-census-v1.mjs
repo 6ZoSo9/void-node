@@ -16,8 +16,12 @@ export const VOID_PUBLIC_PARTICIPANT_DESIGNATED_HOST_SOURCE_BLOBS_V1 =
       "b086b612fe5ee1dc1d5bcc4838d926af890d1435",
     "ops/public/void-public-participant-session-http-v1.mjs":
       "43106ae5ba4af7cd82ec66bc4729d0f6767211cf",
+    "ops/public/void-public-participant-read-session-v1.mjs":
+      "00fea49e1da53975deba78b69f5776537f6899e8",
     "ops/public/void-public-participant-account-read-http-edge-v1.mjs":
       "583d2e61115916589e30239d1bf5451a525f2996",
+    "ops/public/void-public-participant-account-read-projection-v1.mjs":
+      "985ac993f59d9bfc4f0650853f142bfd398b9e18",
     "ops/public/void-public-participant-session-state-file-v1.mjs":
       "260b1ced7eebe2385a514c66edeebff287be54e7",
     "ops/public/void-public-participant-live-role-authority-v1.mjs":
@@ -70,6 +74,26 @@ const GATEWAY_BLOB =
 const COMPOSITION_STATUS_PATH = "/__void/public-app/status.json";
 const SESSION_STATUS_PATH = "/__void/participant/session/v1/status.json";
 const ACCOUNT_STATUS_PATH = "/__void/participant/account-read/v1/status.json";
+
+const COMPOSITION_METHODS = Object.freeze([
+  "GET",
+  "HEAD",
+  "POST(exact public earn and operator notification routes only)",
+]);
+const OPERATOR_WEBHOOK_RECEIVER_PATH =
+  "/__void/operator-notifications/v1/candidate";
+const AGENT_PAID_WORK_EDGE_MARKER =
+  "VOID_NODE_HOSTED_PAID_WORK_ORIGIN_BRIDGE_V1";
+const AGENT_PAID_WORK_SUBMISSION_PATH =
+  "/__void/agents/paid-work/submissions/v1";
+const PUBLIC_DISCOVERY_PACK_MARKER =
+  "VOID_PUBLIC_DISCOVERY_PACK_V1";
+const EPOCH2_PUBLIC_READ_ROUTES = Object.freeze([
+  "/public-node/economic/epoch2/read-status-v1.json",
+  "/public-node/economic/epoch2/balance-v1",
+  "/public-node/economic/epoch2/code-v1",
+  "/public-node/economic/epoch2/receipt-v1",
+]);
 
 const COMPOSITION_STATUS_KEYS = Object.freeze([
   "account_views_public",
@@ -145,6 +169,48 @@ function exactObjectKeys(value, expected) {
     actual.length === wanted.length &&
     actual.every((key, index) => key === wanted[index])
   );
+}
+
+function exactStringArray(value, expected) {
+  return Boolean(
+    Array.isArray(value) &&
+    value.length === expected.length &&
+    value.every(
+      (entry, index) =>
+        typeof entry === "string" && entry === expected[index],
+    )
+  );
+}
+
+function publicDiscoveryShapeQualified(body) {
+  const configured = body?.public_discovery_pack_configured;
+  const count = body?.public_discovery_pack_file_count;
+  const routes = body?.public_discovery_pack_routes;
+  if (
+    typeof configured !== "boolean" ||
+    !Number.isSafeInteger(count) ||
+    count < 0 ||
+    !Array.isArray(routes) ||
+    routes.length !== count
+  ) {
+    return false;
+  }
+  const seen = new Set();
+  for (const route of routes) {
+    if (
+      typeof route !== "string" ||
+      route.length < 1 ||
+      route.length > 512 ||
+      !route.startsWith("/") ||
+      route.includes("?") ||
+      route.includes("#") ||
+      seen.has(route)
+    ) {
+      return false;
+    }
+    seen.add(route);
+  }
+  return configured ? count > 0 : count === 0;
 }
 
 function sha256(value) {
@@ -561,9 +627,29 @@ function compositionStatusQualified(observation) {
     body.port === PORT &&
     body.public_upstream_private === true &&
     body.node_upstream_private === true &&
+    exactStringArray(body.methods, COMPOSITION_METHODS) &&
+    typeof body.operator_webhook_receiver_route_configured === "boolean" &&
+    body.operator_webhook_receiver_path === OPERATOR_WEBHOOK_RECEIVER_PATH &&
+    body.agent_paid_work_edge_marker === AGENT_PAID_WORK_EDGE_MARKER &&
+    typeof body.agent_paid_work_edge_configured === "boolean" &&
+    body.agent_paid_work_submission_path === AGENT_PAID_WORK_SUBMISSION_PATH &&
+    body.agent_paid_work_gateway_upstream_loopback_only === true &&
+    body.agent_paid_work_generic_proxy === false &&
+    body.app_public === true &&
+    body.participant_handoff_public === true &&
+    publicDiscoveryShapeQualified(body) &&
+    body.public_discovery_pack_marker === PUBLIC_DISCOVERY_PACK_MARKER &&
+    typeof body.epoch2_public_economic_read_configured === "boolean" &&
+    body.epoch2_public_economic_read_upstream_loopback_only === true &&
+    body.epoch2_public_economic_read_raw_rpc_proxy === false &&
+    exactStringArray(
+      body.epoch2_public_economic_read_routes,
+      EPOCH2_PUBLIC_READ_ROUTES,
+    ) &&
     body.account_views_public === false &&
     body.mutation === false &&
     body.generic_mutation === false &&
+    body.bounded_public_earn_claim_submit === true &&
     body.money_movement === false
   );
 }
@@ -637,6 +723,13 @@ function endpointStable(a, b) {
   );
 }
 
+function endpointAbsent(observation) {
+  return Boolean(
+    observation?.observed === true &&
+    observation.status === 404
+  );
+}
+
 export function classifyVoidPublicParticipantDesignatedHostCensusV1(
   observation,
 ) {
@@ -703,6 +796,12 @@ export function classifyVoidPublicParticipantDesignatedHostCensusV1(
     accountBefore &&
     accountAfter &&
     participantEndpointStable;
+  const participantDefaultOff =
+    endpointAbsent(observation?.session_before) &&
+    endpointAbsent(observation?.session_after) &&
+    endpointAbsent(observation?.account_before) &&
+    endpointAbsent(observation?.account_after) &&
+    participantEndpointStable;
 
   const runtimeCandidate =
     hostnameMatches &&
@@ -722,11 +821,14 @@ export function classifyVoidPublicParticipantDesignatedHostCensusV1(
       "PARTICIPANT_LOOPBACK_SURFACE_OBSERVED_HOST_GATES_REMAIN";
     nextAction =
       "qualify_scalar_config_state_custody_restart_rollback_and_external_acceptance";
-  } else if (runtimeCandidate) {
+  } else if (runtimeCandidate && participantDefaultOff) {
     status =
       "PARTICIPANT_SURFACE_DEFAULT_OFF_OR_UNOBSERVED";
     nextAction =
       "install_or_verify_participant_scalar_configuration_then_rerun";
+  } else if (runtimeCandidate) {
+    status = "PARTICIPANT_SURFACE_INVALID_HOLD";
+    nextAction = "repair_invalid_or_unstable_participant_status_then_rerun";
   }
 
   return Object.freeze({
@@ -832,8 +934,10 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
       "POST(exact public earn and operator notification routes only)",
     ],
     operator_webhook_receiver_route_configured: false,
-    operator_webhook_receiver_path: "/__void/operator/webhook",
-    agent_paid_work_edge_marker: "VOID_AGENT_PAID_WORK_EDGE_V1",
+    operator_webhook_receiver_path:
+      "/__void/operator-notifications/v1/candidate",
+    agent_paid_work_edge_marker:
+      "VOID_NODE_HOSTED_PAID_WORK_ORIGIN_BRIDGE_V1",
     agent_paid_work_edge_configured: false,
     agent_paid_work_submission_path: "/__void/agents/paid-work/submissions/v1",
     agent_paid_work_gateway_upstream_loopback_only: true,
@@ -847,7 +951,12 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
     epoch2_public_economic_read_configured: false,
     epoch2_public_economic_read_upstream_loopback_only: true,
     epoch2_public_economic_read_raw_rpc_proxy: false,
-    epoch2_public_economic_read_routes: [],
+    epoch2_public_economic_read_routes: [
+      "/public-node/economic/epoch2/read-status-v1.json",
+      "/public-node/economic/epoch2/balance-v1",
+      "/public-node/economic/epoch2/code-v1",
+      "/public-node/economic/epoch2/receipt-v1",
+    ],
     account_views_public: false,
     mutation: false,
     generic_mutation: false,
@@ -923,6 +1032,24 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
     throw new Error("active_self_test_failed");
   }
 
+  const contradictoryComposition = syntheticHttp(200, {
+    ...compositionBody,
+    agent_paid_work_generic_proxy: true,
+  });
+  const contradictoryCompositionResult =
+    classifyVoidPublicParticipantDesignatedHostCensusV1({
+      ...active,
+      composition_before: contradictoryComposition,
+      composition_after: contradictoryComposition,
+    });
+  if (
+    contradictoryCompositionResult.status !== "HOST_RUNTIME_HOLD" ||
+    contradictoryCompositionResult.composition_status_stable_and_qualified !==
+      false
+  ) {
+    throw new Error("composition_fixed_value_contract_self_test_failed");
+  }
+
   const inactiveHttp = syntheticHttp(
     404,
     { ok: false, error: "not_public" },
@@ -951,6 +1078,32 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
     });
   if (partial.status !== "PARTICIPANT_SURFACE_PARTIAL_HOLD") {
     throw new Error("partial_surface_self_test_failed");
+  }
+
+  const invalidSession = syntheticHttp(200, {
+    ...sessionBody,
+    signing_authority: true,
+  }, {
+    participant: "v1",
+    marker: "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1",
+  });
+  const invalidAccount = syntheticHttp(200, {
+    ...accountBody,
+    wallet_mutation_authority: true,
+  }, {
+    participant: "v1",
+    marker: "VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1",
+  });
+  const jointlyInvalid =
+    classifyVoidPublicParticipantDesignatedHostCensusV1({
+      ...active,
+      session_before: invalidSession,
+      session_after: invalidSession,
+      account_before: invalidAccount,
+      account_after: invalidAccount,
+    });
+  if (jointlyInvalid.status !== "PARTICIPANT_SURFACE_INVALID_HOLD") {
+    throw new Error("joint_invalid_surface_self_test_failed");
   }
 
   const movedProcess =

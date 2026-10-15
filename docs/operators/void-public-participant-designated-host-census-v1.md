@@ -60,12 +60,18 @@ contents, and never calls challenge/login/logout routes.
   durable state store;
 - composition, session and account status bodies use exact reviewed key sets;
   unknown response fields fail closed rather than extending authority implicitly;
+- every fixed composition safety/control value is checked exactly, while
+  intentionally configuration-dependent booleans and public-discovery route
+  metadata must satisfy closed type/shape and count consistency;
 - participant session status requires exactly a 60,000 ms challenge TTL and
   900,000 ms session TTL;
 - the account-read status reports the exact Wallet/Earn read-only routes with
   mutation/money authority false;
 - both branded status surfaces are mounted on loopback inside one observed
-  process generation bracket spanning the complete two-sample HTTP window.
+  process generation bracket spanning the complete two-sample HTTP window;
+- stable observed 404s on both participant endpoints are the only positive
+  default-off classification; jointly malformed, contradictory, or unstable
+  participant responses fail closed as `PARTICIPANT_SURFACE_INVALID_HOLD`.
 
 It does **not** prove the bytes originally loaded by Node equal the currently
 visible file bytes.
@@ -102,8 +108,10 @@ only.
 ## Focused CI continuity
 
 The focused proof runs both on pull requests and accepted pushes to `main`
-for the same complete set of reviewed census input paths. A later accepted
-dependency/source drift therefore cannot bypass this census proof.
+for the same complete set of reviewed census input paths, including the direct
+participant session and account-read projection contracts whose TTL/path values
+the census validates. A later accepted dependency/source drift therefore cannot
+bypass this census proof.
 
 ## Authority boundary
 
