@@ -19,9 +19,9 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_PARENT_V1 =
   Object.freeze({
     marker: "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1",
     version: 1,
-    accepted_source_head: "a8e3b930a98eeef0f19f3df94822c2c104bfdde8",
+    accepted_source_head: "c4a0046dbadc7eb681e78c49090c9a17373f8682",
     source_path: "ops/precision/void_buy_void_legacy_request_root_census_v1.py",
-    accepted_source_blob_sha1: "be5b0034de608c6803eb09c80491afff89c7bf39",
+    accepted_source_blob_sha1: "f8bfda9ff88a5278c950b1c23f5e1675e5362048",
   });
 
 export const VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_AUTHORITY_V1 =
@@ -68,9 +68,8 @@ const DEFAULT_RELATIVE=".runtime/public-buy-void-requests-v1";
 const RELEASE_DEFAULT=
   /^\/opt\/void-node-live\/releases\/[0-9a-f]{40}\/\.runtime\/public-buy-void-requests-v1$/u;
 const KNOWN_SOURCES=Object.freeze([
+  "authenticated_live_process_cwd_default",
   "repo_default",
-  "unit_working_directory_default",
-  "live_process_cwd_default",
   "live_status_explicit_request_dir",
   "immutable_release_default",
   "selected_future_stable_root",
@@ -83,9 +82,13 @@ const INPUT_KEYS=Object.freeze([
   "reviewed_at_utc",
 ]);
 const CENSUS_KEYS=Object.freeze([
-  "marker","version","read_only",
+  "marker","version","read_only","root_execution_required",
   "designated_hostname_matches","designated_runtime_user_matches","effective_uid",
-  "designated_machine_id_matches","service",
+  "designated_machine_id_matches","designated_host_identity_verified",
+  "authenticated_private_manager_peer",
+  "authenticated_user_manager_query_stable",
+  "installed_authenticated_query_pair_stable",
+  "authenticated_main_pid","unit_working_directory_authenticated","service",
   "process_environment_access","external_network_calls","loopback_get_only",
   "runtime_process_generation_stable","runtime_http_listener_stable",
   "confirmed_closeout_request_root_status",
@@ -101,12 +104,14 @@ const CENSUS_KEYS=Object.freeze([
   "historical_request_history_disposition_proven","historical_origin_authenticated",
   "filesystem_rollback_prevention_proven","migration_authorized",
   "request_or_payment_contents_read","directory_entry_names_output",
-  "host_mutation","payment_acceptance","public_presale_activation",
+  "host_mutation","service_mutation","systemd_mutation",
+  "payment_acceptance","public_presale_activation",
   "funds_movement","production_gate_ready","next_action",
 ]);
 const SERVICE_KEYS=Object.freeze([
-  "status","load_state","active_state","sub_state","main_pid",
-  "working_directory","live_process_cwd",
+  "authenticated_user_manager","load_state","active_state","sub_state",
+  "main_pid","runtime_uid","control_group","working_directory",
+  "working_directory_authenticated","live_process_cwd",
 ]);
 const STATUS_KEYS=Object.freeze(["observed","source","request_dir"]);
 const CANDIDATE_KEYS=Object.freeze([
@@ -183,7 +188,7 @@ function deriveCensus(raw,sourceHead){
   if(census.marker!==PARENT.marker||census.version!==PARENT.version){
     fail("legacy_history_disposition_census_identity_invalid");
   }
-  if(census.effective_uid!==1000){
+  if(census.effective_uid!==0){
     fail("legacy_history_disposition_effective_uid_invalid");
   }
   const service=exactObject(
@@ -192,16 +197,24 @@ function deriveCensus(raw,sourceHead){
     "legacy_history_disposition_service_shape_invalid",
   );
   if(
-    !Number.isSafeInteger(service.status)||
+    service.authenticated_user_manager!==true||
     ![service.load_state,service.active_state,service.sub_state]
       .every(value=>value===null||typeof value==="string")||
-    !(service.main_pid===null||Number.isSafeInteger(service.main_pid))||
-    !(service.working_directory===null||
-      typeof service.working_directory==="string")||
+    !Number.isSafeInteger(service.main_pid)||service.main_pid<=1||
+    service.runtime_uid!==1000||
+    typeof service.control_group!=="string"||
+    !service.control_group.startsWith("/")||
+    service.working_directory!==null||
+    service.working_directory_authenticated!==false||
     !(service.live_process_cwd===null||
       typeof service.live_process_cwd==="string")
   ){
     fail("legacy_history_disposition_service_state_invalid");
+  }
+  if(!Number.isSafeInteger(census.authenticated_main_pid)||
+     census.authenticated_main_pid<=1||
+     census.authenticated_main_pid!==service.main_pid){
+    fail("legacy_history_disposition_authenticated_main_pid_invalid");
   }
   const requestStatus=exactObject(
     census.confirmed_closeout_request_root_status,
@@ -223,12 +236,24 @@ function deriveCensus(raw,sourceHead){
     fail("legacy_history_disposition_request_status_invalid");
   }
   requireBool(census.read_only,true,"legacy_history_disposition_census_not_read_only");
+  requireBool(census.root_execution_required,true,
+    "legacy_history_disposition_root_query_boundary_invalid");
   requireBool(census.designated_hostname_matches,true,
     "legacy_history_disposition_designated_host_unbound");
   requireBool(census.designated_runtime_user_matches,true,
     "legacy_history_disposition_designated_runtime_user_unbound");
   requireBool(census.designated_machine_id_matches,true,
     "legacy_history_disposition_designated_machine_unbound");
+  requireBool(census.designated_host_identity_verified,true,
+    "legacy_history_disposition_designated_host_identity_unverified");
+  requireBool(census.authenticated_private_manager_peer,true,
+    "legacy_history_disposition_private_manager_peer_unverified");
+  if(typeof census.authenticated_user_manager_query_stable!=="boolean"||
+     typeof census.installed_authenticated_query_pair_stable!=="boolean"){
+    fail("legacy_history_disposition_authenticated_query_state_invalid");
+  }
+  requireBool(census.unit_working_directory_authenticated,false,
+    "legacy_history_disposition_unit_working_directory_must_remain_untrusted");
   requireBool(census.process_environment_access,false,
     "legacy_history_disposition_process_environment_access_forbidden");
   requireBool(census.external_network_calls,false,
@@ -250,6 +275,10 @@ function deriveCensus(raw,sourceHead){
   requireBool(census.migration_authorized,false,
     "legacy_history_disposition_census_authority_invalid");
   requireBool(census.host_mutation,false,
+    "legacy_history_disposition_census_authority_invalid");
+  requireBool(census.service_mutation,false,
+    "legacy_history_disposition_census_authority_invalid");
+  requireBool(census.systemd_mutation,false,
     "legacy_history_disposition_census_authority_invalid");
   requireBool(census.payment_acceptance,false,
     "legacy_history_disposition_census_authority_invalid");
@@ -280,7 +309,13 @@ function deriveCensus(raw,sourceHead){
       fail("legacy_history_disposition_census_boolean_invalid_"+key);
     }
   }
+  if(census.authenticated_user_manager_query_stable===true&&
+     census.installed_authenticated_query_pair_stable!==true){
+    fail("legacy_history_disposition_authenticated_query_pair_inconsistent");
+  }
   const boundedExpected=
+    census.designated_host_identity_verified===true&&
+    census.authenticated_user_manager_query_stable===true&&
     census.runtime_process_generation_stable===true&&
     census.runtime_http_listener_stable===true&&
     census.confirmed_closeout_request_root_status_stable===true&&
@@ -291,14 +326,16 @@ function deriveCensus(raw,sourceHead){
   }
   if(census.bounded_current_candidate_set_observed===true&&(
     census.immutable_release_inventory_complete!==true||
-    service.status!==0||
+    census.authenticated_private_manager_peer!==true||
+    census.authenticated_user_manager_query_stable!==true||
+    census.installed_authenticated_query_pair_stable!==true||
+    service.authenticated_user_manager!==true||
     service.load_state!=="loaded"||
     service.active_state!=="active"||
     service.sub_state!=="running"||
-    !Number.isSafeInteger(service.main_pid)||
-    service.main_pid<=1||
-    typeof service.working_directory!=="string"||
-    !service.working_directory.startsWith("/")||
+    service.runtime_uid!==1000||
+    service.working_directory!==null||
+    service.working_directory_authenticated!==false||
     typeof service.live_process_cwd!=="string"||
     !service.live_process_cwd.startsWith("/")||
     requestStatus.observed!==true
@@ -358,13 +395,9 @@ function deriveCensus(raw,sourceHead){
       if(source==="repo_default"&&row.path!==REPO_DEFAULT){
         fail("legacy_history_disposition_repo_source_path_mismatch");
       }
-      if(source==="unit_working_directory_default"&&
-         row.path!==expectedDefault(service.working_directory)){
-        fail("legacy_history_disposition_working_directory_source_path_mismatch");
-      }
-      if(source==="live_process_cwd_default"&&
+      if(source==="authenticated_live_process_cwd_default"&&
          row.path!==expectedDefault(service.live_process_cwd)){
-        fail("legacy_history_disposition_live_cwd_source_path_mismatch");
+        fail("legacy_history_disposition_authenticated_live_cwd_source_path_mismatch");
       }
       if(source==="live_status_explicit_request_dir"&&(
         requestStatus.observed!==true||
@@ -393,9 +426,7 @@ function deriveCensus(raw,sourceHead){
   if(sourceCounts.repo_default!==1||
      sourceCounts.selected_future_stable_root!==1||
      sourceCounts.immutable_release_default!==census.immutable_release_count||
-     sourceCounts.unit_working_directory_default!==
-       (service.working_directory===null?0:1)||
-     sourceCounts.live_process_cwd_default!==
+     sourceCounts.authenticated_live_process_cwd_default!==
        (service.live_process_cwd===null?0:1)||
      sourceCounts.live_status_explicit_request_dir!==
        (requestStatus.observed===true&&
