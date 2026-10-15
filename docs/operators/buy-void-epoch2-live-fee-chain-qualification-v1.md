@@ -145,3 +145,15 @@ A future live GREEN receipt advances only to:
 `COMPLETE_CURRENT_CHAIN2050_ONE_PAYMENT_ONE_FULFILLMENT_CANARY`.
 
 PROTECT THE CORE.
+
+## Fresh RPC host binding
+
+The selected production RPC descriptor and historical runtime observation are
+expected-generation data only, not current authority. The live gate freshly
+revalidates the exact service process, kernel cgroup/argv/environment, rootless
+Docker socket and accepted container generation, exact port mapping and
+loopback listener before and after the fee window. Any drift HOLDS.
+
+The production receipt builder accepts only host-binding objects minted by the
+live observer in the same process; synthetic JSON cannot acquire fresh-host
+authority.
