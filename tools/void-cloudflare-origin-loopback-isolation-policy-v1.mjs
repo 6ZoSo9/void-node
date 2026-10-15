@@ -24,7 +24,7 @@ export const VOID_CLOUDFLARE_ORIGIN_LOOPBACK_ISOLATION_POLICY_AUTHORITY_V1 =
     historical_user_tunnel_retired_verified: false,
     tunnel_path_ownership_verified: false,
     cloudflare_worker_route_absence_proven: false,
-    pseudo_ipv4_overwrite_disabled_proven: false,
+    pseudo_ipv4_mode_off_proven: false,
     nftables_ruleset_live_verified: false,
     listener_ownership_live_verified: false,
     cloudflared_uid_isolation_proven: false,
@@ -283,7 +283,7 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
         "sensitive_paths",
         "ordinary_routes_preserved",
         "worker_route_absence_required",
-        "pseudo_ipv4_overwrite_disabled_required",
+        "pseudo_ipv4_mode_off_required",
       ],
       "cloudflare_isolation_cloudflared_shape_invalid",
     );
@@ -294,7 +294,7 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
       cloudflared.disable_chunked_encoding_required !== true ||
       cloudflared.ordinary_routes_preserved !== true ||
       cloudflared.worker_route_absence_required !== true ||
-      cloudflared.pseudo_ipv4_overwrite_disabled_required !== true
+      cloudflared.pseudo_ipv4_mode_off_required !== true
     ) {
       fail("cloudflare_isolation_cloudflared_route_policy_invalid");
     }
@@ -531,7 +531,7 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
       historical_user_tunnel_retired_verified: false,
       tunnel_path_ownership_verified: false,
       cloudflare_worker_route_absence_proven: false,
-      pseudo_ipv4_overwrite_disabled_proven: false,
+      pseudo_ipv4_mode_off_proven: false,
       nftables_ruleset_live_verified: false,
       listener_ownership_live_verified: false,
       cloudflared_uid_isolation_proven: false,
