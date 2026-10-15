@@ -8,6 +8,9 @@ import {
   sha256,
 } from "../tools/datanet-content-commitment-compiler-profile-v1.mjs";
 import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "../tools/datanet-content-commitment-production-registry-identity-v1.mjs";
+import {
   ECONOMIC_EPOCH2_STATE_ROOT_OBJECT_ID_SHA256_V1,
   ECONOMIC_EPOCH2_STATE_ROOT_PAYLOAD_BYTES_V1,
   ECONOMIC_EPOCH2_STATE_ROOT_PAYLOAD_SHA256_V1,
@@ -34,7 +37,8 @@ const migration=JSON.parse(
   ),
 );
 
-const registry="0x1111111111111111111111111111111111111111";
+const registry=
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1;
 const publisher="0x2222222222222222222222222222222222222222";
 
 function membership(overrides={}) {
