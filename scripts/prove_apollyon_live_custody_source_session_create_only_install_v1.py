@@ -16,7 +16,7 @@ def git_blob(path:Path)->str:
     h.update(f"blob {len(data)}\0".encode("ascii"));h.update(data)
     return h.hexdigest()
 
-assert git_blob(MANIFEST)=="d3080463072a2bbb5278918c54c0b69267b32b3e"
+assert git_blob(MANIFEST)=="d67b449c5d28acd2aef502cd1b86867890dc30ff"
 source=INSTALLER.read_text(encoding="utf-8")
 ast.parse(source)
 for required in (
