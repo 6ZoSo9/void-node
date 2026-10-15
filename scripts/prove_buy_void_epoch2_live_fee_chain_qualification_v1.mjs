@@ -11,13 +11,14 @@ import {
   NEXT_ACTION,
   validateCandidatePolicy,
   observeFeeChainWithTransport,
+  requireStableChildRuntimeIdentity,
   buildReceipt,
 } from "../ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "ops/precision/void_buy_void_epoch2_live_fee_chain_qualification_v1.mjs";
-const SOURCE_BLOB="4382a49ff2be854220cf738966521c628914f9be";
+const SOURCE_BLOB="a386e6474996cd06ac40af760deb43e0107de291";
 const CHILD=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v1.mjs";
 const CHILD_BLOB="6d68b52ec036e422a151239f9c8f3ee7faa28055";
@@ -74,8 +75,10 @@ for(const required of [
   'customer_payment_record_access:false',
   'customer_safe_to_pay:false',
   'production_host_evidence_authority:false',
-  'const child=runChild(expectedHead);',
+  'const childBefore=runChild(expectedHead);',
   'const observation=await observeFeeChainLive(policy);',
+  'const childAfter=runChild(expectedHead);',
+  'credential_signer_control_generation_stable_across_chain_window:true',
 ]){
   assert.ok(source.includes(required),required);
 }
@@ -270,6 +273,23 @@ const child={
   epoch2_fulfiller_public_address:FULFILLER,
   candidate_lineage_crosscheck:true,
   closing_checkout_revalidated_before_receipt:true,
+  accepted_signer_control_candidate_git_blob:"c".repeat(40),
+  accepted_signer_control_public_evidence_git_blob:"d".repeat(40),
+  accepted_signer_control_evidence_id_sha256:"e".repeat(64),
+  authenticated_credential_binding_receipt:{
+    source_candidate_git_blob:"f".repeat(40),
+    authenticated_credential_live_receipt:{
+      credential_lock_id:
+        "voidbuyumqcredelflock1_65a1839c14b692349dda8cccdbe8657a9485754c5d10ffa5b57421ce87e3753c",
+      runtime_uid:1000,
+      manager_pid:2693,
+      manager_start_ticks:"1409",
+      main_pid:4242,
+      service_start_ticks:"998877",
+      credential_qualification_sha256:"sha256:"+"9".repeat(64),
+      signer_address:FULFILLER,
+    },
+  },
   signer_credential_state:{
     signer_offchain_control_proven:true,
     launch_operator_signer_control_evidence_bound:true,
@@ -299,13 +319,42 @@ const child={
   next_action:"QUALIFY_LIVE_FEE_ENVELOPE_AND_EXACT_CHAIN_RECEIPT",
   receipt_id:"voide2signcred1_"+"b".repeat(64),
 };
-const receipt=buildReceipt("a".repeat(40),child,policy,nonzero);
+const childAfter=structuredClone(child);
+const stableIdentity=requireStableChildRuntimeIdentity(
+  child,childAfter,"a".repeat(40)
+);
+assert.equal(stableIdentity.manager_pid,2693);
+assert.equal(stableIdentity.main_pid,4242);
+
+const receipt=buildReceipt(
+  "a".repeat(40),child,childAfter,policy,nonzero
+);
 assert.equal(receipt.marker,MARKER);
 assert.equal(receipt.status,STATUS);
 assert.equal(receipt.accepted_fee_policy_bound,true);
 assert.equal(receipt.zero_or_nonzero_fee_envelope_qualified,true);
 assert.equal(receipt.exact_chain_history_and_contract_identity_qualified,true);
 assert.equal(receipt.native_fee_funding_sufficient,true);
+assert.equal(
+  receipt.credential_signer_control_generation_stable_across_chain_window,
+  true,
+);
+assert.equal(
+  receipt.credential_signer_control_stable_identity.main_pid,
+  4242,
+);
+assert.match(
+  receipt.credential_signer_control_stable_identity_sha256,
+  /^[0-9a-f]{64}$/u,
+);
+assert.equal(
+  receipt.authenticated_credential_signer_control_receipt_before.receipt_id,
+  child.receipt_id,
+);
+assert.equal(
+  receipt.authenticated_credential_signer_control_receipt_after.receipt_id,
+  childAfter.receipt_id,
+);
 assert.equal(receipt.transaction_calldata_constructed,false);
 assert.equal(receipt.nonce_reserved,false);
 assert.equal(receipt.transaction_signing_proven,false);
@@ -330,7 +379,7 @@ assert.match(
   const forged=structuredClone(nonzero);
   forged.computed_max_fee_per_gas_wei="1";
   assert.throws(
-    ()=>buildReceipt("a".repeat(40),child,policy,forged),
+    ()=>buildReceipt("a".repeat(40),child,childAfter,policy,forged),
     /fee_chain_computed_envelope_invalid/u,
   );
 }
@@ -338,7 +387,7 @@ assert.match(
   const forged=structuredClone(nonzero);
   forged.maximum_gas_cost_wei="1";
   assert.throws(
-    ()=>buildReceipt("a".repeat(40),child,policy,forged),
+    ()=>buildReceipt("a".repeat(40),child,childAfter,policy,forged),
     /fee_chain_maximum_gas_cost_invalid/u,
   );
 }
@@ -346,8 +395,26 @@ assert.match(
   const forged=structuredClone(nonzero);
   forged.zero_fee_envelope=true;
   assert.throws(
-    ()=>buildReceipt("a".repeat(40),child,policy,forged),
+    ()=>buildReceipt("a".repeat(40),child,childAfter,policy,forged),
     /fee_envelope_classification_invalid/u,
+  );
+}
+
+{
+  const driftedChild=structuredClone(childAfter);
+  driftedChild.authenticated_credential_binding_receipt
+    .authenticated_credential_live_receipt.main_pid=4243;
+  assert.throws(
+    ()=>requireStableChildRuntimeIdentity(
+      child,driftedChild,"a".repeat(40)
+    ),
+    /credential_signer_control_generation_changed_during_fee_window/u,
+  );
+  assert.throws(
+    ()=>buildReceipt(
+      "a".repeat(40),child,driftedChild,policy,nonzero
+    ),
+    /credential_signer_control_generation_changed_during_fee_window/u,
   );
 }
 
@@ -366,6 +433,9 @@ console.log("contract_code_identity_bound=true");
 console.log("chain_progress_required=true");
 console.log("final_block_hash_revalidated=true");
 console.log("native_fee_funding_required=true");
+console.log("credential_signer_control_before_after_chain_window_required=true");
+console.log("credential_signer_control_runtime_generation_stability_required=true");
+console.log("credential_signer_control_runtime_drift_rejected=true");
 console.log("forged_fee_receipt_rejected=true");
 console.log("transaction_calldata_constructed=false");
 console.log("nonce_reserved=false");
