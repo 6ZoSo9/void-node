@@ -28,8 +28,9 @@ GID at module load and requires:
 - an **absolute, already-provisioned** request root;
 - owner = the runtime UID;
 - group = the configured custody IPC GID;
-- exact directory mode `02750` (setgid + owner rwx + group r-x);
-- fixed `requests.jsonl` and `operator-events.jsonl` owner = runtime UID;
+- exact directory mode `0750` (setgid + owner rwx + group r-x);
+- both fixed `requests.jsonl` and `operator-events.jsonl` must already exist;
+- fixed-journal owner = runtime UID;
 - exact fixed-journal mode `0640`;
 - fixed-journal GID = the configured IPC GID;
 - no group write and no other access.
@@ -37,10 +38,10 @@ GID at module load and requires:
 The runtime does not chmod/chown an existing historical request root into this
 trust domain. An absent or incorrectly provisioned shared root fails closed.
 
-The setgid directory makes new fixed journals inherit the reviewed IPC group.
-The request helper creates a fresh request journal as `0640` only in this
-explicit mode. The capacity writer likewise creates a missing fixed journal as
-`0640` and verifies exact GID/mode before using it.
+Neither mounted writer creates a fixed journal in shared mode. This removes
+ambient umask and group-inheritance behavior from the authority boundary.
+Both fixed journals are provisioned explicitly, then the request/capacity
+writers verify exact owner/GID/mode before every use.
 
 ## Sidecars stay private
 
@@ -54,7 +55,7 @@ payment-provenance observation.
 Source support is not host qualification. Before enabling the new env:
 
 1. choose a stable request root outside immutable release directories;
-2. create it with the exact runtime owner, IPC group and `02750` mode;
+2. create it with the exact runtime owner, IPC group and `0750` mode;
 3. create both fixed journals with runtime owner, IPC group and `0640` mode;
 4. harden the live user-systemd runtime (`NoNewPrivileges`, empty capability
    bounding/ambient sets) without breaking existing public-node duties;
