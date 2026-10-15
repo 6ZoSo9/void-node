@@ -158,7 +158,8 @@ export function readPinnedRegular(absolute,{expectedBytes=null,rootOwned=false,e
 
 export function acceptedLock(root=ROOT){
   const absolute=path.join(root,LOCK_REL);
-  const bytes=fs.readFileSync(absolute);
+  const pinned=readPinnedRegular(path.resolve(absolute));
+  const bytes=pinned.bytes;
   if(gitBlobSha1(bytes)!==LOCK_BLOB)fail("accepted_lock_blob_mismatch");
   let lock;
   try{lock=JSON.parse(bytes);}catch{fail("accepted_lock_json_invalid");}
@@ -191,7 +192,7 @@ export function acceptedLock(root=ROOT){
 export function inspectNativeCandidate(absolute){
   const info=readPinnedRegular(absolute,{expectedBytes:NATIVE_BYTES});
   if(info.sha256!==NATIVE_SHA256)fail("native_candidate_sha256_mismatch");
-  return info;
+  return Object.freeze({...info,path:absolute});
 }
 
 export function inspectRunner(root=ROOT){
@@ -263,6 +264,7 @@ export function buildInstallPlan({expectedHead,native,node}){
     node_path:FIXED_NODE,
     node_sha256:node.sha256,
     node_bytes:node.size,
+    native_candidate_source_path:String(native.path??""),
     native_candidate_dev:String(native.dev??""),
     native_candidate_ino:String(native.ino??""),
     plan_only:true,
@@ -309,6 +311,7 @@ function selfTest(){
   const native={
     sha256:NATIVE_SHA256,
     size:NATIVE_BYTES,
+    path:"/tmp/native-candidate",
     dev:"1",
     ino:"2",
   };
