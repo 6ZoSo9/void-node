@@ -149,12 +149,39 @@ try{
   );
   fs.chmodSync(events,VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1);
 
-  fs.chmodSync(shared,0o750);
+  fs.chmodSync(shared,0o700);
   await rejects(
     ()=>persist(shared,req("buyvoid_shared_cccccccc","3")),
     /private_directory_owner_or_mode/u,
   );
   fs.chmodSync(shared,VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1);
+
+  const missingJournalRoot=path.join(root,"missing-journal");
+  fs.mkdirSync(missingJournalRoot,{
+    mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1,
+  });
+  fs.chmodSync(
+    missingJournalRoot,
+    VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1,
+  );
+  fs.writeFileSync(
+    path.join(missingJournalRoot,EVENTS),
+    "",
+    {mode:VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1},
+  );
+  fs.chmodSync(
+    path.join(missingJournalRoot,EVENTS),
+    VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1,
+  );
+  await rejects(
+    ()=>persist(missingJournalRoot,req("buyvoid_shared_eeeeeeee","5")),
+    /custody_readable_journal_not_preprovisioned/u,
+  );
+  assert.equal(
+    fs.existsSync(path.join(missingJournalRoot,REQUESTS)),
+    false,
+    "shared runtime must not create the fixed request journal",
+  );
 
   process.env.VOID_BUY_REQUEST_DIR=absent;
   await rejects(
@@ -181,7 +208,8 @@ for(const [key,expected] of Object.entries({
   absolute_preprovisioned_request_root_required:true,
   runtime_uid_remains_owner:true,
   dedicated_ipc_gid_required:true,
-  request_directory_setgid_required:true,
+  request_directory_group_read_execute_required:true,
+  fixed_journals_preprovisioned_required:true,
   fixed_journals_group_readable_only:true,
   customer_sidecars_group_readable:false,
   operator_sidecars_group_readable:false,
@@ -201,7 +229,7 @@ for(const [key,expected] of Object.entries({
 }
 
 console.log(MARKER+"_GREEN");
-console.log("request_directory_mode=2750");
+console.log("request_directory_mode=0750");
 console.log("fixed_journal_mode=0640");
 console.log("customer_sidecar_mode=0600");
 console.log("operator_sidecar_group_readable=false");
