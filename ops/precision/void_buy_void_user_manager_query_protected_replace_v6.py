@@ -15,8 +15,8 @@ from typing import Any
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 LOCK_REL = "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
 LOCK_PATH = ROOT / LOCK_REL
-LOCK_GIT_BLOB_SHA1 = "0cda9daecb2aa294f0a10041d81be7673705f1d8"
-LOCK_ID = "voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6"
+LOCK_GIT_BLOB_SHA1 = "99c2c162504e690091e733e15345d9ecc42d22c4"
+LOCK_ID = "voidbuyumqelflock6_cede427c177e309cf23364b9092f3cbba63be405ad6458cc0c8ef93bc09abd77"
 
 MARKER = "VOID_BUY_VOID_USER_MANAGER_QUERY_PROTECTED_REPLACE_V6"
 INSTALL_ROOT = pathlib.Path("/opt/void-buy-void-user-manager-query-v1")
@@ -183,8 +183,10 @@ def accepted_lock() -> dict[str, Any]:
         raise ReplaceError("accepted_lock_v5_history_missing")
     if superseded_v5.get("never_installed") is not True:
         raise ReplaceError("accepted_lock_v5_never_installed_required")
-    if superseded_v5.get("superseded_by_live_v6") is not True:
-        raise ReplaceError("accepted_lock_v5_superseded_required")
+    if superseded_v5.get("superseded_by_v6_candidate_generation") is not True:
+        raise ReplaceError("accepted_lock_v5_candidate_supersession_required")
+    if superseded_v5.get("superseded_by_live_v6") is not False:
+        raise ReplaceError("accepted_lock_live_v6_overclaim_forbidden")
 
     return value
 
