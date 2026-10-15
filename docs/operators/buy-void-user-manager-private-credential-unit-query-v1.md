@@ -6,8 +6,8 @@ the same-UID public user bus. A same-UID fake D-Bus endpoint could therefore
 forge the credential-effective systemd properties even while reporting the real
 node PID.
 
-This source lane adds a new native query primitive without changing the accepted
-PrivateUsers V4 query generation.
+This source lane adds a new native query primitive without changing the current
+PrivateUsers V5 query generation.
 
 ## Trust path
 
