@@ -24,7 +24,7 @@ const HISTORICAL_RUNTIME_BLOB =
 const CURRENT_RUNTIME =
   "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v2.mjs";
 const CURRENT_RUNTIME_BLOB =
-  "1a6316f3ab6f90c649b5a267b27d823513c90d97";
+  "59357584271c3effaaefb725d630593163b7a9e2";
 
 function gitBlobSha1(bytes) {
   return crypto
@@ -68,7 +68,7 @@ assert.equal(
 for (const marker of [
   "VOID_BUY_COUPLED_LAUNCH_RUNTIME_INTEGRATION_CURRENT_V2_GREEN",
   "generation_transition_publication_uses_same_lock=true",
-  "historical_enforcement_v5_epoch2_source_hold=true",
+  "historical_enforcement_v5_current_package_hold=true",
   "current_epoch2_source_tuple_qualified=true",
   "current_enforcement_v5_candidate_acceptance=false",
   "funds_movement=false",
