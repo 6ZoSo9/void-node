@@ -360,6 +360,7 @@ def host_lifecycle_state()->dict[str,str]:
     }
 
 def daemon_reload()->None:
+    host_lifecycle_state()
     run(["/usr/bin/systemctl","daemon-reload"])
 
 def ensure_root_dir()->None:
@@ -490,9 +491,12 @@ def install_helper()->bool:
     data=read_source(HELPER_REL,HELPER_BLOB)
     state=helper_state()
     if state=="exact":return False
+    host_lifecycle_state()
     ensure_root_dir()
+    host_lifecycle_state()
     changed=publish_create_only_file(
-        HELPER_PATH,data,0o444,0,0
+        HELPER_PATH,data,0o444,0,0,
+        _before_publish_fn=lambda _pending:host_lifecycle_state(),
     )
     if helper_state()!="exact":hold("cleanup_helper_install_failed")
     return changed
@@ -504,6 +508,7 @@ def replace_service_unit()->bool:
         hold("service_unit_predecessor_invalid")
     new=read_source(SERVICE_REL,NEW_SERVICE_BLOB)
     old=os.lstat(SERVICE_PATH)
+    host_lifecycle_state()
     temp=SERVICE_PATH.parent/(
         ".void-apollyon-custody-service.new."+str(os.getpid())
     )
@@ -543,6 +548,7 @@ def replace_service_unit()->bool:
             current.st_dev!=old.st_dev or current.st_ino!=old.st_ino or
             current.st_size!=old.st_size or service_state()!=before_state
         ):hold("service_unit_changed_before_replace")
+        host_lifecycle_state()
         os.replace(temp,SERVICE_PATH)
         fsync_directory(SERVICE_PATH.parent)
     finally:
@@ -772,6 +778,18 @@ def self_test()->None:
     assert 'require_dormancy("before_helper_publication")' in own
     assert 'require_dormancy("before_service_publication")' in own
     assert 'require_dormancy("before_daemon_reload")' in own
+    install_helper_source=own[
+        own.index("def install_helper("):own.index("def replace_service_unit(")
+    ]
+    assert install_helper_source.count("host_lifecycle_state()")>=3
+    replace_service_source=own[
+        own.index("def replace_service_unit("):own.index("def apply_transition(")
+    ]
+    assert replace_service_source.count("host_lifecycle_state()")>=2
+    daemon_reload_source=own[
+        own.index("def daemon_reload("):own.index("def ensure_root_dir(")
+    ]
+    assert "host_lifecycle_state()" in daemon_reload_source
     assert 'exact_dormant(TARGET_UNIT,"disabled")' in own
     assert own.count('exact_dormant(SERVICE_UNIT,"static")')>=2
     assert 'props.get("UnitFileState")!=expected_unit_file_state' in own
@@ -1260,6 +1278,7 @@ def self_test()->None:
     print("final_file_metadata_fsync_before_publication=true")
     print("lifecycle_root_parent_fsync_on_create=true")
     print("mutation_boundary_dormancy_revalidation=true")
+    print("filesystem_primitive_dormancy_revalidation=true")
     print("durability_repair_mutation_receipt_truthful=true")
     print("pending_cleanup_mutation_receipt_truthful=true")
     print("durability_failure_outcome_indeterminate=true")
