@@ -234,6 +234,93 @@ function serviceEnabled(unit){
   const r=runSystemctl(["is-enabled",unit],false);
   return String(r.stdout??"").trim()==="enabled";
 }
+function throwRecoveryErrors(errors,code){
+  if(errors.length===0)return;
+  if(errors.length===1)throw errors[0];
+  throw new AggregateError(errors,code);
+}
+export function stopApollyonTrainingServiceStrictV2(ops={}){
+  const runSystemctlImpl=ops.run_systemctl??runSystemctl;
+  const systemdValueImpl=ops.systemd_value??systemdValue;
+  const errors=[];
+  try{
+    const result=runSystemctlImpl(["stop",TRAINING_UNIT],false);
+    if(result?.status!==0){
+      errors.push(new Error("apollyon_live_runner_training_service_stop_failed"));
+    }
+  }catch(error){
+    errors.push(new Error(
+      "apollyon_live_runner_training_service_stop_failed",
+      {cause:error},
+    ));
+  }
+  try{
+    if(systemdValueImpl(TRAINING_UNIT,"ActiveState")==="active"){
+      errors.push(new Error(
+        "apollyon_live_runner_training_service_failed_to_stop",
+      ));
+    }
+  }catch(error){
+    errors.push(new Error(
+      "apollyon_live_runner_training_service_stop_state_verification_failed",
+      {cause:error},
+    ));
+  }
+  throwRecoveryErrors(
+    errors,
+    "apollyon_live_runner_training_service_stop_recovery_failed",
+  );
+  return true;
+}
+export function recoverApollyonLiveRunnerResourcesV2(state,ops={}){
+  const stopTraining=ops.stop_training_service??
+    (()=>stopApollyonTrainingServiceStrictV2());
+  const cleanupTree=ops.cleanup_execution_tree??
+    cleanupApollyonReviewedExecutionTreeV2;
+  const closePinnedImpl=ops.close_pinned??closePinned;
+  const errors=[];
+  if(state.training_started){
+    try{stopTraining();}
+    catch(error){errors.push(error);}
+  }
+  if(state.prepared!==null){
+    try{cleanupTree(state.prepared);}
+    catch(error){
+      errors.push(new Error(
+        "apollyon_live_runner_execution_tree_cleanup_failed",
+        {cause:error},
+      ));
+    }
+  }
+  for(const [label,value] of [
+    ["consumed",state.consumed],
+    ["state_root",state.state_root],
+  ]){
+    if(value===null)continue;
+    try{closePinnedImpl(value);}
+    catch(error){
+      errors.push(new Error(
+        "apollyon_live_runner_"+label+"_close_failed",
+        {cause:error},
+      ));
+    }
+  }
+  throwRecoveryErrors(
+    errors,
+    "apollyon_live_runner_resource_recovery_failed",
+  );
+  return true;
+}
+function throwExecutionAndRecovery(primaryError,recoveryError){
+  if(primaryError!==null&&recoveryError!==null){
+    throw new AggregateError(
+      [primaryError,recoveryError],
+      "apollyon_live_runner_execution_and_recovery_failed",
+    );
+  }
+  if(primaryError!==null)throw primaryError;
+  if(recoveryError!==null)throw recoveryError;
+}
 function waitTrainingEntrypoint(){
   const deadline=Date.now()+5000;
   while(Date.now()<deadline){
@@ -513,9 +600,114 @@ function selfTest(){
   if(VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_AUTHORITY_V2.durable_attempt_claim!==false){
     fail("apollyon_live_runner_self_test_authority");
   }
+
+  const strictEvents=[];
+  let strictFailed=false;
+  try{
+    stopApollyonTrainingServiceStrictV2({
+      run_systemctl:(args,check)=>{
+        strictEvents.push("stop:"+args.join(":")+":"+String(check));
+        return {status:1,error:null,signal:null};
+      },
+      systemd_value:(unit,property)=>{
+        strictEvents.push("state:"+unit+":"+property);
+        return "active";
+      },
+    });
+  }catch(error){
+    strictFailed=
+      error instanceof AggregateError&&
+      error.errors.length===2&&
+      error.errors.some((e)=>e.message==="apollyon_live_runner_training_service_stop_failed")&&
+      error.errors.some((e)=>e.message==="apollyon_live_runner_training_service_failed_to_stop");
+  }
+  if(
+    !strictFailed||
+    strictEvents[0]!=="stop:"+TRAINING_UNIT+":false"||
+    strictEvents[1]!=="state:"+TRAINING_UNIT+":ActiveState"
+  )fail("apollyon_live_runner_self_test_strict_stop");
+
+  const cleanupEvents=[];
+  let cleanupFailed=false;
+  try{
+    recoverApollyonLiveRunnerResourcesV2(
+      {
+        training_started:true,
+        prepared:{kind:"prepared"},
+        consumed:{kind:"consumed"},
+        state_root:{kind:"state-root"},
+      },
+      {
+        stop_training_service:()=>{cleanupEvents.push("stop");},
+        cleanup_execution_tree:()=>{
+          cleanupEvents.push("cleanup");
+          throw new Error("synthetic_cleanup_failure");
+        },
+        close_pinned:(value)=>{cleanupEvents.push("close:"+value.kind);},
+      },
+    );
+  }catch(error){
+    cleanupFailed=
+      error.message==="apollyon_live_runner_execution_tree_cleanup_failed";
+  }
+  if(
+    !cleanupFailed||
+    cleanupEvents.join(",")!==
+      "stop,cleanup,close:consumed,close:state-root"
+  )fail("apollyon_live_runner_self_test_cleanup_recovery_order");
+
+  const stopFailureEvents=[];
+  let stopRecoveryFailed=false;
+  try{
+    recoverApollyonLiveRunnerResourcesV2(
+      {
+        training_started:true,
+        prepared:{kind:"prepared"},
+        consumed:{kind:"consumed"},
+        state_root:{kind:"state-root"},
+      },
+      {
+        stop_training_service:()=>{
+          stopFailureEvents.push("stop");
+          throw new Error("synthetic_stop_failure");
+        },
+        cleanup_execution_tree:()=>{stopFailureEvents.push("cleanup");},
+        close_pinned:(value)=>{stopFailureEvents.push("close:"+value.kind);},
+      },
+    );
+  }catch(error){
+    stopRecoveryFailed=error.message==="synthetic_stop_failure";
+  }
+  if(
+    !stopRecoveryFailed||
+    stopFailureEvents.join(",")!==
+      "stop,cleanup,close:consumed,close:state-root"
+  )fail("apollyon_live_runner_self_test_stop_failure_recovery");
+
+  let aggregatePreserved=false;
+  try{
+    throwExecutionAndRecovery(
+      new Error("synthetic_primary_failure"),
+      new Error("synthetic_recovery_failure"),
+    );
+  }catch(error){
+    aggregatePreserved=
+      error instanceof AggregateError&&
+      error.errors.length===2&&
+      error.errors[0].message==="synthetic_primary_failure"&&
+      error.errors[1].message==="synthetic_recovery_failure";
+  }
+  if(!aggregatePreserved)fail("apollyon_live_runner_self_test_error_aggregation");
+
   process.stdout.write(VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2+"_SELF_TEST=GREEN\n");
   process.stdout.write("live_worktree_invocation_supported=false\n");
   process.stdout.write("training_service_start_stop=true\n");
+  process.stdout.write("training_stop_attempt_precedes_cleanup=true\n");
+  process.stdout.write("training_stop_nonzero_fails_closed=true\n");
+  process.stdout.write("training_active_after_stop_fails_closed=true\n");
+  process.stdout.write("cleanup_failure_preserves_stop_attempt=true\n");
+  process.stdout.write("stop_failure_still_attempts_all_cleanup=true\n");
+  process.stdout.write("execution_and_recovery_errors_aggregated=true\n");
   process.stdout.write("current_v2_raw_observation_count=2\n");
   process.stdout.write("custody_service_action=false\n");
   process.stdout.write("service_manager_preexec_environment_boundary=true\n");
@@ -539,6 +731,8 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
   let consumed=null;
   let prepared=null;
   let trainingStarted=false;
+  let outcome=null;
+  let primaryError=null;
   try{
     consumed=openPinnedDirectory(
       path.join(config.state_root,"consumed"),0o700,
@@ -641,7 +835,7 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
       },
     });
 
-    return Object.freeze({
+    outcome=Object.freeze({
       marker:VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2,
       version:2,
       status:"live_source_session_binding_complete_training_service_pending_stop",
@@ -655,12 +849,24 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
       custody_service_action_performed:false,
       funds_movement_performed:false,
     });
-  }finally{
-    if(prepared!==null)cleanupApollyonReviewedExecutionTreeV2(prepared);
-    if(trainingStarted)runSystemctl(["stop",TRAINING_UNIT],false);
-    closePinned(consumed);
-    closePinned(stateRoot);
+  }catch(error){
+    primaryError=error;
   }
+
+  let recoveryError=null;
+  try{
+    recoverApollyonLiveRunnerResourcesV2({
+      training_started:trainingStarted,
+      prepared,
+      consumed,
+      state_root:stateRoot,
+    });
+  }catch(error){
+    recoveryError=error;
+  }
+  throwExecutionAndRecovery(primaryError,recoveryError);
+  if(outcome===null)fail("apollyon_live_runner_result_missing");
+  return outcome;
 }
 async function main(){
   const config=parseCli(process.argv.slice(2));
