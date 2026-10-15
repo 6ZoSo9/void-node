@@ -52,6 +52,8 @@ jobs:
           grep -Fx 'host_write=false' "$plan"
           grep -Fx 'success_path_restart_count=1' "$plan"
           grep -Fx 'enable_disable=false' "$plan"
+          grep -Fx 'same_uid_namespace_tamper_resistance_proven=false' "$plan"
+          grep -Fx 'durable_policy_file_custody_proven=false' "$plan"
           grep -Fx 'payment_acceptance=false' "$plan"
           grep -Fx 'public_presale_activation=false' "$plan"
           grep -Fx 'funds_movement=false' "$plan"
