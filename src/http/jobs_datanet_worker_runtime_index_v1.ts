@@ -318,7 +318,20 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       this.clearJobsSourceAuthorityV1();
     }
 
-    const completion = this.completionSnapshotV1(input);
+    let completion: any;
+    try {
+      completion = this.completionSnapshotV1(input);
+    } catch (error) {
+      const message = String((error as Error)?.message || error);
+      if (
+        message.startsWith(
+          `VOID_AGENT_PICK2_JSONL_RECORD_TOO_LARGE file=${input.jobsFile} `,
+        )
+      ) {
+        this.rejectJobsSourceV1("jobs_record_too_large");
+      }
+      throw error;
+    }
     if (!completion.ready) {
       return {
         ready: false,
