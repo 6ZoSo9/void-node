@@ -57,7 +57,7 @@ compile:
 link:
 /usr/bin/cc
   -static -fno-pie -no-pie -Wl,--build-id=none
-  -Wl,-t OBJECT -o ELF
+  -Wl,-t,-t OBJECT -o ELF
 
 strip:
 /usr/bin/strip --strip-all ELF
@@ -84,17 +84,24 @@ Every report binds:
   system-header content;
 - SHA-256 + byte length of the compiled object before linking;
 - canonical path, byte length and SHA-256 for every regular startup object,
-  static archive or other file observed by the linker's `-t` trace, excluding
-  only the candidate's own temporary object.
+  static archive or other file observed by the linker's double-`-t` trace;
+- every nonempty trace record under a closed grammar:
+  - one exact candidate-object record;
+  - plain absolute file records; or
+  - GNU archive/member records in the reviewed prefix/suffix forms;
+- exact archive identity plus retained member name for every archive/member
+  record;
+- SHA-256, byte length, record count, and explicit candidate-object placeholder
+  over the normalized raw successful trace.
 
-Every non-empty linker trace line must be an absolute pathname. The candidate's
-own temporary object is the only absolute pathname excluded from the closure.
-Every other pathname is fail-closed: inability to resolve and hash it as a
-regular file aborts derivation instead of silently omitting an observed link
-input.
+Unknown nonempty records HOLD. Unreadable/non-regular accepted paths HOLD.
+The candidate object is not silently dropped: its record remains in the raw
+trace identity as `<candidate-object>`, while its bytes are independently
+bound by the compiled-object SHA-256.
 
 The source is compiled twice in each derive lane. Binary bytes, ELF inspection,
-compiled-object identity and link-input closure must be identical.
+compiled-object identity, raw trace identity, parsed record sequence, and
+complete link-input closure must be identical.
 
 ## Independent hosted comparison
 
