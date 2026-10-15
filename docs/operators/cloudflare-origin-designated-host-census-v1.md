@@ -1,0 +1,170 @@
+# Cloudflare origin designated-host census v1
+
+Marker: `VOID_CLOUDFLARE_ORIGIN_DESIGNATED_HOST_CENSUS_V1`.
+
+Issue: #2984.
+
+Status: **read-only designated-host observer; never live acceptance by itself**.
+
+## Purpose
+
+The merged Cloudflare origin path now has reviewed source contracts for:
+
+- Cloudflare visitor-IP translation into strict PROXY-v2;
+- one loopback adapter runtime;
+- one public-443 dispatcher;
+- exact sensitive credential/Public Earn paths;
+- dedicated service UID separation;
+- root-owned local nftables isolation; and
+- an all-five-Linux-capability-set-zero service posture.
+
+Those source contracts do not prove the intended Precision host actually has that
+shape. This census observes the current host without installing, starting,
+stopping, rewriting or reconfiguring anything.
+
+## Invocation boundary
+
+The live census requires root **read visibility** because it binds:
+
+- system service MainPID/process generations;
+- complete `ss -ltnp` listener ownership;
+- `/proc/<pid>/status` capability sets;
+- private Tunnel config/credential **metadata**;
+- nftables table metadata.
+
+Root is observation authority only. The source contains no service/firewall/
+Tunnel/DNS mutation path.
+
+Modes:
+
+    python3 -I -B ops/public/void_cloudflare_origin_designated_host_census_v1.py --self-test
+    python3 -I -B ops/public/void_cloudflare_origin_designated_host_census_v1.py --plan
+    sudo python3 -I -B ops/public/void_cloudflare_origin_designated_host_census_v1.py --run
+
+A later operator bundle should pin the exact reviewed source generation and its
+SHA-256 before using `--run`.
+
+## Historical user Tunnel retirement
+
+The historical user-manager unit and intended system-manager unit intentionally
+share the name:
+
+`void-public-seed-named-tunnel-v1.service`.
+
+The census uses a bounded root-owned `runuser` + minimal environment query to
+the `zoso` user manager. It records only loaded/active/retirement booleans.
+It does not read the user service's environment or print its process command
+line.
+
+A live historical user Tunnel remains a HOLD.
+
+## System service process identity
+
+The census observes these system units:
+
+- cloudflared: `void-public-seed-named-tunnel-v1.service`;
+- adapter: `void-cloudflare-origin-proxy-v2-adapter-v1.service`;
+- dispatcher: `void-public-443-proxy-v2-dispatch-v1.service`.
+
+For each active process it binds MainPID plus Linux start ticks before and after
+the observation window.
+
+The running process status must show all five capability sets empty:
+
+- effective (`CapEff`);
+- permitted (`CapPrm`);
+- inheritable (`CapInh`);
+- ambient (`CapAmb`);
+- bounding (`CapBnd`).
+
+`NoNewPrivs=1` and absence of effective CAP_NET_ADMIN are also recorded.
+
+The adapter and dispatcher running entry-script bytes are matched to the exact
+reviewed Git blobs. Cloudflared is an external binary, so this census records
+only process name plus root-owned/non-group-world-writable executable custody
+and a digest of the executable path. It does **not** invent an accepted
+cloudflared binary hash.
+
+## Listener ownership
+
+The observer reads one bounded `ss -H -ltnp` snapshot.
+
+For adapter and dispatcher, a local listener candidate requires exactly one TCP
+listener owned by the service PID and it must be IPv4 loopback
+`127.0.0.1:<port>`. Any extra or IPv6 listener keeps the candidate false.
+
+The adapter port is derived from that owned listener; no process environment is
+read.
+
+## Tunnel config and credential metadata
+
+The system cloudflared command line is read only to discover one canonical
+`--config` path. Raw argv is never emitted.
+
+The config text may be read, bounded to 1 MiB, to classify the fixed
+`seed.nullfeed.org` route shape. The emitted evidence contains only a SHA-256
+of the config bytes and classification booleans; it does not print the config,
+Tunnel ID or path.
+
+The canonical v1 sensitive candidate is deliberately strict: three explicit
+seed-host rules, one for each sensitive path, all to one IPv4-loopback adapter
+port, each with:
+
+- `httpHostHeader: seed.nullfeed.org`;
+- `disableChunkedEncoding: true`.
+
+An additional ordinary seed route must be present so the census does not treat a
+sensitive-only Tunnel configuration as preserving the public site/read surface.
+
+The config's `credentials-file` path is used for **metadata only**. Credential
+contents are never opened. Both config and credential paths are checked for the
+reviewed owner/mode/link/immediate-parent custody shape, and only path SHA-256
+values are emitted.
+
+## nftables boundary
+
+The census may run:
+
+`nft -j list table inet void_cloudflare_origin_edge_v1`
+
+read-only and emit only table presence, rule count and SHA-256 of the returned
+JSON.
+
+It intentionally keeps:
+
+`nftables_ruleset_live_verified=false`.
+
+This version does not reinterpret nft JSON expression syntax as exact four-rule
+policy authority. Exact rule semantics require a separate reviewed classifier or
+content-addressed installed-rule evidence.
+
+## Mandatory nonclaims
+
+Even when `local_metadata_candidate_observed=true`, the following remain false:
+
+- `cloudflare_worker_route_absence_proven`;
+- `pseudo_ipv4_mode_off_proven`;
+- `nftables_ruleset_live_verified`;
+- `adapter_dispatcher_target_verified`;
+- `cloudflared_uid_isolation_proven`;
+- `dispatcher_exclusive_reachability_proven`;
+- `local_transport_trust_proven`;
+- `runtime_integration`;
+- `external_acceptance`.
+
+Cloudflare Worker-route and Pseudo-IPv4 state belong to a separate
+control-plane evidence domain. The adapter's configured dispatcher target is
+also not inferred from an idle listener or process environment.
+
+## Privacy and authority
+
+The census explicitly reports:
+
+- `process_environment_access=false`;
+- `raw_process_command_line_output=false`;
+- `tunnel_config_text_output=false`;
+- `credential_content_access=false`;
+- all service/systemd/nftables/Tunnel/DNS/network mutation false;
+- payment, Work Credit, presale and funds authority false.
+
+PROTECT THE CORE.
