@@ -53,6 +53,7 @@ const observed = Object.freeze({
   expected_runtime_file_unreadable: 0,
   unexpected_entries: 897,
   opaque_unexpected_subtrees: 56,
+  symlink_entries: 0,
   unsafe_owner_write_entries: 0,
   accepted_runtime_tree_exact: false,
   observed_status: "NONEMPTY_TARGET_NOT_EXACT_ACCEPTED_BUNDLE",
@@ -137,6 +138,7 @@ for (const mutate of [
   (x) => { x.expected_runtime_file_missing = 5; },
   (x) => { x.accepted_runtime_tree_exact = true; },
   (x) => { x.observed_status = "EXACT_ACCEPTED_BUNDLE"; },
+  (x) => { x.symlink_entries = 1; },
   (x) => { x.unsafe_owner_write_entries = 1; },
   (x) => { x.opaque_unexpected_subtrees = 898; },
   (x) => { x.extra = true; },
@@ -262,6 +264,7 @@ console.log("expected_runtime_file_matches=2");
 console.log("expected_runtime_file_missing=6");
 console.log("expected_runtime_file_mismatched=2");
 console.log("unexpected_entries=897");
+console.log("symlink_entries=0");
 console.log("replacement_required=true");
 console.log("replacement_authorized=false");
 console.log("replacement_apply_authorized=false");
