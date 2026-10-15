@@ -14,19 +14,23 @@ def git_blob(path:Path)->str:
 
 m=json.loads(MANIFEST.read_text())
 assert m["marker"]=="VOID_APOLLYON_CUSTODY_SOCKET_LIFECYCLE_UPDATE_V1"
-assert git_blob(MANIFEST)=="2d8381ceea5ef4cceab3b36250bb340eedd0a8a6"
+assert git_blob(MANIFEST)=="f6860d20ddab53d41ca5f5f9b82b2081b426f514"
 assert m["old_service_blob_sha1"]=="6ff5315f3ada3607d86c865742c34d9de3238659"
-assert m["new_service_blob_sha1"]=="86ed25003c554dcfe3019e71d5a3a78851fcc50a"
+assert m["new_service_blob_sha1"]=="30b7b7c62b6b7834ae91db1eb37df05286ca5764"
 assert m["target_blob_sha1"]=="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 assert m["cleanup_blob_sha1"]=="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"
 assert git_blob(HELPER)==m["cleanup_blob_sha1"]
 assert git_blob(UNIT)==m["new_service_blob_sha1"]
+assert m["unset_environment"]==[
+    "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+    "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
+]
 
 source=UPDATER.read_text();ast.parse(source)
 for required in (
-    'MANIFEST_BLOB="2d8381ceea5ef4cceab3b36250bb340eedd0a8a6"',
+    'MANIFEST_BLOB="f6860d20ddab53d41ca5f5f9b82b2081b426f514"',
     'OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"',
-    'NEW_SERVICE_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"',
+    'NEW_SERVICE_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"',
     'HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
     'unit_not_exactly_dormant:',
     'unit_file_state_unexpected:',
