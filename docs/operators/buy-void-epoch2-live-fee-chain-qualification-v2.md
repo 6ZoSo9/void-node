@@ -67,9 +67,17 @@ The accepted dormant Epoch-2 policy remains:
 
 Two live `eth_gasPrice` observations are taken and the larger is used.
 
-Zero gas is accepted only under the exact Epoch-2 presale policy. For nonzero
-gas the computed 200% maximum fee must remain at or below 3 Gwei, and the
-fulfiller native balance must cover the bounded maximum gas cost.
+Zero gas is accepted only under the exact Epoch-2 presale policy.
+
+For nonzero gas the runner still computes the conservative 200% envelope and
+requires it to remain at or below 3 Gwei, but **does not** qualify the path from
+a pre-existing fulfiller native balance. A standing native-gas balance is not a
+payment-specific funding envelope.
+
+If the computed fee is nonzero, live qualification fails closed with
+`nonzero_fee_requires_per_payment_native_gas_funding`. A future separately
+reviewed gate must bind the native-gas liability to the exact payment /
+fulfillment reservation before that path may advance.
 
 ## Exact Chain-2050 receipt
 
@@ -82,7 +90,8 @@ Read-only observations bind:
 - exact three-validator QBFT roster;
 - exact presale and VoidToken runtime bytecode hashes;
 - fee observations and conservative fee result;
-- fulfiller native fee balance;
+- explicit zero-fee classification;
+- proof that standing native balance is not used as funding authority;
 - fresh user-systemd service generation;
 - fresh rootless Docker container generation;
 - fixed loopback RPC listener.
@@ -107,7 +116,10 @@ The outer V2 receipt remains observation-only:
 - Chain-2050 mutation = false;
 - funds movement = false.
 
-The next gate is the bounded current Chain-2050 one-payment/one-fulfillment
-canary. That canary remains separately authorized.
+A GREEN receipt can advance to the bounded current Chain-2050
+one-payment/one-fulfillment canary only when the observed fee envelope is zero.
+A nonzero fee observation remains HOLD until a separately reviewed per-payment
+native-gas funding/reservation gate exists. The canary remains separately
+authorized.
 
 PROTECT THE CORE.
