@@ -61,14 +61,18 @@ sha256=7a1ec91b612998824e37aa0f8522a94d7ceffe9f4f21e0702fe0a0d5ca5bdd9a
 
 1. requires hostname `Xiphos`;
 2. binds the exact unit and both exact C-source Git blobs;
-3. records the fixed `/usr/bin/cc` identity;
-4. compiles each executable twice inside one `TemporaryDirectory`;
-5. requires local byte equality, exact locked byte length and SHA-256, ELF
+3. copies the already-verified source bytes into private mode-`0400` temporary
+   snapshots and compiles those snapshots rather than reopening the tracked
+   source paths;
+4. records the fixed `/usr/bin/cc` identity;
+5. compiles each executable twice inside one `TemporaryDirectory`, then
+   revalidates both snapshot byte strings after compilation;
+6. requires local byte equality, exact locked byte length and SHA-256, ELF
    magic, and each executable's exact self-test;
-6. records the host systemd version and runs `systemd-analyze verify` against a
+7. records the host systemd version and runs `systemd-analyze verify` against a
    temporary path-adjusted copy of the exact reviewed unit;
-7. queries `nvidia-smi` for GPU inventory and active compute processes; and
-8. deletes the temporary build tree on exit.
+8. queries `nvidia-smi` for GPU inventory and active compute processes; and
+9. deletes the temporary build tree on exit.
 
 The unit adjustment exists only because the reviewed fixed paths and dedicated
 account are intentionally absent before installation. It changes the temporary
@@ -94,11 +98,13 @@ claim, training, or model-weight mutation.
 
 ## Mutation boundary
 
-The runner performs no persistent write. It creates only a private temporary
-directory and removes it on exit.
+The runner performs no persistent write or network call. It creates only a
+private temporary directory, compiles from the verified byte snapshots inside
+that directory, revalidates them, and removes the directory on exit.
 
 It does not:
 
+- make a network connection or resolve a remote endpoint;
 - use sudo or run as root;
 - create or modify an account or group;
 - write under `/etc`, `/opt`, or `/var/lib`;
