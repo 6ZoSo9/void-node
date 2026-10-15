@@ -231,6 +231,8 @@ const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-e2-native-preentry-v1-"),
 );
 const binary = path.join(temp, "preentry");
+let hostedOptMetadataChanged = false;
+let hostedOptRestorationVerified = false;
 try {
   const compile = run(CC, [
     "-std=c11",
@@ -336,8 +338,6 @@ try {
   let fixedRepoFixtureCreated = false;
   let fixedRepoParentsCreated = false;
   let fixtureInstalled = false;
-  let hostedOptMetadataChanged = false;
-  let hostedOptRestorationVerified = false;
   const optBefore = fs.lstatSync("/opt");
   try {
     const optUnsafe =
