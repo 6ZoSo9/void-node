@@ -25,6 +25,8 @@ assert module.NODE_PORT == 4100
 assert str(module.DEFAULT_REQUEST_RELATIVE) == ".runtime/public-buy-void-requests-v1"
 assert module.REQUESTS_NAME == "requests.jsonl"
 assert module.OPERATOR_EVENTS_NAME == "operator-events.jsonl"
+assert module.MAX_REQUESTS_BYTES == 64 * 1024 * 1024
+assert module.MAX_OPERATOR_EVENTS_BYTES == 64 * 1024 * 1024
 
 source = TARGET.read_text(encoding="utf-8")
 for required in [
