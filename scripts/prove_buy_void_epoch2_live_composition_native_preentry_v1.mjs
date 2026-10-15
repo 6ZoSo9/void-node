@@ -451,8 +451,8 @@ try {
     );
     assert.match(
       nativeLineage.stderr,
-      /git_failed:rev-parse/u,
-      "valid native lineage should reach the later checkout gate in CI",
+      /(?:git_failed:rev-parse|spawn_error:spawnSync_usr_bin_setpriv_ENOENT)/u,
+      "valid native lineage should reach a later runner dependency gate in CI",
     );
 
     const forgedProof = path.join(temp, "forged-parent-proof.json");
