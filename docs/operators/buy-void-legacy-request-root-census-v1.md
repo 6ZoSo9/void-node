@@ -57,10 +57,15 @@ inventory incomplete. Candidate metadata/count observations are also repeated
 and must be byte-for-byte equal before
 `bounded_current_candidate_set_observed=true` is possible.
 
-The designated machine identity is read through the hardened V2 descriptor-bound
-`/etc/machine-id` routine, including no-symlink, root-owned/non-writable,
-single-link and before/after identity checks. Subprocesses use the V1 minimal
-user environment rather than inheriting the caller's ambient environment.
+The designated machine identity is read by a local descriptor-bound
+`/etc/machine-id` routine with the same reviewed no-symlink,
+root-owned/non-writable, single-link and before/after identity checks. The V2
+topology module is deliberately **not executed under root**, because that
+historical module imports V1 by mutable pathname at module load. V1 itself,
+the merged #3073 query qualifier, the protected installer source, its V3 parser
+lineage and accepted lock are all bound to exact Git blobs before any root
+execution; the installer lock reader is replaced in-memory with the same
+bounded authenticated-byte reader before acceptance is checked.
 
 ## Critical nonclaim
 

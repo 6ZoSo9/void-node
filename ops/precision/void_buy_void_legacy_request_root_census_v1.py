@@ -15,14 +15,20 @@ from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 V1_PATH = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
-V2_PATH = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
 AUTH_QUERY_PATH = (
     ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py"
 )
+INSTALLER_SOURCE_PATH = (
+    ROOT / "ops/precision/void_buy_void_user_manager_query_protected_install_v1.py"
+)
+V3_PARSER_PATH = ROOT / "tools/void-buy-allocation-custody-host-evidence-v3.mjs"
+INSTALLER_LOCK_PATH = ROOT / "ops/security/buy-void-user-manager-query-elf-lock-v1.json"
 DEPENDENCY_BLOBS = {
     V1_PATH: "9ca9cb948a08973d0d874c5473ad2743de14140c",
-    V2_PATH: "305737478025e22ddc8f56da29f2a2dfde251d8b",
     AUTH_QUERY_PATH: "e0d3a583030a5465cc793f740c04f4b33f84eba6",
+    INSTALLER_SOURCE_PATH: "2ec35012283f729aac073735ac37cde3464c81a4",
+    V3_PARSER_PATH: "eae92c7dd060b4d6139543463b5fbd2f8564585b",
+    INSTALLER_LOCK_PATH: "4f255dbc98ac4b65fb4e6433f4e7aee7b86351db",
 }
 MAX_DEPENDENCY_SOURCE_BYTES = 2 * 1024 * 1024
 
@@ -94,11 +100,16 @@ def _authenticated_source_bytes(path: pathlib.Path) -> bytes:
     return b"".join(chunks)
 
 
-def _load_authenticated(path: pathlib.Path, name: str):
+def _verified_dependency_bytes(path: pathlib.Path) -> bytes:
     raw = _authenticated_source_bytes(path)
     expected = DEPENDENCY_BLOBS[path]
     if _git_blob_sha1(raw) != expected:
         raise CensusError("dependency_source_blob_mismatch:" + path.name)
+    return raw
+
+
+def _load_authenticated(path: pathlib.Path, name: str):
+    raw = _verified_dependency_bytes(path)
     module = types.ModuleType(name)
     module.__file__ = str(path)
     module.__package__ = ""
@@ -111,11 +122,29 @@ def _load_authenticated(path: pathlib.Path, name: str):
 
 
 v1 = _load_authenticated(V1_PATH, "void_buy_request_root_runtime_topology_census_v1")
-v2 = _load_authenticated(V2_PATH, "void_buy_request_root_runtime_topology_census_v2")
 auth = _load_authenticated(
     AUTH_QUERY_PATH,
     "void_buy_void_user_manager_query_live_qualification_v1",
 )
+
+
+def _load_authenticated_installer():
+    installer = _load_authenticated(
+        INSTALLER_SOURCE_PATH,
+        "void_buy_void_user_manager_query_protected_install_v1",
+    )
+    _verified_dependency_bytes(V3_PARSER_PATH)
+    _verified_dependency_bytes(INSTALLER_LOCK_PATH)
+
+    def locked_repo_reader(path: pathlib.Path) -> bytes:
+        if pathlib.Path(path) != INSTALLER_LOCK_PATH:
+            raise CensusError("unexpected_installer_repository_read")
+        return _verified_dependency_bytes(INSTALLER_LOCK_PATH)
+
+    installer._direct_repo_bytes = locked_repo_reader
+    installer.accepted_lock()
+    return installer
+
 
 MARKER = "VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1"
 EXPECTED_HOSTNAME = "zoso-Precision-Tower-7810"
@@ -132,10 +161,76 @@ HEX40 = re.compile(r"^[0-9a-f]{40}$")
 MAX_DIRECT_ENTRIES = 100_000
 
 def _machine_id_sha256() -> str:
-    value = v2.machine_id_sha256()
-    if value is None:
+    path = pathlib.Path("/etc/machine-id")
+    before = v1.direct_path_metadata(path)
+    try:
+        mode = int(str(before.get("mode")), 8)
+    except (TypeError, ValueError) as exc:
+        raise CensusError("machine_id_unqualified") from exc
+    if (
+        before.get("exists") is not True
+        or before.get("kind") != "regular"
+        or before.get("direct") is not True
+        or before.get("uid") != 0
+        or before.get("nlink") != 1
+        or not isinstance(before.get("size"), int)
+        or before.get("size") <= 0
+        or before.get("size") > 4096
+        or mode & 0o022
+    ):
         raise CensusError("machine_id_unqualified")
-    return value
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise CensusError("machine_id_unqualified") from exc
+    try:
+        opened_before = os.fstat(fd)
+        if (
+            not stat.S_ISREG(opened_before.st_mode)
+            or opened_before.st_uid != 0
+            or opened_before.st_nlink != 1
+            or opened_before.st_size != before.get("size")
+            or opened_before.st_dev != before.get("dev")
+            or opened_before.st_ino != before.get("ino")
+            or stat.S_IMODE(opened_before.st_mode) != mode
+        ):
+            raise CensusError("machine_id_unqualified")
+        raw = bytearray()
+        while len(raw) < opened_before.st_size:
+            chunk = os.read(fd, opened_before.st_size - len(raw))
+            if not chunk:
+                raise CensusError("machine_id_unqualified")
+            raw.extend(chunk)
+        if os.read(fd, 1):
+            raise CensusError("machine_id_unqualified")
+        opened_after = os.fstat(fd)
+    finally:
+        os.close(fd)
+    after = v1.direct_path_metadata(path)
+    if (
+        opened_before.st_dev != opened_after.st_dev
+        or opened_before.st_ino != opened_after.st_ino
+        or opened_before.st_size != opened_after.st_size
+        or stat.S_IMODE(opened_before.st_mode)
+            != stat.S_IMODE(opened_after.st_mode)
+        or before.get("dev") != after.get("dev")
+        or before.get("ino") != after.get("ino")
+        or before.get("size") != after.get("size")
+        or before.get("mode") != after.get("mode")
+        or after.get("direct") is not True
+    ):
+        raise CensusError("machine_id_unqualified")
+    try:
+        machine = bytes(raw).decode("ascii", "strict").strip()
+    except UnicodeDecodeError as exc:
+        raise CensusError("machine_id_unqualified") from exc
+    if (
+        len(machine) != 32
+        or any(ch not in "0123456789abcdef" for ch in machine)
+    ):
+        raise CensusError("machine_id_unqualified")
+    return hashlib.sha256(machine.encode("ascii")).hexdigest()
+
 
 def _authenticated_query(installer: Any) -> dict[str, Any]:
     native, output_sha256 = auth.run_authenticated_query(installer)
@@ -393,6 +488,8 @@ def self_test() -> None:
     print("request_or_payment_contents_read=false")
     print("historical_request_history_disposition_proven=false")
     print("authenticated_dependency_sources_bound=true")
+    print("nested_repository_path_execution_forbidden=true")
+    print("machine_id_descriptor_bound_local=true")
     print("unauthenticated_user_manager_not_authority=true")
     print("production_gate_ready=false")
 
@@ -437,7 +534,7 @@ def collect() -> dict[str, Any]:
         and machine_sha == EXPECTED_MACHINE_ID_SHA256
     )
 
-    installer = auth._load_installer()
+    installer = _load_authenticated_installer()
     installed_before = auth.installed_pair_snapshot(installer)
     authenticated_before = _authenticated_query(installer)
     installed_middle = auth.installed_pair_snapshot(installer)

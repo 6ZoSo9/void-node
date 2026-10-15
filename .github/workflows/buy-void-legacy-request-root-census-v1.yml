@@ -8,10 +8,10 @@ on:
       - "docs/operators/buy-void-legacy-request-root-census-v1.md"
       - ".github/workflows/buy-void-legacy-request-root-census-v1.yml"
       - "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
-      - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
       - "ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py"
       - "ops/precision/void_buy_void_user_manager_query_protected_install_v1.py"
-      - "ops/precision/void_buy_void_user_manager_query_v3.py"
+      - "tools/void-buy-allocation-custody-host-evidence-v3.mjs"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v1.json"
   push:
     branches: [main]
     paths:
@@ -20,10 +20,10 @@ on:
       - "docs/operators/buy-void-legacy-request-root-census-v1.md"
       - ".github/workflows/buy-void-legacy-request-root-census-v1.yml"
       - "ops/precision/void_buy_request_root_runtime_topology_census_v1.py"
-      - "ops/precision/void_buy_request_root_runtime_topology_census_v2.py"
       - "ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py"
       - "ops/precision/void_buy_void_user_manager_query_protected_install_v1.py"
-      - "ops/precision/void_buy_void_user_manager_query_v3.py"
+      - "tools/void-buy-allocation-custody-host-evidence-v3.mjs"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v1.json"
 
 permissions:
   contents: read
@@ -46,11 +46,14 @@ jobs:
             tee "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'VOID_BUY_VOID_LEGACY_REQUEST_ROOT_CENSUS_V1_PROOF_GREEN' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'v1_topology_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
-          grep -Fx 'v2_designated_host_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'machine_id_reader_local=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'installer_lock_and_parser_dependency_blobs_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'authenticated_user_manager_query_dependency_blob_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'authenticated_mainpid_required=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'unit_working_directory_not_trusted=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'fake_user_bus_not_authority=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'nested_repository_path_execution_forbidden=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
+          grep -Fx 'machine_id_descriptor_bound_local=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'designated_runtime_user_bound=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'ambient_home_not_used_for_repo_candidate=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
           grep -Fx 'stable_release_inventory_required=true' "$RUNNER_TEMP/legacy-root-census-v1.log"
