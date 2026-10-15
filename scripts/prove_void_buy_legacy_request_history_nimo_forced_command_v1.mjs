@@ -204,6 +204,22 @@ globalThis.__serverClassifier=(input,fingerprint)=>
   });
   assert.equal(validated.ok,true);
   assert.equal(fs.existsSync(path.join(f.root,VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INTENT_NAME_V1)),false);
+
+  // Simulate response loss after the durable append and intent cleanup. The exact
+  // same request must replan against the committed witness and return idempotent.
+  const responseLossRetry=testOnlyHandleVoidBuyVoidLegacyHistoryNimoForcedCommandRequestV1(
+    f.config,req.request_json,{host_identity:nimoIdentity,server_classifier:classifier(a.fingerprint)}
+  );
+  assert.equal(responseLossRetry.ok,true);
+  assert.equal(responseLossRetry.recovered_intent,false);
+  assert.equal(responseLossRetry.response.status,"idempotent");
+  assert.equal(responseLossRetry.response.operation_performed,false);
+  assert.equal(validateVoidBuyVoidLegacyHistoryNimoResponseV1({
+    policy:f.config.transport_policy,
+    request_json:req.request_json,
+    response_json:responseLossRetry.response_json,
+  }).ok,true);
+  assert.equal(fs.existsSync(path.join(f.root,VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INTENT_NAME_V1)),false);
   fs.rmSync(f.root,{recursive:true,force:true});
 }
 {
@@ -316,6 +332,7 @@ console.log("VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_V1_PROOF_GREEN");
 console.log("durable_append_intent=true");
 console.log("torn_append_recovery=true");
 console.log("post_crash_idempotence=true");
+console.log("post_cleanup_response_loss_retry_idempotent=true");
 console.log("descriptor_pinned_authority_root=true");
 console.log("fixed_nimo_host_identity_required=true");
 console.log("dedicated_voidwitness_uid_gid_required=true");
