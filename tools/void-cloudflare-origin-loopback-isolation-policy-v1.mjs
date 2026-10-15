@@ -11,6 +11,7 @@ export const VOID_CLOUDFLARE_ORIGIN_LOOPBACK_ISOLATION_POLICY_AUTHORITY_V1 =
     dedicated_system_cloudflared_identity_required: true,
     historical_user_tunnel_retirement_required: true,
     tunnel_private_file_custody_required: true,
+    tunnel_private_parent_custody_required: true,
     exact_sensitive_tunnel_routes_required: true,
     ordinary_tunnel_routes_preserved_required: true,
     cloudflare_control_plane_evidence_required: true,
@@ -308,10 +309,20 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
       [
         "config_owner_uid",
         "credentials_owner_uid",
+        "config_parent_owner_uid",
+        "credentials_parent_owner_uid",
         "config_group_other_bits_zero",
         "credentials_group_other_bits_zero",
+        "config_parent_group_other_bits_zero",
+        "credentials_parent_group_other_bits_zero",
         "config_nlink_one",
         "credentials_nlink_one",
+        "config_regular_nonsymlink",
+        "credentials_regular_nonsymlink",
+        "config_parent_real_directory",
+        "credentials_parent_real_directory",
+        "config_path_canonical",
+        "credentials_path_canonical",
         "config_outside_repository",
         "credentials_outside_repository",
       ],
@@ -320,10 +331,20 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
     if (
       custody.config_owner_uid !== cloudflaredBase.effective_uid ||
       custody.credentials_owner_uid !== cloudflaredBase.effective_uid ||
+      custody.config_parent_owner_uid !== cloudflaredBase.effective_uid ||
+      custody.credentials_parent_owner_uid !== cloudflaredBase.effective_uid ||
       custody.config_group_other_bits_zero !== true ||
       custody.credentials_group_other_bits_zero !== true ||
+      custody.config_parent_group_other_bits_zero !== true ||
+      custody.credentials_parent_group_other_bits_zero !== true ||
       custody.config_nlink_one !== true ||
       custody.credentials_nlink_one !== true ||
+      custody.config_regular_nonsymlink !== true ||
+      custody.credentials_regular_nonsymlink !== true ||
+      custody.config_parent_real_directory !== true ||
+      custody.credentials_parent_real_directory !== true ||
+      custody.config_path_canonical !== true ||
+      custody.credentials_path_canonical !== true ||
       custody.config_outside_repository !== true ||
       custody.credentials_outside_repository !== true
     ) {
@@ -538,6 +559,7 @@ export function classifyVoidCloudflareOriginLoopbackIsolationPolicyV1(
       dedicated_system_cloudflared_identity_required: true,
       historical_user_tunnel_retirement_required: true,
       tunnel_private_file_custody_policy_shape_qualified: true,
+      tunnel_private_parent_custody_policy_shape_qualified: true,
       exact_sensitive_tunnel_routes_qualified: true,
       ordinary_tunnel_routes_preserved_required: true,
       cloudflare_control_plane_evidence_required: true,
