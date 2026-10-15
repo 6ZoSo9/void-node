@@ -70,6 +70,9 @@ const AGENT_PAID_WORK_CREDENTIAL_REQUEST_INTEGRATION_MARKER =
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM_RAW = String(
   process.env.VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM || "",
 ).trim();
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT_RAW = String(
+  process.env.VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT || "",
+).trim();
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH =
   "/__void/agents/paid-work/credential-requests/v1";
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_BODY_BYTES = Math.max(
@@ -244,6 +247,55 @@ if (
   )
 ) {
   fail("invalid gateway proof cancellation settlement mode");
+}
+
+function parseCredentialDownstreamPort(raw) {
+  if (!raw) return null;
+  if (!/^(0|[1-9][0-9]{0,4})$/.test(raw)) {
+    fail("invalid VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT");
+  }
+  const value = Number(raw);
+  if (
+    !Number.isSafeInteger(value) ||
+    value > 65535 ||
+    (value === 0 ? !proofMode : value < 1024)
+  ) {
+    fail("invalid VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT");
+  }
+  return value;
+}
+
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT =
+  parseCredentialDownstreamPort(
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT_RAW,
+  );
+const credentialUpstreamConfigured = Boolean(
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
+);
+const credentialDownstreamConfigured =
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT !== null;
+
+if (credentialUpstreamConfigured !== credentialDownstreamConfigured) {
+  fail(
+    "credential request upstream and dedicated downstream port must be configured together",
+  );
+}
+
+if (credentialDownstreamConfigured) {
+  const innerPort = Number(
+    new URL(
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
+    ).port,
+  );
+  const downstreamPort =
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT;
+  if (
+    innerPort === port ||
+    (downstreamPort !== 0 &&
+      (downstreamPort === port || downstreamPort === innerPort))
+  ) {
+    fail("credential request shared, downstream, and inner ports must be distinct");
+  }
 }
 
 for (const [name, value] of [
@@ -1162,20 +1214,14 @@ async function handleRequest(request, response) {
     return;
   }
 
+  // Credential intake is deliberately absent from the shared 4112 listener.
+  // The dedicated loopback listener below is the only source path that may
+  // invoke the credential-request proxy.
   if (
     parsed.pathname ===
     AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH
   ) {
-    if (method === "POST") {
-      await proxyAgentPaidWorkCredentialRequest(
-        request,
-        response,
-        parsed,
-      );
-      return;
-    }
-
-    emptyResponse(response, 405, { Allow: "POST" });
+    emptyResponse(response, 404);
     return;
   }
 
@@ -1236,6 +1282,42 @@ async function handleRequest(request, response) {
   );
 }
 
+async function handleCredentialDownstreamRequest(
+  request,
+  response,
+) {
+  const method = String(request.method || "").toUpperCase();
+  let parsed;
+  try {
+    parsed = new URL(
+      request.url || "/",
+      "http://127.0.0.1",
+    );
+  } catch {
+    emptyResponse(response, 400);
+    return;
+  }
+
+  if (
+    parsed.pathname !==
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH
+  ) {
+    emptyResponse(response, 404);
+    return;
+  }
+
+  if (method !== "POST") {
+    emptyResponse(response, 405, { Allow: "POST" });
+    return;
+  }
+
+  await proxyAgentPaidWorkCredentialRequest(
+    request,
+    response,
+    parsed,
+  );
+}
+
 const server = http.createServer((request, response) => {
   void handleRequest(request, response).catch((error) => {
     process.stderr.write(
@@ -1269,33 +1351,89 @@ server.on("clientError", (_error, socket) => {
   }
 });
 
+const credentialServer =
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT === null
+    ? null
+    : http.createServer((request, response) => {
+        void handleCredentialDownstreamRequest(
+          request,
+          response,
+        ).catch((error) => {
+          process.stderr.write(
+            `${MARKER} credential_request_error=${String(error)}\n`,
+          );
+          if (!response.headersSent) {
+            jsonResponse(response, 502, {
+              ok: false,
+              error:
+                "agent_paid_work_credential_request_gateway_upstream_failed",
+            });
+            return;
+          }
+          response.destroy();
+        });
+      });
+
+if (credentialServer) {
+  credentialServer.requestTimeout = 5_000;
+  credentialServer.headersTimeout = 5_000;
+  credentialServer.keepAliveTimeout = 5_000;
+  credentialServer.maxRequestsPerSocket = 100;
+  credentialServer.on("clientError", (_error, socket) => {
+    if (socket.writable) {
+      socket.end(
+        "HTTP/1.1 400 Bad Request\r\n" +
+          "Connection: close\r\n" +
+          "Content-Length: 0\r\n\r\n",
+      );
+    }
+  });
+}
+
 function shutdown(signal) {
-  server.close((error) => {
+  const listeners = [
+    server,
+    ...(credentialServer ? [credentialServer] : []),
+  ];
+  let remaining = listeners.length;
+  let failed = false;
+  const finish = (error) => {
     if (error) {
+      failed = true;
       process.stderr.write(
         `${MARKER} shutdown_error=${String(error)}\n`,
       );
-      process.exit(1);
     }
-
-    process.stdout.write(
-      `${MARKER} stopped signal=${signal}\n`,
-    );
-    process.exit(0);
-  });
-
+    remaining -= 1;
+    if (remaining === 0) {
+      process.stdout.write(
+        `${MARKER} stopped signal=${signal}\n`,
+      );
+      process.exit(failed ? 1 : 0);
+    }
+  };
+  for (const listener of listeners) listener.close(finish);
   setTimeout(() => process.exit(1), 5_000).unref();
 }
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-server.listen({ host, port, exclusive: true }, () => {
-  const address = server.address();
+function startSharedGateway() {
+  server.listen({ host, port, exclusive: true }, () => {
+    const address = server.address();
+    const credentialAddress =
+      credentialServer ? credentialServer.address() : null;
 
-  if (!address || typeof address === "string") {
-    fail("unexpected gateway listen address");
-  }
+    if (!address || typeof address === "string") {
+      fail("unexpected gateway listen address");
+    }
+    if (
+      credentialServer &&
+      (!credentialAddress || typeof credentialAddress === "string")
+    ) {
+      fail("unexpected credential downstream listen address");
+    }
 
   process.stdout.write(
     JSON.stringify({
@@ -1310,16 +1448,32 @@ server.listen({ host, port, exclusive: true }, () => {
       proxy_authority: false,
       bounded_paid_work_credential_request_proxy_authority:
         Boolean(
-          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM &&
+          credentialServer,
         ),
+      shared_gateway_credential_route_disabled: true,
+      source_downstream_split_integrated: true,
+      downstream_gateway_bypass_closed: false,
+      local_transport_trust_proven: false,
       paid_work_credential_request_integration_marker:
         AGENT_PAID_WORK_CREDENTIAL_REQUEST_INTEGRATION_MARKER,
       paid_work_credential_request_route: {
         path: AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH,
         methods: ["POST"],
         configured: Boolean(
-          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM &&
+          credentialServer,
         ),
+        shared_listener_exposed: false,
+        dedicated_listener_host:
+          credentialAddress && typeof credentialAddress !== "string"
+            ? credentialAddress.address
+            : null,
+        dedicated_listener_port:
+          credentialAddress && typeof credentialAddress !== "string"
+            ? credentialAddress.port
+            : null,
+        source_identity_forwarded_to_gateway: false,
         accepted_for_review_only: true,
         credential_request_record_write: Boolean(
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
@@ -1376,5 +1530,20 @@ server.listen({ host, port, exclusive: true }, () => {
         money_movement: false,
       },
     }) + "\n",
+    );
+  });
+}
+
+if (credentialServer) {
+  credentialServer.listen(
+    {
+      host: DEFAULT_HOST,
+      port:
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_DOWNSTREAM_PORT,
+      exclusive: true,
+    },
+    startSharedGateway,
   );
-});
+} else {
+  startSharedGateway();
+}

@@ -14,6 +14,24 @@ if (pkg.scripts?.["public-node:serve"] !== "node tools/public-node-safe-serve-v1
 if (!fs.existsSync("tools/public-node-safe-serve-v1.mjs")) {
   throw new Error("missing tools/public-node-safe-serve-v1.mjs");
 }
+const source = fs.readFileSync("tools/public-node-safe-serve-v1.mjs", "utf8");
+if (!source.includes("const MAX_PUBLIC_FILE_BYTES = 8 * 1024 * 1024;")) {
+  throw new Error("missing reviewed 8 MiB public-file ceiling");
+}
+if (source.includes("readFileSync(opened.fd)")) {
+  throw new Error("unbounded retained-fd read remains");
+}
+const sizeGate = source.indexOf("st.size > MAX_PUBLIC_FILE_BYTES");
+const allocation = source.indexOf("Buffer.allocUnsafe(opened.size)");
+if (sizeGate < 0 || allocation < 0 || sizeGate > allocation) {
+  throw new Error("file-size admission must precede body allocation");
+}
+const handler = source.indexOf("const server = http.createServer");
+const headBranch = source.indexOf('if (req.method === "HEAD")', handler);
+const bodyRead = source.indexOf("body = readOpenedPublicFile(opened)", handler);
+if (handler < 0 || headBranch < handler || bodyRead < 0 || headBranch > bodyRead) {
+  throw new Error("HEAD must close from retained metadata before body read");
+}
 NODE
 
 check_output="$(npm run public-node:serve -- --check)"
@@ -39,6 +57,7 @@ printf 'LEAF_SYMLINK_SECRET_MUST_NOT_BE_SERVED\n' >"$tmp/outside-secret.txt"
 printf 'ANCESTOR_SYMLINK_SECRET_MUST_NOT_BE_SERVED\n' >"$tmp/outside-dir/secret.txt"
 ln -s "$tmp/outside-secret.txt" "$tmp/public/public-node/leaf-link.txt"
 ln -s "$tmp/outside-dir" "$tmp/public/public-node/dir-link"
+truncate -s 8388609 "$tmp/public/public-node/oversized.bin"
 
 (
   cd "$tmp"
@@ -82,6 +101,7 @@ function request(path, method = "GET") {
         res.once("end", () => {
           resolve({
             status: res.statusCode || 0,
+            headers: res.headers,
             body: Buffer.concat(chunks).toString("utf8"),
           });
         });
@@ -122,15 +142,36 @@ function request(path, method = "GET") {
     throw new Error("lexical traversal secret disclosed");
   }
 
+  const oversized = await request("/public-node/oversized.bin");
+  if (oversized.status !== 413) {
+    throw new Error("oversized file status " + oversized.status);
+  }
+  if (oversized.body.length > 1024) {
+    throw new Error("oversized rejection unexpectedly buffered a large body");
+  }
+
   const head = await request("/public-node/index.json", "HEAD");
   if (head.status !== 200) throw new Error("HEAD status " + head.status);
   if (head.body.length !== 0) throw new Error("HEAD returned a body");
+  if (Number(head.headers["content-length"]) !== Buffer.byteLength(index.body)) {
+    throw new Error("HEAD content-length did not come from retained metadata");
+  }
+
+  const afterOversized = await request("/public-node/index.json");
+  if (afterOversized.status !== 200) {
+    throw new Error("server did not remain healthy after oversized rejection");
+  }
 
   console.log("public_index_served=true");
   console.log("leaf_symlink_escape_rejected=true");
   console.log("ancestor_symlink_escape_rejected=true");
   console.log("lexical_traversal_rejected=true");
   console.log("head_body_empty=true");
+  console.log("oversized_file_rejected=true");
+  console.log("head_body_read=false");
+  console.log("bounded_descriptor_read=true");
+  console.log("descriptor_generation_revalidated=true");
+  console.log("public_file_snapshot_max_bytes=8388608");
 })().catch((error) => {
   console.error(error);
   process.exit(1);
@@ -145,4 +186,9 @@ rm -rf "$tmp"
 echo "VOID_PUBLIC_NODE_SAFE_SERVE_PATH_CUSTODY_V1_GREEN"
 echo "descriptor_relative_path_custody=true"
 echo "symlink_components_followed=false"
+echo "public_file_snapshot_max_bytes=8388608"
+echo "oversized_file_rejected=true"
+echo "head_body_read=false"
+echo "bounded_descriptor_read=true"
+echo "descriptor_generation_revalidated=true"
 echo "dangerous_paths_touched=false"
