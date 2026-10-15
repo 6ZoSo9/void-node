@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import pathlib
 import re
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/public/void_cloudflare_origin_designated_host_census_v1.py"
@@ -121,6 +123,89 @@ assert extra_adapter["sensitive_route_shape_observed"] is False
 assert extra_adapter["extra_adapter_seed_rule_observed"] is True
 assert extra_adapter["ordinary_routes_preserved_candidate"] is False
 
+def fixture_config(credential_path: pathlib.Path) -> str:
+    return config_text.replace(
+        "/run/void-cloudflared/private/credentials.json",
+        str(credential_path),
+    )
+
+with tempfile.TemporaryDirectory(
+    prefix="void-cloudflare-origin-census-proof-",
+) as tmp:
+    root = pathlib.Path(tmp)
+    os.chmod(root, 0o700)
+    owner_uid = os.getuid()
+    credential = root / "credentials.json"
+    credential.write_text('{"opaque":"metadata-only"}\n', encoding="utf-8")
+    os.chmod(credential, 0o600)
+    config_path = root / "config.yml"
+    config_path.write_text(fixture_config(credential), encoding="utf-8")
+    os.chmod(config_path, 0o600)
+
+    snapshot = module.tunnel_config_snapshot(config_path, owner_uid)
+    assert snapshot["config_generation_stable"] is True
+    assert snapshot["config_custody"]["generation_stable"] is True
+    assert snapshot["config_custody"]["custody_shape_observed"] is True
+    assert snapshot["config_custody"]["contents_read"] is True
+    assert snapshot["credentials_custody"]["generation_stable"] is True
+    assert snapshot["credentials_custody"]["custody_shape_observed"] is True
+    assert snapshot["credentials_custody"]["metadata_descriptor_only"] is True
+    assert snapshot["credentials_custody"]["contents_read"] is False
+    assert snapshot["credential_contents_read"] is False
+
+    credential_link = root / "credentials-link.json"
+    credential_link.symlink_to(credential)
+    symlink_config = root / "symlink-config.yml"
+    symlink_config.write_text(fixture_config(credential_link), encoding="utf-8")
+    os.chmod(symlink_config, 0o600)
+    symlink_snapshot = module.tunnel_config_snapshot(
+        symlink_config,
+        owner_uid,
+    )
+    assert symlink_snapshot["config_generation_stable"] is True
+    assert symlink_snapshot["credentials_custody"]["generation_stable"] is False
+    assert symlink_snapshot["credentials_custody"]["custody_shape_observed"] is False
+    assert symlink_snapshot["credential_contents_read"] is False
+
+    swap_config = root / "swap-config.yml"
+    swap_replacement = root / "swap-replacement.yml"
+    swap_config.write_text(fixture_config(credential), encoding="utf-8")
+    swap_replacement.write_text(
+        fixture_config(credential).replace(
+            "http://127.0.0.1:8083",
+            "http://127.0.0.1:8084",
+        ),
+        encoding="utf-8",
+    )
+    os.chmod(swap_config, 0o600)
+    os.chmod(swap_replacement, 0o600)
+    real_open = module.os.open
+    state = {"swapped": False}
+
+    def adversarial_open(path_value, flags, *args, **kwargs):
+        if (
+            not state["swapped"]
+            and path_value == swap_config.name
+            and kwargs.get("dir_fd") is not None
+        ):
+            swap_replacement.replace(swap_config)
+            state["swapped"] = True
+        return real_open(path_value, flags, *args, **kwargs)
+
+    module.os.open = adversarial_open
+    try:
+        _data, swapped_custody = module.descriptor_bound_file_custody(
+            swap_config,
+            owner_uid,
+            maximum=module.MAX_CONFIG_BYTES,
+            read_contents=True,
+        )
+    finally:
+        module.os.open = real_open
+    assert state["swapped"] is True
+    assert swapped_custody["generation_stable"] is False
+    assert swapped_custody["custody_shape_observed"] is False
+
 source = TARGET.read_text(encoding="utf-8")
 for required in (
     "CapEff",
@@ -145,6 +230,10 @@ for required in (
     "sensitive_route_shape_observed",
     "config_generation_stable",
     "read_regular_descriptor_bound",
+    "descriptor_bound_file_custody",
+    "metadata_descriptor_only",
+    "same_file_stat",
+    "same_directory_stat",
     "ordinary_routes_preserved_candidate",
     "adapter_route_matches_listener",
     "exact_ruleset_verified",
@@ -193,6 +282,10 @@ print("running_source_root_custody_required=true")
 print("loopback_listener_ownership_observed=true")
 print("tunnel_private_metadata_custody_observed=true")
 print("tunnel_config_retained_descriptor_binding=true")
+print("tunnel_config_custody_same_generation=true")
+print("tunnel_config_path_swap_rejected=true")
+print("credential_metadata_descriptor_binding=true")
+print("credential_symlink_rejected=true")
 print("nftables_raw_json_output=false")
 print("nftables_exact_ruleset_verified=false")
 print("cloudflare_control_plane_evidence_external=true")
