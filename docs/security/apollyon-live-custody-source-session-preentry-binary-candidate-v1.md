@@ -48,6 +48,23 @@ exact pre-entry self-test transcript before emitting one canonical candidate
 report. The compile recipe is static and non-PIE, so the candidate itself has no
 dynamic-loader step before `main()`.
 
+The candidate now binds the complete observed build closure rather than treating
+the compiler driver version as the whole toolchain. The report includes:
+
+- SHA-256 + byte length for the preprocessed translation unit, so system-header
+  drift is explicit;
+- canonical file identity for the compiler driver plus the resolved `cc1`,
+  assembler, `collect2`, and linker executables;
+- SHA-256 of GCC's active specs and search-directory transcripts;
+- SHA-256 + byte length of the compiled object before linking; and
+- the canonical path, byte length, and SHA-256 of every regular startup
+  object/static archive/file emitted by the linker's `-t` trace, excluding only
+  the candidate's own temporary object.
+
+Validation rechecks those closure files before accepting a report. A future
+runner/libc/binutils rotation therefore fails as explicit toolchain provenance
+drift instead of silently reinterpreting the accepted source into a new ELF.
+
 The proof also builds a temporary hostile `LD_PRELOAD` constructor. A dynamic
 control executable must trigger the constructor and create its sentinel; the
 same environment is then applied to the static pre-entry, which must run its
@@ -55,8 +72,14 @@ exact self-test without creating the sentinel. This is a positive-control proof
 that loader injection cannot execute before the pre-entry trust-root logic.
 
 Three independent Ubuntu 24.04 lanes must produce byte-identical reports. The
-compare job separately recompiles the checked-out source and requires the local
-binary identity to equal the hosted report before the THREE_RUN_GREEN marker.
+compare job separately recompiles the checked-out source and requires both the
+local binary identity and the complete toolchain closure to equal the hosted
+report before the THREE_RUN_GREEN marker.
+
+The workflow's manual-dispatch diff-hygiene gate uses the candidate head's first
+parent when pull-request base metadata is unavailable, so the declared
+`workflow_dispatch` trigger remains executable rather than failing on an empty
+base revision.
 
 ## Authority
 

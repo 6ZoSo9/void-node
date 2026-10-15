@@ -14,21 +14,21 @@ import tempfile
 MARKER="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1"
 VERIFY_MARKER=MARKER+"_VERIFIED"
 ROOT=Path(__file__).resolve().parents[1]
-PARENT="e6da3063d05ebeea5e716c474d1c41b80bbc3972"
+PARENT="42555f4df48ad68768781669824ebdc477dddcb6"
 SOURCE="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 SOURCE_SHA="51625ad6bb3e570e77aef491483a7b4c0dccdeca971f524658f5ac401bdcb9d7"
 CANDIDATE_PROOF="scripts/prove_apollyon_live_custody_source_session_preentry_binary_candidate_v1.py"
-CANDIDATE_PROOF_BLOB="844d437047b60065271676bdf6cb263131409e16"
+CANDIDATE_PROOF_BLOB="5a7f676d8934b01f80a0424b81701faa94de0dee"
 CANDIDATE_WORKFLOW=".github/workflows/apollyon-live-custody-source-session-preentry-binary-candidate-v1.yml"
-CANDIDATE_WORKFLOW_BLOB="e38ee8fb584eebab98a6ad1ac3c8e3424f296ec1"
+CANDIDATE_WORKFLOW_BLOB="0482c24bcb939132dcfbb82ba5fcd039c0c55fdb"
 LOCK="ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json"
-LOCK_ID="apollyon_live_custody_source_session_preentry_binary_lock_v1:38aab79d15a30e110265d7a199c2a7797e0f13472d03e768bb63af3da1a2a635"
-CANDIDATE_ID="apollyon_live_custody_source_session_preentry_binary_candidate_v1:5007ad5368afd86679cd18811822b648bb4abc4c13169d55d2b27822609de5ab"
+LOCK_ID="apollyon_live_custody_source_session_preentry_binary_lock_v1:89778e9fce5f93a0192ee73c47977b8d91e326950ef25954bad75f0316045e69"
+CANDIDATE_ID="apollyon_live_custody_source_session_preentry_binary_candidate_v1:e9a3c53682375bbb459015de5bf6110e36f8c725d553acdf6bffabdfdb787104"
 BINARY_SHA="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"
 BINARY_BYTES=798736
 SELF_TEST_SHA="97d7358d1a6dfffd42e293e3a4b1f70a41b6eace5fe6eec8409ae7ff97cc0c69"
-HOSTED_RUN=38685465710
+HOSTED_RUN=38730748696
 
 GIT_ENV={
     "PATH":"/usr/bin:/bin","HOME":"/nonexistent","LANG":"C","LC_ALL":"C",
@@ -156,7 +156,7 @@ def validate(lock:dict,candidate:dict,require_reviewed_id:bool=True)->None:
         "path":CANDIDATE_WORKFLOW,"git_blob_sha1":CANDIDATE_WORKFLOW_BLOB
     }:
         raise AssertionError("lock_candidate_workflow_mismatch")
-    for key in ("compiler","compile_recipe","binary","self_test"):
+    for key in ("compiler","compile_recipe","toolchain","binary","self_test"):
         if lock.get(key)!=candidate.get(key):
             raise AssertionError("lock_"+key+"_mismatch")
     if (
@@ -182,6 +182,7 @@ def validate(lock:dict,candidate:dict,require_reviewed_id:bool=True)->None:
         "workflow_run":HOSTED_RUN,
         "three_reports_byte_identical":True,
         "comparison_rederived_elf":True,
+        "static_toolchain_closure_bound":True,
     }:
         raise AssertionError("lock_hosted_evidence_mismatch")
     if lock.get("candidate_binary_identity_accepted") is not True:
@@ -224,6 +225,7 @@ def receipt(lock:dict,candidate:dict)->dict:
         "hostile_ld_preload_positive_control":candidate["binary"]["hostile_ld_preload_positive_control"],
         "hostile_ld_preload_preentry_blocked":candidate["binary"]["hostile_ld_preload_preentry_blocked"],
         "comparison_rederived_elf":True,
+        "static_toolchain_closure_bound":True,
         "candidate_binary_identity_accepted":True,
         "installed_preentry_identity_proven":False,
         "installed_execution_closure_proven":False,
@@ -258,6 +260,7 @@ def self_test()->None:
     print("pt_interp_absent=true")
     print("hostile_ld_preload_positive_control=true")
     print("hostile_ld_preload_preentry_blocked=true")
+    print("static_toolchain_closure_bound=true")
     print("installed_preentry_identity_proven=false")
     print("training_execution=false")
     print("funds_movement=false")
@@ -280,6 +283,7 @@ def verify_to(path:Path)->None:
     print("static_link_required=true")
     print("pt_interp_absent=true")
     print("hostile_ld_preload_preentry_blocked=true")
+    print("static_toolchain_closure_bound=true")
     print("installed_preentry_identity_proven=false")
     print("training_execution=false")
     print("funds_movement=false")

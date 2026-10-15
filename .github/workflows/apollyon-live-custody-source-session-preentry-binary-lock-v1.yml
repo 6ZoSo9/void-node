@@ -45,6 +45,7 @@ jobs:
           grep -Fx 'pt_interp_absent=true' "$proof"
           grep -Fx 'hostile_ld_preload_positive_control=true' "$proof"
           grep -Fx 'hostile_ld_preload_preentry_blocked=true' "$proof"
+          grep -Fx 'static_toolchain_closure_bound=true' "$proof"
           grep -Fx 'installed_preentry_identity_proven=false' "$proof"
           grep -Fx 'training_execution=false' "$proof"
           python3 -I -B scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py             --verify "$receipt"
@@ -80,11 +81,12 @@ jobs:
           v=json.loads(Path("receipts/lock-verification-a.json").read_text())
           assert v["marker"]=="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1_VERIFIED"
           assert type(v["version"]) is int and v["version"]==1
-          assert v["lock_id"]=="apollyon_live_custody_source_session_preentry_binary_lock_v1:38aab79d15a30e110265d7a199c2a7797e0f13472d03e768bb63af3da1a2a635"
-          assert v["candidate_id"]=="apollyon_live_custody_source_session_preentry_binary_candidate_v1:5007ad5368afd86679cd18811822b648bb4abc4c13169d55d2b27822609de5ab"
+          assert v["lock_id"]=="apollyon_live_custody_source_session_preentry_binary_lock_v1:89778e9fce5f93a0192ee73c47977b8d91e326950ef25954bad75f0316045e69"
+          assert v["candidate_id"]=="apollyon_live_custody_source_session_preentry_binary_candidate_v1:e9a3c53682375bbb459015de5bf6110e36f8c725d553acdf6bffabdfdb787104"
           assert v["binary_bytes"]==798736
           assert v["binary_sha256"]=="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"
           assert v["comparison_rederived_elf"] is True
+          assert v["static_toolchain_closure_bound"] is True
           assert v["static_link_required"] is True
           assert v["pt_interp_absent"] is True
           assert v["hostile_ld_preload_positive_control"] is True
