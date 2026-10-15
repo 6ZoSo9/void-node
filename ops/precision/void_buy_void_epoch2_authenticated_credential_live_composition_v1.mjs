@@ -1,14 +1,11 @@
 #!/usr/bin/env node
+// Root live-composition runner. Live authority requires execution from this
+// reviewed Git object on stdin. Repository modules are not imported.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-
-import {
-  classifyEpoch2AuthenticatedCredentialPublicEvidenceV2,
-  NEXT_ACTION as COMPOSER_NEXT_ACTION,
-} from "../../tools/void-buy-void-epoch2-authenticated-credential-public-evidence-v2.mjs";
 
 export const MARKER =
   "VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V1";
@@ -19,16 +16,28 @@ export const STATUS =
 export const NEXT_ACTION =
   "BIND_AUTHENTICATED_EPOCH2_CREDENTIAL_EVIDENCE_IN_DORMANT_CANDIDATE_SUCCESSOR";
 
-const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
+const ROOT="/home/zoso/dev/void-node";
 const QUALIFIER_REL=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v1.py";
 const SEALED_REL=
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v1.mjs";
-const QUALIFIER=path.join(ROOT,QUALIFIER_REL);
+const QUALIFIER_BLOB="5dec0f9534c3b2d6c8d4a0647e69d3c89ab91cd6";
+const SEALED_BLOB="bb58ec88472b724e23aeccf65f44f4582c4a1440";
 const SEALED_CONFIRM=
   "probeBuyVoidEpoch2InstalledCredentialSigningCapabilitySealedV1";
-const SEALED_BLOB="bb58ec88472b724e23aeccf65f44f4582c4a1440";
-const QUALIFIER_BLOB="5dec0f9534c3b2d6c8d4a0647e69d3c89ab91cd6";
+const EXPECTED_CREDENTIAL_ID="buy-void-epoch2-fulfiller-v1";
+const EXPECTED_CREDENTIAL_LOCK_ID=
+  "voidbuyumqcredelflock1_65a1839c14b692349dda8cccdbe8657a9485754c5d10ffa5b57421ce87e3753c";
+const EXPECTED_FULFILLER=
+  "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a";
+const QUALIFIER_MARKER=
+  "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_INSTALLED_QUALIFICATION_V1";
+const QUALIFIER_NEXT_ACTION=
+  "BIND_AUTHENTICATED_CREDENTIAL_METADATA_IN_EPOCH2_ATTESTATION_SUCCESSOR";
+const SEALED_MARKER=
+  "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SEALED_V1";
+const SEALED_STATUS=
+  "EPOCH2_INSTALLED_CREDENTIAL_SIGNING_CAPABILITY_GREEN";
 const RUNTIME_UID=1000;
 const RUNTIME_GID=1000;
 const RUNTIME_HOME="/home/zoso";
@@ -38,6 +47,8 @@ const NODE="/usr/bin/node";
 const SETPRIV="/usr/bin/setpriv";
 const MAX_OUTPUT=2*1024*1024;
 const SHA40=/^[0-9a-f]{40}$/u;
+const HEX64=/^[0-9a-f]{64}$/u;
+const SEALED_ID=/^voide2sealed1_[0-9a-f]{64}$/u;
 
 function sha256(bytes){
   return crypto.createHash("sha256").update(bytes).digest("hex");
@@ -113,8 +124,24 @@ function assertTrustedExecutable(file){
   return real;
 }
 
+function runAsRuntimeUser(command,args,options={}){
+  return run(SETPRIV,[
+    "--no-new-privs",
+    "--reuid="+String(RUNTIME_UID),
+    "--regid="+String(RUNTIME_GID),
+    "--clear-groups",
+    command,
+    ...args,
+  ],{
+    cwd:options.cwd??ROOT,
+    env:options.env??cleanGitEnv(),
+    input:options.input,
+    timeout:options.timeout??60_000,
+  });
+}
+
 function git(args){
-  const r=run(GIT,[
+  const r=runAsRuntimeUser(GIT,[
     "-c","core.fsmonitor=false",
     "-c","core.hooksPath=/dev/null",
     ...args,
@@ -137,6 +164,21 @@ function requireExactCheckout(expectedHead){
   return head;
 }
 
+function gitObject(expectedHead,relative,expectedBlob){
+  const r=runAsRuntimeUser(GIT,[
+    "-c","core.fsmonitor=false",
+    "-c","core.hooksPath=/dev/null",
+    "show",expectedHead+":"+relative,
+  ],{env:cleanGitEnv(),timeout:15_000});
+  if(r.status!==0||r.stderr!=="")throw new Error("git_object_unavailable:"+relative);
+  const bytes=Buffer.from(r.stdout,"utf8");
+  if(gitBlobSha1(bytes)!==expectedBlob){
+    bytes.fill(0);
+    throw new Error("git_object_blob_mismatch:"+relative);
+  }
+  return bytes;
+}
+
 export function parseQualificationStdout(stdout){
   if(typeof stdout!=="string"||stdout.length<1||
      Buffer.byteLength(stdout,"utf8")>MAX_OUTPUT){
@@ -154,39 +196,145 @@ export function parseQualificationStdout(stdout){
   return value;
 }
 
-function runQualification(){
-  const r=run(PYTHON,["-I","-B",QUALIFIER,"--run"],{
-    env:cleanRootEnv(),
-    timeout:60_000,
-  });
-  if(r.status!==0){
-    throw new Error("credential_qualification_failed:"+String(r.status));
+function validateQualification(q){
+  for(const [key,want] of Object.entries({
+    marker:QUALIFIER_MARKER,
+    version:1,
+    read_only:true,
+    root_execution_required:true,
+    credential_lock_id:EXPECTED_CREDENTIAL_LOCK_ID,
+    credential_installed_pair_verified:true,
+    credential_installed_generation_stable:true,
+    credential_query_preexec_path_verified:true,
+    double_credential_query_stable:true,
+    credential_metadata_same_generation_as_v6_security:true,
+    v6_security_qualification_composed:true,
+    credential_contents_read:false,
+    load_credential_count:1,
+    load_credential_id:EXPECTED_CREDENTIAL_ID,
+    query_execution:true,
+    host_mutation:false,
+    filesystem_write:false,
+    service_mutation:false,
+    systemd_mutation:false,
+    external_network_calls:false,
+    private_key_access:false,
+    wallet_or_signer_access:false,
+    request_or_payment_contents_read:false,
+    payment_acceptance:false,
+    public_presale_activation:false,
+    transaction:false,
+    funds_movement:false,
+    production_host_evidence_authority:false,
+    next_action:QUALIFIER_NEXT_ACTION,
+  })){
+    if(q?.[key]!==want)throw new Error("qualification_field_invalid:"+key);
   }
-  if(r.stderr!=="")throw new Error("credential_qualification_unexpected_stderr");
-  return parseQualificationStdout(r.stdout);
+  if(!Number.isSafeInteger(q.runtime_uid)||q.runtime_uid!==RUNTIME_UID||
+     !Number.isSafeInteger(q.main_pid)||q.main_pid<=1||
+     !Number.isSafeInteger(q.manager_pid)||q.manager_pid<=1){
+    throw new Error("qualification_identity_invalid");
+  }
+  if(typeof q.credential_source!=="string"||
+     !path.posix.isAbsolute(q.credential_source)||
+     path.posix.normalize(q.credential_source)!==q.credential_source){
+    throw new Error("qualification_credential_source_invalid");
+  }
+  if(typeof q.native_output_sha256_first!=="string"||
+     q.native_output_sha256_first!==q.native_output_sha256_second||
+     !/^sha256:[0-9a-f]{64}$/u.test(q.native_output_sha256_first)){
+    throw new Error("qualification_native_transcript_invalid");
+  }
+  if(q.v6_capability_bounding_set!==q.v6_kernel_cap_bnd||
+     !/^[0-9a-f]{16}$/u.test(String(q.v6_kernel_cap_bnd||""))){
+    throw new Error("qualification_capability_binding_invalid");
+  }
 }
 
-function sealedSource(expectedHead){
-  const r=run(GIT,[
-    "-c","core.fsmonitor=false",
-    "-c","core.hooksPath=/dev/null",
-    "show",expectedHead+":"+SEALED_REL,
-  ],{env:cleanGitEnv(),timeout:15_000});
-  if(r.status!==0||r.stderr!=="")throw new Error("sealed_git_object_unavailable");
-  const bytes=Buffer.from(r.stdout,"utf8");
-  if(gitBlobSha1(bytes)!==SEALED_BLOB)throw new Error("sealed_git_blob_mismatch");
-  return bytes;
+function pythonBootstrap(source){
+  const absolute=path.join(ROOT,QUALIFIER_REL);
+  const encoded=source.toString("base64");
+  return [
+    "import base64,sys",
+    "source=base64.b64decode("+JSON.stringify(encoded)+")",
+    "path="+JSON.stringify(absolute),
+    "sys.argv=[path,'--run']",
+    "scope={'__name__':'__main__','__file__':path,'__package__':''}",
+    "exec(compile(source,path,'exec',dont_inherit=True),scope)",
+    "",
+  ].join("\n");
+}
+
+function runQualification(expectedHead){
+  const source=gitObject(expectedHead,QUALIFIER_REL,QUALIFIER_BLOB);
+  try{
+    const bootstrap=pythonBootstrap(source);
+    const r=run(PYTHON,["-I","-B","-"],{
+      env:cleanRootEnv(),
+      input:bootstrap,
+      timeout:60_000,
+    });
+    if(r.status!==0)throw new Error("credential_qualification_failed:"+String(r.status));
+    if(r.stderr!=="")throw new Error("credential_qualification_unexpected_stderr");
+    const parsed=parseQualificationStdout(r.stdout);
+    validateQualification(parsed);
+    return parsed;
+  }finally{
+    source.fill(0);
+  }
+}
+
+function validateSealedRecord(record,expectedHead){
+  if(!record||typeof record!=="object"||Array.isArray(record)){
+    throw new Error("sealed_record_invalid");
+  }
+  for(const [key,want] of Object.entries({
+    marker:SEALED_MARKER,
+    version:1,
+    status:SEALED_STATUS,
+    source_head:expectedHead,
+    source_branch:"main",
+    sealed_probe_git_blob:SEALED_BLOB,
+    credential_id:EXPECTED_CREDENTIAL_ID,
+    immutable_fulfiller:EXPECTED_FULFILLER,
+    credential_content_read:true,
+    immutable_fulfiller_identity_proven:true,
+    active_signing_capability_proven:true,
+    raw_private_key_output:false,
+    private_key_string_materialization:false,
+    raw_signed_transaction_output:false,
+    rpc_call_performed:false,
+    transaction_constructed:false,
+    transaction_broadcast_performed:false,
+    transaction_submission_performed:false,
+    filesystem_write_performed:false,
+    runtime_activation_authorized:false,
+    public_payment_acceptance_authorized:false,
+    presale_activation_authorized:false,
+    funds_movement:false,
+  })){
+    if(record[key]!==want)throw new Error("sealed_field_invalid:"+key);
+  }
+  if(!SEALED_ID.test(String(record.evidence_id||""))||
+     !SHA40.test(String(record.source_tree||""))||
+     record.systemd?.service!=="void-node-live.service"||
+     !Number.isSafeInteger(record.systemd?.main_pid)||
+     record.systemd.main_pid<=1||
+     !HEX64.test(String(record.systemd?.loadcredential_binding_sha256||""))||
+     !HEX64.test(String(record.systemd?.main_pid_cgroup_sha256||""))){
+    throw new Error("sealed_binding_invalid");
+  }
+  if(record.systemd.process_source_commit!==expectedHead||
+     record.systemd.process_source_tree!==record.source_tree||
+     record.systemd.process_source_branch!=="main"){
+    throw new Error("sealed_process_source_invalid");
+  }
 }
 
 function runSealedProbe(expectedHead){
-  const source=sealedSource(expectedHead);
+  const source=gitObject(expectedHead,SEALED_REL,SEALED_BLOB);
   try{
-    const args=[
-      "--no-new-privs",
-      "--reuid="+String(RUNTIME_UID),
-      "--regid="+String(RUNTIME_GID),
-      "--clear-groups",
-      NODE,
+    const r=runAsRuntimeUser(NODE,[
       "--input-type=module",
       "-",
       "--probe",
@@ -194,8 +342,7 @@ function runSealedProbe(expectedHead){
       SEALED_CONFIRM,
       "--expected-head",
       expectedHead,
-    ];
-    const r=run(SETPRIV,args,{
+    ],{
       env:cleanGitEnv(),
       input:source,
       timeout:45_000,
@@ -212,33 +359,43 @@ function runSealedProbe(expectedHead){
     let record;
     try{record=JSON.parse(r.stdout);}
     catch{throw new Error("sealed_probe_json_invalid");}
-    if(!record||typeof record!=="object"||Array.isArray(record)){
-      throw new Error("sealed_probe_record_invalid");
-    }
+    validateSealedRecord(record,expectedHead);
     return record;
   }finally{
     source.fill(0);
   }
 }
 
-function stableQualification(before,after){
-  return canonical(before)===canonical(after);
+function crossCheck(record,q){
+  if(record.systemd.main_pid!==q.main_pid){
+    throw new Error("main_pid_crosscheck_failed");
+  }
+  const binding=q.load_credential_id+":"+q.credential_source;
+  if(sha256(Buffer.from(binding,"utf8"))!==
+     record.systemd.loadcredential_binding_sha256){
+    throw new Error("loadcredential_binding_crosscheck_failed");
+  }
+  const cgroup=
+    "0::/user.slice/user-"+String(q.runtime_uid)+
+    ".slice/user@"+String(q.runtime_uid)+
+    ".service/app.slice/void-node-live.service\n";
+  if(sha256(Buffer.from(cgroup,"utf8"))!==
+     record.systemd.main_pid_cgroup_sha256){
+    throw new Error("service_cgroup_hash_crosscheck_failed");
+  }
 }
 
 export function buildReceipt({
   expectedHead,
   qualification,
   sealedRecord,
-  composed,
 }){
-  if(!composed?.ok)throw new Error("composer_not_green");
   const body={
     marker:MARKER,
     version:1,
     status:STATUS,
     source_head:expectedHead,
-    sealed_evidence_id:sealedRecord.evidence_id,
-    composed_evidence_id:composed.composite_evidence_id,
+    sealed_public_evidence:sealedRecord,
     credential_lock_id:qualification.credential_lock_id,
     credential_qualification_sha256:
       sha256(Buffer.from(canonical(qualification),"utf8")),
@@ -247,11 +404,13 @@ export function buildReceipt({
     manager_start_ticks:String(qualification.manager_start_ticks),
     main_pid:qualification.main_pid,
     service_start_ticks:String(qualification.service_start_ticks),
-    signer_address:composed.signer_address,
+    signer_address:sealedRecord.immutable_fulfiller,
     qualification_provenance_authenticated_by_runner:true,
     qualification_stable_before_after_sealed_probe:true,
-    authenticated_private_manager_fields_crosschecked:true,
-    sealed_public_signature_verified:true,
+    main_pid_crosscheck:true,
+    loadcredential_binding_crosscheck:true,
+    service_cgroup_hash_crosscheck:true,
+    public_user_bus_sufficient_authority:false,
     credential_content_access_in_sealed_child:true,
     credential_content_access_in_runner_parent:false,
     private_key_material_in_sealed_child:true,
@@ -282,6 +441,7 @@ export function buildReceipt({
 function plan(){
   console.log(MARKER);
   console.log("mode=plan");
+  console.log("git_object_stdin_required_for_live=true");
   console.log("root_required_for_run=true");
   console.log("runtime_uid="+String(RUNTIME_UID));
   console.log("credential_v6_qualification_required=true");
@@ -317,11 +477,6 @@ function selfTest(){
   if(canonical(parsed)!==canonical(synthetic)){
     throw new Error("qualification_parser_self_test_failed");
   }
-  const composed={
-    ok:true,
-    composite_evidence_id:"voide2authv2_"+"a".repeat(64),
-    signer_address:"0x"+"1".repeat(40),
-  };
   const q={
     credential_lock_id:"lock",
     runtime_uid:1000,
@@ -330,25 +485,31 @@ function selfTest(){
     main_pid:4242,
     service_start_ticks:"998877",
   };
-  const sealed={evidence_id:"voide2sealed1_"+"b".repeat(64)};
+  const sealed={
+    evidence_id:"voide2sealed1_"+"b".repeat(64),
+    immutable_fulfiller:EXPECTED_FULFILLER,
+  };
   const receipt=buildReceipt({
     expectedHead:"c".repeat(40),
     qualification:q,
     sealedRecord:sealed,
-    composed,
   });
   if(!/^voide2livecomp1_[0-9a-f]{64}$/u.test(receipt.receipt_id)){
     throw new Error("receipt_id_self_test_failed");
   }
   if(receipt.production_host_evidence_authority!==false||
      receipt.transaction_constructed!==false||
-     receipt.funds_movement!==false){
+     receipt.funds_movement!==false||
+     receipt.credential_content_access_in_runner_parent!==false){
     throw new Error("authority_self_test_failed");
   }
   console.log(MARKER+"_SELF_TEST_GREEN");
+  console.log("git_object_stdin_required_for_live=true");
   console.log("qualification_parser_closed=true");
   console.log("receipt_content_addressed=true");
   console.log("runner_parent_credential_content_access=false");
+  console.log("sealed_child_credential_content_access=true");
+  console.log("nontransaction_signature_only=true");
   console.log("transaction=false");
   console.log("funds_movement=false");
 }
@@ -358,6 +519,7 @@ function live(expectedHead,confirm){
   if(typeof process.geteuid!=="function"||process.geteuid()!==0){
     throw new Error("root_required_for_live_composition");
   }
+  if(process.argv[1]!=="-")throw new Error("runner_git_object_stdin_required");
 
   assertTrustedExecutable(GIT);
   assertTrustedExecutable(PYTHON);
@@ -365,36 +527,19 @@ function live(expectedHead,confirm){
   assertTrustedExecutable(SETPRIV);
   requireExactCheckout(expectedHead);
 
-  const qualifierBytes=fs.readFileSync(QUALIFIER);
-  try{
-    if(gitBlobSha1(qualifierBytes)!==QUALIFIER_BLOB){
-      throw new Error("qualification_source_blob_mismatch");
-    }
-  }finally{
-    qualifierBytes.fill(0);
-  }
-
-  const before=runQualification();
+  const before=runQualification(expectedHead);
   const sealedRecord=runSealedProbe(expectedHead);
-  const after=runQualification();
+  const after=runQualification(expectedHead);
 
-  if(!stableQualification(before,after)){
+  if(canonical(before)!==canonical(after)){
     throw new Error("qualification_changed_across_sealed_probe");
   }
-
-  const composed=classifyEpoch2AuthenticatedCredentialPublicEvidenceV2(
-    sealedRecord,before
-  );
-  if(!composed.ok)throw new Error("evidence_composition_hold:"+safeReason(composed.reason));
-  if(composed.next_action!==COMPOSER_NEXT_ACTION){
-    throw new Error("composer_next_action_mismatch");
-  }
+  crossCheck(sealedRecord,before);
 
   const receipt=buildReceipt({
     expectedHead,
     qualification:before,
     sealedRecord,
-    composed,
   });
   console.log(JSON.stringify(receipt,null,2));
 }
@@ -418,12 +563,12 @@ function main(){
     live(expectedHead,confirm);
     return;
   }
-  throw new Error("usage: runner --self-test | --plan | --run --confirm <token> --expected-head <sha>");
+  throw new Error(
+    "usage: runner --self-test | --plan | --run --confirm <token> --expected-head <sha>"
+  );
 }
 
-try{
-  main();
-}catch(error){
+function printHold(error){
   console.error(JSON.stringify({
     marker:MARKER+"_HOLD",
     status:"HOLD",
@@ -444,5 +589,14 @@ try{
     funds_movement:false,
     production_host_evidence_authority:false,
   },null,2));
+}
+
+const directFileExecution=process.argv[1]&&process.argv[1]!=="-"&&
+  path.resolve(process.argv[1])===fileURLToPath(import.meta.url);
+
+if(process.argv[1]==="-"){
+  try{main();}catch(error){printHold(error);process.exitCode=2;}
+}else if(directFileExecution){
+  printHold(new Error("runner_git_object_stdin_required"));
   process.exitCode=2;
 }
