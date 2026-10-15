@@ -14,7 +14,7 @@ def git_blob(path:Path)->str:
 
 m=json.loads(MANIFEST.read_text())
 assert m["marker"]=="VOID_APOLLYON_CUSTODY_SOCKET_LIFECYCLE_UPDATE_V1"
-assert git_blob(MANIFEST)=="ff86c530112d68adde6b81425f5ce951289ec71d"
+assert git_blob(MANIFEST)=="36f3d7b9228486364afa31b13b7aa6a228963389"
 assert m["old_service_blob_sha1"]=="6ff5315f3ada3607d86c865742c34d9de3238659"
 assert m["new_service_blob_sha1"]=="83f363b331bc2331416fd1c0ca6d52f53371fef0"
 assert m["target_blob_sha1"]=="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
@@ -24,12 +24,15 @@ assert git_blob(UNIT)==m["new_service_blob_sha1"]
 
 source=UPDATER.read_text();ast.parse(source)
 for required in (
-    'MANIFEST_BLOB="ff86c530112d68adde6b81425f5ce951289ec71d"',
+    'MANIFEST_BLOB="36f3d7b9228486364afa31b13b7aa6a228963389"',
     'OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"',
     'NEW_SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"',
     'HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
     'unit_not_exactly_dormant:',
     'unit_file_state_unexpected:',
+    'cleanup_custody_uid_process_exclusivity_required',
+    'target_unit_file_state_required',
+    'service_unit_file_state_required',
     'exact_dormant(TARGET_UNIT,"disabled")',
     'exact_dormant(SERVICE_UNIT,"static")',
     'os.replace(temp,SERVICE_PATH)',
