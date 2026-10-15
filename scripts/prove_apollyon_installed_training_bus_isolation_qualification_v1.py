@@ -33,8 +33,8 @@ assert "reviewed_entrypoint_exec_transition_unproven" in source
 assert "live_inherited_descriptor_present" in source
 assert "CapBnd" in source
 assert "absolute_runtime_service_control_denial_proven" in source
-assert '"boot_id_sha256": observed_boot_id_sha256' in source
-assert '"process_start_time_ticks": observed_start_time_ticks' in source
+assert '"boot_id_sha256": boot_id_sha256()' in source
+assert '"process_start_time_ticks": process_start_time_ticks(mainpid)' in source
 assert "apollyon_candidate_training_preclaim_v2" in source
 
 for forbidden in (
