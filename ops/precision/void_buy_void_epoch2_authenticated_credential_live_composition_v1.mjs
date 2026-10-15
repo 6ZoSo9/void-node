@@ -21,7 +21,7 @@ const QUALIFIER_REL=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v1.py";
 const SEALED_REL=
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v1.mjs";
-const QUALIFIER_BLOB="5dec0f9534c3b2d6c8d4a0647e69d3c89ab91cd6";
+const QUALIFIER_BLOB="8dc5d53dfcc52c261a3da0ee692f3a4fcc0bfc4c";
 const SEALED_BLOB="bb58ec88472b724e23aeccf65f44f4582c4a1440";
 const SEALED_CONFIRM=
   "probeBuyVoidEpoch2InstalledCredentialSigningCapabilitySealedV1";
