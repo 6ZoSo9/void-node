@@ -134,6 +134,7 @@ config_text = (
     "      disableChunkedEncoding: true\n"
     "  - hostname: seed.nullfeed.org\n"
     "    service: http://127.0.0.1:8083\n"
+    "  - service: http_status:404\n"
 )
 config = module.parse_tunnel_config(config_text)
 assert config["sensitive_route_shape_observed"] is True
@@ -151,6 +152,41 @@ unanchored_config = module.parse_tunnel_config(
 assert unanchored_config["sensitive_route_shape_observed"] is False
 assert config["sensitive_adapter_port"] == 4311
 assert config["ordinary_routes_preserved_candidate"] is True
+assert config["first_match_order_verified"] is True
+assert config["global_catchall_last"] is True
+assert config["public_hostname_wildcard_shadow_absent"] is True
+
+ordinary_rule = (
+    "  - hostname: seed.nullfeed.org\n"
+    "    service: http://127.0.0.1:8083\n"
+)
+shadowed_text = config_text.replace(ordinary_rule, "", 1).replace(
+    "ingress:\n",
+    "ingress:\n" + ordinary_rule,
+    1,
+)
+shadowed = module.parse_tunnel_config(shadowed_text)
+assert shadowed["sensitive_route_shape_observed"] is False
+assert shadowed["first_match_order_verified"] is False
+
+wildcard_shadow = module.parse_tunnel_config(
+    config_text.replace(
+        "ingress:\n",
+        "ingress:\n"
+        '  - hostname: "*.nullfeed.org"\n'
+        "    service: http://127.0.0.1:8084\n",
+        1,
+    )
+)
+assert wildcard_shadow["sensitive_route_shape_observed"] is False
+assert wildcard_shadow["public_hostname_wildcard_shadow_absent"] is False
+
+missing_catchall = module.parse_tunnel_config(
+    config_text.replace("  - service: http_status:404\n", "", 1)
+)
+assert missing_catchall["sensitive_route_shape_observed"] is False
+assert missing_catchall["global_catchall_last"] is False
+
 extra_adapter = module.parse_tunnel_config(
     config_text.replace(
         "    service: http://127.0.0.1:8083\n",
@@ -277,6 +313,9 @@ for required in (
     "same_file_stat",
     "same_directory_stat",
     "ordinary_routes_preserved_candidate",
+    "first_match_order_verified",
+    "global_catchall_last",
+    "public_hostname_wildcard_shadow_absent",
     "listener_process_pids",
     "exclusive_process_owner",
     "additional_process_owner_observed",
@@ -324,6 +363,9 @@ print("system_service_generation_binding=true")
 print("systemd_capability_bounds_observed=true")
 print("extra_sensitive_adapter_route_rejected=true")
 print("unanchored_sensitive_path_rejected=true")
+print("cloudflare_first_match_shadow_rejected=true")
+print("cloudflare_global_catchall_required=true")
+print("cloudflare_wildcard_shadow_rejected=true")
 print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
