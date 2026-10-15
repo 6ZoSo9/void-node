@@ -376,15 +376,16 @@ function openPinnedLedgerV1(
   } catch (error: any) {
     if (String(error?.code || "") !== "ENOENT") throw error;
     if (!options.create) return null;
+    if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+      fail(code + "_shared_journal_not_preprovisioned");
+    }
     fd = fs.openSync(
       pinnedPath,
       access |
         fs.constants.O_CREAT |
         fs.constants.O_EXCL |
         O_NOFOLLOW,
-      VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1
-        ? VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1
-        : 0o600,
+      0o600,
     );
     fs.fsyncSync(fd);
     fs.fsyncSync(directory.fd);
