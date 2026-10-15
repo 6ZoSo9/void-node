@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import { pathToFileURL } from "node:url";
 
 export const VOID_BUY_VOID_CUSTODY_NODE_BINARY_PROFILE_V1 =
   "VOID_BUY_VOID_CUSTODY_NODE_BINARY_PROFILE_V1";
@@ -158,7 +159,7 @@ export function inspectVoidBuyVoidCustodyNodeBinaryProfileV1() {
   });
 }
 
-if (import.meta.url === new URL("file://" + process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const profile = inspectVoidBuyVoidCustodyNodeBinaryProfileV1();
   console.log(VOID_BUY_VOID_CUSTODY_NODE_BINARY_PROFILE_V1);
   console.log("profile_id=" + profile.profile_id);
