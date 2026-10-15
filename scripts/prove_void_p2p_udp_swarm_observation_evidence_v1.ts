@@ -41,6 +41,7 @@ async function main(): Promise<void> {
     relayState.markReady(b.nodeId, stream.stream_id, 10_003).started_now,
     true,
   );
+  const startedRelayStreamIds = new Set([stream.stream_id]);
 
   const keys = new Map<string, string>([
     [a.nodeId, a.publicPem],
@@ -61,9 +62,8 @@ async function main(): Promise<void> {
   ): boolean => {
     if (relayNodeId !== relay.nodeId || streamId !== stream.stream_id) return false;
     const expectedPeer = localNodeId === a.nodeId ? b.nodeId : a.nodeId;
-    return peerNodeId === expectedPeer && relayState.snapshot(10_050).streams.some(
-      (entry) => entry.stream_id === streamId && entry.started,
-    );
+    // Mirror production Node's clock-free relayStreams membership check.
+    return peerNodeId === expectedPeer && startedRelayStreamIds.has(streamId);
   };
 
   const clientA = new VoidUdpSwarmAuthenticatedControlAdapterV1({
