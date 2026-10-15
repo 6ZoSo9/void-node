@@ -26,6 +26,9 @@ source = TARGET.read_text(encoding="utf-8")
 tree = ast.parse(source)
 assert "systemctl" in source
 assert "--live-qualify" in source
+assert "--observe-live-pid" in source
+assert "service_mainpid_generation_mismatch" in source
+assert "service_action_performed" in source
 assert "reviewed_entrypoint_exec_transition_unproven" in source
 assert "live_inherited_descriptor_present" in source
 assert "CapBnd" in source
@@ -58,6 +61,8 @@ print("all_capability_sets_zero_required=true")
 print("inherited_fds_ge_3_absent_required=true")
 print("boot_id_bound=true")
 print("process_start_time_ticks_bound=true")
+print("existing_live_pid_observation_supported=true")
+print("same_process_composition_possible=true")
 print("training_execution=false")
 print("attempt_claim=false")
 print("funds_movement=false")

@@ -28,8 +28,15 @@ designated host boundary:
 - the current Linux boot ID, bound as SHA-256; and
 - the live process start-time ticks from /proc/<pid>/stat field 22.
 
-The qualifier stops the service before returning and rechecks that it did not
-become enabled.
+Standalone `--live-qualify` stops the service before returning and rechecks
+that it did not become enabled.
+
+For downstream same-process composition, `--observe-live-pid <pid>` performs
+the same identity/isolation checks against an already-active exact MainPID but
+does not start, stop, restart or enable the service. Its receipt records
+`service_action_performed=false` and `service_active_after_observation=true`.
+That allows the later V2 composer to collect custody evidence while the exact
+same PID/start-tick generation is still alive.
 
 The boot-ID digest plus PID plus process start-time ticks form the downstream
 generation binding. A later V2 composer must require all three to equal the
@@ -70,9 +77,15 @@ must not satisfy that successor.
 
 `--self-test` is inert and is what hosted CI executes.
 
-`--live-qualify` is a separately authorized operator action. It requires root
-on hostname `Xiphos`, starts only the already-installed inert qualification
-service, observes the bounded live state, stops the service and emits a
-content-addressed receipt.
+`--live-qualify` is a separately authorized standalone operator action. It
+requires root on hostname `Xiphos`, starts only the already-installed inert
+qualification service, observes the bounded live state, stops the service and
+emits a content-addressed receipt.
 
-No service enablement is performed.
+`--observe-live-pid <pid>` is the composition mode. It requires an already
+active exact service MainPID and performs no service action. The later V2
+composer must own that service lifecycle and bind its custody evidence to the
+receipt's boot-ID digest, PID and process start-time ticks before any preclaim
+result may be emitted.
+
+No service enablement is performed by either mode.

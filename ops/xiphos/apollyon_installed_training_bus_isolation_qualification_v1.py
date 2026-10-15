@@ -32,7 +32,8 @@ AUTHORITY = {
     "exact_installed_unit_required": True,
     "exact_installed_preentry_required": True,
     "exact_installed_entrypoint_required": True,
-    "service_start_stop_required": True,
+    "service_start_stop_required_for_standalone_live_qualify": True,
+    "existing_live_pid_observation_supported": True,
     "service_enable": False,
     "training_execution": False,
     "attempt_claim": False,
@@ -164,6 +165,90 @@ def verify_installed_materials() -> dict[str, Any]:
         "entrypoint_sha256": EXPECTED_ENTRYPOINT_SHA256,
     }
 
+def observe_live_generation(mainpid: int) -> dict[str, Any]:
+    if socket.gethostname().casefold() != TARGET_HOST.casefold():
+        hold("wrong_host")
+    if os.geteuid() != 0:
+        hold("root_required")
+    if mainpid <= 0:
+        hold("live_pid_invalid")
+    materials = verify_installed_materials()
+    uid, gid = account_ids()
+    if service_property("LoadState") != "loaded":
+        hold("unit_not_loaded")
+    if service_property("ActiveState") != "active":
+        hold("service_not_active_for_observation")
+    if service_property("MainPID") != str(mainpid):
+        hold("service_mainpid_generation_mismatch")
+    exe = os.path.realpath(Path(f"/proc/{mainpid}/exe"))
+    if exe != os.fspath(ENTRYPOINT_PATH):
+        hold("live_entrypoint_identity_mismatch")
+
+    status_text = Path(f"/proc/{mainpid}/status").read_text(encoding="utf-8")
+    uids = parse_status_ids(status_text, "Uid")
+    gids = parse_status_ids(status_text, "Gid")
+    if any(value != uid for value in uids):
+        hold("live_uid_mismatch")
+    if any(value != gid for value in gids):
+        hold("live_gid_mismatch")
+    if status_value(status_text, "NoNewPrivs") != "1":
+        hold("live_no_new_privileges_unproven")
+    for field in ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"):
+        if status_value(status_text, field) != "0000000000000000":
+            hold("live_capability_set_nonzero")
+
+    fd_dir = Path(f"/proc/{mainpid}/fd")
+    extra = sorted(
+        int(p.name) for p in fd_dir.iterdir()
+        if p.name.isdigit() and int(p.name) >= 3
+    )
+    if extra:
+        hold("live_inherited_descriptor_present")
+
+    cgroup = Path(f"/proc/{mainpid}/cgroup").read_text(encoding="utf-8")
+    if f"/system.slice/{UNIT}" not in cgroup:
+        hold("live_cgroup_mismatch")
+
+    live = {
+        "mainpid": mainpid,
+        "boot_id_sha256": boot_id_sha256(),
+        "process_start_time_ticks": process_start_time_ticks(mainpid),
+        "entrypoint_path": os.fspath(ENTRYPOINT_PATH),
+        "uid_slots": list(uids),
+        "gid_slots": list(gids),
+        "no_new_privileges": True,
+        "capability_sets_zero": True,
+        "inherited_fds_ge_3_absent": True,
+        "systemd_cgroup_verified": True,
+    }
+    material = {
+        "marker": MARKER,
+        "version": 1,
+        "status": "installed_training_bus_isolation_live_generation_observed",
+        "target_host": TARGET_HOST,
+        "materials": materials,
+        "live": live,
+        "installed_unit_identity_proven": True,
+        "installed_preentry_binary_identity_proven": True,
+        "installed_training_entrypoint_identity_proven": True,
+        "live_systemd_enforcement_proven": True,
+        "inherited_system_bus_descriptor_absence_proven": True,
+        "absolute_runtime_service_control_denial_proven": True,
+        "canonical_installed_qualification_complete": True,
+        "service_action_performed": False,
+        "service_enabled": False,
+        "service_active_after_observation": True,
+        "training_execution": False,
+        "attempt_claim": False,
+        "candidate_weight_mutation": False,
+        "next_gate": "apollyon_candidate_training_preclaim_v2",
+        "authority": AUTHORITY,
+    }
+    return {
+        **material,
+        "qualification_id": "apollyon_training_isolation_live_v1:" + sha256(canonical(material).encode("utf-8")),
+    }
+
 def live_qualify() -> dict[str, Any]:
     if socket.gethostname().casefold() != TARGET_HOST.casefold():
         hold("wrong_host")
@@ -205,44 +290,8 @@ def live_qualify() -> dict[str, Any]:
         if mainpid <= 0:
             hold("reviewed_entrypoint_exec_transition_unproven")
 
-        status_text = Path(f"/proc/{mainpid}/status").read_text(encoding="utf-8")
-        uids = parse_status_ids(status_text, "Uid")
-        gids = parse_status_ids(status_text, "Gid")
-        if any(value != uid for value in uids):
-            hold("live_uid_mismatch")
-        if any(value != gid for value in gids):
-            hold("live_gid_mismatch")
-        if status_value(status_text, "NoNewPrivs") != "1":
-            hold("live_no_new_privileges_unproven")
-        for field in ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"):
-            if status_value(status_text, field) != "0000000000000000":
-                hold("live_capability_set_nonzero")
-
-        fd_dir = Path(f"/proc/{mainpid}/fd")
-        extra = sorted(
-            int(p.name) for p in fd_dir.iterdir()
-            if p.name.isdigit() and int(p.name) >= 3
-        )
-        if extra:
-            hold("live_inherited_descriptor_present")
-
-        cgroup = Path(f"/proc/{mainpid}/cgroup").read_text(encoding="utf-8")
-        if f"/system.slice/{UNIT}" not in cgroup:
-            hold("live_cgroup_mismatch")
-        observed_boot_id_sha256 = boot_id_sha256()
-        observed_start_time_ticks = process_start_time_ticks(mainpid)
-
-        live = {
-            "mainpid": mainpid,
-            "boot_id_sha256": observed_boot_id_sha256,
-            "process_start_time_ticks": observed_start_time_ticks,
-            "entrypoint_path": os.fspath(ENTRYPOINT_PATH),
-            "uid_slots": list(uids),
-            "gid_slots": list(gids),
-            "no_new_privileges": True,
-            "capability_sets_zero": True,
-            "inherited_fds_ge_3_absent": True,
-            "systemd_cgroup_verified": True,
+        observed = observe_live_generation(mainpid)
+        live = observed["live"]
         }
     finally:
         if started:
@@ -267,6 +316,7 @@ def live_qualify() -> dict[str, Any]:
         "inherited_system_bus_descriptor_absence_proven": True,
         "absolute_runtime_service_control_denial_proven": True,
         "canonical_installed_qualification_complete": True,
+        "service_action_performed": True,
         "service_enabled": False,
         "service_active_after_qualification": False,
         "training_execution": False,
@@ -288,6 +338,7 @@ def self_test() -> None:
     assert AUTHORITY["training_execution"] is False
     assert AUTHORITY["attempt_claim"] is False
     assert AUTHORITY["service_enable"] is False
+    assert AUTHORITY["existing_live_pid_observation_supported"] is True
     stat_fixture = "123 (entry v1) S " + " ".join(str(i) for i in range(1, 40))
     assert process_start_time_ticks_from_text(stat_fixture) == 20
     print(MARKER + "_SELF_TEST=GREEN")
@@ -301,14 +352,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--live-qualify", action="store_true")
+    parser.add_argument("--observe-live-pid", type=int)
     args = parser.parse_args()
-    if args.self_test == args.live_qualify:
+    selected = int(args.self_test) + int(args.live_qualify) + int(args.observe_live_pid is not None)
+    if selected != 1:
         parser.error("choose exactly one mode")
     if args.self_test:
         self_test()
         return 0
     try:
-        result = live_qualify()
+        result = (
+            observe_live_generation(args.observe_live_pid)
+            if args.observe_live_pid is not None
+            else live_qualify()
+        )
     except Hold as exc:
         print("HOLD=" + str(exc), file=os.sys.stderr)
         print("service_enable=false", file=os.sys.stderr)
