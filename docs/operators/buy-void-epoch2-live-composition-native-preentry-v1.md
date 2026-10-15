@@ -209,8 +209,15 @@ disposable backing directory generations; and the checkout mirror is the
 expected read-only mount. Mount topology is asymmetric:
 visible `/opt` and `/home` must be explicit mountpoints, while their
 bootstrap backing directories and the bootstrap root itself must not be
-mountpoints. This rejects reverse-bind constructions that alias host directories
-onto the claimed backing paths. A caller that merely exports the internal marker
+mountpoints. The proof does not trust mountinfo pathnames alone: it opens each
+trusted directory with `O_NOFOLLOW|O_DIRECTORY`, retains the descriptor across
+the observation, reads that descriptor's kernel `mnt_id` from genuine
+`/proc/self/fdinfo/<fd>`, and requires the consumed mountinfo row to carry the
+same mount ID. Ordinary backing directories must additionally remain on the
+same retained mount generation as the bootstrap root. A bind-mounted
+`/proc/<helper>/mountinfo` from another process namespace therefore cannot
+hide a reverse bind while still matching the current proof process's live
+directory descriptors. A caller that merely exports the internal marker
 therefore fails before protected fixture writes.
 
 Missing/failed unshare, mount, overlay support, install, setpriv, sudo, parent
