@@ -51,6 +51,23 @@ status = module.parse_proc_status(
     "NoNewPrivs:\t1\n"
 )
 assert status["all_capability_sets_empty"] is True
+
+fake_retired = module.classify_historical_user_tunnel_query(
+    0,
+    {
+        "LoadState": "loaded",
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "MainPID": "0",
+        "UnitFileState": "disabled",
+    },
+)
+assert fake_retired["query_observed"] is True
+assert fake_retired["reported_active_running"] is False
+assert fake_retired["query_authenticated"] is False
+assert fake_retired["retired_candidate_observed"] is False
+assert fake_retired["retirement_verified"] is False
+assert fake_retired["authority"] == "untrusted_user_bus_shape_only"
 for key in (
     "capabilities_effective_empty",
     "capabilities_permitted_empty",
@@ -217,6 +234,10 @@ for required in (
     "retained_descriptor_generation_stable",
     "root_owned_nonwritable_source",
     "historical_user_tunnel_snapshot",
+    "classify_historical_user_tunnel_query",
+    "untrusted_user_bus_shape_only",
+    "query_authenticated",
+    "retirement_verified",
     "UnitFileState",
     "retired_candidate_observed",
     "systemd_capability_bounding_set_empty",
@@ -272,7 +293,9 @@ print("operator_tunnel_config_path_required=true")
 print("raw_process_command_line_output=false")
 print("credential_contents_read=false")
 print("historical_user_tunnel_read_only_query=true")
-print("historical_user_tunnel_retirement_requires_inactive_disabled_or_masked=true")
+print("historical_user_tunnel_query_authenticated=false")
+print("historical_user_tunnel_retirement_verified=false")
+print("fake_user_bus_retirement_cannot_promote=true")
 print("system_service_generation_binding=true")
 print("systemd_capability_bounds_observed=true")
 print("extra_sensitive_adapter_route_rejected=true")
