@@ -46,7 +46,7 @@ for required in (
     'target_unit_file_state_required',
     'service_unit_file_state_required',
     'EXPECTED_UNSET_ENVIRONMENT=(',
-    'loaded_unset_environment_invalid',
+    'loaded_service_generation_mismatch',
     'class ApplyHold(Hold):',
     'new_file_pending_reload',
     'RESUME_DAEMON_RELOAD',
