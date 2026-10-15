@@ -7,10 +7,17 @@ Historical reconciliation:
 - base `be959daf147a25f594ba705c6bead1e2e622b00e`;
 - head `af9646827b25e8103004f96525623ba248b41d2a`.
 
-Current restack base:
-`f894cc5cbdccab0265a9a2265df45efa07170c4a`.
+Accepted current restack generation:
+- base `f894cc5cbdccab0265a9a2265df45efa07170c4a`;
+- exact accepted PR head `a350ff8673c77c685bb024576ed1e887bfe42ac7`.
 
-Both reconciliations have 106 PR-delta paths. Two historical coupled-launch
+The historical reconciliation and the frozen accepted restack each have 106
+PR-delta paths. Current repository HEAD is allowed to advance with unrelated
+paths after that accepted restack; the 106-path topology is therefore verified
+against the frozen restack head, while protected/economic/provider identities
+below continue to be verified against current HEAD.
+
+Two historical coupled-launch
 proof paths are omitted from the current delta because the restack base already
 contains their accepted blobs. The current dispatch proof and this architecture
 note replace those two paths. Of the 104 paths shared with #3115, five workflow
