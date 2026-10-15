@@ -64,6 +64,14 @@ assert.ok(workflow.includes('if [ -z "${BASE:-}" ]; then'));
 assert.ok(workflow.includes('BASE="$(git rev-parse "$HEAD^1")"'));
 assert.equal(
   (workflow.match(/if sudo test -e "\$root" \|\| sudo test -L "\$root"; then/gu)||[]).length,
+  4,
+);
+assert.equal(
+  (workflow.match(/echo "fixed fixture root already exists"/gu)||[]).length,
+  2,
+);
+assert.equal(
+  (workflow.match(/echo "fixture root still exists after cleanup"/gu)||[]).length,
   2,
 );
 assert.equal(
