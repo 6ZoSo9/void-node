@@ -1,6 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import {
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1,
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1,
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_V1,
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1,
+} from "./buy_void_request_custody_read_policy_v1.js";
+
 // Server-owned request intake only. This is NOT an operator payment,
 // custody/allocation, wallet or transaction writer. An ordered tuple keeps
 // the enormous index.ts boot entry below its independent size ceiling.
@@ -173,11 +180,56 @@ function assertNoSurvivingRequestHistoryV1(dir: string): void {
       holdHistoryV1("directory_listing_sparse");
     }
     const entry = entries[i];
-    if (typeof entry !== "string" ||
-        entry === "operator-events.jsonl" ||
-        path.extname(entry) === ".json") {
+    if (typeof entry !== "string") {
       holdHistoryV1("missing_or_empty_with_surviving_history");
     }
+    if (entry === "operator-events.jsonl") {
+      // Shared custody-readable mode requires both fixed journals to be
+      // pre-provisioned. An exact-qualified zero-byte operator journal is
+      // therefore compatible with an empty request journal. Any operator
+      // history remains surviving history and must HOLD.
+      if (!VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+        holdHistoryV1("missing_or_empty_with_surviving_history");
+      }
+      let operator: fs.BigIntStats;
+      try {
+        operator = fs.lstatSync(
+          path.join(dir, "operator-events.jsonl"),
+          { bigint: true },
+        );
+      } catch {
+        holdHistoryV1("missing_or_empty_with_surviving_history");
+      }
+      assertRequestLeafPolicyV1(operator, true);
+      if (operator.size !== 0n) {
+        holdHistoryV1("missing_or_empty_with_surviving_history");
+      }
+      continue;
+    }
+    if (path.extname(entry) === ".json") {
+      holdHistoryV1("missing_or_empty_with_surviving_history");
+    }
+  }
+}
+
+function requestDirectoryModeV1(): number {
+  return VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1
+    ? VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1
+    : 0o700;
+}
+
+function assertRequestDirectoryPolicyV1(observed: fs.Stats): void {
+  if (
+    !observed.isDirectory() ||
+    observed.isSymbolicLink() ||
+    observed.uid !== process.getuid?.() ||
+    (observed.mode & 0o7777) !== requestDirectoryModeV1() ||
+    (
+      VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1 &&
+      observed.gid !== VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_V1
+    )
+  ) {
+    holdHistoryV1("private_directory_owner_or_mode");
   }
 }
 
@@ -185,18 +237,27 @@ function assertPrivateRequestDirV1(dir: string): void {
   if (typeof process.getuid !== "function") {
     holdHistoryV1("private_posix_identity_unavailable");
   }
+  if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+    let canonical: string;
+    try {
+      canonical = fs.realpathSync.native(dir);
+    } catch {
+      holdHistoryV1("custody_readable_directory_realpath_unavailable");
+    }
+    if (canonical !== dir) {
+      holdHistoryV1("custody_readable_directory_alias_forbidden");
+    }
+  }
   let observed: fs.Stats;
   try { observed = fs.lstatSync(dir); }
   catch { holdHistoryV1("private_directory_metadata_unavailable"); }
-  if (!observed.isDirectory() || observed.isSymbolicLink() ||
-      observed.uid !== process.getuid() ||
-      (observed.mode & 0o7777) !== 0o700) {
-    holdHistoryV1("private_directory_owner_or_mode");
-  }
+  assertRequestDirectoryPolicyV1(observed);
 }
 // Creation mode does not repair an existing public-readable file; refuse
 // insecure legacy state instead of silently chmodding historical evidence.
-// Pin the verified private directory inode for history and publication.
+// The opt-in custody-readable generation is also pre-provisioned: the runtime
+// never chowns/chmods a historical request root into a new trust domain.
+// Pin the verified request directory inode for history and publication.
 // /proc/self/fd child paths cannot follow a replacement directory pathname.
 function assertPinnedPrivateRequestDirV1(dir: string, fd: number): void {
   let visible: fs.Stats;
@@ -205,16 +266,55 @@ function assertPinnedPrivateRequestDirV1(dir: string, fd: number): void {
     visible = fs.lstatSync(dir);
     opened = fs.fstatSync(fd);
   } catch { holdHistoryV1("pinned_directory_identity_unavailable"); }
-  if (!visible.isDirectory() || visible.isSymbolicLink() ||
-      !opened.isDirectory() ||
+  if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+    let canonical: string;
+    try {
+      canonical = fs.realpathSync.native(dir);
+    } catch {
+      holdHistoryV1("custody_readable_directory_realpath_unavailable");
+    }
+    if (canonical !== dir) {
+      holdHistoryV1("custody_readable_directory_alias_forbidden");
+    }
+  }
+  assertRequestDirectoryPolicyV1(visible);
+  assertRequestDirectoryPolicyV1(opened);
+  if (!opened.isDirectory() ||
       visible.dev !== opened.dev || visible.ino !== opened.ino ||
       visible.uid !== opened.uid || visible.gid !== opened.gid ||
-      visible.mode !== opened.mode ||
-      opened.uid !== process.getuid?.() ||
-      (opened.mode & 0o7777) !== 0o700) {
+      visible.mode !== opened.mode) {
     holdHistoryV1("pinned_directory_rebound");
   }
 }
+
+function assertRequestLeafPolicyV1(
+  observed: fs.BigIntStats,
+  journal: boolean,
+): void {
+  const sharedJournal =
+    journal && VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1;
+  const expectedMode = BigInt(
+    sharedJournal
+      ? VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1
+      : 0o600,
+  );
+  if (
+    !observed.isFile() ||
+    observed.isSymbolicLink() ||
+    observed.nlink !== 1n ||
+    observed.uid !== BigInt(process.getuid?.() ?? -1) ||
+    (observed.mode & 0o7777n) !== expectedMode ||
+    (
+      sharedJournal &&
+      observed.gid !== BigInt(
+        VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_V1 ?? -1,
+      )
+    )
+  ) {
+    holdHistoryV1("private_existing_leaf_owner_or_mode");
+  }
+}
+
 function assertPrivateRequestLeafV1(file: string): fs.BigIntStats | null {
   let observed: fs.BigIntStats;
   try { observed = fs.lstatSync(file, { bigint: true }); }
@@ -222,22 +322,57 @@ function assertPrivateRequestLeafV1(file: string): fs.BigIntStats | null {
     if (error?.code === "ENOENT") return null;
     holdHistoryV1("private_leaf_metadata_unavailable");
   }
-  if (!observed.isFile() || observed.isSymbolicLink() ||
-      observed.nlink !== 1n ||
-      observed.uid !== BigInt(process.getuid?.() ?? -1) ||
-      (observed.mode & 0o7777n) !== 0o600n) {
-    holdHistoryV1("private_existing_leaf_owner_or_mode");
-  }
+  assertRequestLeafPolicyV1(
+    observed,
+    path.basename(file) === "requests.jsonl",
+  );
   return observed;
 }
-function assertPrivateOpenLeafV1(fd: number): fs.BigIntStats {
+function assertPrivateOpenLeafV1(
+  fd: number,
+  journal = false,
+): fs.BigIntStats {
   const opened = fs.fstatSync(fd, { bigint: true });
-  if (!opened.isFile() || opened.nlink !== 1n ||
-      opened.uid !== BigInt(process.getuid?.() ?? -1) ||
-      (opened.mode & 0o7777n) !== 0o600n) {
-    holdHistoryV1("private_open_leaf_owner_or_mode");
-  }
+  assertRequestLeafPolicyV1(opened, journal);
   return opened;
+}
+
+function assertCustodyReadableJournalPreprovisionedV1(
+  pinnedDir: string,
+  name: "requests.jsonl" | "operator-events.jsonl",
+): void {
+  if (!VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) return;
+  const pinnedPath = path.join(pinnedDir, name);
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(
+      pinnedPath,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+    );
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      holdHistoryV1("custody_readable_journal_not_preprovisioned");
+    }
+    holdHistoryV1("custody_readable_journal_preflight_unavailable");
+  }
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    assertRequestLeafPolicyV1(opened, true);
+    const visible = fs.lstatSync(pinnedPath, { bigint: true });
+    assertRequestLeafPolicyV1(visible, true);
+    if (
+      opened.dev !== visible.dev ||
+      opened.ino !== visible.ino ||
+      opened.uid !== visible.uid ||
+      opened.gid !== visible.gid ||
+      opened.mode !== visible.mode ||
+      opened.nlink !== visible.nlink
+    ) {
+      holdHistoryV1("custody_readable_journal_preflight_rebound");
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 // An opened request sidecar must remain the visible, single-link private
 // inode that was qualified. Creation is exclusive when preflight was absent.
@@ -245,7 +380,7 @@ function assertPrivateOpenLeafV1(fd: number): fs.BigIntStats {
 function assertPrivateSidecarIdentityV1(
   file: string, fd: number, expected: fs.BigIntStats | null,
 ): fs.BigIntStats {
-  const opened = assertPrivateOpenLeafV1(fd);
+  const opened = assertPrivateOpenLeafV1(fd, false);
   if (expected && !sameHistoryFileV1(expected, opened)) {
     holdHistoryV1("sidecar_changed_before_open");
   }
@@ -313,12 +448,14 @@ function assertCompleteRequestHistoryUnderLockV1(
       visible.size > BigInt(REQUEST_HISTORY_MAX_BYTES_V1)) {
     holdHistoryV1("leaf_unqualified");
   }
+  assertRequestLeafPolicyV1(visible, true);
   let fd: number | null = null;
   let retainForAppend = false;
   try {
     fd = fs.openSync(ledger, fs.constants.O_RDWR |
       fs.constants.O_APPEND | (fs.constants.O_NOFOLLOW || 0));
     const opened = fs.fstatSync(fd, { bigint: true });
+    assertRequestLeafPolicyV1(opened, true);
     if (!opened.isFile() || !sameHistoryFileV1(visible, opened)) {
       holdHistoryV1("identity_changed_before_read");
     }
@@ -618,7 +755,7 @@ function qualifyOrRecoverReuseSidecarV1(
       checkJournal();
       fs.writeFileSync(sidecarFd, bytes);
       fs.fsyncSync(sidecarFd);
-      const after = assertPrivateOpenLeafV1(sidecarFd);
+      const after = assertPrivateOpenLeafV1(sidecarFd, false);
       if (after.size !== BigInt(bytes.length)) {
         holdHistoryV1("recovery_sidecar_short_write");
       }
@@ -774,9 +911,16 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
   if (typeof dir !== "string" || !dir || dir.includes("\0")) {
     throw new Error("buy_void_request_directory_not_configured");
   }
-  // Create private from the first inode; an existing wrong-mode directory
-  // is a HOLD, not an invitation to chmod historical customer state.
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  // Legacy mode may create its private root. The custody-readable generation
+  // is an explicit host contract: require one absolute pre-provisioned
+  // shared root rather than silently changing ownership/permissions here.
+  if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+    if (!path.isAbsolute(dir) || path.resolve(dir) !== dir) {
+      holdHistoryV1("custody_readable_directory_not_absolute");
+    }
+  } else {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
   assertPrivateRequestDirV1(dir);
   return withLaunchMutation(reqObj, async (assertCurrentAuthority: () => unknown) => {
     // Keep one private-directory FD across history read and publication.
@@ -799,6 +943,18 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     if (typeof assertCurrentAuthority !== "function") {
       throw new Error("buy_void_request_launch_revalidator_missing");
     }
+    // Shared custody-readable mode is explicitly pre-provisioned. Prove both
+    // fixed journal leaves through the retained directory descriptor BEFORE
+    // invoking tolerant/external readers so ENOENT or wrong metadata cannot
+    // escape as callback-specific behavior.
+    assertCustodyReadableJournalPreprovisionedV1(
+      pinnedDir,
+      "requests.jsonl",
+    );
+    assertCustodyReadableJournalPreprovisionedV1(
+      pinnedDir,
+      "operator-events.jsonl",
+    );
     // Recheck reviewed operator/request history inside the EXISTING
     // cross-process authority lock, before any JSONL or sidecar append.
     const requestHistory = await readRequests();
@@ -1002,6 +1158,12 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // Last synchronous admission check: no await may intervene.
     assertCurrentAuthority();
     if (journalFd === null) {
+      // Shared custody-readable history is a host-provisioned trust object.
+      // Never let runtime umask/group inheritance manufacture that boundary.
+      if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+        holdHistoryV1("custody_readable_journal_not_preprovisioned");
+      }
+      // Legacy private generation retains create-on-first-request behavior.
       // Fresh-generation O_EXCL forbids a new inode that appeared after
       // strict ENOENT history qualification. Never append to it.
       try {
@@ -1015,7 +1177,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
         throw error;
       }
     }
-    const journalOpened = assertPrivateOpenLeafV1(journalFd);
+    const journalOpened = assertPrivateOpenLeafV1(journalFd, true);
     if ((heldHistory.identity &&
          !sameHistoryFileV1(heldHistory.identity, journalOpened)) ||
         (!heldHistory.identity && journalOpened.size !== 0n)) {
@@ -1077,7 +1239,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       fs.ftruncateSync(sidecarFd, 0);
       fs.writeFileSync(sidecarFd, canonicalSidecarBytes);
       fs.fsyncSync(sidecarFd);
-      sidecarPostwrite = assertPrivateOpenLeafV1(sidecarFd);
+      sidecarPostwrite = assertPrivateOpenLeafV1(sidecarFd, false);
       if (sidecarPostwrite.size !== BigInt(canonicalSidecarBytes.length)) {
         holdHistoryV1("published_sidecar_short_write");
       }
