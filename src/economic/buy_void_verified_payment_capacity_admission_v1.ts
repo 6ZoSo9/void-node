@@ -185,6 +185,7 @@ type PinnedLedgerV1 = {
   name: string;
   fd: number;
   directory: PinnedRequestDirectoryV1;
+  private_sidecar: boolean;
 };
 
 type PinnedLedgerReadV1 = {
@@ -427,6 +428,7 @@ function openPinnedLedgerV1(
       name,
       fd,
       directory,
+      private_sidecar: false,
     };
   } catch (error) {
     fs.closeSync(fd);
@@ -462,6 +464,7 @@ function openPinnedPrivateSidecarV1(
       name,
       fd,
       directory,
+      private_sidecar: true,
     };
   } catch (error) {
     fs.closeSync(fd);
@@ -475,9 +478,12 @@ function assertPinnedLedgerVisibleV1(
 ): any {
   assertPinnedRequestDirectoryVisibleV1(ledger.directory);
   const opened = fs.fstatSync(ledger.fd, { bigint: true });
-  validateLedgerStatV1(opened, code);
+  const validate = ledger.private_sidecar
+    ? validatePrivateSidecarStatV1
+    : validateLedgerStatV1;
+  validate(opened, code);
   const visible = fs.lstatSync(ledger.path, { bigint: true });
-  validateLedgerStatV1(visible, code);
+  validate(visible, code);
   if (!sameFileIdentityV1(opened, visible)) {
     fail(code + "_path_not_bound");
   }
@@ -515,12 +521,15 @@ function readPinnedLedgerBytesV1(
     offset += count;
   }
   const after = fs.fstatSync(ledger.fd, { bigint: true });
-  validateLedgerStatV1(after, code);
+  const validate = ledger.private_sidecar
+    ? validatePrivateSidecarStatV1
+    : validateLedgerStatV1;
+  validate(after, code);
   if (!sameFileIdentityV1(before, after)) {
     fail(code + "_changed_during_read");
   }
   const visible = fs.lstatSync(ledger.path, { bigint: true });
-  validateLedgerStatV1(visible, code);
+  validate(visible, code);
   if (!sameFileIdentityV1(after, visible)) {
     fail(code + "_path_not_bound");
   }
