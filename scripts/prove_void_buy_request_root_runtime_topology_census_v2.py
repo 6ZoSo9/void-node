@@ -79,6 +79,9 @@ for required in (
     "production_gate_ready",
     "TARGET_LIVE_BINDING_OBSERVED_HISTORY_DISPOSITION_REQUIRED",
     "TARGET_NOT_PROVISIONED_HISTORY_DISPOSITION_REQUIRED_BEFORE_APPLY",
+    'target = result["target_request_root"]',
+    'target.get("exists")',
+    'target.get("metadata_qualified")',
 ):
     assert required in source, required
 
@@ -98,6 +101,8 @@ for forbidden in (
     "systemctl enable",
     "systemctl disable",
     "sudo ",
+    'target_before.get("exists")',
+    'target_before.get("metadata_qualified")',
 ):
     assert forbidden not in source, forbidden
 
