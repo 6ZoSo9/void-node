@@ -50,6 +50,7 @@ const raw=[
   "MainPID=1073664",
   "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/void-node-live.service",
   "NoNewPrivileges=yes",
+  "PrivateUsers=no",
   "CapabilityBoundingSet=000001ffffffffff",
   "AmbientCapabilities=0000000000000000",
   "KernelCapInh=0000000000000000",
@@ -77,6 +78,7 @@ const raw=[
 const parsed=parseBuyVoidAuthenticatedUserManagerUnitQueryV4(raw);
 assert.equal(parsed.KernelCapBnd,parsed.CapabilityBoundingSet);
 assert.equal(parsed.KernelNoNewPrivs,"1");
+assert.equal(parsed.PrivateUsers,"no");
 
 const config={
   runtime_user:"zoso",runtime_group:"zoso",runtime_uid:1000,
@@ -89,6 +91,12 @@ assert.throws(
   /kernel_nonbounding_caps_nonzero:KernelCapEff/u,
   "object_input_must_not_bypass_native_capability_validation",
 );
+const forgedPrivateUsers={...parsed,PrivateUsers:"yes"};
+assert.throws(
+  ()=>classifyBuyVoidAllocationCustodyAuthenticatedUserServiceV4(forgedPrivateUsers,config),
+  /private_users_invalid/u,
+  "object_input_must_not_bypass_private_users_validation",
+);
 assert.equal(decision.marker,VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V4);
 assert.equal(decision.configured_capability_bounding_set,"000001ffffffffff");
 assert.equal(decision.kernel_cap_bnd,"000001ffffffffff");
@@ -99,6 +107,7 @@ assert.equal(decision.complete_host_evidence_collector,false);
 assert.equal(decision.production_host_evidence_authority,false);
 
 for(const [label,bad,pattern] of [
+  ["private-users",raw.replace("PrivateUsers=no","PrivateUsers=yes"),/private_users_invalid/u],
   ["ambient",raw.replace("AmbientCapabilities=0000000000000000","AmbientCapabilities=0000000000000001"),
     /configured_ambient_invalid/u],
   ["cap-prm",raw.replace("KernelCapPrm=0000000000000000","KernelCapPrm=0000000000000001"),
@@ -119,7 +128,8 @@ for(const [label,bad,pattern] of [
 const query=fs.readFileSync(
   "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c","utf8");
 for(const needle of [
-  "KernelCapInh=%016","KernelCapPrm=%016","KernelCapEff=%016",
+  "PrivateUsers\",NULL,\'b\',&out->private_users","obs->private_users == 0",
+  "PrivateUsers=no","KernelCapInh=%016","KernelCapPrm=%016","KernelCapEff=%016",
   "KernelCapBnd=%016","KernelCapAmb=%016","KernelNoNewPrivs=%d",
   "capability_bounding_set_kernel_match=true",
   "process_nonbounding_capabilities_zero=true",
@@ -133,6 +143,7 @@ for(const [key,expected] of Object.entries({
   authenticated_private_manager_peer_required:true,
   same_authenticated_connection_unit_query_required:true,
   configured_ambient_capabilities_zero_required:true,
+  private_users_false_required:true,
   kernel_no_new_privileges_required:true,
   kernel_nonbounding_capabilities_zero_required:true,
   kernel_bounding_set_equals_authenticated_systemd_mask_required:true,
@@ -154,6 +165,7 @@ console.log("configured_bounding_set_may_be_nonzero=true");
 console.log("configured_ambient_capabilities_zero_required=true");
 console.log("kernel_nonbounding_capabilities_zero_required=true");
 console.log("kernel_no_new_privileges_required=true");
+console.log("private_users_false_required=true");
 console.log("kernel_bounding_set_matches_systemd_mask=true");
 console.log("capability_state_revalidated=true");
 console.log("object_input_capability_bypass_rejected=true");

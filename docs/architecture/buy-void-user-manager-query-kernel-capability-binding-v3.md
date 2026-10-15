@@ -28,6 +28,7 @@ retain manager/service pidfds, and recheck both process generations.
 For the authenticated MainPID it now requires:
 
 - systemd `NoNewPrivileges=true`;
+- systemd `PrivateUsers == false`;
 - systemd `AmbientCapabilities == 0`;
 - kernel `NoNewPrivs == 1`;
 - kernel `CapInh == 0`;
@@ -35,6 +36,8 @@ For the authenticated MainPID it now requires:
 - kernel `CapEff == 0`;
 - kernel `CapAmb == 0`;
 - kernel `CapBnd` exactly equals the systemd `CapabilityBoundingSet` mask.
+
+The authenticated unit observation also requires `PrivateUsers=false`, preserving the ordinary user execution namespace while NNP is active.
 
 The configured/systemd bounding set may therefore be nonzero. It is not treated
 as an effective capability grant. The exact systemd mask and all kernel masks

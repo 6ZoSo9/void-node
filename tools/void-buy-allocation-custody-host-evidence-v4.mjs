@@ -15,6 +15,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V4 =
     manager_generation_revalidation_required:true,
     service_generation_revalidation_required:true,
     configured_ambient_capabilities_zero_required:true,
+    private_users_false_required:true,
     kernel_no_new_privileges_required:true,
     kernel_nonbounding_capabilities_zero_required:true,
     kernel_bounding_set_equals_authenticated_systemd_mask_required:true,
@@ -69,7 +70,7 @@ const EXACT_KEYS=Object.freeze([
   "sanitized_loader_environment","libsystemd_fixed_path_verified",
   "libsystemd_retained_fd_load","libsystemd_symbol_provenance_verified",
   "runtime_service_unit","LoadState","ActiveState","SubState","User","Group",
-  "MainPID","ControlGroup","NoNewPrivileges","CapabilityBoundingSet",
+  "MainPID","ControlGroup","NoNewPrivileges","PrivateUsers","CapabilityBoundingSet",
   "AmbientCapabilities","KernelCapInh","KernelCapPrm","KernelCapEff",
   "KernelCapBnd","KernelCapAmb","KernelNoNewPrivs",
   "capability_bounding_set_kernel_match","process_nonbounding_capabilities_zero",
@@ -137,6 +138,9 @@ function validateNativeV4(out){
   for(const key of HEX_KEYS)mask(out[key],key);
   if(out.NoNewPrivileges!=="yes"||out.KernelNoNewPrivs!=="1"){
     fail("custody_host_evidence_v4_kernel_nnp_invalid");
+  }
+  if(out.PrivateUsers!=="no"){
+    fail("custody_host_evidence_v4_private_users_invalid");
   }
   if(out.AmbientCapabilities!=="0000000000000000"){
     fail("custody_host_evidence_v4_configured_ambient_invalid");

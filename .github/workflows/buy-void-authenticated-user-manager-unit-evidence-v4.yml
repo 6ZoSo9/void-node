@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "a493a557305d5193d2b1d38b6070a8e826c1d43a"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "6aefc385bcc4212d3c45e36871bfde0da3529baa"
           query="$RUNNER_TEMP/private-unit-query-v4"
           /usr/bin/cc -std=c11 -Wall -Wextra -Werror -O2 -fno-ident             -Wl,--build-id=none             -o "$query" ops/precision/void_buy_void_user_manager_private_unit_query_v1.c -ldl
           env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C             VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1             "$query" --self-test | tee "$RUNNER_TEMP/query-v4-self-test.log"
@@ -51,6 +51,7 @@ jobs:
           grep -Fx 'nonbounding_process_capabilities_zero_required=true' "$RUNNER_TEMP/query-v4-self-test.log"
           grep -Fx 'systemd_kernel_bounding_set_match_required=true' "$RUNNER_TEMP/query-v4-self-test.log"
           grep -Fx 'kernel_no_new_privileges_required=true' "$RUNNER_TEMP/query-v4-self-test.log"
+          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/query-v4-self-test.log"
       - name: Prove V4 authenticated capability composition
         run: |
           set -euo pipefail
@@ -64,6 +65,7 @@ jobs:
           grep -Fx 'configured_ambient_capabilities_zero_required=true' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'kernel_nonbounding_capabilities_zero_required=true' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'kernel_no_new_privileges_required=true' "$RUNNER_TEMP/custody-host-v4.log"
+          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'kernel_bounding_set_matches_systemd_mask=true' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'capability_state_revalidated=true' "$RUNNER_TEMP/custody-host-v4.log"
           grep -Fx 'object_input_capability_bypass_rejected=true' "$RUNNER_TEMP/custody-host-v4.log"

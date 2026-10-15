@@ -13,6 +13,7 @@ safe host transition.
 
 The reviewed native V3 query instead binds the configured mask to kernel state:
 - systemd `NoNewPrivileges=true`;
+- systemd `PrivateUsers=false`;
 - systemd `AmbientCapabilities=0`;
 - kernel `NoNewPrivs=1`;
 - kernel `CapInh/CapPrm/CapEff/CapAmb=0`;
@@ -38,7 +39,7 @@ A nonzero configured bounding set is not itself treated as an effective
 capability grant. V4 requires all non-bounding process capability sets to be
 zero and requires exact configured-bound ↔ kernel-bound equality at the
 authenticated MainPID. A mismatch, nonzero permitted/effective/inheritable/
-ambient set, missing NNP, malformed mask, or false native relation marker fails
+ambient set, missing NNP, `PrivateUsers!=false`, malformed mask, or false native relation marker fails
 closed.
 
 ## Remaining HOLD

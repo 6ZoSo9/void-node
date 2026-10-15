@@ -9,7 +9,7 @@ import {fileURLToPath} from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const QUERY="ops/precision/void_buy_void_user_manager_private_unit_query_v1.c";
-const QUERY_BLOB="a493a557305d5193d2b1d38b6070a8e826c1d43a";
+const QUERY_BLOB="6aefc385bcc4212d3c45e36871bfde0da3529baa";
 const V2_CANDIDATE="ops/security/buy-void-user-manager-query-elf-candidate-v2.json";
 const V2_CANDIDATE_BLOB="57026c4d8ca6cc9a40a3fa61f8cf4ee2c9df47be";
 const V2_LOCK="ops/security/buy-void-user-manager-query-elf-lock-v2.json";
@@ -55,6 +55,7 @@ pin(V2_LOCK,V2_LOCK_BLOB,16*1024);
 pin(V2_PROOF,V2_PROOF_BLOB,64*1024);
 
 assert.doesNotMatch(source,/obs->capability_bounding_set\s*!=\s*0/u);
+assert.match(source,/obs->private_users\s*==\s*0/u);
 assert.match(source,/obs->ambient_capabilities\s*!=\s*0/u);
 assert.match(source,/security->cap_bnd\s*!=\s*obs->capability_bounding_set/u);
 assert.match(source,/security->cap_inh\s*!=\s*0/u);
@@ -67,6 +68,8 @@ assert.match(source,/same_process_security\(&security,&security_after\)/u);
 assert.match(source,/CapabilityBoundingSet=%016" PRIx64/u);
 assert.match(source,/KernelCapBnd=%016" PRIx64/u);
 assert.match(source,/KernelNoNewPrivs=%d/u);
+assert.match(source,/PrivateUsers=no/u);
+assert.match(source,/PrivateUsers",NULL,\'b\',&out->private_users/u);
 assert.match(source,/capability_bounding_set_kernel_match=true/u);
 assert.match(source,/process_nonbounding_capabilities_zero=true/u);
 assert.doesNotMatch(source,/printf\("CapabilityBoundingSet=\\n"\)/u);
@@ -87,6 +90,7 @@ try{
   assert.match(out,/nonbounding_process_capabilities_zero_required=true/u);
   assert.match(out,/systemd_kernel_bounding_set_match_required=true/u);
   assert.match(out,/kernel_no_new_privileges_required=true/u);
+  assert.match(out,/private_users_false_required=true/u);
 }finally{
   fs.rmSync(tmp,{recursive:true,force:true});
 }
@@ -102,6 +106,7 @@ console.log("kernel_cap_eff_zero_required=true");
 console.log("kernel_cap_amb_zero_required=true");
 console.log("kernel_cap_bnd_must_match_systemd_mask=true");
 console.log("kernel_no_new_privileges_required=true");
+console.log("private_users_false_required=true");
 console.log("capability_state_rechecked_after_query=true");
 console.log("historical_v2_candidate_preserved=true");
 console.log("historical_v2_lock_preserved=true");

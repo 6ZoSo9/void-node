@@ -224,6 +224,7 @@ struct unit_observation {
   char control_group[512];
   uint32_t main_pid;
   int no_new_privileges;
+  int private_users;
   uint64_t capability_bounding_set;
   uint64_t ambient_capabilities;
 };
@@ -337,6 +338,19 @@ static int same_process_security(const struct process_security *a,
          a->no_new_privs == b->no_new_privs;
 }
 
+static int unit_security_policy_ok(const struct unit_observation *obs,
+                                   const struct process_security *security) {
+  return obs->no_new_privileges == 1 &&
+         obs->private_users == 0 &&
+         obs->ambient_capabilities == 0 &&
+         security->no_new_privs == 1 &&
+         security->cap_inh == 0 &&
+         security->cap_prm == 0 &&
+         security->cap_eff == 0 &&
+         security->cap_amb == 0 &&
+         security->cap_bnd == obs->capability_bounding_set;
+}
+
 static int get_string_prop(struct sd_api *api, sd_bus *bus, const char *object,
                            const char *interface, const char *property,
                            char *dst, size_t cap) {
@@ -378,6 +392,7 @@ static int query_unit(struct sd_api *api, sd_bus *bus, const char *unit,
       get_string_prop(api,bus,object_copy,"org.freedesktop.systemd1.Service","Group",out->group,sizeof(out->group)) != 0) return -1;
   if (api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","MainPID",NULL,'u',&out->main_pid) < 0 ||
       api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","NoNewPrivileges",NULL,'b',&out->no_new_privileges) < 0 ||
+      api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","PrivateUsers",NULL,'b',&out->private_users) < 0 ||
       api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","CapabilityBoundingSet",NULL,'t',&out->capability_bounding_set) < 0 ||
       api->get_property_trivial(bus,NULL,object_copy,"org.freedesktop.systemd1.Service","AmbientCapabilities",NULL,'t',&out->ambient_capabilities) < 0) return -1;
   return 0;
@@ -390,8 +405,7 @@ static int validate_unit_observation(uid_t uid, const char *unit,
                                      struct process_security *security) {
   if (strcmp(obs->load_state,"loaded") || strcmp(obs->active_state,"active") || strcmp(obs->sub_state,"running")) return -1;
   if (obs->user[0] != '\0' || obs->group[0] != '\0') return -1;
-  if (obs->main_pid <= 1 || obs->no_new_privileges != 1 ||
-      obs->ambient_capabilities != 0) return -1;
+  if (obs->main_pid <= 1) return -1;
   char expected_cgroup[512];
   int n = snprintf(expected_cgroup,sizeof(expected_cgroup),
     "/user.slice/user-%lu.slice/user@%lu.service/app.slice/%s",
@@ -405,10 +419,7 @@ static int validate_unit_observation(uid_t uid, const char *unit,
   gid_t observed_gid = 0;
   if (parse_status_ids((pid_t)obs->main_pid,uid,&observed_uid,&observed_gid) != 0 || observed_gid != manager->gid) return -1;
   if (read_proc_security((pid_t)obs->main_pid,security) != 0 ||
-      security->no_new_privs != 1 ||
-      security->cap_inh != 0 || security->cap_prm != 0 ||
-      security->cap_eff != 0 || security->cap_amb != 0 ||
-      security->cap_bnd != obs->capability_bounding_set) return -1;
+      !unit_security_policy_ok(obs,security)) return -1;
   if (exact_service_cgroup((pid_t)obs->main_pid,uid,unit) != 0) return -1;
   if (exact_executable_path((pid_t)obs->main_pid,NODE_EXE) != 0) return -1;
   service->pid=(pid_t)obs->main_pid;
@@ -506,6 +517,7 @@ static int live_query(uid_t uid, const char *unit) {
   printf("MainPID=%u\n",obs.main_pid);
   printf("ControlGroup=%s\n",obs.control_group);
   printf("NoNewPrivileges=yes\n");
+  printf("PrivateUsers=no\n");
   printf("CapabilityBoundingSet=%016" PRIx64 "\n",obs.capability_bounding_set);
   printf("AmbientCapabilities=%016" PRIx64 "\n",obs.ambient_capabilities);
   printf("KernelCapInh=%016" PRIx64 "\n",security.cap_inh);
@@ -558,6 +570,15 @@ static int self_test_query(void) {
       fixture.cap_eff != 0 || fixture.cap_amb != 0 ||
       fixture.cap_bnd != UINT64_C(0x000001ffffffffff) ||
       fixture.no_new_privs != 1) return 1;
+  struct unit_observation synthetic_obs;
+  memset(&synthetic_obs,0,sizeof(synthetic_obs));
+  synthetic_obs.no_new_privileges=1;
+  synthetic_obs.private_users=0;
+  synthetic_obs.capability_bounding_set=UINT64_C(0x000001ffffffffff);
+  synthetic_obs.ambient_capabilities=0;
+  if (!unit_security_policy_ok(&synthetic_obs,&fixture)) return 1;
+  synthetic_obs.private_users=1;
+  if (unit_security_policy_ok(&synthetic_obs,&fixture)) return 1;
   printf("%s_SELF_TEST_GREEN\n",MARKER);
   printf("libsystemd_runtime_symbols_available=true\n");
   printf("sanitized_loader_environment=true\n");
@@ -573,6 +594,7 @@ static int self_test_query(void) {
   printf("nonbounding_process_capabilities_zero_required=true\n");
   printf("systemd_kernel_bounding_set_match_required=true\n");
   printf("kernel_no_new_privileges_required=true\n");
+  printf("private_users_false_required=true\n");
   printf("host_mutation=false\n");
   return 0;
 }
