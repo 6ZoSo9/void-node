@@ -118,6 +118,13 @@ assert.equal(manifest.service_contract.activation_target_restart_propagation,fal
 assert.equal(manifest.service_contract.direct_service_start_stop_refused,true);
 assert.equal(manifest.service_contract.activation_target_unit_file_state_required,"disabled");
 assert.equal(manifest.service_contract.custody_service_unit_file_state_required,"static");
+assert.deepEqual(
+  manifest.service_contract.unset_environment,
+  [
+    "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+    "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
+  ],
+);
 
 assert.equal(manifest.service_contract.restart_safe_socket_cleanup_required,true);
 assert.equal(
@@ -174,7 +181,10 @@ assert.deepEqual(
   manifest.configuration_file_contract.environment_file.exact_keys,
   envKeys,
 );
-for(const forbidden of ["NODE_OPTIONS","NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH"]){
+for(const forbidden of [
+  "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+  "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
+]){
   assert.equal(envKeys.includes(forbidden),false,forbidden);
   assert.equal(
     manifest.configuration_file_contract.environment_file.forbidden_keys.includes(forbidden),
