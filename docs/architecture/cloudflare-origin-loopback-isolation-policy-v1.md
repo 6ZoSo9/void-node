@@ -43,6 +43,25 @@ Using the historical ordinary-user identity fails the policy.
 
 This contract does not select numeric production UID/GID values.
 
+### Tunnel config and credential custody
+
+The dedicated cloudflared identity must also own the locally managed Tunnel
+configuration and Tunnel credentials metadata used by the system service.
+
+The target policy requires both files to be:
+
+- owned by the dedicated cloudflared UID;
+- inaccessible to group/other permission bits;
+- single-link regular-file generations; and
+- outside the repository.
+
+This closes the migration loophole where the historical ordinary user could
+retain readable Tunnel credentials and start a competing connector after the
+service UID changes.
+
+Live qualification must inspect only file metadata/path custody for this gate.
+Credential **contents are not authorized to be read** by this policy.
+
 ## Sensitive Tunnel route set
 
 For public hostname `seed.nullfeed.org`, the dedicated cloudflared identity
@@ -170,6 +189,8 @@ A read-only designated-host collector must eventually bind the local facts:
 - exact source/release generation;
 - system-manager cloudflared MainPID + start ticks + effective UID/GID;
 - absence/inactivity of the historical user-manager Tunnel generation;
+- private same-UID config/credential file custody without reading credential
+  contents;
 - adapter and dispatcher MainPID + start ticks + effective UID/GID;
 - exact loopback listener ownership and absence of extra listeners;
 - `NoNewPrivileges` and effective capability sets;
