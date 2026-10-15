@@ -16,7 +16,7 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 UPGRADE_MANIFEST_REL="ops/xiphos/apollyon-live-custody-reviewed-root-v2-upgrade-v1.json"
-UPGRADE_MANIFEST_BLOB="aa8e559f9644afd6be74ed597ffa446c0881bf0f"
+UPGRADE_MANIFEST_BLOB="c1fc75eeee2b160ca4ea0c44c2966fab062a86d9"
 OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")
 NEW_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")
 FIXED_LAUNCHER=Path(
