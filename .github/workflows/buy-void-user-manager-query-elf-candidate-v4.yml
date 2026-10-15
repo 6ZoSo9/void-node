@@ -8,6 +8,9 @@ on:
       - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
       - ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
       - "docs/operators/buy-void-user-manager-query-elf-candidate-v4.md"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
   workflow_dispatch:
 
 permissions:
@@ -28,25 +31,34 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Prove exact canonical source and bounded child scope
+      - name: Prove exact canonical source and dispatch scope
+        id: scope
         run: |
           set -euo pipefail
           parent=1f46c16d272f7eb1917719f1f0c17d7cf398819e
-          git merge-base --is-ancestor "$parent" HEAD
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c)" = "f0fbfaae97df3294097a281100f06ada2ef157ff"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "6aefc385bcc4212d3c45e36871bfde0da3529baa"
-          mapfile -t changed < <(git diff --name-only "$parent" HEAD | sort)
-          expected=(
-            ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
-            "docs/operators/buy-void-user-manager-query-elf-candidate-v4.md"
-          )
-          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
-          test "${#changed[@]}" -eq "${#expected_sorted[@]}"
-          for i in "${!changed[@]}"; do
-            test "${changed[$i]}" = "${expected_sorted[$i]}"
-          done
-          git diff --check "$parent" HEAD
+
+          if git merge-base --is-ancestor "$parent" HEAD; then
+            mapfile -t changed < <(git diff --name-only "$parent" HEAD | sort)
+            expected=(
+              ".github/workflows/buy-void-user-manager-query-elf-candidate-v4.yml"
+              "docs/operators/buy-void-user-manager-query-elf-candidate-v4.md"
+            )
+            mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
+            test "${#changed[@]}" -eq "${#expected_sorted[@]}"
+            for i in "${!changed[@]}"; do
+              test "${changed[$i]}" = "${expected_sorted[$i]}"
+            done
+            echo "integration=false" >> "$GITHUB_OUTPUT"
+          else
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v4.json)" = "988542122028843b2848063dbbaf7a94c32d6cd4"
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v2.json)" = "347951dbaa2d9bb5c31c8b718d9965ab3fdf7301"
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
+            echo "integration=true" >> "$GITHUB_OUTPUT"
+          fi
+          git diff --check
 
       - name: Derive exact PrivateUsers-bound query pair
         run: |
@@ -197,6 +209,11 @@ jobs:
           };
           fs.writeFileSync(process.env.META,JSON.stringify(out)+"\n");
           NODE
+
+          if [ -f ops/security/buy-void-user-manager-query-elf-candidate-v4.json ]; then
+            cmp "$meta" ops/security/buy-void-user-manager-query-elf-candidate-v4.json
+            echo "integration_candidate_bytes_match=true"
+          fi
 
           echo "preexec_binary_sha256=$pre_sha"
           echo "preexec_binary_bytes=$pre_bytes"
