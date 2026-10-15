@@ -55,12 +55,30 @@ The last merged predecessor lock remains V4:
 
 `voidbuyumqelflock4_846047629dd2dd58f73f926d85cddde5b0a1510493d59a2d7ef778d235a70301`.
 
-V5 hosted evidence is retained only as superseded evidence. V5 was never
-installed and was superseded by the successful Precision V6 live proof.
+V5 hosted evidence is retained as superseded candidate-generation evidence.
+A Precision live V5 diagnostic was observed and reached every reviewed security
+invariant except the raw bounding-set equality; it recorded
+`security_policy_mismatch_bounding_set_raw_equality`. That diagnostic did not
+perform a protected install and did not grant live-query authority.
+
+V6 was then exercised through a disposable no-sudo live probe at source head
+`4328b4d9cf830304de2f9dee3c2052684640f489`, query source blob
+`fc1f640689b7da7278ff013669ef8a10cd8f6659`, with status
+`V6_LIVE_PROBE_GREEN`. That probe likewise did not protected-install V6 and
+does not grant production-host evidence authority.
+
+The lifecycle facts are therefore separate:
+
+- V5 `live_diagnostic_observed=true`;
+- V5 `superseded_by_v6_candidate_generation=true`;
+- V5 `protected_install_performed=false`;
+- V6 `disposable_live_probe_observed=true`;
+- V6 `protected_install_performed=false`;
+- V6 `production_host_evidence_authority=false`.
 
 ## Lock identity
 
-`voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6`.
+`voidbuyumqelflock6_3627a98945579452b01c79b4d114c54d858122496f2b20a20ddfd7fae6b0307c`.
 
 Node 22, 24 and 26 independently recompile/strip the exact source pair,
 verify compiler/strip identities, execute the V6 self-test and require
