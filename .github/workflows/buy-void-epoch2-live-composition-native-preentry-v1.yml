@@ -26,7 +26,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: buy-void-epoch2-native-live-preentry-v1-\${{ github.event.pull_request.number || github.ref }}
+  group: buy-void-epoch2-native-live-preentry-v1-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -42,13 +42,13 @@ jobs:
       - name: Checkout exact source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Bind exact checkout
         env:
-          EXPECTED_HEAD: \${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -57,7 +57,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: \${{ matrix.node }}
+          node-version: ${{ matrix.node }}
 
       - name: Syntax and inert runner surfaces
         run: |
@@ -70,30 +70,30 @@ jobs:
             ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c \
             -o "$RUNNER_TEMP/epoch2-native-preentry"
           "$RUNNER_TEMP/epoch2-native-preentry" --self-test \
-            >"$RUNNER_TEMP/native-self-test-\${{ matrix.node }}.txt"
+            >"$RUNNER_TEMP/native-self-test-${{ matrix.node }}.txt"
           node \
             ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs \
             --self-test \
-            >"$RUNNER_TEMP/runner-self-test-\${{ matrix.node }}.txt"
+            >"$RUNNER_TEMP/runner-self-test-${{ matrix.node }}.txt"
           node \
             ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs \
             --plan \
-            >"$RUNNER_TEMP/runner-plan-\${{ matrix.node }}.txt"
+            >"$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
           grep -Fx \
             'VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1_SELF_TEST_GREEN' \
-            "$RUNNER_TEMP/native-self-test-\${{ matrix.node }}.txt"
+            "$RUNNER_TEMP/native-self-test-${{ matrix.node }}.txt"
           grep -Fx \
             'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V2_SELF_TEST_GREEN' \
-            "$RUNNER_TEMP/runner-self-test-\${{ matrix.node }}.txt"
+            "$RUNNER_TEMP/runner-self-test-${{ matrix.node }}.txt"
           grep -Fx 'native_preentry_required_for_live=true' \
-            "$RUNNER_TEMP/runner-plan-\${{ matrix.node }}.txt"
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
           grep -Fx 'stdin_javascript_source_forbidden=true' \
-            "$RUNNER_TEMP/runner-plan-\${{ matrix.node }}.txt"
+            "$RUNNER_TEMP/runner-plan-${{ matrix.node }}.txt"
 
       - name: Prove native privileged first entry
         run: |
           set -euo pipefail
-          OUT="$RUNNER_TEMP/epoch2-native-preentry-proof-\${{ matrix.node }}.txt"
+          OUT="$RUNNER_TEMP/epoch2-native-preentry-proof-${{ matrix.node }}.txt"
           node scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs \
             | tee "$OUT"
           for marker in \
