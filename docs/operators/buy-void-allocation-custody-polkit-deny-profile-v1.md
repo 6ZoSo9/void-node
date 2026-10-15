@@ -18,7 +18,7 @@ Target path:
 
 Runtime subject user:
 
-`zoso`
+`void-buy-runtime`
 
 Denied action IDs:
 - `org.freedesktop.systemd1.manage-units`;
@@ -27,7 +27,7 @@ Denied action IDs:
 - `org.freedesktop.systemd1.set-environment`.
 
 The rule returns `polkit.Result.NO` for those action IDs when
-`subject.user === "zoso"`; all other cases are `NOT_HANDLED`.
+`subject.user === "void-buy-runtime"`; all other cases are `NOT_HANDLED`.
 
 ## Why action-ID-only
 
