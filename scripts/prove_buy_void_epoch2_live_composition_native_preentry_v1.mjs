@@ -24,6 +24,8 @@ const FIXED_RUNNER =
   FIXED_ROOT + "/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs";
 const FIXED_POLICY = FIXED_ROOT + "/policy-v1.conf";
 const FIXED_NODE = "/usr/bin/node";
+const FIXED_REPO_ROOT = "/home/zoso/dev/void-node";
+const SETPRIV = "/usr/bin/setpriv";
 const CONFIRM =
   "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V2";
 const GIT = "/usr/bin/git";
@@ -203,7 +205,18 @@ assert.equal(runner.includes("runner_git_object_stdin_required"), false);
 assert.equal(runner.includes("git_object_stdin_required_for_live=true"), false);
 const nativeGateAt = runner.indexOf("requireNativePreentry(expectedHead);");
 const sensitiveAt = runner.indexOf("const receipt=runSensitiveSequence({expectedHead});");
-assert.ok(nativeGateAt > 0 && sensitiveAt > nativeGateAt);
+const finalRevalidateAt = runner.indexOf(
+  "revalidateNativePreentry(nativeProof,expectedHead);",
+  sensitiveAt,
+);
+const receiptOutputAt = runner.indexOf(
+  "console.log(JSON.stringify(receipt,null,2));",
+  finalRevalidateAt,
+);
+assert.ok(nativeGateAt > 0);
+assert.ok(sensitiveAt > nativeGateAt);
+assert.ok(finalRevalidateAt > sensitiveAt);
+assert.ok(receiptOutputAt > finalRevalidateAt);
 
 assert.match(
   doc,
@@ -304,7 +317,24 @@ try {
   const sudoReady = run(SUDO, ["-n", "true"]);
   assert.equal(sudoReady.status, 0, "passwordless sudo is required by fixture");
 
+  const setprivReal = fs.realpathSync(SETPRIV);
+  const setprivStat = fs.lstatSync(setprivReal);
+  assert.equal(setprivStat.isFile() && !setprivStat.isSymbolicLink(), true);
+  assert.equal(setprivStat.uid, 0, "fixed setpriv must be root-owned");
+  assert.equal(
+    (setprivStat.mode & 0o022) === 0,
+    true,
+    "fixed setpriv must not be group/world writable",
+  );
+  assert.equal(
+    (setprivStat.mode & 0o111) !== 0,
+    true,
+    "fixed setpriv must be executable",
+  );
+
   let fixedNodeFixtureCreated = false;
+  let fixedRepoFixtureCreated = false;
+  let fixedRepoParentsCreated = false;
   let fixtureInstalled = false;
   try {
     for (const [target, mode] of [["/opt", "0755"]]) {
@@ -413,6 +443,62 @@ try {
     assert.equal(install.status, 0, install.stderr);
     fixtureInstalled = true;
 
+    assert.equal(
+      fs.existsSync(FIXED_REPO_ROOT),
+      false,
+      "hosted fixed checkout fixture must begin absent",
+    );
+
+    const missingCwdLineage = run("/usr/bin/bash", [
+      "-c",
+      "exec " +
+        JSON.stringify(SUDO) +
+        " -n " +
+        JSON.stringify(FIXED_SELF) +
+        " --run --confirm " +
+        JSON.stringify(CONFIRM) +
+        " --expected-head " +
+        JSON.stringify(acceptedHead) +
+        " </dev/null",
+    ], { timeout: 60_000 });
+    assert.equal(missingCwdLineage.status, 2);
+    assert.match(
+      missingCwdLineage.stderr,
+      /spawn_error:spawnSync_usr_bin_setpriv_ENOENT/u,
+      "missing fixed checkout cwd must fail closed before runtime-user work",
+    );
+
+    let fixedRepoInstall = run(SUDO, [
+      "-n", "install",
+      "-d", "-o", "root", "-g", "root", "-m", "0755",
+      "/home/zoso",
+      "/home/zoso/dev",
+    ]);
+    assert.equal(
+      fixedRepoInstall.status,
+      0,
+      "failed to create hosted fixed checkout parents: " +
+        fixedRepoInstall.stderr,
+    );
+    fixedRepoParentsCreated = true;
+    fixedRepoInstall = run(SUDO, [
+      "-n", "ln", "-s", "--", ROOT, FIXED_REPO_ROOT,
+    ]);
+    assert.equal(
+      fixedRepoInstall.status,
+      0,
+      "failed to create hosted fixed checkout link: " +
+        fixedRepoInstall.stderr,
+    );
+    fixedRepoFixtureCreated = true;
+    const fixedRepoLink = fs.lstatSync(FIXED_REPO_ROOT);
+    assert.equal(fixedRepoLink.isSymbolicLink(), true);
+    assert.equal(
+      fs.realpathSync(FIXED_REPO_ROOT),
+      fs.realpathSync(ROOT),
+      "hosted fixed checkout must resolve to exact checkout",
+    );
+
     const attackSource =
       'process.stderr.write("ROOT_JS_SENTINEL_EXECUTED\\\\n");\\n';
     const attack = run(SUDO, [
@@ -451,8 +537,13 @@ try {
     );
     assert.match(
       nativeLineage.stderr,
-      /(?:git_failed:rev-parse|spawn_error:spawnSync_usr_bin_setpriv_ENOENT)/u,
-      "valid native lineage should reach a later runner dependency gate in CI",
+      /git_failed:rev-parse/u,
+      "valid native lineage must execute the real runtime-user transition and reach the later Git checkout gate",
+    );
+    assert.doesNotMatch(
+      nativeLineage.stderr,
+      /spawn_error:spawnSync_usr_bin_setpriv_ENOENT/u,
+      "positive native lineage must not stop at an ambiguous spawn ENOENT",
     );
 
     const forgedProof = path.join(temp, "forged-parent-proof.json");
@@ -492,6 +583,13 @@ try {
       "direct root Node with forged marker/fds must fail fixed-parent provenance",
     );
   } finally {
+    if (fixedRepoFixtureCreated) {
+      run(SUDO, ["-n", "rm", "-f", "--", FIXED_REPO_ROOT]);
+    }
+    if (fixedRepoParentsCreated) {
+      run(SUDO, ["-n", "rmdir", "--ignore-fail-on-non-empty", "/home/zoso/dev"]);
+      run(SUDO, ["-n", "rmdir", "--ignore-fail-on-non-empty", "/home/zoso"]);
+    }
     if (fixtureInstalled) {
       run(SUDO, ["-n", "rm", "-rf", "--", FIXED_ROOT]);
     }
