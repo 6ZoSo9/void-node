@@ -717,7 +717,7 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
       const result = this.node.promoteUdpSwarmAuthenticatedDirectCandidateV1(
         candidate.session_id,
       );
-      if (result.ok) {
+      if (result.ok === true) {
         this.candidatePromotions += 1;
       } else {
         this.candidatePromotionRejects += 1;
