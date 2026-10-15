@@ -83,6 +83,12 @@ const config={
   runtime_service_unit:"void-node-live.service",
 };
 const decision=classifyBuyVoidAllocationCustodyAuthenticatedUserServiceV4(raw,config);
+const forgedObject={...parsed,KernelCapEff:"0000000000000001"};
+assert.throws(
+  ()=>classifyBuyVoidAllocationCustodyAuthenticatedUserServiceV4(forgedObject,config),
+  /kernel_nonbounding_caps_nonzero:KernelCapEff/u,
+  "object_input_must_not_bypass_native_capability_validation",
+);
 assert.equal(decision.marker,VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V4);
 assert.equal(decision.configured_capability_bounding_set,"000001ffffffffff");
 assert.equal(decision.kernel_cap_bnd,"000001ffffffffff");
@@ -150,6 +156,7 @@ console.log("kernel_nonbounding_capabilities_zero_required=true");
 console.log("kernel_no_new_privileges_required=true");
 console.log("kernel_bounding_set_matches_systemd_mask=true");
 console.log("capability_state_revalidated=true");
+console.log("object_input_capability_bypass_rejected=true");
 console.log("historical_v3_evidence_preserved=true");
 console.log("complete_host_evidence_collector=false");
 console.log("public_presale_activation=false");
