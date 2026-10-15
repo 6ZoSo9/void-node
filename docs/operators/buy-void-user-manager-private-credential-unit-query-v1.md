@@ -14,10 +14,11 @@ PrivateUsers V4 query generation.
 The query embeds the accepted authenticated user-manager private peer guard
 `d8b30ac499c3bb8a5d223dbc6be687dd175be611`.
 
-The accepted PrivateUsers-bound unit query
-`6aefc385bcc4212d3c45e36871bfde0da3529baa` remains byte-frozen as a
-separate integration peer, and the accepted preexec source remains independently
-pinned at `f0fbfaae97df3294097a281100f06ada2ef157ff`.
+The current V5 PrivateUsers-bound unit-query source
+`ddca2c544ce14261dffb80a202c0a4ae2979ec1e` is pinned as the integration
+peer. Accepted V4 binary evidence remains frozen in its historical lock, and
+the accepted preexec source remains independently pinned at
+`f0fbfaae97df3294097a281100f06ada2ef157ff`.
 
 A future live execution must run as root and:
 
@@ -40,6 +41,9 @@ executable. A later integration must require this MainPID/start-ticks generation
 to match the separately accepted V4 security transcript.
 
 The public `/run/user/<uid>/bus` endpoint is never used.
+
+`ControlGroup` is read from `org.freedesktop.systemd1.Service`; the obsolete
+generic-Unit binding is forbidden.
 
 ## Credential-effective properties
 
