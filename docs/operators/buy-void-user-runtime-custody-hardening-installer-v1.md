@@ -65,6 +65,12 @@ A newly installed generation:
    - exact equality of the pre/post TCP listener endpoint set;
 8. creates a private installation receipt enabling deliberate rollback.
 
+Before any mutation, the installer requires the existing
+`~/.local/state/void` ancestry to be direct, owned by `zoso`, and not
+group/world writable. It creates only the final installer-specific state
+directory if absent. A pre-existing receipt is never overwritten, and a stale
+receipt with no installed target is a PLAN HOLD.
+
 The listener equality check preserves the already-running HTTP/P2P surface
 without hardcoding ports into this installer.
 
@@ -75,7 +81,9 @@ same inode with the same expected SHA-256, daemon-reloads the user manager, and
 performs at most one recovery restart. It then requires the pre-apply listener
 endpoint set to return.
 
-A foreign/substituted target inode is never unlinked.
+A foreign/substituted target inode is never unlinked. Receipt removal during
+deliberate rollback is likewise conditioned on the exact previously observed
+receipt inode and SHA-256.
 
 ## Deliberate rollback
 
