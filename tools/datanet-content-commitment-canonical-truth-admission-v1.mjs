@@ -3,6 +3,9 @@ import {
   canonicalJson,
   sha256,
 } from "./datanet-content-commitment-compiler-profile-v1.mjs";
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "./datanet-content-commitment-production-registry-identity-v1.mjs";
 
 export const VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_ADMISSION_V1 =
   "VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_ADMISSION_V1";
@@ -14,6 +17,7 @@ export const VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_AUTHORITY_V1 = {
   finalized_event_membership_required:true,
   finalized_event_membership_id_rederived:true,
   accepted_checkpoint_policy_bound:true,
+  production_registry_identity_bound:true,
   canonical_commitment_reference_emitted:true,
   canonical_commitment_truth_admitted:true,
   event_receipt_membership_verified:true,
@@ -138,6 +142,8 @@ function validateEventMembership(v){
     !/^voiddccfca1_[0-9a-f]{64}$/.test(String(v.checkpoint_attestation_id||""))||
     !HASH.test(String(v.signed_transaction_hash||""))||
     !ADDRESS.test(String(v.registry_address||""))||
+    v.registry_address!==
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1||
     !ADDRESS.test(String(v.publisher_address||""))||
     !SAFE_ID.test(String(v.object_id||""))||
     !SHA256.test(String(v.commitment?.object_id_sha256||""))||
@@ -206,6 +212,8 @@ export function admitDatanetContentCommitmentCanonicalTruthV1(input){
 
   const referenceInput={
     chain_id:"2050",
+    registry_address:
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
     object_id:eventMembership.object_id,
     content_sha256:eventMembership.commitment.content_sha256,
     byte_length:eventMembership.commitment.byte_length,
@@ -245,6 +253,7 @@ export function admitDatanetContentCommitmentCanonicalTruthV1(input){
       finalized_event_membership_id_rederived:true,
       object_id_preimage_verified:true,
       accepted_checkpoint_policy_bound:true,
+      production_registry_identity_bound:true,
       finalized_checkpoint_not_before_receipt:true,
       event_receipt_membership_verified:true,
       canonical_commitment_reference_derived:true,
