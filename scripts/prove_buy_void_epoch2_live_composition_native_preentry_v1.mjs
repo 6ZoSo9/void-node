@@ -147,6 +147,18 @@ function requireDelegatedPrivateNamespace() {
   const backingOpt = path.join(bootstrapRoot, "opt");
   const backingHome = path.join(bootstrapRoot, "home");
   const backingRepo = path.join(bootstrapRoot, "repo");
+  const mountEntries = fs.readFileSync("/proc/self/mountinfo", "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const fields = line.split(" ");
+      return {
+        mountPoint: mountInfoPath(fields[4] || ""),
+        options: String(fields[5] || "").split(","),
+      };
+    });
+  const mountPoints = new Set(mountEntries.map((entry) => entry.mountPoint));
+
   for (const [visible, backing] of [
     ["/opt", backingOpt],
     ["/home", backingHome],
@@ -162,6 +174,16 @@ function requireDelegatedPrivateNamespace() {
       backingStat.isDirectory() && !backingStat.isSymbolicLink(),
       true,
       backing + " delegated backing must be a direct directory",
+    );
+    assert.equal(
+      mountPoints.has(visible),
+      true,
+      visible + " must be an explicit namespace-local mountpoint",
+    );
+    assert.equal(
+      mountPoints.has(backing),
+      false,
+      backing + " must remain an ordinary non-mountpoint backing directory",
     );
     assert.equal(
       sameFsIdentity(visibleStat, backingStat),
@@ -181,22 +203,18 @@ function requireDelegatedPrivateNamespace() {
   }
 
   assert.equal(
+    mountPoints.has(bootstrapRoot),
+    false,
+    "delegated bootstrap root must not itself be a mountpoint",
+  );
+  assert.equal(
     path.resolve(ROOT),
     backingRepo,
     "delegated proof cwd must be the private checkout mirror",
   );
-  const mountLines = fs.readFileSync("/proc/self/mountinfo", "utf8")
-    .split("\n")
-    .filter(Boolean);
-  const repoMount = mountLines
-    .map((line) => {
-      const fields = line.split(" ");
-      return {
-        mountPoint: mountInfoPath(fields[4] || ""),
-        options: String(fields[5] || "").split(","),
-      };
-    })
-    .find((entry) => entry.mountPoint === backingRepo);
+  const repoMount = mountEntries.find(
+    (entry) => entry.mountPoint === backingRepo,
+  );
   assert.ok(repoMount, "private checkout mirror mount missing");
   assert.equal(
     repoMount.options.includes("ro"),
@@ -996,6 +1014,7 @@ console.log("private_opt_mount_namespace=true");
 console.log("private_home_mount_namespace=true");
 console.log("host_fixed_mountpoints_preflight_read_only=true");
 console.log("delegated_namespace_kernel_state_verified=true");
+console.log("delegated_mount_topology_asymmetric=true");
 console.log(
   "private_opt_mount_namespace_fixture=" +
     String(privateOptNamespaceFixture),
