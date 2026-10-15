@@ -119,6 +119,8 @@ for required in (
     "CapAmb",
     "CapBnd",
     "all_capability_sets_empty",
+    "retained_descriptor_generation_stable",
+    "root_owned_nonwritable_source",
     "historical_user_tunnel_snapshot",
     "process_environment_access",
     "process_command_line_access",
@@ -162,6 +164,8 @@ print("credential_contents_read=false")
 print("historical_user_tunnel_read_only_query=true")
 print("system_service_generation_binding=true")
 print("adapter_dispatcher_source_blob_binding=true")
+print("running_source_retained_descriptor_binding=true")
+print("running_source_root_custody_required=true")
 print("loopback_listener_ownership_observed=true")
 print("tunnel_private_metadata_custody_observed=true")
 print("nftables_raw_json_output=false")
