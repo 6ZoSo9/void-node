@@ -1,0 +1,89 @@
+name: Buy VOID Epoch-2 dormant candidate live credential binding v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-live-binding-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
+      - "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-live-binding-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
+      - "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact source generation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs)" =             "e31b6728247188a2ffe7b9587dd0017413fcb716"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs)" =             "ce6af8d53f860561be8a8ff697b4ee49fa3c6f43"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v1.md)" =             "32d6df68f4387b007689077a846dfbb57e918ce7"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v1.mjs)" =             "28d718eb4155e47dbe8d476a4cf45f2d3871e4db"
+          test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json)" =             "2c861c021192c034c98404989cd25b26788cd0f0"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts)" =             "0d9eb90c27031b9820a139be2af63c4c07433e20"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          node --check ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs
+          node --check scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs
+
+      - name: Prove source-only live binding runner
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e2-dormant-live-binding-proof.log"
+          node scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_LIVE_BINDING_V1_PROOF_GREEN"
+            "binder_git_object_entry_required=true"
+            "arbitrary_child_receipt_input_accepted=false"
+            "child_live_composition_git_object_required=true"
+            "dormant_candidate_git_object_required=true"
+            "closing_checkout_revalidation_before_receipt=true"
+            "systemd_credential_identity_promoted_only_from_live_child=true"
+            "active_signing_capability_promoted_only_from_live_child=true"
+            "accepted_signer_control_evidence_binding_still_required=true"
+            "customer_safe_to_pay=false"
+            "transaction=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
