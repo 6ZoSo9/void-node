@@ -28,7 +28,7 @@ export const VOID_APOLLYON_V2_RAW_COLLECTOR_ADAPTER_AUTHORITY_V1 =
     funds_movement:false,
   });
 
-const COLLECTOR_BLOB_SHA1="c7c63106511ee285f8f1cf79b97d32afe0424c65";
+const COLLECTOR_BLOB_SHA1="676c41dc5cdaea88135611190901ec24edad95a4";
 const PYTHON_PATH="/usr/bin/python3";
 const RAW_MARKER="VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2";
 const SUCCESS_MARKER="live_host_evidence_collected=true";
