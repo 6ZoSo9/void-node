@@ -138,7 +138,9 @@ for required in (
     "systemd_ambient_capabilities_empty",
     "extra_adapter_seed_rule_observed",
     "process_environment_access",
-    "process_command_line_access",
+    "cloudflared_process_command_line_access",
+    "node_runtime_command_line_access",
+    "operator_tunnel_config_path",
     "credential_content_access",
     "sensitive_route_shape_observed",
     "ordinary_routes_preserved_candidate",
@@ -174,6 +176,8 @@ for forbidden in (
 print("VOID_CLOUDFLARE_ORIGIN_DESIGNATED_HOST_CENSUS_V1_PROOF_GREEN")
 print("all_five_linux_capability_sets_observed=true")
 print("process_environment_access=false")
+print("cloudflared_process_command_line_access=false")
+print("operator_tunnel_config_path_required=true")
 print("raw_process_command_line_output=false")
 print("credential_contents_read=false")
 print("historical_user_tunnel_read_only_query=true")
