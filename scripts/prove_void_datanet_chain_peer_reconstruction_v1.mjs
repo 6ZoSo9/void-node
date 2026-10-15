@@ -18,6 +18,10 @@ import {
   validateDatanetChainCommitmentV1 as rawValidate,
 } from "./lib/void_datanet_chain_peer_reconstruction_v1.mjs";
 
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "../tools/datanet-content-commitment-production-registry-identity-v1.mjs";
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const MODULE_PATH = resolve(
   ROOT,
@@ -159,6 +163,8 @@ function clone(value) {
 function commitmentInput(overrides = {}) {
   return {
     chain_id: "2050",
+    registry_address:
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
     object_id: "datanet-object-control-v1",
     content_sha256: SHA,
     byte_length: String(PAYLOAD.length),
@@ -349,6 +355,7 @@ check("commitment deterministic", () => {
 
 for (const [name, value, reason] of [
   ["chain_id", "2051", "commitment_wrong_chain_id"],
+  ["registry_address", "0x3333333333333333333333333333333333333333", "commitment_wrong_registry_address"],
   ["object_id", "x", "commitment_invalid_object_id"],
   ["object_id", "bad/id", "commitment_invalid_object_id"],
   ["content_sha256", "0x1234", "commitment_invalid_content_sha256"],
