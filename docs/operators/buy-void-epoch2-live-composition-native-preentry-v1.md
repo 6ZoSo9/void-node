@@ -163,8 +163,13 @@ No Node process or credential child is reached.
 The root fixture also installs a synthetic exact policy and fixed runner. It
 preflights the real fixed `/usr/bin/setpriv` under the runner's root-owned,
 non-group/world-writable executable boundary. The fixture first proves that an
-absent fixed `/home/zoso/dev/void-node` checkout cwd fails closed, then
-materializes that fixed path as a disposable link to the exact hosted checkout.
+absent fixed `/home/zoso/dev/void-node` checkout cwd fails closed. Before
+creating any checkout-parent fixture it requires both `/home/zoso` and
+`/home/zoso/dev` to be absent; it never chowns/chmods pre-existing home
+ancestry. It then creates those disposable parents and materializes the fixed
+checkout path as a link to the exact hosted checkout. The pre-existing
+`/` and `/opt` ancestry is inspected only and is never normalized or
+mutated by the proof.
 A real native `/dev/null` invocation must clear the parent-proof gates,
 execute the real runtime-user transition, and reach the later expected Git
 checkout HOLD. An ambiguous spawn ENOENT is not accepted as positive-lineage
