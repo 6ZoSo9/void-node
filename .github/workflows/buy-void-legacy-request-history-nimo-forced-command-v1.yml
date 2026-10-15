@@ -1,0 +1,68 @@
+name: VOID Buy legacy history Nimo forced command v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-legacy-request-history-nimo-forced-command-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_forced_command_v1.mjs"
+      - "docs/operators/buy-void-legacy-request-history-nimo-forced-command-v1.md"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-forced-command-v1.yml"
+      - "tools/void-buy-legacy-request-history-nimo-transport-envelope-v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-legacy-request-history-nimo-forced-command-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_forced_command_v1.mjs"
+      - "docs/operators/buy-void-legacy-request-history-nimo-forced-command-v1.md"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-forced-command-v1.yml"
+      - "tools/void-buy-legacy-request-history-nimo-transport-envelope-v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build and prove forced-command handler
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          node --check tools/void-buy-legacy-request-history-nimo-forced-command-v1.mjs
+          node --check scripts/prove_void_buy_legacy_request_history_nimo_forced_command_v1.mjs
+          node scripts/prove_void_buy_legacy_request_history_nimo_forced_command_v1.mjs |
+            tee "$RUNNER_TEMP/legacy-history-nimo-handler.txt"
+          grep -Fx 'VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_V1_PROOF_GREEN' "$RUNNER_TEMP/legacy-history-nimo-handler.txt"
+          grep -Fx 'durable_append_intent=true' "$RUNNER_TEMP/legacy-history-nimo-handler.txt"
+          grep -Fx 'torn_append_recovery=true' "$RUNNER_TEMP/legacy-history-nimo-handler.txt"
+          grep -Fx 'post_crash_idempotence=true' "$RUNNER_TEMP/legacy-history-nimo-handler.txt"
+          grep -Fx 'live_nimo_installed=false' "$RUNNER_TEMP/legacy-history-nimo-handler.txt"
+          grep -Fx 'external_witness_verified=false' "$RUNNER_TEMP/legacy-history-nimo-handler.txt"
+          grep -Fx 'stable_root_apply_authorized=false' "$RUNNER_TEMP/legacy-history-nimo-handler.txt"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/legacy-history-nimo-handler.txt"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          merge_base="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$merge_base"
+          git diff --check "$merge_base" "$HEAD"
