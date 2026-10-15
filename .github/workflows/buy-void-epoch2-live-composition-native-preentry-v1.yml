@@ -114,6 +114,9 @@ jobs:
             'node_descriptor_fexecve=true' \
             'caller_stdin_javascript_rejected_before_root_js=true' \
             'loader_environment_sanitized=true' \
+            'native_preentry_static=true' \
+            'native_preentry_no_pt_interp=true' \
+            'native_preentry_ld_preload_blocked_before_main=true' \
             'live_credential_access=false' \
             'live_signing=false' \
             'transaction=false' \
