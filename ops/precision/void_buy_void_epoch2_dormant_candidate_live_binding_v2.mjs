@@ -21,7 +21,7 @@ export const NEXT_ACTION =
 const ROOT="/home/zoso/dev/void-node";
 const CHILD_REL=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs";
-const CHILD_BLOB="8241a7172284381295b70bd55f5af3328b03605a";
+const CHILD_BLOB="8ab77a4f0782f228171a2895641a56cb37c5659e";
 const CHILD_CONFIRM=
   "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V2";
 const CHILD_MARKER=
@@ -57,7 +57,7 @@ const SUDO="/usr/bin/sudo";
 const DEVNULL="/dev/null";
 const NATIVE_REL=
   "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c";
-const NATIVE_BLOB="525dbf7c6ac36ee24bac75c009c03856feab0fdc";
+const NATIVE_BLOB="4aa091e7835b32aa5c4e7b8e4059651c69a64eb3";
 const NATIVE_FIXED=
   "/opt/void-buy-void-epoch2-live-composition-v2/void_buy_void_epoch2_live_composition_native_preentry_v1";
 const MAX_OUTPUT=4*1024*1024;
@@ -246,6 +246,10 @@ function validateChildReceipt(receipt,expectedHead){
     native_preentry_policy_bound:true,
     root_node_descriptor_execution_bound:true,
     runner_retained_descriptor_bound:true,
+    native_parent_retained_for_child_lifetime:true,
+    native_parent_process_generation_bound:true,
+    native_parent_installed_generation_bound:true,
+    native_parent_revalidated_after_sensitive_sequence:true,
     stdin_javascript_source_forbidden:true,
     qualification_stable_before_after_sealed_probe:true,
     checkout_revalidated_after_sensitive_sequence:true,
@@ -383,6 +387,14 @@ export function buildBindingReceipt(expectedHead,candidate,child){
     native_preentry_policy_bound:child.native_preentry_policy_bound,
     root_node_descriptor_execution_bound:child.root_node_descriptor_execution_bound,
     runner_retained_descriptor_bound:child.runner_retained_descriptor_bound,
+    native_parent_retained_for_child_lifetime:
+      child.native_parent_retained_for_child_lifetime,
+    native_parent_process_generation_bound:
+      child.native_parent_process_generation_bound,
+    native_parent_installed_generation_bound:
+      child.native_parent_installed_generation_bound,
+    native_parent_revalidated_after_sensitive_sequence:
+      child.native_parent_revalidated_after_sensitive_sequence,
     stdin_javascript_source_forbidden:child.stdin_javascript_source_forbidden,
     authenticated_credential_live_receipt_sha256:
       sha256(Buffer.from(canonical(child),"utf8")),
@@ -528,6 +540,10 @@ function selfTest(){
     native_preentry_policy_bound:true,
     root_node_descriptor_execution_bound:true,
     runner_retained_descriptor_bound:true,
+    native_parent_retained_for_child_lifetime:true,
+    native_parent_process_generation_bound:true,
+    native_parent_installed_generation_bound:true,
+    native_parent_revalidated_after_sensitive_sequence:true,
     stdin_javascript_source_forbidden:true,
     qualification_stable_before_after_sealed_probe:true,
     checkout_revalidated_after_sensitive_sequence:true,
