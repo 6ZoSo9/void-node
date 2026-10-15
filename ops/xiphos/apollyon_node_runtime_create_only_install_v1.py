@@ -279,7 +279,7 @@ def self_test()->None:
     for forbidden in (
         "apt-get","apt ","dnf ","yum ","snap install",
         "systemctl","start","systemctl","enable","systemctl","restart",
-        "curl ","wget ","training_execution":True","durable_attempt_claim":True",
+        "curl ","wget ",'training_execution":True','durable_attempt_claim":True',
     ):
         assert forbidden not in source,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
