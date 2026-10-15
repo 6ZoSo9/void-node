@@ -20,7 +20,7 @@ def git_blob(path:Path)->str:
 
 expected={
     "tools/apollyon-live-custody-source-session-runner-v2.mjs":
-        "59239f37e0420bc56dcd2f821af2beb75f6e5dc9",
+        "6ebc0870d98b64af692227dab485ee2f995f7590",
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
@@ -64,7 +64,9 @@ for required in (
     "finalizeApollyonLiveCustodyServiceSourceSessionBindingV2",
     "client.assertConsumed(config.authorization_id",
     'runSystemctl(["start",TRAINING_UNIT])',
-    'runSystemctl(["stop",TRAINING_UNIT],false)',
+    "stopApollyonTrainingServiceStrictV2",
+    "recoverApollyonLiveRunnerResourcesV2",
+    "throwExecutionAndRecovery",
     "custody_service_action_performed:false",
     "service_manager_preexec_environment_sanitized",
     "systemd_invocation_id",
@@ -96,6 +98,15 @@ runner_test=subprocess.run(
     stderr=subprocess.PIPE,
 )
 assert "VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2_SELF_TEST=GREEN" in runner_test.stdout
+for marker in (
+    "training_stop_attempt_precedes_cleanup=true",
+    "training_stop_nonzero_fails_closed=true",
+    "training_active_after_stop_fails_closed=true",
+    "cleanup_failure_preserves_stop_attempt=true",
+    "stop_failure_still_attempts_all_cleanup=true",
+    "execution_and_recovery_errors_aggregated=true",
+):
+    assert marker in runner_test.stdout, marker
 
 subprocess.run(
     ["python3","-m","py_compile",str(LAUNCHER)],
@@ -135,6 +146,12 @@ print("complete_reviewed_closure_bound=true")
 print("native_preentry_source_green=true")
 print("installed_launcher_source_green=true")
 print("runner_source_green=true")
+print("training_stop_attempt_precedes_cleanup=true")
+print("training_stop_nonzero_fails_closed=true")
+print("training_active_after_stop_fails_closed=true")
+print("cleanup_failure_preserves_stop_attempt=true")
+print("stop_failure_still_attempts_all_cleanup=true")
+print("execution_and_recovery_errors_aggregated=true")
 print("service_manager_preexec_provenance_bound=true")
 print("systemd_invocation_binding_required=true")
 print("native_preentry_pt_interp_absent=true")
