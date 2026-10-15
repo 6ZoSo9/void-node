@@ -15,8 +15,8 @@ from typing import Any
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 LOCK_REL = "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
 LOCK_PATH = ROOT / LOCK_REL
-LOCK_GIT_BLOB_SHA1 = "0cda9daecb2aa294f0a10041d81be7673705f1d8"
-LOCK_ID = "voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6"
+LOCK_GIT_BLOB_SHA1 = "772945b639d138284fc18cc312f7b9115b10c748"
+LOCK_ID = "voidbuyumqelflock6_3627a98945579452b01c79b4d114c54d858122496f2b20a20ddfd7fae6b0307c"
 
 MARKER = "VOID_BUY_VOID_USER_MANAGER_QUERY_PROTECTED_REPLACE_V6"
 INSTALL_ROOT = pathlib.Path("/opt/void-buy-void-user-manager-query-v1")
@@ -181,10 +181,36 @@ def accepted_lock() -> dict[str, Any]:
     superseded_v5 = value.get("superseded_v5_hosted_evidence")
     if not isinstance(superseded_v5, dict):
         raise ReplaceError("accepted_lock_v5_history_missing")
-    if superseded_v5.get("never_installed") is not True:
-        raise ReplaceError("accepted_lock_v5_never_installed_required")
-    if superseded_v5.get("superseded_by_live_v6") is not True:
-        raise ReplaceError("accepted_lock_v5_superseded_required")
+    if superseded_v5.get("live_diagnostic_observed") is not True:
+        raise ReplaceError("accepted_lock_v5_live_diagnostic_required")
+    if superseded_v5.get("live_diagnostic_result") != (
+        "security_policy_mismatch_bounding_set_raw_equality"
+    ):
+        raise ReplaceError("accepted_lock_v5_diagnostic_result_mismatch")
+    if superseded_v5.get("protected_install_performed") is not False:
+        raise ReplaceError("accepted_lock_v5_protected_install_must_be_false")
+    if superseded_v5.get("live_query_authorized") is not False:
+        raise ReplaceError("accepted_lock_v5_live_query_authority_must_be_false")
+    if superseded_v5.get("superseded_by_v6_candidate_generation") is not True:
+        raise ReplaceError("accepted_lock_v5_candidate_supersession_required")
+
+    v6_probe = value.get("v6_disposable_live_probe_evidence")
+    if not isinstance(v6_probe, dict):
+        raise ReplaceError("accepted_lock_v6_disposable_probe_missing")
+    expected_probe = {
+        "disposable_live_probe_observed": True,
+        "disposable_live_probe_status": "V6_LIVE_PROBE_GREEN",
+        "disposable_live_probe_source_head": (
+            "4328b4d9cf830304de2f9dee3c2052684640f489"
+        ),
+        "disposable_live_probe_query_source_blob": V6_QUERY_SOURCE_BLOB,
+        "protected_install_performed": False,
+        "live_query_authorized": False,
+        "production_host_evidence_authority": False,
+    }
+    for key, expected in expected_probe.items():
+        if v6_probe.get(key) != expected:
+            raise ReplaceError("accepted_lock_v6_probe_field_mismatch:" + key)
 
     return value
 
@@ -757,6 +783,16 @@ def self_test() -> None:
     assert lock["candidate_accepted"] is True
     assert lock["kernel_cap_last_cap_projection_required"] is True
     assert lock["configured_kernel_bounding_set_projection_required"] is True
+    assert lock["superseded_v5_hosted_evidence"]["live_diagnostic_observed"] is True
+    assert lock["superseded_v5_hosted_evidence"][
+        "superseded_by_v6_candidate_generation"
+    ] is True
+    assert lock["v6_disposable_live_probe_evidence"][
+        "disposable_live_probe_observed"
+    ] is True
+    assert lock["v6_disposable_live_probe_evidence"][
+        "protected_install_performed"
+    ] is False
     assert PREEXEC_TARGET.parent == QUERY_TARGET.parent == INSTALL_ROOT
     assert V1_PREDECESSOR_TARGET.parent == INSTALL_ROOT
     assert V2_PREDECESSOR_TARGET.parent == INSTALL_ROOT
