@@ -1,0 +1,105 @@
+name: Buy VOID Epoch-2 live composition install plan v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_install_plan_v1.mjs"
+      - "scripts/prove_buy_void_epoch2_live_composition_install_plan_v1.mjs"
+      - "docs/operators/buy-void-epoch2-live-composition-install-plan-v1.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-install-plan-v1.yml"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v2.json"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_install_plan_v1.mjs"
+      - "scripts/prove_buy_void_epoch2_live_composition_install_plan_v1.mjs"
+      - "docs/operators/buy-void-epoch2-live-composition-install-plan-v1.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-install-plan-v1.yml"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v2.json"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-live-composition-install-plan-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact plan compiler generation
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 4d588626386a4409b04d534af8fa24e4e88ce62b HEAD
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v2.json)" = \
+            "83968ee655824e44d8e2c2eb243c2136b2dbe0e9"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_install_plan_v1.mjs)" = \
+            "966dfd11718266140c222aa92c1ba9f2192fa35c"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_install_plan_v1.mjs)" = \
+            "85e46ae7a3d363a6696bf27ca7bc340bf40a2c6f"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-install-plan-v1.md)" = \
+            "3688f6417800135ee56cef907ceb4d3965f57dd0"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove non-mutating protected install plan
+        run: |
+          set -euo pipefail
+          node --check ops/precision/void_buy_void_epoch2_live_composition_install_plan_v1.mjs
+          node --check scripts/prove_buy_void_epoch2_live_composition_install_plan_v1.mjs
+          out="$RUNNER_TEMP/epoch2-install-plan-v1-${{ matrix.node }}.log"
+          node scripts/prove_buy_void_epoch2_live_composition_install_plan_v1.mjs |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_INSTALL_PLAN_V1_PROOF_GREEN"
+            "accepted_candidate_lock_bound=true"
+            "native_candidate_rederived=true"
+            "runner_identity_bound=true"
+            "native_candidate_path_generation_bound=true"
+            "current_main_required_for_production_plan=true"
+            "fixed_root_node_policy_identity_required=true"
+            "policy_content_addressed=true"
+            "plan_content_addressed=true"
+            "plan_compiler_filesystem_write=false"
+            "feature_branch_production_plan_holds=true"
+            "protected_install_authorized=false"
+            "protected_install_performed=false"
+            "live_execution_authorized=false"
+            "credential_access=false"
+            "transaction=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1)"
