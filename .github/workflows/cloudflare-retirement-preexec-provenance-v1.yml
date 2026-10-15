@@ -9,6 +9,15 @@ on:
       - "scripts/prove_void_cloudflare_retirement_preexec_provenance_v1.mjs"
       - "docs/architecture/cloudflare-retirement-preexec-provenance-v1.md"
       - ".github/workflows/cloudflare-retirement-preexec-provenance-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/public/void_cloudflare_historical_user_tunnel_retirement_preexec_v2.c"
+      - "ops/public/void_cloudflare_historical_user_tunnel_retirement_query_v2.c"
+      - "ops/public/void_cloudflare_historical_user_tunnel_retirement_query_v1.c"
+      - "scripts/prove_void_cloudflare_retirement_preexec_provenance_v1.mjs"
+      - "docs/architecture/cloudflare-retirement-preexec-provenance-v1.md"
+      - ".github/workflows/cloudflare-retirement-preexec-provenance-v1.yml"
   workflow_dispatch:
 
 permissions:
