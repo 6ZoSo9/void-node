@@ -45,6 +45,22 @@ for role, row in module.SOURCE_BLOBS.items():
     data = path.read_bytes()
     assert module.git_blob_sha1(data) == row["git_blob_sha1"], role
 
+frontdoor = module.REVIEWED_FRONTDOOR_SOURCE
+assert frontdoor == {
+    "path": "ops/public/void-public-frontdoor-v1.mjs",
+    "git_blob_sha1": "176f4a99c42ac3432d5797efaebf851cc0503737",
+    "bind": "127.0.0.1",
+    "port": 8083,
+}
+frontdoor_source = (ROOT / frontdoor["path"]).read_bytes()
+assert module.git_blob_sha1(frontdoor_source) == frontdoor["git_blob_sha1"]
+frontdoor_text = frontdoor_source.decode("utf-8", "strict")
+assert 'process.env.VOID_PUBLIC_FRONTDOOR_BIND || "127.0.0.1"' in frontdoor_text
+assert 'process.env.VOID_PUBLIC_FRONTDOOR_PORT || "8083"' in frontdoor_text
+assert 'if (BIND !== "127.0.0.1")' in frontdoor_text
+assert module.ORDINARY_FRONTDOOR_SERVICE == "http://127.0.0.1:8083"
+assert module.GLOBAL_CATCHALL_SERVICE == "http_status:404"
+
 status = module.parse_proc_status(
     "Uid:\t991 991 991 991\n"
     "Gid:\t991 991 991 991\n"
@@ -279,8 +295,10 @@ unanchored_config = module.parse_tunnel_config(
 assert unanchored_config["sensitive_route_shape_observed"] is False
 assert config["sensitive_adapter_port"] == 4311
 assert config["ordinary_routes_preserved_candidate"] is True
+assert config["ordinary_frontdoor_target_bound"] is True
 assert config["first_match_order_verified"] is True
 assert config["global_catchall_last"] is True
+assert config["global_catchall_http_status_404_bound"] is True
 assert config["public_hostname_wildcard_shadow_absent"] is True
 
 ordinary_rule = (
@@ -313,6 +331,39 @@ missing_catchall = module.parse_tunnel_config(
 )
 assert missing_catchall["sensitive_route_shape_observed"] is False
 assert missing_catchall["global_catchall_last"] is False
+
+for bad_service in (
+    "http_status:503",
+    "http://127.0.0.1:8084",
+    "http://192.0.2.10:8083",
+    "https://example.invalid",
+):
+    bad_ordinary = module.parse_tunnel_config(
+        config_text.replace(
+            "    service: http://127.0.0.1:8083\n",
+            f"    service: {bad_service}\n",
+            1,
+        )
+    )
+    assert bad_ordinary["ordinary_frontdoor_target_bound"] is False
+    assert bad_ordinary["ordinary_routes_preserved_candidate"] is False
+    assert bad_ordinary["sensitive_route_shape_observed"] is False
+
+for bad_service in (
+    "http://127.0.0.1:8083",
+    "http_status:503",
+    "https://example.invalid",
+):
+    bad_catchall = module.parse_tunnel_config(
+        config_text.replace(
+            "  - service: http_status:404\n",
+            f"  - service: {bad_service}\n",
+            1,
+        )
+    )
+    assert bad_catchall["global_catchall_last"] is False
+    assert bad_catchall["global_catchall_http_status_404_bound"] is False
+    assert bad_catchall["sensitive_route_shape_observed"] is False
 
 extra_adapter = module.parse_tunnel_config(
     config_text.replace(
@@ -443,8 +494,10 @@ for required in (
     "same_file_stat",
     "same_directory_stat",
     "ordinary_routes_preserved_candidate",
+    "ordinary_frontdoor_target_bound",
     "first_match_order_verified",
     "global_catchall_last",
+    "global_catchall_http_status_404_bound",
     "public_hostname_wildcard_shadow_absent",
     "listener_process_pids",
     "exclusive_process_owner",
@@ -502,6 +555,9 @@ print("tunnel_duplicate_ingress_rejected=true")
 print("tunnel_missing_ingress_rejected=true")
 print("tunnel_malformed_scalar_duplicate_smuggling_rejected=true")
 print("tunnel_origin_request_scope_exit_rejected=true")
+print("reviewed_frontdoor_source_blob_bound=true")
+print("ordinary_frontdoor_target_exact=true")
+print("global_catchall_http_status_404_required=true")
 print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
