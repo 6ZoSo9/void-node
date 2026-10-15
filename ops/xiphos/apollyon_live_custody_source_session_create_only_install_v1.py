@@ -27,7 +27,7 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="61db8c5c7f5a3018bd970bab16e08c7852f246cc"
+MANIFEST_BLOB="995e326af8e69df4f96aaa615bb610b07dd4c7be"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 UNIT_BLOB="c78bb50e1c2b70fb31a637fdb701e80abfa0f7af"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
@@ -44,12 +44,13 @@ PREENTRY_SOURCE_REL="ops/xiphos/apollyon_live_custody_source_session_preentry_v2
 PREENTRY_SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 
 EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"
-PREENTRY_BYTES=16912
-PREENTRY_SHA256="66d9b1c1fff316ecf96d7af73af7bf4a4442d6ce10f0e2df906fa1a79dc5580c"
+PREENTRY_BYTES=798736
+PREENTRY_SHA256="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"
 SPKI_PREFIX=bytes.fromhex("302a300506032b6570032100")
 COMPILE_FLAGS=(
     "-std=c11","-O2","-Wall","-Wextra","-Werror",
-    "-D_FORTIFY_SOURCE=2","-fstack-protector-strong",
+    "-D_FORTIFY_SOURCE=2","-fstack-protector-strong","-fno-ident",
+    "-static","-fno-pie","-no-pie",
     "-Wl,-z,relro,-z,now","-Wl,--build-id=none",
 )
 COMPILE_ENV={
@@ -86,6 +87,16 @@ def git_blob(data:bytes)->str:
 
 def sha256(data:bytes)->str:
     return hashlib.sha256(data).hexdigest()
+
+def same_file_identity(a:os.stat_result,b:os.stat_result)->bool:
+    return (
+        a.st_dev==b.st_dev and a.st_ino==b.st_ino and
+        a.st_uid==b.st_uid and a.st_gid==b.st_gid and
+        a.st_mode==b.st_mode and a.st_nlink==b.st_nlink and
+        a.st_size==b.st_size and
+        getattr(a,"st_mtime_ns",None)==getattr(b,"st_mtime_ns",None) and
+        getattr(a,"st_ctime_ns",None)==getattr(b,"st_ctime_ns",None)
+    )
 
 def read_source(relative:str,expected_blob:str)->bytes:
     path=ROOT/relative
@@ -126,30 +137,63 @@ def run(argv:list[str],*,check:bool=True,timeout:int=30)->subprocess.CompletedPr
 
 def verify_public_key(path:Path)->bytes:
     absolute=Path(os.path.abspath(os.fspath(path)))
-    st=os.lstat(absolute)
+    visible_before=os.lstat(absolute)
     if (
-        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
-        st.st_nlink!=1 or st.st_size<32 or st.st_size>64*1024
+        not stat.S_ISREG(visible_before.st_mode) or
+        stat.S_ISLNK(visible_before.st_mode) or
+        visible_before.st_nlink!=1 or
+        visible_before.st_size<32 or visible_before.st_size>64*1024
     ):
         hold("public_key_metadata_invalid")
-    data=absolute.read_bytes()
-    if len(data)!=st.st_size or b"PRIVATE KEY" in data:
-        hold("public_key_input_invalid")
-    result=subprocess.run(
-        ["/usr/bin/openssl","pkey","-pubin","-in",os.fspath(absolute),"-outform","DER"],
-        stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-        check=False,timeout=10,
-        env={"PATH":"/usr/bin:/bin","LC_ALL":"C"},
+    fd=os.open(
+        absolute,
+        os.O_RDONLY|getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),
     )
-    if result.returncode!=0:
-        hold("public_key_parse_failed")
-    der=result.stdout
-    if len(der)!=44 or not der.startswith(SPKI_PREFIX):
-        hold("public_key_not_ed25519")
-    raw=der[len(SPKI_PREFIX):]
-    if sha256(raw)!=EXPECTED_PUBLIC_RAW_SHA256:
-        hold("public_key_fingerprint_mismatch")
-    return data
+    try:
+        opened_before=os.fstat(fd)
+        if not same_file_identity(visible_before,opened_before):
+            hold("public_key_open_generation_mismatch")
+        chunks=[]
+        total=0
+        maximum=visible_before.st_size+1
+        while total<maximum:
+            chunk=os.read(fd,min(64*1024,maximum-total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total+=len(chunk)
+        data=b"".join(chunks)
+        if len(data)!=visible_before.st_size or b"PRIVATE KEY" in data:
+            hold("public_key_input_invalid")
+
+        # Parse the exact retained-generation bytes. OpenSSL never reopens the
+        # caller-controlled pathname.
+        result=subprocess.run(
+            ["/usr/bin/openssl","pkey","-pubin","-outform","DER"],
+            input=data,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            check=False,timeout=10,
+            env={"PATH":"/usr/bin:/bin","LC_ALL":"C"},
+        )
+        if result.returncode!=0:
+            hold("public_key_parse_failed")
+
+        opened_after=os.fstat(fd)
+        visible_after=os.lstat(absolute)
+        if (
+            not same_file_identity(opened_before,opened_after) or
+            not same_file_identity(opened_after,visible_after)
+        ):
+            hold("public_key_generation_changed")
+
+        der=result.stdout
+        if len(der)!=44 or not der.startswith(SPKI_PREFIX):
+            hold("public_key_not_ed25519")
+        raw=der[len(SPKI_PREFIX):]
+        if sha256(raw)!=EXPECTED_PUBLIC_RAW_SHA256:
+            hold("public_key_fingerprint_mismatch")
+        return data
+    finally:
+        os.close(fd)
 
 def ensure_safe_parent(path:Path)->None:
     parent=path.parent
@@ -489,10 +533,73 @@ def apply(public_key:Path)->dict[str,Any]:
     }
 
 def self_test()->None:
+    global EXPECTED_PUBLIC_RAW_SHA256
     manifest=verify_source_contract()
     assert manifest["required_operator_input"]["expected_operator_public_key_raw_sha256"]==EXPECTED_PUBLIC_RAW_SHA256
     assert manifest["preentry_lock"]["bytes"]==PREENTRY_BYTES
     assert manifest["preentry_lock"]["sha256"]==PREENTRY_SHA256
+    compiled=compile_preentry()
+    assert len(compiled)==PREENTRY_BYTES
+    assert sha256(compiled)==PREENTRY_SHA256
+
+    # Regression for the historical read-A / parse-visible-B pathname swap.
+    # These are valid RFC 8032 Ed25519 public keys; no private key is created.
+    raw_a=bytes.fromhex(
+        "d75a980182b10ab7d54bfed3c964073a"
+        "0ee172f3daa62325af021a68f707511a"
+    )
+    raw_b=bytes.fromhex(
+        "3d4017c3e843895a92b70aa74d1b7ebc"
+        "9c982ccf2ec4968cc0cd55f12af4660c"
+    )
+    def pem(raw:bytes)->bytes:
+        encoded=base64.b64encode(SPKI_PREFIX+raw).decode("ascii")
+        return (
+            "-----BEGIN PUBLIC KEY-----\n"+
+            "\n".join(encoded[i:i+64] for i in range(0,len(encoded),64))+
+            "\n-----END PUBLIC KEY-----\n"
+        ).encode("ascii")
+
+    original_expected=EXPECTED_PUBLIC_RAW_SHA256
+    original_run=subprocess.run
+    with tempfile.TemporaryDirectory(
+        prefix="void-apollyon-public-key-swap-"
+    ) as td:
+        key_path=Path(td)/"operator-public-key.pem"
+        replacement=Path(td)/"approved-replacement.pem"
+        key_path.write_bytes(pem(raw_a))
+        replacement.write_bytes(pem(raw_b))
+        EXPECTED_PUBLIC_RAW_SHA256=sha256(raw_b)
+        swapped=False
+
+        def swapping_run(argv,*args,**kwargs):
+            nonlocal swapped
+            if (
+                not swapped and len(argv)>=3 and
+                argv[0]=="/usr/bin/openssl" and
+                argv[1:3]==["pkey","-pubin"]
+            ):
+                os.replace(replacement,key_path)
+                swapped=True
+            return original_run(argv,*args,**kwargs)
+
+        subprocess.run=swapping_run
+        try:
+            try:
+                verify_public_key(key_path)
+            except Hold as exc:
+                if str(exc) not in {
+                    "public_key_generation_changed",
+                    "public_key_fingerprint_mismatch",
+                }:
+                    raise
+            else:
+                raise AssertionError("public_key_path_swap_accepted")
+            assert swapped
+        finally:
+            subprocess.run=original_run
+            EXPECTED_PUBLIC_RAW_SHA256=original_expected
+
     env=make_env(980).decode("utf-8")
     assert "@IPC_GID@" not in env and "@OPERATOR_PUBLIC_KEY_RAW_SHA256@" not in env
     assert "VOID_APOLLYON_CUSTODY_SOCKET_GROUP_GID=980" in env
@@ -515,6 +622,9 @@ def self_test()->None:
     print("source_contract_verified=true")
     print("public_key_raw_sha256="+EXPECTED_PUBLIC_RAW_SHA256)
     print("preentry_sha256="+PREENTRY_SHA256)
+    print("preentry_static_rederived=true")
+    print("public_key_retained_generation=true")
+    print("public_key_path_swap_rejected=true")
     print("service_start=false")
     print("service_enable=false")
     print("training_execution=false")

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import struct
 import subprocess
 import tempfile
 
@@ -18,7 +19,7 @@ SOURCE_REL="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 EXPECTED_SOURCE_GIT_BLOB_SHA1="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 CC=Path("/usr/bin/cc")
 MIN_BINARY_BYTES=4096
-MAX_BINARY_BYTES=1024*1024
+MAX_BINARY_BYTES=2*1024*1024
 MAX_REPORT_BYTES=64*1024
 HEX64=re.compile(r"^[0-9a-f]{64}$")
 CANDIDATE_ID=re.compile(
@@ -26,9 +27,13 @@ CANDIDATE_ID=re.compile(
 )
 COMPILE_FLAGS=(
     "-std=c11","-O2","-Wall","-Wextra","-Werror",
-    "-D_FORTIFY_SOURCE=2","-fstack-protector-strong",
+    "-D_FORTIFY_SOURCE=2","-fstack-protector-strong","-fno-ident",
+    "-static","-fno-pie","-no-pie",
     "-Wl,-z,relro,-z,now","-Wl,--build-id=none",
 )
+ELF_PT_INTERP=3
+ELF_MACHINE_X86_64=62
+ELF_TYPE_EXEC=2
 EXPECTED_SELF_TEST=(
     "VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_V2_SELF_TEST=GREEN\n"
     "python_descriptor_execution=true\n"
@@ -98,7 +103,101 @@ def compiler_identity()->dict[str,str]:
         ).strip(),
     }
 
-def compile_one(output:Path)->bytes:
+def inspect_static_elf(binary:bytes)->dict[str,bool|int]:
+    if len(binary)<64 or binary[:4]!=b"\x7fELF":
+        raise AssertionError("candidate ELF header invalid")
+    if binary[4]!=2 or binary[5]!=1:
+        raise AssertionError("candidate ELF must be 64-bit little-endian")
+    e_type,e_machine=struct.unpack_from("<HH",binary,16)
+    if e_type!=ELF_TYPE_EXEC or e_machine!=ELF_MACHINE_X86_64:
+        raise AssertionError("candidate ELF executable identity invalid")
+    phoff=struct.unpack_from("<Q",binary,32)[0]
+    phentsize=struct.unpack_from("<H",binary,54)[0]
+    phnum=struct.unpack_from("<H",binary,56)[0]
+    if phentsize<56 or phnum<1 or phnum>128:
+        raise AssertionError("candidate ELF program header shape invalid")
+    if phoff<64 or phoff+phentsize*phnum>len(binary):
+        raise AssertionError("candidate ELF program headers out of bounds")
+    program_types=[
+        struct.unpack_from("<I",binary,phoff+(index*phentsize))[0]
+        for index in range(phnum)
+    ]
+    if ELF_PT_INTERP in program_types:
+        raise AssertionError("candidate ELF PT_INTERP forbidden")
+    return {
+        "elf64_little_endian":True,
+        "machine_x86_64":True,
+        "executable_type":True,
+        "pt_interp_absent":True,
+        "static_link_required":True,
+    }
+
+def prove_loader_independence(candidate:Path)->dict[str,bool]:
+    with tempfile.TemporaryDirectory(
+        prefix="void-apollyon-live-session-preentry-loader-adversary-"
+    ) as td:
+        root=Path(td)
+        sentinel=root/"preload-fired"
+        preload_source=root/"preload.c"
+        preload_source.write_text(
+            "#include <fcntl.h>\n"
+            "#include <unistd.h>\n"
+            "__attribute__((constructor)) static void poison(void){\n"
+            f"  int fd=open({json.dumps(os.fspath(sentinel))},"
+            "O_WRONLY|O_CREAT|O_TRUNC,0600);\n"
+            "  if(fd>=0){ssize_t n=write(fd,\"x\",1);if(n!=1){close(fd);return;}close(fd);}\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        preload=root/"preload.so"
+        result=subprocess.run(
+            [os.fspath(CC),"-shared","-fPIC","-O2","-Wall","-Wextra","-Werror",
+             "-Wl,--build-id=none","-o",os.fspath(preload),os.fspath(preload_source)],
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=30,env=ENV,
+        )
+        if result.returncode!=0:
+            raise AssertionError(
+                "preload adversary compile failed: "+
+                result.stderr.decode("utf-8","replace")[-1000:]
+            )
+        control_source=root/"control.c"
+        control_source.write_text("int main(void){return 0;}\n",encoding="utf-8")
+        control=root/"dynamic-control"
+        result=subprocess.run(
+            [os.fspath(CC),"-std=c11","-O2","-Wall","-Wextra","-Werror",
+             "-Wl,--build-id=none","-o",os.fspath(control),os.fspath(control_source)],
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=30,env=ENV,
+        )
+        if result.returncode!=0:
+            raise AssertionError("dynamic control compile failed")
+        poisoned={**ENV,"LD_PRELOAD":os.fspath(preload)}
+        control_run=subprocess.run(
+            [os.fspath(control)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            check=False,timeout=15,env=poisoned,
+        )
+        if control_run.returncode!=0 or not sentinel.is_file():
+            raise AssertionError("hostile LD_PRELOAD positive control did not execute")
+        sentinel.unlink()
+        preentry_run=subprocess.run(
+            [os.fspath(candidate),"--self-test"],
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            check=False,timeout=15,env=poisoned,
+        )
+        if sentinel.exists():
+            raise AssertionError("hostile LD_PRELOAD executed before preentry main")
+        if preentry_run.returncode!=0:
+            raise AssertionError("static preentry self-test failed under hostile LD_PRELOAD")
+        if (
+            preentry_run.stdout.decode("utf-8","strict")!=EXPECTED_SELF_TEST or
+            preentry_run.stderr
+        ):
+            raise AssertionError("static preentry hostile-loader transcript mismatch")
+    return {
+        "hostile_ld_preload_positive_control":True,
+        "hostile_ld_preload_preentry_blocked":True,
+    }
+
+def compile_one(output:Path)->tuple[bytes,dict[str,bool|int]]:
     result=subprocess.run(
         [os.fspath(CC),*COMPILE_FLAGS,"-o",os.fspath(output),os.fspath(SOURCE)],
         stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=30,env=ENV,
@@ -110,6 +209,7 @@ def compile_one(output:Path)->bytes:
     binary=bounded_file(output,MAX_BINARY_BYTES,"candidate ELF")
     if len(binary)<MIN_BINARY_BYTES or not binary.startswith(b"\x7fELF"):
         raise AssertionError("candidate ELF invalid")
+    elf=inspect_static_elf(binary)
     test=subprocess.run(
         [os.fspath(output),"--self-test"],
         stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=15,env=ENV,
@@ -122,7 +222,7 @@ def compile_one(output:Path)->bytes:
     stdout=test.stdout.decode("utf-8","strict")
     if stdout!=EXPECTED_SELF_TEST or test.stderr:
         raise AssertionError("preentry self-test transcript mismatch")
-    return binary
+    return binary,elf
 
 def material(report:dict)->dict:
     return {k:v for k,v in report.items() if k!="candidate_id"}
@@ -136,9 +236,10 @@ def derive()->dict:
         prefix="void-apollyon-live-session-preentry-candidate-"
     ) as td:
         root=Path(td)
-        first=compile_one(root/"preentry-a")
-        second=compile_one(root/"preentry-b")
-    if first!=second:
+        first,first_elf=compile_one(root/"preentry-a")
+        second,second_elf=compile_one(root/"preentry-b")
+        loader=prove_loader_independence(root/"preentry-a")
+    if first!=second or first_elf!=second_elf:
         raise AssertionError("two local builds were not byte-identical")
     base={
         "marker":MARKER,
@@ -154,11 +255,15 @@ def derive()->dict:
             "argv_prefix":[os.fspath(CC),*COMPILE_FLAGS],
             "source_date_epoch":"0",
             "build_id_disabled":True,
+            "static_link_required":True,
+            "no_pie_required":True,
         },
         "binary":{
             "bytes":len(first),
             "sha256":sha256(first),
             "elf_magic_verified":True,
+            **first_elf,
+            **loader,
             "two_builds_byte_identical":True,
         },
         "self_test":{
@@ -226,19 +331,30 @@ def validate(report:dict)->None:
 
     exact_keys(
         report["compile_recipe"],
-        ("argv_prefix","build_id_disabled","source_date_epoch"),
+        (
+            "argv_prefix","build_id_disabled","no_pie_required",
+            "source_date_epoch","static_link_required",
+        ),
         "compile recipe",
     )
     if (
         report["compile_recipe"]["argv_prefix"]!=[os.fspath(CC),*COMPILE_FLAGS] or
         report["compile_recipe"]["source_date_epoch"]!="0" or
-        report["compile_recipe"]["build_id_disabled"] is not True
+        report["compile_recipe"]["build_id_disabled"] is not True or
+        report["compile_recipe"]["static_link_required"] is not True or
+        report["compile_recipe"]["no_pie_required"] is not True
     ):
         raise AssertionError("compile recipe invalid")
 
     exact_keys(
         report["binary"],
-        ("bytes","elf_magic_verified","sha256","two_builds_byte_identical"),
+        (
+            "bytes","elf64_little_endian","elf_magic_verified","executable_type",
+            "hostile_ld_preload_positive_control",
+            "hostile_ld_preload_preentry_blocked","machine_x86_64",
+            "pt_interp_absent","sha256","static_link_required",
+            "two_builds_byte_identical",
+        ),
         "binary",
     )
     binary=report["binary"]
@@ -248,6 +364,13 @@ def validate(report:dict)->None:
         not isinstance(binary["sha256"],str) or
         HEX64.fullmatch(binary["sha256"]) is None or
         binary["elf_magic_verified"] is not True or
+        binary["elf64_little_endian"] is not True or
+        binary["machine_x86_64"] is not True or
+        binary["executable_type"] is not True or
+        binary["pt_interp_absent"] is not True or
+        binary["static_link_required"] is not True or
+        binary["hostile_ld_preload_positive_control"] is not True or
+        binary["hostile_ld_preload_preentry_blocked"] is not True or
         binary["two_builds_byte_identical"] is not True
     ):
         raise AssertionError("candidate binary invalid")
@@ -318,6 +441,10 @@ def derive_to(output:Path)->None:
     print("candidate_id="+report["candidate_id"])
     print("binary_bytes="+str(report["binary"]["bytes"]))
     print("binary_sha256="+report["binary"]["sha256"])
+    print("static_link_required=true")
+    print("pt_interp_absent=true")
+    print("hostile_ld_preload_positive_control=true")
+    print("hostile_ld_preload_preentry_blocked=true")
     print("candidate_binary_identity_accepted=false")
     print("host_installation=false")
     print("training_execution=false")
@@ -343,6 +470,10 @@ def compare_dir(directory:Path)->None:
     print("binary_sha256="+report["binary"]["sha256"])
     print("three_run_report_bytes_identical=true")
     print("comparison_rederived_elf=true")
+    print("static_link_required=true")
+    print("pt_interp_absent=true")
+    print("hostile_ld_preload_positive_control=true")
+    print("hostile_ld_preload_preentry_blocked=true")
     print("candidate_binary_identity_accepted=false")
     print("training_execution=false")
 
@@ -392,6 +523,10 @@ def self_test()->None:
     print("two_local_builds_required=true")
     print("three_hosted_reports_required=true")
     print("comparison_rederives_elf=true")
+    print("static_link_required=true")
+    print("pt_interp_absent=true")
+    print("hostile_ld_preload_positive_control=true")
+    print("hostile_ld_preload_preentry_blocked=true")
     print("candidate_binary_identity_accepted=false")
     print("host_installation=false")
     print("training_execution=false")

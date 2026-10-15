@@ -16,14 +16,14 @@ def git_blob(path:Path)->str:
     h.update(f"blob {len(data)}\0".encode("ascii"));h.update(data)
     return h.hexdigest()
 
-assert git_blob(MANIFEST)=="61db8c5c7f5a3018bd970bab16e08c7852f246cc"
+assert git_blob(MANIFEST)=="995e326af8e69df4f96aaa615bb610b07dd4c7be"
 source=INSTALLER.read_text(encoding="utf-8")
 ast.parse(source)
 for required in (
     'MARKER="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_CREATE_ONLY_INSTALL_V1"',
     'EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"',
-    'PREENTRY_BYTES=16912',
-    'PREENTRY_SHA256="66d9b1c1fff316ecf96d7af73af7bf4a4442d6ce10f0e2df906fa1a79dc5580c"',
+    'PREENTRY_BYTES=798736',
+    'PREENTRY_SHA256="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"',
     '"/usr/sbin/groupadd","--system",name',
     '"/usr/sbin/usermod","--append","--groups",group,user',
     '"/usr/bin/systemd-tmpfiles","--create"',
@@ -33,6 +33,9 @@ for required in (
     '"training_execution":False',
     '"durable_attempt_claim":False',
     '"operator_private_key_access":False',
+    '"-static","-fno-pie","-no-pie"',
+    'input=data,stdout=subprocess.PIPE',
+    'public_key_generation_changed',
 ):
     assert required in source,required
 for forbidden in (
@@ -42,6 +45,7 @@ for forbidden in (
     "subprocess.Popen(",
     "shell=True",
     "PRIVATE KEY-----",
+    '"-in",os.fspath(absolute)',
 ):
     assert forbidden not in source,forbidden
 
@@ -55,7 +59,10 @@ for line in (
     "VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_CREATE_ONLY_INSTALL_V1_SELF_TEST_GREEN",
     "create_only=true","source_contract_verified=true",
     "public_key_raw_sha256=c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134",
-    "preentry_sha256=66d9b1c1fff316ecf96d7af73af7bf4a4442d6ce10f0e2df906fa1a79dc5580c",
+    "preentry_sha256=2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d",
+    "preentry_static_rederived=true",
+    "public_key_retained_generation=true",
+    "public_key_path_swap_rejected=true",
     "service_start=false","service_enable=false","training_execution=false",
     "durable_attempt_claim=false","funds_movement=false",
 ):
@@ -63,6 +70,9 @@ for line in (
 
 print("VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_CREATE_ONLY_INSTALL_V1_PROOF_GREEN")
 print("installer_self_test_green=true")
+print("preentry_static_rederived=true")
+print("public_key_retained_generation=true")
+print("public_key_path_swap_rejected=true")
 print("create_only=true")
 print("service_start=false")
 print("service_enable=false")

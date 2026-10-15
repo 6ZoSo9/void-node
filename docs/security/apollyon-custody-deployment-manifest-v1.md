@@ -51,6 +51,29 @@ d /run/void-apollyon-custody-v1 0750 voidapollyoncustody voidapollyonipc - -
 The installer invokes `systemd-tmpfiles --create` only after the custody and
 IPC identities exist.
 
+## Configuration-file custody
+
+Systemd reads the custody `EnvironmentFile` before the service sandbox is
+entered, so this file is part of the pre-exec trust boundary.
+
+The deployment contract therefore requires:
+
+- `/etc/void/apollyon-custody-v1`: real root-owned `0755` directory,
+  symlinks and group/world-writable parents forbidden;
+- `custody.env`: root-owned `0600`, regular single-link nonsymlink at its
+  canonical path, revalidated at deployment acceptance;
+- the environment file contains exactly the five reviewed
+  `VOID_APOLLYON_CUSTODY_*` keys from the source template and no extras;
+- `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, and `LD_LIBRARY_PATH`
+  are explicitly forbidden keys;
+- `operator-public-key.pem`: root-owned `0644`, regular single-link
+  nonsymlink at its canonical path, not writable by custody/training users; and
+- the installed public-key bytes must rederive the separately accepted raw
+  Ed25519 SHA-256 before deployment acceptance.
+
+These checks are source-contract requirements only in this PR; the installer and
+installed-host attestation must enforce and revalidate them separately.
+
 ## Service activation model
 
 `void-apollyon-authorization-custody-v1.service` carries
@@ -97,8 +120,18 @@ The manifest pins both:
 - the complete current-V2 live-session closure under
   `/opt/void-apollyon-live-custody-binding-v2-reviewed-v1`.
 
-The locked 16,912-byte native pre-entry is installed separately beneath
+The accepted 798,736-byte loader-independent native pre-entry is installed separately beneath
 `/opt/void-apollyon-live-custody-binding-v2-preentry-v1`.
+
+The deployment contract binds the exact repository lock
+`ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json`
+(Git blob `aaa4d3265fcd3471fb433928df1cf9f9b4ef42a6`, lock ID
+`apollyon_live_custody_source_session_preentry_binary_lock_v1:7009aab71636ae4a06d880160e60b7131887f0ab7199b8da19ef65f399534439`). The lock accepts SHA-256
+`2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d`, requires static/no-`PT_INTERP` execution and the hostile
+`LD_PRELOAD` positive-control proof, while keeping installed identity and live
+execution false. The lock verifier/workflow blobs and hosted verification run
+`38684203856` are also bound so copied hash values cannot substitute for the
+reviewed lock evidence.
 
 ## Authority
 

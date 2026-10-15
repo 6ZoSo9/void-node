@@ -6,7 +6,8 @@ Status: **source-only installer; CI executes only `--self-test`**.
 
 ## Purpose
 
-This is the installer successor to the green #3059 deployment contract.
+This is the installer successor to the current #3059 deployment contract at
+`6c92eefc05dae77fbc59070e8c3e56f5b146ba6c`.
 
 A separately authorized `--apply` on Xiphos creates only the missing custody
 deployment:
@@ -19,7 +20,7 @@ deployment:
 - persistent tmpfiles rule for the runtime socket directory;
 - the exact reviewed custody-service closure;
 - the exact reviewed current-V2 live-session closure;
-- the locked 16,912-byte native pre-entry ELF;
+- the locked 798,736-byte static/no-`PT_INTERP` native pre-entry ELF, SHA-256 `2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d`;
 - the fixed Python live-session launcher;
 - the cross-attested operator public key only;
 - exact environment, systemd service/activation target and Polkit rule.
@@ -35,6 +36,14 @@ The installer accepts only an Ed25519 PUBLIC PEM whose raw-key SHA-256 is:
 
 It rejects PEM containing `PRIVATE KEY` and never opens an operator private
 key.
+
+The input public-key pathname is opened once with `O_NOFOLLOW`. The installer
+binds the retained descriptor generation, reads the exact bytes, passes those
+bytes to OpenSSL over stdin (never reopening the pathname for parsing), then
+revalidates both the retained descriptor and the visible pathname generation.
+Only those authenticated retained-generation bytes may be installed. The
+self-test includes a read-A / swap-visible-to-approved-B adversary and requires
+HOLD.
 
 ## Idempotence / fail-closed behavior
 

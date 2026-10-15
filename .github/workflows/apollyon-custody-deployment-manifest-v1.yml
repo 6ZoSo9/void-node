@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
+      - "ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json"
+      - "scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py"
+      - ".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml"
       - "ops/xiphos/void-apollyon-authorization-custody-v1.service"
       - "ops/xiphos/void-apollyon-authorization-custody-v1.target"
       - "ops/xiphos/void-apollyon-authorization-custody-v1.env.template"

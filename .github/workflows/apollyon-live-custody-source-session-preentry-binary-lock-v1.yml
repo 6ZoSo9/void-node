@@ -41,6 +41,10 @@ jobs:
           grep -Fx 'rehashed_forged_binary_lock_rejected=true' "$proof"
           grep -Fx 'rehashed_forged_source_lock_rejected=true' "$proof"
           grep -Fx 'candidate_binary_identity_accepted=true' "$proof"
+          grep -Fx 'static_link_required=true' "$proof"
+          grep -Fx 'pt_interp_absent=true' "$proof"
+          grep -Fx 'hostile_ld_preload_positive_control=true' "$proof"
+          grep -Fx 'hostile_ld_preload_preentry_blocked=true' "$proof"
           grep -Fx 'installed_preentry_identity_proven=false' "$proof"
           grep -Fx 'training_execution=false' "$proof"
           python3 -I -B scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py             --verify "$receipt"
@@ -76,11 +80,15 @@ jobs:
           v=json.loads(Path("receipts/lock-verification-a.json").read_text())
           assert v["marker"]=="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1_VERIFIED"
           assert type(v["version"]) is int and v["version"]==1
-          assert v["lock_id"]=="apollyon_live_custody_source_session_preentry_binary_lock_v1:195421a17318706c2340ac9a75f30424b9a1d7d4b10ede7b95f5895569de233e"
-          assert v["candidate_id"]=="apollyon_live_custody_source_session_preentry_binary_candidate_v1:38fd4cda141c56f3f0526893f6d0c0eb5960e57f02eb348d003ded9581addb3c"
-          assert v["binary_bytes"]==16912
-          assert v["binary_sha256"]=="66d9b1c1fff316ecf96d7af73af7bf4a4442d6ce10f0e2df906fa1a79dc5580c"
+          assert v["lock_id"]=="apollyon_live_custody_source_session_preentry_binary_lock_v1:7009aab71636ae4a06d880160e60b7131887f0ab7199b8da19ef65f399534439"
+          assert v["candidate_id"]=="apollyon_live_custody_source_session_preentry_binary_candidate_v1:5007ad5368afd86679cd18811822b648bb4abc4c13169d55d2b27822609de5ab"
+          assert v["binary_bytes"]==798736
+          assert v["binary_sha256"]=="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"
           assert v["comparison_rederived_elf"] is True
+          assert v["static_link_required"] is True
+          assert v["pt_interp_absent"] is True
+          assert v["hostile_ld_preload_positive_control"] is True
+          assert v["hostile_ld_preload_preentry_blocked"] is True
           assert v["candidate_binary_identity_accepted"] is True
           assert v["installed_preentry_identity_proven"] is False
           assert v["training_execution"] is False
