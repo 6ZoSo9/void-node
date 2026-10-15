@@ -10,6 +10,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as successor from "./lib/void_datanet_chain_peer_reconstruction_v1.mjs";
 
+import {
+  VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+} from "../tools/datanet-content-commitment-production-registry-identity-v1.mjs";
+
 const SELF = fileURLToPath(import.meta.url);
 const ROOT = resolve(dirname(SELF), "..");
 const HELPER = "scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs";
@@ -26,7 +30,10 @@ function canonical(value) {
 const wire = value => Buffer.from(canonical(value));
 function request(overrides = {}, bytes = payload, legacyPeerShape = false) {
   const input = {
-    chain_id: "2050", object_id: "ingress-object-v1", content_sha256: sha(bytes),
+    chain_id: "2050",
+    registry_address:
+      VOID_DATANET_CONTENT_COMMITMENT_PRODUCTION_REGISTRY_ADDRESS_V1,
+    object_id: "ingress-object-v1", content_sha256: sha(bytes),
     byte_length: String(bytes.length), checkpoint_height: "1951058",
     checkpoint_block_hash: `0x${"a".repeat(64)}`, accepted_checkpoint_id: "checkpoint-v1",
     commitment_transaction_hash: `0x${"b".repeat(64)}`, commitment_log_index: "7", ...overrides,
@@ -402,7 +409,11 @@ function focused() {
   check("planner imports no filesystem network or repair capabilities", () => {
     const source = readFileSync(resolve(ROOT, HELPER), "utf8");
     const imports = [...source.matchAll(/from "([^"]+)"/g)].map(m => m[1]);
-    assert.deepEqual(imports, ["node:crypto", "node:util"]);
+    assert.deepEqual(imports, [
+      "node:crypto",
+      "node:util",
+      "../../tools/datanet-content-commitment-production-registry-identity-v1.mjs",
+    ]);
     assert.doesNotMatch(source, /\b(?:require|eval|Function|fetch)\s*\(|\bimport\s*\(/);
   });
 }
