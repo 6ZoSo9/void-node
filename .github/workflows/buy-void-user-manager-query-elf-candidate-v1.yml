@@ -1,0 +1,205 @@
+name: VOID Buy user manager query ELF candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - ".github/workflows/buy-void-user-manager-private-unit-query-preexec-v1.yml"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml"
+      - "docs/operators/buy-void-user-manager-query-elf-candidate-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - ".github/workflows/buy-void-user-manager-private-unit-query-preexec-v1.yml"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml"
+      - "docs/operators/buy-void-user-manager-query-elf-candidate-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: [a,b,c]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Derive deterministic preexec and query ELFs
+        run: |
+          set -euo pipefail
+          pre_src=ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c
+          query_src=ops/precision/void_buy_void_user_manager_private_unit_query_v1.c
+          peer_src=ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c
+          pre="$RUNNER_TEMP/user-manager-query-preexec"
+          query="$RUNNER_TEMP/user-manager-query"
+          meta="$RUNNER_TEMP/user-manager-query-elf-candidate.json"
+
+          for src in "$pre_src" "$query_src" "$peer_src"; do
+            test "$(git hash-object "$src")" = "$(git rev-parse HEAD:"$src")"
+          done
+
+          SOURCE_DATE_EPOCH=0 /usr/bin/cc \
+            -std=c11 -Wall -Wextra -Werror -O2 -fno-ident \
+            -static -fno-pie -no-pie -Wl,--build-id=none \
+            -o "$pre" "$pre_src"
+          SOURCE_DATE_EPOCH=0 /usr/bin/cc \
+            -std=c11 -Wall -Wextra -Werror -O2 -fno-ident \
+            -Wl,--build-id=none \
+            -o "$query" "$query_src" -ldl
+          /usr/bin/strip --strip-all "$pre"
+          /usr/bin/strip --strip-all "$query"
+          chmod 0555 "$pre" "$query"
+
+          readelf -l "$pre" > "$RUNNER_TEMP/preexec.readelf"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/preexec.readelf"; then
+            echo "preexec_has_dynamic_interpreter" >&2
+            exit 1
+          fi
+          file "$pre" | grep -F 'statically linked'
+
+          VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
+            env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C \
+            VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
+            "$query" --self-test > "$RUNNER_TEMP/query-self-test.log"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/query-self-test.log"
+
+          root=/opt/void-buy-void-user-manager-query-v1
+          original_opt_mode="$(stat -Lc '%a' /opt)"
+          cleanup() {
+            sudo rm -f \
+              "$root/void_buy_void_user_manager_private_unit_query_preexec_v1" \
+              "$root/void_buy_void_user_manager_private_unit_query_v1" || true
+            sudo rmdir "$root" 2>/dev/null || true
+            sudo chmod "$original_opt_mode" /opt || true
+          }
+          trap cleanup EXIT
+          sudo chmod go-w /opt
+          sudo install -d -o root -g root -m 0755 "$root"
+          sudo install -o root -g root -m 0555 "$pre" \
+            "$root/void_buy_void_user_manager_private_unit_query_preexec_v1"
+          sudo install -o root -g root -m 0555 "$query" \
+            "$root/void_buy_void_user_manager_private_unit_query_v1"
+
+          fake="$RUNNER_TEMP/stripped-preload"
+          mkdir "$fake"
+          sentinel="$RUNNER_TEMP/stripped-preload-fired"
+          cat > "$fake/preload.c" <<'C'
+          #define _GNU_SOURCE
+          #include <fcntl.h>
+          #include <string.h>
+          #include <unistd.h>
+          #ifndef SENTINEL_PATH
+          #error SENTINEL_PATH required
+          #endif
+          __attribute__((constructor))
+          static void poison(void){
+            char exe[4096];
+            ssize_t n=readlink("/proc/self/exe",exe,sizeof(exe)-1);
+            if(n<=0)return;
+            exe[n]='\0';
+            if(strstr(exe,"private_unit_query_v1")==NULL &&
+               strstr(exe,"user-manager-query")==NULL)return;
+            int fd=open(SENTINEL_PATH,O_WRONLY|O_CREAT|O_TRUNC,0600);
+            if(fd>=0){(void)write(fd,"x",1);close(fd);}
+          }
+          C
+          /usr/bin/cc -shared -fPIC -DSENTINEL_PATH="\"$sentinel\"" \
+            "$fake/preload.c" -o "$fake/preload.so"
+
+          rm -f "$sentinel"
+          if sudo env \
+               VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
+               LD_PRELOAD="$fake/preload.so" \
+               "$root/void_buy_void_user_manager_private_unit_query_v1" --self-test \
+               >"$RUNNER_TEMP/stripped-direct-query.log" 2>&1; then
+            echo "stripped direct poisoned query unexpectedly succeeded" >&2
+            exit 1
+          fi
+          test -s "$sentinel"
+          rm -f "$sentinel"
+
+          sudo env LD_PRELOAD="$fake/preload.so" \
+            "$root/void_buy_void_user_manager_private_unit_query_preexec_v1" --exec-self-test |
+            tee "$RUNNER_TEMP/stripped-preexec-query.log"
+          test ! -e "$sentinel"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' \
+            "$RUNNER_TEMP/stripped-preexec-query.log"
+          grep -Fx 'sanitized_loader_environment=true' \
+            "$RUNNER_TEMP/stripped-preexec-query.log"
+          cleanup
+          trap - EXIT
+
+          pre_sha="$(sha256sum "$pre" | awk '{print $1}')"
+          pre_bytes="$(stat -Lc '%s' "$pre")"
+          query_sha="$(sha256sum "$query" | awk '{print $1}')"
+          query_bytes="$(stat -Lc '%s' "$query")"
+          pre_blob="$(git hash-object "$pre_src")"
+          query_blob="$(git hash-object "$query_src")"
+          peer_blob="$(git hash-object "$peer_src")"
+          cc_sha="$(sha256sum /usr/bin/cc | awk '{print $1}')"
+          strip_sha="$(sha256sum /usr/bin/strip | awk '{print $1}')"
+
+          printf '{"marker":"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V1","version":1,"preexec_source_git_blob_sha1":"%s","query_source_git_blob_sha1":"%s","peer_source_git_blob_sha1":"%s","preexec_binary_sha256":"%s","preexec_binary_bytes":%s,"preexec_static_no_interp":true,"query_binary_sha256":"%s","query_binary_bytes":%s,"cc_sha256":"%s","strip_sha256":"%s","candidate_accepted":false,"install_authorized":false,"complete_host_evidence_collector":false,"payment_acceptance":false,"public_presale_activation":false,"funds_movement":false}\n' \
+            "$pre_blob" "$query_blob" "$peer_blob" \
+            "$pre_sha" "$pre_bytes" "$query_sha" "$query_bytes" \
+            "$cc_sha" "$strip_sha" > "$meta"
+
+          echo "preexec_binary_sha256=$pre_sha"
+          echo "preexec_binary_bytes=$pre_bytes"
+          echo "query_binary_sha256=$query_sha"
+          echo "query_binary_bytes=$query_bytes"
+          echo "candidate_accepted=false"
+          echo "install_authorized=false"
+          echo "funds_movement=false"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-user-manager-query-elf-${{ github.event.pull_request.head.sha || github.sha }}-${{ matrix.slot }}
+          path: |
+            ${{ runner.temp }}/user-manager-query-preexec
+            ${{ runner.temp }}/user-manager-query
+            ${{ runner.temp }}/user-manager-query-elf-candidate.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-job:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-user-manager-query-elf-${{ github.event.pull_request.head.sha || github.sha }}-*
+          path: candidates
+      - name: Require byte-identical ELFs and metadata
+        run: |
+          set -euo pipefail
+          stem="void-buy-user-manager-query-elf-${{ github.event.pull_request.head.sha || github.sha }}"
+          for slot in a b c; do
+            test -s "candidates/$stem-$slot/user-manager-query-preexec"
+            test -s "candidates/$stem-$slot/user-manager-query"
+            test -s "candidates/$stem-$slot/user-manager-query-elf-candidate.json"
+          done
+          cmp "candidates/$stem-a/user-manager-query-preexec" "candidates/$stem-b/user-manager-query-preexec"
+          cmp "candidates/$stem-a/user-manager-query-preexec" "candidates/$stem-c/user-manager-query-preexec"
+          cmp "candidates/$stem-a/user-manager-query" "candidates/$stem-b/user-manager-query"
+          cmp "candidates/$stem-a/user-manager-query" "candidates/$stem-c/user-manager-query"
+          cmp "candidates/$stem-a/user-manager-query-elf-candidate.json" "candidates/$stem-b/user-manager-query-elf-candidate.json"
+          cmp "candidates/$stem-a/user-manager-query-elf-candidate.json" "candidates/$stem-c/user-manager-query-elf-candidate.json"
+          sha256sum "candidates/$stem-a/user-manager-query-preexec"
+          sha256sum "candidates/$stem-a/user-manager-query"
+          cat "candidates/$stem-a/user-manager-query-elf-candidate.json"
+          grep -F '"candidate_accepted":false' "candidates/$stem-a/user-manager-query-elf-candidate.json"
+          grep -F '"install_authorized":false' "candidates/$stem-a/user-manager-query-elf-candidate.json"
+          grep -F '"funds_movement":false' "candidates/$stem-a/user-manager-query-elf-candidate.json"
+          echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V1_CROSS_JOB_GREEN
