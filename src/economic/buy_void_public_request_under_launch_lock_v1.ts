@@ -1062,15 +1062,18 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // Last synchronous admission check: no await may intervene.
     assertCurrentAuthority();
     if (journalFd === null) {
+      // Shared custody-readable history is a host-provisioned trust object.
+      // Never let runtime umask/group inheritance manufacture that boundary.
+      if (VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+        holdHistoryV1("custody_readable_journal_not_preprovisioned");
+      }
+      // Legacy private generation retains create-on-first-request behavior.
       // Fresh-generation O_EXCL forbids a new inode that appeared after
       // strict ENOENT history qualification. Never append to it.
       try {
         journalFd = fs.openSync(ledger, fs.constants.O_WRONLY |
           fs.constants.O_APPEND | fs.constants.O_CREAT |
-          fs.constants.O_EXCL | fs.constants.O_NOFOLLOW,
-          VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1
-            ? VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1
-            : 0o600);
+          fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
       } catch (error: any) {
         if (error?.code === "EEXIST") {
           holdHistoryV1("journal_appeared_before_exclusive_create");
