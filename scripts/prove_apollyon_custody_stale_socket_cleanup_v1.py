@@ -12,7 +12,7 @@ source=HELPER.read_text(encoding="utf-8")
 ast.parse(source)
 for required in (
     'SOCKET_PATH=SOCKET_PARENT/"custody.sock"',
-    'HIDDEN_RE=re.compile(r"^\\\\.v[0-9a-f]{4}$")',
+    'HIDDEN_RE=re.compile(r"^\\.v[0-9a-f]{4}$")',
     'status==errno.ENOENT',
     'status!=errno.ECONNREFUSED',
     'hold("advertised_socket_still_listening")',
