@@ -1257,6 +1257,7 @@ const validUpstream = (): Map<string, Record<string, unknown>> => new Map([
     "/__void/participant/wallet/status",
     {
       ok: true,
+      account: "account-A",
       has_wallet: true,
       unlocked: false,
       address: "0x" + "a".repeat(40),
@@ -1377,6 +1378,12 @@ try {
       wrongValue: "yes",
     },
     {
+      source: "wallet_status",
+      route: "/__void/participant/wallet/status",
+      wrongField: "account",
+      wrongValue: "account-B",
+    },
+    {
       source: "ledger_wc",
       route: "/wc/balance",
       wrongField: "balance",
@@ -1426,6 +1433,7 @@ try {
     if (variant.source === "wallet_status") {
       assert.equal(snapshot.wallet.address, "");
       assert.equal(snapshot.wallet.native_gas_available, false);
+      assert.equal(snapshot.wallet.native_gas_display, "—");
       assert.equal(adapterNodes.get("[data-wallet-state-chip]")?.textContent,
         "Wallet status unavailable");
     } else {
@@ -1479,6 +1487,7 @@ for (const marker of [
   "export function walletAccountIdV1(raw: unknown): string | null",
   'if (typeof raw !== "string") return null;',
   "const account = walletAccountIdV1(req?.query?.account);",
+  "const walletAccountMatches = walletBody.account === account;",
   "const ledgerAccountMatches = ledgerBody.account === account;",
   "const productionAccountMatches = productionBody.account === account;",
 ]) {
@@ -1549,6 +1558,7 @@ for (const forbidden of [
 console.log("VOID_UI_WAVE3_WALLET_EVIDENCE_BOUNDARY_V1_GREEN");
 console.log("server_numeric_types_strict=true");
 console.log("server_account_query_type_strict=true");
+console.log("server_wallet_source_account_bound=true");
 console.log("server_wc_source_account_bound=true");
 console.log("server_response_stream_bounded=true");
 console.log("server_deadline_owns_body=true");
