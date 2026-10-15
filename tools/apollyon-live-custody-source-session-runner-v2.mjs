@@ -180,7 +180,13 @@ function openPinnedDirectory(directory,expectedMode,code){
   }
   return Object.freeze({fd,path:target,proc_path:"/proc/self/fd/"+String(fd),identity:identity(opened)});
 }
-function closePinned(value){if(value)try{fs.closeSync(value.fd);}catch{}}
+function closePinned(value){
+  if(!value)return;
+  try{fs.closeSync(value.fd);}
+  catch(error){
+    throw new Error("apollyon_live_runner_pinned_descriptor_close_failed",{cause:error});
+  }
+}
 function assertPinnedStable(pinned,code){
   const opened=fs.fstatSync(pinned.fd,{bigint:true});
   const visible=fs.lstatSync(pinned.path,{bigint:true});
@@ -235,7 +241,11 @@ function waitTrainingEntrypoint(){
         if(fs.realpathSync.native("/proc/"+raw+"/exe")===TRAINING_ENTRYPOINT){
           return Object.freeze({pid,start_time_ticks:processStartTicks(pid)});
         }
-      }catch{}
+      }catch(error){
+        if(error?.code!=="ENOENT"&&error?.code!=="ESRCH"){
+          fail("apollyon_live_runner_training_exe_probe_failed");
+        }
+      }
     }
   }
   fail("apollyon_live_runner_training_exec_transition_unproven");
