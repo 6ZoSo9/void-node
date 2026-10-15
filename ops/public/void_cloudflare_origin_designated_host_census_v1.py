@@ -583,19 +583,49 @@ def parse_ss(raw: str) -> list[dict[str, Any]]:
         })
     return rows
 
+def listener_process_pids(process: str) -> set[int]:
+    if not isinstance(process, str) or not process:
+        return set()
+    return {
+        int(value)
+        for value in re.findall(
+            r"(?:^|[^A-Za-z0-9_])pid=([1-9][0-9]*)(?=[^0-9]|$)",
+            process,
+        )
+    }
+
 def listener_set(rows: list[dict[str, Any]], pid: int) -> dict[str, Any]:
-    pattern = re.compile(rf"(^|[^0-9])pid={pid}([^0-9]|$)")
-    owned = [row for row in rows if pid > 0 and pattern.search(str(row["process"]))]
-    locals_ = [str(row["local"]) for row in owned]
+    pid_sets = [
+        (row, listener_process_pids(str(row["process"])))
+        for row in rows
+    ]
+    owned = [
+        (row, pids)
+        for row, pids in pid_sets
+        if pid > 0 and pid in pids
+    ]
+    locals_ = [str(row["local"]) for row, _pids in owned]
     ipv4 = []
     for local in locals_:
         match = re.fullmatch(r"127\.0\.0\.1:([1-9][0-9]*)", local)
         if match:
             ipv4.append(int(match.group(1)))
-    exact = len(owned) == 1 and len(ipv4) == 1
+    exclusive_process_owner = bool(owned) and all(
+        pids == {pid} for _row, pids in owned
+    )
+    additional_process_owner_observed = any(
+        bool(pids - {pid}) for _row, pids in owned
+    )
+    exact = (
+        len(owned) == 1
+        and len(ipv4) == 1
+        and exclusive_process_owner
+    )
     return {
         "owned_tcp_listener_count": len(owned),
         "observed_ipv4_loopback_ports": sorted(ipv4),
+        "exclusive_process_owner": exclusive_process_owner,
+        "additional_process_owner_observed": additional_process_owner_observed,
         "exact_single_ipv4_loopback_listener": exact,
         "listener_port": ipv4[0] if exact else None,
         "additional_or_ipv6_listener_observed": len(owned) != len(ipv4),
@@ -1278,12 +1308,23 @@ def self_test() -> None:
         'LISTEN 0 511 127.0.0.1:4311 0.0.0.0:* users:(("node",pid=123,fd=20))\n'
     )
     listener = listener_set(rows, 123)
+    assert listener["exclusive_process_owner"] is True
+    assert listener["additional_process_owner_observed"] is False
     assert listener["exact_single_ipv4_loopback_listener"] is True
     assert listener["listener_port"] == 4311
+    shared_rows = parse_ss(
+        'LISTEN 0 511 127.0.0.1:4311 0.0.0.0:* users:(("node",pid=123,fd=20),("other",pid=124,fd=21))\n'
+    )
+    shared_listener = listener_set(shared_rows, 123)
+    assert shared_listener["exclusive_process_owner"] is False
+    assert shared_listener["additional_process_owner_observed"] is True
+    assert shared_listener["exact_single_ipv4_loopback_listener"] is False
+    assert shared_listener["listener_port"] is None
     print(f"{MARKER}_SELF_TEST_GREEN")
     print("all_five_capability_sets_checked=true")
     print("permitted_capability_negative_proven=true")
     print("sensitive_route_parser_exact=true")
+    print("shared_listener_process_rejected=true")
     print("credential_contents_read=false")
     print("process_environment_access=false")
     print("live_acceptance_claimed=false")
