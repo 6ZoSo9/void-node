@@ -12,6 +12,7 @@ const TARGET=path.join(ROOT,"ops/xiphos/void-apollyon-authorization-custody-v1.t
 const ENV_TEMPLATE=path.join(ROOT,"ops/xiphos/void-apollyon-authorization-custody-v1.env.template");
 const POLKIT=path.join(ROOT,"ops/xiphos/00-void-apollyon-training-custody-deny-v1.rules");
 const TMPFILES=path.join(ROOT,"ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf");
+const NODE_RUNTIME_MANIFEST=path.join(ROOT,"ops/xiphos/apollyon-node-runtime-custody-v1.json");
 const PREENTRY_LOCK=path.join(ROOT,"ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json");
 const PREENTRY_LOCK_PROOF=path.join(ROOT,"scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py");
 const PREENTRY_LOCK_WORKFLOW=path.join(ROOT,".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml");
@@ -67,6 +68,7 @@ for(const required of [
   "ReadWritePaths=/run/void-apollyon-custody-v1",
   "ReadWritePaths=/var/lib/void-apollyon-custody-v1",
   "EnvironmentFile=/etc/void/apollyon-custody-v1/custody.env",
+  "/opt/void-apollyon-node-runtime-v1/node",
   "/opt/void-apollyon-custody-service-v2-reviewed-v1/tools/apollyon-authorization-custody-launcher-v2.mjs",
 ]){
   assert.equal(unit.includes(required),true,required);
@@ -74,6 +76,31 @@ for(const required of [
 for(const forbidden of ["WantedBy=","ExecStartPre=/bin/sh","sudo ","curl ","wget "]){
   assert.equal(unit.includes(forbidden),false,"unit:"+forbidden);
 }
+
+const nodeRuntime=JSON.parse(fs.readFileSync(NODE_RUNTIME_MANIFEST,"utf8"));
+assert.equal(nodeRuntime.marker,"VOID_APOLLYON_NODE_RUNTIME_CUSTODY_V1");
+assert.equal(nodeRuntime.installed.path,"/opt/void-apollyon-node-runtime-v1/node");
+assert.equal(nodeRuntime.installed.version,"v24.21.0");
+assert.equal(nodeRuntime.installed.bytes,126595440);
+assert.equal(nodeRuntime.installed.sha256,"7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c");
+assert.equal(nodeRuntime.installed.owner,"root:root");
+assert.equal(nodeRuntime.installed.mode,"0755");
+assert.equal(nodeRuntime.installed.package_manager_required,false);
+assert.deepEqual(manifest.node_runtime_contract,{
+  bytes:126595440,
+  copied_binary_probe_qualified:true,
+  installed_path:"/opt/void-apollyon-node-runtime-v1/node",
+  manifest_path:"ops/xiphos/apollyon-node-runtime-custody-v1.json",
+  marker:"VOID_APOLLYON_NODE_RUNTIME_CUSTODY_V1",
+  mode:"0755",
+  package_manager_required:false,
+  root_owned_install_required:true,
+  sha256:"7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+  source_path:"/opt/nodejs/node-v24.21.0-linux-x64/bin/node",
+  version:"v24.21.0",
+});
+assert.equal(manifest.paths.node_runtime,"/opt/void-apollyon-node-runtime-v1/node");
+assert.equal(manifest.service_contract.node_runtime_path,"/opt/void-apollyon-node-runtime-v1/node");
 
 const target=fs.readFileSync(TARGET,"utf8");
 assert.equal(target.includes("Wants=void-apollyon-authorization-custody-v1.service"),true);
@@ -209,6 +236,9 @@ assert.equal(
 );
 
 console.log("VOID_APOLLYON_CUSTODY_DEPLOYMENT_MANIFEST_V1_PROOF_GREEN");
+console.log("root_custodied_node_runtime_required=true");
+console.log("node_runtime_path=/opt/void-apollyon-node-runtime-v1/node");
+console.log("node_runtime_sha256=7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c");
 console.log("custody_identity_create_only_required=true");
 console.log("training_ipc_membership_additive_required=true");
 console.log("custody_service_refuse_manual_start_stop=true");
