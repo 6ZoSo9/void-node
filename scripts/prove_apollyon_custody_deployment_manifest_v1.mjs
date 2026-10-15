@@ -129,13 +129,13 @@ assert.equal(
 );
 assert.deepEqual(manifest.host_lifecycle_closure,{
   "ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py":
-    "6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5",
+    "3cb5f2b85c80b9a26ba5e8d73634c29f584011af",
 });
 assert.deepEqual(manifest.socket_lifecycle_contract,{
   advertised_socket_unlink_by_source_service:false,
   exec_stop_post_cleanup_required:true,
   fixed_socket_path:"/run/void-apollyon-custody-v1/custody.sock",
-  helper_git_blob_sha1:"6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5",
+  helper_git_blob_sha1:"3cb5f2b85c80b9a26ba5e8d73634c29f584011af",
   helper_mode:"0444",
   helper_owner:"root:root",
   helper_runtime_user:"voidapollyoncustody",
@@ -146,7 +146,7 @@ assert.deepEqual(manifest.socket_lifecycle_contract,{
 });
 assert.equal(
   gitBlob(fs.readFileSync(SOCKET_CLEANUP)),
-  "6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5",
+  "3cb5f2b85c80b9a26ba5e8d73634c29f584011af",
 );
 
 const target=fs.readFileSync(TARGET,"utf8");
