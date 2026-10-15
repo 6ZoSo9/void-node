@@ -445,6 +445,10 @@ function writeSyntheticCredential(directory, digit = "1") {
 
 assert.match(
   sealedSource,
+  /privileged_first_entry_authenticated: false/u,
+);
+assert.match(
+  sealedSource,
   /credential_generation_retained_through_signing: true/u,
 );
 assert.match(
@@ -661,6 +665,7 @@ console.log("signed_challenge_binds_runtime_source=true");
 console.log("transaction_constructed=false");
 console.log("rpc_call=false");
 console.log("transaction_broadcast=false");
+console.log("privileged_first_entry_authenticated=false");
 console.log("credential_generation_retained_through_signing=true");
 console.log("same_shape_credential_replacement_rejected=true");
 console.log("credential_directory_replacement_rejected=true");
