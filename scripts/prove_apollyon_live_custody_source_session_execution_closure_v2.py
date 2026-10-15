@@ -20,7 +20,7 @@ def git_blob(path:Path)->str:
 
 expected={
     "tools/apollyon-live-custody-source-session-runner-v2.mjs":
-        "420b922a1fa79c28841576357dcbf94f77855205",
+        "ccbb73e469dc07f684f41fd9c502f8420d5baa57",
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
