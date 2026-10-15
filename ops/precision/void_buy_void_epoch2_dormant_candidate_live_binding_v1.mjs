@@ -253,6 +253,7 @@ function validateChildReceipt(receipt,expectedHead){
     signer_address:EXPECTED_FULFILLER,
     qualification_provenance_authenticated_by_runner:true,
     qualification_stable_before_after_sealed_probe:true,
+    checkout_revalidated_after_sensitive_sequence:true,
     main_pid_crosscheck:true,
     loadcredential_binding_crosscheck:true,
     service_cgroup_hash_crosscheck:true,
@@ -372,6 +373,7 @@ export function buildBindingReceipt(expectedHead,candidate,child){
     authenticated_credential_live_receipt_id:child.receipt_id,
     authenticated_credential_live_receipt_sha256:
       sha256(Buffer.from(canonical(child),"utf8")),
+    checkout_revalidated_after_child:true,
     canonical_chain_id:2050,
     execution_epoch:2,
     epoch2_presale_contract:EXPECTED_PRESALE,
@@ -421,6 +423,7 @@ function plan(){
   console.log("exact_child_live_composition_required=true");
   console.log("arbitrary_child_receipt_input_accepted=false");
   console.log("exact_dormant_candidate_git_object_required=true");
+  console.log("closing_checkout_revalidation_required=true");
   console.log("credential_content_access=false");
   console.log("private_key_access=false");
   console.log("nontransaction_signature=false");
@@ -500,6 +503,7 @@ function selfTest(){
     signer_address:EXPECTED_FULFILLER,
     qualification_provenance_authenticated_by_runner:true,
     qualification_stable_before_after_sealed_probe:true,
+    checkout_revalidated_after_sensitive_sequence:true,
     main_pid_crosscheck:true,
     loadcredential_binding_crosscheck:true,
     service_cgroup_hash_crosscheck:true,
@@ -531,6 +535,7 @@ function selfTest(){
      receipt.signer_credential_state.active_signing_capability_proven!==true||
      receipt.signer_credential_state.signer_offchain_control_proven!==false||
      receipt.authenticated_credential_live_receipt?.receipt_id!==child.receipt_id||
+     receipt.checkout_revalidated_after_child!==true||
      receipt.customer_safe_to_pay!==false||
      receipt.authority.transaction_signing!==false||
      receipt.authority.public_presale_activation!==false||
@@ -555,6 +560,7 @@ function selfTest(){
   console.log("systemd_credential_identity_proven_on_bound_receipt=true");
   console.log("active_signing_capability_proven_on_bound_receipt=true");
   console.log("full_public_child_receipt_retained=true");
+  console.log("closing_checkout_revalidation_before_receipt=true");
   console.log("launch_operator_signer_control_still_required=true");
   console.log("customer_safe_to_pay=false");
   console.log("transaction=false");
@@ -576,6 +582,7 @@ function live(expectedHead,confirm){
 
   const candidate=loadCandidate(expectedHead);
   const child=runChild(expectedHead);
+  requireExactCheckout(expectedHead);
   const receipt=buildBindingReceipt(expectedHead,candidate,child);
   console.log(JSON.stringify(receipt,null,2));
 }
