@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const CANDIDATE_HEAD="ead116e22e1bb70b06a8b96ae727d1b1a911fd57";
-const RESTACK_BASE="eeb9148aea782ebfa036e6f1ed6be80474cefadd";
+const RESTACK_BASE="c541094ca3cfa0fc74a2ac2cdff56a35bbc97b51";
 const ACCEPTED_LOCK_HEAD="f7023746c9d427d8e8ed4d0df50873df6cdc494d";
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml";
 const CANDIDATE_WORKFLOW_BLOB="5b21d57c00e5a4d97be1e79356b75e736de949d0";
