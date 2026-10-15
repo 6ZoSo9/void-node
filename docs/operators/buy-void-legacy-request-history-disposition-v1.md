@@ -23,8 +23,15 @@ The classifier recognizes exactly three candidate decisions:
 - `UNRESOLVED_HOLD`
 
 A no-liability declaration is admissible as a *candidate* only when the bound
-metadata census reports zero surviving-history roots and zero unverified roots.
-It still does not prove that the filesystem was never used.
+metadata census reports zero surviving-history roots, zero unverified roots,
+and `bounded_current_candidate_set_observed=true`. If release enumeration,
+the stable runtime generation/listener, or the confirmed-closeout request-root
+status was not observed cleanly, only `UNRESOLVED_HOLD` is admissible.
+
+The bound census must also attest `process_environment_access=false`,
+`external_network_calls=false`, and `loopback_get_only=true`; the
+disposition candidate must never depend on scraping the live process
+environment. It still does not prove that the filesystem was never used.
 
 Observed surviving history requires the migration disposition. Any unverified
 root requires HOLD.
@@ -34,6 +41,9 @@ root requires HOLD.
 Every candidate keeps:
 
 - `technical_candidate_set_completeness_proven=false`;
+- `bounded_current_candidate_set_required_for_disposition=true`;
+- `process_environment_access_forbidden=true`;
+- `external_network_access_forbidden=true`;
 - `technical_historical_origin_proven=false`;
 - `filesystem_rollback_prevention_proven=false`;
 - `sovereign_signature_verified=false`;
