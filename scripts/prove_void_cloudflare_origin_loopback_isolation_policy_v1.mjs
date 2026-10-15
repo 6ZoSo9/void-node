@@ -31,6 +31,8 @@ function canonical() {
       cap_net_admin: false,
       no_new_privileges: true,
       capabilities_effective: [],
+      capabilities_permitted: [],
+      capabilities_inheritable: [],
       capabilities_ambient: [],
       capabilities_bounding: [],
       public_hostname: "seed.nullfeed.org",
@@ -71,6 +73,8 @@ function canonical() {
       cap_net_admin: false,
       no_new_privileges: true,
       capabilities_effective: [],
+      capabilities_permitted: [],
+      capabilities_inheritable: [],
       capabilities_ambient: [],
       capabilities_bounding: [],
       runtime_marker: "VOID_CLOUDFLARE_ORIGIN_PROXY_V2_RUNTIME_V1",
@@ -89,6 +93,8 @@ function canonical() {
       cap_net_admin: false,
       no_new_privileges: true,
       capabilities_effective: [],
+      capabilities_permitted: [],
+      capabilities_inheritable: [],
       capabilities_ambient: [],
       capabilities_bounding: [],
       runtime_marker: "VOID_PUBLIC_443_PROXY_V2_DISPATCH_RUNTIME_V1",
@@ -191,6 +197,8 @@ assert.equal(result.cloudflared_to_adapter_policy_shape_qualified, true);
 assert.equal(result.adapter_to_dispatcher_policy_shape_qualified, true);
 assert.equal(result.closed_world_listener_sets_required, true);
 assert.equal(result.zero_effective_capability_sets_required, true);
+assert.equal(result.zero_permitted_capability_sets_required, true);
+assert.equal(result.zero_inheritable_capability_sets_required, true);
 assert.equal(result.zero_ambient_capability_sets_required, true);
 assert.equal(result.zero_bounding_capability_sets_required, true);
 assert.equal(result.public_hostname, "seed.nullfeed.org");
@@ -254,6 +262,18 @@ expectHold(
     x.cloudflared.capabilities_effective.push("CAP_SETUID");
   },
   "cloudflare_isolation_cloudflared_effective_capabilities_forbidden",
+);
+expectHold(
+  (x) => {
+    x.cloudflared.capabilities_permitted.push("CAP_SETUID");
+  },
+  "cloudflare_isolation_cloudflared_permitted_capabilities_forbidden",
+);
+expectHold(
+  (x) => {
+    x.adapter.capabilities_inheritable.push("CAP_SYS_ADMIN");
+  },
+  "cloudflare_isolation_adapter_inheritable_capabilities_forbidden",
 );
 expectHold(
   (x) => {
@@ -498,6 +518,8 @@ for (const [key, expected] of Object.entries({
   closed_world_listener_sets_required: true,
   root_owned_ruleset_required: true,
   zero_effective_capability_sets_required: true,
+  zero_permitted_capability_sets_required: true,
+  zero_inheritable_capability_sets_required: true,
   zero_ambient_capability_sets_required: true,
   zero_bounding_capability_sets_required: true,
   root_equivalent_bypass_out_of_scope: true,
@@ -581,9 +603,13 @@ for (const required of [
   "manager_scope !== \"system\"",
   "ordinary_user_shared_identity_accepted !== false",
   "capabilities_effective",
+  "capabilities_permitted",
+  "capabilities_inheritable",
   "capabilities_ambient",
   "capabilities_bounding",
   "_effective_capabilities_forbidden",
+  "_permitted_capabilities_forbidden",
+  "_inheritable_capabilities_forbidden",
   "_ambient_capabilities_forbidden",
   "_bounding_capabilities_forbidden",
   'firewall.engine !== "nftables"',
@@ -624,9 +650,13 @@ console.log("cloudflared_to_adapter_policy_shape_qualified=true");
 console.log("adapter_to_dispatcher_policy_shape_qualified=true");
 console.log("closed_world_listener_sets_required=true");
 console.log("zero_effective_capability_sets_required=true");
+console.log("zero_permitted_capability_sets_required=true");
+console.log("zero_inheritable_capability_sets_required=true");
 console.log("zero_ambient_capability_sets_required=true");
 console.log("zero_bounding_capability_sets_required=true");
 console.log("cap_setuid_adversary_rejected=true");
+console.log("cap_setuid_permitted_adversary_rejected=true");
+console.log("cap_sys_admin_inheritable_adversary_rejected=true");
 console.log("cap_sys_ptrace_adversary_rejected=true");
 console.log("cap_sys_admin_adversary_rejected=true");
 console.log("noncloudflared_adapter_direct_connect_allowed=false");
