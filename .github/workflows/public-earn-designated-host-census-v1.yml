@@ -1,0 +1,65 @@
+name: VOID Public Earn designated host census v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/void_public_earn_designated_host_census_v1.py"
+      - "scripts/prove_void_public_earn_designated_host_census_v1.py"
+      - "docs/operators/public-earn-designated-host-census-v1.md"
+      - ".github/workflows/public-earn-designated-host-census-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/public/void_public_earn_designated_host_census_v1.py"
+      - "scripts/prove_void_public_earn_designated_host_census_v1.py"
+      - "docs/operators/public-earn-designated-host-census-v1.md"
+      - ".github/workflows/public-earn-designated-host-census-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  census:
+    name: designated host census source / Python
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Self-test collector
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/public-earn-designated-host-census-proof.txt"
+          {
+            python3 -I -B ops/public/void_public_earn_designated_host_census_v1.py --self-test
+            python3 -I -B scripts/prove_void_public_earn_designated_host_census_v1.py
+          } | tee "$proof"
+          grep -Fx 'VOID_PUBLIC_EARN_DESIGNATED_HOST_CENSUS_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'process_generation_stability_required=true' "$proof"
+          grep -Fx 'pid_reuse_or_restart_fails_candidate=true' "$proof"
+          grep -Fx 'live_host_acceptance_claimed=false' "$proof"
+      - name: Prove inert plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/public-earn-designated-host-census-plan.txt"
+          python3 -I -B ops/public/void_public_earn_designated_host_census_v1.py --plan | tee "$plan"
+          grep -Fx 'read_only=true' "$plan"
+          grep -Fx 'service_mutation=false' "$plan"
+          grep -Fx 'nftables_mutation=false' "$plan"
+          grep -Fx 'process_environment_access=false' "$plan"
+          grep -Fx 'process_command_line_access=false' "$plan"
+          grep -Fx 'non_secret_topology_evidence_required=true' "$plan"
+          grep -Fx 'nftables_raw_output_printed=false' "$plan"
+          grep -Fx 'rate_state_contents_read=false' "$plan"
+          grep -Fx 'live_host_acceptance_claimed=false' "$plan"
+      - name: Diff hygiene
+        run: git diff --check

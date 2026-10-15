@@ -1,0 +1,78 @@
+name: VOID Cloudflare origin PROXY-v2 source v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-cloudflare-origin-proxy-v2-source-v1.mjs"
+      - "scripts/prove_void_cloudflare_origin_proxy_v2_source_v1.mjs"
+      - "docs/architecture/cloudflare-origin-proxy-v2-source-v1.md"
+      - ".github/workflows/cloudflare-origin-proxy-v2-source-v1.yml"
+      - "tools/void-agent-paid-work-credential-request-proxy-v2-source-v1.mjs"
+      - "tools/void-agent-paid-work-credential-request-proxy-v2-edge-composition-v1.mjs"
+      - "tools/void-public-earn-proxy-v2-edge-contract-v1.mjs"
+      - "tools/void-public-443-proxy-v2-dispatch-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: cloudflare origin source / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove Cloudflare source translation and downstream compatibility
+        run: |
+          set -euo pipefail
+          node --check tools/void-cloudflare-origin-proxy-v2-source-v1.mjs
+          node --check scripts/prove_void_cloudflare_origin_proxy_v2_source_v1.mjs
+          receipt="$RUNNER_TEMP/cloudflare-origin-proxy-v2-source-v1.txt"
+          node scripts/prove_void_cloudflare_origin_proxy_v2_source_v1.mjs | tee "$receipt"
+          grep -Fx "VOID_CLOUDFLARE_ORIGIN_PROXY_V2_SOURCE_V1_PROOF_GREEN" "$receipt"
+          grep -Fx "ipv4_translation=true" "$receipt"
+          grep -Fx "ipv6_translation=true" "$receipt"
+          grep -Fx "ipv4_mapped_ipv6_translation=true" "$receipt"
+          grep -Fx "credential_route_exact=true" "$receipt"
+          grep -Fx "earn_claim_route_exact=true" "$receipt"
+          grep -Fx "earn_submit_route_exact=true" "$receipt"
+          grep -Fx "cf_connecting_ip_removed_downstream=true" "$receipt"
+          grep -Fx "source_port_in_participant_identity=false" "$receipt"
+          grep -Fx "public_destination_port=443" "$receipt"
+          grep -Fx "cloudflare_header_transport_trusted=false" "$receipt"
+          grep -Fx "cloudflared_uid_isolation_proven=false" "$receipt"
+          grep -Fx "runtime_integration=false" "$receipt"
+          grep -Fx "funds_movement=false" "$receipt"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+            echo "diff_scope=manual_exact_first_parent"
+          else
+            git merge-base --is-ancestor "$BASE" "$HEAD"
+            echo "diff_scope=reviewed_pull_request_base"
+          fi
+          git diff --check "$BASE" "$HEAD"
