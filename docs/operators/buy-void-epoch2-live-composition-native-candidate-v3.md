@@ -13,7 +13,7 @@ merged #3200.
 
 It is stacked on the #3204 proof-completeness generation:
 
-`9076c12b2d6575c0ce34adfeb4118d38f9b3e152`
+`aab42057ff5da0cd1319acc465d1e297c5814436`
 
 The candidate binds the unchanged privileged implementation plus the repaired
 proof generation. It does not reuse #3200's weak `cc_sha256 + strip_sha256`
@@ -31,7 +31,7 @@ The derivation requires these Git objects:
   — `92e8c8696ea7e2bb81b6ef089db8baa657188935`;
 - repaired privileged-source proof:
   `scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs`
-  — `953cfadaea3f507d6f59ae7c73f70fc36284ea04`;
+  — `944453d7876a21568207479375467ff1eebcf218`;
 - privileged-source workflow:
   `.github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml`
   — `85c28fdf03345240332cbf41d46fbda065958ec7`;
