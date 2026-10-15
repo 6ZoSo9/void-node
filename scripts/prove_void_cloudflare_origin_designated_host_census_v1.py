@@ -143,6 +143,8 @@ for required in (
     "operator_tunnel_config_path",
     "credential_content_access",
     "sensitive_route_shape_observed",
+    "config_generation_stable",
+    "read_regular_descriptor_bound",
     "ordinary_routes_preserved_candidate",
     "adapter_route_matches_listener",
     "exact_ruleset_verified",
@@ -190,6 +192,7 @@ print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
 print("loopback_listener_ownership_observed=true")
 print("tunnel_private_metadata_custody_observed=true")
+print("tunnel_config_retained_descriptor_binding=true")
 print("nftables_raw_json_output=false")
 print("nftables_exact_ruleset_verified=false")
 print("cloudflare_control_plane_evidence_external=true")
