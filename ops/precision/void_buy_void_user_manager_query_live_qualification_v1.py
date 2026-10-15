@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
+import types
 import json
 import os
 import pathlib
@@ -143,6 +143,20 @@ def _direct_source_bytes(path: pathlib.Path) -> bytes:
     return raw
 
 
+def _module_from_authenticated_source(
+    raw: bytes,
+    source_path: pathlib.Path,
+):
+    module = types.ModuleType(
+        "void_buy_void_user_manager_query_protected_install_v1"
+    )
+    module.__file__ = str(source_path)
+    module.__package__ = ""
+    code = compile(raw, str(source_path), "exec", dont_inherit=True)
+    exec(code, module.__dict__)
+    return module
+
+
 def _load_installer():
     raw = _direct_source_bytes(INSTALLER_SOURCE)
     if git_blob_sha1(raw) != INSTALLER_SOURCE_GIT_BLOB_SHA1:
@@ -151,14 +165,7 @@ def _load_installer():
     if git_blob_sha1(parser_raw) != V3_PARSER_GIT_BLOB_SHA1:
         raise QualificationError("v3_parser_source_blob_mismatch")
 
-    spec = importlib.util.spec_from_file_location(
-        "void_buy_void_user_manager_query_protected_install_v1",
-        INSTALLER_SOURCE,
-    )
-    if spec is None or spec.loader is None:
-        raise QualificationError("installer_import_unavailable")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = _module_from_authenticated_source(raw, INSTALLER_SOURCE)
     module.accepted_lock()
     return module
 
