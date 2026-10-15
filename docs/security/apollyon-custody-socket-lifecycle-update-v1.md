@@ -43,9 +43,13 @@ The apply path is restart-safe across its own partial publication boundary.
 The initial plan is not treated as a mutation lease: apply re-runs the exact
 target/service dormant and loaded-generation census immediately before any
 durability repair, helper publication, service-unit replacement, and
-daemon-reload. If either unit becomes active or its reviewed generation/state
-changes at a mutation boundary, apply HOLDs without starting or stopping it.
-Plan mode classifies the reviewed predecessor generations explicitly. The
+daemon-reload. The helper path repeats that census immediately before
+creating its protected root/pending generation and again immediately before
+the create-only hardlink; the service path repeats it before staging and
+immediately before atomic unit replacement; daemon-reload itself performs a
+final census before invoking systemctl. If either unit becomes active or its
+reviewed generation/state changes at a mutation boundary, apply HOLDs without
+starting or stopping it. Plan mode classifies the reviewed predecessor generations explicitly. The
 historical base can be initial/helper-only, the installed lifecycle and
 four-variable environment predecessors are `predecessor_ready`, and the new
 generation can be pending daemon-reload or complete. Before resuming from a
