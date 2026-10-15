@@ -384,6 +384,14 @@ def apply_transition(
             receipt["service_unit_replace_returned_success"]=bool(
                 _replace_service_fn()
             )
+        receipt["persistent_filesystem_mutation_possible_this_apply"]=bool(
+            receipt["helper_install_attempted"]
+            or receipt["service_unit_replace_attempted"]
+        )
+        receipt["persistent_filesystem_mutation_possible"]=bool(
+            receipt["persistent_filesystem_mutation_present_before_apply"]
+            or receipt["persistent_filesystem_mutation_possible_this_apply"]
+        )
         if stage in (
             "initial","helper_only","predecessor_ready",
             "new_file_pending_reload",
@@ -626,6 +634,11 @@ def self_test()->None:
     )
     assert upgraded["lifecycle_state"]=="complete"
     assert upgraded["service_unit_replace_returned_success"] is True
+    assert (
+        upgraded["persistent_filesystem_mutation_possible_this_apply"]
+        is True
+    )
+    assert upgraded["persistent_filesystem_mutation_possible"] is True
     assert upgraded["daemon_reload_command_succeeded"] is True
 
     state={"service":"old_exact","helper":"exact","loaded":"old_loaded"}
@@ -744,6 +757,15 @@ def self_test()->None:
         _state_fn=lambda:synthetic_snapshot(state),
     )
     assert complete["lifecycle_state"]=="complete"
+    assert (
+        complete["persistent_filesystem_mutation_present_before_apply"]
+        is True
+    )
+    assert (
+        complete["persistent_filesystem_mutation_possible_this_apply"]
+        is False
+    )
+    assert complete["persistent_filesystem_mutation_possible"] is True
     assert complete["daemon_reload_attempted"] is False
 
     for forbidden_parts in (
@@ -765,6 +787,7 @@ def self_test()->None:
     print("truthful_partial_mutation_receipt=true")
     print("preexisting_persistent_mutation_reported=true")
     print("this_apply_mutation_possibility_reported=true")
+    print("successful_apply_mutation_receipt_truthful=true")
     print("failure_injection_after_helper_creation=true")
     print("failure_injection_after_service_replace=true")
     print("failure_injection_daemon_reload=true")

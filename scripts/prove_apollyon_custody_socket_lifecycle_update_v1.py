@@ -85,6 +85,7 @@ for line in (
     "truthful_partial_mutation_receipt=true",
     "preexisting_persistent_mutation_reported=true",
     "this_apply_mutation_possibility_reported=true",
+    "successful_apply_mutation_receipt_truthful=true",
     "failure_injection_after_helper_creation=true",
     "failure_injection_after_service_replace=true",
     "failure_injection_daemon_reload=true",
