@@ -1,0 +1,56 @@
+name: VOID Tor public static descriptor custody v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-tor-onion-public-node-v1.mjs"
+      - "scripts/prove_void_tor_public_static_descriptor_custody_v1.mjs"
+      - ".github/workflows/void-tor-public-static-descriptor-custody-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: Tor static custody / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove Tor static descriptor custody
+        run: |
+          set -euo pipefail
+          node --check tools/void-tor-onion-public-node-v1.mjs
+          node --check scripts/prove_void_tor_public_static_descriptor_custody_v1.mjs
+          proof_file="$RUNNER_TEMP/void-tor-public-static-descriptor-custody-v1.txt"
+          node scripts/prove_void_tor_public_static_descriptor_custody_v1.mjs | tee "$proof_file"
+          grep -Fx 'VOID_TOR_PUBLIC_STATIC_DESCRIPTOR_CUSTODY_V1_GREEN' "$proof_file"
+          grep -Fx 'tor_static_root_descriptor_retained=true' "$proof_file"
+          grep -Fx 'tor_static_file_reads_descriptor_bound=true' "$proof_file"
+          grep -Fx 'tor_static_visible_root_replacement_rejected=true' "$proof_file"
+          grep -Fx 'tor_static_replacement_bytes_disclosed=false' "$proof_file"
+          grep -Fx 'tor_static_head_preserved=true' "$proof_file"
+          grep -Fx 'mcp_or_order_status_authority_changed=false' "$proof_file"
+          grep -Fx 'wallet_signer_validator_wc_money_authority=0' "$proof_file"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check "$BASE" "$HEAD"

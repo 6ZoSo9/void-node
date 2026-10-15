@@ -46,22 +46,6 @@ SOURCE_BLOBS = {
     },
 }
 
-ENV_KEYS = {
-    "dispatcher": (
-        "VOID_PUBLIC_443_PROXY_V2_DISPATCH_PORT",
-        "VOID_PUBLIC_443_EARN_EDGE_PORT",
-    ),
-    "earn_edge": (
-        "VOID_PUBLIC_EARN_PROXY_V2_EDGE_PORT",
-        "VOID_PUBLIC_EARN_PROXY_V2_ADAPTER_UPSTREAM",
-        "VOID_PUBLIC_EARN_PROXY_V2_RATE_STATE_FILE",
-    ),
-    "gateway": (
-        "VOID_ADAPTER_PORT",
-        "VOID_EARN_MUTATION_DOWNSTREAM_PORT",
-    ),
-}
-
 SYSTEMCTL = pathlib.Path("/usr/bin/systemctl")
 SS = pathlib.Path("/usr/bin/ss")
 GIT = pathlib.Path("/usr/bin/git")
@@ -233,27 +217,6 @@ def same_process_generation(
     )
 
 
-def parse_proc_environ(raw: bytes, allowed: tuple[str, ...]) -> dict[str, str]:
-    if len(raw) > MAX_PROC_BYTES:
-        raise CensusError("proc_environment_too_large")
-    parsed: dict[str, str] = {}
-    allowed_set = set(allowed)
-    for entry in raw.split(b"\0"):
-        if not entry:
-            continue
-        try:
-            text = entry.decode("utf-8", "strict")
-        except UnicodeDecodeError as exc:
-            raise CensusError("proc_environment_not_utf8") from exc
-        if "=" not in text:
-            raise CensusError("proc_environment_row_malformed")
-        key, value = text.split("=", 1)
-        if key in allowed_set:
-            if key in parsed:
-                raise CensusError(f"proc_environment_duplicate:{key}")
-            parsed[key] = value
-    return parsed
-
 
 def parse_port(value: str | None) -> int | None:
     if value is None or not re.fullmatch(r"[1-9][0-9]*", value):
@@ -325,6 +288,22 @@ def listener_binding(rows: list[dict[str, Any]], port: int | None, pid: int) -> 
     }
 
 
+def owned_ipv4_loopback_ports(rows: list[dict[str, Any]], pid: int) -> list[int]:
+    if pid < 1:
+        return []
+    pid_pattern = re.compile(rf"(^|[^0-9])pid={pid}([^0-9]|$)")
+    ports: set[int] = set()
+    for row in rows:
+        local = str(row.get("local", ""))
+        match = re.fullmatch(r"127\.0\.0\.1:([1-9][0-9]*)", local)
+        if not match or not pid_pattern.search(str(row.get("process", ""))):
+            continue
+        port = int(match.group(1))
+        if 1024 <= port <= 65535:
+            ports.add(port)
+    return sorted(ports)
+
+
 def read_bounded(path: pathlib.Path, maximum: int = MAX_PROC_BYTES) -> bytes:
     data = path.read_bytes()
     if len(data) > maximum:
@@ -333,9 +312,8 @@ def read_bounded(path: pathlib.Path, maximum: int = MAX_PROC_BYTES) -> bytes:
 
 
 def process_source(pid: int, expected_blob: str) -> dict[str, Any]:
+    del expected_blob
     try:
-        cmdline = read_bounded(pathlib.Path(f"/proc/{pid}/cmdline"))
-        cwd = pathlib.Path(os.path.realpath(f"/proc/{pid}/cwd"))
         exe = pathlib.Path(os.path.realpath(f"/proc/{pid}/exe"))
     except OSError:
         return {
@@ -344,49 +322,16 @@ def process_source(pid: int, expected_blob: str) -> dict[str, Any]:
             "git_blob_sha1": None,
             "sha256": None,
             "matches_reviewed_blob": False,
+            "running_entry_source_binding_observed": False,
         }
-    if exe.name not in {"node", "nodejs"}:
-        return {
-            "node_executable": False,
-            "entry_present": False,
-            "git_blob_sha1": None,
-            "sha256": None,
-            "matches_reviewed_blob": False,
-        }
-    args = [part for part in cmdline.split(b"\0") if part]
-    if len(args) < 2:
-        return {
-            "node_executable": True,
-            "entry_present": False,
-            "git_blob_sha1": None,
-            "sha256": None,
-            "matches_reviewed_blob": False,
-        }
-    try:
-        raw_arg = args[1].decode("utf-8", "strict")
-        candidate = pathlib.Path(raw_arg)
-        if not candidate.is_absolute():
-            candidate = cwd / candidate
-        resolved = candidate.resolve(strict=True)
-        if not resolved.is_file():
-            raise OSError("not regular")
-        data = read_bounded(resolved, 4 * 1024 * 1024)
-    except (OSError, UnicodeDecodeError, CensusError):
-        return {
-            "node_executable": True,
-            "entry_present": False,
-            "git_blob_sha1": None,
-            "sha256": None,
-            "matches_reviewed_blob": False,
-        }
-    blob = git_blob_sha1(data)
+    node_executable = exe.name in {"node", "nodejs"}
     return {
-        "node_executable": True,
-        "entry_present": True,
-        "entry_basename": resolved.name,
-        "git_blob_sha1": blob,
-        "sha256": sha256_bytes(data),
-        "matches_reviewed_blob": blob == expected_blob,
+        "node_executable": node_executable,
+        "entry_present": False,
+        "git_blob_sha1": None,
+        "sha256": None,
+        "matches_reviewed_blob": False,
+        "running_entry_source_binding_observed": False,
     }
 
 
@@ -462,13 +407,13 @@ def service_snapshot(role: str) -> dict[str, Any]:
                 "effective_gid": None,
                 "no_new_privileges": False,
                 "cap_net_admin": None,
-                "environment": {},
                 "source": {
                     "node_executable": False,
                     "entry_present": False,
                     "git_blob_sha1": None,
                     "sha256": None,
                     "matches_reviewed_blob": False,
+                    "running_entry_source_binding_observed": False,
                 },
             }
         )
@@ -478,10 +423,6 @@ def service_snapshot(role: str) -> dict[str, Any]:
         status = parse_proc_status(
             read_bounded(pathlib.Path(f"/proc/{pid}/status")).decode("utf-8", "strict")
         )
-        environ = parse_proc_environ(
-            read_bounded(pathlib.Path(f"/proc/{pid}/environ")),
-            ENV_KEYS[role],
-        )
     except (OSError, UnicodeDecodeError, CensusError):
         start_ticks = None
         status = {
@@ -490,10 +431,8 @@ def service_snapshot(role: str) -> dict[str, Any]:
             "no_new_privileges": False,
             "cap_net_admin": None,
         }
-        environ = {}
     snapshot["process_start_ticks"] = start_ticks
     snapshot.update(status)
-    snapshot["environment"] = environ
     snapshot["source"] = process_source(pid, SOURCE_BLOBS[role]["git_blob_sha1"])
     return snapshot
 
@@ -634,45 +573,22 @@ def checkout_head() -> str | None:
 
 
 def derive_topology(services: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    dispatcher_env = services["dispatcher"].get("environment", {})
-    edge_env = services["earn_edge"].get("environment", {})
-    gateway_env = services["gateway"].get("environment", {})
-
-    dispatcher_listen = parse_port(
-        dispatcher_env.get("VOID_PUBLIC_443_PROXY_V2_DISPATCH_PORT")
-    )
-    dispatcher_edge_target = parse_port(
-        dispatcher_env.get("VOID_PUBLIC_443_EARN_EDGE_PORT")
-    )
-    edge_listen = parse_port(edge_env.get("VOID_PUBLIC_EARN_PROXY_V2_EDGE_PORT"))
-    edge_gateway_target = loopback_url_port(
-        edge_env.get("VOID_PUBLIC_EARN_PROXY_V2_ADAPTER_UPSTREAM")
-    )
-    shared_gateway = parse_port(gateway_env.get("VOID_ADAPTER_PORT"))
-    dedicated_gateway = parse_port(
-        gateway_env.get("VOID_EARN_MUTATION_DOWNSTREAM_PORT")
-    )
-
     uids = [
         services[name].get("effective_uid")
         for name in ("dispatcher", "earn_edge", "gateway")
     ]
     uids_valid = all(isinstance(uid, int) and uid > 0 for uid in uids)
     return {
-        "dispatcher_listen_port": dispatcher_listen,
-        "dispatcher_earn_edge_target_port": dispatcher_edge_target,
-        "earn_edge_listen_port": edge_listen,
-        "earn_edge_gateway_target_port": edge_gateway_target,
-        "shared_gateway_port": shared_gateway,
-        "dedicated_gateway_port": dedicated_gateway,
-        "dispatcher_target_matches_edge_listener": (
-            dispatcher_edge_target is not None
-            and dispatcher_edge_target == edge_listen
-        ),
-        "edge_target_matches_dedicated_gateway": (
-            edge_gateway_target is not None
-            and edge_gateway_target == dedicated_gateway
-        ),
+        "topology_configuration_observed": False,
+        "non_secret_topology_evidence_required": True,
+        "dispatcher_listen_port": None,
+        "dispatcher_earn_edge_target_port": None,
+        "earn_edge_listen_port": None,
+        "earn_edge_gateway_target_port": None,
+        "shared_gateway_port": None,
+        "dedicated_gateway_port": None,
+        "dispatcher_target_matches_edge_listener": False,
+        "edge_target_matches_dedicated_gateway": False,
         "service_uids_pairwise_distinct": uids_valid and len(set(uids)) == 3,
         "all_service_uids_nonroot": uids_valid,
         "all_no_new_privileges": all(
@@ -683,10 +599,8 @@ def derive_topology(services: dict[str, dict[str, Any]]) -> dict[str, Any]:
             services[name].get("cap_net_admin") is False
             for name in ("dispatcher", "earn_edge", "gateway")
         ),
-        "all_reviewed_source_blobs_match": all(
-            services[name].get("source", {}).get("matches_reviewed_blob") is True
-            for name in ("dispatcher", "earn_edge", "gateway")
-        ),
+        "all_reviewed_source_blobs_match": False,
+        "running_entry_source_binding_observed": False,
     }
 
 
@@ -700,6 +614,12 @@ def collect() -> dict[str, Any]:
     except (CensusError, UnicodeDecodeError):
         listeners = []
         ss_visible = False
+
+    for role, service in services.items():
+        service["observed_ipv4_loopback_ports"] = owned_ipv4_loopback_ports(
+            listeners,
+            int(service.get("main_pid") or 0),
+        )
 
     topology = derive_topology(services)
     for role, port_key in (
@@ -719,9 +639,7 @@ def collect() -> dict[str, Any]:
     )
 
     state = state_metadata(
-        services["earn_edge"].get("environment", {}).get(
-            "VOID_PUBLIC_EARN_PROXY_V2_RATE_STATE_FILE"
-        ),
+        None,
         services["earn_edge"].get("effective_uid"),
     )
     nft = nft_snapshot()
@@ -744,6 +662,7 @@ def collect() -> dict[str, Any]:
         and ss_visible
         and all(services[name].get("active_running") for name in services)
         and generation_stable
+        and topology["topology_configuration_observed"]
         and topology["dispatcher_target_matches_edge_listener"]
         and topology["edge_target_matches_dedicated_gateway"]
         and topology["service_uids_pairwise_distinct"]
@@ -758,9 +677,6 @@ def collect() -> dict[str, Any]:
         and state["custody_shape_observed"]
         and nft["table_present"]
     )
-
-    for service in services.values():
-        service.pop("environment", None)
 
     observed_at_utc = (
         datetime.now(timezone.utc)
@@ -780,6 +696,9 @@ def collect() -> dict[str, Any]:
         "nftables_mutation": False,
         "funnel_mutation": False,
         "credential_access": False,
+        "process_environment_access": False,
+        "process_command_line_access": False,
+        "non_secret_topology_evidence_required": True,
         "wallet_or_signer_access": False,
         "private_key_access": False,
         "transaction_construction": False,
@@ -813,7 +732,7 @@ def collect() -> dict[str, Any]:
         "next_action": (
             "EXACT_NFT_AND_PUBLICATION_VERIFIER_REQUIRED"
             if policy_candidate_observed
-            else "HOST_INTEGRATION_HOLD"
+            else "NON_SECRET_TOPOLOGY_EVIDENCE_REQUIRED"
         ),
     }
 
@@ -878,16 +797,6 @@ def self_test() -> None:
     assert status_cap["cap_net_admin"] is True
     assert status_cap["no_new_privileges"] is False
 
-    env = parse_proc_environ(
-        b"SECRET=nope\0VOID_ADAPTER_PORT=4122\0"
-        b"VOID_EARN_MUTATION_DOWNSTREAM_PORT=4999\0",
-        ENV_KEYS["gateway"],
-    )
-    assert env == {
-        "VOID_ADAPTER_PORT": "4122",
-        "VOID_EARN_MUTATION_DOWNSTREAM_PORT": "4999",
-    }
-    assert "SECRET" not in env
 
     rows = parse_ss_listeners(
         'LISTEN 0 511 127.0.0.1:4999 0.0.0.0:* users:(("node",pid=77,fd=20))\n'
@@ -895,6 +804,8 @@ def self_test() -> None:
     binding = listener_binding(rows, 4999, 77)
     assert binding["exact_ipv4_loopback_owned"] is True
     assert listener_binding(rows, 4999, 78)["exact_ipv4_loopback_owned"] is False
+    assert owned_ipv4_loopback_ports(rows, 77) == [4999]
+    assert owned_ipv4_loopback_ports(rows, 78) == []
 
     assert parse_port("1024") == 1024
     assert parse_port("65535") == 65535
@@ -912,41 +823,34 @@ def self_test() -> None:
             "effective_uid": 1201,
             "no_new_privileges": True,
             "cap_net_admin": False,
-            "environment": {
-                "VOID_PUBLIC_443_PROXY_V2_DISPATCH_PORT": "19000",
-                "VOID_PUBLIC_443_EARN_EDGE_PORT": "19001",
-            },
-            "source": {"matches_reviewed_blob": True},
+            "source": {"matches_reviewed_blob": False},
         },
         "earn_edge": {
             "effective_uid": 1202,
             "no_new_privileges": True,
             "cap_net_admin": False,
-            "environment": {
-                "VOID_PUBLIC_EARN_PROXY_V2_EDGE_PORT": "19001",
-                "VOID_PUBLIC_EARN_PROXY_V2_ADAPTER_UPSTREAM": "http://127.0.0.1:19003",
-            },
-            "source": {"matches_reviewed_blob": True},
+            "source": {"matches_reviewed_blob": False},
         },
         "gateway": {
             "effective_uid": 1203,
             "no_new_privileges": True,
             "cap_net_admin": False,
-            "environment": {
-                "VOID_ADAPTER_PORT": "19002",
-                "VOID_EARN_MUTATION_DOWNSTREAM_PORT": "19003",
-            },
-            "source": {"matches_reviewed_blob": True},
+            "source": {"matches_reviewed_blob": False},
         },
     }
     topology = derive_topology(synthetic)
-    assert topology["dispatcher_target_matches_edge_listener"] is True
-    assert topology["edge_target_matches_dedicated_gateway"] is True
+    assert topology["topology_configuration_observed"] is False
+    assert topology["non_secret_topology_evidence_required"] is True
+    assert topology["dispatcher_target_matches_edge_listener"] is False
+    assert topology["edge_target_matches_dedicated_gateway"] is False
     assert topology["service_uids_pairwise_distinct"] is True
-    assert topology["all_reviewed_source_blobs_match"] is True
+    assert topology["all_reviewed_source_blobs_match"] is False
+    assert topology["running_entry_source_binding_observed"] is False
 
     print(f"{MARKER}_SELF_TEST_GREEN")
-    print("process_environment_output_allowlisted_only=true")
+    print("process_environment_access=false")
+    print("process_command_line_access=false")
+    print("non_secret_topology_evidence_required=true")
     print("private_key_content_access=false")
     print("nftables_ruleset_live_verified=false")
     print("process_generation_stability_required=true")
@@ -973,7 +877,9 @@ def plan() -> None:
         ("work_credit_write", "false"),
         ("presale_activation", "false"),
         ("funds_movement", "false"),
-        ("process_environment_output_allowlisted_only", "true"),
+        ("process_environment_access", "false"),
+        ("process_command_line_access", "false"),
+        ("non_secret_topology_evidence_required", "true"),
         ("nftables_raw_output_printed", "false"),
         ("rate_state_contents_read", "false"),
         ("live_host_acceptance_claimed", "false"),
@@ -981,7 +887,7 @@ def plan() -> None:
         print(f"{key}={value}")
     print("canonical_units=" + ",".join(UNITS.values()))
     print("nftables_table=" + TABLE_FAMILY + ":" + TABLE_NAME)
-    print("next_action=RUN_READ_ONLY_CENSUS")
+    print("next_action=RUN_READ_ONLY_CENSUS_FOR_HOLD_EVIDENCE")
 
 
 def main() -> int:
