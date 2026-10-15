@@ -19,15 +19,15 @@
     "docs/WAVE1_FOUNDATION_SPEC.md": "4776d631d4b04bae3bd8a55f9f2e031f53eba0bde85b7b96b07dae6f9db2eb5f",
     "docs/audit.json": "69e69f30235868107e7f247f93e1667aa0da956b8a22b761a945555f6ebe0241",
     "prototype/assets/css/base.css": "e0b9d3b2789f9944cdcb9f6a7d91f117c5c86da8505269e0c4f4987938f6376e",
-    "prototype/assets/css/components.css": "d6ba61192c8b0db14f3900b8399b670f8dfd05dce55fc45f425a0054474cc036",
+    "prototype/assets/css/components.css": "2dac0177de78ccf3dc140db5167e7297dd0fd6d5c276844d648f7435c11336ee",
     "prototype/assets/css/layout.css": "0357699fdc36ba0fcef183d2892c54ec756559f2bc8dd2450ec96e0f474f37ad",
     "prototype/assets/css/main.css": "e914d3d9200d0301a2824112af6c0bfc86e8d3858ad45c31ec6b30e2dfb66e7a",
     "prototype/assets/css/responsive.css": "61e420cf90f923d73c35e9c19a9ba6ecdceef87e9bb152b6b475dc34be2415cd",
     "prototype/assets/css/tokens.css": "c96311ac1530ac93a58aac4a1ac2dc6a38e7dfb1d87c6d25521431c0700bb4e2",
     "prototype/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
-    "prototype/assets/js/app.js": "8d5331bdbaf414f54e3132adc84f316c1470bae6b52995965d0a75f6c30bd380",
+    "prototype/assets/js/app.js": "cd7a751e62fba3f263adc37ac7228e868db83e1a4a8c00f11b54226ce7ae72db",
     "prototype/assets/js/views.js": "ff832cd1096f650c5656e4abfb384e69d5988b28104b0d16012fddb175f0d31c",
-    "prototype/index.html": "b8ec43af415f6a9b67cb544f6d560445cd9a2bb36867ff60f89b8244912f4993",
+    "prototype/index.html": "d629ab00117ad6534651d66789887de2d9a0d101b7bb4b7d29eb0816acc37743",
     "screenshots/desktop-foundation-1280x800.png": "354ce77fee57197b4c813c3125cc51e539af9bb818b8c04d162061666b7f05d3",
     "screenshots/desktop-home-1440x900.png": "6e4dc3eae6c4888712c3776b6a1f32fde163f4f45eb9e3c93eecafff0a410e35",
     "screenshots/mobile-home-390x844.png": "7f96570c9849471b8a3f09d341a625d91d279174b7a4e07b99945465708dcbd7",
@@ -109,6 +109,21 @@
     "overflow_y_auto": true,
     "overscroll_contained": true,
     "body_scroll_lock_safe": true,
+    "authority_added": false
+  },
+  "command_search_filter_repair": {
+    "date": "2026-10-15",
+    "surface": "command-menu",
+    "destinations": 7,
+    "empty_state": "No matching destinations.",
+    "keyboard": [
+      "Enter",
+      "ArrowDown"
+    ],
+    "query_normalization": [
+      "trim",
+      "locale_lowercase"
+    ],
     "authority_added": false
   }
 }
