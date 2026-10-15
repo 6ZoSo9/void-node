@@ -16,10 +16,17 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-socket-lifecycle-update-v1.json"
-MANIFEST_BLOB="f6860d20ddab53d41ca5f5f9b82b2081b426f514"
+MANIFEST_BLOB="76c58c05124e726eb1acee7f6841b2a371c5606b"
 SERVICE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"
+LIFECYCLE_SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
+ENV4_SERVICE_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"
 NEW_SERVICE_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"
+PREDECESSOR_SERVICE_STATES={
+    "old_exact":OLD_SERVICE_BLOB,
+    "lifecycle_exact":LIFECYCLE_SERVICE_BLOB,
+    "env4_exact":ENV4_SERVICE_BLOB,
+}
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 HELPER_REL="ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py"
@@ -35,6 +42,9 @@ EXPECTED_EXEC_STOP_POST=(
     "/usr/bin/python3 -I -B "
     "/opt/void-apollyon-custody-lifecycle-v1/"
     "apollyon_custody_stale_socket_cleanup_v1.py --cleanup"
+)
+ENV4_UNSET_ENVIRONMENT=(
+    "LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH",
 )
 EXPECTED_UNSET_ENVIRONMENT=(
     "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
@@ -74,6 +84,11 @@ def load_manifest()->dict:
         hold("manifest_invalid")
     if (
         value.get("old_service_blob_sha1")!=OLD_SERVICE_BLOB or
+        value.get("accepted_predecessor_service_blobs")!={{
+            "base":OLD_SERVICE_BLOB,
+            "env4":ENV4_SERVICE_BLOB,
+            "lifecycle":LIFECYCLE_SERVICE_BLOB,
+        }} or
         value.get("new_service_blob_sha1")!=NEW_SERVICE_BLOB or
         value.get("target_blob_sha1")!=TARGET_BLOB or
         value.get("cleanup_blob_sha1")!=HELPER_BLOB or
@@ -126,7 +141,8 @@ def installed_blob(path:Path,mode:int)->str:
 
 def service_state()->str:
     digest=installed_blob(SERVICE_PATH,0o644)
-    if digest==OLD_SERVICE_BLOB:return "old_exact"
+    for state,blob in PREDECESSOR_SERVICE_STATES.items():
+        if digest==blob:return state
     if digest==NEW_SERVICE_BLOB:return "new_exact"
     hold("service_unit_collision")
 
@@ -178,21 +194,42 @@ def classify_loaded_service(file_state:str,props:dict[str,str])->str:
     need_reload=props.get("NeedDaemonReload")
     command=props.get("ExecStopPost","").strip()
     unset=props.get("UnsetEnvironment","").split()
-    old_shape=(command=="" and unset==[])
-    new_shape=(
-        len(unset)==len(EXPECTED_UNSET_ENVIRONMENT)
-        and set(unset)==set(EXPECTED_UNSET_ENVIRONMENT)
-        and all(required in command for required in (
-            "/usr/bin/python3","-I","-B",
-            "/opt/void-apollyon-custody-lifecycle-v1/"
-            "apollyon_custody_stale_socket_cleanup_v1.py",
-            "--cleanup",
-        ))
+    cleanup_shape=all(required in command for required in (
+        "/usr/bin/python3","-I","-B",
+        "/opt/void-apollyon-custody-lifecycle-v1/"
+        "apollyon_custody_stale_socket_cleanup_v1.py",
+        "--cleanup",
+    ))
+    base_shape=(command=="" and unset==[])
+    lifecycle_shape=(cleanup_shape and unset==[])
+    env4_shape=(
+        cleanup_shape
+        and len(unset)==len(ENV4_UNSET_ENVIRONMENT)
+        and set(unset)==set(ENV4_UNSET_ENVIRONMENT)
     )
-    if file_state=="old_exact" and need_reload=="no" and old_shape:
-        return "old_loaded"
+    new_shape=(
+        cleanup_shape
+        and len(unset)==len(EXPECTED_UNSET_ENVIRONMENT)
+        and set(unset)==set(EXPECTED_UNSET_ENVIRONMENT)
+    )
+    predecessor_shapes={
+        "old_exact":base_shape,
+        "lifecycle_exact":lifecycle_shape,
+        "env4_exact":env4_shape,
+    }
     if (
-        file_state=="new_exact" and need_reload=="yes" and old_shape
+        file_state in predecessor_shapes
+        and need_reload=="no"
+        and predecessor_shapes[file_state]
+    ):
+        return (
+            "old_loaded" if file_state=="old_exact"
+            else "predecessor_loaded"
+        )
+    if (
+        file_state=="new_exact"
+        and need_reload=="yes"
+        and (base_shape or lifecycle_shape or env4_shape)
     ):
         return "new_file_pending_reload"
     if file_state=="new_exact" and need_reload=="no" and new_shape:
@@ -210,6 +247,10 @@ def classify_lifecycle_state(
             ("initial","APPLY_SOCKET_LIFECYCLE_UPDATE"),
         ("old_exact","exact","old_loaded"):
             ("helper_only","RESUME_SERVICE_PUBLICATION"),
+        ("lifecycle_exact","exact","predecessor_loaded"):
+            ("predecessor_ready","APPLY_SERVICE_UPGRADE"),
+        ("env4_exact","exact","predecessor_loaded"):
+            ("predecessor_ready","APPLY_SERVICE_UPGRADE"),
         ("new_exact","exact","new_file_pending_reload"):
             ("new_file_pending_reload","RESUME_DAEMON_RELOAD"),
         ("new_exact","exact","new_loaded"):
@@ -265,7 +306,10 @@ def install_helper()->bool:
     return True
 
 def replace_service_unit()->bool:
-    if service_state()=="new_exact":return False
+    before_state=service_state()
+    if before_state=="new_exact":return False
+    if before_state not in PREDECESSOR_SERVICE_STATES:
+        hold("service_unit_predecessor_invalid")
     new=read_source(SERVICE_REL,NEW_SERVICE_BLOB)
     old=os.lstat(SERVICE_PATH)
     temp=SERVICE_PATH.parent/(".void-apollyon-custody-service.new."+str(os.getpid()))
@@ -279,7 +323,7 @@ def replace_service_unit()->bool:
         current=os.lstat(SERVICE_PATH)
         if (
             current.st_dev!=old.st_dev or current.st_ino!=old.st_ino or
-            current.st_size!=old.st_size or service_state()!="old_exact"
+            current.st_size!=old.st_size or service_state()!=before_state
         ):hold("service_unit_changed_before_replace")
         os.replace(temp,SERVICE_PATH)
         dfd=os.open(SERVICE_PATH.parent,os.O_RDONLY|getattr(os,"O_DIRECTORY",0))
@@ -321,12 +365,15 @@ def apply_transition(
         if stage=="initial":
             receipt["helper_install_attempted"]=True
             receipt["helper_install_returned_success"]=bool(_install_helper_fn())
-        if stage in ("initial","helper_only"):
+        if stage in ("initial","helper_only","predecessor_ready"):
             receipt["service_unit_replace_attempted"]=True
             receipt["service_unit_replace_returned_success"]=bool(
                 _replace_service_fn()
             )
-        if stage in ("initial","helper_only","new_file_pending_reload"):
+        if stage in (
+            "initial","helper_only","predecessor_ready",
+            "new_file_pending_reload",
+        ):
             receipt["daemon_reload_attempted"]=True
             _reload_fn()
             receipt["daemon_reload_command_succeeded"]=True
@@ -409,6 +456,11 @@ def self_test()->None:
     m=load_manifest()
     assert m["cleanup_blob_sha1"]==HELPER_BLOB
     assert m["new_service_blob_sha1"]==NEW_SERVICE_BLOB
+    assert m["accepted_predecessor_service_blobs"]=={
+        "base":OLD_SERVICE_BLOB,
+        "env4":ENV4_SERVICE_BLOB,
+        "lifecycle":LIFECYCLE_SERVICE_BLOB,
+    }
     assert m["target_blob_sha1"]==TARGET_BLOB
     assert m["exec_stop_post"]==EXPECTED_EXEC_STOP_POST
     assert m["unset_environment"]==list(EXPECTED_UNSET_ENVIRONMENT)
@@ -435,11 +487,54 @@ def self_test()->None:
         "old_exact","exact","old_loaded"
     )["lifecycle_state"]=="helper_only"
     assert classify_lifecycle_state(
+        "lifecycle_exact","exact","predecessor_loaded"
+    )["lifecycle_state"]=="predecessor_ready"
+    assert classify_lifecycle_state(
+        "env4_exact","exact","predecessor_loaded"
+    )["next_action"]=="APPLY_SERVICE_UPGRADE"
+    assert classify_lifecycle_state(
         "new_exact","exact","new_file_pending_reload"
     )["next_action"]=="RESUME_DAEMON_RELOAD"
     assert classify_lifecycle_state(
         "new_exact","exact","new_loaded"
     )["lifecycle_state"]=="complete"
+
+    def loaded_props(
+        *,command:str="",unset:str="",need_reload:str="no"
+    )->dict[str,str]:
+        return {
+            "FragmentPath":str(SERVICE_PATH),
+            "DropInPaths":"",
+            "NeedDaemonReload":need_reload,
+            "RefuseManualStart":"yes",
+            "RefuseManualStop":"yes",
+            "ExecStopPost":command,
+            "UnsetEnvironment":unset,
+        }
+    assert classify_loaded_service(
+        "old_exact",loaded_props()
+    )=="old_loaded"
+    assert classify_loaded_service(
+        "lifecycle_exact",loaded_props(command=EXPECTED_EXEC_STOP_POST)
+    )=="predecessor_loaded"
+    assert classify_loaded_service(
+        "env4_exact",loaded_props(
+            command=EXPECTED_EXEC_STOP_POST,
+            unset=" ".join(ENV4_UNSET_ENVIRONMENT),
+        )
+    )=="predecessor_loaded"
+    assert classify_loaded_service(
+        "new_exact",loaded_props(
+            command=EXPECTED_EXEC_STOP_POST,
+            need_reload="yes",
+        )
+    )=="new_file_pending_reload"
+    assert classify_loaded_service(
+        "new_exact",loaded_props(
+            command=EXPECTED_EXEC_STOP_POST,
+            unset=" ".join(EXPECTED_UNSET_ENVIRONMENT),
+        )
+    )=="new_loaded"
 
     def synthetic_snapshot(state:dict[str,str])->dict[str,str]:
         return {
@@ -471,6 +566,27 @@ def self_test()->None:
         assert exc.receipt["recovery_next_action"]=="RESUME_SERVICE_PUBLICATION"
     else:
         raise AssertionError("synthetic_helper_failure_not_reported")
+
+    state={
+        "service":"lifecycle_exact","helper":"exact",
+        "loaded":"predecessor_loaded",
+    }
+    before=synthetic_snapshot(state)
+    def predecessor_replace_success():
+        state["service"]="new_exact"
+        state["loaded"]="new_file_pending_reload"
+        return True
+    def predecessor_reload_success():
+        state["loaded"]="new_loaded"
+    upgraded=apply_transition(
+        before,
+        _replace_service_fn=predecessor_replace_success,
+        _reload_fn=predecessor_reload_success,
+        _state_fn=lambda:synthetic_snapshot(state),
+    )
+    assert upgraded["lifecycle_state"]=="complete"
+    assert upgraded["service_unit_replace_returned_success"] is True
+    assert upgraded["daemon_reload_command_succeeded"] is True
 
     state={"service":"old_exact","helper":"exact","loaded":"old_loaded"}
     before=synthetic_snapshot(state)
@@ -575,6 +691,8 @@ def self_test()->None:
     print("target_unit_file_state_disabled_required=true")
     print("service_unit_file_state_static_required=true")
     print("manager_environment_influence_unset=true")
+    print("reviewed_predecessor_generations_accepted=true")
+    print("deployed_lifecycle_predecessor_upgrade_proven=true")
     print("resumable_pending_reload_state=true")
     print("truthful_partial_mutation_receipt=true")
     print("failure_injection_after_helper_creation=true")

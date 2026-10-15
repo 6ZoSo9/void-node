@@ -14,8 +14,13 @@ def git_blob(path:Path)->str:
 
 m=json.loads(MANIFEST.read_text())
 assert m["marker"]=="VOID_APOLLYON_CUSTODY_SOCKET_LIFECYCLE_UPDATE_V1"
-assert git_blob(MANIFEST)=="f6860d20ddab53d41ca5f5f9b82b2081b426f514"
+assert git_blob(MANIFEST)=="76c58c05124e726eb1acee7f6841b2a371c5606b"
 assert m["old_service_blob_sha1"]=="6ff5315f3ada3607d86c865742c34d9de3238659"
+assert m["accepted_predecessor_service_blobs"]=={
+    "base":"6ff5315f3ada3607d86c865742c34d9de3238659",
+    "env4":"86ed25003c554dcfe3019e71d5a3a78851fcc50a",
+    "lifecycle":"83f363b331bc2331416fd1c0ca6d52f53371fef0",
+}
 assert m["new_service_blob_sha1"]=="30b7b7c62b6b7834ae91db1eb37df05286ca5764"
 assert m["target_blob_sha1"]=="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 assert m["cleanup_blob_sha1"]=="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"
@@ -28,8 +33,11 @@ assert m["unset_environment"]==[
 
 source=UPDATER.read_text();ast.parse(source)
 for required in (
-    'MANIFEST_BLOB="f6860d20ddab53d41ca5f5f9b82b2081b426f514"',
+    'MANIFEST_BLOB="76c58c05124e726eb1acee7f6841b2a371c5606b"',
     'OLD_SERVICE_BLOB="6ff5315f3ada3607d86c865742c34d9de3238659"',
+    'LIFECYCLE_SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"',
+    'ENV4_SERVICE_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"',
+    'PREDECESSOR_SERVICE_STATES={',
     'NEW_SERVICE_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"',
     'HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
     'unit_not_exactly_dormant:',
@@ -67,6 +75,8 @@ for line in (
     "target_unit_file_state_disabled_required=true",
     "service_unit_file_state_static_required=true",
     "manager_environment_influence_unset=true",
+    "reviewed_predecessor_generations_accepted=true",
+    "deployed_lifecycle_predecessor_upgrade_proven=true",
     "resumable_pending_reload_state=true",
     "truthful_partial_mutation_receipt=true",
     "failure_injection_after_helper_creation=true",
@@ -81,6 +91,8 @@ for line in (
 print("VOID_APOLLYON_CUSTODY_SOCKET_LIFECYCLE_UPDATE_V1_PROOF_GREEN")
 print("target_unit_file_state_disabled_required=true")
 print("service_unit_file_state_static_required=true")
+print("reviewed_predecessor_generations_accepted=true")
+print("deployed_lifecycle_predecessor_upgrade_proven=true")
 print("resumable_pending_reload_state=true")
 print("truthful_partial_mutation_receipt=true")
 print("idempotent_resume_proven=true")

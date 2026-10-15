@@ -11,7 +11,10 @@ to the existing service unit. This removes the reviewed glibc/Node/OpenSSL manag
 The updater requires:
 
 - the stop-propagating activation target exact and loaded/inactive;
-- the custody service exact old or exact new blob and loaded/inactive;
+- the custody service to be one of the exact reviewed predecessor blobs or the
+  exact new blob and loaded/inactive. Reviewed predecessors are base
+  `6ff5315f...`, deployed lifecycle `83f363b3...`, and four-variable
+  environment generation `86ed2500...`; arbitrary bytes still HOLD;
 - target `UnitFileState=disabled` exactly;
 - custody service `UnitFileState=static` exactly;
 - every other target/service unit-file state holds closed; and
@@ -23,9 +26,10 @@ unit when required, performs daemon-reload, and verifies the loaded
 refusal.
 
 The apply path is restart-safe across its own partial publication boundary.
-Plan mode classifies exactly four reviewed states: initial old service/helper
-absent, helper-only publication, new service file pending daemon-reload, and
-complete new loaded generation. A new exact service file with PID1 still holding
+Plan mode classifies the reviewed predecessor generations explicitly. The
+historical base can be initial/helper-only, the installed lifecycle and
+four-variable environment predecessors are `predecessor_ready`, and the new
+generation can be pending daemon-reload or complete. A new exact service file with PID1 still holding
 the exact old generation is therefore a bounded `RESUME_DAEMON_RELOAD` state,
 not a dead-end collision. Any other file/loaded combination still HOLDs.
 
