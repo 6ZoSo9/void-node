@@ -7,6 +7,7 @@ import json
 import os
 import pathlib
 import stat
+import sys
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -27,6 +28,15 @@ PREEXEC_SHA256 = "8963c77f02c83c04c386912525b7c6177a6ef99507c7f85113c8b7c74e245c
 QUERY_BYTES = 34872
 QUERY_SHA256 = "98fb0de18c7e2acc133db38f15036acc8345f503b2dd196cc07193523dd0a435"
 CONFIRM_TOKEN = "INSTALL_ACCEPTED_USER_MANAGER_QUERY_PAIR_CREATE_ONLY_V1"
+FORBIDDEN_APPLY_ENV = (
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "LD_AUDIT",
+    "LD_DEBUG",
+    "GLIBC_TUNABLES",
+    "PYTHONPATH",
+    "PYTHONHOME",
+)
 
 MAX_READ_CHUNK = 1024 * 1024
 
@@ -334,6 +344,8 @@ def plan(preexec: pathlib.Path | None, query: pathlib.Path | None) -> None:
     print("source_only_contract=false")
     print("apply_available=true")
     print("root_required_for_apply=true")
+    print("python_isolated_mode_required_for_apply=true")
+    print("forbidden_loader_environment_required_absent=true")
     print("create_only=true")
     print("target_root=" + str(INSTALL_ROOT))
     print("preexec_target=" + str(PREEXEC_TARGET))
@@ -356,11 +368,20 @@ def plan(preexec: pathlib.Path | None, query: pathlib.Path | None) -> None:
     print("next_action=SEPARATELY_AUTHORIZE_CREATE_ONLY_INSTALL_APPLY")
 
 
+def _require_secure_apply_context() -> None:
+    if sys.flags.isolated != 1:
+        raise InstallError("python_isolated_mode_required_for_apply")
+    present = [name for name in FORBIDDEN_APPLY_ENV if name in os.environ]
+    if present:
+        raise InstallError("forbidden_apply_environment:" + ",".join(present))
+
+
 def apply(preexec: pathlib.Path, query: pathlib.Path, confirm: str) -> None:
     if confirm != CONFIRM_TOKEN:
         raise InstallError("explicit_create_only_confirmation_required")
     if os.geteuid() != 0:
         raise InstallError("root_required_for_apply")
+    _require_secure_apply_context()
 
     preexec_raw, query_raw = inspect_sources(preexec, query)
     _trusted_root_directory(pathlib.Path("/"))
