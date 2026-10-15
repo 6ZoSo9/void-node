@@ -51,6 +51,7 @@ for required in (
     "runtime_process_generation_stable",
     "runtime_http_listener_stable",
     "confirmed_closeout_request_root_status_stable",
+    "v1.run_systemctl",
 ):
     assert required in source, required
 
@@ -73,6 +74,7 @@ for forbidden in (
     "/proc/{pid}/environ",
     "targeted_live_process_request_env",
     "env={**os.environ",
+    "subprocess.run",
 ):
     assert forbidden not in production_source, forbidden
 
