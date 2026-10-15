@@ -97,7 +97,7 @@ assert.ok(
 );
 assert.ok(!source.includes('"--user", "show"'));
 assert.ok(!source.includes("/run/user/%lu/bus"));
-assert.doesNotMatch(source, /"org\\.freedesktop\\.systemd1\\.Unit"\\s*,\\s*"ControlGroup"/u);
+assert.doesNotMatch(source, /"org\.freedesktop\.systemd1\.Unit"\s*,\s*"ControlGroup"/u);
 
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-e2-auth-query-"));
 try{
