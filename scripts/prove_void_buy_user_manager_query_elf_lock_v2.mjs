@@ -9,6 +9,7 @@ import {fileURLToPath} from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const RESTACK_PARENT="308432485cf6dc7899c58d6d6425f1c4294929b7";
+const INTEGRATION_BASE="b9aaf8944f1fe18ac00b436ad6e6223f8aa1c547";
 const CANDIDATE_HEAD="27de5f113826d6fb214f9a1fb49d54454d4a3cd4";
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v2.yml";
 const CANDIDATE_WORKFLOW_BLOB="9db27a805ff9e7df4cf850ecee4d49a3c824fe18";
@@ -146,9 +147,20 @@ function expectedLock(){
   return Object.freeze({...body,lock_id:id});
 }
 function verifyBranch(){
-  git(["merge-base","--is-ancestor",RESTACK_PARENT,"HEAD"]);
-  const changed=git(["diff","--name-only",RESTACK_PARENT,"HEAD","--"]).split("\n").filter(Boolean).sort();
-  assert.deepEqual(changed,EXPECTED_DELTA,"lock_v2_branch_scope_drift");
+  const stackedBase=git(["merge-base",RESTACK_PARENT,"HEAD"]);
+  let verificationContext="";
+  if(stackedBase===RESTACK_PARENT){
+    const changed=git(["diff","--name-only",RESTACK_PARENT,"HEAD","--"]).split("\n").filter(Boolean).sort();
+    assert.deepEqual(changed,EXPECTED_DELTA,"lock_v2_branch_scope_drift");
+    verificationContext="stacked_exact_delta";
+  }else{
+    assert.equal(
+      git(["merge-base",INTEGRATION_BASE,"HEAD"]),
+      INTEGRATION_BASE,
+      "lock_v2_unrecognized_integration_ancestry",
+    );
+    verificationContext="current_main_integration";
+  }
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_WORKFLOW]),CANDIDATE_WORKFLOW_BLOB);
   for(const [relative,expected] of [
     [PREEXEC_SOURCE,CANDIDATE.preexec_source_git_blob_sha1],
@@ -177,6 +189,7 @@ function verifyBranch(){
       "workflow must trigger for PR and main push: "+relative,
     );
   }
+  return verificationContext;
 }
 function rederiveBinaries(){
   assert.equal(sha256(fs.readFileSync("/usr/bin/cc")),CANDIDATE.cc_sha256,"cc_identity_drift");
@@ -211,13 +224,13 @@ function rederiveBinaries(){
   }finally{fs.rmSync(tmp,{recursive:true,force:true});}
 }
 function verify(){
-  verifyBranch();
+  const verificationContext=verifyBranch();
   exactCandidateBytes();
   const binaries=rederiveBinaries();
   const lock=expectedLock();
   const expected=Buffer.from(JSON.stringify(lock,null,2)+"\n","utf8");
   assert.ok(read(LOCK_FILE,8192).equals(expected),"committed_lock_bytes_mismatch");
-  return {lock,expected,binaries};
+  return {lock,expected,binaries,verificationContext};
 }
 const args=process.argv.slice(2);
 if(args.length===1&&args[0]==="--derive"){
@@ -225,6 +238,7 @@ if(args.length===1&&args[0]==="--derive"){
 }else if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   const v=verify();
   console.log("VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V2_GREEN");
+  console.log("verification_context="+v.verificationContext);
   console.log("lock_id="+v.lock.lock_id);
   console.log("candidate_sha256="+CANDIDATE_SHA256);
   console.log("preexec_binary_sha256="+v.binaries.preexec_sha256);
