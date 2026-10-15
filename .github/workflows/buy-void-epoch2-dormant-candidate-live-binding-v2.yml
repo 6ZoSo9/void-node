@@ -1,0 +1,91 @@
+name: Buy VOID Epoch-2 dormant candidate live binding v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-live-binding-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v2.md"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-live-binding-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-live-binding-v2.md"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-dormant-candidate-live-binding-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax and inert binder surfaces
+        run: |
+          set -euo pipefail
+          node --check             ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs
+          node --check             scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs
+          BINDER="$(git show HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs)"
+          printf '%s' "$BINDER" | node --input-type=module - --self-test             | tee "$RUNNER_TEMP/binder-self-test-${{ matrix.node }}.txt"
+          printf '%s' "$BINDER" | node --input-type=module - --plan             | tee "$RUNNER_TEMP/binder-plan-${{ matrix.node }}.txt"
+          grep -Fx             'VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_LIVE_BINDING_V2_SELF_TEST_GREEN'             "$RUNNER_TEMP/binder-self-test-${{ matrix.node }}.txt"
+          grep -Fx 'binder_root_execution_forbidden=true'             "$RUNNER_TEMP/binder-plan-${{ matrix.node }}.txt"
+          grep -Fx 'exact_native_preentry_child_required=true'             "$RUNNER_TEMP/binder-plan-${{ matrix.node }}.txt"
+          grep -Fx 'child_stdin_devnull_required=true'             "$RUNNER_TEMP/binder-plan-${{ matrix.node }}.txt"
+
+      - name: Prove protected dormant candidate binding
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/dormant-candidate-binding-v2-${{ matrix.node }}.txt"
+          node scripts/prove_buy_void_epoch2_dormant_candidate_live_binding_v2.mjs             | tee "$OUT"
+          for marker in             'VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_LIVE_BINDING_V2_PROOF_GREEN'             'binder_unprivileged=true'             'binder_root_execution_forbidden=true'             'binder_git_object_entry_required=true'             'arbitrary_child_receipt_input_accepted=false'             'child_native_preentry_fixed_path_required=true'             'child_stdin_devnull_required=true'             'child_root_stdin_javascript_execution=false'             'child_live_composition_v2_required=true'             'sealed_v2_generation_retention_required=true'             'closing_checkout_revalidation_before_receipt=true'             'systemd_credential_identity_promoted_only_from_protected_child=true'             'active_signing_capability_promoted_only_from_protected_child=true'             'accepted_signer_control_evidence_binding_still_required=true'             'customer_safe_to_pay=false'             'transaction=false'             'payment_acceptance=false'             'public_presale_activation=false'             'wc_void_market_activation=false'             'funds_movement=false'
+          do
+            grep -Fx "$marker" "$OUT"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1)"
