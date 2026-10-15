@@ -16,7 +16,7 @@ export const MARKER =
 export const CONFIRM =
   "RUN_EPOCH2_LIVE_FEE_CHAIN_READ_ONLY_QUALIFICATION_V2";
 export const STATUS =
-  "EPOCH2_LIVE_FEE_CHAIN_QUALIFICATION_GREEN_REMAINING_CANARY_AND_ACTIVATION_HOLD";
+  "EPOCH2_LIVE_ZERO_FEE_CHAIN_QUALIFICATION_GREEN_REMAINING_CANARY_AND_ACTIVATION_HOLD";
 export const NEXT_ACTION =
   "COMPLETE_CURRENT_CHAIN2050_ONE_PAYMENT_ONE_FULFILLMENT_CANARY";
 
@@ -99,7 +99,6 @@ const RPC_ALLOWED=Object.freeze(new Set([
   "qbft_getValidatorsByBlockNumber",
   "eth_getCode",
   "eth_gasPrice",
-  "eth_getBalance",
 ]));
 
 function sha256Bytes(bytes){
@@ -1037,12 +1036,10 @@ export async function observeFeeChainWithTransport(policy,transport,sleepFn){
   }
 
   const maxGasCost=policy.accepted_max_gas_limit*computedMaxFee;
-  const nativeBalance=quantity(
-    await call("eth_getBalance",[FULFILLER,"pending"]),
-    "fulfiller_native_balance",
-  );
-  if(nativeBalance<maxGasCost){
-    throw new Error("fulfiller_native_balance_insufficient");
+  if(computedMaxFee!==0n){
+    throw new Error(
+      "nonzero_fee_requires_per_payment_native_gas_funding"
+    );
   }
 
   const afterBlockRecheck=await call(
@@ -1079,10 +1076,11 @@ export async function observeFeeChainWithTransport(policy,transport,sleepFn){
       policy.max_priority_fee_per_gas_wei.toString(),
     maximum_fee_per_gas_wei:policy.max_fee_per_gas_wei.toString(),
     maximum_gas_cost_wei:maxGasCost.toString(),
-    fulfiller_native_balance_wei:nativeBalance.toString(),
-    native_balance_sufficient:true,
-    zero_fee_envelope:computedMaxFee===0n,
-    nonzero_fee_envelope:computedMaxFee>0n,
+    zero_fee_envelope:true,
+    nonzero_fee_envelope:false,
+    standing_native_gas_balance_used_as_authority:false,
+    per_payment_native_gas_funding_required_for_nonzero_fee:true,
+    native_funding_required_for_qualified_zero_fee_path:false,
     final_block_hash_revalidated:true,
     rpc_methods_used:Object.freeze([...methods]),
   });
@@ -1115,8 +1113,10 @@ function validateObservation(policy,observation){
      observation.token_code_sha256!==TOKEN_CODE_SHA256||
      observation.validators_before_exact!==true||
      observation.validators_after_exact!==true||
-     observation.native_balance_sufficient!==true||
-     observation.final_block_hash_revalidated!==true){
+     observation.final_block_hash_revalidated!==true||
+     observation.standing_native_gas_balance_used_as_authority!==false||
+     observation.per_payment_native_gas_funding_required_for_nonzero_fee!==true||
+     observation.native_funding_required_for_qualified_zero_fee_path!==false){
     throw new Error("fee_chain_observation_not_green");
   }
   const before=decimalBigInt(observation.head_before,"head_before");
@@ -1165,15 +1165,17 @@ function validateObservation(policy,observation){
   if(cost!==policy.accepted_max_gas_limit*computed){
     throw new Error("fee_chain_maximum_gas_cost_invalid");
   }
-  const balance=decimalBigInt(
-    observation.fulfiller_native_balance_wei,
-    "fulfiller_balance",
-  );
-  if(balance<cost)throw new Error("fee_chain_native_balance_invalid");
+  if(computed!==0n||cost!==0n){
+    throw new Error("nonzero_fee_receipt_not_qualified");
+  }
+  if(Object.hasOwn(observation,"fulfiller_native_balance_wei")||
+     Object.hasOwn(observation,"native_balance_sufficient")){
+    throw new Error("standing_native_balance_authority_forbidden");
+  }
 
   const zero=observation.zero_fee_envelope===true;
   const nonzero=observation.nonzero_fee_envelope===true;
-  if(zero===nonzero||zero!==(computed===0n)||nonzero!==(computed>0n)){
+  if(zero!==true||nonzero!==false){
     throw new Error("fee_envelope_classification_invalid");
   }
 }
@@ -1263,10 +1265,13 @@ export function buildReceipt(
     epoch2_presale_contract:PRESALE,
     epoch2_fulfiller_public_address:FULFILLER,
     accepted_fee_policy_bound:true,
-    zero_or_nonzero_fee_envelope_qualified:true,
+    zero_fee_envelope_qualified:true,
+    nonzero_fee_envelope_qualified:false,
+    standing_native_gas_balance_used_as_authority:false,
+    per_payment_native_gas_funding_required_for_nonzero_fee:true,
     exact_chain_history_and_contract_identity_qualified:true,
     accepted_gas_ceiling_bound:true,
-    native_fee_funding_sufficient:true,
+    native_fee_funding_required_for_qualified_path:false,
     descendant_nontransaction_signature_performed:true,
     transaction_calldata_constructed:false,
     nonce_reserved:false,
@@ -1337,7 +1342,9 @@ function plan(){
   console.log("configured_priority_fee_per_gas_wei=0");
   console.log("chain_progress_and_exact_validator_roster_required=true");
   console.log("accepted_history_and_contract_code_identity_required=true");
-  console.log("pending_fulfiller_native_balance_required=true");
+  console.log("standing_native_gas_balance_used_as_authority=false");
+  console.log("zero_fee_path_may_advance_without_native_funding=true");
+  console.log("nonzero_fee_requires_per_payment_native_gas_funding=true");
   console.log("transaction_calldata_constructed=false");
   console.log("nonce_reserved=false");
   console.log("transaction=false");
@@ -1386,7 +1393,9 @@ function selfTest(){
   console.log("credential_signer_control_before_after_chain_window_required=true");
   console.log("credential_signer_control_runtime_generation_stability_required=true");
   console.log("zero_fee_envelope_supported_for_exact_e2_presale=true");
-  console.log("nonzero_fee_envelope_bounded_by_runtime_policy=true");
+  console.log("standing_native_gas_balance_used_as_authority=false");
+  console.log("nonzero_fee_requires_per_payment_native_gas_funding=true");
+  console.log("nonzero_fee_path_qualified=false");
   console.log("fresh_rpc_host_service_container_listener_binding_required=true");
   console.log("historical_runtime_observation_sufficient_without_fresh_revalidation=false");
   console.log("transaction_calldata_constructed=false");
