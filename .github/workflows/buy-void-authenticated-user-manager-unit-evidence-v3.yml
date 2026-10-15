@@ -27,121 +27,43 @@ permissions:
   contents: read
 
 jobs:
-  prove:
+  generation-dispatch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [22, 24, 26]
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: ${{ matrix.node }}
-      - name: Compile and self-test same-FD private unit query
+      - name: Enforce closed V1 generation
         run: |
           set -euo pipefail
-          query="$RUNNER_TEMP/private-unit-query"
-          marker='VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1'
-          gcc -O2 -Wall -Wextra -Werror -std=c11 \
-            ops/precision/void_buy_void_user_manager_private_unit_query_v1.c \
-            -ldl -o "$query"
+          query=ops/precision/void_buy_void_user_manager_private_unit_query_v1.c
+          peer=ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c
+          v2_lock=ops/security/buy-void-user-manager-query-elf-lock-v2.json
+          v4_parser=tools/void-buy-allocation-custody-host-evidence-v4.mjs
 
-          if "$query" --self-test >"$RUNNER_TEMP/unsanitized.log" 2>&1; then
-            echo "unsanitized query unexpectedly succeeded" >&2
-            exit 1
-          fi
-          grep -Fx 'reason=sanitized_loader_environment_required' "$RUNNER_TEMP/unsanitized.log"
+          current_query_blob="$(git hash-object "$query")"
+          case "$current_query_blob" in
+            5355b7f177574ac4fa173a693605acaf9c5f26e4)
+              ;;
+            ad49cd7f71c41e0f559a561b5a62a00cec60c215)
+              echo "historical V1 query source was reintroduced; restore/review the historical workflow deliberately" >&2
+              exit 2
+              ;;
+            *)
+              echo "unknown authenticated-query source generation: $current_query_blob" >&2
+              exit 2
+              ;;
+          esac
 
-          /usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C "$marker" \
-            "$query" --self-test |
-            tee "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'libsystemd_runtime_symbols_available=true' "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'sanitized_loader_environment=true' "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'libsystemd_fixed_soname_path=/usr/lib/x86_64-linux-gnu/libsystemd.so.0' "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'libsystemd_retained_fd_load=true' "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'libsystemd_symbol_provenance_verified=true' "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'sd_bus_set_fd_same_connection_required=true' "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'direct_peer_mode_required=true' "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'public_user_bus_used=false' "$RUNNER_TEMP/private-unit-query.log"
-          grep -Fx 'host_mutation=false' "$RUNNER_TEMP/private-unit-query.log"
+          test "$(git hash-object "$peer")" = d8b30ac499c3bb8a5d223dbc6be687dd175be611
+          grep -Fq '#define MARKER "VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V2"' "$query"
+          grep -Fq '"private_users_false_required": true' "$v2_lock"
+          grep -Fq 'voidbuyumqelflock2_c643213ce46d6f2b4dfe04675a7fbbcaad2b6aea40418cb921586362a054f474' "$v2_lock"
+          grep -Fq 'VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V4' "$v4_parser"
 
-          fake="$RUNNER_TEMP/fake-systemd"
-          mkdir "$fake"
-          printf '%s\n' 'int void_fake_systemd(void){return 0;}' > "$fake/fake.c"
-          gcc -shared -fPIC "$fake/fake.c" -o "$fake/libsystemd.so.0"
-          if VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
-               LD_LIBRARY_PATH="$fake" "$query" --self-test \
-               >"$RUNNER_TEMP/search-poison.log" 2>&1; then
-            echo "ambient LD_LIBRARY_PATH unexpectedly admitted" >&2
-            exit 1
-          fi
-          grep -Fx 'reason=sanitized_loader_environment_required' "$RUNNER_TEMP/search-poison.log"
-          LD_LIBRARY_PATH="$fake" /usr/bin/env -i \
-            PATH=/usr/bin:/bin LANG=C LC_ALL=C "$marker" \
-            "$query" --self-test > "$RUNNER_TEMP/search-sanitized.log"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/search-sanitized.log"
-
-          cat > "$fake/preload.c" <<'C'
-          #define _GNU_SOURCE
-          #include <fcntl.h>
-          #include <string.h>
-          #include <unistd.h>
-          #ifndef SENTINEL_PATH
-          #error SENTINEL_PATH required
-          #endif
-          __attribute__((constructor))
-          static void poison_query(void){
-            char exe[4096];
-            ssize_t n=readlink("/proc/self/exe",exe,sizeof(exe)-1);
-            if(n<=0)return;
-            exe[n]='\0';
-            if(strstr(exe,"private-unit-query")==NULL)return;
-            int fd=open(SENTINEL_PATH,O_WRONLY|O_CREAT|O_TRUNC,0600);
-            if(fd>=0){(void)write(fd,"x",1);close(fd);}
-          }
-          C
-          sentinel="$RUNNER_TEMP/preload-fired"
-          gcc -shared -fPIC \
-            -DSENTINEL_PATH="\"$sentinel\"" \
-            "$fake/preload.c" -o "$fake/preload.so"
-          rm -f "$sentinel"
-          if VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1 \
-               LD_PRELOAD="$fake/preload.so" "$query" --self-test \
-               >"$RUNNER_TEMP/preload-poison.log" 2>&1; then
-            echo "ambient LD_PRELOAD unexpectedly admitted" >&2
-            exit 1
-          fi
-          test -s "$sentinel"
-          grep -Fx 'reason=sanitized_loader_environment_required' "$RUNNER_TEMP/preload-poison.log"
-          rm -f "$sentinel"
-          LD_PRELOAD="$fake/preload.so" /usr/bin/env -i \
-            PATH=/usr/bin:/bin LANG=C LC_ALL=C "$marker" \
-            "$query" --self-test > "$RUNNER_TEMP/preload-sanitized.log"
-          test ! -e "$sentinel"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/preload-sanitized.log"
-      - name: Prove authenticated adapter composition
-        run: |
-          set -euo pipefail
-          node scripts/prove_void_buy_void_user_manager_private_peer_guard_v1.mjs
-          node scripts/prove_void_buy_allocation_custody_host_evidence_v3.mjs |
-            tee "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V3_PROOF_GREEN' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'manager_peer_authenticated=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'same_authenticated_connection_unit_query=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'sanitized_loader_environment=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'libsystemd_fixed_path_verified=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'libsystemd_retained_fd_load=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'libsystemd_symbol_provenance_verified=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'runtime_user_manager_identity_verified=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'runtime_user_manager_cgroup_bound=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'runtime_main_pid_kernel_bound=true' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'complete_host_evidence_collector=false' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/custody-host-v3.log"
-          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/custody-host-v3.log"
-      - run: git diff --check
+          echo 'VOID_BUY_AUTHENTICATED_USER_MANAGER_EVIDENCE_V3_SUPERSEDED_BY_V4_GREEN'
+          echo 'historical_v1_active=false'
+          echo 'final_v2_query_generation_bound=true'
+          echo 'unknown_generation_fails_closed=true'
