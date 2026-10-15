@@ -37,10 +37,12 @@ The planner has exactly three accepted states:
 - `new_exact` on disk plus the exact loaded stop-propagation contract ->
   `already_exact`.
 
-The reload-only state performs **no target-file rewrite**. It runs only
-`systemctl daemon-reload`, then rechecks that both units remain inactive and
-that the loaded target has exactly the custody service in both `Wants=` and
-`PropagatesStopTo=`.
+The reload-only state performs **no target-file rewrite**. Before asking systemd
+to reload, the updater revalidates that the installed target is still the exact
+reviewed `new_exact` generation. It revalidates the target bytes again after the
+manager recheck and before success. It then requires both units to remain
+inactive and the loaded target to have exactly the custody service in both
+`Wants=` and `PropagatesStopTo=`.
 
 This deliberately does not treat an arbitrary stale manager view as recoverable.
 Extra loaded `Wants=` dependencies, a different/nonempty
