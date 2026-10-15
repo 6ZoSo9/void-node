@@ -152,6 +152,20 @@ assert.equal(validatedAppend.round_trip_witness_bytes_verified,true);
 assert.equal(validatedAppend.external_transport_authenticated,false);
 assert.equal(validatedAppend.external_witness_storage_proven,false);
 
+const retryResponse=buildVoidBuyVoidLegacyHistoryNimoServerResponseV1({
+  policy,request_json:append.request_json,
+  observed_witness_jsonl:server.next_witness_jsonl,
+  operation_performed:false,
+});
+assert.equal(retryResponse.ok,true);
+if(!retryResponse.ok)throw Error("retry response held");
+assert.equal(retryResponse.response.status,"idempotent");
+assert.equal(retryResponse.response.operation_performed,false);
+const validatedRetry=validateVoidBuyVoidLegacyHistoryNimoResponseV1({
+  policy,request_json:append.request_json,response_json:retryResponse.response_json,
+});
+assert.equal(validatedRetry.ok,true);
+
 const read=buildVoidBuyVoidLegacyHistoryNimoReadRequestV1({
   policy,challenge_sha256:"sha256:"+"5".repeat(64),
 });
@@ -215,6 +229,7 @@ for(const [key,expected] of Object.entries({
   server_replans_signed_authorization_against_current_witness:true,
   append_compare_and_swap_required:true,
   round_trip_witness_bytes_returned:true,
+  crash_retry_idempotent_response_supported:true,
   challenge_bound_request_response:true,
   policy_hash_bound_request_response:true,
   canonical_request_response_bytes:true,
@@ -237,6 +252,7 @@ console.log("server_replans_signed_authorization=true");
 console.log("arbitrary_append_bytes_from_client=false");
 console.log("append_compare_and_swap_required=true");
 console.log("round_trip_witness_bytes_verified=true");
+console.log("crash_retry_idempotent_response_supported=true");
 console.log("network_access=false");
 console.log("ssh_execution=false");
 console.log("external_transport_authenticated=false");
