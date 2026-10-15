@@ -15,13 +15,17 @@ const PEER=
   "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c";
 const PREEXEC=
   "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c";
+const V6_LOCK=
+  "ops/security/buy-void-user-manager-query-elf-lock-v6.json";
 const SEALED=
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v1.mjs";
 
 const EXPECTED=Object.freeze({
-  query:"ddca2c544ce14261dffb80a202c0a4ae2979ec1e",
+  query:"fc1f640689b7da7278ff013669ef8a10cd8f6659",
   peer:"d8b30ac499c3bb8a5d223dbc6be687dd175be611",
   preexec:"f0fbfaae97df3294097a281100f06ada2ef157ff",
+  v6Lock:"0cda9daecb2aa294f0a10041d81be7673705f1d8",
+  v6LockId:"voidbuyumqelflock6_3526916b76e015ad2860be8f207b39013a9c4d71218b500620383a59ff893aa6",
 });
 
 function run(command,args,{env=process.env,timeout=120000}={}){
@@ -59,6 +63,29 @@ function git(args){
 assert.equal(git(["rev-parse","HEAD:"+QUERY]),EXPECTED.query);
 assert.equal(git(["rev-parse","HEAD:"+PEER]),EXPECTED.peer);
 assert.equal(git(["rev-parse","HEAD:"+PREEXEC]),EXPECTED.preexec);
+assert.equal(git(["rev-parse","HEAD:"+V6_LOCK]),EXPECTED.v6Lock);
+
+const v6Lock=JSON.parse(fs.readFileSync(path.join(ROOT,V6_LOCK),"utf8"));
+assert.equal(v6Lock.marker,"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V6");
+assert.equal(v6Lock.version,6);
+assert.equal(v6Lock.lock_id,EXPECTED.v6LockId);
+assert.equal(v6Lock.candidate_accepted,true);
+assert.equal(v6Lock.install_authorized,false);
+assert.equal(v6Lock.live_query_authorized,false);
+assert.equal(v6Lock.production_host_evidence_authority,false);
+assert.equal(v6Lock.kernel_capability_state_bound,true);
+assert.equal(v6Lock.configured_kernel_bounding_set_projection_required,true);
+assert.equal(v6Lock.private_users_false_required,true);
+assert.equal(
+  v6Lock.candidate_evidence.query_source_git_blob_sha1,
+  EXPECTED.query,
+);
+assert.equal(
+  v6Lock.superseded_v5_hosted_evidence.source_git_blob_sha1,
+  "ddca2c544ce14261dffb80a202c0a4ae2979ec1e",
+);
+assert.equal(v6Lock.superseded_v5_hosted_evidence.never_installed,true);
+assert.equal(v6Lock.superseded_v5_hosted_evidence.superseded_by_live_v6,true);
 
 const source=fs.readFileSync(path.join(ROOT,SOURCE),"utf8");
 const sealed=fs.readFileSync(path.join(ROOT,SEALED),"utf8");
@@ -134,7 +161,7 @@ try{
   for(const line of [
     "VOID_BUY_VOID_USER_MANAGER_PRIVATE_CREDENTIAL_UNIT_QUERY_V1_SELF_TEST_GREEN",
     "accepted_v4_peer_guard_embedded=true",
-    "accepted_v5_unit_query_pinned_as_integration_peer=true",
+    "accepted_v6_unit_query_pinned_as_integration_peer=true",
     "systemd_private_socket_required=true",
     "public_user_bus_used=false",
     "need_daemon_reload_queried_same_connection=true",
@@ -158,7 +185,10 @@ try{
   ]) assert.ok(self.stdout.split("\n").includes(line),line);
 
   console.log("VOID_BUY_VOID_USER_MANAGER_PRIVATE_CREDENTIAL_UNIT_QUERY_V1_PROOF_GREEN");
-  console.log("accepted_v5_query_git_blob_sha1="+EXPECTED.query);
+  console.log("accepted_v6_query_git_blob_sha1="+EXPECTED.query);
+  console.log("accepted_v6_lock_git_blob_sha1="+EXPECTED.v6Lock);
+  console.log("accepted_v6_lock_id="+EXPECTED.v6LockId);
+  console.log("accepted_v6_query_lock_bound=true");
   console.log("accepted_peer_guard_git_blob_sha1="+EXPECTED.peer);
   console.log("accepted_preexec_git_blob_sha1="+EXPECTED.preexec);
   console.log("credential_effective_properties_same_authenticated_connection=true");
