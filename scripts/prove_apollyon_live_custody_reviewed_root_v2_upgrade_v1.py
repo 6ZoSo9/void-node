@@ -16,7 +16,7 @@ assert git_blob(MANIFEST)=="aa8e559f9644afd6be74ed597ffa446c0881bf0f"
 assert manifest["from"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v1"
 assert manifest["to"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v2"
 assert manifest["from"]["fixed_launcher_blob_sha1"]=="e18124d3109ed63ff50da9c467fb1b798c300460"
-assert manifest["to"]["fixed_launcher_blob_sha1"]=="30958f317c975cb28d7cc15427715775e36c3081"
+assert manifest["to"]["fixed_launcher_blob_sha1"]=="9fdf91ed5c5df8d5ae6973ec40ae933a1111a529"
 assert manifest["to"]["systemd_reviewed_versions"]==["255.4-1ubuntu8.11","255.4-1ubuntu8.18"]
 assert manifest["authority"]["service_action"] is False
 assert manifest["authority"]["training_execution"] is False
@@ -29,7 +29,7 @@ for required in (
     'OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")',
     'NEW_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")',
     'OLD_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"',
-    'NEW_LAUNCHER_BLOB="30958f317c975cb28d7cc15427715775e36c3081"',
+    'NEW_LAUNCHER_BLOB="9fdf91ed5c5df8d5ae6973ec40ae933a1111a529"',
     "verify_tree(OLD_ROOT,manifest[\"from\"][\"closure\"])",
     "verify_tree(NEW_ROOT,manifest[\"to\"][\"closure\"])",
     "os.replace(temp,FIXED_LAUNCHER)",

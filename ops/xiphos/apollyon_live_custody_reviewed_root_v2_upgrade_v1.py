@@ -25,7 +25,7 @@ FIXED_LAUNCHER=Path(
 )
 LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
 OLD_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"
-NEW_LAUNCHER_BLOB="30958f317c975cb28d7cc15427715775e36c3081"
+NEW_LAUNCHER_BLOB="9fdf91ed5c5df8d5ae6973ec40ae933a1111a529"
 CUSTODY_UNIT="void-apollyon-authorization-custody-v1.service"
 TRAINING_UNIT="void-apollyon-training-bus-isolation-v1.service"
 
