@@ -537,10 +537,15 @@ function selfTest(){
   }
   const forged=structuredClone(child);
   forged.payment_acceptance=true;
+  let forgedRejected=false;
   try{
     buildBindingReceipt("a".repeat(40),candidate,forged);
   }catch(error){
+    forgedRejected=true;
     if(error instanceof Error)void error.message;
+  }
+  if(!forgedRejected){
+    throw new Error("authority_overclaimed_child_receipt_accepted");
   }
   console.log(MARKER+"_SELF_TEST_GREEN");
   console.log("arbitrary_child_receipt_input_accepted=false");
