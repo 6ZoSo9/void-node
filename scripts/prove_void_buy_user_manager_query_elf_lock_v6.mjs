@@ -185,7 +185,19 @@ function verifyBranch(){
   git(["merge-base","--is-ancestor",CANDIDATE_HEAD,"HEAD"]);
   git(["merge-base","--is-ancestor",SOURCE_PARENT,"HEAD"]);
   git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,"HEAD"]);
-  const changed=git(["diff","--name-only",CORRECTION_BASE_HEAD,"HEAD","--"])
+
+  const lineage=git(["rev-list","--parents","-n","1","HEAD"])
+    .split(/\s+/u).filter(Boolean);
+  assert.ok(lineage.length===2||lineage.length===3,"unexpected_head_parent_count");
+  let scopeBase=CORRECTION_BASE_HEAD;
+  if(lineage.length===3){
+    const firstParent=lineage[1];
+    const secondParent=lineage[2];
+    git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,firstParent]);
+    git(["merge-base","--is-ancestor",CORRECTION_BASE_HEAD,secondParent]);
+    scopeBase=firstParent;
+  }
+  const changed=git(["diff","--name-only",scopeBase,"HEAD","--"])
     .split("\n").filter(Boolean).sort();
   assert.deepEqual(
     changed,
