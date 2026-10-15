@@ -51,8 +51,8 @@ const cgroupLine=
 const testAddress=(()=>{
   const hash=crypto.createHash("sha256").update(uncompressed).digest("hex");
   assert.equal(hash.length,64);
-  const key=crypto.createPublicKey(publicObject);
-  const exported=key.export({format:"jwk"});
+  assert.equal(publicObject.type,"public");
+  const exported=publicObject.export({format:"jwk"});
   const xx=Buffer.from(String(exported.x||""),"base64url");
   const yy=Buffer.from(String(exported.y||""),"base64url");
   const raw=Buffer.concat([Buffer.from([4]),xx,yy]);
