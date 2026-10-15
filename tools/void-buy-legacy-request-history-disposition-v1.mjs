@@ -64,6 +64,39 @@ const INPUT_KEYS=Object.freeze([
   "operator_id",
   "reviewed_at_utc",
 ]);
+const CENSUS_KEYS=Object.freeze([
+  "marker","version","read_only",
+  "designated_hostname_matches","designated_runtime_user_matches","effective_uid",
+  "designated_machine_id_matches","service",
+  "process_environment_access","external_network_calls","loopback_get_only",
+  "runtime_process_generation_stable","runtime_http_listener_stable",
+  "confirmed_closeout_request_root_status",
+  "confirmed_closeout_request_root_status_stable",
+  "immutable_release_count","immutable_release_inventory_complete",
+  "immutable_release_inventory_stable","candidate_observations_stable",
+  "candidate_set_completeness_proven","bounded_current_candidate_set_observed",
+  "candidate_count","candidates","historical_candidate_count",
+  "surviving_history_metadata_root_count","surviving_history_metadata_roots",
+  "unverified_root_count","unverified_roots",
+  "empty_shape_external_anchor_required_count",
+  "empty_shape_external_anchor_required_roots","absent_root_count",
+  "historical_request_history_disposition_proven","historical_origin_authenticated",
+  "filesystem_rollback_prevention_proven","migration_authorized",
+  "request_or_payment_contents_read","directory_entry_names_output",
+  "host_mutation","payment_acceptance","public_presale_activation",
+  "funds_movement","production_gate_ready","next_action",
+]);
+const SERVICE_KEYS=Object.freeze([
+  "status","load_state","active_state","sub_state","main_pid",
+  "working_directory","live_process_cwd",
+]);
+const STATUS_KEYS=Object.freeze(["observed","source","request_dir"]);
+const CANDIDATE_KEYS=Object.freeze([
+  "path","sources","metadata","symlink_ancestor_observed",
+  "directory_enumerated_for_count_only","directory_entry_names_output",
+  "request_or_payment_contents_read","direct_entry_count",
+  "other_direct_entry_count","fixed_journals","classification",
+]);
 
 function fail(code){throw new Error(code);}
 function exactObject(value,keys,code){
@@ -121,11 +154,51 @@ function deriveCensus(raw,sourceHead){
   if(!census||typeof census!=="object"||Array.isArray(census)){
     fail("legacy_history_disposition_census_shape_invalid");
   }
+  exactObject(
+    census,
+    CENSUS_KEYS,
+    "legacy_history_disposition_census_top_level_shape_invalid",
+  );
   if(canonical(census)!==raw){
     fail("legacy_history_disposition_census_json_noncanonical");
   }
   if(census.marker!==PARENT.marker||census.version!==PARENT.version){
     fail("legacy_history_disposition_census_identity_invalid");
+  }
+  if(census.effective_uid!==1000){
+    fail("legacy_history_disposition_effective_uid_invalid");
+  }
+  const service=exactObject(
+    census.service,
+    SERVICE_KEYS,
+    "legacy_history_disposition_service_shape_invalid",
+  );
+  if(
+    service.status!==0||
+    service.load_state!=="loaded"||
+    service.active_state!=="active"||
+    service.sub_state!=="running"||
+    !Number.isSafeInteger(service.main_pid)||
+    service.main_pid<=1||
+    typeof service.working_directory!=="string"||
+    !service.working_directory.startsWith("/")||
+    typeof service.live_process_cwd!=="string"||
+    !service.live_process_cwd.startsWith("/")
+  ){
+    fail("legacy_history_disposition_service_state_invalid");
+  }
+  const requestStatus=exactObject(
+    census.confirmed_closeout_request_root_status,
+    STATUS_KEYS,
+    "legacy_history_disposition_request_status_shape_invalid",
+  );
+  if(
+    requestStatus.observed!==true||
+    !["server_default","VOID_BUY_REQUEST_DIR"].includes(requestStatus.source)||
+    typeof requestStatus.request_dir!=="string"||
+    !requestStatus.request_dir.startsWith("/")
+  ){
+    fail("legacy_history_disposition_request_status_invalid");
   }
   requireBool(census.read_only,true,"legacy_history_disposition_census_not_read_only");
   requireBool(census.designated_hostname_matches,true,
@@ -165,6 +238,14 @@ function deriveCensus(raw,sourceHead){
   requireBool(census.production_gate_ready,false,
     "legacy_history_disposition_census_authority_invalid");
 
+  if(!Number.isSafeInteger(census.immutable_release_count)||
+     census.immutable_release_count<0||
+     census.immutable_release_count>1000000){
+    fail("legacy_history_disposition_release_count_invalid");
+  }
+  if(typeof census.immutable_release_inventory_complete!=="boolean"){
+    fail("legacy_history_disposition_release_inventory_complete_invalid");
+  }
   for(const key of [
     "runtime_process_generation_stable",
     "runtime_http_listener_stable",
@@ -200,9 +281,19 @@ function deriveCensus(raw,sourceHead){
   const paths=new Set();
   const historical=[];
   for(const row of census.candidates){
-    if(!row||typeof row!=="object"||Array.isArray(row)||
-       typeof row.path!=="string"||row.path.length===0||
-       typeof row.classification!=="string"){
+    if(!row||typeof row!=="object"||Array.isArray(row)){
+      fail("legacy_history_disposition_candidate_row_invalid");
+    }
+    exactObject(
+      row,
+      CANDIDATE_KEYS,
+      "legacy_history_disposition_candidate_row_shape_invalid",
+    );
+    if(typeof row.path!=="string"||!row.path.startsWith("/")||
+       typeof row.classification!=="string"||
+       !row.metadata||typeof row.metadata!=="object"||Array.isArray(row.metadata)||
+       !row.fixed_journals||typeof row.fixed_journals!=="object"||
+       Array.isArray(row.fixed_journals)){
       fail("legacy_history_disposition_candidate_row_invalid");
     }
     const sources=requireStringArray(
@@ -267,6 +358,13 @@ function deriveCensus(raw,sourceHead){
     emptyShape,
     "legacy_history_disposition_empty_roots_mismatch",
   );
+  const expectedNextAction=
+    surviving.length>0||unverified.length>0
+      ?"REVIEW_SURVIVING_HISTORY_BEFORE_DISPOSITION"
+      :"EXPLICIT_LEGACY_HISTORY_DISPOSITION_AND_EXTERNAL_WITNESS_REQUIRED";
+  if(census.next_action!==expectedNextAction){
+    fail("legacy_history_disposition_next_action_mismatch");
+  }
 
   return Object.freeze({
     census,
