@@ -168,22 +168,34 @@ function requireDelegatedPrivateNamespace() {
     "delegated proof must run as the original unprivileged uid",
   );
 
-  const parentExe = fs.realpathSync.native(
-    "/proc/" + String(process.ppid) + "/exe",
-  );
-  assert.equal(
-    parentExe,
-    "/usr/bin/unshare",
-    "delegated proof parent must be fixed /usr/bin/unshare",
-  );
-  const parentStatus = fs.readFileSync(
-    "/proc/" + String(process.ppid) + "/status",
-    "utf8",
+  const parentRoot = "/proc/" + String(process.ppid);
+  for (const target of [parentRoot, parentRoot + "/status", parentRoot + "/cmdline"]) {
+    const statfs = fs.statfsSync(target, { bigint: true });
+    assert.equal(
+      statfs.type,
+      PROC_SUPER_MAGIC,
+      target + " must be backed by genuine procfs",
+    );
+  }
+  const parentStatus = fs.readFileSync(parentRoot + "/status", "utf8");
+  assert.match(
+    parentStatus,
+    /^Name:\s+unshare\s*$/mu,
+    "delegated proof parent process name must be unshare",
   );
   assert.match(
     parentStatus,
     /^Uid:\s+0\s+0\s+0\s+0\s*$/mu,
     "delegated unshare parent must remain root",
+  );
+  const parentArgv = fs.readFileSync(parentRoot + "/cmdline")
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean);
+  assert.deepEqual(
+    parentArgv.slice(0, 4),
+    ["/usr/bin/unshare", "--mount", "--fork", "/usr/bin/bash"],
+    "delegated parent launch argv must match fixed unshare boundary",
   );
 
   const selfMountNs = fs.statSync("/proc/self/ns/mnt", { bigint: true });
@@ -1232,6 +1244,7 @@ console.log("root_bootstrap_traversable_mode_0755=true");
 console.log("same_uid_bootstrap_replacement_blocked=true");
 console.log("host_fixed_mountpoints_preflight_read_only=true");
 console.log("delegated_namespace_kernel_state_verified=true");
+console.log("delegated_parent_launch_identity_verified=true");
 console.log("delegated_procfs_provenance_verified=true");
 console.log("delegated_mount_topology_asymmetric=true");
 console.log("caller_controlled_ci_flags_authorize_opt_mutation=false");
