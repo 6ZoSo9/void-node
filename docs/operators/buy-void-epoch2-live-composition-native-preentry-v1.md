@@ -142,6 +142,15 @@ A second \`/dev/null\` invocation must pass the stdin gate and fail at the next
 missing protected-policy gate. This proves the negative is specifically the
 stdin provenance boundary rather than a generic argument failure.
 
+## Static first instruction
+
+The accepted native preentry build must be statically linked and have no
+`PT_INTERP`. Hosted proof compiles a dynamic control plus an `LD_PRELOAD`
+constructor and requires that constructor to execute for the dynamic control
+but remain absent when the native preentry self-test runs under the same hostile
+environment. This closes the loader-before-`main()` ambiguity at the privileged
+first instruction without changing the runner or native source blobs.
+
 ## Authority boundary
 
 This PR is source/proof/docs/CI only.
