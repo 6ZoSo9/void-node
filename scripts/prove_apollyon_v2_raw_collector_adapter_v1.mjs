@@ -20,7 +20,7 @@ assert.equal(
   gitBlob(fs.readFileSync(
     path.join(ROOT,"ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"),
   )),
-  "676c41dc5cdaea88135611190901ec24edad95a4",
+  "2a285b5b1da2597a8b9eae6d08cd42d010bf7f71",
 );
 
 const args=buildApollyonV2RawCollectorArgsV1({
@@ -113,7 +113,7 @@ const source=fs.readFileSync(
   path.join(ROOT,"tools/apollyon-v2-raw-collector-adapter-v1.mjs"),"utf8",
 );
 for(const required of [
-  'COLLECTOR_BLOB_SHA1="676c41dc5cdaea88135611190901ec24edad95a4"',
+  'COLLECTOR_BLOB_SHA1="2a285b5b1da2597a8b9eae6d08cd42d010bf7f71"',
   '"/proc/self/fd/4"',
   '"-I","-B","/proc/self/fd/3"',
   "O_NOFOLLOW",
