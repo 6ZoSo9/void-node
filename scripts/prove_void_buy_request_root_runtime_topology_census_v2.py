@@ -70,11 +70,15 @@ assert module.EXPECTED_MACHINE_ID_SHA256 == (
     "11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2"
 )
 assert module.AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED is False
+assert module.authenticated_live_binding(True, False) is False
+assert module.authenticated_live_binding(False, True) is False
+assert module.authenticated_live_binding(True, True) is True
 
 source = TARGET.read_text(encoding="utf-8")
 for required in (
     "target_live_binding_qualified",
     "authenticated_user_manager_binding_verified",
+    "authenticated_live_binding",
     "unauthenticated_runtime_candidate_observed",
     "AUTHENTICATED_USER_MANAGER_BINDING_REQUIRED",
     "target_metadata_generation_stable",
