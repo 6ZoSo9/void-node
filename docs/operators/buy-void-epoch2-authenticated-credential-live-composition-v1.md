@@ -62,11 +62,16 @@ The root parent never receives private-key bytes. The sealed child:
 
 The runner performs:
 
-1. authenticated credential/V6 qualification;
-2. sealed Git-object signing probe;
-3. authenticated credential/V6 qualification again.
+1. exact clean-main checkout validation;
+2. authenticated credential/V6 qualification;
+3. sealed Git-object signing probe;
+4. authenticated credential/V6 qualification again;
+5. exact clean-main checkout validation again after all sensitive observations
+   and before receipt construction.
 
-The two qualification records must be byte-canonically identical.
+The two qualification records must be byte-canonically identical, and the
+source/worktree generation must remain exact across the entire sensitive
+window.
 
 The sealed record must agree with the authenticated qualification on:
 - MainPID;
