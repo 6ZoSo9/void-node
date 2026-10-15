@@ -1,0 +1,98 @@
+name: VOID Buy authenticated user-manager live query qualification v6
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
+      - "scripts/prove_void_buy_void_user_manager_query_live_qualification_v6.py"
+      - "docs/operators/buy-void-user-manager-query-live-qualification-v6.md"
+      - ".github/workflows/buy-void-user-manager-query-live-qualification-v6.yml"
+      - "ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
+      - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
+      - "scripts/prove_void_buy_void_user_manager_query_live_qualification_v6.py"
+      - "docs/operators/buy-void-user-manager-query-live-qualification-v6.md"
+      - ".github/workflows/buy-void-user-manager-query-live-qualification-v6.yml"
+      - "ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
+      - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Syntax check without bytecode writes
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py",
+              "scripts/prove_void_buy_void_user_manager_query_live_qualification_v6.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_USER_MANAGER_QUERY_LIVE_QUALIFICATION_V6_SYNTAX_GREEN")
+          PY
+
+      - name: Run V6 qualifier self-test
+        run: |
+          set -euo pipefail
+          python3 -I -B             ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py             --self-test | tee "$RUNNER_TEMP/qual-v6-self.log"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_LIVE_QUALIFICATION_V6_SELF_TEST_GREEN'             "$RUNNER_TEMP/qual-v6-self.log"
+
+      - name: Prove V6 qualification source
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_void_buy_void_user_manager_query_live_qualification_v6.py |
+            tee "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_LIVE_QUALIFICATION_V6_PROOF_GREEN' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'corrected_v6_lock_bound=true' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'protected_v6_generation_required=true' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'v1_predecessor_required=true' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'v2_predecessor_required=true' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'double_authenticated_query_required=true' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'cap_last_cap_projection_contract_required=true' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'kernel_cap_last_cap_runtime_read_required=true' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'query_execution_in_plan=false' "$RUNNER_TEMP/qual-v6-proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/qual-v6-proof.log"
+
+      - name: Prove inert qualification plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/qual-v6-plan.log"
+          python3 -I -B             ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py             --plan | tee "$out"
+          grep -Fx 'protected_v6_generation_verification_required=true' "$out"
+          grep -Fx 'v1_predecessor_verification_required=true' "$out"
+          grep -Fx 'v2_predecessor_verification_required=true' "$out"
+          grep -Fx 'double_authenticated_query_required=true' "$out"
+          grep -Fx 'cap_last_cap_projection_contract_required=true' "$out"
+          grep -Fx 'kernel_cap_last_cap_runtime_read_required=true' "$out"
+          grep -Fx 'query_execution=false' "$out"
+          grep -Fx 'host_mutation=false' "$out"
+          grep -Fx 'filesystem_write=false' "$out"
+          grep -Fx 'service_mutation=false' "$out"
+          grep -Fx 'systemd_mutation=false' "$out"
+          grep -Fx 'production_host_evidence_authority=false' "$out"
+          grep -Fx 'next_action=SEPARATELY_AUTHORIZE_V6_READ_ONLY_LIVE_QUALIFICATION' "$out"
+
+      - run: git diff --check
