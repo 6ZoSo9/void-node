@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,6 +48,10 @@ assert record["runtime_candidate"]["candidate_id"] == module.CANDIDATE_ID
 assert record["runtime_candidate"]["sha256"] == module.CANDIDATE_SHA256
 assert record["runtime_candidate"]["runtime_file_count"] == 10
 assert len(record["runtime_files"]) == 10
+assert record["runtime_files"] == sorted(
+    (dict(row) for row in module.EXPECTED_RUNTIME_RECORDS),
+    key=lambda row: row["path"],
+)
 assert record["authority"]["archive_candidate_accepted"] is False
 assert record["authority"]["immutable_root_install"] is False
 assert record["authority"]["existing_target_replaced"] is False
@@ -94,12 +101,43 @@ with tempfile.TemporaryDirectory(
     else:
         raise AssertionError("trailing archive bytes were accepted")
 
+    # Reproduce the independent-inspector adversary: keep the accepted aggregate
+    # candidate ID but substitute one payload and recompute a self-consistent
+    # manifest/archive around that substituted file. The inspector must reject
+    # before the forged archive can inherit the accepted runtime identity.
+    members = {}
+    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as archive_reader:
+        for member in archive_reader:
+            handle = archive_reader.extractfile(member)
+            assert handle is not None
+            members[member.name] = handle.read()
+    manifest_name = module.PREFIX + "review/manifest.json"
+    forged_record = json.loads(members[manifest_name].decode("utf-8"))
+    forged_records = copy.deepcopy(forged_record["runtime_files"])
+    forged_records[0]["bytes"] += 1
+    forged_records[0]["sha256"] = hashlib.sha256(b"X" * forged_records[0]["bytes"]).hexdigest()
+    forged_record = module.manifest(forged_records)
+    members[manifest_name] = module.canonical(forged_record)
+    payload_name = module.PREFIX + "payload/" + forged_records[0]["path"]
+    members[payload_name] = b"X" * forged_records[0]["bytes"]
+    forged_raw = module.canonical_archive(members)
+    forged = parent / "void-buy-allocation-custody-runtime-install-v1.forged.tar"
+    forged.write_bytes(forged_raw)
+    try:
+        module.inspect_archive(forged)
+    except module.ArchiveHold as exc:
+        assert "archive_manifest_runtime_identity_not_accepted" in str(exc)
+    else:
+        raise AssertionError("forged per-file runtime identity was accepted")
+
 source = TARGET.read_text(encoding="utf-8")
 for required in [
     "tarfile.USTAR_FORMAT",
     "accepted-runtime-bundle-lock-v1.json",
     "archive_noncanonical_wire_bytes",
     "runtime_payload_identity_mismatch",
+    "archive_manifest_runtime_identity_not_accepted",
+    "EXPECTED_RUNTIME_RECORDS",
     "archive_candidate_accepted",
     "existing_target_replaced",
     "node_binary_identity_verified",
