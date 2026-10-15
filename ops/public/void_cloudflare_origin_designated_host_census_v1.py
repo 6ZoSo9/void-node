@@ -542,26 +542,17 @@ def listener_set(rows: list[dict[str, Any]], pid: int) -> dict[str, Any]:
         "additional_or_ipv6_listener_observed": len(owned) != len(ipv4),
     }
 
-def cloudflared_config_path(pid: int) -> pathlib.Path | None:
-    argv = read_proc_cmdline(pid)
-    if not argv:
-        return None
-    values: list[str] = []
-    for index, arg in enumerate(argv):
-        if arg == "--config" and index + 1 < len(argv):
-            values.append(argv[index + 1])
-        elif arg.startswith("--config="):
-            values.append(arg.split("=", 1)[1])
-    if len(values) != 1:
-        return None
-    candidate = pathlib.Path(values[0])
-    if not candidate.is_absolute() or "\x00" in values[0]:
-        return None
+def operator_tunnel_config_path(raw: str | None) -> pathlib.Path:
+    if raw is None or not os.path.isabs(raw) or "\x00" in raw:
+        raise CensusError("operator_tunnel_config_path_invalid")
+    candidate = pathlib.Path(raw)
     try:
         resolved = candidate.resolve(strict=True)
-    except OSError:
-        return None
-    return resolved if resolved == candidate else None
+    except OSError as exc:
+        raise CensusError("operator_tunnel_config_path_unavailable") from exc
+    if resolved != candidate:
+        raise CensusError("operator_tunnel_config_path_not_canonical")
+    return resolved
 
 def file_custody(path_value: pathlib.Path | None, owner_uid: int | None) -> dict[str, Any]:
     result = {
@@ -765,7 +756,10 @@ def parse_tunnel_config(raw: str) -> dict[str, Any]:
         "ordinary_routes_preserved_candidate": ordinary_seed_rules > 0,
     }
 
-def tunnel_config_snapshot(pid: int, cloudflared_uid: int | None) -> dict[str, Any]:
+def tunnel_config_snapshot(
+    config: pathlib.Path,
+    cloudflared_uid: int | None,
+) -> dict[str, Any]:
     result = {
         "config_path_observed": False,
         "config_sha256": None,
@@ -777,11 +771,8 @@ def tunnel_config_snapshot(pid: int, cloudflared_uid: int | None) -> dict[str, A
         "config_text_read": False,
         "credential_contents_read": False,
     }
-    config = cloudflared_config_path(pid)
-    result["config_path_observed"] = config is not None
+    result["config_path_observed"] = True
     result["config_custody"] = file_custody(config, cloudflared_uid)
-    if config is None:
-        return result
     try:
         data = read_bounded(config, MAX_CONFIG_BYTES)
         parsed = parse_tunnel_config(data.decode("utf-8", "strict"))
@@ -898,7 +889,7 @@ def next_action(result: dict[str, Any]) -> str:
         return "NFTABLES_INSTALL_PLAN_REQUIRED"
     return "EXACT_NFT_AND_CLOUDFLARE_CONTROL_PLANE_EVIDENCE_REQUIRED"
 
-def collect() -> dict[str, Any]:
+def collect(tunnel_config: pathlib.Path) -> dict[str, Any]:
     if os.geteuid() != 0:
         raise CensusError("root_read_visibility_required")
     hostname = socket.gethostname()
@@ -934,7 +925,7 @@ def collect() -> dict[str, Any]:
         and services["dispatcher"]["listeners"]["exact_single_ipv4_loopback_listener"]
     )
     tunnel = tunnel_config_snapshot(
-        int(services["cloudflared"].get("main_pid") or 0),
+        tunnel_config,
         services["cloudflared"].get("effective_uid"),
     )
     tunnel["private_custody_shape_observed"] = (
@@ -967,7 +958,8 @@ def collect() -> dict[str, Any]:
         "dns_mutation": False,
         "network_mutation": False,
         "process_environment_access": False,
-        "process_command_line_access": True,
+        "cloudflared_process_command_line_access": False,
+        "node_runtime_command_line_access": True,
         "raw_process_command_line_output": False,
         "tunnel_config_text_output": False,
         "credential_content_access": False,
@@ -1107,8 +1099,10 @@ def plan() -> None:
         ("precision_hostname_required", "true"),
         ("historical_zoso_user_tunnel_query", "read_only"),
         ("process_environment_access", "false"),
-        ("process_command_line_access", "true"),
+        ("cloudflared_process_command_line_access", "false"),
+        ("node_runtime_command_line_access", "true"),
         ("raw_process_command_line_output", "false"),
+        ("tunnel_config_path", "operator_reviewed_absolute_path_required"),
         ("tunnel_config_text_output", "false"),
         ("credential_content_access", "false"),
         ("filesystem_write", "false"),
@@ -1135,14 +1129,17 @@ def main() -> int:
     group.add_argument("--self-test", action="store_true")
     group.add_argument("--plan", action="store_true")
     group.add_argument("--run", action="store_true")
+    parser.add_argument("--tunnel-config")
     args = parser.parse_args()
+    if args.tunnel_config is not None and not args.run:
+        raise CensusError("tunnel_config_argument_run_only")
     if args.self_test:
         self_test()
         return 0
     if args.plan:
         plan()
         return 0
-    result = collect()
+    result = collect(operator_tunnel_config_path(args.tunnel_config))
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return 0
 
