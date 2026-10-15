@@ -65,6 +65,36 @@ assert.deepEqual(
   reviewedPlan.network_capable_modules,
   REVIEWED_NETWORK_MODULES,
 );
+
+const REVIEWED_COMMITMENT_CLOSURE_V1=Object.freeze([
+  "tools/datanet-content-commitment-compiled-identity-acceptance-v1.mjs",
+  "tools/datanet-content-commitment-compiler-profile-v1.mjs",
+  "tools/datanet-content-commitment-deployment-attestation-v1.mjs",
+  "tools/datanet-content-commitment-dual-compiler-identity-v1.mjs",
+]);
+assert.deepEqual(
+  reviewedPlan.closure.filter(
+    (relativePath)=>relativePath.startsWith("tools/datanet-content-commitment-"),
+  ),
+  REVIEWED_COMMITMENT_CLOSURE_V1,
+  "reviewed commitment closure must stay explicit and narrow",
+);
+const exactBroadcastWorkflow=fs.readFileSync(
+  ".github/workflows/void-datanet-registry-exact-single-broadcast-execution-v1.yml",
+  "utf8",
+);
+assert.equal(
+  exactBroadcastWorkflow.includes('tools/datanet-content-commitment-*.mjs'),
+  false,
+  "exact broadcast workflow must not watch unrelated commitment siblings",
+);
+for(const relativePath of REVIEWED_COMMITMENT_CLOSURE_V1){
+  assert.equal(
+    exactBroadcastWorkflow.includes('      - "'+relativePath+'"'),
+    true,
+    "exact broadcast workflow missing reviewed closure trigger: "+relativePath,
+  );
+}
 assert.equal(
   testOnlyClassifyReviewedNodeBuiltinV1("node:crypto"),
   "safe",

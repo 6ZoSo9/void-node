@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - "tools/void-datanet-registry-*.mjs"
-      - "tools/datanet-content-commitment-*.mjs"
+      - "tools/datanet-content-commitment-compiled-identity-acceptance-v1.mjs"
+      - "tools/datanet-content-commitment-compiler-profile-v1.mjs"
+      - "tools/datanet-content-commitment-deployment-attestation-v1.mjs"
+      - "tools/datanet-content-commitment-dual-compiler-identity-v1.mjs"
       - "tools/void-economic-epoch2-*.mjs"
       - "tools/void-datanet-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
