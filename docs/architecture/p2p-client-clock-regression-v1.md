@@ -37,6 +37,26 @@ The already-established relay fallback stream is external to the adapter and is
 not retired by this action. A fresh upgrade can be requested after the new
 baseline.
 
+## Staged direct-candidate authority
+
+An authenticated UDP direct candidate remains subordinate to the exact
+authenticated-control route generation that created it. Candidate staging binds
+the route's request ID, ticket ID, expiry, relay node, peer node, stream and
+session. Promotion rechecks that exact generation.
+
+If a local clock regression removes the active route before promotion:
+
+- the staged direct candidate is discarded;
+- its candidate socket is destroyed;
+- the corresponding socket-runtime session is retired and cannot be
+  reconsidered by the promotion loop;
+- the already-established relay fallback remains live.
+
+A fresh post-regression route/session generation is required for another direct
+promotion attempt. Reusing the same session/relay/peer/stream tuple does not
+revive an older candidate because request/ticket/expiry generation identity is
+also bound.
+
 ## Relay client state in Node
 
 On local clock regression, Node clears:
