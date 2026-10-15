@@ -9,7 +9,7 @@ source=Q.read_text();ast.parse(source)
 for required in (
     'TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"',
     'SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"',
-    'HELPER_BLOB="65b80f5f175d0acf498af94110deb379c3165f4f"',
+    'HELPER_BLOB="6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5"',
     'LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"',
     'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
     'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',

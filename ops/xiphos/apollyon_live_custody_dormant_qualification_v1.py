@@ -34,7 +34,7 @@ CONSUMED=Path("/var/lib/void-apollyon-custody-v1/consumed")
 
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 SERVICE_BLOB="83f363b331bc2331416fd1c0ca6d52f53371fef0"
-HELPER_BLOB="65b80f5f175d0acf498af94110deb379c3165f4f"
+HELPER_BLOB="6ab8a1d4e0d30af7d9f597476fbfb18bf33b13a5"
 LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"
 NODE_BYTES=126595440
 NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"
@@ -384,11 +384,15 @@ def self_test()->None:
         'training_uid_process_observed',
     ):
         assert required in own,required
-    for forbidden in (
-        'systemctl","start",SERVICE_UNIT',
-        'systemctl","stop",SERVICE_UNIT',
-        "PRIVATE KEY-----","crypto.sign","eth_sendRawTransaction",
-    ):
+    forbidden_parts=(
+        ("systemctl",'","',"start",'",SERVICE_UNIT'),
+        ("systemctl",'","',"stop",'",SERVICE_UNIT'),
+        ("PRIVATE ","KEY-----"),
+        ("crypto",".sign"),
+        ("eth_sendRaw","Transaction"),
+    )
+    for parts in forbidden_parts:
+        forbidden="".join(parts)
         assert forbidden not in own,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
     print("two_cycle_target_start_stop=true")
