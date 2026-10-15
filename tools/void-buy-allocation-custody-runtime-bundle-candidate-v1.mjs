@@ -213,8 +213,9 @@ export function parseRuntimeImportsV1(sourceText) {
   }
   const values = [];
   const patterns = [
-    /(?:^|\n)\s*import(?:\s+[\s\S]*?\s+from)?\s*["']([^"']+)["']\s*;?/gu,
-    /(?:^|\n)\s*export\s+[\s\S]*?\s+from\s*["']([^"']+)["']\s*;?/gu,
+    /(?:^|\n)\s*import\s*["']([^"']+)["']\s*;?/gu,
+    /(?:^|\n)\s*import\s+[^;]*?\s+from\s*["']([^"']+)["']\s*;?/gu,
+    /(?:^|\n)\s*export\s+[^;]*?\s+from\s*["']([^"']+)["']\s*;?/gu,
   ];
   for (const pattern of patterns) {
     for (const match of sourceText.matchAll(pattern)) {
