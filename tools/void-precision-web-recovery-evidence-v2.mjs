@@ -65,7 +65,7 @@ const EVIDENCE_ID=/^voidpwre2_[0-9a-f]{64}$/u;
 
 const SOURCE_BLOBS=Object.freeze({
   "ops/public/public-seed-adapter-v1.mjs":
-    "60158fa63c7fafc55738d4b5a021cc021983812a",
+    "140796d809a13171f0186a226bade1b4d82f406d",
   "ops/public/run-public-seed-adapter-v1.sh":
     "bc5f5d8c277c114b007a5676015729ec25fc09dd",
   // Reviewed public Buy VOID operator ingress deny successor (#2631).
@@ -77,7 +77,7 @@ const SOURCE_BLOBS=Object.freeze({
   "ops/systemd/user/void-public-app-composition-gateway-v1.service.example":
     "d7add3da6d34bece418084c877cd4be667495ffb",
   "ops/public/void-public-frontdoor-v1.mjs":
-    "b1513ea822e32fe5df55c00ab635128b07aaf170",
+    "176f4a99c42ac3432d5797efaebf851cc0503737",
   "ops/public/void-public-frontdoor-cutover-v1.sh":
     "2545917778513e31da2291f70734801e1639ee36",
   "public/void-public-frontdoor-v1/index.html":
@@ -339,6 +339,8 @@ function inspectCurrentSources(ref){
     'process.env.VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT || "8082"',
     'const UPSTREAM_MARKER = "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1"',
     'const UPSTREAM_RUNTIME_TRUTH_MARKER = "VOID_PUBLIC_APP_RUNTIME_TRUTH_WALL_V1"',
+    'const SENSITIVE_EDGE_PATHS = Object.freeze([',
+    'isSensitiveEdgeBypassV1(requestUrl)',
   ],"precision_web_frontdoor_contract_invalid");
   requireContains(cutover,[
     "NoNewPrivileges=true",
