@@ -106,6 +106,7 @@ for(const [relative,expected] of Object.entries(PARENT_SOURCE_BLOBS)){
 const readPolicy=fs.readFileSync(
   "src/economic/buy_void_request_custody_read_policy_v1.ts","utf8",
 );
+const normalizedReadPolicy=readPolicy.replace(/\\s+/gu,"");
 for(const needle of [
   'VOID_BUY_REQUEST_CUSTODY_READ_GID',
   '0o750',
@@ -114,7 +115,7 @@ for(const needle of [
   'operator_sidecars_group_readable:false',
   'custody_write_authority:false',
 ]){
-  assert.ok(readPolicy.includes(needle),needle);
+  assert.ok(normalizedReadPolicy.includes(needle),needle);
 }
 const requestWriter=fs.readFileSync(
   "src/economic/buy_void_public_request_under_launch_lock_v1.ts","utf8",
