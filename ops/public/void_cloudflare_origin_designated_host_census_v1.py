@@ -823,8 +823,6 @@ def yaml_scalar(raw: str) -> str | None:
 def canonical_sensitive_path(value: str | None) -> str | None:
     if value is None:
         return None
-    if value in SENSITIVE_PATHS:
-        return value
     for expected in SENSITIVE_PATHS:
         if value == "^" + expected + "$":
             return expected
@@ -1304,6 +1302,8 @@ def self_test() -> None:
     assert config["sensitive_route_shape_observed"] is True
     assert config["sensitive_adapter_port"] == 4311
     assert config["ordinary_routes_preserved_candidate"] is True
+    assert canonical_sensitive_path(SENSITIVE_PATHS[0]) is None
+    assert canonical_sensitive_path("^" + SENSITIVE_PATHS[0] + "$") == SENSITIVE_PATHS[0]
     rows = parse_ss(
         'LISTEN 0 511 127.0.0.1:4311 0.0.0.0:* users:(("node",pid=123,fd=20))\n'
     )
@@ -1324,6 +1324,7 @@ def self_test() -> None:
     print("all_five_capability_sets_checked=true")
     print("permitted_capability_negative_proven=true")
     print("sensitive_route_parser_exact=true")
+    print("sensitive_path_regex_anchor_required=true")
     print("shared_listener_process_rejected=true")
     print("credential_contents_read=false")
     print("process_environment_access=false")
