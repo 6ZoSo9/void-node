@@ -6,6 +6,8 @@ on:
       - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
       - "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
       - "ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1.service"
       - "scripts/prove_apollyon_live_custody_source_session_execution_closure_v2.py"
       - "docs/security/apollyon-live-custody-source-session-execution-closure-v2.md"
       - ".github/workflows/apollyon-live-custody-source-session-execution-closure-v2.yml"

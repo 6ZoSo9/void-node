@@ -24,7 +24,14 @@ The live runner must bind and keep stable:
 - retained `consumed/` directory identity;
 - AF_UNIX socket inode identity;
 - custody-service MainPID/start-time/source identity;
-- clean loader environment;
+- clean observed loader environment;
+- exact root-owned custody service unit generation
+  `359488ba482f87f9015e85c1f9f5026edd4dcbee`;
+- fixed systemd fragment path `/etc/systemd/system/void-apollyon-authorization-custody-v1.service` with no drop-ins;
+- systemd pre-exec environment sanitization that removes
+  `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, and `LD_LIBRARY_PATH`
+  before Node is executed;
+- one exact systemd InvocationID bound to the observed MainPID environment;
 - exact current-stack custody launcher blob
   `d23ff045d8c355401fed499c6bcffd503ba4c7fd`;
 - authorization ID;
@@ -34,6 +41,13 @@ The live runner must bind and keep stable:
 
 The authorization/custody identities must exactly equal those already carried by
 the current-V2 claim contract.
+
+A post-start clean `/proc/<pid>/environ` observation is **not sufficient by
+itself**. The live runner must also bind the exact service-manager exec boundary:
+the root-owned unit blob above, fixed fragment path, no drop-ins, and matching
+systemd InvocationID. This prevents a caller-supplied
+`loader_environment_clean:true` from being promoted without evidence that the
+service manager removed loader/Node injection variables before `execve`.
 
 ## Result
 

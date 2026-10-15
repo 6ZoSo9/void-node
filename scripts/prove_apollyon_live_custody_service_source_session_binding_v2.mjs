@@ -9,6 +9,8 @@ import {
 } from "../tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs";
 import {
   VOID_APOLLYON_LIVE_CUSTODY_SERVICE_SOURCE_SESSION_BINDING_AUTHORITY_V2,
+  VOID_APOLLYON_CUSTODY_SERVICE_UNIT_BLOB_SHA1_V1,
+  VOID_APOLLYON_CUSTODY_SERVICE_UNIT_FRAGMENT_PATH_V1,
   finalizeApollyonLiveCustodyServiceSourceSessionBindingV2,
 } from "../tools/apollyon-live-custody-service-source-session-binding-v2.mjs";
 
@@ -89,6 +91,11 @@ function session(c){
     custody_record_sha256:c.custody_record_sha256,
     operator_public_key_raw_sha256:c.operator_public_key_raw_sha256,
     custody_launcher_blob_sha1:"d23ff045d8c355401fed499c6bcffd503ba4c7fd",
+    custody_service_unit_blob_sha1:VOID_APOLLYON_CUSTODY_SERVICE_UNIT_BLOB_SHA1_V1,
+    service_unit_fragment_path:VOID_APOLLYON_CUSTODY_SERVICE_UNIT_FRAGMENT_PATH_V1,
+    service_manager_preexec_environment_sanitized:true,
+    service_dropins_absent:true,
+    systemd_invocation_id:"a".repeat(32),
     state_root_identity_sha256:"e".repeat(64),
     consumed_directory_identity_sha256:"f".repeat(64),
     socket_identity_sha256:"1".repeat(64),
@@ -107,6 +114,17 @@ const result=finalizeApollyonLiveCustodyServiceSourceSessionBindingV2({
 });
 assert.equal(result.status,"current_v2_live_custody_source_session_bound_unclaimed");
 assert.equal(result.live_service_source_identity_proven,true);
+assert.equal(result.service_manager_preexec_environment_sanitized,true);
+assert.equal(result.service_dropins_absent,true);
+assert.equal(
+  result.custody_service_unit_blob_sha1,
+  VOID_APOLLYON_CUSTODY_SERVICE_UNIT_BLOB_SHA1_V1,
+);
+assert.equal(
+  result.service_unit_fragment_path,
+  VOID_APOLLYON_CUSTODY_SERVICE_UNIT_FRAGMENT_PATH_V1,
+);
+assert.equal(result.systemd_invocation_id,"a".repeat(32));
 assert.equal(result.same_live_custody_session_binding_proven,true);
 assert.equal(result.durable_attempt_claim_performed,false);
 assert.equal(result.attempt_claimed,false);
@@ -118,6 +136,11 @@ for(const mutate of [
   x=>{x.authorization_id="apollyon_authz_v1:"+"0".repeat(64);},
   x=>{x.custody_record_sha256="0".repeat(64);},
   x=>{x.custody_launcher_blob_sha1="0".repeat(40);},
+  x=>{x.custody_service_unit_blob_sha1="0".repeat(40);},
+  x=>{x.service_unit_fragment_path="/tmp/forged.service";},
+  x=>{x.service_manager_preexec_environment_sanitized=false;},
+  x=>{x.service_dropins_absent=false;},
+  x=>{x.systemd_invocation_id="0".repeat(31);},
   x=>{x.loader_environment_clean=false;},
   x=>{x.socket_identity_stable=false;},
 ]){
@@ -138,6 +161,9 @@ for(const [key,expected] of Object.entries({
   stable_socket_identity_required:true,
   stable_custody_service_process_identity_required:true,
   loader_environment_clean_required:true,
+  service_manager_preexec_environment_boundary_required:true,
+  root_owned_service_unit_generation_required:true,
+  systemd_invocation_binding_required:true,
   exact_authorization_identity_rebinding_required:true,
   live_service_source_identity_proven_by_input:false,
   same_live_custody_session_binding_proven_by_input:false,
@@ -168,6 +194,9 @@ console.log("VOID_APOLLYON_LIVE_CUSTODY_SERVICE_SOURCE_SESSION_BINDING_V2_PROOF_
 console.log("current_v2_claim_contract_required=true");
 console.log("current_stack_custody_launcher_required=true");
 console.log("live_service_source_identity_proven=true");
+console.log("service_manager_preexec_environment_boundary_required=true");
+console.log("root_owned_service_unit_generation_required=true");
+console.log("systemd_invocation_binding_required=true");
 console.log("same_live_custody_session_binding_proven=true");
 console.log("durable_attempt_claim_performed=false");
 console.log("training_execution=false");
