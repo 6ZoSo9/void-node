@@ -377,7 +377,7 @@ function readProcSelfStat() {
         Number(fs.constants.O_CLOEXEC || 0),
     );
     const buffer = Buffer.alloc(MAX_PROC_STAT_BYTES + 1);
-    const count = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    const count = fs.readSync(fd, buffer, 0, buffer.length, null);
     if (count < 8 || count > MAX_PROC_STAT_BYTES) {
       fail("sponsored_host_trusted_clock_process_stat_invalid");
     }
