@@ -1,0 +1,48 @@
+{
+  "schema": "void_buy_void_custody_runtime_install_archive_lock_v1",
+  "marker": "VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_LOCK_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "candidate_head": "b2257bcf7e28e22e0f90d6fa674798eeef9f7024",
+  "candidate_hosted_evidence": {
+    "workflow_run": 38672815457,
+    "node22_artifact_id": 11945096600,
+    "node24_artifact_id": 11944836579,
+    "node26_artifact_id": 11945221437,
+    "cross_node_byte_identity_verified": true
+  },
+  "candidate_evidence": {
+    "candidate_id": "voidbuycustodyarchive1_5685b87bba1987b7365909eb4bd684b89695f7d5e1253d59dcd63ff390732333",
+    "bytes": 256000,
+    "sha256": "1fec540e1bac3f728bfa438512a6e0149eea1cda2ae5f2a05f4ec9f19a5a5c9d",
+    "runtime_file_count": 10,
+    "derivation_tool_path": "tools/void-buy-allocation-custody-runtime-install-archive-v1.py",
+    "derivation_tool_git_blob_sha1": "169ce118eda9d0910990f019052372b72cfa0f80",
+    "candidate_proof_path": "scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py",
+    "candidate_proof_git_blob_sha1": "c86f9a70dc9ea49d479ece5c92a6122cc7e80fd5",
+    "candidate_workflow_git_blob_sha1": "ca5d22a48da4c2f28f5cdea270c831bfca5394e0"
+  },
+  "accepted_runtime_bundle": {
+    "lock_path": "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json",
+    "lock_git_blob_sha1": "acb5da31527ab42919d411695b475a94af29abb1",
+    "lock_sha256": "998b1e211c78cd11b65224a51868687f7cdd76afcd07224482cf8ce862af1eec",
+    "candidate_id": "voidbuycustodybundle1_2339d565cc1c298a3f7ca9cae2ef163831288007bb32d9e7c37c01880aaee704"
+  },
+  "archive_candidate_accepted": true,
+  "immutable_root_install": false,
+  "install_target_selected": false,
+  "existing_target_replaced": false,
+  "node_binary_identity_verified": false,
+  "request_root_selected": false,
+  "shared_directory_selected": false,
+  "service_unit_installed": false,
+  "service_started": false,
+  "service_restarted": false,
+  "runtime_integration": false,
+  "reserve_method_enabled": false,
+  "recover_method_enabled": false,
+  "payment_acceptance": false,
+  "public_presale_activation": false,
+  "production_gate_ready": false,
+  "funds_movement": false
+}

@@ -1,0 +1,128 @@
+name: VOID Buy custody runtime install archive lock v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v1.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v1.py"
+      - "docs/architecture/buy-void-allocation-custody-runtime-install-archive-lock-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-lock-v1.yml"
+      - "tools/void-buy-allocation-custody-runtime-install-archive-v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v1.mjs"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v1.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-v1.yml"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-lock-v1.yml"
+      - "tools/void-buy-allocation-custody-runtime-install-archive-v1.py"
+      - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v1.mjs"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22,24,26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact runtime source
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - name: Rederive accepted archive and lock
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_void_buy_allocation_custody_runtime_install_archive_v1.py |
+            tee "$RUNNER_TEMP/archive-parent.log"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_V1_PROOF_GREEN' "$RUNNER_TEMP/archive-parent.log"
+          python3 -I -B scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v1.py --self-test |
+            tee "$RUNNER_TEMP/archive-lock.log"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_LOCK_V1_GREEN' "$RUNNER_TEMP/archive-lock.log"
+          grep -Fx 'archive_candidate_accepted=true' "$RUNNER_TEMP/archive-lock.log"
+          grep -Fx 'immutable_root_install=false' "$RUNNER_TEMP/archive-lock.log"
+          grep -Fx 'node_binary_identity_verified=false' "$RUNNER_TEMP/archive-lock.log"
+          grep -Fx 'payment_acceptance=false' "$RUNNER_TEMP/archive-lock.log"
+          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/archive-lock.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/archive-lock.log"
+          python3 -I -B scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v1.py --derive             > "$RUNNER_TEMP/archive-lock-node${{ matrix.node }}.json"
+          cmp "$RUNNER_TEMP/archive-lock-node${{ matrix.node }}.json"             ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v1.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-install-archive-lock-${{ matrix.node }}
+          path: ${{ runner.temp }}/archive-lock-node${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+      - run: git diff --check
+
+  compare:
+    needs: lock
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-install-archive-lock-*
+          merge-multiple: true
+          path: lock
+      - name: Require exact lock equality
+        run: |
+          set -euo pipefail
+          cmp lock/archive-lock-node22.json lock/archive-lock-node24.json
+          cmp lock/archive-lock-node22.json lock/archive-lock-node26.json
+          python3 - <<'PY'
+          import json
+          x=json.load(open("lock/archive-lock-node22.json",encoding="utf-8"))
+          assert x["archive_candidate_accepted"] is True
+          assert x["candidate_evidence"]["sha256"]=="1fec540e1bac3f728bfa438512a6e0149eea1cda2ae5f2a05f4ec9f19a5a5c9d"
+          assert x["immutable_root_install"] is False
+          assert x["node_binary_identity_verified"] is False
+          assert x["payment_acceptance"] is False
+          assert x["public_presale_activation"] is False
+          assert x["funds_movement"] is False
+          print("VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_LOCK_V1_CROSS_NODE_GREEN")
+          PY
