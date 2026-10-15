@@ -28,6 +28,9 @@ The live `--run` mode:
   the complete second HTTP set;
 - verifies the visible running gateway entry file matches the exact reviewed
   Git blob;
+- reads proc/gateway files through one retained no-follow descriptor with a hard
+  `maximum + 1` byte ceiling; the visible gateway source additionally requires
+  a stable direct regular-file generation before/after the bounded read;
 - performs only bounded loopback GETs to:
   - `/__void/public-app/status.json`;
   - `/__void/participant/session/v1/status.json`;
@@ -55,6 +58,10 @@ contents, and never calls challenge/login/logout routes.
 - the generic public-safe composition status is healthy and stable;
 - the session status reports Ed25519, AGENT role authority, and the branded
   durable state store;
+- composition, session and account status bodies use exact reviewed key sets;
+  unknown response fields fail closed rather than extending authority implicitly;
+- participant session status requires exactly a 60,000 ms challenge TTL and
+  900,000 ms session TTL;
 - the account-read status reports the exact Wallet/Earn read-only routes with
   mutation/money authority false;
 - both branded status surfaces are mounted on loopback inside one observed
@@ -91,6 +98,12 @@ node tools/void-public-participant-designated-host-census-v1.mjs --run
 
 `--self-test` and `--plan` are inert. `--run` is read-only and loopback
 only.
+
+## Focused CI continuity
+
+The focused proof runs both on pull requests and accepted pushes to `main`
+for the same complete set of reviewed census input paths. A later accepted
+dependency/source drift therefore cannot bypass this census proof.
 
 ## Authority boundary
 

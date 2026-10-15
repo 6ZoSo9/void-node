@@ -19,6 +19,10 @@ const TARGET = path.join(
   ROOT,
   "tools/void-public-participant-designated-host-census-v1.mjs",
 );
+const WORKFLOW = path.join(
+  ROOT,
+  ".github/workflows/void-public-participant-designated-host-census-v1.yml",
+);
 
 for (const [relative, expected] of Object.entries(
   VOID_PUBLIC_PARTICIPANT_DESIGNATED_HOST_SOURCE_BLOBS_V1,
@@ -49,6 +53,10 @@ for (const required of [
   '"PARTICIPANT_SURFACE_DEFAULT_OFF_OR_UNOBSERVED"',
   "running_loaded_source_bytes_proven: false",
   "final_generation_bracket_verified",
+  "exactObjectKeys",
+  "body.session_ttl_ms === 900000",
+  "stableVisibleRegular: true",
+  "bounded_file_too_large",
   "continuous_listener_ownership_proven: false",
   "listener_final",
   "process_final",
@@ -116,6 +124,26 @@ for (const [key, expected] of Object.entries({
   );
 }
 
+const workflow = fs.readFileSync(WORKFLOW, "utf8");
+const pullAt = workflow.indexOf("  pull_request:\n");
+const pushAt = workflow.indexOf("  push:\n");
+const dispatchAt = workflow.indexOf("  workflow_dispatch:\n");
+assert.ok(pullAt >= 0 && pushAt > pullAt && dispatchAt > pushAt);
+const pullTrigger = workflow.slice(pullAt, pushAt);
+const pushTrigger = workflow.slice(pushAt, dispatchAt);
+assert.match(pushTrigger, /branches: \[main\]/u);
+for (const relative of [
+  "tools/void-public-participant-designated-host-census-v1.mjs",
+  "scripts/prove_void_public_participant_designated_host_census_v1.mjs",
+  "docs/operators/void-public-participant-designated-host-census-v1.md",
+  ".github/workflows/void-public-participant-designated-host-census-v1.yml",
+  ...Object.keys(VOID_PUBLIC_PARTICIPANT_DESIGNATED_HOST_SOURCE_BLOBS_V1),
+]) {
+  const needle = `- "${relative}"`;
+  assert.ok(pullTrigger.includes(needle), "pull trigger missing " + relative);
+  assert.ok(pushTrigger.includes(needle), "main push trigger missing " + relative);
+}
+
 const proofSha = crypto.createHash("sha256")
   .update(fs.readFileSync(TARGET))
   .digest("hex");
@@ -131,6 +159,10 @@ console.log("account_or_bearer_data_read=false");
 console.log("running_loaded_source_bytes_proven=false");
 console.log("final_generation_bracket_required=true");
 console.log("restart_after_middle_snapshot_fails_closed=true");
+console.log("bounded_file_preallocation_limit=true");
+console.log("exact_session_ttl_required=true");
+console.log("closed_status_schema_required=true");
+console.log("main_push_trigger_closure=true");
 console.log("continuous_listener_ownership_proven=false");
 console.log("systemd_service_binding_verified=false");
 console.log("session_state_path_custody_verified=false");

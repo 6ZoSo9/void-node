@@ -71,6 +71,82 @@ const COMPOSITION_STATUS_PATH = "/__void/public-app/status.json";
 const SESSION_STATUS_PATH = "/__void/participant/session/v1/status.json";
 const ACCOUNT_STATUS_PATH = "/__void/participant/account-read/v1/status.json";
 
+const COMPOSITION_STATUS_KEYS = Object.freeze([
+  "account_views_public",
+  "agent_paid_work_edge_configured",
+  "agent_paid_work_edge_marker",
+  "agent_paid_work_gateway_upstream_loopback_only",
+  "agent_paid_work_generic_proxy",
+  "agent_paid_work_submission_path",
+  "app_public",
+  "bounded_public_earn_claim_submit",
+  "epoch2_public_economic_read_configured",
+  "epoch2_public_economic_read_raw_rpc_proxy",
+  "epoch2_public_economic_read_routes",
+  "epoch2_public_economic_read_upstream_loopback_only",
+  "generic_mutation",
+  "host",
+  "marker",
+  "methods",
+  "mode",
+  "money_movement",
+  "mutation",
+  "node_upstream_private",
+  "ok",
+  "operator_webhook_receiver_path",
+  "operator_webhook_receiver_route_configured",
+  "participant_handoff_public",
+  "port",
+  "public_discovery_pack_configured",
+  "public_discovery_pack_file_count",
+  "public_discovery_pack_marker",
+  "public_discovery_pack_routes",
+  "public_upstream_private",
+  "runtime_truth_marker",
+]);
+const SESSION_STATUS_KEYS = Object.freeze([
+  "account_enumeration",
+  "capability",
+  "challenge_ttl_ms",
+  "cookie_authentication",
+  "durable_state_store",
+  "durable_state_store_required_for_production",
+  "login_key_type",
+  "marker",
+  "money_movement_authority",
+  "ok",
+  "production_route_mounted",
+  "required_role",
+  "role_authority_required",
+  "session_ttl_ms",
+  "signing_authority",
+  "wallet_passphrase_transport",
+]);
+const ACCOUNT_STATUS_KEYS = Object.freeze([
+  "capability",
+  "cookie_authentication",
+  "earn_path",
+  "listener_created",
+  "marker",
+  "money_movement_authority",
+  "ok",
+  "production_route_mounted",
+  "raw_route_forwarding",
+  "wallet_mutation_authority",
+  "wallet_path",
+  "work_credit_mutation_authority",
+]);
+
+function exactObjectKeys(value, expected) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return (
+    actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index])
+  );
+}
+
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -82,10 +158,79 @@ export function gitBlobSha1(bytes) {
     .digest("hex");
 }
 
-function boundedFile(file, maximum) {
-  const data = fs.readFileSync(file);
-  if (data.length > maximum) throw new Error("bounded_file_too_large");
-  return data;
+function sameFileIdentity(a, b) {
+  return Boolean(
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.mode === b.mode &&
+    a.uid === b.uid &&
+    a.gid === b.gid &&
+    a.nlink === b.nlink &&
+    a.size === b.size &&
+    a.mtimeNs === b.mtimeNs &&
+    a.ctimeNs === b.ctimeNs
+  );
+}
+
+function boundedFile(file, maximum, { stableVisibleRegular = false } = {}) {
+  if (!Number.isSafeInteger(maximum) || maximum < 1) {
+    throw new Error("bounded_file_limit_invalid");
+  }
+  let visibleBefore = null;
+  if (stableVisibleRegular) {
+    visibleBefore = fs.lstatSync(file, { bigint: true });
+    if (
+      !visibleBefore.isFile() ||
+      visibleBefore.isSymbolicLink() ||
+      visibleBefore.nlink !== 1n
+    ) {
+      throw new Error("bounded_file_visible_identity_invalid");
+    }
+    if (visibleBefore.size > BigInt(maximum)) {
+      throw new Error("bounded_file_too_large");
+    }
+  }
+
+  const flags =
+    fs.constants.O_RDONLY |
+    fs.constants.O_CLOEXEC |
+    fs.constants.O_NOFOLLOW;
+  const fd = fs.openSync(file, flags);
+  try {
+    const openedBefore = fs.fstatSync(fd, { bigint: true });
+    if (
+      stableVisibleRegular &&
+      !sameFileIdentity(visibleBefore, openedBefore)
+    ) {
+      throw new Error("bounded_file_rebound");
+    }
+
+    const chunks = [];
+    let total = 0;
+    while (total <= maximum) {
+      const want = Math.min(64 * 1024, maximum + 1 - total);
+      const buffer = Buffer.allocUnsafe(want);
+      const got = fs.readSync(fd, buffer, 0, want, null);
+      if (got === 0) break;
+      chunks.push(buffer.subarray(0, got));
+      total += got;
+      if (total > maximum) throw new Error("bounded_file_too_large");
+    }
+
+    if (stableVisibleRegular) {
+      const openedAfter = fs.fstatSync(fd, { bigint: true });
+      const visibleAfter = fs.lstatSync(file, { bigint: true });
+      if (
+        !sameFileIdentity(openedBefore, openedAfter) ||
+        !sameFileIdentity(openedAfter, visibleAfter)
+      ) {
+        throw new Error("bounded_file_changed");
+      }
+    }
+    return Buffer.concat(chunks, total);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function commandIdentity(file) {
@@ -221,7 +366,9 @@ function processSnapshot(pid) {
       canonical.endsWith(GATEWAY_SUFFIX) &&
       path.basename(canonical) ===
         "void-public-app-composition-gateway-v1.mjs";
-    const bytes = boundedFile(canonical, MAX_GATEWAY_BYTES);
+    const bytes = boundedFile(canonical, MAX_GATEWAY_BYTES, {
+      stableVisibleRegular: true,
+    });
     const blob = gitBlobSha1(bytes);
     return Object.freeze({
       observed: true,
@@ -404,7 +551,7 @@ function compositionStatusQualified(observation) {
     observation?.observed === true &&
     observation.status === 200 &&
     observation.headers?.content_type === "application/json" &&
-    body &&
+    exactObjectKeys(body, COMPOSITION_STATUS_KEYS) &&
     body.ok === true &&
     body.marker === "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1" &&
     body.runtime_truth_marker ===
@@ -430,15 +577,12 @@ function sessionStatusQualified(observation) {
     observation.headers?.participant_composition === "v1" &&
     observation.headers?.marker ===
       "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1" &&
-    body &&
+    exactObjectKeys(body, SESSION_STATUS_KEYS) &&
     body.ok === true &&
     body.marker === "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1" &&
     body.capability === "participant.account.read.v1" &&
-    Number.isSafeInteger(body.challenge_ttl_ms) &&
-    body.challenge_ttl_ms > 0 &&
-    body.challenge_ttl_ms <= 60000 &&
-    Number.isSafeInteger(body.session_ttl_ms) &&
-    body.session_ttl_ms > 0 &&
+    body.challenge_ttl_ms === 60000 &&
+    body.session_ttl_ms === 900000 &&
     body.login_key_type === "ed25519" &&
     body.role_authority_required === true &&
     body.required_role === "AGENT" &&
@@ -462,7 +606,7 @@ function accountStatusQualified(observation) {
     observation.headers?.participant_composition === "v1" &&
     observation.headers?.marker ===
       "VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1" &&
-    body &&
+    exactObjectKeys(body, ACCOUNT_STATUS_KEYS) &&
     body.ok === true &&
     body.marker ===
       "VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1" &&
@@ -682,9 +826,32 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
     port: PORT,
     public_upstream_private: true,
     node_upstream_private: true,
+    methods: [
+      "GET",
+      "HEAD",
+      "POST(exact public earn and operator notification routes only)",
+    ],
+    operator_webhook_receiver_route_configured: false,
+    operator_webhook_receiver_path: "/__void/operator/webhook",
+    agent_paid_work_edge_marker: "VOID_AGENT_PAID_WORK_EDGE_V1",
+    agent_paid_work_edge_configured: false,
+    agent_paid_work_submission_path: "/__void/agents/paid-work/submissions/v1",
+    agent_paid_work_gateway_upstream_loopback_only: true,
+    agent_paid_work_generic_proxy: false,
+    app_public: true,
+    participant_handoff_public: true,
+    public_discovery_pack_configured: false,
+    public_discovery_pack_marker: "VOID_PUBLIC_DISCOVERY_PACK_V1",
+    public_discovery_pack_file_count: 0,
+    public_discovery_pack_routes: [],
+    epoch2_public_economic_read_configured: false,
+    epoch2_public_economic_read_upstream_loopback_only: true,
+    epoch2_public_economic_read_raw_rpc_proxy: false,
+    epoch2_public_economic_read_routes: [],
     account_views_public: false,
     mutation: false,
     generic_mutation: false,
+    bounded_public_earn_claim_submit: true,
     money_movement: false,
   };
   const sessionBody = {
@@ -692,7 +859,7 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
     marker: "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1",
     capability: "participant.account.read.v1",
     challenge_ttl_ms: 60000,
-    session_ttl_ms: 3600000,
+    session_ttl_ms: 900000,
     login_key_type: "ed25519",
     role_authority_required: true,
     required_role: "AGENT",
@@ -830,6 +997,64 @@ export function selfTestVoidPublicParticipantDesignatedHostCensusV1() {
     });
   if (wrongBlob.status !== "HOST_RUNTIME_HOLD") {
     throw new Error("source_blob_self_test_failed");
+  }
+
+  const overlongSession = syntheticHttp(200, {
+    ...sessionBody,
+    session_ttl_ms: 900001,
+  }, {
+    participant: "v1",
+    marker: "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1",
+  });
+  const overlongResult =
+    classifyVoidPublicParticipantDesignatedHostCensusV1({
+      ...active,
+      session_before: overlongSession,
+      session_after: overlongSession,
+    });
+  if (overlongResult.participant_loopback_surface_observed !== false) {
+    throw new Error("session_ttl_exact_self_test_failed");
+  }
+
+  const unknownAuthoritySession = syntheticHttp(200, {
+    ...sessionBody,
+    wallet_send_authority: true,
+  }, {
+    participant: "v1",
+    marker: "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1",
+  });
+  const unknownResult =
+    classifyVoidPublicParticipantDesignatedHostCensusV1({
+      ...active,
+      session_before: unknownAuthoritySession,
+      session_after: unknownAuthoritySession,
+    });
+  if (unknownResult.participant_loopback_surface_observed !== false) {
+    throw new Error("closed_status_schema_self_test_failed");
+  }
+
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-participant-census-bounded-file-"),
+  );
+  try {
+    const oversized = path.join(tempRoot, "oversized-gateway.mjs");
+    const fd = fs.openSync(oversized, "w", 0o600);
+    try {
+      fs.ftruncateSync(fd, MAX_GATEWAY_BYTES + 1);
+    } finally {
+      fs.closeSync(fd);
+    }
+    let rejected = false;
+    try {
+      boundedFile(oversized, MAX_GATEWAY_BYTES, {
+        stableVisibleRegular: true,
+      });
+    } catch (error) {
+      rejected = String(error?.message || error) === "bounded_file_too_large";
+    }
+    if (!rejected) throw new Error("bounded_file_limit_self_test_failed");
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 
   return true;

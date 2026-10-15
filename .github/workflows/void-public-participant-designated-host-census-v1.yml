@@ -13,6 +13,19 @@ on:
       - "ops/public/void-public-participant-session-state-file-v1.mjs"
       - "ops/public/void-public-participant-live-role-authority-v1.mjs"
       - "tools/void-public-participant-production-composition-current-gateway-v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-public-participant-designated-host-census-v1.mjs"
+      - "scripts/prove_void_public_participant_designated_host_census_v1.mjs"
+      - "docs/operators/void-public-participant-designated-host-census-v1.md"
+      - ".github/workflows/void-public-participant-designated-host-census-v1.yml"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/void-public-participant-session-http-v1.mjs"
+      - "ops/public/void-public-participant-account-read-http-edge-v1.mjs"
+      - "ops/public/void-public-participant-session-state-file-v1.mjs"
+      - "ops/public/void-public-participant-live-role-authority-v1.mjs"
+      - "tools/void-public-participant-production-composition-current-gateway-v2.mjs"
   workflow_dispatch:
 
 permissions:
@@ -71,6 +84,10 @@ jobs:
           grep -Fx 'account_or_bearer_data_read=false' "$proof"
           grep -Fx 'final_generation_bracket_required=true' "$proof"
           grep -Fx 'restart_after_middle_snapshot_fails_closed=true' "$proof"
+          grep -Fx 'bounded_file_preallocation_limit=true' "$proof"
+          grep -Fx 'exact_session_ttl_required=true' "$proof"
+          grep -Fx 'closed_status_schema_required=true' "$proof"
+          grep -Fx 'main_push_trigger_closure=true' "$proof"
           grep -Fx 'continuous_listener_ownership_proven=false' "$proof"
           grep -Fx 'runtime_activation_authorized=false' "$proof"
           grep -Fx 'funds_movement=false' "$proof"
