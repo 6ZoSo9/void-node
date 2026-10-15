@@ -147,6 +147,7 @@ function expectHold(mutator, reason) {
   assert.equal(result.reason, reason);
   assert.equal(result.cloudflare_uid_isolation_proven, undefined);
   assert.equal(result.cloudflared_uid_isolation_proven, false);
+  assert.equal(result.credential_content_access, false);
   assert.equal(result.runtime_integration, false);
   assert.equal(result.funds_movement, false);
 }
