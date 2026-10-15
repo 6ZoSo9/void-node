@@ -32,6 +32,7 @@ export const VOID_PUBLIC_PARTICIPANT_DESIGNATED_HOST_AUTHORITY_V1 =
     loopback_get_only: true,
     process_environment_access: false,
     final_process_listener_bracket_required: true,
+    continuous_listener_ownership_proven: false,
     session_or_challenge_mutation: false,
     bearer_token_access: false,
     account_data_access: false,
@@ -594,6 +595,7 @@ export function classifyVoidPublicParticipantDesignatedHostCensusV1(
     listener_process_pid_bound: samePid,
     final_generation_bracket_verified:
       listenerStable && processStable && samePid,
+    continuous_listener_ownership_proven: false,
     composition_status_stable_and_qualified: compositionStable,
     running_visible_gateway_blob_matches_reviewed:
       observation?.process_before?.visible_gateway_blob_matches_reviewed ===
@@ -894,6 +896,8 @@ function printPlan() {
     designated_hostname: EXPECTED_HOSTNAME,
     loopback_get_only: true,
     process_environment_access: false,
+    final_process_listener_bracket_required: true,
+    continuous_listener_ownership_proven: false,
     session_or_challenge_mutation: false,
     bearer_token_access: false,
     account_data_access: false,

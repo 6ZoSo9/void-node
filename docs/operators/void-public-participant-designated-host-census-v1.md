@@ -38,6 +38,12 @@ The live `--run` mode:
   so both HTTP sample sets are bracketed by one stable PID/start-tick/listener
   generation and reviewed visible gateway source generation.
 
+This is a sampled bracket, not continuous kernel ownership proof. A sufficiently
+fast listener/process A→B→A transition entirely between discrete snapshots is
+outside this census and remains `continuous_listener_ownership_proven=false`.
+Later authenticated service/lifecycle acceptance must close that stronger
+boundary.
+
 It never reads `/proc/<pid>/environ`, never reads bearer/session/account
 contents, and never calls challenge/login/logout routes.
 
