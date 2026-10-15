@@ -40,10 +40,29 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              BASE="$PR_BASE"
+              ;;
+            push)
+              test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"
+              BASE="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              BASE="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
           git merge-base --is-ancestor "$BASE" "$HEAD"
           git diff --check "$BASE" "$HEAD"
