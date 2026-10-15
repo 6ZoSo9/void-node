@@ -1176,10 +1176,6 @@ console.log("host_fixed_mountpoints_preflight_read_only=true");
 console.log("delegated_namespace_kernel_state_verified=true");
 console.log("delegated_procfs_provenance_verified=true");
 console.log("delegated_mount_topology_asymmetric=true");
-console.log(
-  "private_opt_mount_namespace_fixture=" +
-    String(privateOptNamespaceFixture),
-);
 console.log("caller_controlled_ci_flags_authorize_opt_mutation=false");
 console.log("hosted_self_custody_shape_prechecked=true");
 console.log("private_fixed_node_overlay_required=true");
