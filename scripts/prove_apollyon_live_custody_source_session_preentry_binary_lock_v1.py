@@ -14,7 +14,7 @@ import tempfile
 MARKER="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1"
 VERIFY_MARKER=MARKER+"_VERIFIED"
 ROOT=Path(__file__).resolve().parents[1]
-PARENT="42555f4df48ad68768781669824ebdc477dddcb6"
+PARENT="62809d016a7606b7f6d5e7615efc45f65303984a"
 SOURCE="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 SOURCE_SHA="51625ad6bb3e570e77aef491483a7b4c0dccdeca971f524658f5ac401bdcb9d7"
@@ -23,12 +23,12 @@ CANDIDATE_PROOF_BLOB="5a7f676d8934b01f80a0424b81701faa94de0dee"
 CANDIDATE_WORKFLOW=".github/workflows/apollyon-live-custody-source-session-preentry-binary-candidate-v1.yml"
 CANDIDATE_WORKFLOW_BLOB="0482c24bcb939132dcfbb82ba5fcd039c0c55fdb"
 LOCK="ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json"
-LOCK_ID="apollyon_live_custody_source_session_preentry_binary_lock_v1:89778e9fce5f93a0192ee73c47977b8d91e326950ef25954bad75f0316045e69"
+LOCK_ID="apollyon_live_custody_source_session_preentry_binary_lock_v1:d956ebd8e948d83c4d6ae166c1452d28eab94cbd0ee2de9295b33d6f6ee3a46d"
 CANDIDATE_ID="apollyon_live_custody_source_session_preentry_binary_candidate_v1:e9a3c53682375bbb459015de5bf6110e36f8c725d553acdf6bffabdfdb787104"
 BINARY_SHA="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"
 BINARY_BYTES=798736
 SELF_TEST_SHA="97d7358d1a6dfffd42e293e3a4b1f70a41b6eace5fe6eec8409ae7ff97cc0c69"
-HOSTED_RUN=38730748696
+HOSTED_RUN=38733235473
 
 GIT_ENV={
     "PATH":"/usr/bin:/bin","HOME":"/nonexistent","LANG":"C","LC_ALL":"C",

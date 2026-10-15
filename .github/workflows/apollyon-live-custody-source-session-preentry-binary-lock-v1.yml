@@ -81,7 +81,7 @@ jobs:
           v=json.loads(Path("receipts/lock-verification-a.json").read_text())
           assert v["marker"]=="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1_VERIFIED"
           assert type(v["version"]) is int and v["version"]==1
-          assert v["lock_id"]=="apollyon_live_custody_source_session_preentry_binary_lock_v1:89778e9fce5f93a0192ee73c47977b8d91e326950ef25954bad75f0316045e69"
+          assert v["lock_id"]=="apollyon_live_custody_source_session_preentry_binary_lock_v1:d956ebd8e948d83c4d6ae166c1452d28eab94cbd0ee2de9295b33d6f6ee3a46d"
           assert v["candidate_id"]=="apollyon_live_custody_source_session_preentry_binary_candidate_v1:e9a3c53682375bbb459015de5bf6110e36f8c725d553acdf6bffabdfdb787104"
           assert v["binary_bytes"]==798736
           assert v["binary_sha256"]=="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"
