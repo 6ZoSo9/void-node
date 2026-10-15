@@ -7,10 +7,10 @@ authorized**.
 
 ## Dependencies
 
-The qualifier consumes exact reviewed generations:
+The qualifier consumes exact reviewed generations. The protected-installer dependency below is the post-publication receipt-truth repair generation:
 
 - credential protected installer source
-  e497ee1239865888303db56d0ff0ffeceb583516;
+  0fb7abc266dd4b66dd9f087d4c0c2acff29a8014;
 - credential ELF lock
   voidbuyumqcredelflock1_65a1839c14b692349dda8cccdbe8657a9485754c5d10ffa5b57421ce87e3753c;
 - merged V6 security qualifier source
