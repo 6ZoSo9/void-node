@@ -207,18 +207,29 @@ exact outer generation. The delegated bootstrap root is an exact root-owned mode
 bootstrap; namespace-local `/opt` and `/home` match that bootstrap's
 disposable backing directory generations; and the checkout mirror is the
 expected read-only mount. Mount topology is asymmetric:
-visible `/opt` and `/home` must be explicit mountpoints, while their
-bootstrap backing directories and the bootstrap root itself must not be
-mountpoints. The proof does not trust mountinfo pathnames alone: it opens each
-trusted directory with `O_NOFOLLOW|O_DIRECTORY`, retains the descriptor across
-the observation, reads that descriptor's kernel `mnt_id` from genuine
-`/proc/self/fdinfo/<fd>`, and requires the consumed mountinfo row to carry the
-same mount ID. Ordinary backing directories must additionally remain on the
-same retained mount generation as the bootstrap root. A bind-mounted
-`/proc/<helper>/mountinfo` from another process namespace therefore cannot
-hide a reverse bind while still matching the current proof process's live
-directory descriptors. A caller that merely exports the internal marker
-therefore fails before protected fixture writes.
+visible `/opt` and `/home` must be distinct namespace-local bind mounts,
+while their bootstrap backing directories and the bootstrap root remain on the
+ordinary bootstrap mount. The proof does **not** use `/proc/*/mountinfo` or
+`/proc/*/fdinfo` as topology authority.
+
+Instead, the outer root bootstrap compiles one tiny reviewed helper directly
+into the root-owned bootstrap directory. The delegated child verifies that
+helper's root ownership, non-writable executable mode, single-link shape and
+SHA-256. For each trusted directory the proof opens the directory
+`O_NOFOLLOW|O_DIRECTORY`, retains that exact descriptor, passes it explicitly
+as child fd 3, and the helper obtains the mount identity with
+`statx(3, "", AT_EMPTY_PATH, STATX_MNT_ID, ...)`. It also obtains filesystem
+type with `fstatfs(3,...)` and read-only state with `fstatvfs(3,...)`.
+
+The retained directory generation is revalidated after the helper returns.
+`/opt` and `/home` must have mount IDs distinct from their backing
+directories; ordinary backing directories must share the bootstrap mount ID;
+the private merged `/usr/bin` must be overlayfs and the visible `/usr/bin`
+must be a distinct bind mount over it; upper/work directories must remain on
+the bootstrap mount; and the checkout mirror must be a distinct read-only
+mount. A substituted genuine procfs leaf from another process therefore has no
+role in the authorization decision. A caller that merely exports the internal
+marker fails before protected fixture writes.
 
 Missing/failed unshare, mount, overlay support, install, setpriv, sudo, parent
 provenance, mount identity, or read-only checkout state fails the proof closed.
