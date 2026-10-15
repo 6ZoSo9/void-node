@@ -9,6 +9,8 @@ on:
       - ".github/workflows/buy-void-epoch2-live-fee-chain-qualification-v1.yml"
       - "ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v1.mjs"
       - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json"
+      - "ops/mainnet0/production-epoch2-rpc-target-v1.json"
+      - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/runtime-observation.json"
       - "src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts"
       - "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
   push:
@@ -20,6 +22,8 @@ on:
       - ".github/workflows/buy-void-epoch2-live-fee-chain-qualification-v1.yml"
       - "ops/precision/void_buy_void_epoch2_authenticated_credential_signer_control_binding_v1.mjs"
       - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json"
+      - "ops/mainnet0/production-epoch2-rpc-target-v1.json"
+      - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/runtime-observation.json"
       - "src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts"
       - "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
 
