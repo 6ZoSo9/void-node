@@ -13,6 +13,7 @@ import {
   EXPECTED_QUALIFIER_MARKER,
   EXPECTED_QUALIFIER_NEXT_ACTION,
   STATUS,
+  NEXT_ACTION,
   isCompositeEvidenceIdV2,
   testOnlyClassifyEpoch2AuthenticatedCredentialPublicEvidenceV2,
 } from "../tools/void-buy-void-epoch2-authenticated-credential-public-evidence-v2.mjs";
@@ -190,7 +191,9 @@ const good=testOnlyClassifyEpoch2AuthenticatedCredentialPublicEvidenceV2(
 );
 assert.equal(good.ok,true);
 assert.equal(good.status,STATUS);
-assert.equal(good.authenticated_private_manager_crosscheck,true);
+assert.equal(good.authenticated_private_manager_fields_crosschecked,true);
+assert.equal(good.qualification_provenance_authenticated,false);
+assert.equal(good.production_runtime_authority,false);
 assert.equal(good.main_pid_crosscheck,true);
 assert.equal(good.loadcredential_binding_crosscheck,true);
 assert.equal(good.service_cgroup_hash_crosscheck,true);
@@ -201,6 +204,7 @@ assert.equal(good.transaction_sign_or_broadcast_authorized,false);
 assert.equal(good.public_presale_activation_authorized,false);
 assert.equal(good.wc_void_market_activation_authorized,false);
 assert.equal(good.funds_movement_authorized,false);
+assert.equal(good.next_action,NEXT_ACTION);
 assert.equal(isCompositeEvidenceIdV2(good.composite_evidence_id),true);
 assert.equal(JSON.stringify(good).includes(credentialSource),false);
 
@@ -214,6 +218,8 @@ function hold(label,mutateQualification,mutateRecord=null){
   );
   assert.equal(out.ok,false,label);
   assert.equal(out.status,"HOLD",label);
+  assert.equal(out.qualification_provenance_authenticated,false,label);
+  assert.equal(out.production_runtime_authority,false,label);
   assert.equal(out.live_payment_signing_authorized,false,label);
   assert.equal(out.transaction_sign_or_broadcast_authorized,false,label);
   assert.equal(out.public_presale_activation_authorized,false,label);
@@ -250,7 +256,9 @@ privateKey.fill(0);
 
 console.log("VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_PUBLIC_EVIDENCE_V2_PROOF_GREEN");
 console.log("sealed_public_signature_verified=true");
-console.log("authenticated_private_manager_crosscheck=true");
+console.log("authenticated_private_manager_fields_crosschecked=true");
+console.log("qualification_provenance_authenticated=false");
+console.log("production_runtime_authority=false");
 console.log("main_pid_crosscheck=true");
 console.log("loadcredential_binding_crosscheck=true");
 console.log("service_cgroup_hash_crosscheck=true");
@@ -262,3 +270,4 @@ console.log("transaction_sign_or_broadcast_authorized=false");
 console.log("public_presale_activation_authorized=false");
 console.log("wc_void_market_activation_authorized=false");
 console.log("funds_movement_authorized=false");
+console.log("next_action="+NEXT_ACTION);
