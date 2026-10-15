@@ -74,6 +74,7 @@ jobs:
           grep -Fx 'dedicated_system_cloudflared_identity_required=true' "$proof"
           grep -Fx 'historical_user_tunnel_retirement_required=true' "$proof"
           grep -Fx 'tunnel_private_file_custody_policy_shape_qualified=true' "$proof"
+          grep -Fx 'tunnel_private_parent_custody_policy_shape_qualified=true' "$proof"
           grep -Fx 'credential_content_access=false' "$proof"
           grep -Fx 'exact_sensitive_tunnel_routes_qualified=true' "$proof"
           grep -Fx 'sensitive_origin_http_host_header_bound=true' "$proof"
