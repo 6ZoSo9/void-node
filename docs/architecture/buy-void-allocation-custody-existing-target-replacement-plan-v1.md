@@ -25,6 +25,7 @@ Observed evidence:
 - expected unreadable: `0`;
 - unexpected entries: `897`;
 - opaque unexpected subtrees: `56`;
+- symlink entries: `0`;
 - unsafe owner/write entries: `0`;
 - accepted runtime tree exact: `false`;
 - status: `NONEMPTY_TARGET_NOT_EXACT_ACCEPTED_BUNDLE`.
