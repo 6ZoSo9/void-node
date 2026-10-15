@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const CANDIDATE_HEAD="ead116e22e1bb70b06a8b96ae727d1b1a911fd57";
+const RESTACK_BASE="eeb9148aea782ebfa036e6f1ed6be80474cefadd";
+const ACCEPTED_LOCK_HEAD="f7023746c9d427d8e8ed4d0df50873df6cdc494d";
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml";
 const CANDIDATE_WORKFLOW_BLOB="5b21d57c00e5a4d97be1e79356b75e736de949d0";
 const PREEXEC_SOURCE="ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c";
@@ -19,7 +21,28 @@ const LOCK_FILE="ops/security/buy-void-user-manager-query-elf-lock-v1.json";
 const SELF="scripts/prove_void_buy_user_manager_query_elf_lock_v1.mjs";
 const WORKFLOW=".github/workflows/buy-void-user-manager-query-elf-lock-v1.yml";
 const DOC="docs/operators/buy-void-user-manager-query-elf-lock-v1.md";
-const EXPECTED_DELTA=Object.freeze([CANDIDATE_FILE,LOCK_FILE,SELF,WORKFLOW,DOC].sort());
+const RESTACK_PATHS=Object.freeze([
+  ".github/workflows/buy-void-authenticated-user-manager-unit-evidence-v3.yml",
+  ".github/workflows/buy-void-user-manager-private-peer-guard-v1.yml",
+  ".github/workflows/buy-void-user-manager-private-unit-query-preexec-v1.yml",
+  ".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml",
+  ".github/workflows/buy-void-user-manager-query-elf-lock-v1.yml",
+  "docs/architecture/buy-void-authenticated-user-manager-unit-evidence-v3.md",
+  "docs/architecture/buy-void-user-manager-private-peer-guard-v1.md",
+  "docs/architecture/buy-void-user-manager-private-unit-query-preexec-v1.md",
+  "docs/operators/buy-void-user-manager-query-elf-candidate-v1.md",
+  "docs/operators/buy-void-user-manager-query-elf-lock-v1.md",
+  "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c",
+  "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c",
+  "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c",
+  "ops/security/buy-void-user-manager-query-elf-candidate-v1.json",
+  "ops/security/buy-void-user-manager-query-elf-lock-v1.json",
+  "scripts/prove_void_buy_allocation_custody_host_evidence_v3.mjs",
+  SELF,
+  "scripts/prove_void_buy_void_user_manager_private_peer_guard_v1.mjs",
+  "scripts/prove_void_buy_void_user_manager_private_unit_query_preexec_v1.mjs",
+  "tools/void-buy-allocation-custody-host-evidence-v3.mjs",
+].sort());
 
 const CANDIDATE=Object.freeze({
   marker:"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V1",
@@ -140,15 +163,25 @@ function expectedLock(){
   return Object.freeze({...body,lock_id:id});
 }
 function verifyBranch(){
-  git(["merge-base","--is-ancestor",CANDIDATE_HEAD,"HEAD"]);
+  git(["merge-base","--is-ancestor",RESTACK_BASE,"HEAD"]);
+  git(["cat-file","-e",ACCEPTED_LOCK_HEAD+"^{commit}"]);
+  const changed=git(["diff","--name-only",RESTACK_BASE,"HEAD","--"])
+    .split("\n").filter(Boolean).sort();
+  assert.deepEqual(changed,RESTACK_PATHS,"restack_branch_scope_drift");
+  for(const relative of RESTACK_PATHS){
+    if(relative===SELF)continue;
+    assert.equal(
+      git(["rev-parse","HEAD:"+relative]),
+      git(["rev-parse",ACCEPTED_LOCK_HEAD+":"+relative]),
+      "accepted_restack_blob_drift:"+relative,
+    );
+  }
   assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_WORKFLOW]),CANDIDATE_WORKFLOW_BLOB);
   for(const [relative,expected] of [
     [PREEXEC_SOURCE,CANDIDATE.preexec_source_git_blob_sha1],
     [QUERY_SOURCE,CANDIDATE.query_source_git_blob_sha1],
     [PEER_SOURCE,CANDIDATE.peer_source_git_blob_sha1],
   ])assert.equal(git(["rev-parse","HEAD:"+relative]),expected,"source_blob_drift:"+relative);
-  const changed=git(["diff","--name-only",CANDIDATE_HEAD,"HEAD","--"]).split("\n").filter(Boolean).sort();
-  assert.deepEqual(changed,EXPECTED_DELTA,"lock_branch_scope_drift");
 }
 function rederiveBinaries(){
   assert.equal(sha256(fs.readFileSync("/usr/bin/cc")),CANDIDATE.cc_sha256,"cc_identity_drift");
@@ -205,7 +238,7 @@ if(args.length===1&&args[0]==="--derive"){
   console.log("candidate_sha256="+CANDIDATE_SHA256);
   console.log("preexec_binary_sha256="+v.binaries.preexec_sha256);
   console.log("query_binary_sha256="+v.binaries.query_sha256);
-  console.log("candidate_accepted=true");
+  console.log("accepted_restack_blobs_verified=true");\n  console.log("candidate_accepted=true");
   console.log("install_authorized=false");
   console.log("production_host_evidence_authority=false");
   console.log("public_presale_activation=false");
