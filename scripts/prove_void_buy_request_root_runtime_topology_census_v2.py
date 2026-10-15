@@ -11,6 +11,8 @@ TARGET = ROOT / "ops/precision/void_buy_request_root_runtime_topology_census_v2.
 PARENT_BLOBS = {
     "ops/precision/void_buy_request_root_runtime_topology_census_v1.py":
         "9ca9cb948a08973d0d874c5473ad2743de14140c",
+    "scripts/prove_buy_void_allocation_custody_witness_live_read_qualification_v1.ts":
+        "f9a6c9cb6059cb6869468e2f46da1e7c21d5c264",
     "tools/void-buy-stable-request-root-policy-v1.mjs":
         "681adb6bb7b6bc942b8cef690e45649dd38cada5",
     "src/economic/buy_void_request_custody_read_policy_v1.ts":
@@ -64,11 +66,16 @@ assert module.IPC_GROUP == "void-buy-custody-ipc"
 assert module.EXPECTED_HOSTNAME == "zoso-Precision-Tower-7810"
 assert module.EXPECTED_USER == "zoso"
 assert module.EXPECTED_UID == 1000
+assert module.EXPECTED_MACHINE_ID_SHA256 == (
+    "11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2"
+)
 
 source = TARGET.read_text(encoding="utf-8")
 for required in (
     "target_live_binding_qualified",
     "target_metadata_generation_stable",
+    "machine_id_stable",
+    "machine_id_matches_expected",
     "ipc_group_stable",
     "runtime_http_listener_stable",
     "confirmed_closeout_status_stable",
@@ -101,11 +108,12 @@ for forbidden in (
     "systemctl enable",
     "systemctl disable",
     "sudo ",
-    'target_before.get("exists")',
-    'target_before.get("metadata_qualified")',
 ):
     assert forbidden not in source, forbidden
 
+main_source = source[source.index("def main() -> int:"):]
+assert 'target_before.get("exists")' not in main_source
+assert 'target_before.get("metadata_qualified")' not in main_source
 module.self_test()
 
 print("VOID_BUY_VOID_REQUEST_ROOT_RUNTIME_TOPOLOGY_CENSUS_V2_PROOF_GREEN")
@@ -113,6 +121,7 @@ print("accepted_stable_request_root_policy_blob_bound=true")
 print("accepted_custody_readable_source_blobs_bound=true")
 print("v1_read_primitives_blob_bound=true")
 print("double_census_stability_required=true")
+print("designated_machine_id_binding_required=true")
 print("request_payment_contents_read=false")
 print("historical_request_history_disposition_proven=false")
 print("migration_authorized=false")

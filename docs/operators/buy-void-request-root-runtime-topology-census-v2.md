@@ -23,9 +23,9 @@ A V2 run may read only host/process/service metadata plus the existing loopback 
 
 For the fixed target it checks only directory and fixed-journal metadata. It never reads request or payment JSONL contents.
 
-The live binding can qualify only when the ordinary zoso observer is on the designated Precision host, the user service is the sole active void-node-live.service generation, TCP/4100 is owned by that stable process, the confirmed-closeout status explicitly reports VOID_BUY_REQUEST_DIR, the reported request root equals the fixed target, and the target metadata matches the accepted 0750/0640 IPC profile.
+The live binding can qualify only when the ordinary zoso observer is on the designated Precision host and the descriptor-bound /etc/machine-id digest matches the already accepted Precision custody identity, the user service is the sole active void-node-live.service generation, TCP/4100 is owned by that stable process, the confirmed-closeout status explicitly reports VOID_BUY_REQUEST_DIR, the reported request root equals the fixed target, and the target metadata matches the accepted 0750/0640 IPC profile.
 
-The collector performs a second observation before qualification. IPC-group name/GID, target directory and fixed-journal inode/metadata, absence of a competing system service, runtime process generation, loopback listener ownership, and confirmed-closeout binding must remain stable across the observation window. Any drift keeps target_live_binding_qualified=false.
+The collector performs a second observation before qualification. The machine-ID digest, IPC-group name/GID, target directory and fixed-journal inode/metadata, absence of a competing system service, runtime process generation, loopback listener ownership, and confirmed-closeout binding must remain stable across the observation window. Any drift keeps target_live_binding_qualified=false.
 
 ## Historical disposition remains a separate gate
 
@@ -37,7 +37,7 @@ Therefore even a successful V2 live metadata binding ends at TARGET_LIVE_BINDING
 
 ## Source binding
 
-The focused proof pins the exact accepted stable-root policy module, the three custody-readable production source blobs, and the reviewed V1 read-primitives collector. CI runs only V2 self-test and plan modes; it never performs the host --run mode.
+The focused proof pins the exact accepted stable-root policy module, the three custody-readable production source blobs, the reviewed V1 read-primitives collector, and accepted Precision custody evidence carrying the designated machine-ID hash. CI runs only V2 self-test and plan modes; it never performs the host --run mode.
 
 ## Authority boundary
 

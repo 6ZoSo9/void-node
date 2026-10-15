@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import argparse
 import grp
+import hashlib
 import importlib.util
 import os
 import pathlib
 import pwd
 import socket
+import stat
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -26,6 +28,9 @@ IPC_GROUP = "void-buy-custody-ipc"
 EXPECTED_HOSTNAME = "zoso-Precision-Tower-7810"
 EXPECTED_USER = "zoso"
 EXPECTED_UID = 1000
+EXPECTED_MACHINE_ID_SHA256 = (
+    "11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2"
+)
 REQUESTS_NAME = "requests.jsonl"
 OPERATOR_EVENTS_NAME = "operator-events.jsonl"
 MAX_REQUESTS_BYTES = 64 * 1024 * 1024
@@ -165,7 +170,7 @@ def classify_target_status(observation: dict[str, Any]) -> dict[str, Any]:
             "marker_ok": True,
             "explicit_override_observed":
                 body.get("request_dir_source") == "VOID_BUY_REQUEST_DIR",
-            "fixed_target_matches": pathlib.Path(request_dir) == TARGET_ROOT,
+            "fixed_target_matches": request_dir == str(TARGET_ROOT),
             "request_dir_sha256": v1.sha256_text(str(pathlib.Path(request_dir))),
         }
     )
@@ -187,6 +192,74 @@ def resolve_ipc_group() -> tuple[bool, int]:
         return True, grp.getgrnam(IPC_GROUP).gr_gid
     except KeyError:
         return False, -1
+
+
+def machine_id_sha256() -> str | None:
+    path = pathlib.Path("/etc/machine-id")
+    before = v1.direct_path_metadata(path)
+    try:
+        mode = int(str(before.get("mode")), 8)
+    except (TypeError, ValueError):
+        return None
+    if (
+        before.get("exists") is not True
+        or before.get("kind") != "regular"
+        or before.get("direct") is not True
+        or before.get("uid") != 0
+        or before.get("nlink") != 1
+        or not isinstance(before.get("size"), int)
+        or before.get("size") <= 0
+        or before.get("size") > 4096
+        or mode & 0o022
+    ):
+        return None
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    try:
+        first = os.fstat(fd)
+        if (
+            not stat.S_ISREG(first.st_mode)
+            or first.st_uid != 0
+            or first.st_nlink != 1
+            or first.st_size != before.get("size")
+            or first.st_dev != before.get("dev")
+            or first.st_ino != before.get("ino")
+            or stat.S_IMODE(first.st_mode) != mode
+        ):
+            return None
+        raw = bytearray()
+        while len(raw) < first.st_size:
+            chunk = os.read(fd, first.st_size - len(raw))
+            if not chunk:
+                return None
+            raw.extend(chunk)
+        if os.read(fd, 1):
+            return None
+        second = os.fstat(fd)
+    finally:
+        os.close(fd)
+    after = v1.direct_path_metadata(path)
+    if (
+        first.st_dev != second.st_dev
+        or first.st_ino != second.st_ino
+        or first.st_size != second.st_size
+        or stat.S_IMODE(first.st_mode) != stat.S_IMODE(second.st_mode)
+        or before.get("dev") != after.get("dev")
+        or before.get("ino") != after.get("ino")
+        or before.get("size") != after.get("size")
+        or before.get("mode") != after.get("mode")
+        or after.get("direct") is not True
+    ):
+        return None
+    try:
+        machine = bytes(raw).decode("ascii", "strict").strip()
+    except UnicodeDecodeError:
+        return None
+    if len(machine) != 32 or any(ch not in "0123456789abcdef" for ch in machine):
+        return None
+    return hashlib.sha256(machine.encode("ascii")).hexdigest()
 
 
 def self_test() -> None:
@@ -259,9 +332,12 @@ def self_test() -> None:
         }
     )
     assert wrong_source["explicit_override_observed"] is False
+    assert len(EXPECTED_MACHINE_ID_SHA256) == 64
+    assert all(ch in "0123456789abcdef" for ch in EXPECTED_MACHINE_ID_SHA256)
     print(f"{MARKER}_SELF_TEST_GREEN")
     print("fixed_target_policy=0750_0640")
     print("double_census_stability_required=true")
+    print("designated_machine_id_binding_required=true")
     print("request_payment_contents_read=false")
     print("historical_request_history_disposition_proven=false")
     print("production_gate_ready=false")
@@ -284,6 +360,7 @@ def plan() -> None:
         ("external_network_calls", "false"),
         ("loopback_get_only", "true"),
         ("process_environment_access", "false"),
+        ("machine_id_raw_output", "false"),
         ("request_payment_contents_read", "false"),
         ("historical_request_history_disposition_proven", "false"),
         ("migration_authorized", "false"),
@@ -305,6 +382,7 @@ def collect() -> dict[str, Any]:
     except KeyError as exc:
         raise CensusV2Error("observer_user_identity_unavailable") from exc
     ipc_group_present_before, ipc_gid_before = resolve_ipc_group()
+    machine_id_before = machine_id_sha256()
 
     user_before = v1.service_snapshot(user_manager=True)
     system_service = v1.service_snapshot(user_manager=False)
@@ -342,6 +420,7 @@ def collect() -> dict[str, Any]:
     system_service_after = v1.service_snapshot(user_manager=False)
     process_after = v1.read_process_generation(int(user_after.get("main_pid") or 0))
     ipc_group_present_after, ipc_gid_after = resolve_ipc_group()
+    machine_id_after = machine_id_sha256()
     target_after = (
         target_metadata(uid, ipc_gid_after)
         if ipc_group_present_after
@@ -365,6 +444,14 @@ def collect() -> dict[str, Any]:
         and ipc_group_present_after
         and ipc_gid_before == ipc_gid_after
     )
+    machine_id_stable = (
+        machine_id_before is not None
+        and machine_id_before == machine_id_after
+    )
+    machine_id_matches_expected = (
+        machine_id_stable
+        and machine_id_before == EXPECTED_MACHINE_ID_SHA256
+    )
     target_metadata_generation_stable = same_target_metadata_generation(
         target_before, target_after
     )
@@ -385,6 +472,7 @@ def collect() -> dict[str, Any]:
         socket.gethostname() == EXPECTED_HOSTNAME
         and account.pw_name == EXPECTED_USER
         and uid == EXPECTED_UID
+        and machine_id_matches_expected
         and ipc_group_stable
         and user_before.get("active_running") is True
         and system_service.get("active_running") is False
@@ -439,6 +527,8 @@ def collect() -> dict[str, Any]:
             "hostname_matches_precision": socket.gethostname() == EXPECTED_HOSTNAME,
             "effective_user_is_zoso": account.pw_name == EXPECTED_USER,
             "effective_uid": uid,
+            "machine_id_stable": machine_id_stable,
+            "machine_id_matches_expected": machine_id_matches_expected,
             "ipc_group_present": ipc_group_present_before,
             "ipc_gid": ipc_gid_before if ipc_group_present_before else None,
             "ipc_group_stable": ipc_group_stable,
@@ -504,6 +594,8 @@ def main() -> int:
     host = result["host"]
     print("hostname_matches_precision=" + str(host["hostname_matches_precision"]).lower())
     print("effective_user_is_zoso=" + str(host["effective_user_is_zoso"]).lower())
+    print("machine_id_stable=" + str(host["machine_id_stable"]).lower())
+    print("machine_id_matches_expected=" + str(host["machine_id_matches_expected"]).lower())
     print("ipc_group_present=" + str(host["ipc_group_present"]).lower())
     print("ipc_gid=" + str(host["ipc_gid"]))
     print("ipc_group_stable=" + str(host["ipc_group_stable"]).lower())
