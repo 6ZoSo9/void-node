@@ -43,6 +43,11 @@ jobs:
           grep -Fx 'ancestor_symlink_escape_rejected=true' "$proof_file"
           grep -Fx 'lexical_traversal_rejected=true' "$proof_file"
           grep -Fx 'head_body_empty=true' "$proof_file"
+          grep -Fx 'public_file_snapshot_max_bytes=8388608' "$proof_file"
+          grep -Fx 'oversized_file_rejected=true' "$proof_file"
+          grep -Fx 'head_body_read=false' "$proof_file"
+          grep -Fx 'bounded_descriptor_read=true' "$proof_file"
+          grep -Fx 'descriptor_generation_revalidated=true' "$proof_file"
           grep -Fx 'dangerous_paths_touched=false' "$proof_file"
       - name: Diff hygiene
         env:
