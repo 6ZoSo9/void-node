@@ -13,6 +13,8 @@ const QUERY=
   "ops/precision/void_buy_void_user_manager_private_credential_unit_query_v1.c";
 const ORDINARY_PREEXEC=
   "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c";
+const PEER=
+  "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c";
 const SELF=
   "scripts/prove_void_buy_void_user_manager_private_credential_unit_query_preexec_v1.mjs";
 const DOC=
@@ -24,6 +26,7 @@ const EXPECTED_DELTA=[SOURCE,SELF,DOC,WORKFLOW].sort();
 const EXPECTED=Object.freeze({
   credentialQuery:"e12e0b16df6e6eb5fd912a6dbf6ae970673246f9",
   ordinaryPreexec:"f0fbfaae97df3294097a281100f06ada2ef157ff",
+  peer:"d8b30ac499c3bb8a5d223dbc6be687dd175be611",
 });
 
 function run(command,args,{timeout=30000}={}){
@@ -60,6 +63,7 @@ const changed=git(["diff","--name-only",PARENT_HEAD,"HEAD","--"])
 assert.deepEqual(changed,EXPECTED_DELTA,"credential_preexec_scope_drift");
 assert.equal(git(["rev-parse","HEAD:"+QUERY]),EXPECTED.credentialQuery);
 assert.equal(git(["rev-parse","HEAD:"+ORDINARY_PREEXEC]),EXPECTED.ordinaryPreexec);
+assert.equal(git(["rev-parse","HEAD:"+PEER]),EXPECTED.peer);
 
 const source=fs.readFileSync(path.join(ROOT,SOURCE),"utf8");
 for(const exact of [
@@ -110,6 +114,7 @@ assert.ok(
 console.log("VOID_BUY_VOID_USER_MANAGER_PRIVATE_CREDENTIAL_UNIT_QUERY_PREEXEC_V1_PROOF_GREEN");
 console.log("credential_query_git_blob_sha1="+EXPECTED.credentialQuery);
 console.log("ordinary_preexec_git_blob_sha1="+EXPECTED.ordinaryPreexec);
+console.log("peer_guard_git_blob_sha1="+EXPECTED.peer);
 console.log("distinct_fixed_install_root=true");
 console.log("static_link_required=true");
 console.log("dynamic_loader_before_preexec_forbidden=true");
