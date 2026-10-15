@@ -18,11 +18,20 @@ HISTORICAL_REPLACE_REL = (
 )
 HISTORICAL_REPLACE = ROOT / HISTORICAL_REPLACE_REL
 
+QUERY_SOURCE_REL = "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+PREEXEC_SOURCE_REL = (
+    "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+)
+PEER_SOURCE_REL = "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+
 EXPECTED_BLOBS = {
     SOURCE_REL: "1d5501d883a82202834629d8112d4b20a165fb8b",
     LOCK_REL: "0cda9daecb2aa294f0a10041d81be7673705f1d8",
     CANDIDATE_REL: "a341112695b1abbc61e0b4d88db9675b4fa15d83",
     HISTORICAL_REPLACE_REL: "25753737ac7719b0ceddc759904c81db0f7a1cae",
+    QUERY_SOURCE_REL: "fc1f640689b7da7278ff013669ef8a10cd8f6659",
+    PREEXEC_SOURCE_REL: "f0fbfaae97df3294097a281100f06ada2ef157ff",
+    PEER_SOURCE_REL: "d8b30ac499c3bb8a5d223dbc6be687dd175be611",
 }
 
 LOCK_ID = (
