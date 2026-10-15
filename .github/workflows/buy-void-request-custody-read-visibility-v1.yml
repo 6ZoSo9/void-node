@@ -66,8 +66,17 @@ jobs:
       - name: Preserve legacy default behavior
         run: |
           set -euo pipefail
-          env -u VOID_BUY_REQUEST_CUSTODY_READ_GID             npx tsx scripts/prove_buy_void_request_under_lock_revalidation_v2.mjs
-          env -u VOID_BUY_REQUEST_CUSTODY_READ_GID             npx tsx scripts/prove_buy_void_verified_payment_capacity_admission_v1.ts
+          legacy="$RUNNER_TEMP/custody-read-legacy.log"
+          env -u VOID_BUY_REQUEST_CUSTODY_READ_GID \
+            npx tsx scripts/prove_buy_void_request_custody_read_visibility_v1.ts |
+            tee "$legacy"
+          grep -Fx 'VOID_BUY_VOID_REQUEST_CUSTODY_READ_VISIBILITY_V1_LEGACY_DEFAULT_GREEN' "$legacy"
+          grep -Fx 'legacy_request_directory_mode=0700' "$legacy"
+          grep -Fx 'legacy_request_journal_mode=0600' "$legacy"
+          grep -Fx 'legacy_customer_sidecar_mode=0600' "$legacy"
+          grep -Fx 'legacy_mode_create_on_first_request=true' "$legacy"
+          env -u VOID_BUY_REQUEST_CUSTODY_READ_GID \
+            npx tsx scripts/prove_buy_void_verified_payment_capacity_admission_v1.ts
       - name: Diff hygiene
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
