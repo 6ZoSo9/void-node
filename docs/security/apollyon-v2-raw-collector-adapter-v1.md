@@ -42,7 +42,7 @@ The adapter:
   executing identity;
 - opens it with `O_NOFOLLOW`;
 - requires Git blob
-  `c7c63106511ee285f8f1cf79b97d32afe0424c65`;
+  `2a285b5b1da2597a8b9eae6d08cd42d010bf7f71`;
 - resolves and verifies root-owned, non-writable `/usr/bin/python3`;
 - retains local ownership of each newly opened collector/Python fd until all
   post-open identity checks succeed, closing the fd in a `finally` path on

@@ -24,6 +24,11 @@ assert.equal(
   )),
   "2a285b5b1da2597a8b9eae6d08cd42d010bf7f71",
 );
+const adapterDoc=fs.readFileSync(
+  path.join(ROOT,"docs/security/apollyon-v2-raw-collector-adapter-v1.md"),"utf8",
+);
+assert.match(adapterDoc,/2a285b5b1da2597a8b9eae6d08cd42d010bf7f71/u);
+assert.doesNotMatch(adapterDoc,/c7c63106511ee285f8f1cf79b97d32afe0424c65/u);
 
 const adapterConfig={
   training_user:"voidapollyontrain",
@@ -210,6 +215,7 @@ console.log("raw_unresolved_service_control_required=true");
 console.log("collector_admission_fault_closes_fd=true");
 console.log("python_admission_fault_closes_fd=true");
 console.log("descriptor_pretransfer_close_on_error=true");
+console.log("collector_documentation_blob_current=true");
 console.log("policy_evaluation=false");
 console.log("preclaim_composition=false");
 console.log("attempt_claim=false");
