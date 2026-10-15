@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           query_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
           case "$query_blob" in
-            ddca2c544ce14261dffb80a202c0a4ae2979ec1e) ;;
+            fc1f640689b7da7278ff013669ef8a10cd8f6659) ;;
             6aefc385bcc4212d3c45e36871bfde0da3529baa)
               echo "accepted V4 source reintroduced; V4 is historical after V5" >&2
               exit 2
@@ -53,7 +53,7 @@ jobs:
           assert.equal(c.live_query_authorized,false);
           NODE
           echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V4_HISTORICAL_PRESERVED
-          echo v5_query_source_exact=true
+          echo v6_query_source_exact=true
           echo install_authorized=false
           echo funds_movement=false
       - run: git diff --check

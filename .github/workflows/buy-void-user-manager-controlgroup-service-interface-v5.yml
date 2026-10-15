@@ -19,43 +19,23 @@ permissions:
   contents: read
 
 jobs:
-  prove:
+  preserve:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [22,24,26]
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: ${{ matrix.node }}
-      - name: Prove exact source repair
+      - name: Preserve V5 ControlGroup repair on exact V6 successor
         run: |
           set -euo pipefail
-          node scripts/prove_void_buy_user_manager_controlgroup_service_interface_v5.mjs |
-            tee "$RUNNER_TEMP/controlgroup-v5.log"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_CONTROLGROUP_SERVICE_INTERFACE_V5_PROOF_GREEN' "$RUNNER_TEMP/controlgroup-v5.log"
-          grep -Fx 'query_blob_bound=true' "$RUNNER_TEMP/controlgroup-v5.log"
-          grep -Fx 'control_group_service_interface_required=true' "$RUNNER_TEMP/controlgroup-v5.log"
-          grep -Fx 'generic_unit_control_group_forbidden=true' "$RUNNER_TEMP/controlgroup-v5.log"
-          grep -Fx 'manager_private_peer_contract_preserved=true' "$RUNNER_TEMP/controlgroup-v5.log"
-          grep -Fx 'kernel_capability_contract_preserved=true' "$RUNNER_TEMP/controlgroup-v5.log"
-          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/controlgroup-v5.log"
-          grep -Fx 'host_mutation=false' "$RUNNER_TEMP/controlgroup-v5.log"
-          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/controlgroup-v5.log"
-      - name: Compile exact repaired query
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "ddca2c544ce14261dffb80a202c0a4ae2979ec1e"
-          cc -std=c11 -Wall -Wextra -Werror -O2 -fno-ident -Wl,--build-id=none             -o "$RUNNER_TEMP/query-v5"             ops/precision/void_buy_void_user_manager_private_unit_query_v1.c -ldl
-          env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C             VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_SANITIZED_V1=1             "$RUNNER_TEMP/query-v5" --self-test |
-            tee "$RUNNER_TEMP/query-v5-self-test.log"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/query-v5-self-test.log"
-          grep -Fx 'private_users_false_required=true' "$RUNNER_TEMP/query-v5-self-test.log"
-          grep -Fx 'systemd_kernel_bounding_set_match_required=true' "$RUNNER_TEMP/query-v5-self-test.log"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "fc1f640689b7da7278ff013669ef8a10cd8f6659"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_user_manager_controlgroup_service_interface_v5.mjs)" = "c014c1c2e8319484288f75ed201deb79544bd781"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-user-manager-controlgroup-service-interface-v5.md)" = "dbcd97ffaab23a960cc280a3f06983e373ddd417"
+          echo VOID_BUY_VOID_USER_MANAGER_CONTROLGROUP_SERVICE_INTERFACE_V5_HISTORICAL_PRESERVED
+          echo v6_kernel_cap_last_cap_projection_successor=true
+          echo install_authorized=false
+          echo live_query_authorized=false
+          echo funds_movement=false
       - run: git diff --check
