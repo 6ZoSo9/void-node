@@ -606,7 +606,7 @@ if __name__ == "__main__":
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc))
-        print("query_execution=false")
+        print("query_execution_state=unknown_or_partial")
         print("host_mutation=false")
         print("filesystem_write=false")
         print("service_mutation=false")
