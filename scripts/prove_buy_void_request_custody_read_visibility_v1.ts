@@ -82,6 +82,66 @@ assert.equal(typeof process.getuid,"function");
 assert.equal(typeof process.getgid,"function");
 const uid=process.getuid!();
 const gid=process.getgid!();
+
+if (!VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1) {
+  assert.equal(
+    process.env[VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_ENV_V1],
+    undefined,
+    "legacy proof requires custody-readable gid env to be absent",
+  );
+  const root=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-buy-legacy-private-request-"),
+  );
+  const legacyRoot=path.join(root,"requests");
+  const legacyRequest=req("buyvoid_legacy_aaaaaaaa","8");
+  const readMaybe=(file:string):any[]=>{
+    if(!fs.existsSync(file))return [];
+    return rows(file);
+  };
+  let lockCalls=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=legacyRoot;
+    const result=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      legacyRequest,
+      [
+        async(_request:any,operation:any)=>{
+          lockCalls+=1;
+          return await operation(()=>({ready:true}));
+        },
+        async()=>readMaybe(path.join(legacyRoot,REQUESTS)),
+        async()=>readMaybe(path.join(legacyRoot,EVENTS)),
+        (requests:any[])=>requests,
+        ()=>false,
+        ()=>true,
+      ],
+    );
+    assert.equal(lockCalls,1);
+    assert.equal(result.reused_request,null);
+    assert.equal(fs.existsSync(legacyRoot),true);
+    assert.equal(mode(legacyRoot),0o700);
+    assert.equal(mode(path.join(legacyRoot,REQUESTS)),0o600);
+    assert.equal(
+      mode(path.join(legacyRoot,legacyRequest.request_id+".json")),
+      0o600,
+    );
+    assert.equal(fs.existsSync(path.join(legacyRoot,EVENTS)),false);
+    assert.equal(rows(path.join(legacyRoot,REQUESTS)).length,1);
+    console.log(MARKER+"_LEGACY_DEFAULT_GREEN");
+    console.log("legacy_request_directory_mode=0700");
+    console.log("legacy_request_journal_mode=0600");
+    console.log("legacy_customer_sidecar_mode=0600");
+    console.log("legacy_mode_create_on_first_request=true");
+    console.log("custody_write_authority=false");
+    console.log("payment_acceptance=false");
+    console.log("public_presale_activation=false");
+    console.log("funds_movement=false");
+  } finally {
+    delete process.env.VOID_BUY_REQUEST_DIR;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+  process.exit(0);
+}
+
 assert.equal(
   process.env[VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_ENV_V1],
   String(gid),
