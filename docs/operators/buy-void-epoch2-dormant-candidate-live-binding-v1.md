@@ -62,7 +62,7 @@ Only after the child receipt validates may the result state:
 
 It deliberately keeps:
 
-- `signer_offchain_control_proven=false`;
+- `signer_offchain_control_proven=false` inside this receipt until the already accepted signer-control evidence is explicitly composed;
 - `transaction_signing_proven=false`;
 - `customer_safe_to_pay=false`;
 - every runtime/payment/presale/WC/funds authority false.
@@ -75,7 +75,7 @@ write.
 
 After a GREEN binding receipt:
 
-1. prove launch-operator signer control of the immutable Epoch-2 fulfiller;
+1. bind the already accepted Epoch-2 signer-control public evidence to this authenticated credential receipt;
 2. qualify the live gas/fee envelope and exact chain receipt;
 3. run the current one-payment/one-fulfillment canary;
 4. obtain coupled presale + WC/VOID Sovereign activation.
@@ -115,7 +115,7 @@ test -z "$("${clean_git[@]}" status --porcelain=v1 --untracked-files=all)"
 
 binder_path=ops/precision/void_buy_void_epoch2_dormant_candidate_live_binding_v1.mjs
 binder_blob="$("${clean_git[@]}" rev-parse "${head}:${binder_path}")"
-test "$binder_blob" = c3be6b50d5dad15b9e75229cd258ca9cf04692e7
+test "$binder_blob" = e31b6728247188a2ffe7b9587dd0017413fcb716
 
 "${clean_git[@]}" cat-file blob "$binder_blob" |
 sudo env -i \
