@@ -646,6 +646,13 @@ async function dockerRpcContainerFacts(expected){
     ?inspect.HostConfig.CapDrop.map((value)=>String(value).toUpperCase()):[];
   const securityOpt=Array.isArray(inspect.HostConfig?.SecurityOpt)
     ?inspect.HostConfig.SecurityOpt.map(String):[];
+  const env=Array.isArray(inspect.Config?.Env)
+    ?inspect.Config.Env.map(String):[];
+  const besuOpts=env.filter((value)=>value.startsWith("BESU_OPTS="));
+  if(besuOpts.length!==1||
+     besuOpts[0]!=="BESU_OPTS=-Dbesu.plugins.dir=/plugins"){
+    throw new Error("rpc_container_besu_plugins_env_invalid");
+  }
   const actual={
     container_name:String(inspect.Name||"").replace(/^\//u,""),
     container_id:String(inspect.Id||"").toLowerCase(),
@@ -666,6 +673,7 @@ async function dockerRpcContainerFacts(expected){
     no_new_privileges:securityOpt.some(
       (value)=>value==="no-new-privileges"||value==="no-new-privileges:true"
     ),
+    besu_plugins_env_verified:true,
     docker_socket_dev:inspectResult.socket_dev,
     docker_socket_ino:inspectResult.socket_ino,
     docker_socket_uid:inspectResult.socket_uid,
@@ -681,6 +689,7 @@ async function dockerRpcContainerFacts(expected){
     user:"0:0",
     cap_drop_all:true,
     no_new_privileges:true,
+    besu_plugins_env_verified:true,
     docker_socket_uid:"1000",
   })){
     if(actual[key]!==want)throw new Error("rpc_container_generation_mismatch:"+key);
