@@ -167,9 +167,18 @@ absent fixed `/home/zoso/dev/void-node` checkout cwd fails closed. Before
 creating any checkout-parent fixture it requires both `/home/zoso` and
 `/home/zoso/dev` to be absent; it never chowns/chmods pre-existing home
 ancestry. It then creates those disposable parents and materializes the fixed
-checkout path as a link to the exact hosted checkout. The pre-existing
-`/` and `/opt` ancestry is inspected only and is never normalized or
-mutated by the proof.
+checkout path as a link to the exact hosted checkout.
+
+Production/operator proof execution never normalizes an unsafe `/opt`
+ancestor. The hosted positive fixture has one CI-only exception because the
+GitHub Ubuntu image may expose `/opt` with metadata that intentionally fails
+the production custody predicate: only when the GitHub-hosted
+`GITHUB_ACTIONS=true`, `CI=true`, and canonical runner-temp boundary are
+present, the proof captures the existing `/opt` device/inode/uid/gid/mode,
+temporarily normalizes it for the disposable fixture, and restores and
+revalidates that exact metadata in `finally`. Failure to restore is a proof
+failure.
+
 A real native `/dev/null` invocation must clear the parent-proof gates,
 execute the real runtime-user transition, and reach the later expected Git
 checkout HOLD. An ambiguous spawn ENOENT is not accepted as positive-lineage
