@@ -1,0 +1,70 @@
+name: VOID Buy legacy request-history disposition candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-legacy-request-history-disposition-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_disposition_v1.mjs"
+      - "docs/operators/buy-void-legacy-request-history-disposition-v1.md"
+      - ".github/workflows/buy-void-legacy-request-history-disposition-v1.yml"
+      - "ops/precision/void_buy_void_legacy_request_root_census_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-legacy-request-history-disposition-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_disposition_v1.mjs"
+      - "docs/operators/buy-void-legacy-request-history-disposition-v1.md"
+      - ".github/workflows/buy-void-legacy-request-history-disposition-v1.yml"
+      - "ops/precision/void_buy_void_legacy_request_root_census_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove candidate-only disposition boundary
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-legacy-request-history-disposition-v1.mjs
+          node --check scripts/prove_void_buy_legacy_request_history_disposition_v1.mjs
+          node scripts/prove_void_buy_legacy_request_history_disposition_v1.mjs |
+            tee "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_CANDIDATE_V1_PROOF_GREEN' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'exact_census_evidence_bytes_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'exact_census_source_head_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'exact_census_source_blob_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'census_sha256_computed_internally=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'census_partitions_derived_internally=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'fabricated_summary_rejected=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'source_provenance_labels_bound=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'future_stable_root_mixed_provenance_rejected=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'candidate_source_coverage_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'authenticated_census_manager_binding_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'unit_working_directory_untrusted=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'authenticated_live_cwd_provenance_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'incomplete_census_hold_preserved=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'technical_never_used_proof_claimed=false' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'bounded_current_candidate_set_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'designated_runtime_user_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'process_environment_access_forbidden=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'external_network_access_forbidden=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'sovereign_signature_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'external_witness_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'historical_request_history_disposition_accepted=false' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'stable_root_apply_authorized=false' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+      - run: git diff --check

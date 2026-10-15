@@ -32,8 +32,8 @@ function preSign(overrides={}){
       value_wei:"0",
       calldata:"0x1234",
       gas_limit:"60000",
-      max_fee_per_gas_wei:"2000000000",
-      max_priority_fee_per_gas_wei:"1000000000",
+      max_fee_per_gas_wei:"0",
+      max_priority_fee_per_gas_wei:"0",
     },
     freshness:{
       hardened_preflight_before_dynamic_binding:true,
@@ -224,6 +224,14 @@ for(const bad of [
     transaction_signing_authorized:true,
   }},
   {signing_performed:true},
+  {unsigned_transaction_candidate:{
+    ...preSign().unsigned_transaction_candidate,
+    max_fee_per_gas_wei:"1",
+  }},
+  {unsigned_transaction_candidate:{
+    ...preSign().unsigned_transaction_candidate,
+    max_priority_fee_per_gas_wei:"1",
+  }},
 ]){
   const result=bindDatanetContentCommitmentPublisherCredentialV1({
     credentials_directory:"/definitely/not/read",
@@ -288,6 +296,17 @@ for(const forbidden of [
   assert.equal(source.includes(forbidden),false,"source contains "+forbidden);
 }
 
+assert.equal(
+  source.includes('text(candidate.max_fee_per_gas_wei)!=="0"'),
+  true,
+  "nonzero max fee must fail closed",
+);
+assert.equal(
+  source.includes('text(candidate.max_priority_fee_per_gas_wei)!=="0"'),
+  true,
+  "nonzero priority fee must fail closed",
+);
+
 console.log(
   "VOID_DATANET_CONTENT_COMMITMENT_PUBLISHER_CREDENTIAL_BINDING_V1_PROOF_GREEN",
 );
@@ -305,3 +324,6 @@ console.log("transaction_revalidation=false");
 console.log("signing=false");
 console.log("transaction_broadcast=false");
 console.log("chain2050_write=false");
+
+console.log("epoch2_zero_fee_candidate_accepted=true");
+console.log("nonzero_fee_drift_rejected=true");

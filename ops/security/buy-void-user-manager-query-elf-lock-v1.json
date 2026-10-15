@@ -1,0 +1,42 @@
+{
+  "schema": "void_buy_void_user_manager_query_elf_lock_v1",
+  "marker": "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "candidate_head": "ead116e22e1bb70b06a8b96ae727d1b1a911fd57",
+  "candidate_hosted_evidence": {
+    "workflow_run": 38676947271,
+    "artifact_a": 11946183568,
+    "artifact_b": 11945674523,
+    "artifact_c": 11946183573,
+    "cross_job_byte_identity_verified": true,
+    "exact_stripped_pair_executed_before_hash": true
+  },
+  "candidate_evidence": {
+    "path": "ops/security/buy-void-user-manager-query-elf-candidate-v1.json",
+    "workflow_path": ".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml",
+    "workflow_git_blob_sha1": "5b21d57c00e5a4d97be1e79356b75e736de949d0",
+    "bytes": 901,
+    "sha256": "a39ba5b63cba844f1fbb382041a59a51139e066c8b76ff10f59ac61455ae2776",
+    "git_blob_sha1": "1ac068dab592afa923b51434e87bc13b01966246",
+    "preexec_source_git_blob_sha1": "f0fbfaae97df3294097a281100f06ada2ef157ff",
+    "query_source_git_blob_sha1": "ad49cd7f71c41e0f559a561b5a62a00cec60c215",
+    "peer_source_git_blob_sha1": "cab88f4642ab929d1f7a4d2f1511462a94ef34ca",
+    "preexec_binary_sha256": "8963c77f02c83c04c386912525b7c6177a6ef99507c7f85113c8b7c74e245c11",
+    "preexec_binary_bytes": 706504,
+    "preexec_static_no_interp": true,
+    "query_binary_sha256": "98fb0de18c7e2acc133db38f15036acc8345f503b2dd196cc07193523dd0a435",
+    "query_binary_bytes": 34872,
+    "cc_sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+    "strip_sha256": "0d980587ada7ab12193f39271f060d5663aa2f289b0e80d2a0274ce7306e4e42"
+  },
+  "candidate_accepted": true,
+  "install_authorized": false,
+  "protected_install_performed": false,
+  "complete_host_evidence_collector": false,
+  "production_host_evidence_authority": false,
+  "payment_acceptance": false,
+  "public_presale_activation": false,
+  "funds_movement": false,
+  "lock_id": "voidbuyumqelflock1_0b0b791995f7a3346c3562387e211e9e2bb54ca6a050a964950e70a0e4cd1a16"
+}
