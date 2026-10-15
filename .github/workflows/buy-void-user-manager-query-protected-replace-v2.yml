@@ -8,6 +8,11 @@ on:
       - "docs/operators/buy-void-user-manager-query-protected-replace-v2.md"
       - ".github/workflows/buy-void-user-manager-query-protected-replace-v2.yml"
       - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
   push:
     branches: [main]
     paths:
@@ -16,6 +21,11 @@ on:
       - "docs/operators/buy-void-user-manager-query-protected-replace-v2.md"
       - ".github/workflows/buy-void-user-manager-query-protected-replace-v2.yml"
       - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
 
 permissions:
   contents: read
@@ -36,7 +46,40 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Dispatch exact V2 replacement generation
+        id: generation
+        run: |
+          set -euo pipefail
+          query_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
+          peer_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)"
+          preexec_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c)"
+          lock_v2_blob="$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v2.json)"
+          parser_blob="$(git rev-parse HEAD:tools/void-buy-allocation-custody-host-evidence-v4.mjs)"
+          if [ "$query_blob" = "5355b7f177574ac4fa173a693605acaf9c5f26e4" ] &&
+             [ "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611" ] &&
+             [ "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff" ] &&
+             [ "$lock_v2_blob" = "b3abcb408730cf5e79093f6df30733f11324e95c" ] &&
+             [ "$parser_blob" = "7887cacd5481ba70a34dc7316fe8343e928936b5" ]; then
+            echo "superseded3114=true" >> "$GITHUB_OUTPUT"
+          else
+            test "$query_blob" = "6aefc385bcc4212d3c45e36871bfde0da3529baa"
+            test "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
+            test "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff"
+            test "$lock_v2_blob" = "347951dbaa2d9bb5c31c8b718d9965ab3fdf7301"
+            test "$parser_blob" = "223a8acf32f8c7961d61222b83c0db17075f86c6"
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
+            echo "superseded3114=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Preserve superseded 3114 replacement evidence
+        if: steps.generation.outputs.superseded3114 != 'true'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py)" = "25753737ac7719b0ceddc759904c81db0f7a1cae"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_user_manager_query_protected_replace_v2.py)" = "49546263c6dc513ac98a00fef355988a195d972e"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-user-manager-query-protected-replace-v2.md)" = "a64b36b0fe69467a259099a331ee581f552b8516"
+          echo "VOID_BUY_VOID_USER_MANAGER_QUERY_PROTECTED_REPLACE_V2_HISTORICAL_PRESERVED"
       - name: Prove atomic replacement source
+        if: steps.generation.outputs.superseded3114 == 'true'
         run: |
           set -euo pipefail
           python3 -I -B ops/precision/void_buy_void_user_manager_query_protected_replace_v2.py --self-test |
@@ -58,6 +101,7 @@ jobs:
           grep -Fx 'service_mutation=false' "$RUNNER_TEMP/replace-proof.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/replace-proof.log"
       - name: Prove inert source plan
+        if: steps.generation.outputs.superseded3114 == 'true'
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/replace-source-plan.log"
