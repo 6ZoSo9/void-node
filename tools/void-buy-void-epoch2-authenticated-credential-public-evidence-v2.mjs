@@ -70,6 +70,23 @@ function positiveInt(value){
   return Number.isSafeInteger(n)&&n>0?n:null;
 }
 
+const FULL_CAPABILITY_MASK_64=(1n<<64n)-1n;
+
+function capabilityMaskForLastCap(lastCap){
+  if(!Number.isSafeInteger(lastCap)||lastCap<0||lastCap>63)return null;
+  const mask=lastCap===63
+    ?FULL_CAPABILITY_MASK_64
+    :(1n<<BigInt(lastCap+1))-1n;
+  return mask.toString(16).padStart(16,"0");
+}
+
+function capabilityMaskWithinSupported(value,supported){
+  const parsed=BigInt("0x"+value);
+  const allowed=BigInt("0x"+supported);
+  const unsupported=FULL_CAPABILITY_MASK_64^allowed;
+  return (parsed&unsupported)===0n;
+}
+
 function canonicalAbsolute(value){
   if(typeof value!=="string"||value.length<2||value.length>=4096||
      !value.startsWith("/")||value.includes("\0")||
@@ -176,6 +193,19 @@ function validateQualification(q){
   ]){
     if(!HEX16.test(String(q[key]||""))){
       return "qualification_capability_mask_invalid:"+key;
+    }
+  }
+  const expectedSupportedMask=capabilityMaskForLastCap(
+    q.v6_kernel_cap_last_cap
+  );
+  if(q.v6_kernel_supported_capability_mask!==expectedSupportedMask){
+    return "qualification_supported_capability_mask_mismatch";
+  }
+  for(const key of ["v6_capability_bounding_set","v6_kernel_cap_bnd"]){
+    if(!capabilityMaskWithinSupported(
+      q[key],q.v6_kernel_supported_capability_mask
+    )){
+      return "qualification_capability_mask_above_kernel_ceiling:"+key;
     }
   }
   if(q.v6_capability_bounding_set!==q.v6_kernel_cap_bnd){
