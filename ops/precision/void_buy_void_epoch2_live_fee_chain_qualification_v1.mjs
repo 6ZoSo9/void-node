@@ -587,6 +587,7 @@ export async function observeFeeChainWithTransport(policy,transport,sleepFn){
     gas_price_wei_first:gasPriceFirst.toString(),
     gas_price_wei_second:gasPriceSecond.toString(),
     conservative_observed_gas_price_wei:conservativeGasPrice.toString(),
+    gas_limit_multiplier_bps:policy.gas_limit_multiplier_bps.toString(),
     fee_multiplier_bps:policy.fee_multiplier_bps.toString(),
     accepted_max_gas_limit:policy.accepted_max_gas_limit.toString(),
     computed_max_fee_per_gas_wei:computedMaxFee.toString(),
@@ -611,12 +612,20 @@ async function observeFeeChainLive(policy){
   );
 }
 
-export function buildReceipt(expectedHead,child,policy,observation){
-  validateChild(child,expectedHead);
+function decimalBigInt(value,label){
+  const raw=String(value??"");
+  if(!/^(?:0|[1-9][0-9]*)$/u.test(raw)){
+    throw new Error("receipt_decimal_invalid:"+label);
+  }
+  return BigInt(raw);
+}
+
+function validateObservation(policy,observation){
   if(!observation||typeof observation!=="object"){
     throw new Error("fee_chain_observation_invalid");
   }
   if(observation.chain_id!=="2050"||
+     observation.accepted_history_block!==ACCEPTED_BLOCK_NUMBER.toString()||
      observation.accepted_history_hash!==ACCEPTED_BLOCK_HASH||
      observation.presale_code_sha256!==PRESALE_CODE_SHA256||
      observation.token_code_sha256!==TOKEN_CODE_SHA256||
@@ -626,9 +635,70 @@ export function buildReceipt(expectedHead,child,policy,observation){
      observation.final_block_hash_revalidated!==true){
     throw new Error("fee_chain_observation_not_green");
   }
+  const before=decimalBigInt(observation.head_before,"head_before");
+  const after=decimalBigInt(observation.head_after,"head_after");
+  if(after<=before)throw new Error("fee_chain_head_progress_invalid");
+
+  const first=decimalBigInt(observation.gas_price_wei_first,"gas_price_first");
+  const second=decimalBigInt(observation.gas_price_wei_second,"gas_price_second");
+  const conservative=decimalBigInt(
+    observation.conservative_observed_gas_price_wei,
+    "gas_price_conservative",
+  );
+  const expectedConservative=first>second?first:second;
+  if(conservative!==expectedConservative){
+    throw new Error("fee_chain_conservative_gas_price_invalid");
+  }
+
+  if(decimalBigInt(observation.gas_limit_multiplier_bps,"gas_multiplier")!==
+       policy.gas_limit_multiplier_bps||
+     decimalBigInt(observation.fee_multiplier_bps,"fee_multiplier")!==
+       policy.fee_multiplier_bps||
+     decimalBigInt(observation.accepted_max_gas_limit,"gas_limit")!==
+       policy.accepted_max_gas_limit||
+     decimalBigInt(observation.maximum_fee_per_gas_wei,"max_fee_policy")!==
+       policy.max_fee_per_gas_wei||
+     decimalBigInt(
+       observation.configured_priority_fee_per_gas_wei,
+       "priority_fee_policy",
+     )!==policy.max_priority_fee_per_gas_wei){
+    throw new Error("fee_chain_policy_projection_invalid");
+  }
+
+  const computed=decimalBigInt(
+    observation.computed_max_fee_per_gas_wei,
+    "computed_max_fee",
+  );
+  const expectedComputed=ceilMulDiv(
+    conservative,policy.fee_multiplier_bps,BPS
+  );
+  if(computed!==expectedComputed||computed>policy.max_fee_per_gas_wei||
+     policy.max_priority_fee_per_gas_wei>computed){
+    throw new Error("fee_chain_computed_envelope_invalid");
+  }
+
+  const cost=decimalBigInt(observation.maximum_gas_cost_wei,"maximum_gas_cost");
+  if(cost!==policy.accepted_max_gas_limit*computed){
+    throw new Error("fee_chain_maximum_gas_cost_invalid");
+  }
+  const balance=decimalBigInt(
+    observation.fulfiller_native_balance_wei,
+    "fulfiller_balance",
+  );
+  if(balance<cost)throw new Error("fee_chain_native_balance_invalid");
+
   const zero=observation.zero_fee_envelope===true;
   const nonzero=observation.nonzero_fee_envelope===true;
-  if(zero===nonzero)throw new Error("fee_envelope_classification_invalid");
+  if(zero===nonzero||zero!==(computed===0n)||nonzero!==(computed>0n)){
+    throw new Error("fee_envelope_classification_invalid");
+  }
+}
+
+export function buildReceipt(expectedHead,child,policy,observation){
+  validateChild(child,expectedHead);
+  validateObservation(policy,observation);
+  const zero=observation.zero_fee_envelope===true;
+  const nonzero=observation.nonzero_fee_envelope===true;
 
   const chainReceiptBody={
     marker:"VOID_BUY_VOID_EPOCH2_LIVE_FEE_CHAIN_RECEIPT_V1",
