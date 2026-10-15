@@ -199,8 +199,8 @@ def preprocessed_source_identity()->dict[str,str|int]:
         "sha256":sha256(data),
     }
 
-ARCHIVE_MEMBER_PREFIX_RE=re.compile(r"^\((/[^()\\x00\\r\\n]+)\)([^()\\x00\\r\\n]+)$")
-ARCHIVE_MEMBER_SUFFIX_RE=re.compile(r"^(/[^()\\x00\\r\\n]+)\(([^()\\x00\\r\\n]+)\)$")
+ARCHIVE_MEMBER_PREFIX_RE=re.compile(r"^\((/[^()\x00\r\n]+)\)([^()\x00\r\n]+)$")
+ARCHIVE_MEMBER_SUFFIX_RE=re.compile(r"^(/[^()\x00\r\n]+)\(([^()\x00\r\n]+)\)$")
 
 def parse_link_trace(raw:bytes,object_path:Path)->dict:
     try:
@@ -938,7 +938,7 @@ def self_test()->None:
     try:
         parse_link_trace(b"relative-link-input.a\n",Path("/tmp/own.o"))
     except AssertionError as exc:
-        if "traced linker input is not absolute" not in str(exc):
+        if "unrecognized nonempty linker trace record" not in str(exc):
             raise
     else:
         raise AssertionError("relative traced linker input unexpectedly skipped")
