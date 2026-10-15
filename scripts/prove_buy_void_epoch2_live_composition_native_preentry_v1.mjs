@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +20,10 @@ const WORKFLOW =
 const FIXED_ROOT = "/opt/void-buy-void-epoch2-live-composition-v2";
 const FIXED_SELF =
   FIXED_ROOT + "/void_buy_void_epoch2_live_composition_native_preentry_v1";
+const FIXED_RUNNER =
+  FIXED_ROOT + "/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs";
+const FIXED_POLICY = FIXED_ROOT + "/policy-v1.conf";
+const FIXED_NODE = "/usr/bin/node";
 const CONFIRM =
   "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V2";
 const GIT = "/usr/bin/git";
@@ -101,8 +106,14 @@ for (const required of [
   "runner_bytes",
   "node_sha256",
   "node_bytes",
+  "pipe2(proof_pipe, O_CLOEXEC)",
+  "pid_t child = fork()",
+  "emit_parent_proof(",
+  "read_process_start_ticks(",
+  "waitpid(child, &status, 0)",
   "fexecve(node_fd, next_argv, envp);",
   "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_RUNNER_FD=%d",
+  "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_PROOF_FD=",
   "PATH=/usr/bin:/bin",
   "HOME=/root",
   "LANG=C",
@@ -121,11 +132,17 @@ const policyAt = preentry.indexOf("policy_v1 policy = read_policy();");
 const runnerOpenAt = preentry.indexOf(
   "int runner_fd = open_trusted_regular(",
 );
-const execAt = preentry.indexOf("fexecve(node_fd, next_argv, envp);");
+const forkAt = preentry.indexOf("pid_t child = fork()");
+const proofAt = preentry.indexOf("emit_parent_proof(");
+const execAt = preentry.lastIndexOf("fexecve(node_fd, next_argv, envp);");
+const waitAt = preentry.indexOf("waitpid(child, &status, 0)");
 assert.ok(stdinAt > 0);
 assert.ok(policyAt > stdinAt);
 assert.ok(runnerOpenAt > policyAt);
-assert.ok(execAt > runnerOpenAt);
+assert.ok(forkAt > runnerOpenAt);
+assert.ok(execAt > forkAt);
+assert.ok(proofAt > forkAt);
+assert.ok(waitAt > proofAt);
 assert.equal(preentry.includes("system("), false);
 assert.equal(preentry.includes("popen("), false);
 assert.equal(preentry.includes("execve("), true);
@@ -161,7 +178,17 @@ for (const required of [
   "root_node_descriptor_execution_bound:true",
   "runner_retained_descriptor_bound:true",
   "stdin_javascript_source_forbidden:true",
-  "requireNativePreentry();",
+  "native_parent_retained_for_child_lifetime:true",
+  "native_parent_process_generation_bound:true",
+  "native_parent_installed_generation_bound:true",
+  "native_parent_revalidated_after_sensitive_sequence:true",
+  "requireNativePreentry(expectedHead)",
+  "revalidateNativePreentry(nativeProof,expectedHead)",
+  "PREENTRY_PROOF_FD_ENV",
+  "PREENTRY_PROOF_SCHEMA",
+  "process.ppid",
+  "native_preentry_parent_executable_mismatch",
+  "native_preentry_parent_child_generation_mismatch",
   "native_preentry_fixed_runner_required",
   "native_preentry_runner_generation_invalid",
   "native_preentry_node_executable_mismatch",
@@ -217,6 +244,9 @@ try {
   );
   assert.match(self.stdout, /stdin_javascript_source_forbidden=true/u);
   assert.match(self.stdout, /node_sha256_policy_bound=true/u);
+  assert.match(self.stdout, /native_parent_retained_for_child_lifetime=true/u);
+  assert.match(self.stdout, /parent_child_start_ticks_bound=true/u);
+  assert.match(self.stdout, /private_parent_proof_channel=true/u);
 
   const readelf = run("/usr/bin/readelf", ["-l", binary]);
   assert.equal(readelf.status, 0, readelf.stderr);
@@ -289,6 +319,40 @@ try {
       FIXED_SELF,
     ]);
     assert.equal(install.status, 0, install.stderr);
+    install = run(SUDO, [
+      "-n", "install",
+      "-o", "root", "-g", "root", "-m", "0444",
+      path.join(ROOT, RUNNER),
+      FIXED_RUNNER,
+    ]);
+    assert.equal(install.status, 0, install.stderr);
+
+    const acceptedHead = git(["rev-parse", "HEAD"]);
+    const runnerBytes = fs.readFileSync(path.join(ROOT, RUNNER));
+    const nodeBytes = fs.readFileSync(FIXED_NODE);
+    const policyFixture = path.join(temp, "policy-v1.conf");
+    fs.writeFileSync(
+      policyFixture,
+      [
+        "schema=VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_POLICY_V1",
+        "expected_head=" + acceptedHead,
+        "runner_sha256=" +
+          crypto.createHash("sha256").update(runnerBytes).digest("hex"),
+        "runner_bytes=" + String(runnerBytes.length),
+        "node_sha256=" +
+          crypto.createHash("sha256").update(nodeBytes).digest("hex"),
+        "node_bytes=" + String(nodeBytes.length),
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    install = run(SUDO, [
+      "-n", "install",
+      "-o", "root", "-g", "root", "-m", "0444",
+      policyFixture,
+      FIXED_POLICY,
+    ]);
+    assert.equal(install.status, 0, install.stderr);
     fixtureInstalled = true;
 
     const attackSource =
@@ -309,7 +373,7 @@ try {
     assert.doesNotMatch(attack.stdout + attack.stderr, /ROOT_JS_SENTINEL_EXECUTED/u);
     assert.match(attack.stderr, /root_javascript_started=false/u);
 
-    const devnull = run("/usr/bin/bash", [
+    const nativeLineage = run("/usr/bin/bash", [
       "-c",
       "exec " +
         JSON.stringify(SUDO) +
@@ -318,14 +382,56 @@ try {
         " --run --confirm " +
         JSON.stringify(CONFIRM) +
         " --expected-head " +
-        "b".repeat(40) +
+        JSON.stringify(acceptedHead) +
         " </dev/null",
-    ]);
-    assert.equal(devnull.status, 2);
+    ], { timeout: 60_000 });
+    assert.equal(nativeLineage.status, 2);
+    assert.doesNotMatch(
+      nativeLineage.stderr,
+      /native_preentry_(proof|parent|child|installed)_/u,
+      "valid native lineage must clear parent-proof gates",
+    );
     assert.match(
-      devnull.stderr,
-      /reason=native_preentry_policy_custody_invalid/u,
-      "devnull input must pass stdin rejection and reach the next protected gate",
+      nativeLineage.stderr,
+      /git_failed:rev-parse/u,
+      "valid native lineage should reach the later checkout gate in CI",
+    );
+
+    const forgedProof = path.join(temp, "forged-parent-proof.json");
+    const forgeScript = [
+      "set -euo pipefail",
+      "runner=" + JSON.stringify(FIXED_RUNNER),
+      "preentry=" + JSON.stringify(FIXED_SELF),
+      "node=" + JSON.stringify(FIXED_NODE),
+      "proof=" + JSON.stringify(forgedProof),
+      "head=" + JSON.stringify(acceptedHead),
+      "exec 3<\"$runner\"",
+      "parent=$PPID",
+      "child=$$",
+      "parent_ticks=$(awk '{print $22}' /proc/$parent/stat)",
+      "child_ticks=$(awk '{print $22}' /proc/$child/stat)",
+      "pre_dev=$(stat -Lc %d \"$preentry\")",
+      "pre_ino=$(stat -Lc %i \"$preentry\")",
+      "runner_dev=$(stat -Lc %d \"$runner\")",
+      "runner_ino=$(stat -Lc %i \"$runner\")",
+      "node_dev=$(stat -Lc %d \"$node\")",
+      "node_ino=$(stat -Lc %i \"$node\")",
+      "printf '%s\\n' \"{\\\"schema\\\":\\\"VOID_BUY_VOID_EPOCH2_NATIVE_PARENT_PROOF_V1\\\",\\\"parent_pid\\\":$parent,\\\"parent_start_ticks\\\":\\\"$parent_ticks\\\",\\\"child_pid\\\":$child,\\\"child_start_ticks\\\":\\\"$child_ticks\\\",\\\"preentry_dev\\\":\\\"$pre_dev\\\",\\\"preentry_ino\\\":\\\"$pre_ino\\\",\\\"runner_dev\\\":\\\"$runner_dev\\\",\\\"runner_ino\\\":\\\"$runner_ino\\\",\\\"node_dev\\\":\\\"$node_dev\\\",\\\"node_ino\\\":\\\"$node_ino\\\",\\\"expected_head\\\":\\\"$head\\\"}\" >\"$proof\"",
+      "exec 4<\"$proof\"",
+      "export VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY=VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1",
+      "export VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_RUNNER_FD=3",
+      "export VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_PROOF_FD=4",
+      "exec \"$node\" \"$runner\" --run --confirm " +
+        JSON.stringify(CONFIRM) + " --expected-head \"$head\"",
+    ].join("\n");
+    const forgedRootNode = run(SUDO, [
+      "-n", "/usr/bin/bash", "-c", forgeScript,
+    ], { timeout: 30_000 });
+    assert.equal(forgedRootNode.status, 2);
+    assert.match(
+      forgedRootNode.stderr,
+      /native_preentry_parent_executable_mismatch/u,
+      "direct root Node with forged marker/fds must fail fixed-parent provenance",
     );
   } finally {
     if (fixtureInstalled) {
@@ -345,6 +451,11 @@ console.log("node_generation_policy_bound=true");
 console.log("expected_head_policy_bound=true");
 console.log("runner_descriptor_retained=true");
 console.log("node_descriptor_fexecve=true");
+console.log("native_parent_retained_for_child_lifetime=true");
+console.log("native_parent_process_generation_bound=true");
+console.log("native_parent_installed_generation_bound=true");
+console.log("native_parent_revalidated_after_sensitive_sequence=true");
+console.log("direct_root_node_marker_fd_forgery_rejected=true");
 console.log("caller_stdin_javascript_rejected_before_root_js=true");
 console.log("loader_environment_sanitized=true");
 console.log("native_preentry_static=true");
