@@ -7,6 +7,7 @@ on:
       - "docs/architecture/datanet-chain-peer-reconstruction-receipt-v1.md"
       - "scripts/lib/void_datanet_chain2050_commitment_receipt_v1.mjs"
       - "scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs"
+      - "tools/datanet-content-commitment-production-registry-identity-v1.mjs"
       - "scripts/lib/void_datanet_chain_peer_reconstruction_receipt_v1.mjs"
       - "scripts/prove_void_datanet_chain_peer_reconstruction_receipt_v1.mjs"
   push:
@@ -16,6 +17,7 @@ on:
       - "docs/architecture/datanet-chain-peer-reconstruction-receipt-v1.md"
       - "scripts/lib/void_datanet_chain2050_commitment_receipt_v1.mjs"
       - "scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs"
+      - "tools/datanet-content-commitment-production-registry-identity-v1.mjs"
       - "scripts/lib/void_datanet_chain_peer_reconstruction_receipt_v1.mjs"
       - "scripts/prove_void_datanet_chain_peer_reconstruction_receipt_v1.mjs"
 
