@@ -37,8 +37,12 @@ for required in (
     'run(["/usr/bin/systemctl","daemon-reload"])',
     '"service_action":False',
     '"target_action":False',
+    'dormant_observation_valid',
+    '"LoadState":"loaded"',
+    '"ActiveState":"inactive"',
 ):
     assert required in source,required
+assert '"is-active"' not in source
 
 result=subprocess.run(
     ["python3","-I","-B",str(INSTALLER),"--self-test"],
@@ -50,6 +54,7 @@ for line in (
     "target_start_indirect_via_wants=true",
     "target_stop_propagates_to_service=true",
     "direct_service_start_stop_refused=true",
+    "dormant_state_fail_closed=true",
     "service_action=false","target_action=false","training_execution=false","durable_attempt_claim=false",
 ):
     assert line in result.stdout,line
