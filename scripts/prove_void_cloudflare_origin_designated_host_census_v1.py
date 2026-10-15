@@ -137,6 +137,18 @@ config_text = (
 )
 config = module.parse_tunnel_config(config_text)
 assert config["sensitive_route_shape_observed"] is True
+assert module.canonical_sensitive_path(module.SENSITIVE_PATHS[0]) is None
+assert (
+    module.canonical_sensitive_path("^" + module.SENSITIVE_PATHS[0] + "$")
+    == module.SENSITIVE_PATHS[0]
+)
+unanchored_config = module.parse_tunnel_config(
+    config_text.replace(
+        "^/__void/agents/paid-work/credential-requests/v1$",
+        "/__void/agents/paid-work/credential-requests/v1",
+    )
+)
+assert unanchored_config["sensitive_route_shape_observed"] is False
 assert config["sensitive_adapter_port"] == 4311
 assert config["ordinary_routes_preserved_candidate"] is True
 extra_adapter = module.parse_tunnel_config(
@@ -311,6 +323,7 @@ print("fake_user_bus_retirement_cannot_promote=true")
 print("system_service_generation_binding=true")
 print("systemd_capability_bounds_observed=true")
 print("extra_sensitive_adapter_route_rejected=true")
+print("unanchored_sensitive_path_rejected=true")
 print("adapter_dispatcher_source_blob_binding=true")
 print("running_source_retained_descriptor_binding=true")
 print("running_source_root_custody_required=true")
