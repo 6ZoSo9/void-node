@@ -104,7 +104,13 @@ export function walletNonNegativeSafeIntegerV1(raw: unknown): number | null {
 
 function walletNonNegativeFiniteNumberV1(raw: unknown): number | null {
   const value = walletFiniteNumberV1(raw);
-  return value !== null && value >= 0 ? value : null;
+  return (
+    value !== null &&
+    value >= 0 &&
+    !Object.is(value, -0)
+  )
+    ? value
+    : null;
 }
 
 const NATIVE_GAS_DISPLAY_PATTERN_V1 =
@@ -119,12 +125,28 @@ export function walletNativeGasDisplayV1(raw: unknown): string | null {
     : null;
 }
 
+const WALLET_ACCOUNTING_DISPLAY_MAX_FRACTION_DIGITS_V1 = 9;
+const walletAccountingCompactFormatterV1 = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: WALLET_ACCOUNTING_DISPLAY_MAX_FRACTION_DIGITS_V1,
+  useGrouping: false,
+});
+const walletAccountingFriendlyFormatterV1 = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: WALLET_ACCOUNTING_DISPLAY_MAX_FRACTION_DIGITS_V1,
+});
+
+export function walletAccountingDisplayV1(raw: unknown): string | null {
+  const value = walletNonNegativeFiniteNumberV1(raw);
+  if (value === null) return null;
+
+  const compact = walletAccountingCompactFormatterV1.format(value);
+  return Number(compact) === value
+    ? walletAccountingFriendlyFormatterV1.format(value)
+    : String(value);
+}
+
 function displayNumber(raw: number | null): string {
   if (raw === null) return "—";
-
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 9,
-  }).format(raw);
+  return walletAccountingDisplayV1(raw) ?? "—";
 }
 
 function sourceDeadlineErrorV1(signal: AbortSignal): Error {

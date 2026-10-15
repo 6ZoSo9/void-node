@@ -27,9 +27,9 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="a5dec45f7ad841781e59c730e0203f21031fc653"
+MANIFEST_BLOB="eaa26939a9f9ab10b8957e40526f7d72a8ba8410"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
-UNIT_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"
+UNIT_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 ENV_TEMPLATE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.env.template"
@@ -142,7 +142,11 @@ def load_manifest()->dict[str,Any]:
     service_contract=value.get("service_contract",{})
     if (
         service_contract.get("activation_target_unit_file_state_required")!="disabled" or
-        service_contract.get("custody_service_unit_file_state_required")!="static"
+        service_contract.get("custody_service_unit_file_state_required")!="static" or
+        service_contract.get("unset_environment")!=[
+            "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+            "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
+        ]
     ):
         hold("manifest_unit_file_state_contract_invalid")
     return value
@@ -670,9 +674,13 @@ def self_test()->None:
     assert manifest["socket_lifecycle_contract"]["unclassifiable_process_status_holds"] is True
     assert manifest["service_contract"]["activation_target_unit_file_state_required"]=="disabled"
     assert manifest["service_contract"]["custody_service_unit_file_state_required"]=="static"
+    assert manifest["service_contract"]["unset_environment"]==[
+        "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+        "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
+    ]
     unit=read_source(UNIT_REL,UNIT_BLOB).decode("utf-8")
     assert (
-        "UnsetEnvironment=LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH"
+        "UnsetEnvironment=GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF"
         in unit
     )
     assert manifest["node_runtime_contract"]["version"]==NODE_VERSION

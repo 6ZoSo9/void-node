@@ -64,7 +64,8 @@ The deployment contract therefore requires:
   canonical path, revalidated at deployment acceptance;
 - the environment file contains exactly the five reviewed
   `VOID_APOLLYON_CUSTODY_*` keys from the source template and no extras;
-- `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, and `LD_LIBRARY_PATH`
+- `GCONV_PATH`, `LD_AUDIT`, `LD_LIBRARY_PATH`, `LD_PRELOAD`, `NODE_OPTIONS`,
+  `NODE_PATH`, and `OPENSSL_CONF`
   are explicitly forbidden keys;
 - `operator-public-key.pem`: root-owned `0644`, regular single-link
   nonsymlink at its canonical path, not writable by custody/training users; and
@@ -111,6 +112,8 @@ to be loaded/inactive with `UnitFileState=disabled` exactly and the custody
 service to be loaded/inactive with `UnitFileState=static` exactly. Other
 unit-file states fail closed. Dependency activation can start the custody service
 without weakening its manual-control refusal.
+
+The custody service also removes the reviewed native/Node loader and runtime influence set at exec: `GCONV_PATH`, `LD_AUDIT`, `LD_LIBRARY_PATH`, `LD_PRELOAD`, `NODE_OPTIONS`, `NODE_PATH`, and `OPENSSL_CONF`. The effective loaded `UnsetEnvironment` set is part of installed/live acceptance; no manager-environment value is read or logged.
 
 The target also declares:
 

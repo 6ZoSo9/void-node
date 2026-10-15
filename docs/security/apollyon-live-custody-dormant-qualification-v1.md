@@ -25,8 +25,8 @@ Before either start, the qualifier also closes the effective systemd and
 environment boundary. The installed custody environment file must be the exact
 five-key root-owned generation for the observed IPC GID and reviewed public-key
 fingerprint; extra keys therefore HOLD. The reviewed service additionally
-requires exact effective `UnsetEnvironment=LD_LIBRARY_PATH LD_PRELOAD
-NODE_OPTIONS NODE_PATH`, so those manager-level influence variables are removed
+requires exact effective `UnsetEnvironment=GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD
+NODE_OPTIONS NODE_PATH OPENSSL_CONF`, so those manager-level influence variables are removed
 at execution without reading or exposing manager environment values.
 
 Before either target start, the qualifier also reuses the reviewed V2 collector's
@@ -48,15 +48,22 @@ configuration, an altered `UnsetEnvironment` set, or alternate effective
 command arrays fail closed before start.
 
 The qualifier also closes systemd dependency-directory authority without
-guessing implicit manager dependency sets. Across the complete reviewed
-system-manager unit search roots under `/etc`, `/run`,
-`/usr/local/lib` and `/usr/lib`, any visible
-`<target-or-service>.wants/` or `<target-or-service>.requires/`
-entry is unreviewed authority and HOLDs before start. Missing dependency
-directories are accepted; unreadable, symlinked, non-directory or non-empty
-dependency directories fail closed. Focused self-tests inject both an extra
-target `.requires/foreign.service` and an extra service
-`.wants/foreign.service` and require rejection.
+guessing implicit manager dependency sets. Before scanning dependencies it
+queries PID1's effective manager `UnitPath` with
+`systemctl show -p UnitPath --value`. Every returned root must be a member
+of the reviewed Noble system-mode root set, with reviewed precedence and no
+duplicates; an unreviewed root therefore HOLDs even if `SYSTEMD_UNIT_PATH`
+changed the manager's load path. Directories omitted by the running manager
+because they are absent may remain omitted. The qualifier then scans the
+returned effective roots under `/etc`, `/run`, `/usr/local/lib` and
+`/usr/lib`; any visible `<target-or-service>.wants/` or
+`<target-or-service>.requires/` entry is unreviewed authority and HOLDs
+before start. Missing dependency directories are accepted; unreadable,
+symlinked, non-directory or non-empty dependency directories fail closed.
+Focused self-tests reject unreviewed, duplicate and precedence-invalid
+effective UnitPath values and inject both an extra target
+`.requires/foreign.service` and an extra service
+`.wants/foreign.service`.
 
 The consumed-record directory must be byte-metadata stable across both cycles.
 Stability is checked before each start and immediately after each completed stop,

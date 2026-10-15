@@ -37,7 +37,7 @@ STATE_ROOT=Path("/var/lib/void-apollyon-custody-v1")
 CONSUMED=STATE_ROOT/"consumed"
 
 TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
-SERVICE_BLOB="86ed25003c554dcfe3019e71d5a3a78851fcc50a"
+SERVICE_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"
 HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"
 LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"
 NODE_BYTES=126595440
@@ -64,7 +64,8 @@ EXPECTED_EXEC_STOP_POST_ARGV=(
     "/usr/bin/python3","-I","-B",os.fspath(HELPER_PATH),"--cleanup",
 )
 EXPECTED_UNSET_ENVIRONMENT=(
-    "LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH",
+    "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+    "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
 )
 REVIEWED_SYSTEMD_MAJOR=255
 REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(
@@ -466,6 +467,41 @@ def assert_no_unreviewed_dependency_directories(
                     +unit+":"+suffix
                 ) from exc
 
+
+def validate_effective_systemd_unit_roots(raw:str)->tuple[Path,...]:
+    lines=raw.splitlines()
+    if len(lines)!=1:hold("systemd_unit_path_invalid")
+    tokens=lines[0].split()
+    if not tokens:hold("systemd_unit_path_invalid")
+    reviewed={
+        os.fspath(path):index
+        for index,path in enumerate(SYSTEMD_UNIT_SEARCH_ROOTS)
+    }
+    roots:list[Path]=[]
+    indexes:list[int]=[]
+    for token in tokens:
+        if token not in reviewed:
+            hold("systemd_unit_path_unreviewed:"+token)
+        path=Path(token)
+        if not path.is_absolute() or os.path.normpath(token)!=token:
+            hold("systemd_unit_path_invalid:"+token)
+        if path in roots:
+            hold("systemd_unit_path_duplicate:"+token)
+        roots.append(path)
+        indexes.append(reviewed[token])
+    if indexes!=sorted(indexes):
+        hold("systemd_unit_path_precedence_invalid")
+    return tuple(roots)
+
+def effective_systemd_unit_roots()->tuple[Path,...]:
+    r=run([
+        "/usr/bin/systemctl","show","--no-pager",
+        "-p","UnitPath","--value",
+    ],check=False)
+    if r.returncode!=0:
+        hold("systemd_unit_path_probe_failed")
+    return validate_effective_systemd_unit_roots(r.stdout)
+
 def validate_loaded_relations(
     target:dict[str,str],service:dict[str,str]
 )->None:
@@ -521,8 +557,9 @@ def loaded_relations()->None:
         "ExecStartPost","ExecStop","ExecStopPost",
     ))
     validate_loaded_relations(target,service)
-    assert_no_unreviewed_dependency_directories(TARGET_UNIT)
-    assert_no_unreviewed_dependency_directories(SERVICE_UNIT)
+    roots=effective_systemd_unit_roots()
+    assert_no_unreviewed_dependency_directories(TARGET_UNIT,roots)
+    assert_no_unreviewed_dependency_directories(SERVICE_UNIT,roots)
 
 def verify_public_key()->None:
     exact_file(PUBLIC_KEY_PATH,0o644,0,0)
@@ -867,6 +904,7 @@ def plan()->dict:
         "systemd_bus_owner_pid_is_pid1":True,
         "running_installed_systemd_version_match":True,
         "manager_environment_influence_unset":True,
+        "systemd_effective_unit_path_bound":True,
         "planned_cycles":2,"target_start_stop":False,"service_direct_action":False,
         "training_execution":False,"durable_attempt_claim":False,
         "operator_private_key_access":False,"funds_movement":False,
@@ -1018,8 +1056,13 @@ def self_test()->None:
         'custody_environment_file_invalid',
         'loaded_unset_environment_invalid',
         'SYSTEMD_UNIT_SEARCH_ROOTS=(',
-        'assert_no_unreviewed_dependency_directories(TARGET_UNIT)',
-        'assert_no_unreviewed_dependency_directories(SERVICE_UNIT)',
+        'effective_systemd_unit_roots()',
+        '"/usr/bin/systemctl","show","--no-pager",',
+        '"-p","UnitPath","--value"',
+        'systemd_unit_path_unreviewed:',
+        'systemd_unit_path_precedence_invalid',
+        'assert_no_unreviewed_dependency_directories(TARGET_UNIT,roots)',
+        'assert_no_unreviewed_dependency_directories(SERVICE_UNIT,roots)',
         'unreviewed_systemd_dependency_entry:',
         'require_trusted_ancestor_chain(',
         'verify_path_custody(ids)',
@@ -1206,7 +1249,7 @@ def self_test()->None:
         "DropInPaths":"","NeedDaemonReload":"no",
         "RefuseManualStart":"yes","RefuseManualStop":"yes",
         "NoNewPrivileges":"yes","RestrictAddressFamilies":"AF_UNIX",
-        "UnsetEnvironment":"LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH",
+        "UnsetEnvironment":"GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF",
         "ExecCondition":"","ExecStartPre":"","ExecStart":exec_start_record,
         "ExecStartPost":"","ExecStop":"","ExecStopPost":exec_stop_post_record,
     }
@@ -1231,6 +1274,40 @@ def self_test()->None:
         target=dict(good_target);service=dict(good_service)
         (target if which=="target" else service)[key]=value
         expect_hold(lambda t=target,s=service:validate_loaded_relations(t,s),reason)
+
+    reviewed_unit_path=" ".join(
+        os.fspath(path) for path in SYSTEMD_UNIT_SEARCH_ROOTS
+    )
+    assert (
+        validate_effective_systemd_unit_roots(reviewed_unit_path)
+        ==SYSTEMD_UNIT_SEARCH_ROOTS
+    )
+    reduced_unit_path=(
+        Path("/etc/systemd/system"),
+        Path("/usr/lib/systemd/system"),
+    )
+    assert validate_effective_systemd_unit_roots(
+        " ".join(os.fspath(path) for path in reduced_unit_path)
+    )==reduced_unit_path
+    expect_hold(
+        lambda:validate_effective_systemd_unit_roots(
+            "/tmp/void-unreviewed-systemd"
+        ),
+        "systemd_unit_path_unreviewed:/tmp/void-unreviewed-systemd",
+    )
+    expect_hold(
+        lambda:validate_effective_systemd_unit_roots(
+            "/etc/systemd/system /etc/systemd/system"
+        ),
+        "systemd_unit_path_duplicate:/etc/systemd/system",
+    )
+    expect_hold(
+        lambda:validate_effective_systemd_unit_roots(
+            "/usr/lib/systemd/system /etc/systemd/system"
+        ),
+        "systemd_unit_path_precedence_invalid",
+    )
+
     assert exact_runtime_supplementary_groups([980],{980})
     assert not exact_runtime_supplementary_groups([980,981],{980})
     assert not exact_runtime_supplementary_groups([980,980],{980})
@@ -1404,6 +1481,8 @@ def self_test()->None:
     print("manager_environment_influence_unset=true")
     print("systemd_dependency_directories_closed=true")
     print("unreviewed_systemd_dependency_entries_rejected=true")
+    print("systemd_effective_unit_path_bound=true")
+    print("unreviewed_systemd_unit_path_rejected=true")
     print("retained_ancestor_custody_required=true")
     print("world_writable_execution_parent_rejected=true")
     print("custody_group_closure_required=true")
