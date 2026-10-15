@@ -35,6 +35,7 @@ REQUESTS_NAME = "requests.jsonl"
 OPERATOR_EVENTS_NAME = "operator-events.jsonl"
 MAX_REQUESTS_BYTES = 64 * 1024 * 1024
 MAX_OPERATOR_EVENTS_BYTES = 64 * 1024 * 1024
+AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED = False
 
 
 class CensusV2Error(RuntimeError):
@@ -334,10 +335,12 @@ def self_test() -> None:
     assert wrong_source["explicit_override_observed"] is False
     assert len(EXPECTED_MACHINE_ID_SHA256) == 64
     assert all(ch in "0123456789abcdef" for ch in EXPECTED_MACHINE_ID_SHA256)
+    assert AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED is False
     print(f"{MARKER}_SELF_TEST_GREEN")
     print("fixed_target_policy=0750_0640")
     print("double_census_stability_required=true")
     print("designated_machine_id_binding_required=true")
+    print("authenticated_user_manager_binding_verified=false")
     print("request_payment_contents_read=false")
     print("historical_request_history_disposition_proven=false")
     print("production_gate_ready=false")
@@ -362,6 +365,7 @@ def plan() -> None:
         ("process_environment_access", "false"),
         ("machine_id_raw_output", "false"),
         ("request_payment_contents_read", "false"),
+        ("authenticated_user_manager_binding_verified", "false"),
         ("historical_request_history_disposition_proven", "false"),
         ("migration_authorized", "false"),
         ("payment_acceptance", "false"),
@@ -370,7 +374,7 @@ def plan() -> None:
         ("production_gate_ready", "false"),
     ):
         print(f"{key}={value}")
-    print("next_action=RUN_READ_ONLY_V2_TOPOLOGY_CENSUS_AFTER_POLICY_ACCEPTANCE")
+    print("next_action=INTEGRATE_MERGED_3057_AUTHENTICATED_USER_MANAGER_BINDING")
 
 
 def collect() -> dict[str, Any]:
@@ -468,7 +472,7 @@ def collect() -> dict[str, Any]:
         and status_before.get("fixed_target_matches") is True
     )
 
-    live_binding = (
+    unauthenticated_runtime_candidate_observed = (
         socket.gethostname() == EXPECTED_HOSTNAME
         and account.pw_name == EXPECTED_USER
         and uid == EXPECTED_UID
@@ -482,6 +486,10 @@ def collect() -> dict[str, Any]:
         and confirmed_closeout_status_stable
         and target_metadata_generation_stable
     )
+    live_binding = (
+        unauthenticated_runtime_candidate_observed
+        and AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED
+    )
     legacy_exists = _distinct_candidate_count(
         cwd_candidate, historical_candidate, "exists"
     )
@@ -491,6 +499,8 @@ def collect() -> dict[str, Any]:
 
     if live_binding:
         next_action = "TARGET_LIVE_BINDING_OBSERVED_HISTORY_DISPOSITION_REQUIRED"
+    elif unauthenticated_runtime_candidate_observed:
+        next_action = "AUTHENTICATED_USER_MANAGER_BINDING_REQUIRED"
     elif target_before.get("metadata_qualified") is True:
         next_action = "TARGET_METADATA_QUALIFIED_HISTORY_AND_LIVE_BINDING_REQUIRED"
     elif target_before.get("exists") is True:
@@ -536,6 +546,10 @@ def collect() -> dict[str, Any]:
         "runtime_user_service_active": user_before.get("active_running") is True,
         "runtime_system_service_active": system_service.get("active_running") is True,
         "runtime_process_generation_stable": generation_stable,
+        "authenticated_user_manager_binding_verified":
+            AUTHENTICATED_USER_MANAGER_BINDING_VERIFIED,
+        "unauthenticated_runtime_candidate_observed":
+            unauthenticated_runtime_candidate_observed,
         "runtime_http_listener": listener_before,
         "runtime_http_listener_stable": runtime_http_listener_stable,
         "target_request_root": target_before,
@@ -599,6 +613,8 @@ def main() -> int:
     print("ipc_group_present=" + str(host["ipc_group_present"]).lower())
     print("ipc_gid=" + str(host["ipc_gid"]))
     print("ipc_group_stable=" + str(host["ipc_group_stable"]).lower())
+    print("authenticated_user_manager_binding_verified=" + str(result["authenticated_user_manager_binding_verified"]).lower())
+    print("unauthenticated_runtime_candidate_observed=" + str(result["unauthenticated_runtime_candidate_observed"]).lower())
     print("runtime_http_listener_stable=" + str(result["runtime_http_listener_stable"]).lower())
     print("confirmed_closeout_status_stable=" + str(result["confirmed_closeout_status_stable"]).lower())
     print("target_metadata_generation_stable=" + str(result["target_metadata_generation_stable"]).lower())
