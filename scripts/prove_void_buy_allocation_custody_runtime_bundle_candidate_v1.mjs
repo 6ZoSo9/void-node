@@ -46,6 +46,10 @@ assert.equal(
   Object.keys(VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_SOURCE_BLOBS_V1).length,
 );
 assert.equal(
+  candidate.source_inputs.filter((record) => record.path.endsWith(".ts")).length,
+  12,
+);
+assert.equal(
   candidate.build_recipe.compile,
   "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
 );
