@@ -183,8 +183,16 @@ def self_test()->None:
     source=read_source(TARGET_REL,NEW_TARGET_BLOB).decode()
     assert "Wants=void-apollyon-authorization-custody-v1.service" in source
     assert "PropagatesStopTo=void-apollyon-authorization-custody-v1.service" in source
-    for forbidden in ("systemctl\",\"start","systemctl\",\"stop","training_execution":True","durable_attempt_claim":True"):
-        assert forbidden not in Path(__file__).read_text()
+    own=Path(__file__).read_text()
+    forbidden_parts=(
+        ("systemctl",'","',"start"),
+        ("systemctl",'","',"stop"),
+        ("training_execution",'"',":True"),
+        ("durable_attempt_claim",'"',":True"),
+    )
+    for parts in forbidden_parts:
+        forbidden="".join(parts)
+        assert forbidden not in own,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
     print("target_start_indirect_via_wants=true")
     print("target_stop_propagates_to_service=true")
