@@ -20,7 +20,7 @@ assert mod.parse_status_ids(sample, "Uid") == (997, 997, 997, 997)
 assert mod.parse_status_ids(sample, "Gid") == (984, 984, 984, 984)
 assert mod.status_value(sample, "NoNewPrivs") == "1"
 stat_fixture = "123 (entry v1) S " + " ".join(str(i) for i in range(1, 40))
-assert mod.process_start_time_ticks_from_text(stat_fixture) == 20
+assert mod.process_start_time_ticks_from_text(stat_fixture) == 19
 
 source = TARGET.read_text(encoding="utf-8")
 tree = ast.parse(source)

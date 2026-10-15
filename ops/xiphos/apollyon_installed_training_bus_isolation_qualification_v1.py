@@ -339,7 +339,7 @@ def self_test() -> None:
     assert AUTHORITY["service_enable"] is False
     assert AUTHORITY["existing_live_pid_observation_supported"] is True
     stat_fixture = "123 (entry v1) S " + " ".join(str(i) for i in range(1, 40))
-    assert process_start_time_ticks_from_text(stat_fixture) == 20
+    assert process_start_time_ticks_from_text(stat_fixture) == 19
     print(MARKER + "_SELF_TEST=GREEN")
     print("source_only_by_import=true")
     print("live_service_action_requires_explicit_flag=true")
