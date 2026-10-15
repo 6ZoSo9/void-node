@@ -237,6 +237,8 @@ def self_test()->None:
     print(MARKER+"_SELF_TEST_GREEN")
     print("fixed_socket_path=true")
     print("same_inode_hidden_cleanup=true")
+    print("custody_uid_process_exclusivity_required=true")
+    print("second_custody_uid_process_rejected=true")
     print("live_listener_refused=true")
     print("stale_socket_cleanup_external_fulfilled=true")
     print("training_execution=false")
