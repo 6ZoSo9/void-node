@@ -742,17 +742,13 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
   assert.throws(
     () => deriveBuyVoidEnforcementArtifactAttestationV5Candidate(),
     error => {
-      const message = String(error?.message || error);
-      if (/22a30e3ffad6047a472488104c769140bd050878 HEAD --/u.test(message)) {
-        return true;
-      }
+      const message=String(error?.message || error);
       return (
-        error?.code === "ERR_ASSERTION" &&
-        error?.actual === "15b5c82ea36f13079a2f9e8863722f654eb3f201" &&
-        error?.expected === "b2671f0149f522b2489247016df0a5ec4bb72b8b"
+        message.includes("15b5c82ea36f13079a2f9e8863722f654eb3f201") &&
+        message.includes("b2671f0149f522b2489247016df0a5ec4bb72b8b")
       );
     },
-    "historical V5 must HOLD current Epoch-2/audited-package generation",
+    "historical V5 must HOLD the current audited package generation",
   );
 
   const epoch2Source = verifyCurrentEpoch2ClaimSourceV1();
@@ -783,8 +779,7 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
   );
 
   console.log("historical_enforcement_v4_predecessor_immutable=true");
-  console.log("historical_enforcement_v5_epoch2_source_hold=true");
-  console.log("historical_enforcement_v5_audited_package_hold=true");
+  console.log("historical_enforcement_v5_current_package_hold=true");
   console.log("current_epoch2_source_tuple_qualified=true");
   console.log("current_enforcement_v5_candidate_derived=false");
   console.log("current_enforcement_v5_candidate_acceptance=false");
