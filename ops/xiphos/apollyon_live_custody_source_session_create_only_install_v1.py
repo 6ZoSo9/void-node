@@ -1,0 +1,548 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import base64
+import grp
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import shutil
+import socket
+import stat
+import subprocess
+import sys
+import tempfile
+from typing import Any
+
+MARKER="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_CREATE_ONLY_INSTALL_V1"
+TARGET_HOST="Xiphos"
+ROOT=Path(__file__).resolve().parents[2]
+
+TRAINING_USER="voidapollyontrain"
+CUSTODY_USER="voidapollyoncustody"
+CUSTODY_GROUP="voidapollyoncustody"
+IPC_GROUP="voidapollyonipc"
+
+MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
+MANIFEST_BLOB="61db8c5c7f5a3018bd970bab16e08c7852f246cc"
+UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
+UNIT_BLOB="c78bb50e1c2b70fb31a637fdb701e80abfa0f7af"
+TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
+TARGET_BLOB="d37ffefddb747d4c49f3ee70ea94a3612307a696"
+ENV_TEMPLATE_REL="ops/xiphos/void-apollyon-authorization-custody-v1.env.template"
+ENV_TEMPLATE_BLOB="8b5ccee9edb151ee9e704503e61b070bf4420263"
+POLKIT_REL="ops/xiphos/00-void-apollyon-training-custody-deny-v1.rules"
+POLKIT_BLOB="9d9e6890a35b6ae3bdc8e7a2f97abc61cff5360f"
+TMPFILES_REL="ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf"
+TMPFILES_BLOB="5d3443c03821b403d52d10629571374325dc5598"
+LIVE_LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+LIVE_LAUNCHER_BLOB="069b049e55db0c30cbd43daca996509274db1b46"
+PREENTRY_SOURCE_REL="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
+PREENTRY_SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
+
+EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"
+PREENTRY_BYTES=16912
+PREENTRY_SHA256="66d9b1c1fff316ecf96d7af73af7bf4a4442d6ce10f0e2df906fa1a79dc5580c"
+SPKI_PREFIX=bytes.fromhex("302a300506032b6570032100")
+COMPILE_FLAGS=(
+    "-std=c11","-O2","-Wall","-Wextra","-Werror",
+    "-D_FORTIFY_SOURCE=2","-fstack-protector-strong",
+    "-Wl,-z,relro,-z,now","-Wl,--build-id=none",
+)
+COMPILE_ENV={
+    "PATH":"/usr/bin:/bin","LC_ALL":"C","TZ":"UTC","SOURCE_DATE_EPOCH":"0",
+}
+
+SYSTEMD_UNIT=Path("/etc/systemd/system/void-apollyon-authorization-custody-v1.service")
+SYSTEMD_TARGET=Path("/etc/systemd/system/void-apollyon-authorization-custody-v1.target")
+POLKIT_PATH=Path("/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules")
+TMPFILES_PATH=Path("/usr/lib/tmpfiles.d/void-apollyon-custody-v1.conf")
+CONFIG_DIR=Path("/etc/void/apollyon-custody-v1")
+ENV_PATH=CONFIG_DIR/"custody.env"
+PUBLIC_KEY_PATH=CONFIG_DIR/"operator-public-key.pem"
+STATE_ROOT=Path("/var/lib/void-apollyon-custody-v1")
+CONSUMED=STATE_ROOT/"consumed"
+SOCKET_PARENT=Path("/run/void-apollyon-custody-v1")
+CUSTODY_SOURCE_ROOT=Path("/opt/void-apollyon-custody-service-v2-reviewed-v1")
+LIVE_SOURCE_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")
+LIVE_PREENTRY_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-preentry-v1")
+LIVE_PREENTRY=LIVE_PREENTRY_ROOT/"apollyon_live_custody_source_session_preentry_v2"
+LIVE_LAUNCHER=LIVE_PREENTRY_ROOT/"apollyon_live_custody_source_session_launcher_v2.py"
+
+class Hold(RuntimeError):
+    pass
+
+def hold(reason:str)->None:
+    raise Hold(reason)
+
+def git_blob(data:bytes)->str:
+    h=hashlib.sha1()
+    h.update(f"blob {len(data)}\0".encode("ascii"))
+    h.update(data)
+    return h.hexdigest()
+
+def sha256(data:bytes)->str:
+    return hashlib.sha256(data).hexdigest()
+
+def read_source(relative:str,expected_blob:str)->bytes:
+    path=ROOT/relative
+    st=os.lstat(path)
+    if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_nlink!=1:
+        hold("source_metadata_invalid:"+relative)
+    data=path.read_bytes()
+    if len(data)!=st.st_size or git_blob(data)!=expected_blob:
+        hold("source_blob_mismatch:"+relative)
+    return data
+
+def load_manifest()->dict[str,Any]:
+    data=read_source(MANIFEST_REL,MANIFEST_BLOB)
+    value=json.loads(data)
+    if value.get("marker")!="VOID_APOLLYON_CUSTODY_DEPLOYMENT_MANIFEST_V1":
+        hold("manifest_marker_invalid")
+    if value.get("version")!=1:
+        hold("manifest_version_invalid")
+    if value.get("target_host")!="Xiphos":
+        hold("manifest_host_invalid")
+    required=value.get("required_operator_input",{})
+    if required.get("expected_operator_public_key_raw_sha256")!=EXPECTED_PUBLIC_RAW_SHA256:
+        hold("manifest_public_fingerprint_invalid")
+    lock=value.get("preentry_lock",{})
+    if lock.get("bytes")!=PREENTRY_BYTES or lock.get("sha256")!=PREENTRY_SHA256:
+        hold("manifest_preentry_lock_invalid")
+    return value
+
+def run(argv:list[str],*,check:bool=True,timeout:int=30)->subprocess.CompletedProcess[str]:
+    result=subprocess.run(
+        argv,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        text=True,check=False,timeout=timeout,
+        env={"PATH":"/usr/sbin:/usr/bin:/sbin:/bin","LC_ALL":"C"},
+    )
+    if check and result.returncode!=0:
+        hold("command_failed:"+Path(argv[0]).name)
+    return result
+
+def verify_public_key(path:Path)->bytes:
+    absolute=Path(os.path.abspath(os.fspath(path)))
+    st=os.lstat(absolute)
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_nlink!=1 or st.st_size<32 or st.st_size>64*1024
+    ):
+        hold("public_key_metadata_invalid")
+    data=absolute.read_bytes()
+    if len(data)!=st.st_size or b"PRIVATE KEY" in data:
+        hold("public_key_input_invalid")
+    result=subprocess.run(
+        ["/usr/bin/openssl","pkey","-pubin","-in",os.fspath(absolute),"-outform","DER"],
+        stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        check=False,timeout=10,
+        env={"PATH":"/usr/bin:/bin","LC_ALL":"C"},
+    )
+    if result.returncode!=0:
+        hold("public_key_parse_failed")
+    der=result.stdout
+    if len(der)!=44 or not der.startswith(SPKI_PREFIX):
+        hold("public_key_not_ed25519")
+    raw=der[len(SPKI_PREFIX):]
+    if sha256(raw)!=EXPECTED_PUBLIC_RAW_SHA256:
+        hold("public_key_fingerprint_mismatch")
+    return data
+
+def ensure_safe_parent(path:Path)->None:
+    parent=path.parent
+    while parent!=Path("/"):
+        if parent.exists():
+            st=os.lstat(parent)
+            if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+                hold("unsafe_parent:"+os.fspath(parent))
+        parent=parent.parent
+
+def exact_file(path:Path,data:bytes,mode:int,uid:int=0,gid:int=0)->bool:
+    try: st=os.lstat(path)
+    except FileNotFoundError: return False
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_nlink!=1 or st.st_uid!=uid or st.st_gid!=gid or
+        stat.S_IMODE(st.st_mode)!=mode or st.st_size!=len(data)
+    ):
+        hold("existing_file_collision:"+os.fspath(path))
+    if path.read_bytes()!=data:
+        hold("existing_file_bytes_mismatch:"+os.fspath(path))
+    return True
+
+def install_file(path:Path,data:bytes,mode:int,uid:int=0,gid:int=0)->bool:
+    ensure_safe_parent(path)
+    if exact_file(path,data,mode,uid,gid):
+        return False
+    fd=os.open(
+        path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0),mode
+    )
+    try:
+        total=0
+        while total<len(data):
+            total+=os.write(fd,data[total:])
+        os.fsync(fd)
+        os.fchmod(fd,mode)
+        os.fchown(fd,uid,gid)
+    finally:
+        os.close(fd)
+    if not exact_file(path,data,mode,uid,gid):
+        hold("installed_file_verify_failed:"+os.fspath(path))
+    return True
+
+def ensure_dir(path:Path,mode:int,uid:int,gid:int)->bool:
+    try: st=os.lstat(path)
+    except FileNotFoundError:
+        path.mkdir(mode=mode)
+        os.chown(path,uid,gid)
+        os.chmod(path,mode)
+        st=os.lstat(path)
+        created=True
+    else:
+        created=False
+    if (
+        not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_uid!=uid or st.st_gid!=gid or stat.S_IMODE(st.st_mode)!=mode
+    ):
+        hold("directory_collision:"+os.fspath(path))
+    return created
+
+def group_row(name:str):
+    try:return grp.getgrnam(name)
+    except KeyError:return None
+
+def user_row(name:str):
+    try:return pwd.getpwnam(name)
+    except KeyError:return None
+
+def ensure_group(name:str)->bool:
+    row=group_row(name)
+    if row is not None:return False
+    run(["/usr/sbin/groupadd","--system",name])
+    if group_row(name) is None:hold("group_create_failed:"+name)
+    return True
+
+def ensure_user()->bool:
+    row=user_row(CUSTODY_USER)
+    group=grp.getgrnam(CUSTODY_GROUP)
+    if row is None:
+        run([
+            "/usr/sbin/useradd","--system","--gid",CUSTODY_GROUP,
+            "--home-dir",os.fspath(STATE_ROOT),"--shell","/usr/sbin/nologin",
+            "--no-create-home",CUSTODY_USER,
+        ])
+        row=user_row(CUSTODY_USER)
+        if row is None:hold("custody_user_create_failed")
+        created=True
+    else:
+        created=False
+    if (
+        row.pw_gid!=group.gr_gid or row.pw_dir!=os.fspath(STATE_ROOT) or
+        row.pw_shell!="/usr/sbin/nologin"
+    ):
+        hold("custody_user_collision")
+    return created
+
+def ensure_membership(user:str,group:str)->bool:
+    row=pwd.getpwnam(user)
+    target=grp.getgrnam(group).gr_gid
+    gids=set(os.getgrouplist(user,row.pw_gid))
+    if target in gids:return False
+    run(["/usr/sbin/usermod","--append","--groups",group,user])
+    row=pwd.getpwnam(user)
+    if target not in set(os.getgrouplist(user,row.pw_gid)):
+        hold("group_membership_update_failed:"+user)
+    return True
+
+def ensure_root_dir(path:Path,mode:int=0o755)->bool:
+    if path==Path("/"):return False
+    if not path.parent.exists():
+        ensure_root_dir(path.parent,0o755)
+    return ensure_dir(path,mode,0,0)
+
+def install_source_tree(root:Path,mapping:dict[str,str])->int:
+    ensure_root_dir(root,0o755)
+    changed=0
+    expected_files=set()
+    expected_dirs={root}
+    for rel,blob in mapping.items():
+        source=read_source(rel,blob)
+        dest=root/rel
+        expected_files.add(dest)
+        cursor=dest.parent
+        while cursor!=root.parent and cursor!=root:
+            expected_dirs.add(cursor)
+            cursor=cursor.parent
+        for d in sorted(expected_dirs,key=lambda p:len(p.parts)):
+            if d==root or root in d.parents:
+                ensure_root_dir(d,0o755)
+        if install_file(dest,source,0o444,0,0):changed+=1
+    for dirpath,dirnames,filenames in os.walk(root):
+        current=Path(dirpath)
+        for name in filenames:
+            if current/name not in expected_files:
+                hold("unexpected_reviewed_file:"+os.fspath(current/name))
+    return changed
+
+def compile_preentry()->bytes:
+    source=ROOT/PREENTRY_SOURCE_REL
+    if git_blob(source.read_bytes())!=PREENTRY_SOURCE_BLOB:
+        hold("preentry_source_blob_mismatch")
+    with tempfile.TemporaryDirectory(prefix="void-apollyon-live-preentry-install-") as td:
+        output=Path(td)/"preentry"
+        result=subprocess.run(
+            ["/usr/bin/cc",*COMPILE_FLAGS,"-o",os.fspath(output),os.fspath(source)],
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            check=False,timeout=30,env=COMPILE_ENV,
+        )
+        if result.returncode!=0:
+            hold("preentry_compile_failed")
+        data=output.read_bytes()
+    if len(data)!=PREENTRY_BYTES or sha256(data)!=PREENTRY_SHA256:
+        hold("preentry_compiled_identity_mismatch")
+    return data
+
+def make_env(ipc_gid:int)->bytes:
+    template=read_source(ENV_TEMPLATE_REL,ENV_TEMPLATE_BLOB).decode("utf-8")
+    text=template.replace("@IPC_GID@",str(ipc_gid)).replace(
+        "@OPERATOR_PUBLIC_KEY_RAW_SHA256@",EXPECTED_PUBLIC_RAW_SHA256
+    )
+    if "@" in text:hold("environment_template_unresolved")
+    return text.encode("utf-8")
+
+def systemctl_state()->dict[str,str]:
+    props={}
+    result=run([
+        "/usr/bin/systemctl","show","void-apollyon-authorization-custody-v1.service",
+        "--no-pager","-p","LoadState","-p","ActiveState","-p","UnitFileState",
+        "-p","MainPID",
+    ],check=False)
+    for line in result.stdout.splitlines():
+        if "=" in line:
+            k,v=line.split("=",1);props[k]=v
+    target_enabled=run(
+        ["/usr/bin/systemctl","is-enabled","void-apollyon-authorization-custody-v1.target"],
+        check=False,
+    ).stdout.strip()
+    props["TargetEnabled"]=target_enabled
+    return props
+
+def verify_source_contract()->dict[str,Any]:
+    manifest=load_manifest()
+    read_source(UNIT_REL,UNIT_BLOB)
+    read_source(TARGET_REL,TARGET_BLOB)
+    read_source(ENV_TEMPLATE_REL,ENV_TEMPLATE_BLOB)
+    read_source(POLKIT_REL,POLKIT_BLOB)
+    read_source(TMPFILES_REL,TMPFILES_BLOB)
+    read_source(LIVE_LAUNCHER_REL,LIVE_LAUNCHER_BLOB)
+    read_source(PREENTRY_SOURCE_REL,PREENTRY_SOURCE_BLOB)
+    for rel,blob in manifest["custody_service_closure"].items():
+        read_source(rel,blob)
+    for rel,blob in manifest["live_session_closure"].items():
+        read_source(rel,blob)
+    return manifest
+
+def plan(public_key:Path)->dict[str,Any]:
+    manifest=verify_source_contract()
+    verify_public_key(public_key)
+    if socket.gethostname().casefold()!=TARGET_HOST.casefold():
+        hold("wrong_host")
+    training=user_row(TRAINING_USER)
+    if training is None:hold("training_user_missing")
+    existing={
+        "custody_user_present":user_row(CUSTODY_USER) is not None,
+        "custody_group_present":group_row(CUSTODY_GROUP) is not None,
+        "ipc_group_present":group_row(IPC_GROUP) is not None,
+        "custody_unit_path_present":SYSTEMD_UNIT.exists(),
+        "custody_target_path_present":SYSTEMD_TARGET.exists(),
+        "polkit_path_visible":POLKIT_PATH.exists(),
+        "tmpfiles_path_present":TMPFILES_PATH.exists(),
+        "state_root_present":STATE_ROOT.exists(),
+        "live_preentry_present":LIVE_PREENTRY.exists(),
+        "live_launcher_present":LIVE_LAUNCHER.exists(),
+    }
+    return {
+        "marker":MARKER,
+        "mode":"--plan",
+        "target_host":TARGET_HOST,
+        "public_key_raw_sha256":EXPECTED_PUBLIC_RAW_SHA256,
+        "preentry_bytes":PREENTRY_BYTES,
+        "preentry_sha256":PREENTRY_SHA256,
+        "existing":existing,
+        "source_contract_verified":True,
+        "create_only":True,
+        "daemon_reload_on_apply":True,
+        "tmpfiles_create_on_apply":True,
+        "service_start":False,
+        "service_enable":False,
+        "activation_target_start":False,
+        "activation_target_enable":False,
+        "training_execution":False,
+        "durable_attempt_claim":False,
+        "candidate_weight_mutation":False,
+        "operator_private_key_access":False,
+        "funds_movement":False,
+        "next_action":"RUN_APPLY_WITH_EXPLICIT_PUBLIC_PEM",
+    }
+
+def apply(public_key:Path)->dict[str,Any]:
+    if os.geteuid()!=0:hold("apply_requires_root")
+    before=plan(public_key)
+    if systemctl_state().get("ActiveState")=="active":
+        hold("custody_service_already_active")
+
+    ensure_group(IPC_GROUP)
+    ensure_group(CUSTODY_GROUP)
+    ensure_user()
+    ensure_membership(TRAINING_USER,IPC_GROUP)
+    ensure_membership(CUSTODY_USER,IPC_GROUP)
+
+    custody=pwd.getpwnam(CUSTODY_USER)
+    ipc=grp.getgrnam(IPC_GROUP)
+    training=pwd.getpwnam(TRAINING_USER)
+    if ipc.gr_gid in {custody.pw_gid,training.pw_gid}:
+        hold("ipc_primary_group_collision")
+    if custody.pw_gid==training.pw_gid or custody.pw_uid==training.pw_uid:
+        hold("custody_training_identity_collision")
+
+    ensure_root_dir(Path("/etc/void"),0o755)
+    ensure_dir(CONFIG_DIR,0o755,0,0)
+    ensure_dir(STATE_ROOT,0o700,custody.pw_uid,custody.pw_gid)
+    ensure_dir(CONSUMED,0o700,custody.pw_uid,custody.pw_gid)
+    ensure_root_dir(CUSTODY_SOURCE_ROOT,0o755)
+    ensure_root_dir(LIVE_SOURCE_ROOT,0o755)
+    ensure_root_dir(LIVE_PREENTRY_ROOT,0o755)
+
+    manifest=load_manifest()
+    install_source_tree(CUSTODY_SOURCE_ROOT,manifest["custody_service_closure"])
+    install_source_tree(LIVE_SOURCE_ROOT,manifest["live_session_closure"])
+
+    preentry=compile_preentry()
+    install_file(LIVE_PREENTRY,preentry,0o755,0,0)
+    live_launcher=read_source(LIVE_LAUNCHER_REL,LIVE_LAUNCHER_BLOB)
+    install_file(LIVE_LAUNCHER,live_launcher,0o444,0,0)
+
+    public_bytes=verify_public_key(public_key)
+    install_file(PUBLIC_KEY_PATH,public_bytes,0o644,0,0)
+    install_file(ENV_PATH,make_env(ipc.gr_gid),0o600,0,0)
+
+    install_file(SYSTEMD_UNIT,read_source(UNIT_REL,UNIT_BLOB),0o644,0,0)
+    install_file(SYSTEMD_TARGET,read_source(TARGET_REL,TARGET_BLOB),0o644,0,0)
+    install_file(POLKIT_PATH,read_source(POLKIT_REL,POLKIT_BLOB),0o644,0,0)
+    install_file(TMPFILES_PATH,read_source(TMPFILES_REL,TMPFILES_BLOB),0o644,0,0)
+
+    run(["/usr/bin/systemd-tmpfiles","--create",os.fspath(TMPFILES_PATH)])
+    sp=os.lstat(SOCKET_PARENT)
+    if (
+        not stat.S_ISDIR(sp.st_mode) or sp.st_uid!=custody.pw_uid or
+        sp.st_gid!=ipc.gr_gid or stat.S_IMODE(sp.st_mode)!=0o750
+    ):
+        hold("socket_parent_tmpfiles_mismatch")
+
+    run(["/usr/bin/systemctl","daemon-reload"])
+    state=systemctl_state()
+    if state.get("LoadState")!="loaded":
+        hold("custody_unit_not_loaded")
+    if state.get("ActiveState")=="active" or state.get("MainPID") not in ("","0",None):
+        hold("custody_service_unexpectedly_active")
+    if state.get("UnitFileState")=="enabled":
+        hold("custody_service_unexpectedly_enabled")
+    if state.get("TargetEnabled")=="enabled":
+        hold("custody_target_unexpectedly_enabled")
+
+    return {
+        **before,
+        "mode":"--apply",
+        "custody_uid":custody.pw_uid,
+        "custody_gid":custody.pw_gid,
+        "ipc_gid":ipc.gr_gid,
+        "training_uid":training.pw_uid,
+        "training_gid":training.pw_gid,
+        "training_ipc_membership":True,
+        "custody_ipc_membership":True,
+        "state_root_installed":True,
+        "socket_parent_installed":True,
+        "custody_reviewed_source_installed":True,
+        "live_session_reviewed_source_installed":True,
+        "live_preentry_installed":True,
+        "live_launcher_installed":True,
+        "operator_public_key_installed":True,
+        "custody_unit_installed":True,
+        "custody_target_installed":True,
+        "polkit_rule_installed":True,
+        "tmpfiles_rule_installed":True,
+        "daemon_reload_performed":True,
+        "service_start":False,
+        "service_enable":False,
+        "activation_target_start":False,
+        "activation_target_enable":False,
+        "training_execution":False,
+        "durable_attempt_claim":False,
+        "candidate_weight_mutation":False,
+        "operator_private_key_access":False,
+        "funds_movement":False,
+        "create_only_install_complete":True,
+        "next_action":"INSTALLED_CUSTODY_AND_LIVE_SESSION_ATTESTATION",
+    }
+
+def self_test()->None:
+    manifest=verify_source_contract()
+    assert manifest["required_operator_input"]["expected_operator_public_key_raw_sha256"]==EXPECTED_PUBLIC_RAW_SHA256
+    assert manifest["preentry_lock"]["bytes"]==PREENTRY_BYTES
+    assert manifest["preentry_lock"]["sha256"]==PREENTRY_SHA256
+    env=make_env(980).decode("utf-8")
+    assert "@IPC_GID@" not in env and "@OPERATOR_PUBLIC_KEY_RAW_SHA256@" not in env
+    assert "VOID_APOLLYON_CUSTODY_SOCKET_GROUP_GID=980" in env
+    assert EXPECTED_PUBLIC_RAW_SHA256 in env
+    source=Path(__file__).read_text(encoding="utf-8")
+    for forbidden in (
+        'systemctl","start','systemctl","enable','systemctl","restart',
+        "training_execution=True","durable_attempt_claim=True",
+        "createPrivateKey","eth_sendRawTransaction",
+    ):
+        assert forbidden not in source,forbidden
+    print(MARKER+"_SELF_TEST_GREEN")
+    print("create_only=true")
+    print("source_contract_verified=true")
+    print("public_key_raw_sha256="+EXPECTED_PUBLIC_RAW_SHA256)
+    print("preentry_sha256="+PREENTRY_SHA256)
+    print("service_start=false")
+    print("service_enable=false")
+    print("training_execution=false")
+    print("durable_attempt_claim=false")
+    print("funds_movement=false")
+
+def main()->int:
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--self-test",action="store_true")
+    parser.add_argument("--plan",action="store_true")
+    parser.add_argument("--apply",action="store_true")
+    parser.add_argument("--public-key-pem",type=Path)
+    args=parser.parse_args()
+    selected=sum((args.self_test,args.plan,args.apply))
+    if selected!=1:
+        parser.error("choose exactly one mode")
+    if args.self_test:
+        self_test()
+        return 0
+    if args.public_key_pem is None:
+        parser.error("--public-key-pem is required")
+    try:
+        result=apply(args.public_key_pem) if args.apply else plan(args.public_key_pem)
+    except Hold as exc:
+        print("HOLD="+str(exc),file=sys.stderr)
+        print("service_start=false",file=sys.stderr)
+        print("service_enable=false",file=sys.stderr)
+        print("training_execution=false",file=sys.stderr)
+        print("durable_attempt_claim=false",file=sys.stderr)
+        print("operator_private_key_access=false",file=sys.stderr)
+        print("funds_movement=false",file=sys.stderr)
+        return 2
+    print(json.dumps(result,sort_keys=True,separators=(",",":")))
+    return 0
+
+if __name__=="__main__":
+    raise SystemExit(main())
