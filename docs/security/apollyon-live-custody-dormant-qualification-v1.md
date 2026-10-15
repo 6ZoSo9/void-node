@@ -65,13 +65,24 @@ final check. The snapshot includes the consumed directory's own device/inode,
 ownership, mode, link count, size, mtime and ctime as well as each visible entry,
 so create-then-delete activity cannot disappear behind an empty final listing.
 
+Before each target start, every pathname that systemd or the custody runtime
+will resolve is re-bound to retained trusted ancestry. The execution parents for
+the root-custodied Node, reviewed launcher, cleanup helper, systemd unit files,
+environment file and public key must be direct, symlink-free, root-owned and
+non-group/world-writable. The root-owned ancestor chains protecting the config,
+state and socket-parent pathnames are revalidated as well; a hostile
+world-writable execution parent HOLDs before activation.
+
 The config directory must remain real root:root 0755; the custody state root and
 consumed directory must remain real custody-owned 0700 directories; and the
 socket parent must remain a real custody:IPC 0750 directory. Symlink or metadata
-substitution HOLDs. The exact installed files, environment, effective systemd
-command arrays and other static boundary facts are also reverified before every
-target start; identity drift between cycles therefore HOLDs before another
-activation.
+substitution HOLDs. The custody account's NSS group closure must be exactly its
+primary custody GID plus the reviewed IPC GID. Once live, the process
+supplementary `Groups:` set must equal that reviewed IPC-only supplementary
+set; an extra effective group HOLDs. The exact installed files, environment,
+effective systemd command arrays and other static boundary facts are also
+reverified before every target start; identity drift between cycles therefore
+HOLDs before another activation.
 
 The custody UID lifecycle is therefore 0 -> exact service generation -> 0 for
 each cycle, and no process carrying the dedicated training UID may appear before,
