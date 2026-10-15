@@ -29,76 +29,43 @@ permissions:
   contents: read
 
 jobs:
-  prove:
+  generation-dispatch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Bind exact checkout
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Enforce closed V1 generation
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
-      - name: Prove live qualification contract
-        run: |
-          set -euo pipefail
-          proof="$RUNNER_TEMP/user-manager-live-qualification-proof.txt"
-          python3 -I -B scripts/prove_void_buy_void_user_manager_query_live_qualification_v1.py | tee "$proof"
-          grep -Fx 'VOID_BUY_VOID_USER_MANAGER_QUERY_LIVE_QUALIFICATION_V1_PROOF_GREEN' "$proof"
-          grep -Fx 'protected_installer_source_blob_bound=true' "$proof"
-          grep -Fx 'accepted_elf_lock_blob_bound=true' "$proof"
-          grep -Fx 'preexec_source_blob_bound=true' "$proof"
-          grep -Fx 'query_source_blob_bound=true' "$proof"
-          grep -Fx 'v3_parser_source_blob_bound=true' "$proof"
-          grep -Fx 'fixed_preexec_only=true' "$proof"
-          grep -Fx 'root_live_execution_required=true' "$proof"
-          grep -Fx 'installed_pair_hash_and_custody_verified=true' "$proof"
-          grep -Fx 'native_exact_output_shape_required=true' "$proof"
-          grep -Fx 'authenticated_manager_peer_required=true' "$proof"
-          grep -Fx 'same_private_fd_query_required=true' "$proof"
-          grep -Fx 'runtime_main_pid_kernel_binding_required=true' "$proof"
-          grep -Fx 'double_authenticated_query_required=true' "$proof"
-          grep -Fx 'installed_pair_stability_required=true' "$proof"
-          grep -Fx 'hold_query_execution_state_explicit=true' "$proof"
-          grep -Fx 'host_mutation=false' "$proof"
-          grep -Fx 'filesystem_write=false' "$proof"
-          grep -Fx 'service_mutation=false' "$proof"
-          grep -Fx 'systemd_mutation=false' "$proof"
-          grep -Fx 'external_network_calls=false' "$proof"
-          grep -Fx 'credential_access=false' "$proof"
-          grep -Fx 'wallet_or_signer_access=false' "$proof"
-          grep -Fx 'request_or_payment_contents_read=false' "$proof"
-          grep -Fx 'payment_acceptance=false' "$proof"
-          grep -Fx 'public_presale_activation=false' "$proof"
-          grep -Fx 'funds_movement=false' "$proof"
-          grep -Fx 'production_host_evidence_authority=false' "$proof"
-      - name: Prove inert modes only
-        run: |
-          set -euo pipefail
-          python3 -I -B ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py --self-test
-          plan="$RUNNER_TEMP/user-manager-live-qualification-plan.txt"
-          python3 -I -B ops/precision/void_buy_void_user_manager_query_live_qualification_v1.py --plan | tee "$plan"
-          grep -Fx 'mode=plan' "$plan"
-          grep -Fx 'root_required_for_run=true' "$plan"
-          grep -Fx 'installed_pair_verification_required=true' "$plan"
-          grep -Fx 'double_authenticated_query_required=true' "$plan"
-          grep -Fx 'same_authenticated_connection_unit_query_required=true' "$plan"
-          grep -Fx 'runtime_main_pid_kernel_binding_required=true' "$plan"
-          grep -Fx 'query_execution=false' "$plan"
-          grep -Fx 'host_mutation=false' "$plan"
-          grep -Fx 'filesystem_write=false' "$plan"
-          grep -Fx 'service_mutation=false' "$plan"
-          grep -Fx 'systemd_mutation=false' "$plan"
-          grep -Fx 'external_network_calls=false' "$plan"
-          grep -Fx 'request_or_payment_contents_read=false' "$plan"
-          grep -Fx 'payment_acceptance=false' "$plan"
-          grep -Fx 'public_presale_activation=false' "$plan"
-          grep -Fx 'funds_movement=false' "$plan"
-          grep -Fx 'production_host_evidence_authority=false' "$plan"
-      - name: Diff hygiene
-        run: git diff --check
+          query=ops/precision/void_buy_void_user_manager_private_unit_query_v1.c
+          peer=ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c
+          v2_lock=ops/security/buy-void-user-manager-query-elf-lock-v2.json
+          v4_parser=tools/void-buy-allocation-custody-host-evidence-v4.mjs
+
+          current_query_blob="$(git hash-object "$query")"
+          case "$current_query_blob" in
+            5355b7f177574ac4fa173a693605acaf9c5f26e4)
+              ;;
+            ad49cd7f71c41e0f559a561b5a62a00cec60c215)
+              echo "historical V1 query source was reintroduced; restore/review the historical workflow deliberately" >&2
+              exit 2
+              ;;
+            *)
+              echo "unknown authenticated-query source generation: $current_query_blob" >&2
+              exit 2
+              ;;
+          esac
+
+          test "$(git hash-object "$peer")" = d8b30ac499c3bb8a5d223dbc6be687dd175be611
+          grep -Fq '#define MARKER "VOID_BUY_VOID_USER_MANAGER_PRIVATE_UNIT_QUERY_V2"' "$query"
+          grep -Fq '"private_users_false_required": true' "$v2_lock"
+          grep -Fq 'voidbuyumqelflock2_c643213ce46d6f2b4dfe04675a7fbbcaad2b6aea40418cb921586362a054f474' "$v2_lock"
+          grep -Fq 'VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V4' "$v4_parser"
+
+          echo 'VOID_BUY_USER_MANAGER_LIVE_QUALIFICATION_V1_SUPERSEDED_BY_V2_GREEN'
+          echo 'historical_v1_active=false'
+          echo 'final_v2_query_generation_bound=true'
+          echo 'unknown_generation_fails_closed=true'
