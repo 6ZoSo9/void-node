@@ -7,6 +7,7 @@ on:
       - "scripts/prove_void_buy_legacy_request_history_disposition_v1.mjs"
       - "docs/operators/buy-void-legacy-request-history-disposition-v1.md"
       - ".github/workflows/buy-void-legacy-request-history-disposition-v1.yml"
+      - "ops/precision/void_buy_void_legacy_request_root_census_v1.py"
   push:
     branches: [main]
     paths:
@@ -14,6 +15,7 @@ on:
       - "scripts/prove_void_buy_legacy_request_history_disposition_v1.mjs"
       - "docs/operators/buy-void-legacy-request-history-disposition-v1.md"
       - ".github/workflows/buy-void-legacy-request-history-disposition-v1.yml"
+      - "ops/precision/void_buy_void_legacy_request_root_census_v1.py"
 
 permissions:
   contents: read
@@ -42,6 +44,13 @@ jobs:
           node scripts/prove_void_buy_legacy_request_history_disposition_v1.mjs |
             tee "$RUNNER_TEMP/legacy-history-disposition-v1.log"
           grep -Fx 'VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_CANDIDATE_V1_PROOF_GREEN' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'exact_census_evidence_bytes_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'exact_census_source_head_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'exact_census_source_blob_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'census_sha256_computed_internally=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'census_partitions_derived_internally=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'fabricated_summary_rejected=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
+          grep -Fx 'incomplete_census_hold_preserved=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
           grep -Fx 'technical_never_used_proof_claimed=false' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
           grep -Fx 'bounded_current_candidate_set_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
           grep -Fx 'designated_runtime_user_required=true' "$RUNNER_TEMP/legacy-history-disposition-v1.log"
