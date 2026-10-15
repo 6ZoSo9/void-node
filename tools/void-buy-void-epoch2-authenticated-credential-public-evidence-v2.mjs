@@ -12,7 +12,7 @@ import {
 export const MARKER =
   "VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_PUBLIC_EVIDENCE_V2";
 export const STATUS =
-  "AUTHENTICATED_CREDENTIAL_PUBLIC_EVIDENCE_V2_VERIFIED";
+  "AUTHENTICATED_CREDENTIAL_PUBLIC_EVIDENCE_V2_SOURCE_COMPOSITION_ONLY";
 export const EXPECTED_CREDENTIAL_LOCK_ID =
   "voidbuyumqcredelflock1_65a1839c14b692349dda8cccdbe8657a9485754c5d10ffa5b57421ce87e3753c";
 export const EXPECTED_QUALIFIER_MARKER =
@@ -181,16 +181,20 @@ function classify(record,qualification,expectedFulfiller){
     return Object.freeze({
       ok:false,status:"HOLD",reason:"sealed_public_evidence_invalid:"+base.reason,
       composite_evidence_id:null,
-      authenticated_private_manager_crosscheck:false,
+      authenticated_private_manager_fields_crosschecked:false,
+      qualification_provenance_authenticated:false,
       main_pid_crosscheck:false,
       loadcredential_binding_crosscheck:false,
       service_cgroup_hash_crosscheck:false,
       public_user_bus_sufficient_authority:false,
+      qualification_provenance_authenticated:false,
+      production_runtime_authority:false,
       live_payment_signing_authorized:false,
       transaction_sign_or_broadcast_authorized:false,
       public_presale_activation_authorized:false,
       wc_void_market_activation_authorized:false,
       funds_movement_authorized:false,
+      next_action:"BUILD_ROOT_LIVE_COMPOSITION_RUNNER_V1",
     });
   }
 
@@ -199,16 +203,20 @@ function classify(record,qualification,expectedFulfiller){
     return Object.freeze({
       ok:false,status:"HOLD",reason:qv.reason,
       composite_evidence_id:null,
-      authenticated_private_manager_crosscheck:false,
+      authenticated_private_manager_fields_crosschecked:false,
+      qualification_provenance_authenticated:false,
       main_pid_crosscheck:false,
       loadcredential_binding_crosscheck:false,
       service_cgroup_hash_crosscheck:false,
       public_user_bus_sufficient_authority:false,
+      qualification_provenance_authenticated:false,
+      production_runtime_authority:false,
       live_payment_signing_authorized:false,
       transaction_sign_or_broadcast_authorized:false,
       public_presale_activation_authorized:false,
       wc_void_market_activation_authorized:false,
       funds_movement_authorized:false,
+      next_action:"BUILD_ROOT_LIVE_COMPOSITION_RUNNER_V1",
     });
   }
 
@@ -245,11 +253,14 @@ function classify(record,qualification,expectedFulfiller){
     source_head:record.source_head,
     source_tree:record.source_tree,
     signer_address:base.signer_address,
-    authenticated_private_manager_crosscheck:true,
+    authenticated_private_manager_fields_crosschecked:true,
+    qualification_provenance_authenticated:false,
     main_pid_crosscheck:true,
     loadcredential_binding_crosscheck:true,
     service_cgroup_hash_crosscheck:true,
     public_user_bus_sufficient_authority:false,
+    qualification_provenance_authenticated:false,
+    production_runtime_authority:false,
     credentials_directory_process_metadata_signature_bound:true,
     active_signing_capability_cryptographically_verified:true,
     runtime_source_binding_signature_bound:true,
@@ -270,11 +281,14 @@ function classify(record,qualification,expectedFulfiller){
     source_tree:record.source_tree,
     signer_address:base.signer_address,
     credential_lock_id:qualification.credential_lock_id,
-    authenticated_private_manager_crosscheck:true,
+    authenticated_private_manager_fields_crosschecked:true,
+    qualification_provenance_authenticated:false,
     main_pid_crosscheck:true,
     loadcredential_binding_crosscheck:true,
     service_cgroup_hash_crosscheck:true,
     public_user_bus_sufficient_authority:false,
+    qualification_provenance_authenticated:false,
+    production_runtime_authority:false,
     credentials_directory_process_metadata_signature_bound:true,
     active_signing_capability_cryptographically_verified:true,
     runtime_source_binding_signature_bound:true,
@@ -283,6 +297,7 @@ function classify(record,qualification,expectedFulfiller){
     public_presale_activation_authorized:false,
     wc_void_market_activation_authorized:false,
     funds_movement_authorized:false,
+    next_action:"BUILD_ROOT_LIVE_COMPOSITION_RUNNER_V1",
   });
 }
 
@@ -290,7 +305,8 @@ function classificationHold(reason){
   return Object.freeze({
     ok:false,status:"HOLD",reason,
     composite_evidence_id:null,
-    authenticated_private_manager_crosscheck:false,
+    authenticated_private_manager_fields_crosschecked:false,
+      qualification_provenance_authenticated:false,
     main_pid_crosscheck:false,
     loadcredential_binding_crosscheck:false,
     service_cgroup_hash_crosscheck:false,
@@ -300,6 +316,7 @@ function classificationHold(reason){
     public_presale_activation_authorized:false,
     wc_void_market_activation_authorized:false,
     funds_movement_authorized:false,
+    next_action:"BUILD_ROOT_LIVE_COMPOSITION_RUNNER_V1",
   });
 }
 
