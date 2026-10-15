@@ -30,6 +30,44 @@ import {
 } from "../tools/void-buy-legacy-request-history-nimo-forced-command-v1.mjs";
 
 const D=VOID_BUY_VOID_LEGACY_HISTORY_DISPOSITION_DECISIONS_V1;
+const focusedWorkflow=fs.readFileSync(
+  ".github/workflows/buy-void-legacy-request-history-nimo-forced-command-v1.yml",
+  "utf8"
+);
+for(const relative of [
+  "tools/void-buy-legacy-request-history-nimo-transport-envelope-v1.mjs",
+  "tools/void-buy-legacy-request-history-external-witness-v1.mjs",
+  "tools/void-buy-legacy-request-history-sovereign-authorization-v1.mjs",
+  "tools/void-buy-legacy-request-history-disposition-v1.mjs",
+  "src/security/void_sovereign_emergency_control_v1.ts",
+  "src/security/void_alignment_layer_v1.ts",
+  "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+  "src/economic/buy_void_allocation_custody_witness_transport_v1.ts",
+  "src/economic/buy_void_allocation_custody_external_witness_v1.ts",
+  "src/economic/buy_void_allocation_reservation_high_water_v1.ts",
+  "src/economic/buy_void_allocation_reservation_ledger_v1.ts",
+  "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+  "src/economic/buy_void_auto_fulfillment_v1.ts",
+  "src/economic/buy_void_execution_attempt_journal_v1.ts",
+  "src/economic/buy_void_inventory_reservation_journal_v1.ts",
+  "src/economic/buy_void_verified_payment_v2.ts",
+  "src/economic/buy_void_fulfillment_confirmation_v1.ts",
+  "src/economic/buy_void_fulfillment_journal_v1.ts",
+  "src/economic/buy_void_broadcast_outcome_journal_v1.ts",
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "tsconfig.build.json",
+  "scripts/copy_void_runtime_js_v1.mjs",
+  "scripts/retire_saveblock_periodic_rewriters_v1.mjs",
+]){
+  const token='      - "'+relative+'"';
+  assert.equal(
+    focusedWorkflow.split(token).length-1,
+    2,
+    "focused workflow must trigger for PR and main push: "+relative,
+  );
+}
 function canonical(value){
   if(value===null)return "null";
   if(typeof value==="string")return JSON.stringify(value).replace(/[\u007f-\uffff]/g,
