@@ -1,0 +1,90 @@
+name: VOID Public Earn inner rate backstop profile v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-public-earn-inner-rate-backstop-profile-v1.mjs"
+      - "scripts/prove_public_earn_inner_rate_backstop_profile_v1.mjs"
+      - "docs/architecture/public-earn-inner-rate-backstop-profile-v1.md"
+      - "tools/void-public-earn-proxy-v2-edge-contract-v1.mjs"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - ".github/workflows/public-earn-inner-rate-backstop-profile-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: inner rate backstop / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove inner aggregate backstop profile
+        run: |
+          set -euo pipefail
+          node --check tools/void-public-earn-inner-rate-backstop-profile-v1.mjs
+          node --check scripts/prove_public_earn_inner_rate_backstop_profile_v1.mjs
+          proof="$RUNNER_TEMP/public-earn-inner-rate-backstop-v1.txt"
+          node scripts/prove_public_earn_inner_rate_backstop_profile_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_PUBLIC_EARN_INNER_RATE_BACKSTOP_PROFILE_V1_GREEN' "$proof"
+          grep -Fx 'outer_claim_per_source_per_minute=6' "$proof"
+          grep -Fx 'inner_claim_aggregate_backstop_per_minute=60' "$proof"
+          grep -Fx 'outer_submit_per_source_per_minute=30' "$proof"
+          grep -Fx 'inner_submit_aggregate_backstop_per_minute=300' "$proof"
+          grep -Fx 'one_outer_limited_source_can_exhaust_inner_backstop=false' "$proof"
+          grep -Fx 'second_source_full_outer_budget_preserved=true' "$proof"
+          grep -Fx 'caller_forwarding_headers_trusted=false' "$proof"
+          grep -Fx 'legacy_shared_mode_modified=false' "$proof"
+          grep -Fx 'runtime_integration=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Repository typecheck
+        run: npm run typecheck -- --pretty false
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+            echo "diff_scope=manual_exact_first_parent"
+          else
+            git merge-base --is-ancestor "$BASE" "$HEAD"
+            echo "diff_scope=reviewed_pull_request_base"
+          fi
+          git diff --check "$BASE" "$HEAD"
