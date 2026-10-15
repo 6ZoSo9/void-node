@@ -132,6 +132,9 @@ route evidence. A missing or duplicate top-level `ingress:` block and duplicate
 (`path`, `service`, and `originRequest.httpHostHeader`) must also be
 nonempty canonical scalars on first appearance; an empty/malformed first key
 cannot be followed by a duplicate valid key to smuggle an accepted value.
+`originRequest` child fields are credited only while that exact four-space
+mapping is active; entering any sibling mapping ends that scope before later
+six-space fields are considered.
 
 The canonical v1 sensitive candidate is deliberately strict: three explicit
 seed-host rules, one for each sensitive path, all to one IPv4-loopback adapter
