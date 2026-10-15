@@ -68,10 +68,13 @@ jobs:
           root=/opt/void-cloudflare-user-tunnel-retirement-query-v2
           preexec="$RUNNER_TEMP/cloudflare-retirement-preexec-v2"
           query="$RUNNER_TEMP/cloudflare-retirement-query-v2"
+          original_opt_mode="$(stat -Lc '%a' /opt)"
           cleanup() {
             sudo rm -rf "$root" || true
+            sudo chmod "$original_opt_mode" /opt || true
           }
           trap cleanup EXIT
+          sudo chmod go-w /opt
           sudo install -d -o root -g root -m 0555 "$root"
           sudo install -o root -g root -m 0555 "$preexec"             "$root/void_cloudflare_historical_user_tunnel_retirement_preexec_v2"
           sudo install -o root -g root -m 0555 "$query"             "$root/void_cloudflare_historical_user_tunnel_retirement_query_v2"
