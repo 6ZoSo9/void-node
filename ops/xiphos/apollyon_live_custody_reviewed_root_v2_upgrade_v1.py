@@ -176,11 +176,54 @@ def install_file(path:Path,data:bytes)->None:
         os.fsync(fd); os.fchmod(fd,0o444); os.fchown(fd,0,0)
     finally: os.close(fd)
 
+def fsync_tree(root:Path)->None:
+    directories=[]
+    for dirpath,_,filenames in os.walk(root):
+        current=Path(dirpath)
+        directories.append(current)
+        for name in filenames:
+            path=current/name
+            fd=os.open(path,os.O_RDONLY|getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0))
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+    for directory in sorted(directories,key=lambda p:len(p.parts),reverse=True):
+        fd=os.open(directory,os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_CLOEXEC",0))
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
 def install_new_tree(mapping:dict[str,str])->None:
-    ensure_root_dir(NEW_ROOT)
-    for rel,blob in mapping.items():
-        install_file(NEW_ROOT/rel,read_source(rel,blob))
-    verify_tree(NEW_ROOT,mapping)
+    if NEW_ROOT.exists():
+        verify_tree(NEW_ROOT,mapping)
+        return
+    stage=NEW_ROOT.parent/(".void-apollyon-live-custody-binding-v2-reviewed-v2.new."+str(os.getpid()))
+    if stage.exists():
+        hold("new_root_stage_collision")
+    ensure_root_dir(stage)
+    try:
+        for rel,blob in mapping.items():
+            data=read_source(rel,blob)
+            target=stage/rel
+            install_file(target,data)
+        verify_tree(stage,mapping)
+        fsync_tree(stage)
+        parent_fd=os.open(NEW_ROOT.parent,os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_CLOEXEC",0))
+        try:
+            if NEW_ROOT.exists():
+                verify_tree(NEW_ROOT,mapping)
+                return
+            os.rename(stage,NEW_ROOT)
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+        verify_tree(NEW_ROOT,mapping)
+    finally:
+        if stage.exists():
+            import shutil
+            shutil.rmtree(stage)
 
 def replace_launcher(new_bytes:bytes)->bool:
     state=launcher_state()
