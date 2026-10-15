@@ -1226,6 +1226,74 @@ def self_test()->None:
     else:
         raise AssertionError("synthetic_dormancy_drift_not_reported")
 
+    state={"service":"old_exact","helper":"exact","loaded":"old_loaded"}
+    service_drift_calls={"count":0}
+    service_mutations={"replace":0,"reload":0}
+    def service_boundary_drift():
+        service_drift_calls["count"]+=1
+        if service_drift_calls["count"]==2:
+            raise Hold("synthetic_service_boundary_not_dormant")
+        return synthetic_snapshot(state)
+    def service_replace_must_not_run():
+        service_mutations["replace"]+=1
+        return True
+    def service_reload_must_not_run():
+        service_mutations["reload"]+=1
+    try:
+        apply_transition(
+            synthetic_snapshot(state),
+            _replace_service_fn=service_replace_must_not_run,
+            _reload_fn=service_reload_must_not_run,
+            _state_fn=lambda:synthetic_snapshot(state),
+            _stabilize_fn=lambda stage:None,
+            _dormancy_fn=service_boundary_drift,
+        )
+    except ApplyHold as exc:
+        assert str(exc)=="synthetic_service_boundary_not_dormant"
+        assert service_drift_calls["count"]==2
+        assert service_mutations=={"replace":0,"reload":0}
+        assert exc.receipt["service_unit_replace_attempted"] is False
+        assert exc.receipt["daemon_reload_attempted"] is False
+        assert (
+            exc.receipt["last_dormancy_revalidation_boundary"]
+            =="before_service_publication"
+        )
+    else:
+        raise AssertionError("synthetic_service_dormancy_drift_not_reported")
+
+    state={
+        "service":"new_exact","helper":"exact",
+        "loaded":"new_file_pending_reload",
+    }
+    reload_drift_calls={"count":0}
+    reload_mutations={"reload":0}
+    def reload_boundary_drift():
+        reload_drift_calls["count"]+=1
+        if reload_drift_calls["count"]==2:
+            raise Hold("synthetic_reload_boundary_not_dormant")
+        return synthetic_snapshot(state)
+    def drifted_reload_must_not_run():
+        reload_mutations["reload"]+=1
+    try:
+        apply_transition(
+            synthetic_snapshot(state),
+            _reload_fn=drifted_reload_must_not_run,
+            _state_fn=lambda:synthetic_snapshot(state),
+            _stabilize_fn=lambda stage:None,
+            _dormancy_fn=reload_boundary_drift,
+        )
+    except ApplyHold as exc:
+        assert str(exc)=="synthetic_reload_boundary_not_dormant"
+        assert reload_drift_calls["count"]==2
+        assert reload_mutations=={"reload":0}
+        assert exc.receipt["daemon_reload_attempted"] is False
+        assert (
+            exc.receipt["last_dormancy_revalidation_boundary"]
+            =="before_daemon_reload"
+        )
+    else:
+        raise AssertionError("synthetic_reload_dormancy_drift_not_reported")
+
     state={
         "service":"new_exact","helper":"exact",
         "loaded":"new_loaded",
@@ -1279,6 +1347,7 @@ def self_test()->None:
     print("lifecycle_root_parent_fsync_on_create=true")
     print("mutation_boundary_dormancy_revalidation=true")
     print("filesystem_primitive_dormancy_revalidation=true")
+    print("service_and_reload_dormancy_drift_rejected=true")
     print("durability_repair_mutation_receipt_truthful=true")
     print("pending_cleanup_mutation_receipt_truthful=true")
     print("durability_failure_outcome_indeterminate=true")
