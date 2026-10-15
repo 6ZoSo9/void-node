@@ -23,7 +23,11 @@ The native guard must execute as root. For a supplied positive runtime UID it:
 2. requires exactly one process matching all of:
    - all four UIDs equal the expected runtime UID;
    - exact `systemd` comm;
-   - exact argv `/usr/lib/systemd/systemd --user`;
+   - exact argv in one of two closed forms:
+     - `/usr/lib/systemd/systemd --user`; or
+     - `/usr/lib/systemd/systemd --user --deserialize=<positive-decimal-fd>`;
+   - no additional manager arguments and no zero, signed, malformed, or
+     non-decimal deserialize value;
    - exact init.scope cgroup;
    - PPid 1;
    - exact root-owned/non-group-or-world-writable
@@ -38,6 +42,14 @@ The native guard must execute as root. For a supplied positive runtime UID it:
 
 A replaced same-UID public D-Bus endpoint cannot satisfy the peer-PID equality
 unless it is the proven systemd manager process itself.
+
+A normal systemd user-manager daemon re-exec may retain exactly one
+`--deserialize=<fd>` argument while preserving the same manager process
+identity. Precision live evidence observed PID 2693 as
+`systemd --user --deserialize=44` with the expected executable, UID/GID,
+init.scope cgroup and PPid 1. Treating that closed re-exec form as invalid
+incorrectly rejects the real authenticated manager before `SO_PEERCRED` can
+bind the private socket.
 
 ## Deliberate stop
 
