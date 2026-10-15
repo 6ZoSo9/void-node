@@ -81,10 +81,10 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1_SELF_TEST_GREEN'             "$RUNNER_TEMP/native-self-test.log"
           grep -Fx 'node_sha256_policy_bound=true' "$RUNNER_TEMP/native-self-test.log"
 
-          node --input-type=module "$runner" --self-test |
+          node "$runner" --self-test |
             tee "$RUNNER_TEMP/runner-self-test.log"
           grep -Fx 'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V2_SELF_TEST_GREEN'             "$RUNNER_TEMP/runner-self-test.log"
-          node --input-type=module "$runner" --plan |
+          node "$runner" --plan |
             tee "$RUNNER_TEMP/runner-plan.log"
           grep -Fx 'native_preentry_required_for_live=true' "$RUNNER_TEMP/runner-plan.log"
           grep -Fx 'stdin_javascript_source_forbidden=true' "$RUNNER_TEMP/runner-plan.log"
