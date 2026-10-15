@@ -99,6 +99,15 @@ function enterPrivateOptFixtureNamespace() {
     assert.equal((st.mode & 0o022) === 0, true, required + " must not be writable");
   }
 
+  for (const target of ["/opt", "/home"]) {
+    const st = fs.lstatSync(target);
+    assert.equal(
+      st.isDirectory() && !st.isSymbolicLink(),
+      true,
+      target + " must be a direct directory before namespace bootstrap",
+    );
+  }
+
   const sudoReady = run(SUDO, ["-n", "true"]);
   assert.equal(
     sudoReady.status,
@@ -854,6 +863,7 @@ console.log("host_home_mount_mutation=false");
 console.log("fixed_checkout_parent_host_mutation=false");
 console.log("private_opt_mount_namespace=true");
 console.log("private_home_mount_namespace=true");
+console.log("host_fixed_mountpoints_preflight_read_only=true");
 console.log(
   "private_opt_mount_namespace_fixture=" +
     String(privateOptNamespaceFixture),
