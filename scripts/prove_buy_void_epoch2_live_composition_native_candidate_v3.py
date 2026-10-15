@@ -406,7 +406,7 @@ def derive()->dict:
         raise AssertionError("two local builds/toolchain closures were not byte-identical")
     base={
         "marker":MARKER,
-        "version":1,
+        "version":3,
         "status":"candidate_only_unaccepted",
         "source":{
             "path":SOURCE_REL,
@@ -492,7 +492,7 @@ def validate(report:dict)->None:
         ),
         "candidate report",
     )
-    if type(report["version"]) is not int or report["version"]!=1:
+    if type(report["version"]) is not int or report["version"]!=3:
         raise AssertionError("candidate version invalid")
     if report["marker"]!=MARKER or report["status"]!="candidate_only_unaccepted":
         raise AssertionError("candidate marker/status invalid")
@@ -764,8 +764,7 @@ def self_test()->None:
     bad=json.loads(canonical(valid))
     bad["version"]=True
     bad["candidate_id"]=(
-        "epoch2_live_custody_source_session_preentry_binary_candidate_v1:"+
-        sha256(canonical(material(bad)).encode("utf-8"))
+        "voidbuye2nativecand3_"+sha256(canonical(material(bad)).encode("utf-8"))
     )
     try:
         validate(bad)
@@ -779,8 +778,7 @@ def self_test()->None:
     digest=forged["binary"]["sha256"]
     forged["binary"]["sha256"]=("0" if digest[0]!="0" else "1")+digest[1:]
     forged["candidate_id"]=(
-        "epoch2_live_custody_source_session_preentry_binary_candidate_v1:"+
-        sha256(canonical(material(forged)).encode("utf-8"))
+        "voidbuye2nativecand3_"+sha256(canonical(material(forged)).encode("utf-8"))
     )
     validate(forged)
     with tempfile.TemporaryDirectory(prefix="void-epoch2-forged-candidate-") as td:
