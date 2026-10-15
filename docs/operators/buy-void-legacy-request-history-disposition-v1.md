@@ -28,6 +28,9 @@ and `bounded_current_candidate_set_observed=true`. If release enumeration,
 the stable runtime generation/listener, or the confirmed-closeout request-root
 status was not observed cleanly, only `UNRESOLVED_HOLD` is admissible.
 
+The bound census must attest the designated runtime identity `zoso` / UID
+1000 in addition to the designated hostname and machine identity.
+
 The bound census must also attest `process_environment_access=false`,
 `external_network_calls=false`, and `loopback_get_only=true`; the
 disposition candidate must never depend on scraping the live process
