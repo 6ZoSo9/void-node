@@ -10,7 +10,6 @@ on:
       - "schemas/datanet-content-commitment-finalized-event-membership-v1.schema.json"
       - "docs/architecture/datanet-content-commitment-finalized-event-membership-v1.md"
       - "tools/datanet-content-commitment-finalized-receipt-admission-v1.mjs"
-      - "tools/datanet-content-commitment-production-registry-identity-v1.mjs"
       - "scripts/lib/void_datanet_chain2050_commitment_receipt_v1.mjs"
   push:
     branches: [main]
@@ -49,7 +48,6 @@ jobs:
         run: |
           set -euo pipefail
           node --check tools/datanet-content-commitment-finalized-event-membership-v1.mjs
-      - "tools/datanet-content-commitment-production-registry-identity-v1.mjs"
           node --check scripts/prove_datanet_content_commitment_finalized_event_membership_v1.mjs
           node -e 'JSON.parse(require("fs").readFileSync("schemas/datanet-content-commitment-finalized-event-membership-v1.schema.json","utf8"))'
           node scripts/prove_void_datanet_chain2050_commitment_receipt_v1.mjs
