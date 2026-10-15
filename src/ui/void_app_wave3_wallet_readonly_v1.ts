@@ -392,9 +392,11 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
   const ledgerBody = objectBody(ledgerSource);
   const productionBody = objectBody(productionSource);
 
+  const walletAccountMatches = walletBody.account === account;
   const walletShapeValid =
     walletSource.status === 200 &&
     walletBody.ok === true &&
+    walletAccountMatches &&
     typeof walletBody.has_wallet === "boolean" &&
     typeof walletBody.unlocked === "boolean";
   const walletAddress =
