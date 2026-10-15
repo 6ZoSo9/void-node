@@ -79,9 +79,10 @@ runner, and Node generations. The retained runner FD must still identify the
 same visible root-owned runner.
 
 The same parent/process/installed-generation proof is revalidated again after
-the credential/signing sequence and before receipt output. A caller-visible
-marker plus a valid runner FD is therefore insufficient to claim native
-provenance.
+the credential/signing sequence and before receipt output. The focused proof
+binds this exact source order: initial native gate, sensitive sequence, final
+native-parent revalidation, then receipt output. A caller-visible marker plus a
+valid runner FD is therefore insufficient to claim native provenance.
 
 ## Policy format
 
@@ -159,10 +160,15 @@ root_javascript_started=false
 
 No Node process or credential child is reached.
 
-The root fixture also installs a synthetic exact policy and fixed runner. A
-real native /dev/null invocation must clear the new parent-proof gates and
-reach the later expected checkout HOLD, proving that the native-parent channel
-is usable.
+The root fixture also installs a synthetic exact policy and fixed runner. It
+preflights the real fixed `/usr/bin/setpriv` under the runner's root-owned,
+non-group/world-writable executable boundary. The fixture first proves that an
+absent fixed `/home/zoso/dev/void-node` checkout cwd fails closed, then
+materializes that fixed path as a disposable link to the exact hosted checkout.
+A real native `/dev/null` invocation must clear the parent-proof gates,
+execute the real runtime-user transition, and reach the later expected Git
+checkout HOLD. An ambiguous spawn ENOENT is not accepted as positive-lineage
+evidence.
 
 A separate forged direct-root-Node adversary supplies the correct native marker,
 a valid retained runner FD, and a syntactically valid forged proof record. It
