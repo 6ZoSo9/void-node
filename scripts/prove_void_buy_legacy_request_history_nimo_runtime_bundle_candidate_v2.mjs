@@ -507,8 +507,9 @@ assert.equal(
 );
 assert.equal(
   candidate.build_recipe.compile_node_executable_source,
-  "process.execPath",
+  "root_custodied_process.execPath_realpath",
 );
+assert.equal(candidate.build_recipe.compile_node_root_custody_required,true);
 assert.deepEqual(candidate.build_recipe.compile_environment, {
   PATH: "/usr/bin:/bin",
   LANG: "C",
@@ -641,6 +642,7 @@ for (const [key, expected] of Object.entries({
   compiler_snapshot_builder_uid_direct_mutation_denied: true,
   compiler_source_post_revalidation_required: true,
   compiler_snapshot_post_revalidation_required: true,
+  compile_node_root_custody_required: true,
   build_input_private_snapshot_required: true,
   build_input_snapshot_content_addressed: true,
   build_input_snapshot_root_custody_required: true,
@@ -872,6 +874,7 @@ console.log("typescript_compile_cache_builtin_bound=true");
 console.log("typescript_compiler_exact_file_allowlist_bound=true");
 console.log("candidate_owned_compiler_rebuild=true");
 console.log("compiler_pre_post_identity_stable=true");
+console.log("compile_node_root_custody=true");
 console.log("compiler_private_snapshot_bound=true");
 console.log("compiler_package_snapshot_bound=true");
 console.log("compiler_snapshot_nonwritable=true");
