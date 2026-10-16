@@ -16,6 +16,16 @@ No host implementation should invent those values.
 This gate closes that wire-level ambiguity before
 `apollyon_durable_attempt_claim_store_service_source_implementation_v2`.
 
+## Source dependency pins
+
+The closure declares and the proof re-hashes these exact dependencies:
+
+- #3276 candidate blob `bbd02403695eecca3f07fd54e382b44b0d9b14e7`;
+- #3233 store-contract blob `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
+- V1 canonicalizer blob `f97fafb0148527ae3a954e2752faef8c7fc9e88e`.
+
+A downstream implementation must bind this complete protocol dependency closure, not only the envelope file.
+
 ## Exact wire envelope
 
 The request object has exactly these six keys:

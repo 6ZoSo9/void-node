@@ -9,6 +9,9 @@ import {
 } from "../tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs";
 import {
   ACCEPTED_STORE_POLICY_ID,
+  CANONICALIZER_V1_BLOB_SHA1,
+  PARENT_CANDIDATE_BLOB_SHA1,
+  PARENT_STORE_CONTRACT_BLOB_SHA1,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_ENVELOPE_AUTHORITY_V2,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_MARKER_V2,
   parseApollyonDurableAttemptClaimPublishRequestBytesV2,
@@ -25,7 +28,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
-    "fffb8ace78d04aff08bb5f2dc9d4563ab61f712e",
+    "710b35f2066f21243ded594c10421e0687bf4371",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -35,6 +38,10 @@ for(const [relative,expected] of Object.entries({
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
+
+assert.equal(PARENT_CANDIDATE_BLOB_SHA1,"bbd02403695eecca3f07fd54e382b44b0d9b14e7");
+assert.equal(PARENT_STORE_CONTRACT_BLOB_SHA1,"6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe");
+assert.equal(CANONICALIZER_V1_BLOB_SHA1,"f97fafb0148527ae3a954e2752faef8c7fc9e88e");
 
 const STORE_CONTRACT_ID="apollyon_claim_store_contract_v2:"+"1".repeat(64);
 const STORE_GENERATION_ID="apollyon_claim_store_generation_v2:"+"2".repeat(64);
@@ -184,6 +191,9 @@ assert.throws(
 
 for(const [key,expected] of Object.entries({
   source_only_protocol_closure:true,
+  parent_candidate_blob_bound:true,
+  parent_store_contract_blob_bound:true,
+  canonicalizer_v1_blob_bound:true,
   exact_request_marker_bound:true,
   exact_request_version_bound:true,
   exact_request_method_bound:true,

@@ -13,6 +13,9 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_MARKER_V2 =
 export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_ENVELOPE_AUTHORITY_V2 =
   Object.freeze({
     source_only_protocol_closure:true,
+    parent_candidate_blob_bound:true,
+    parent_store_contract_blob_bound:true,
+    canonicalizer_v1_blob_bound:true,
     exact_request_marker_bound:true,
     exact_request_version_bound:true,
     exact_request_method_bound:true,
@@ -51,6 +54,8 @@ export const PARENT_CANDIDATE_BLOB_SHA1 =
   "bbd02403695eecca3f07fd54e382b44b0d9b14e7";
 export const PARENT_STORE_CONTRACT_BLOB_SHA1 =
   "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe";
+export const CANONICALIZER_V1_BLOB_SHA1 =
+  "f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 export const ACCEPTED_STORE_POLICY_ID =
   "apollyon_claim_store_policy_v2:e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137";
 
