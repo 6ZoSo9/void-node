@@ -108,6 +108,7 @@ jobs:
             'VOID_ECONOMIC_SPONSORED_OBSERVATION_RESTART_BRIDGE_V1_PROOF_GREEN' \
             'prior_durable_head_independently_inspected=true' \
             'prior_composition_receipt_bound=true' \
+            'canonical_json_round_trip_evidence_accepted=true' \
             'prior_host_binding_bound=true' \
             'revoked_proxy_rejected_before_array_reflection=true' \
             'nested_host_sample_accessor_rejected_without_read=true' \
