@@ -22,12 +22,17 @@ export const VOID_APOLLYON_TRAINING_START_STORE_REVALIDATION_REQUEST_AUTHORITY_V
     accepted_protected_writer_required:true,
     fixed_claim_state_root_bound:true,
     fixed_training_start_consumption_directory_bound:true,
+    derived_consumption_leaf_bound:true,
     caller_supplied_store_path_supported:false,
     caller_supplied_consumption_directory_supported:false,
     protected_store_origin_required:true,
     protected_store_origin_proven:false,
     current_store_generation_revalidation_required:true,
     current_store_generation_revalidation_performed:false,
+    store_generation_record_reread_required:true,
+    store_generation_record_reread_performed:false,
+    generation_lineage_revalidation_required:true,
+    generation_lineage_revalidation_performed:false,
     durable_claim_record_reread_required:true,
     durable_claim_record_reread_performed:false,
     authorization_winner_reread_required:true,
@@ -38,6 +43,10 @@ export const VOID_APOLLYON_TRAINING_START_STORE_REVALIDATION_REQUEST_AUTHORITY_V
     writer_directory_capability_exact_path_required:true,
     writer_directory_capability_exact_path_proven:false,
     writer_directory_capability_origin_proven:false,
+    fixed_root_visible_generation_revalidation_required:true,
+    fixed_root_visible_generation_revalidation_performed:false,
+    fixed_consumption_directory_visible_generation_revalidation_required:true,
+    fixed_consumption_directory_visible_generation_revalidation_performed:false,
     same_store_generation_through_writer_required:true,
     protected_writer_invocation_required:true,
     protected_writer_invocation_authorized:false,
@@ -81,6 +90,15 @@ function clonePlain(value,code){
   const proto=Object.getPrototypeOf(copy);
   if(proto!==Object.prototype&&proto!==null)fail(code);
   return copy;
+}
+const CONSUMPTION_SLOT_ID=
+  /^apollyon_training_start_slot_v1:([0-9a-f]{64})$/u;
+function consumptionSlotLeaf(record){
+  const match=CONSUMPTION_SLOT_ID.exec(record.training_start_consumption_slot_id);
+  if(!match){
+    fail("apollyon_training_start_store_revalidation_request_v1_slot_invalid");
+  }
+  return "training-start-consumption-v1-"+match[1]+".json";
 }
 function exactOwnKeys(value,expected,code){
   const actual=Object.keys(value).sort();
@@ -147,6 +165,7 @@ export function qualifyApollyonTrainingStartStoreRevalidationRequestV1(input){
 
     training_start_consumption_slot_id:
       record.training_start_consumption_slot_id,
+    training_start_consumption_slot_leaf:consumptionSlotLeaf(record),
     training_start_consumption_id:record.training_start_consumption_id,
 
     trainer_generation_id:record.trainer_generation_id,
@@ -161,6 +180,10 @@ export function qualifyApollyonTrainingStartStoreRevalidationRequestV1(input){
     protected_store_origin_proven:false,
     current_store_generation_revalidation_required:true,
     current_store_generation_revalidation_performed:false,
+    store_generation_record_reread_required:true,
+    store_generation_record_reread_performed:false,
+    generation_lineage_revalidation_required:true,
+    generation_lineage_revalidation_performed:false,
     durable_claim_record_reread_required:true,
     durable_claim_record_reread_performed:false,
     authorization_winner_reread_required:true,
@@ -171,6 +194,10 @@ export function qualifyApollyonTrainingStartStoreRevalidationRequestV1(input){
     writer_directory_capability_exact_path_required:true,
     writer_directory_capability_exact_path_proven:false,
     writer_directory_capability_origin_proven:false,
+    fixed_root_visible_generation_revalidation_required:true,
+    fixed_root_visible_generation_revalidation_performed:false,
+    fixed_consumption_directory_visible_generation_revalidation_required:true,
+    fixed_consumption_directory_visible_generation_revalidation_performed:false,
     same_store_generation_through_writer_required:true,
     protected_writer_invocation_required:true,
     protected_writer_invocation_authorized:false,

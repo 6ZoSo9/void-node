@@ -45,7 +45,8 @@ The request carries the exact expected:
 - custody generation and custody-record SHA-256;
 - durable claim-record ID and canonical claim-record SHA-256;
 - exact publish-request SHA-256;
-- authorization-wide training-start consumption slot ID;
+- authorization-wide training-start consumption slot ID and its exact derived
+  leaf `training-start-consumption-v1-<slot-digest>.json`;
 - exact trainer-specific consumption-record ID;
 - blocked trainer generation, boot ID, PID/start ticks, UID/GID and source
   identity.
@@ -62,15 +63,19 @@ prove, from the fixed protected store rather than caller assertions:
 1. the directory capability is exactly the fixed
    `training-start-consumption-v1` directory under the reviewed claim state
    root and originates from the bound store generation;
-2. the current store generation is still the exact requested generation;
-3. the protected #3357 authorization winner is reread and still exactly the
+2. the current store-generation record and authenticated generation lineage
+   are reread and still establish the exact requested generation;
+3. the fixed claim-state root and fixed consumption directory remain visibly
+   bound to that same generation (not merely reachable through stale retained
+   FDs);
+4. the protected #3357 authorization winner is reread and still exactly the
    requested winner;
-4. the durable claim record is reread and still has the requested canonical
+5. the durable claim record is reread and still has the requested canonical
    identity/hash;
-5. the training-start consumption slot is classified in the same protected
-   namespace;
-6. the directory capability handed to #3377 remains in that same store
-   generation through the writer mutation boundary.
+6. the exact derived training-start consumption leaf is classified in the same
+   protected namespace;
+7. the directory capability handed to #3377 remains visibly bound to that same
+   store generation through the writer mutation boundary.
 
 The future bridge must distinguish an absent slot from an exact existing
 consumption record. An exact existing record is already consumed and is not
@@ -83,6 +88,10 @@ This source contract always reports:
 ```text
 protected_store_origin_proven=false
 current_store_generation_revalidation_performed=false
+store_generation_record_reread_performed=false
+generation_lineage_revalidation_performed=false
+fixed_root_visible_generation_revalidation_performed=false
+fixed_consumption_directory_visible_generation_revalidation_performed=false
 durable_claim_record_reread_performed=false
 authorization_winner_reread_performed=false
 consumption_slot_classification_performed=false

@@ -21,6 +21,9 @@ import {
   qualifyApollyonDurableAttemptClaimStoreServiceSourceCandidateV2,
 } from "../tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs";
 import {
+  apollyonTrainingStartConsumptionSlotLeafV1,
+} from "../tools/apollyon-training-start-consumption-protected-writer-v1.mjs";
+import {
   VOID_APOLLYON_TRAINING_START_STORE_REVALIDATION_REQUEST_AUTHORITY_V1,
   qualifyApollyonTrainingStartStoreRevalidationRequestV1,
 } from "../tools/apollyon-training-start-store-revalidation-request-v1.mjs";
@@ -39,7 +42,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-    "d383bfe97f621efdd4761a16ff93a63efdfcd4fd",
+    "1e15512c61615f137f89f71f12a1c4630bf8767b",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
     "a08927b7b16884a9bf0c28328047afdab49649ea",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
@@ -201,6 +204,8 @@ for(const [key,expected] of [
   ["claim_record_sha256",record.claim_record_sha256],
   ["publish_request_sha256",record.publish_request_sha256],
   ["training_start_consumption_slot_id",record.training_start_consumption_slot_id],
+  ["training_start_consumption_slot_leaf",
+    apollyonTrainingStartConsumptionSlotLeafV1(record)],
   ["training_start_consumption_id",record.training_start_consumption_id],
   ["trainer_generation_id",record.trainer_generation_id],
   ["trainer_boot_id_sha256",record.trainer_boot_id_sha256],
@@ -221,11 +226,15 @@ assert.match(
 for(const key of [
   "protected_store_origin_proven",
   "current_store_generation_revalidation_performed",
+  "store_generation_record_reread_performed",
+  "generation_lineage_revalidation_performed",
   "durable_claim_record_reread_performed",
   "authorization_winner_reread_performed",
   "consumption_slot_classification_performed",
   "writer_directory_capability_exact_path_proven",
   "writer_directory_capability_origin_proven",
+  "fixed_root_visible_generation_revalidation_performed",
+  "fixed_consumption_directory_visible_generation_revalidation_performed",
   "protected_writer_invocation_authorized",
   "training_start_consumption_performed",
   "trainer_release_authorized",
@@ -239,11 +248,15 @@ for(const key of [
 for(const key of [
   "protected_store_origin_required",
   "current_store_generation_revalidation_required",
+  "store_generation_record_reread_required",
+  "generation_lineage_revalidation_required",
   "durable_claim_record_reread_required",
   "authorization_winner_reread_required",
   "consumption_slot_classification_required",
   "writer_directory_capability_from_fixed_root_required",
   "writer_directory_capability_exact_path_required",
+  "fixed_root_visible_generation_revalidation_required",
+  "fixed_consumption_directory_visible_generation_revalidation_required",
   "same_store_generation_through_writer_required",
   "protected_writer_invocation_required",
 ]){
@@ -311,12 +324,17 @@ for(const [key,expected] of Object.entries({
   accepted_protected_writer_required:true,
   fixed_claim_state_root_bound:true,
   fixed_training_start_consumption_directory_bound:true,
+  derived_consumption_leaf_bound:true,
   caller_supplied_store_path_supported:false,
   caller_supplied_consumption_directory_supported:false,
   protected_store_origin_required:true,
   protected_store_origin_proven:false,
   current_store_generation_revalidation_required:true,
   current_store_generation_revalidation_performed:false,
+  store_generation_record_reread_required:true,
+  store_generation_record_reread_performed:false,
+  generation_lineage_revalidation_required:true,
+  generation_lineage_revalidation_performed:false,
   durable_claim_record_reread_required:true,
   durable_claim_record_reread_performed:false,
   authorization_winner_reread_required:true,
@@ -327,6 +345,10 @@ for(const [key,expected] of Object.entries({
   writer_directory_capability_exact_path_required:true,
   writer_directory_capability_exact_path_proven:false,
   writer_directory_capability_origin_proven:false,
+  fixed_root_visible_generation_revalidation_required:true,
+  fixed_root_visible_generation_revalidation_performed:false,
+  fixed_consumption_directory_visible_generation_revalidation_required:true,
+  fixed_consumption_directory_visible_generation_revalidation_performed:false,
   same_store_generation_through_writer_required:true,
   protected_writer_invocation_required:true,
   protected_writer_invocation_authorized:false,
@@ -438,6 +460,10 @@ console.log("authorization_winner_identity_bound=true");
 console.log("current_store_generation_identity_bound=true");
 console.log("durable_claim_identity_bound=true");
 console.log("training_start_consumption_slot_bound=true");
+console.log("training_start_consumption_slot_leaf_bound=true");
+console.log("store_generation_record_reread_required=true");
+console.log("generation_lineage_revalidation_required=true");
+console.log("visible_namespace_generation_continuity_required=true");
 console.log("protected_store_origin_proven=false");
 console.log("current_store_generation_revalidation_performed=false");
 console.log("authorization_winner_reread_performed=false");
