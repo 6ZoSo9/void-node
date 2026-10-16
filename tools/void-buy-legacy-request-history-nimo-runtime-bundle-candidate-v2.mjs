@@ -1935,6 +1935,8 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     body.build_recipe.compiler_snapshot_post_revalidation_required !== true ||
     body.build_recipe.build_input_snapshot_required !== true ||
     body.build_recipe.build_input_snapshot_root_custody_required !== true ||
+    body.build_recipe.build_input_snapshot_privileged_creation_required !== true ||
+    body.build_recipe.build_input_snapshot_privileged_population_required !== true ||
     body.build_recipe.build_input_snapshot_builder_uid_direct_mutation_denied_required !== true ||
     body.build_recipe.build_input_snapshot_post_revalidation_required !== true ||
     body.build_recipe.runtime_output_snapshot_required !== true ||
