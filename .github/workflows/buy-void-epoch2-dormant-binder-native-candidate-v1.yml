@@ -1,0 +1,170 @@
+name: Buy VOID Epoch-2 dormant binder native candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-candidate-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-candidate-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact repaired #3353 generation and candidate scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          binding_head=b890fa44e204b0f0304685744d5b3fe9174b31e7
+          main_parent=1b844cac7b5671a5436287871ff1520db82aefe9
+          base="${PR_BASE:-}"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse "$EXPECTED_HEAD^1")"
+          fi
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse "$binding_head^{commit}")" = "$binding_head"
+          test "$(git rev-parse "$main_parent^{commit}")" = "$main_parent"
+          git merge-base --is-ancestor "$binding_head" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n'             '.github/workflows/buy-void-epoch2-dormant-binder-native-candidate-v1.yml'             'docs/operators/buy-void-epoch2-dormant-binder-native-candidate-v1.md'             'scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py'             | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" =             b6946d5b9067771369879f0d026bec7d51e428e1
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             9c29eb4716077e459b9154f39d0f30cf2e56729f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             4340aba3a74040e6d7756874512665c4425bf3c3
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md)" =             bcd357f4b5d605dfedb04482f36f47b9a72ce7ca
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml)" =             537964f3216f4d7fa15689b4d48cf2821282cb40
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py)" =             5ff80235a9e8eb878bf1736082839815eb637c6a
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Re-run dormant V3R source proof
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v3r-binding-proof.log"
+          node scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs |
+            tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V2_PROOF_GREEN' "$out"
+          grep -Fx 'native_binder_first_entry_required=true' "$out"
+          grep -Fx 'native_binder_preentry_source_bound=true' "$out"
+          grep -Fx 'binder_exact_sha256_bound=true' "$out"
+          grep -Fx 'customer_safe_to_pay=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+
+      - name: Candidate verifier self-test
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/candidate-self-test.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py             --self-test | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_CANDIDATE_V1_SELF_TEST_GREEN' "$out"
+          grep -Fx 'source_blob_bound=true' "$out"
+          grep -Fx 'binder_blob_and_sha256_bound=true' "$out"
+          grep -Fx 'three_hosted_reports_required=true' "$out"
+          grep -Fx 'comparison_rederives_elf=true' "$out"
+          grep -Fx 'candidate_accepted=false' "$out"
+          grep -Fx 'live_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+
+  derive:
+    name: derive dormant binder candidate / ${{ matrix.lane }}
+    needs: source-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [a, b, c]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Derive deterministic static candidate
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/candidate"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py             --derive-dir "$out" | tee "$RUNNER_TEMP/derive.log"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_CANDIDATE_V1_DERIVE_GREEN' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'three_run_comparison_required=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'static_link_required=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'pt_interp_absent=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'hostile_ld_preload_preentry_blocked=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'candidate_accepted=false' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'live_execution_authorized=false' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/derive.log"
+          test -s "$out/candidate.json"
+          test -s "$out/native-preentry"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-dormant-binder-native-candidate-v1-${{ matrix.lane }}
+          path: ${{ runner.temp }}/candidate
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: independently compare dormant binder candidate
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-epoch2-dormant-binder-native-candidate-v1-*
+          path: ${{ runner.temp }}/candidates
+          merge-multiple: false
+
+      - name: Require three-run equality and independent rederivation
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/compare.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py             --compare-dir "$RUNNER_TEMP/candidates" | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_CANDIDATE_V1_THREE_RUN_GREEN' "$out"
+          grep -Fx 'three_run_report_bytes_identical=true' "$out"
+          grep -Fx 'three_run_binary_bytes_identical=true' "$out"
+          grep -Fx 'comparison_rederived_report=true' "$out"
+          grep -Fx 'comparison_rederived_elf=true' "$out"
+          grep -Fx 'static_link_required=true' "$out"
+          grep -Fx 'pt_interp_absent=true' "$out"
+          grep -Fx 'candidate_accepted=false' "$out"
+          grep -Fx 'live_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - run: git diff --check
