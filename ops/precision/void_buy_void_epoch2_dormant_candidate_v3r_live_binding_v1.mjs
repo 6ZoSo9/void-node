@@ -859,10 +859,10 @@ function selfTest(){
 }
 function live(expectedHead,confirm){
   if(confirm!==CONFIRM)throw new Error("explicit_live_confirmation_required");
+  const binderProof=requireBinderPreentry(expectedHead);
   if(typeof process.geteuid!=="function"||process.geteuid()!==0){
     throw new Error("root_required_for_live_binding");
   }
-  const binderProof=requireBinderPreentry(expectedHead);
   assertTrustedExecutable(GIT);
   assertTrustedExecutable(PYTHON);
   assertTrustedExecutable(SETPRIV);
