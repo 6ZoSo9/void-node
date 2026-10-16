@@ -93,8 +93,8 @@ jobs:
       - name: Build reviewed economic closure
         run: |
           set -euo pipefail
-          npm run typecheck
-          npm run build
+          node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
 
       - name: Derive V3 candidate
         run: |

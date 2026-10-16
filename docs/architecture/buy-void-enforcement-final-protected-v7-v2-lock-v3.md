@@ -7,25 +7,31 @@ Status: **source/CI acceptance of one exact protected V7/V2 V3 candidate only**.
 ## Exact candidate
 
 This lock consumes the exact unaccepted V3 candidate from #3247 at
-`c40710aab6bbd86fccce2385c7dfb3f64d454e57`.
+`4af6cf87a555616e9c154da3676865194d795a6d`.
 
-Hosted run `38846038425` produced byte-identical candidate output on Node
+Hosted run `38847166708` produced byte-identical candidate output on Node
 22/24/26:
 
-- Node 22 artifact `12022239687`;
-- Node 24 artifact `12023296743`;
-- Node 26 artifact `12022978712`;
+- Node 22 artifact `12023293940`;
+- Node 24 artifact `12024125439`;
+- Node 26 artifact `12023766523`;
 - candidate bytes `18142`;
 - candidate SHA-256
-  `163feaeb76d185c3bce1cf13e9189cacb3848eb3fc676882dfbd799d7959306b`;
+  `58a1d773523e025e6f66a9fe0f3098cd7951a60810da8cf0b2f16584bd100a45`;
 - candidate Git blob SHA-1
-  `33188cccf898f5f8f785039415c083e9a69a66f6`;
+  `092642b365976d3ea8d50682a1c7a8724455362b`;
 - candidate enforcement-set SHA-256
-  `e3430aee5444c8c45bea682d8bad8f7fc5b99d0eeaad002f4fd10b1a5201dd45`.
+  `bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d`.
 
 The candidate is rooted in protected census V5
 `voidbefv7c5_15bb0ac8cfebf0f70b20442dd80bb84ea4bef4e0b50eefff71363237a0bf6c47`
 and records exact current-head revalidation at the accepted candidate head.
+
+The accepted parent workflow generation also removes repository-controlled
+pre-proof build helpers: it invokes the reviewed TypeScript compiler directly
+for no-emit typecheck and `tsconfig.build.json` output after
+`npm ci --ignore-scripts`. The lock workflow preserves the same boundary and
+does not execute `npm run build` before candidate authentication.
 
 ## Candidate-head re-execution
 
@@ -36,7 +42,7 @@ child HEAD.
 
 The V3 lock proof instead:
 
-1. requires candidate head `c40710aa...` to be an ancestor;
+1. requires candidate head `4af6cf87...` to be an ancestor;
 2. pins the exact V3 derivation-proof Git blob;
 3. creates a detached Git worktree at the exact candidate head;
 4. reuses only the already-built dependency/dist trees from the lock checkout;

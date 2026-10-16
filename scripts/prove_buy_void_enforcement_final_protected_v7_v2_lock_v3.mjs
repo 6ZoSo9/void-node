@@ -8,8 +8,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const CANDIDATE_HEAD="c40710aab6bbd86fccce2385c7dfb3f64d454e57";
-const CANDIDATE_TREE="45f792d7b9106a59eb93e5c5ec1a5977402f2862";
+const CANDIDATE_HEAD="4af6cf87a555616e9c154da3676865194d795a6d";
+const CANDIDATE_TREE="ef6fe9ec481bb3df9805905f8411bce3741af3a9";
 const CANDIDATE_PROOF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs";
 const CANDIDATE_PROOF_BLOB="b2cf2514e2a75c91446edbe4b56ed995fb0a8fc6";
 const CANDIDATE_FILE="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json";
@@ -19,14 +19,14 @@ const LOCK_DOC="docs/architecture/buy-void-enforcement-final-protected-v7-v2-loc
 const SELF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs";
 
 const CANDIDATE_BYTES=18142;
-const CANDIDATE_SHA256="163feaeb76d185c3bce1cf13e9189cacb3848eb3fc676882dfbd799d7959306b";
-const CANDIDATE_BLOB="33188cccf898f5f8f785039415c083e9a69a66f6";
-const CANDIDATE_SET="e3430aee5444c8c45bea682d8bad8f7fc5b99d0eeaad002f4fd10b1a5201dd45";
-const CANDIDATE_WORKFLOW_RUN=38846038425;
+const CANDIDATE_SHA256="58a1d773523e025e6f66a9fe0f3098cd7951a60810da8cf0b2f16584bd100a45";
+const CANDIDATE_BLOB="092642b365976d3ea8d50682a1c7a8724455362b";
+const CANDIDATE_SET="bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d";
+const CANDIDATE_WORKFLOW_RUN=38847166708;
 const CANDIDATE_ARTIFACTS=Object.freeze({
-  22:12022239687,
-  24:12023296743,
-  26:12022978712,
+  22:12023293940,
+  24:12024125439,
+  26:12023766523,
 });
 const CENSUS_ID="voidbefv7c5_15bb0ac8cfebf0f70b20442dd80bb84ea4bef4e0b50eefff71363237a0bf6c47";
 const CENSUS_JSON_SHA256="66f9a8e98cfa289117c58a661532b3fa6403f9c8d116c1c5c4462d66e1454057";

@@ -39,9 +39,9 @@
     "cross_node_byte_identity_verified": true
   },
   "protected_census_current_revalidation": {
-    "census_id": "voidbefv7c5_e52c279da7b3bb5958aeeb3bd1b5fc64070163b35a87a275912a424ffdc79ce2",
-    "repository_head_sha": "c40710aab6bbd86fccce2385c7dfb3f64d454e57",
-    "repository_tree_sha": "45f792d7b9106a59eb93e5c5ec1a5977402f2862",
+    "census_id": "voidbefv7c5_37f57718406e39a5dbdd774df2c5f72c24be54e87dd341d612168184903bae54",
+    "repository_head_sha": "4af6cf87a555616e9c154da3676865194d795a6d",
+    "repository_tree_sha": "ef6fe9ec481bb3df9805905f8411bce3741af3a9",
     "protected_tracked_source_inventory_canonical_sha256": "297399d8c5cd975e5bf9f96adc291aebae13ce6a83c26ca5a039668c7b32b0f2",
     "economic_artifact_inventory_sha256": "4dc2469dc898fb3c9c10baa47638a2892b3fb26159bd853454c7d94f98721b37",
     "economic_source_inventory_sha256": "172c6be2f5e2f8d9865df516bde4bbbec65086025b779337d3b5ed2e701163be",
@@ -399,5 +399,5 @@
   "production_source_finality_authority_ready": false,
   "public_presale_activation": false,
   "funds_movement": false,
-  "candidate_enforcement_set_sha256": "e3430aee5444c8c45bea682d8bad8f7fc5b99d0eeaad002f4fd10b1a5201dd45"
+  "candidate_enforcement_set_sha256": "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d"
 }

@@ -3,12 +3,12 @@
   "marker": "VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3",
   "version": 3,
   "repository": "6ZoSo9/void-node",
-  "candidate_head": "c40710aab6bbd86fccce2385c7dfb3f64d454e57",
+  "candidate_head": "4af6cf87a555616e9c154da3676865194d795a6d",
   "candidate_hosted_evidence": {
-    "workflow_run": 38846038425,
-    "node22_artifact_id": 12022239687,
-    "node24_artifact_id": 12023296743,
-    "node26_artifact_id": 12022978712,
+    "workflow_run": 38847166708,
+    "node22_artifact_id": 12023293940,
+    "node24_artifact_id": 12024125439,
+    "node26_artifact_id": 12023766523,
     "cross_node_byte_identity_verified": true
   },
   "candidate_evidence": {
@@ -16,9 +16,9 @@
     "derivation_proof_path": "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs",
     "derivation_proof_git_blob_sha1": "b2cf2514e2a75c91446edbe4b56ed995fb0a8fc6",
     "bytes": 18142,
-    "sha256": "163feaeb76d185c3bce1cf13e9189cacb3848eb3fc676882dfbd799d7959306b",
-    "git_blob_sha1": "33188cccf898f5f8f785039415c083e9a69a66f6",
-    "candidate_enforcement_set_sha256": "e3430aee5444c8c45bea682d8bad8f7fc5b99d0eeaad002f4fd10b1a5201dd45"
+    "sha256": "58a1d773523e025e6f66a9fe0f3098cd7951a60810da8cf0b2f16584bd100a45",
+    "git_blob_sha1": "092642b365976d3ea8d50682a1c7a8724455362b",
+    "candidate_enforcement_set_sha256": "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d"
   },
   "protected_census_evidence": {
     "census_id": "voidbefv7c5_15bb0ac8cfebf0f70b20442dd80bb84ea4bef4e0b50eefff71363237a0bf6c47",
@@ -26,9 +26,9 @@
     "protected_tracked_source_inventory_canonical_sha256": "297399d8c5cd975e5bf9f96adc291aebae13ce6a83c26ca5a039668c7b32b0f2"
   },
   "protected_census_current_revalidation": {
-    "census_id": "voidbefv7c5_e52c279da7b3bb5958aeeb3bd1b5fc64070163b35a87a275912a424ffdc79ce2",
-    "repository_head_sha": "c40710aab6bbd86fccce2385c7dfb3f64d454e57",
-    "repository_tree_sha": "45f792d7b9106a59eb93e5c5ec1a5977402f2862",
+    "census_id": "voidbefv7c5_37f57718406e39a5dbdd774df2c5f72c24be54e87dd341d612168184903bae54",
+    "repository_head_sha": "4af6cf87a555616e9c154da3676865194d795a6d",
+    "repository_tree_sha": "ef6fe9ec481bb3df9805905f8411bce3741af3a9",
     "protected_tracked_source_inventory_canonical_sha256": "297399d8c5cd975e5bf9f96adc291aebae13ce6a83c26ca5a039668c7b32b0f2",
     "source_generation_successor_evidence_bound": true,
     "exact_candidate_head_revalidation": true

@@ -78,8 +78,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git merge-base --is-ancestor c40710aab6bbd86fccce2385c7dfb3f64d454e57 "$EXPECTED_HEAD"
-          test "$(git rev-parse c40710aab6bbd86fccce2385c7dfb3f64d454e57:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = b2cf2514e2a75c91446edbe4b56ed995fb0a8fc6
+          git merge-base --is-ancestor 4af6cf87a555616e9c154da3676865194d795a6d "$EXPECTED_HEAD"
+          test "$(git rev-parse 4af6cf87a555616e9c154da3676865194d795a6d:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = b2cf2514e2a75c91446edbe4b56ed995fb0a8fc6
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Setup Node
@@ -90,11 +90,11 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Build reviewed economic closure
+      - name: Build reviewed economic closure without repository helper execution
         run: |
           set -euo pipefail
-          npm run typecheck
-          npm run build
+          node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
 
       - name: Verify exact hosted candidate and derive V3 acceptance lock
         run: |
@@ -107,8 +107,8 @@ jobs:
           node "$proof" --derive > "$lock"
           cmp "$lock" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json
           test "$(wc -c < "$candidate")" -eq 18142
-          test "$(sha256sum "$candidate" | awk '{print $1}')" = "163feaeb76d185c3bce1cf13e9189cacb3848eb3fc676882dfbd799d7959306b"
-          test "$(git hash-object "$candidate")" = "33188cccf898f5f8f785039415c083e9a69a66f6"
+          test "$(sha256sum "$candidate" | awk '{print $1}')" = "58a1d773523e025e6f66a9fe0f3098cd7951a60810da8cf0b2f16584bd100a45"
+          test "$(git hash-object "$candidate")" = "092642b365976d3ea8d50682a1c7a8724455362b"
           node --input-type=module - "$candidate" "$lock" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
@@ -116,17 +116,17 @@ jobs:
           const lock=JSON.parse(fs.readFileSync(process.argv[3],"utf8"));
           assert.equal(candidate.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V3");
           assert.equal(candidate.candidate_enforcement_set_sha256,
-            "e3430aee5444c8c45bea682d8bad8f7fc5b99d0eeaad002f4fd10b1a5201dd45");
+            "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d");
           assert.equal(candidate.dependency_provider.historical_lock_proof_reexecuted,false);
           assert.equal(candidate.dependency_provider.current_content_semantics_requalified,true);
           assert.equal(lock.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3");
-          assert.equal(lock.candidate_head,"c40710aab6bbd86fccce2385c7dfb3f64d454e57");
+          assert.equal(lock.candidate_head,"4af6cf87a555616e9c154da3676865194d795a6d");
           assert.equal(lock.candidate_evidence.sha256,
-            "163feaeb76d185c3bce1cf13e9189cacb3848eb3fc676882dfbd799d7959306b");
+            "58a1d773523e025e6f66a9fe0f3098cd7951a60810da8cf0b2f16584bd100a45");
           assert.equal(lock.candidate_evidence.git_blob_sha1,
-            "33188cccf898f5f8f785039415c083e9a69a66f6");
+            "092642b365976d3ea8d50682a1c7a8724455362b");
           assert.equal(lock.candidate_evidence.candidate_enforcement_set_sha256,
-            "e3430aee5444c8c45bea682d8bad8f7fc5b99d0eeaad002f4fd10b1a5201dd45");
+            "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d");
           assert.equal(lock.dependency_provider.historical_lock_proof_reexecuted,false);
           assert.equal(lock.dependency_provider.current_content_semantics_requalified,true);
           assert.equal(lock.candidate_enforcement_identity_accepted,true);
@@ -152,7 +152,7 @@ jobs:
           git switch -C main "$head"
           npx tsx ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts             --plan             --expected-commit "$head"             --expected-tree "$tree"             --accepted-enforcement-lock-path ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json             | tee "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
           grep -Fx 'status=PLAN_GREEN' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'accepted_enforcement_set_sha256=e3430aee5444c8c45bea682d8bad8f7fc5b99d0eeaad002f4fd10b1a5201dd45' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+          grep -Fx 'accepted_enforcement_set_sha256=bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
           grep -Fx 'filesystem_mutation=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
           grep -Fx 'presale_activation=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
@@ -207,7 +207,7 @@ jobs:
           const candidate=JSON.parse(candidateBytes);
           const lock=JSON.parse(lockBytes);
           assert.equal(candidate.candidate_enforcement_set_sha256,
-            "e3430aee5444c8c45bea682d8bad8f7fc5b99d0eeaad002f4fd10b1a5201dd45");
+            "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d");
           assert.equal(lock.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3");
           assert.equal(lock.candidate_enforcement_identity_accepted,true);
           assert.equal(lock.production_source_finality_authority_ready,false);
