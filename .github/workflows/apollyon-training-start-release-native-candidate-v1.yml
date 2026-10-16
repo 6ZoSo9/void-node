@@ -52,7 +52,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_native_candidate_v1.c)" = \
             66a20e42e6d73552c70253cd066af9d45af83749
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_native_candidate_v1.py)" = \
-            86faffb61dd986ed3048edbdd2f960f20873d34d
+            0db600fd67f8b3d0b026c5ce64943da134b16034
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-native-candidate-v1.md)" = \
             bdf445a15bb85e5a2425ff445bb5b1a7f1b80b53
 
@@ -127,6 +127,7 @@ jobs:
             "procfs_super_magic_and_self_generation_bound=true"
             "fake_proc_root_adversary_rejected=true"
             "actual_run_gate_positive_harness=true"
+            "actual_run_gate_fd3_inherited_across_exec=true"
             "actual_run_gate_exact_fd3_frame_eof=true"
             "post_first_entry_noexec_barrier_proven=true"
             "release_pipe_identity_observed_but_writer_origin_unproven=true"
