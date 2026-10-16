@@ -880,15 +880,15 @@ function createPrivateRuntimeOutputRootV2() {
 }
 
 function finalizeRuntimeOutputSnapshotV2(outputRoot) {
-  const inventory = snapshotAllFileRecordsV2(outputRoot);
-  if (inventory.files.length < 1) {
-    fail("legacy_history_nimo_bundle_runtime_output_snapshot_empty");
-  }
   runPrivilegedSnapshotToolV2(
     CHMOD_V2,
     ["-R", "a-w,go+rX,u+rX", "--", outputRoot],
     "runtime_output_chmod",
   );
+  const inventory = snapshotAllFileRecordsV2(outputRoot);
+  if (inventory.files.length < 1) {
+    fail("legacy_history_nimo_bundle_runtime_output_snapshot_empty");
+  }
   assertRuntimeOutputSnapshotNonwritableV2(outputRoot);
 }
 
