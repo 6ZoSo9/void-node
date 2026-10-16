@@ -214,14 +214,31 @@ assert "read_exact_candidate(native) != native_raw" in revalidate_source
 assert "current_binder = _git_object(" in revalidate_source
 assert "current_binder != binder_raw" in revalidate_source
 
-verify_stage = apply_source.index("_verify_install_root(STAGE_ROOT)")
+stage_bind_before = apply_source.index(
+    "_require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)"
+)
+stage_verify_before = apply_source.index("_verify_pair_fd(stage_fd)", stage_bind_before)
 revalidate_at = apply_source.index("_revalidate_before_publication(")
+stage_bind_after = apply_source.index(
+    "_require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)",
+    revalidate_at,
+)
+stage_verify_after = apply_source.index("_verify_pair_fd(stage_fd)", stage_bind_after)
 publish = apply_source.index(
     "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)"
 )
 published_flag = apply_source.index("published = True", publish)
 post_checks = apply_source.index("_post_publication_checks(opt_fd)", published_flag)
-assert verify_stage < revalidate_at < publish < published_flag < post_checks
+assert (
+    stage_bind_before
+    < stage_verify_before
+    < revalidate_at
+    < stage_bind_after
+    < stage_verify_after
+    < publish
+    < published_flag
+    < post_checks
+)
 assert apply_source.count("_renameat2(") == 1
 assert "INSTALL_NAME, STAGE_NAME" not in apply_source
 
