@@ -72,8 +72,9 @@ fields false. The reason is sanitized through the existing bounded
 
 Malformed HOLD output, unexpected exit status, or traceback-bearing failures are
 not reclassified as reviewed qualification HOLDs; they remain generic execution
-failures. The source self-test covers a valid nested V6 HOLD and a forged
-authority-bearing HOLD receipt.
+failures. The source self-test covers the actual process-exit mapper with a
+valid nested V6 HOLD, a forged authority-bearing HOLD receipt, and a synthetic
+unexpected exit carrying traceback text.
 
 This is source/error-propagation truth only. The failed live authorization that
 motivated #3303 remains consumed; this source generation grants no retry.
