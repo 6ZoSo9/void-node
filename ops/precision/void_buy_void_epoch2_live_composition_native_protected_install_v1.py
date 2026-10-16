@@ -239,14 +239,19 @@ def accepted_lock() -> dict[str, Any]:
             raise InstallError("candidate_lock_report_mismatch:" + key)
     return value
 
-def verify_repository(expected_head: str) -> None:
+def verify_repository(
+    expected_head: str,
+    *,
+    require_main: bool = True,
+    require_fixed_path: bool = True,
+) -> None:
     if not SHA40.fullmatch(expected_head):
         raise InstallError("expected_head_invalid")
-    if ROOT != REPO_FIXED:
+    if require_fixed_path and ROOT != REPO_FIXED:
         raise InstallError("fixed_repository_path_required")
     if git(["rev-parse", "--verify", "HEAD"]) != expected_head:
         raise InstallError("expected_head_mismatch")
-    if git(["branch", "--show-current"]) != "main":
+    if require_main and git(["branch", "--show-current"]) != "main":
         raise InstallError("branch_not_main")
     if git(["status", "--porcelain=v1", "--untracked-files=all"]) != "":
         raise InstallError("worktree_not_clean")
@@ -364,7 +369,11 @@ def prepare_candidates(output_dir: Path) -> None:
     if os.geteuid() == 0:
         raise InstallError("candidate_prepare_must_be_unprivileged")
     expected_head = git(["rev-parse", "--verify", "HEAD"])
-    verify_repository(expected_head)
+    verify_repository(
+        expected_head,
+        require_main=False,
+        require_fixed_path=False,
+    )
     accepted_lock()
     output_dir = Path(os.path.normpath(os.fspath(output_dir)))
     if not output_dir.is_absolute():
