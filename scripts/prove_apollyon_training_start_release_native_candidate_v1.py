@@ -18,7 +18,7 @@ PARENT_SOURCE_REL = "tools/apollyon-training-start-release-binding-v1.mjs"
 PARENT_PROOF_REL = "scripts/prove_apollyon_training_start_release_binding_v1.mjs"
 PARENT_WORKFLOW_REL = ".github/workflows/apollyon-training-start-release-binding-v1.yml"
 
-SOURCE_BLOB = "c46e31a733a983b1de0d7347f65f4ababa70bbcc"
+SOURCE_BLOB = "431695460fea4e8271275760eda197a6729661a8"
 PARENT_SOURCE_BLOB = "b8d7229369e7d74e515955e726e0268bbdf6e513"
 PARENT_PROOF_BLOB = "7a67f25c40d52574cc4a7bd25604e9ff79367487"
 PARENT_WORKFLOW_BLOB = "c577da33e31b2c32d8a01e42105c7ced8cab0b4f"
@@ -139,6 +139,7 @@ for forbidden_proc_path in (
     '"/proc/self/exe"',
 ):
     assert forbidden_proc_path not in source, forbidden_proc_path
+assert 'apollyon_release_native_selftest_frames_rc=%d' in source
 assert "trainer_releaser_lineage_proven=false" in source
 assert "trainer_release_authorized=false" in source
 assert "training_execution_authorized=false" in source

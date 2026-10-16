@@ -937,7 +937,11 @@ static int self_test(void) {
               "b8d7229369e7d74e515955e726e0268bbdf6e513")!=0) return 60;
     if(!lower_hex_exact(PARENT_RELEASE_BINDING_BLOB_SHA1,40U)) return 61;
     if(selftest_security_parser()!=0) return 62;
-    if(selftest_frames()!=0) return 63;
+    int frame_rc=selftest_frames();
+    if(frame_rc!=0) {
+        fprintf(stderr,"apollyon_release_native_selftest_frames_rc=%d\n",frame_rc);
+        return 63;
+    }
     if(selftest_noexec()!=0) return 64;
     if(selftest_environment()!=0) return 65;
     int self_pidfd=open_self_pidfd();
