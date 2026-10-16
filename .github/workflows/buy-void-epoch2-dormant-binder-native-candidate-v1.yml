@@ -57,7 +57,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             4671d37fcdb43c2bee9d3de16402df0cd25257bb
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md)" =             cd90bafa39682284a6d9e87daebfe5966adac8d6
           test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml)" =             2742145ab88d721747f978927a6eb64a7c5f805f
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py)" =             32053280f596ba7ff08a5fb3ef2464bbf50c18bf
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py)" =             5ac4264d7f9bdb394cf5be4490aa1eadd1f929ee
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
