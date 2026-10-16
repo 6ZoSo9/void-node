@@ -11,6 +11,10 @@ on:
       - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.yml"
   push:
     branches: [main]
     paths:
@@ -22,6 +26,10 @@ on:
       - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.yml"
   workflow_dispatch:
 
 permissions:
@@ -86,16 +94,16 @@ jobs:
               'scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py' \
               'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py' \
               | sort > "$expected"
-            git diff --name-only "$lock_head" "$EXPECTED_HEAD" -- | sort > "$actual"
+            git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
             diff -u "$expected" "$actual"
           fi
 
           test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py)" = \
             50e8e7ba06740af830cc3c9df34d0ef7739a7e67
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py)" = \
-            011d1acf19b172a863d54f57aafb0573bf7dce2c
+            78c2fde8e7f73bbaea07a1f3314e305bc95f9797
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.md)" = \
-            22c0c97d6633a230454c69dc261138e94d29f262
+            02c2cbc14ba83ba9b452bd25f3b0b28395abaa2a
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = \
             f8ff6fbb855aecafc329cd60622cf3af782745a3
@@ -105,6 +113,14 @@ jobs:
             5f1195d0c0a328be4334ad5b7f6e32b150776cab
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
             f3d6b1559be7490303cf36338c4bfa38fdaa390a
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = \
+            383b84e71b371de65579e4113469e86a59b807ab
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = \
+            06fd54e92d004f3ce4dba9a751fae22b152d1b50
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.md)" = \
+            0b48dad4168b6a2510534bb7c898bf4ee2139cc7
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.yml)" = \
+            5f65753d78abc7ea42c6656b502a0e62b76dfb70
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -138,6 +154,7 @@ jobs:
             'candidate_tool_blob_bound=true'
             'launcher_source_blob_bound=true'
             'installer_source_blob_bound=true'
+            'protected_installer_consumer_bound=true'
             'candidate_rederived_at_locked_merge=true'
             'two_materializations_byte_identical=true'
             'accepted_binary_bytes=731072'
