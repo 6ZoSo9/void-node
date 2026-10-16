@@ -7,6 +7,11 @@ import {
   qualifyApollyonDurableAttemptClaimStorePolicyV2,
   qualifyApollyonDurableAttemptClaimSuccessResponseShapeV2,
 } from "./apollyon-durable-attempt-claim-store-contract-v2.mjs";
+import {
+  deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1,
+  qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
+  validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
+} from "./apollyon-durable-attempt-claim-authorization-slot-v1.mjs";
 
 export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_V1 =
   "VOID_APOLLYON_TRAINING_START_CONSUMPTION_V1";
@@ -29,6 +34,13 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_AUTHORITY_V1 =
     training_start_consumption_create_once_required:true,
     trainer_independent_consumption_slot_required:true,
     authorization_wide_consumption_slot_required:true,
+    unique_authorization_claim_slot_record_required:true,
+    unique_authorization_claim_slot_shape_qualified:true,
+    unique_authorization_claim_slot_protected_origin_required:true,
+    unique_authorization_claim_slot_protected_origin_proven:false,
+    unique_authorization_claim_slot_revalidation_required:true,
+    unique_authorization_claim_slot_revalidation_performed:false,
+    training_start_slot_derived_from_authorization_slot_required:true,
     protected_namespace_keyed_by_consumption_slot_required:true,
     training_start_consumption_performed:false,
     existing_exact_consumption_reusable_admission:false,
@@ -64,6 +76,8 @@ export const PARENT_STORE_CONTRACT_BLOB_SHA1 =
   "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe";
 export const CANONICALIZER_V1_BLOB_SHA1 =
   "f97fafb0148527ae3a954e2752faef8c7fc9e88e";
+export const AUTHORIZATION_SLOT_V1_BLOB_SHA1 =
+  "93582c324ca85aeff56eb61f82b32f1e4c18dfe9";
 
 const HASH64=/^[0-9a-f]{64}$/u;
 const STORE_CONTRACT_ID=/^apollyon_claim_store_contract_v2:[0-9a-f]{64}$/u;
@@ -73,6 +87,8 @@ const TERMINAL_ID=/^apollyon_terminal_receipt_v2:[0-9a-f]{64}$/u;
 const AUTH_ID=/^apollyon_authz_v1:[0-9a-f]{64}$/u;
 const CUSTODY_GENERATION_ID=/^apollyon_custody_generation_v1:[0-9a-f]{64}$/u;
 const CLAIM_RECORD_ID=/^apollyon_attempt_claim_record_v2:[0-9a-f]{64}$/u;
+const AUTHORIZATION_SLOT_ID=/^apollyon_attempt_claim_auth_slot_v1:[0-9a-f]{64}$/u;
+const AUTHORIZATION_SLOT_RECORD_ID=/^apollyon_attempt_claim_auth_slot_record_v1:[0-9a-f]{64}$/u;
 const TRAINER_GENERATION_ID=/^apollyon_pretraining_generation_v1:[0-9a-f]{64}$/u;
 const CONSUMPTION_SLOT_ID=/^apollyon_training_start_slot_v1:[0-9a-f]{64}$/u;
 
@@ -95,6 +111,8 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1 =
   Object.freeze([
     "attempt_limit",
     "authorization_id",
+    "authorization_slot_id",
+    "authorization_slot_record_id",
     "automatic_retry_authorized",
     "claim_record_id",
     "claim_record_sha256",
@@ -139,14 +157,13 @@ function clonePlain(value,code){
   return copy;
 }
 function trainingStartConsumptionSlotId(value){
+  if(!AUTHORIZATION_SLOT_ID.test(value.authorization_slot_id)){
+    fail("apollyon_training_start_v1_authorization_slot_invalid");
+  }
   const material={
     marker:"VOID_APOLLYON_TRAINING_START_CONSUMPTION_SLOT_V1",
     version:1,
-    authorization_id:value.authorization_id,
-    custody_generation_id:value.custody_generation_id,
-    custody_record_sha256:value.custody_record_sha256,
-    attempt_limit:value.attempt_limit,
-    automatic_retry_authorized:value.automatic_retry_authorized,
+    authorization_slot_id:value.authorization_slot_id,
   };
   return "apollyon_training_start_slot_v1:"+
     sha256(Buffer.from(canonical(material),"utf8"));
@@ -203,6 +220,8 @@ export function validateApollyonTrainingStartConsumptionRecordV1(input){
     !STORE_GENERATION_ID.test(value.store_generation_id)||
     !TERMINAL_ID.test(value.terminal_receipt_id)||
     !AUTH_ID.test(value.authorization_id)||
+    !AUTHORIZATION_SLOT_ID.test(value.authorization_slot_id)||
+    !AUTHORIZATION_SLOT_RECORD_ID.test(value.authorization_slot_record_id)||
     !CUSTODY_GENERATION_ID.test(value.custody_generation_id)||
     !HASH64.test(value.custody_record_sha256)||
     !CLAIM_RECORD_ID.test(value.claim_record_id)||
@@ -225,7 +244,37 @@ export function validateApollyonTrainingStartConsumptionRecordV1(input){
   ){
     fail("apollyon_training_start_v1_consumption_record_invalid");
   }
-  const expectedSlot=trainingStartConsumptionSlotId(value);
+  const expectedAuthorizationSlot=
+    deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1({
+      authorization_id:value.authorization_id,
+      attempt_limit:value.attempt_limit,
+      automatic_retry_authorized:value.automatic_retry_authorized,
+    });
+  if(value.authorization_slot_id!==expectedAuthorizationSlot){
+    fail("apollyon_training_start_v1_authorization_slot_id_invalid");
+  }
+  const expectedAuthorizationSlotRecord=
+    qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1({
+      store_policy_id:value.store_policy_id,
+      authorization_id:value.authorization_id,
+      store_contract_id:value.store_contract_id,
+      store_generation_id:value.store_generation_id,
+      terminal_receipt_id:value.terminal_receipt_id,
+      claim_record_id:value.claim_record_id,
+      claim_record_sha256:value.claim_record_sha256,
+      publish_request_sha256:value.publish_request_sha256,
+      attempt_limit:value.attempt_limit,
+      automatic_retry_authorized:value.automatic_retry_authorized,
+    });
+  if(
+    value.authorization_slot_record_id!==
+      expectedAuthorizationSlotRecord.authorization_slot_record_id
+  ){
+    fail("apollyon_training_start_v1_authorization_slot_record_id_invalid");
+  }
+  const expectedSlot=trainingStartConsumptionSlotId({
+    authorization_slot_id:value.authorization_slot_id,
+  });
   if(value.training_start_consumption_slot_id!==expectedSlot){
     fail("apollyon_training_start_v1_consumption_slot_id_invalid");
   }
@@ -295,7 +344,13 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
   const snapshot=clonePlain(input,"apollyon_training_start_v1_input_invalid");
   exactOwnKeys(
     snapshot,
-    ["claim_record","publish_request_sha256","success_response","trainer_generation"],
+    [
+      "authorization_slot_record",
+      "claim_record",
+      "publish_request_sha256",
+      "success_response",
+      "trainer_generation",
+    ],
     "apollyon_training_start_v1_input_invalid",
   );
   if(!HASH64.test(snapshot.publish_request_sha256)){
@@ -315,6 +370,10 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     snapshot.trainer_generation,
   );
   const policy=qualifyApollyonDurableAttemptClaimStorePolicyV2();
+  const authorizationSlot=
+    validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1(
+      snapshot.authorization_slot_record,
+    );
 
   if(
     success.training_start_admission!==false||
@@ -329,21 +388,26 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     !AUTH_ID.test(claim.authorization_id)||
     !CUSTODY_GENERATION_ID.test(claim.custody_generation_id)||
     !HASH64.test(claim.custody_record_sha256)||
-    !CLAIM_RECORD_ID.test(claim.claim_record_id)
+    !CLAIM_RECORD_ID.test(claim.claim_record_id)||
+    authorizationSlot.store_policy_id!==claim.store_policy_id||
+    authorizationSlot.authorization_id!==claim.authorization_id||
+    authorizationSlot.store_contract_id!==claim.store_contract_id||
+    authorizationSlot.store_generation_id!==claim.store_generation_id||
+    authorizationSlot.terminal_receipt_id!==claim.terminal_receipt_id||
+    authorizationSlot.claim_record_id!==claim.claim_record_id||
+    authorizationSlot.publish_request_sha256!==snapshot.publish_request_sha256
   ){
     fail("apollyon_training_start_v1_claim_boundary_invalid");
   }
 
   const claimRecordSha256=sha256(Buffer.from(canonical(claim)+"\n","utf8"));
-  const slotAuthority={
-    authorization_id:claim.authorization_id,
-    custody_generation_id:claim.custody_generation_id,
-    custody_record_sha256:claim.custody_record_sha256,
-    attempt_limit:1,
-    automatic_retry_authorized:false,
-  };
+  if(authorizationSlot.claim_record_sha256!==claimRecordSha256){
+    fail("apollyon_training_start_v1_authorization_slot_claim_hash_mismatch");
+  }
   const training_start_consumption_slot_id=
-    trainingStartConsumptionSlotId(slotAuthority);
+    trainingStartConsumptionSlotId({
+      authorization_slot_id:authorizationSlot.authorization_slot_id,
+    });
   const consumptionMaterial={
     marker:"VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_V1",
     version:1,
@@ -353,6 +417,8 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     store_generation_id:claim.store_generation_id,
     terminal_receipt_id:claim.terminal_receipt_id,
     authorization_id:claim.authorization_id,
+    authorization_slot_id:authorizationSlot.authorization_slot_id,
+    authorization_slot_record_id:authorizationSlot.authorization_slot_record_id,
     custody_generation_id:claim.custody_generation_id,
     custody_record_sha256:claim.custody_record_sha256,
     claim_record_id:claim.claim_record_id,
@@ -390,6 +456,9 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     status:"training_start_consumption_source_contract_qualified_unimplemented",
     parent_store_contract_blob_sha1:PARENT_STORE_CONTRACT_BLOB_SHA1,
     canonicalizer_v1_blob_sha1:CANONICALIZER_V1_BLOB_SHA1,
+    authorization_slot_v1_blob_sha1:AUTHORIZATION_SLOT_V1_BLOB_SHA1,
+    authorization_slot_id:authorizationSlot.authorization_slot_id,
+    authorization_slot_record_id:authorizationSlot.authorization_slot_record_id,
     store_policy_id:claim.store_policy_id,
     claim_record_id:claim.claim_record_id,
     claim_record_sha256:claimRecordSha256,
@@ -414,6 +483,12 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     training_start_consumption_create_once_required:true,
     trainer_independent_consumption_slot_qualified:true,
     authorization_wide_consumption_slot_qualified:true,
+    unique_authorization_claim_slot_shape_qualified:true,
+    unique_authorization_claim_slot_protected_origin_required:true,
+    unique_authorization_claim_slot_protected_origin_proven:false,
+    unique_authorization_claim_slot_revalidation_required:true,
+    unique_authorization_claim_slot_revalidation_performed:false,
+    training_start_slot_derived_from_authorization_slot:true,
     protected_namespace_keyed_by_consumption_slot_required:true,
     training_start_consumption_performed:false,
     existing_exact_consumption_reusable_admission:false,

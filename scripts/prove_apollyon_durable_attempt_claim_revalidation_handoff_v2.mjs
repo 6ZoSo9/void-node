@@ -1,0 +1,357 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+import {
+  PARENT_REQUEST_ENVELOPE_BLOB_SHA1,
+  PARENT_SERVICE_CANDIDATE_BLOB_SHA1,
+  PARENT_STORE_CONTRACT_BLOB_SHA1,
+  REVIEWED_KERNEL_PEER_PATTERN_BLOB_SHA1,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REVALIDATION_HANDOFF_AUTHORITY_V2,
+  canonicalApollyonDurableAttemptClaimRevalidationHandoffV2,
+  qualifyApollyonDurableAttemptClaimRevalidationHandoffV2,
+} from "../tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+function gitBlob(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+bytes.length+"\0","ascii"))
+    .update(bytes).digest("hex");
+}
+for(const [relative,expected] of Object.entries({
+  "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
+    "d1726e3be042549769d2fe554371facd2ed60553",
+  "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
+    "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
+  "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
+    "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
+    "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
+  "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
+    "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
+  "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
+    "981935515e08634be96446e58922c16be56d33ad",
+  "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c":
+    "d8b30ac499c3bb8a5d223dbc6be687dd175be611",
+})){
+  assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
+}
+assert.equal(
+  PARENT_REQUEST_ENVELOPE_BLOB_SHA1,
+  "d1726e3be042549769d2fe554371facd2ed60553",
+);
+assert.equal(
+  PARENT_SERVICE_CANDIDATE_BLOB_SHA1,
+  "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
+);
+assert.equal(
+  PARENT_STORE_CONTRACT_BLOB_SHA1,
+  "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
+);
+assert.equal(
+  REVIEWED_KERNEL_PEER_PATTERN_BLOB_SHA1,
+  "d8b30ac499c3bb8a5d223dbc6be687dd175be611",
+);
+
+const result=qualifyApollyonDurableAttemptClaimRevalidationHandoffV2();
+assert.equal(
+  result.status,
+  "privileged_revalidation_handoff_source_contract_defined_unimplemented",
+);
+assert.equal(result.target_host,"Xiphos");
+assert.equal(
+  result.store_policy_id,
+  "apollyon_claim_store_policy_v2:e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137",
+);
+assert.deepEqual(result.fixed_identities,{
+  claim_service_user:"voidapollyonclaim",
+  claim_service_group:"voidapollyonclaim",
+  claim_publisher_user:"voidapollyonclaimpub",
+  claim_publisher_group:"voidapollyonclaimpub",
+  claim_ipc_group:"voidapollyonclaimipc",
+});
+assert.equal(
+  result.fixed_paths.claim_socket,
+  "/run/void-apollyon-attempt-claim-v2/claim.sock",
+);
+assert.equal(result.request_protocol.exact_six_key_request_preserved,true);
+assert.equal(result.request_protocol.request_schema_additional_provenance_fields_forbidden,true);
+assert.equal(result.request_protocol.bearer_attestation_or_token_forbidden,true);
+assert.deepEqual(result.provenance_connections.connection_roles,[
+  "privileged_revalidator_control","publisher_request",
+]);
+assert.equal(result.provenance_connections.privileged_revalidator_control_carries_claim_body,false);
+assert.equal(result.provenance_connections.privileged_revalidator_control_can_publish_claim,false);
+assert.equal(result.provenance_connections.publisher_request_is_only_claim_body_role,true);
+assert.equal(result.provenance_connections.claim_service_so_peercred_before_any_request_body_required,true);
+assert.equal(result.provenance_connections.publisher_authenticates_claim_service_before_request_body_required,true);
+assert.equal(result.provenance_connections.claim_service_socket_and_process_stability_revalidation_required,true);
+assert.equal(result.provenance_connections.root_not_implicitly_authorized_to_publish,true);
+assert.equal(result.parent_child_lineage.revalidator_must_spawn_publisher_directly,true);
+assert.equal(result.parent_child_lineage.request_bytes_validated_before_publisher_spawn_required,true);
+assert.equal(result.parent_child_lineage.publisher_request_bytes_must_come_only_from_revalidator_required,true);
+assert.equal(result.parent_child_lineage.revalidator_to_publisher_private_inherited_descriptor_required,true);
+assert.equal(result.parent_child_lineage.revalidator_to_publisher_transport,"anonymous_unidirectional_pipe");
+assert.equal(result.parent_child_lineage.revalidator_retains_exact_request_bytes_and_digest_through_challenge_required,true);
+assert.equal(result.parent_child_lineage.revalidator_pipe_write_end_only_required,true);
+assert.equal(result.parent_child_lineage.publisher_pipe_read_end_only_required,true);
+assert.equal(result.parent_child_lineage.publisher_must_not_inherit_pipe_write_end_required,true);
+assert.equal(result.parent_child_lineage.publisher_request_input_descriptor_number_fixed_before_install_required,true);
+assert.equal(result.parent_child_lineage.publisher_request_input_max_bytes,65536);
+assert.equal(result.parent_child_lineage.publisher_reads_exact_canonical_bytes_then_eof_required,true);
+assert.equal(result.parent_child_lineage.publisher_unexpected_inherited_descriptors_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_argv_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_environment_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_stdin_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_filesystem_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_network_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_forwards_exact_revalidator_validated_canonical_bytes_required,true);
+assert.equal(result.parent_child_lineage.publisher_recanonicalization_or_request_reconstruction_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_ppid_must_equal_authenticated_revalidator_pid,true);
+assert.equal(result.parent_child_lineage.revalidator_must_remain_live_through_success_ack,true);
+assert.deepEqual(
+  result.privileged_revalidator_execution_boundary.dangerous_environment_names_exact,
+  ["GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH","OPENSSL_CONF"],
+);
+assert.equal(result.privileged_revalidator_execution_boundary.dangerous_environment_exactly_unset_before_first_instruction_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.root_owned_non_group_world_writable_source_and_ancestry_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.interpreted_privileged_body_requires_reviewed_native_preentry_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.path_lookup_for_executable_authority_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.shell_dispatch_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.arbitrary_process_spawn_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.exact_publisher_child_spawn_only_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.publisher_child_count_exactly_one_per_session_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.persistent_host_mutation_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.account_group_systemd_service_mutation_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.private_key_wallet_signing_authority_forbidden,true);
+assert.equal(result.privileged_revalidation.initial_privileged_revalidation_before_control_connect_required,true);
+assert.equal(result.privileged_revalidation.serialized_privileged_attestation_or_bearer_token_forbidden,true);
+assert.equal(result.fresh_prepublication_challenge.challenge_after_publisher_request_parse_required,true);
+assert.equal(result.fresh_prepublication_challenge.challenge_before_any_store_mutation_required,true);
+assert.equal(result.fresh_prepublication_challenge.challenge_bytes,32);
+assert.equal(result.fresh_prepublication_challenge.challenge_frame_exact_bytes,32);
+assert.equal(result.fresh_prepublication_challenge.challenge_frame_raw_binary_required,true);
+assert.equal(result.fresh_prepublication_challenge.challenge_unique_per_provenance_session_required,true);
+assert.equal(result.fresh_prepublication_challenge.challenge_timeout_ms,5000);
+assert.equal(result.fresh_prepublication_challenge.control_connection_bytes_before_challenge_forbidden,true);
+assert.equal(result.fresh_prepublication_challenge.response_frame_exact_bytes,64);
+assert.equal(
+  result.fresh_prepublication_challenge.response_frame_layout,
+  "challenge_32_bytes_then_publish_request_sha256_raw_32_bytes",
+);
+assert.equal(result.fresh_prepublication_challenge.publish_request_sha256_hex_decode_exact_32_bytes_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_trailing_or_extra_bytes_forbidden,true);
+assert.equal(result.fresh_prepublication_challenge.exactly_one_challenge_response_per_session_required,true);
+assert.equal(result.fresh_prepublication_challenge.provenance_session_exactly_one_publisher_request_required,true);
+assert.equal(result.fresh_prepublication_challenge.provenance_session_reuse_forbidden,true);
+assert.equal(result.fresh_prepublication_challenge.publisher_connection_after_authenticated_control_required,true);
+assert.equal(result.fresh_prepublication_challenge.revalidator_reruns_all_privileged_checks_after_challenge_required,true);
+assert.equal(result.fresh_prepublication_challenge.revalidator_revalidates_exact_same_retained_request_bytes_after_challenge_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_binds_publish_request_sha256_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_writer_half_close_after_exact_frame_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_eof_after_exact_frame_before_store_mutation_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_short_before_eof_rejected_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_extra_before_eof_rejected_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_delayed_extra_after_valid_prefix_rejected_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_eof_timeout_rejected_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_read_half_remains_open_for_ack_required,true);
+assert.equal(result.parent_child_lineage.both_source_identities_rechecked_before_body_read_required,true);
+assert.equal(result.parent_child_lineage.both_source_identities_rechecked_before_store_mutation_required,true);
+assert.equal(result.parent_child_lineage.both_source_identities_rechecked_before_success_ack_required,true);
+assert.equal(result.parent_child_lineage.exec_in_place_source_drift_rejected_required,true);
+assert.equal(result.mutation_and_ack_boundary.provenance_source_identity_drift_before_mutation_rejects_required,true);
+assert.equal(result.mutation_and_ack_boundary.provenance_source_identities_rechecked_before_success_ack_required,true);
+assert.equal(result.future_host_qualification.exec_sensitive_source_identity_revalidation_must_be_proven,true);
+assert.equal(result.future_host_qualification.stream_response_half_close_eof_behavior_must_be_proven,true);
+assert.equal(result.mutation_and_ack_boundary.privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation,true);
+assert.equal(result.mutation_and_ack_boundary.all_parent_store_contract_local_prepublication_checks_remain_required,true);
+assert.equal(result.mutation_and_ack_boundary.claim_service_local_revalidation_after_challenge_response_required,true);
+assert.equal(result.mutation_and_ack_boundary.no_unbounded_or_external_work_between_challenge_response_and_store_mutation_required,true);
+assert.equal(result.mutation_and_ack_boundary.provenance_loss_after_mutation_must_not_return_success_required,true);
+assert.equal(result.future_host_qualification.this_source_contract_is_not_host_proof,true);
+assert.equal(result.implementation_present,false);
+assert.equal(result.host_qualification_performed,false);
+assert.equal(result.kernel_peer_authentication_performed,false);
+assert.equal(result.pidfd_generation_revalidation_performed,false);
+assert.equal(result.privileged_revalidation_performed,false);
+assert.equal(result.challenge_exchange_performed,false);
+assert.equal(result.claim_store_mutation_performed,false);
+assert.equal(result.durable_attempt_claim_performed,false);
+assert.equal(result.attempt_claim_authorized,false);
+assert.equal(result.attempt_claimed,false);
+assert.equal(result.training_execution_authorized,false);
+assert.equal(result.training_execution_performed,false);
+assert.equal(result.candidate_weight_mutation_performed,false);
+assert.equal(
+  result.next_gate,
+  "apollyon_durable_attempt_claim_store_service_source_implementation_v2",
+);
+assert.match(
+  result.handoff_contract_id,
+  /^apollyon_claim_revalidation_handoff_v2:[0-9a-f]{64}$/u,
+);
+const material=structuredClone(result);
+delete material.handoff_contract_id;
+const expectedId="apollyon_claim_revalidation_handoff_v2:"+
+  crypto.createHash("sha256").update(Buffer.from(
+    canonicalApollyonDurableAttemptClaimRevalidationHandoffV2(material),
+    "utf8",
+  )).digest("hex");
+assert.equal(result.handoff_contract_id,expectedId);
+assert.equal(Object.isFrozen(result),true);
+assert.equal(Object.isFrozen(result.provenance_connections),true);
+assert.equal(Object.isFrozen(result.fresh_prepublication_challenge),true);
+assert.throws(
+  ()=>{result.provenance_connections.root_not_implicitly_authorized_to_publish=false;},
+  TypeError,
+);
+
+for(const [key,expected] of Object.entries({
+  source_only_contract:true,
+  exact_parent_request_envelope_required:true,
+  exact_parent_service_candidate_required:true,
+  exact_parent_store_contract_required:true,
+  reviewed_kernel_peer_pattern_reference_only:true,
+  request_schema_unchanged:true,
+  bearer_token_or_attestation_added:false,
+  privileged_revalidator_implementation_present:false,
+  publisher_implementation_present:false,
+  service_implementation_present:false,
+  kernel_peer_authentication_performed:false,
+  pidfd_generation_revalidation_performed:false,
+  privileged_current_host_revalidation_performed:false,
+  terminal_receipt_revalidation_performed:false,
+  custody_record_revalidation_performed:false,
+  protected_runner_origin_proven:false,
+  host_installation:false,
+  filesystem_read:false,
+  filesystem_write:false,
+  account_mutation:false,
+  group_mutation:false,
+  systemd_mutation:false,
+  service_action:false,
+  socket_action:false,
+  network_access:false,
+  durable_attempt_claim:false,
+  attempt_claim_authorized:false,
+  attempt_claimed:false,
+  training_execution_authorized:false,
+  training_execution:false,
+  candidate_weight_mutation:false,
+  credential_access:false,
+  private_key_access:false,
+  signing:false,
+  wallet_access:false,
+  transaction:false,
+  funds_movement:false,
+})){
+  assert.equal(
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REVALIDATION_HANDOFF_AUTHORITY_V2[key],
+    expected,key,
+  );
+}
+
+const workflowText=fs.readFileSync(
+  path.join(ROOT,".github/workflows/apollyon-durable-attempt-claim-revalidation-handoff-v2.yml"),
+  "utf8",
+);
+function countText(haystack,needle){return haystack.split(needle).length-1;}
+const triggerDependencies=[
+  "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs",
+  "scripts/prove_apollyon_durable_attempt_claim_revalidation_handoff_v2.mjs",
+  "docs/security/apollyon-durable-attempt-claim-revalidation-handoff-v2.md",
+  ".github/workflows/apollyon-durable-attempt-claim-revalidation-handoff-v2.yml",
+  "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs",
+  "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs",
+  "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
+  "tools/apollyon-live-source-session-terminal-receipt-v2.mjs",
+  "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
+  "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c",
+];
+for(const dependency of triggerDependencies){
+  assert.equal(countText(workflowText,'- "'+dependency+'"'),2,dependency);
+}
+for(const required of [
+  "push:",
+  "branches: [main]",
+  "PUSH_BEFORE: ${{ github.event.before }}",
+  "push)",
+  'test -n "$PUSH_BEFORE"',
+  'test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"',
+  'BASE="$PUSH_BEFORE"',
+]){
+  assert.equal(workflowText.includes(required),true,required);
+}
+
+const sourceText=fs.readFileSync(
+  path.join(ROOT,"tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs"),
+  "utf8",
+);
+for(const required of [
+  "claim_service_so_peercred_before_any_request_body_required:true",
+  "dangerous_environment_exactly_unset_before_first_instruction_required:true",
+  "interpreted_privileged_body_requires_reviewed_native_preentry_required:true",
+  "exact_publisher_child_spawn_only_required:true",
+  "publisher_authenticates_claim_service_before_request_body_required:true",
+  "publisher_ppid_must_equal_authenticated_revalidator_pid:true",
+  "publisher_request_bytes_must_come_only_from_revalidator_required:true",
+  'revalidator_to_publisher_transport:"anonymous_unidirectional_pipe"',
+  "publisher_must_not_inherit_pipe_write_end_required:true",
+  "publisher_reads_exact_canonical_bytes_then_eof_required:true",
+  "revalidator_to_publisher_private_inherited_descriptor_required:true",
+  "publisher_request_from_argv_forbidden:true",
+  "publisher_request_from_environment_forbidden:true",
+  "publisher_request_from_stdin_forbidden:true",
+  "publisher_request_from_filesystem_forbidden:true",
+  "publisher_request_from_network_forbidden:true",
+  "revalidator_pidfd_retained_required:true",
+  "publisher_pidfd_retained_required:true",
+  "challenge_after_publisher_request_parse_required:true",
+  "challenge_frame_exact_bytes:32",
+  "response_frame_exact_bytes:64",
+  "provenance_session_reuse_forbidden:true",
+  "control_connection_bytes_before_challenge_forbidden:true",
+  "revalidator_reruns_all_privileged_checks_after_challenge_required:true",
+  "response_binds_publish_request_sha256_required:true",
+  "response_writer_half_close_after_exact_frame_required:true",
+  "response_eof_after_exact_frame_before_store_mutation_required:true",
+  "response_delayed_extra_after_valid_prefix_rejected_required:true",
+  "both_source_identities_rechecked_before_store_mutation_required:true",
+  "exec_in_place_source_drift_rejected_required:true",
+  "provenance_source_identity_drift_before_mutation_rejects_required:true",
+  "exec_sensitive_source_identity_revalidation_must_be_proven:true",
+  "privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation:true",
+  "claim_service_local_revalidation_after_challenge_response_required:true",
+  "no_unbounded_or_external_work_between_challenge_response_and_store_mutation_required:true",
+  "serialized_privileged_attestation_or_bearer_token_forbidden:true",
+  "provenance_loss_after_mutation_must_not_return_success_required:true",
+])assert.equal(sourceText.includes(required),true,required);
+for(const forbidden of [
+  'from "node:fs"','from "node:net"','from "node:child_process"',
+  "writeFile","appendFile","mkdir","spawn(","fork(","connect(","listen(",
+  "systemctl","createPrivateKey","crypto.sign(","attempt_claimed:true",
+  "training_execution_authorized:true","training_execution:true",
+  "candidate_weight_mutation:true","filesystem_write:true","service_action:true",
+  "socket_action:true","funds_movement:true",
+])assert.equal(sourceText.includes(forbidden),false,forbidden);
+
+console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REVALIDATION_HANDOFF_V2_PROOF_GREEN");
+console.log("request_schema_unchanged=true");
+console.log("bearer_token_or_attestation_added=false");
+console.log("root_control_claim_body=false");
+console.log("root_publish_authority=false");
+console.log("publisher_direct_child_of_revalidator_required=true");
+console.log("kernel_so_peercred_pidfd_generation_required=true");
+console.log("fresh_prepublication_challenge_required=true");
+console.log("challenge_frame_exact_bytes=32");
+console.log("response_frame_exact_bytes=64");
+console.log("response_half_close_eof_required=true");
+console.log("exec_sensitive_source_revalidation_required=true");
+console.log("provenance_session_reuse=false");
+console.log("post_challenge_privileged_revalidation_required=true");
+console.log("host_qualification_performed=false");
+console.log("durable_attempt_claim_performed=false");
+console.log("training_execution=false");
