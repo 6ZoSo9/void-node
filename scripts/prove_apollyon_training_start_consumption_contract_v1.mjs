@@ -39,7 +39,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "30fe05b0ba3f17b941bff1dfe8f2f1aca05674eb",
+    "4333df6c7918fe9efaada36cac765000eec7948f",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -553,6 +553,19 @@ assert.deepEqual(
 }
 {
   const bad=structuredClone(record);
+  bad.authorization_slot_record_id=
+    "apollyon_attempt_claim_auth_slot_record_v1:"+"f".repeat(64);
+  const material=structuredClone(bad);
+  delete material.training_start_consumption_id;
+  bad.training_start_consumption_id="apollyon_training_start_consumption_v1:"+
+    sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(material),"utf8"));
+  assert.throws(
+    ()=>validateApollyonTrainingStartConsumptionRecordV1(bad),
+    /authorization_slot_record_id_invalid/u,
+  );
+}
+{
+  const bad=structuredClone(record);
   bad.automatic_retry_authorized=true;
   assert.throws(
     ()=>validateApollyonTrainingStartConsumptionRecordV1(bad),
@@ -714,6 +727,7 @@ console.log("unique_authorization_claim_slot_revalidation_required=true");
 console.log("unique_authorization_claim_slot_revalidation_performed=false");
 console.log("training_start_slot_derived_from_authorization_slot=true");
 console.log("authorization_slot_record_id_tamper_rejected=true");
+console.log("persisted_authorization_slot_record_id_forgery_rejected=true");
 console.log("alternate_claim_winner_mismatch_rejected=true");
 console.log("forged_authorization_slot_id_rejected=true");
 console.log("protected_namespace_keyed_by_consumption_slot_required=true");
