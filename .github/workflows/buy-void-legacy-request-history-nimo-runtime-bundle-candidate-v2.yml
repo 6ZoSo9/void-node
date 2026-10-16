@@ -127,6 +127,7 @@ jobs:
           grep -Fx 'candidate_owned_compiler_rebuild=true' "$proof"
           grep -Fx 'compiler_pre_post_identity_stable=true' "$proof"
           grep -Fx 'compiler_private_snapshot_bound=true' "$proof"
+          grep -Fx 'compiler_package_snapshot_bound=true' "$proof"
           grep -Fx 'compiler_snapshot_nonwritable=true' "$proof"
           grep -Fx 'compiler_snapshot_post_revalidated=true' "$proof"
           grep -Fx 'compiler_aba_checkout_mutation_isolated=true' "$proof"

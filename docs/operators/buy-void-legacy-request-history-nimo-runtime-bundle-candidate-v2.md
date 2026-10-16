@@ -70,8 +70,11 @@ For every V2 candidate creation it:
 
 1. derives the exact four-file TypeScript compiler identity and loader graph
    from the checkout;
-2. copies those exact reviewed bytes into a fresh private temporary snapshot
-   preserving the reviewed `node_modules/typescript/bin` and `lib` layout;
+2. inventories the complete installed `node_modules/typescript` package tree,
+   binds the lockfile `sha512` integrity plus deterministic path/size/SHA-256
+   tree digest/count/bytes, and copies the complete package into a fresh private
+   temporary snapshot; the four executable JS files retain their independent
+   hardcoded byte identities;
 3. changes the snapshot parent/directories to mode `0500` and compiler files
    to mode `0400`, then re-derives the snapshot identity before execution;
 4. removes only the generated `dist/` build output;
@@ -87,9 +90,16 @@ For every V2 candidate creation it:
 9. removes the private temporary snapshot.
 
 The candidate records a deterministic content-addressed
-`compiler_snapshot.snapshot_id` over the exact compiler identity plus the
-reviewed snapshot policy. The random temporary path is never candidate
+`compiler_snapshot.snapshot_id` over the exact compiler identity, package-lock
+integrity, complete TypeScript package-tree digest/count/bytes, and reviewed
+snapshot policy. The random temporary path is never candidate
 material, so Node 22/24/26 can still produce byte-identical candidate JSON.
+
+The complete package snapshot is required because `tsconfig.build.json` uses
+`lib: ["ES2022", "DOM"]`; TypeScript resolves those standard-library inputs
+relative to its own `lib/` directory. Executing a four-JS-file snapshot while
+reopening `.d.ts` files from the checkout would leave a second mutable compiler
+input path.
 
 The focused proof includes an ABA adversary: after the snapshot is created it
 replaces the checkout `bin/tsc` with a deliberately failing compiler for the

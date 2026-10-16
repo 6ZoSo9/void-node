@@ -118,6 +118,10 @@ assert.equal(
 assert.equal(candidate.compiler_snapshot.private_parent_mode, "0500");
 assert.equal(candidate.compiler_snapshot.directory_mode, "0500");
 assert.equal(candidate.compiler_snapshot.file_mode, "0400");
+assert.match(candidate.compiler_snapshot.package_lock_integrity, /^sha512-/u);
+assert.ok(candidate.compiler_snapshot.package_file_count > 4);
+assert.ok(candidate.compiler_snapshot.package_total_bytes > 0);
+assert.match(candidate.compiler_snapshot.package_tree_sha256, /^[0-9a-f]{64}$/u);
 assert.equal(candidate.compiler_snapshot.nonwritable_during_build, true);
 assert.equal(
   candidate.compiler_snapshot.source_compiler_identity_revalidated_after_build,
@@ -208,22 +212,21 @@ assert.equal(
   const fixture = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-legacy-history-nimo-tsc-aba-v2-"),
   );
-  const compilerPaths = [
-    "package-lock.json",
-    "node_modules/typescript/package.json",
-    ...candidate.compiler.compiler_files.map((record) => record.path),
-  ];
   const binRelative = "node_modules/typescript/bin/tsc";
   const binTarget = path.join(fixture, binRelative);
   let binOriginal = null;
   let observedSnapshotRoot = null;
   try {
-    for (const relative of compilerPaths) {
-      const source = path.resolve(relative);
-      const target = path.join(fixture, relative);
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.copyFileSync(source, target);
-    }
+    fs.copyFileSync(
+      path.resolve("package-lock.json"),
+      path.join(fixture, "package-lock.json"),
+    );
+    fs.mkdirSync(path.join(fixture, "node_modules"), { recursive: true });
+    fs.cpSync(
+      path.resolve("node_modules/typescript"),
+      path.join(fixture, "node_modules/typescript"),
+      { recursive: true },
+    );
     fs.mkdirSync(path.join(fixture, "src"), { recursive: true });
     fs.writeFileSync(
       path.join(fixture, "src/probe.ts"),
@@ -408,6 +411,7 @@ for (const [key, expected] of Object.entries({
   compiler_execution_generation_bound: true,
   compiler_private_snapshot_required: true,
   compiler_snapshot_content_addressed: true,
+  compiler_package_snapshot_bound: true,
   compiler_snapshot_nonwritable_during_build: true,
   compiler_source_post_revalidation_required: true,
   compiler_snapshot_post_revalidation_required: true,
@@ -620,6 +624,7 @@ console.log("typescript_compiler_exact_file_allowlist_bound=true");
 console.log("candidate_owned_compiler_rebuild=true");
 console.log("compiler_pre_post_identity_stable=true");
 console.log("compiler_private_snapshot_bound=true");
+console.log("compiler_package_snapshot_bound=true");
 console.log("compiler_snapshot_nonwritable=true");
 console.log("compiler_snapshot_post_revalidated=true");
 console.log("compiler_aba_checkout_mutation_isolated=true");
