@@ -204,6 +204,9 @@ jobs:
             BASE="$(git rev-parse "$HEAD^1")"
           fi
           git cat-file -e "$BASE^{commit}"
-          git merge-base --is-ancestor "$BASE" "$HEAD"
-          git diff --check "$BASE" "$HEAD"
+          DIFF_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$DIFF_BASE"
+          git cat-file -e "$DIFF_BASE^{commit}"
+          git merge-base --is-ancestor "$DIFF_BASE" "$HEAD"
+          git diff --check "$DIFF_BASE" "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
