@@ -11,6 +11,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_AUTHORITY_V1 =
     fixed_installation_layout_selected: true,
     exact_forced_command_selected: true,
     authorized_key_exact_forced_command_option_required: true,
+    materialized_authorized_key_command_binding_required: true,
     dedicated_client_public_key_required: true,
     additive_authorized_keys_successor_required: true,
     existing_authorized_keys_generation_preservation_required: true,
@@ -191,6 +192,9 @@ export function planVoidBuyVoidLegacyHistoryNimoInstallV1(){
       forced_command_option_required:true,
       forced_command_option_exact_encoding_required:true,
       forced_command_option_must_equal_selected_command:true,
+      materialized_entry_command_option_required:true,
+      materialized_entry_command_value_must_equal_forced_command_command:true,
+      materialized_entry_restrict_only_sufficient:false,
       forced_command_value:VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1,
       forced_command_option:
         VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
@@ -256,6 +260,9 @@ function main(){
        plan.authorized_key.exact_line_materialized!==false||
        plan.authorized_key.forced_command_option!==
          VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1||
+       plan.authorized_key.materialized_entry_command_option_required!==true||
+       plan.authorized_key.materialized_entry_command_value_must_equal_forced_command_command!==true||
+       plan.authorized_key.materialized_entry_restrict_only_sufficient!==false||
        classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1({
          restrict:true,
          command_option:plan.authorized_key.forced_command_option,
@@ -268,6 +275,7 @@ function main(){
       "source_only_installation_plan=true\n"+
       "runtime_bundle_candidate_accepted=false\n"+
       "authorized_key_exact_forced_command_option_required=true\n"+
+      "materialized_authorized_key_command_binding_required=true\n"+
       "authorized_keys_additive_successor_required=true\n"+
       "live_nimo_installed=false\n"+
       "funds_movement=false\n"
