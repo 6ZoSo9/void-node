@@ -192,7 +192,24 @@ def verify_repository() -> None:
 
 def rederive_candidate() -> tuple[bytes, dict, bytes]:
     module = load_candidate()
-    module.self_test()
+    nested = io.StringIO()
+    with contextlib.redirect_stdout(nested):
+        module.self_test()
+    nested_lines = set(nested.getvalue().splitlines())
+    for required in (
+        "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_CANDIDATE_V2_SELF_TEST_GREEN",
+        "sealed_source_snapshot=true",
+        "checkout_path_is_not_build_authority=true",
+        "toolchain_root_custody_verified=true",
+        "toolchain_revalidated_after_build=true",
+        "substitute_restore_adversary_green=true",
+        "candidate_accepted=false",
+        "protected_install_authorized=false",
+        "live_execution_authorized=false",
+        "funds_movement=false",
+    ):
+        if required not in nested_lines:
+            raise AssertionError("nested_candidate_self_test_marker_missing:" + required)
     report, binary = module.derive()
     module.validate(report)
 
