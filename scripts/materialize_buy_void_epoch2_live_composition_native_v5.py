@@ -245,7 +245,7 @@ def self_test()->None:
     accepted_inputs()
     assert EXPECTED_BYTES==726976
     assert len(EXPECTED_SHA256)==64
-    assert LOCK_ID.startswith("voidbuye2nativecandlock4_")
+    assert LOCK_ID.startswith("voidbuye2nativecandlock5_")
     with tempfile.TemporaryDirectory(
         prefix="void-buy-epoch2-native-v5-output-test-"
     ) as td:
