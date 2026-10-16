@@ -66,7 +66,9 @@ Apply is create-only:
 3. live apply rejects mutable worktree execution and requires Python stdin
    entry, intended to be the reviewed installer Git object;
 4. expected current-main head/branch/clean checkout is verified via
-   runtime-UID Git;
+   fixed Git under the designated runtime identity: root apply drops to UID/GID
+   1000 with `setpriv --no-new-privs --clear-groups`, while an already-UID/GID
+   1000 read-only plan uses fixed Git directly;
 5. accepted lock, native candidate and binder source are verified;
 6. an absent fixed staging root is created root:root mode 0755;
 7. native and binder are created exclusively, fsynced and verified;
