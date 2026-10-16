@@ -84,6 +84,15 @@ The workflow independently proves two byte-identical native materializations,
 verifies no `PT_INTERP`, verifies the runner identity, and then uploads the
 two exact installer inputs.
 
+The materializer retains the output parent directory and newly created file
+descriptors through publication. It reads back and hashes the native bytes from
+the retained file descriptor, fsyncs the parent directory, and requires the
+visible output name to still identify the exact created inode before success.
+If materialization fails after the create-only open, it does **not** unlink the
+pathname by name; preserving a partial failed output is safer than deleting a
+same-UID replacement inode. A retry therefore uses a fresh/removed destination
+and the create-only rule remains fail-closed.
+
 GitHub artifact retention is convenience only. Installer V2 still independently
 verifies both candidate files by bytes/hash and the runner Git blob before any
 future protected publication.
