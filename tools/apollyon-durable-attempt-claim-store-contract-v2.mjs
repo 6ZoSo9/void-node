@@ -57,6 +57,8 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTRACT_AUTHORITY_V2 =
   Object.freeze({
     source_only_store_contract:true,
     requirements_defined:true,
+    terminal_receipt_shape_validation_only:true,
+    terminal_receipt_source_origin_proven:false,
     claim_identity_bound:false,
     claim_root_bound:false,
     host_installation_performed:false,
@@ -244,7 +246,8 @@ export function qualifyApollyonDurableAttemptClaimStoreContractV2(input){
     training_pid:terminal.training_pid,
     training_process_start_time_ticks:terminal.training_process_start_time_ticks,
     boot_id_sha256:terminal.boot_id_sha256,
-    terminal_source_receipt_bound:true,
+    terminal_receipt_shape_bound:true,
+    terminal_receipt_source_origin_proven:false,
     protected_runner_origin_required:true,
     protected_runner_origin_proven:false,
     current_host_revalidation_required:true,

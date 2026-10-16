@@ -31,7 +31,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "276b59d1ac7241f756ecd09193c52601c98f5b5e",
+    "7cbf238b5c30875091d400f4718dbb7963b983e3",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -107,7 +107,8 @@ assert.equal(result.status,"protected_attempt_claim_store_requirements_defined_u
 assert.equal(result.terminal_receipt_id,t.terminal_receipt_id);
 assert.equal(result.custody_generation_id,t.custody_generation_id);
 assert.equal(result.custody_record_sha256,t.custody_record_sha256);
-assert.equal(result.terminal_source_receipt_bound,true);
+assert.equal(result.terminal_receipt_shape_bound,true);
+assert.equal(result.terminal_receipt_source_origin_proven,false);
 assert.equal(result.protected_runner_origin_required,true);
 assert.equal(result.protected_runner_origin_proven,false);
 assert.equal(result.current_host_revalidation_required,true);
@@ -180,6 +181,8 @@ for(const [key,expected] of Object.entries({
 for(const [key,expected] of Object.entries({
   source_only_store_contract:true,
   requirements_defined:true,
+  terminal_receipt_shape_validation_only:true,
+  terminal_receipt_source_origin_proven:false,
   claim_identity_bound:false,
   claim_root_bound:false,
   host_installation_performed:false,
@@ -270,6 +273,7 @@ for(const required of [
   'status:"protected_attempt_claim_store_requirements_defined_uninstalled"',
   'claim_identity_bound:false','claim_root_bound:false',
   'protected_claim_store_proven:false','host_installation_performed:false',
+  'terminal_receipt_shape_bound:true','terminal_receipt_source_origin_proven:false',
   'claim_must_be_durable_before_training_start:true',
   'broker_execution_ledger_reuse_allowed:false',
   'historical_v1_consumption_store_sufficient:false',
@@ -286,6 +290,8 @@ for(const forbidden of [
 
 console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTRACT_V2_PROOF_GREEN");
 console.log("requirements_defined=true");
+console.log("terminal_receipt_shape_bound=true");
+console.log("terminal_receipt_source_origin_proven=false");
 console.log("dedicated_claim_service_identity_required=true");
 console.log("claim_identity_bound=false");
 console.log("claim_root_bound=false");

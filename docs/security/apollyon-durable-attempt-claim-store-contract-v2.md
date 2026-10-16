@@ -6,7 +6,7 @@ Status: **pure source-only requirements contract; no host store, claim writer, o
 
 ## Purpose
 
-The accepted V2 terminal-receipt gate proves only a source-level evidence shape. It intentionally leaves protected-runner origin, live host shutdown authority, current-host revalidation, protected claim storage, and durable attempt claim unproven.
+The accepted V2 terminal-receipt gate exposes a source-level evidence shape; this contract validates and content-binds that shape but does not prove its protected source origin. It intentionally leaves protected-runner origin, live host shutdown authority, current-host revalidation, protected claim storage, and durable attempt claim unproven.
 
 Before an Apollyon candidate-training attempt may be claimed, replay state must live outside the mutable authority of both the training identity and the authorization-custody identity. The existing broker execution ledger is not a claim ledger, and the historical V1 authorization-consumption store explicitly does not prove hostile same-UID replay resistance or global single use.
 
@@ -61,6 +61,8 @@ A successful store write must not itself start training.
 This contract reports:
 
 ```text
+terminal_receipt_shape_bound=true
+terminal_receipt_source_origin_proven=false
 claim_identity_bound=false
 claim_root_bound=false
 host_installation_performed=false
