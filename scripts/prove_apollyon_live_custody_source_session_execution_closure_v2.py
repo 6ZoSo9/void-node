@@ -73,7 +73,8 @@ for required in (
     "durable_attempt_claim_performed:false",
     "training_execution_performed:false",
     "trainingServiceExactlyDormant",
-    "waitTrainingServiceDormant(training)",
+    "function waitTrainingServiceDormant(generation)",
+    "return waitTrainingServiceDormant(generation);",
     "apollyon_live_runner_training_generation_still_present",
     "custody_loader_environment_seven_name_boundary=true",
     "trainingStartAttempted=true",
@@ -93,6 +94,20 @@ for forbidden in (
     "eth_sendRawTransaction",
 ):
     assert forbidden not in runner, forbidden
+
+stop_fn=runner.index("function stopTrainingAndAttest(generation)")
+stop_call=runner.index('runSystemctl(["stop",TRAINING_UNIT],false)',stop_fn)
+dormant_wait=runner.index("return waitTrainingServiceDormant(generation);",stop_call)
+runner_finally=runner.index("}finally{",runner.index("export async function runApollyonLiveCustodySourceSessionRunnerV2"))
+cleanup_call=runner.index("stopTrainingAndAttest(training);",runner_finally)
+main_fn=runner.index("async function main()")
+post_run_boundary=runner.index("verifyTrainingStartBoundary();",main_fn)
+post_run_dormant=runner.index("requireTrainingServiceDormant(",post_run_boundary)
+generation_absence=runner.index("processGenerationPresent(",post_run_dormant)
+success_output=runner.index("process.stdout.write(canonical({",generation_absence)
+assert stop_fn<stop_call<dormant_wait
+assert runner_finally<cleanup_call
+assert main_fn<post_run_boundary<post_run_dormant<generation_absence<success_output
 
 subprocess.run(
     ["node","--check",str(RUNNER)],
@@ -145,6 +160,8 @@ print("complete_reviewed_closure_bound=true")
 print("native_preentry_source_green=true")
 print("installed_launcher_source_green=true")
 print("runner_source_green=true")
+print("training_stop_then_dormancy_order_bound=true")
+print("final_success_requires_second_dormancy_and_generation_absence=true")
 print("live_worktree_invocation_supported=false")
 print("durable_attempt_claim=false")
 print("training_execution=false")
