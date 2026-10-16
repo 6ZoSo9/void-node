@@ -1,0 +1,230 @@
+name: VOID Buy VOID final protected V7/V2 enforcement candidate v5
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v5.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v5.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v7.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v7.mjs"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-census-v7.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v4.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+      - "scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
+      - "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs"
+      - "ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json"
+      - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v5.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v5.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v7.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v7.mjs"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-census-v7.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v4.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+      - "scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
+      - "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs"
+      - "ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json"
+      - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate generation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V7 and historical V3 predecessors
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor a1fcc7be0f2f4a6b19f8fa5e199eb81f54615613 "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 67ea723bd2abeb3894a0eb8f4b7a0044a141ed03 "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v7.mjs)" = de759d8ec37795001865c30aba6f3f9c8ac9fd33
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v7.yml)" = 8910b169e34652bbadacb43cba4af23793653f57
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs)" = d5474b8584aca62814357ce9a29017b933d96450
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = 92054f19fed9e8c243eb23321dbcf53fc9227a99
+          git merge-base --is-ancestor 5a4e1611d6590e0525eb24a34737e9af9783cc8e "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 5ebba1f2b301d1e12d4dff95ae4f3ce22bb82c33 "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = 72dec8920c1a7177d353400c33b71c2de2562aba
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = d74aa53bc8ee87581de748d7d0fc57ffa0b13944
+          test "$(git rev-parse HEAD:docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md)" = 32dbc7a69187a09c5cd7fe27ed5481463a157a8f
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build reviewed economic closure
+        run: |
+          set -euo pipefail
+          node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+
+      - name: Derive V5 candidate
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs"
+          node --check "$proof"
+          self="$RUNNER_TEMP/protected-v7-v2-candidate-v5-self-${{ matrix.node }}.txt"
+          out="$RUNNER_TEMP/protected-v7-v2-candidate-v5-node-${{ matrix.node }}.json"
+          repeat="$RUNNER_TEMP/protected-v7-v2-candidate-v5-node-${{ matrix.node }}-repeat.json"
+          node "$proof" --self-test | tee "$self"
+          grep -Fx 'VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V5_GREEN' "$self"
+          grep -Fx 'accepted_v3_predecessor_preserved=true' "$self"
+          grep -Fx 'complete_executable_closure_verified=true' "$self"
+          grep -Fx 'candidate_enforcement_identity_accepted=false' "$self"
+          grep -Fx 'production_source_finality_authority_ready=false' "$self"
+          grep -Fx 'public_presale_activation=false' "$self"
+          grep -Fx 'funds_movement=false' "$self"
+          node "$proof" --derive > "$out"
+          node "$proof" --derive > "$repeat"
+          cmp "$out" "$repeat"
+          node --input-type=module - "$out" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(c.schema,"void_buy_void_enforcement_final_protected_v7_v2_candidate_v5");
+          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V5");
+          assert.equal(c.version,5);
+          assert.equal(c.protected_census_parent,
+            "a1fcc7be0f2f4a6b19f8fa5e199eb81f54615613");
+          assert.equal(c.protected_census_evidence.census_id,
+            "voidbefv7c7_1a85dcb768ab6d5348024cec816d82b7f3ac5cc53e738ec2169e78d4021a73a8");
+          assert.equal(c.accepted_v3_predecessor.accepted_lock_head,
+            "67ea723bd2abeb3894a0eb8f4b7a0044a141ed03");
+          assert.equal(c.accepted_v3_predecessor.accepted_candidate_enforcement_set_sha256,
+            "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d");
+          assert.equal(c.reviewed_receipt_custody_source.hosted_root_fixture_reexecuted,false);
+          assert.equal(c.reviewed_receipt_custody_source.exact_reviewed_source_rows.length,3);
+          assert.equal(c.exact_reviewed_custody_delta_verified,true);
+          assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          console.log("VOID_BUY_VOID_PROTECTED_V7_V2_CANDIDATE_V5_NODE_GREEN");
+          console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
+          NODE
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: protected-v7-v2-candidate-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/protected-v7-v2-candidate-v5-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then
+            BASE="$HEAD^"
+          fi
+          merge_base="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$merge_base"
+          git merge-base --is-ancestor "$merge_base" "$HEAD"
+          git diff --check "$merge_base" "$HEAD"
+
+  compare:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Independently build economic closure for compare
+        run: |
+          set -euo pipefail
+          node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: protected-v7-v2-candidate-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: candidate
+
+      - name: Require Node 22/24/26 candidate byte identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "candidate/protected-v7-v2-candidate-v5-node-$node.json"
+          done
+          cmp candidate/protected-v7-v2-candidate-v5-node-22.json candidate/protected-v7-v2-candidate-v5-node-24.json
+          cmp candidate/protected-v7-v2-candidate-v5-node-22.json candidate/protected-v7-v2-candidate-v5-node-26.json
+          independent="$RUNNER_TEMP/independent-v5-candidate.json"
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs --derive > "$independent"
+          cmp candidate/protected-v7-v2-candidate-v5-node-22.json "$independent"
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync("candidate/protected-v7-v2-candidate-v5-node-22.json","utf8"));
+          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V5");
+          assert.match(c.candidate_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
+          assert.equal(c.accepted_v3_predecessor.historical_identity_preserved,true);
+          assert.equal(c.reviewed_receipt_custody_source.hosted_root_fixture_reexecuted,false);
+          assert.equal(c.reviewed_receipt_custody_source.exact_reviewed_source_rows.length,3);
+          assert.equal(c.exact_reviewed_custody_delta_verified,true);
+          assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.funds_movement,false);
+          console.log("VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V5_CROSS_NODE_GREEN");
+          console.log("independent_node24_rederivation_identical=true");
+          console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
+          NODE
