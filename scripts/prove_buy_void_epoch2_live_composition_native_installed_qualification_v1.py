@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 import os
@@ -8,7 +9,6 @@ from pathlib import Path
 import stat
 import subprocess
 import tempfile
-import types
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = (
@@ -20,7 +20,7 @@ INSTALLER = (
     "void_buy_void_epoch2_live_composition_native_protected_install_v1.py"
 )
 
-TARGET_BLOB = "e026046ec5eff21add2220a16e313d7a1129903b"
+TARGET_BLOB = "9722996a3a062fda61d3a35980a2a07242f54dcd"
 INSTALLER_BLOB = "f572868ea0edacbb3404771b793c4c60f9471abb"
 
 
@@ -39,7 +39,11 @@ for required in (
     "installed_generation_changed_during_qualification",
     "native_self_test_output_changed",
     "double_native_self_test_required=true",
-    "native_self_test_verified_fd_execution_required=true",
+    "descriptor_bound_native_self_test_required=true",
+    "native_self_test_descriptor_bound",
+    '"/proc/self/fd/" + str(fd)',
+    "pass_fds=(fd,)",
+    "native_visible_generation_changed_during_execution",
     "native_self_test_execution=false",
     "runner_execution=false",
     "live_composition_execution=false",
@@ -52,11 +56,34 @@ for required in (
 ):
     assert required in source, required
 
-assert source.count("_run_native_self_test(") == 3
-assert 'exec_path = "/proc/self/fd/" + str(native_fd)' in source
-assert "pass_fds=(native_fd,)" in source
-assert "[str(installer.NATIVE_TARGET), \"--self-test\"]" not in source
-assert "native_self_test_target_changed_during_exec" in source
+tree=ast.parse(source)
+collect_defs=[
+    node for node in tree.body
+    if isinstance(node,ast.FunctionDef) and node.name=="collect"
+]
+assert len(collect_defs)==1
+self_test_calls=[
+    node for node in ast.walk(collect_defs[0])
+    if isinstance(node,ast.Call)
+    and isinstance(node.func,ast.Name)
+    and node.func.id=="_run_native_self_test"
+]
+assert len(self_test_calls)==2
+assert all(
+    len(call.args)>=2
+    and isinstance(call.args[0],ast.Name)
+    and call.args[0].id=="installer"
+    for call in self_test_calls
+)
+bound_generations=[]
+for call in self_test_calls:
+    arg=call.args[1]
+    assert isinstance(arg,ast.Subscript)
+    assert isinstance(arg.value,ast.Name)
+    assert isinstance(arg.slice,ast.Constant)
+    assert arg.slice.value=="native"
+    bound_generations.append(arg.value.id)
+assert bound_generations==["before","middle"]
 assert "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V2" not in source
 assert "void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs" not in source
 assert "CREDENTIALS_DIRECTORY" not in source
@@ -68,105 +95,89 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 module.self_test()
 
-def _native_snapshot(st: os.stat_result, digest: str) -> dict[str, object]:
-    return {
-        "dev": st.st_dev,
-        "ino": st.st_ino,
-        "uid": st.st_uid,
-        "gid": st.st_gid,
-        "mode": format(stat.S_IMODE(st.st_mode), "04o"),
-        "nlink": st.st_nlink,
-        "bytes": st.st_size,
-        "sha256": digest,
-        "mtime_ns": st.st_mtime_ns,
-        "ctime_ns": st.st_ctime_ns,
+with tempfile.TemporaryDirectory(prefix="void-e2-installed-native-fd-swap-") as td:
+    root=Path(td)
+    source_a=root/"a.c"
+    source_b=root/"b.c"
+    native=root/"native"
+    replacement=root/"replacement"
+    saved=root/"native.saved"
+    ran_a=root/"ran-a"
+    ran_b=root/"ran-b"
+    source_a.write_text(
+        '#include <stdio.h>\n'
+        'int main(void){FILE*f=fopen("'+str(ran_a)+'","w");'
+        'if(f){fputs("a",f);fclose(f);}return 0;}\n',
+        encoding="utf-8",
+    )
+    source_b.write_text(
+        '#include <stdio.h>\n'
+        'int main(void){FILE*f=fopen("'+str(ran_b)+'","w");'
+        'if(f){fputs("b",f);fclose(f);}return 17;}\n',
+        encoding="utf-8",
+    )
+    for source_file,target in ((source_a,native),(source_b,replacement)):
+        cp=subprocess.run(
+            [
+                "/usr/bin/cc","-O2","-Wl,--build-id=none",
+                str(source_file),"-o",str(target),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=30,
+            env={"PATH":"/usr/bin:/bin","LANG":"C","LC_ALL":"C"},
+        )
+        assert cp.returncode==0,cp.stderr
+        target.chmod(0o555)
+
+    native_raw=native.read_bytes()
+    native_st=native.lstat()
+    expected_native={
+        "dev":native_st.st_dev,
+        "ino":native_st.st_ino,
+        "uid":native_st.st_uid,
+        "gid":native_st.st_gid,
+        "mode":format(stat.S_IMODE(native_st.st_mode),"04o"),
+        "nlink":native_st.st_nlink,
+        "bytes":native_st.st_size,
+        "sha256":hashlib.sha256(native_raw).hexdigest(),
+        "mtime_ns":native_st.st_mtime_ns,
+        "ctime_ns":native_st.st_ctime_ns,
     }
 
+    class FakeInstaller:
+        NATIVE_TARGET=native
+        NATIVE_BYTES=len(native_raw)
+        NATIVE_SHA256=expected_native["sha256"]
 
-def _green_native_stdout() -> str:
-    return "\n".join(
-        (
-            "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V1_SELF_TEST_GREEN",
-            "fixed_self_path=true",
-            "fixed_runner_path=true",
-            "fixed_node_path=true",
-            "root_owned_policy_required=true",
-            "runner_sha256_policy_bound=true",
-            "node_sha256_policy_bound=true",
-            "expected_head_policy_bound=true",
-            "runner_descriptor_retained=true",
-            "node_descriptor_fexecve=true",
-            "stdin_javascript_source_forbidden=true",
-            "credential_content_access=false",
-            "transaction=false",
-            "public_presale_activation=false",
-            "funds_movement=false",
-            "",
-        )
-    )
+    def swap_visible_path():
+        os.rename(native,saved)
+        os.rename(replacement,native)
 
-
-with tempfile.TemporaryDirectory(prefix="void-e2-native-fd-bind-") as td:
-    native = Path(td) / "native"
-    native.write_bytes(b"exact-native-fixture")
-    native.chmod(0o555)
-    raw = native.read_bytes()
-    digest = hashlib.sha256(raw).hexdigest()
-    st = native.lstat()
-    installer = types.SimpleNamespace(
-        NATIVE_TARGET=native,
-        NATIVE_BYTES=len(raw),
-        NATIVE_SHA256=digest,
-    )
-    expected = _native_snapshot(st, digest)
-
-    real_geteuid = module.os.geteuid
-    real_run = module.subprocess.run
+    real_geteuid=module.os.geteuid
+    module.os.geteuid=lambda:0
     try:
-        module.os.geteuid = lambda: 0
-
-        def positive_run(argv, **kwargs):
-            assert argv[0].startswith("/proc/self/fd/")
-            assert argv[1:] == ["--self-test"]
-            passed = kwargs.get("pass_fds")
-            assert isinstance(passed, tuple) and len(passed) == 1
-            assert argv[0] == "/proc/self/fd/" + str(passed[0])
-            assert kwargs.get("close_fds") is True
-            return types.SimpleNamespace(
-                returncode=0,
-                stdout=_green_native_stdout(),
-                stderr="",
-            )
-
-        module.subprocess.run = positive_run
-        out, out_sha = module._run_native_self_test(installer, expected)
-        assert out == _green_native_stdout()
-        assert out_sha.startswith("sha256:")
-
-        def swap_during_exec(argv, **kwargs):
-            retained = kwargs.get("pass_fds")
-            assert isinstance(retained, tuple) and len(retained) == 1
-            assert argv[0] == "/proc/self/fd/" + str(retained[0])
-            old = native.with_name("native.old")
-            native.rename(old)
-            native.write_bytes(raw)
-            native.chmod(0o555)
-            return types.SimpleNamespace(
-                returncode=0,
-                stdout=_green_native_stdout(),
-                stderr="",
-            )
-
-        module.subprocess.run = swap_during_exec
         try:
-            module._run_native_self_test(installer, expected)
+            module._run_native_self_test(
+                FakeInstaller,
+                expected_native,
+                _test_before_exec_hook=swap_visible_path,
+            )
         except module.QualificationError as exc:
-            assert str(exc) == "native_self_test_target_changed_during_exec"
+            assert str(exc) in (
+                "native_visible_generation_changed_during_execution",
+                "native_retained_generation_changed_during_execution",
+            )
+            assert ran_a.is_file()
+            assert ran_a.read_text("utf-8")=="a"
+            assert not ran_b.exists()
         else:
-            raise AssertionError("visible native swap during exec unexpectedly accepted")
+            raise AssertionError("pathname swap unexpectedly qualified")
     finally:
-        module.os.geteuid = real_geteuid
-        module.subprocess.run = real_run
+        module.os.geteuid=real_geteuid
 
 self_cp = subprocess.run(
     ["/usr/bin/python3", "-I", "-B", str(TARGET), "--self-test"],
@@ -203,7 +214,7 @@ for line in (
     "node_generation_binding_required=true",
     "checkout_generation_binding_required=true",
     "double_native_self_test_required=true",
-    "native_self_test_verified_fd_execution_required=true",
+    "descriptor_bound_native_self_test_required=true",
     "native_self_test_execution=false",
     "runner_execution=false",
     "live_composition_execution=false",
@@ -227,8 +238,10 @@ print("expected_head_policy_binding_required=true")
 print("node_generation_binding_required=true")
 print("checkout_generation_binding_required=true")
 print("double_native_self_test_required=true")
-print("native_self_test_verified_fd_execution=true")
-print("visible_native_swap_during_exec_rejected=true")
+print("descriptor_bound_native_self_test_required=true")
+print("pathname_swap_during_self_test_rejected=true")
+print("retained_fd_executed_during_path_swap=true")
+print("replacement_path_not_executed=true")
 print("runner_execution=false")
 print("live_composition_execution=false")
 print("credential_access=false")
