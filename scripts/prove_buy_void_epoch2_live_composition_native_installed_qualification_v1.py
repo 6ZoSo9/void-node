@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 from pathlib import Path
+import stat
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = (
@@ -16,7 +19,7 @@ INSTALLER = (
     "void_buy_void_epoch2_live_composition_native_protected_install_v1.py"
 )
 
-TARGET_BLOB = "4706caccc0be42f64b5fc6590a0b67e8a4b62d6a"
+TARGET_BLOB = "9722996a3a062fda61d3a35980a2a07242f54dcd"
 INSTALLER_BLOB = "f572868ea0edacbb3404771b793c4c60f9471abb"
 
 
@@ -35,6 +38,11 @@ for required in (
     "installed_generation_changed_during_qualification",
     "native_self_test_output_changed",
     "double_native_self_test_required=true",
+    "descriptor_bound_native_self_test_required=true",
+    "native_self_test_descriptor_bound",
+    '"/proc/self/fd/" + str(fd)',
+    "pass_fds=(fd,)",
+    "native_visible_generation_changed_during_execution",
     "native_self_test_execution=false",
     "runner_execution=false",
     "live_composition_execution=false",
@@ -58,6 +66,72 @@ assert spec is not None and spec.loader is not None
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 module.self_test()
+
+with tempfile.TemporaryDirectory(prefix="void-e2-installed-native-fd-swap-") as td:
+    root=Path(td)
+    source_a=root/"a.c"
+    source_b=root/"b.c"
+    native=root/"native"
+    replacement=root/"replacement"
+    saved=root/"native.saved"
+    source_a.write_text("int main(void){return 0;}\n",encoding="utf-8")
+    source_b.write_text("int main(void){return 17;}\n",encoding="utf-8")
+    for source_file,target in ((source_a,native),(source_b,replacement)):
+        cp=subprocess.run(
+            [
+                "/usr/bin/cc","-O2","-Wl,--build-id=none",
+                str(source_file),"-o",str(target),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=30,
+            env={"PATH":"/usr/bin:/bin","LANG":"C","LC_ALL":"C"},
+        )
+        assert cp.returncode==0,cp.stderr
+        target.chmod(0o555)
+
+    native_raw=native.read_bytes()
+    native_st=native.lstat()
+    expected_native={
+        "dev":native_st.st_dev,
+        "ino":native_st.st_ino,
+        "uid":native_st.st_uid,
+        "gid":native_st.st_gid,
+        "mode":format(stat.S_IMODE(native_st.st_mode),"04o"),
+        "nlink":native_st.st_nlink,
+        "bytes":native_st.st_size,
+        "sha256":hashlib.sha256(native_raw).hexdigest(),
+        "mtime_ns":native_st.st_mtime_ns,
+        "ctime_ns":native_st.st_ctime_ns,
+    }
+
+    class FakeInstaller:
+        NATIVE_TARGET=native
+        NATIVE_BYTES=len(native_raw)
+        NATIVE_SHA256=expected_native["sha256"]
+
+    def swap_visible_path():
+        os.rename(native,saved)
+        os.rename(replacement,native)
+
+    real_geteuid=module.os.geteuid
+    module.os.geteuid=lambda:0
+    try:
+        try:
+            module._run_native_self_test(
+                FakeInstaller,
+                expected_native,
+                _test_before_exec_hook=swap_visible_path,
+            )
+        except module.QualificationError as exc:
+            assert str(exc)=="native_visible_generation_changed_during_execution"
+        else:
+            raise AssertionError("pathname swap unexpectedly qualified")
+    finally:
+        module.os.geteuid=real_geteuid
 
 self_cp = subprocess.run(
     ["/usr/bin/python3", "-I", "-B", str(TARGET), "--self-test"],
@@ -94,6 +168,7 @@ for line in (
     "node_generation_binding_required=true",
     "checkout_generation_binding_required=true",
     "double_native_self_test_required=true",
+    "descriptor_bound_native_self_test_required=true",
     "native_self_test_execution=false",
     "runner_execution=false",
     "live_composition_execution=false",
@@ -117,6 +192,8 @@ print("expected_head_policy_binding_required=true")
 print("node_generation_binding_required=true")
 print("checkout_generation_binding_required=true")
 print("double_native_self_test_required=true")
+print("descriptor_bound_native_self_test_required=true")
+print("pathname_swap_during_self_test_rejected=true")
 print("runner_execution=false")
 print("live_composition_execution=false")
 print("credential_access=false")
