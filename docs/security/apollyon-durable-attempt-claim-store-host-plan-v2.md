@@ -83,11 +83,19 @@ entry is deleted. Reusing that number for a new protected principal could grant
 the stale process access to future claim-store paths or sockets.
 
 Therefore authoritative `--run` is read-only but root-required on Xiphos and
-also requires an externally reviewed same-boot host PID-namespace identity
-lease in `<st_dev>:<st_ino>` form. The plan requires:
+requires two externally reviewed same-boot namespace identity leases in
+`<st_dev>:<st_ino>` form:
+
+- the host PID namespace; and
+- the host/initial user namespace.
+
+Numeric `euid=0` is not accepted as host-root authority by itself. The plan
+requires:
 
 - canonical root-owned `/proc` backed by procfs with no `hidepid` option;
 - the planner and PID 1 to occupy the exact externally leased PID namespace;
+- the planner and PID 1 to occupy the exact externally leased host user
+  namespace;
 - full root UID/GID slots for the planner and PID 1;
 - a stable start-time generation around each process status read;
 - every still-existing numeric `/proc/<pid>/status` to be readable and
@@ -100,25 +108,26 @@ lease in `<st_dev>:<st_ino>` form. The plan requires:
 - a second authoritative process census before plan emission, with every
   selected candidate still absent from live credentials.
 
-The externally reviewed PID-namespace dev/inode is a host-evidence lease; the
-planner does not manufacture or infer host-wide namespace authority from its own
-namespace. A separately reviewed operator step obtains that lease from the
-designated Xiphos host before running this planner.
+The externally reviewed PID-namespace and user-namespace dev/inodes are
+host-evidence leases; the planner does not manufacture or infer host-wide root
+or namespace authority from its own current namespace view. A separately
+reviewed operator step obtains both leases from the designated Xiphos host
+before running this planner.
 
 The emitted process census is still only an **observation**. It does not make the
 selected slots safe to provision later. Any future create-only account/group
-provisioner must repeat the same root + host-PID-namespace + procfs census
-immediately before mutation and must HOLD if any selected UID/GID has become
-live.
+provisioner must repeat the same root + host-PID-namespace + host-user-namespace
++ procfs census immediately before mutation and must HOLD if either namespace
+lease changes or any selected UID/GID has become live.
 
 The result binds candidate numbers and the accepted stable
 `store_policy_id` into the content-addressed plan. The numeric values are only
 candidates until a separately reviewed create-only account/bootstrap gate
 provisions them. That later provisioning gate must repeat both the local-files
-authority census and the authoritative live-process credential census, prove
-the selected numeric slots are still free immediately
-before create-only mutation, and preserve the same accepted store policy
-identity.
+authority census and the authoritative live-process credential census under
+the same externally reviewed host PID-namespace and host user-namespace leases,
+prove the selected numeric slots are still free immediately before create-only
+mutation, and preserve the same accepted store policy identity.
 
 ## Host and source-generation binding
 
