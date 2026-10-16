@@ -27,6 +27,12 @@ for(const [relative,expected] of Object.entries({
     "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
     "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
+    "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
+  "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
+    "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
+  "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
+    "981935515e08634be96446e58922c16be56d33ad",
   "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c":
     "d8b30ac499c3bb8a5d223dbc6be687dd175be611",
 })){
@@ -144,6 +150,21 @@ assert.equal(result.fresh_prepublication_challenge.publisher_connection_after_au
 assert.equal(result.fresh_prepublication_challenge.revalidator_reruns_all_privileged_checks_after_challenge_required,true);
 assert.equal(result.fresh_prepublication_challenge.revalidator_revalidates_exact_same_retained_request_bytes_after_challenge_required,true);
 assert.equal(result.fresh_prepublication_challenge.response_binds_publish_request_sha256_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_writer_half_close_after_exact_frame_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_eof_after_exact_frame_before_store_mutation_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_short_before_eof_rejected_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_extra_before_eof_rejected_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_delayed_extra_after_valid_prefix_rejected_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_eof_timeout_rejected_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_read_half_remains_open_for_ack_required,true);
+assert.equal(result.parent_child_lineage.both_source_identities_rechecked_before_body_read_required,true);
+assert.equal(result.parent_child_lineage.both_source_identities_rechecked_before_store_mutation_required,true);
+assert.equal(result.parent_child_lineage.both_source_identities_rechecked_before_success_ack_required,true);
+assert.equal(result.parent_child_lineage.exec_in_place_source_drift_rejected_required,true);
+assert.equal(result.mutation_and_ack_boundary.provenance_source_identity_drift_before_mutation_rejects_required,true);
+assert.equal(result.mutation_and_ack_boundary.provenance_source_identities_rechecked_before_success_ack_required,true);
+assert.equal(result.future_host_qualification.exec_sensitive_source_identity_revalidation_must_be_proven,true);
+assert.equal(result.future_host_qualification.stream_response_half_close_eof_behavior_must_be_proven,true);
 assert.equal(result.mutation_and_ack_boundary.privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation,true);
 assert.equal(result.mutation_and_ack_boundary.all_parent_store_contract_local_prepublication_checks_remain_required,true);
 assert.equal(result.mutation_and_ack_boundary.claim_service_local_revalidation_after_challenge_response_required,true);
@@ -232,6 +253,39 @@ for(const [key,expected] of Object.entries({
   );
 }
 
+const workflowText=fs.readFileSync(
+  path.join(ROOT,".github/workflows/apollyon-durable-attempt-claim-revalidation-handoff-v2.yml"),
+  "utf8",
+);
+function countText(haystack,needle){return haystack.split(needle).length-1;}
+const triggerDependencies=[
+  "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs",
+  "scripts/prove_apollyon_durable_attempt_claim_revalidation_handoff_v2.mjs",
+  "docs/security/apollyon-durable-attempt-claim-revalidation-handoff-v2.md",
+  ".github/workflows/apollyon-durable-attempt-claim-revalidation-handoff-v2.yml",
+  "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs",
+  "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs",
+  "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
+  "tools/apollyon-live-source-session-terminal-receipt-v2.mjs",
+  "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
+  "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c",
+];
+for(const dependency of triggerDependencies){
+  assert.equal(countText(workflowText,'- "'+dependency+'"'),2,dependency);
+}
+for(const required of [
+  "push:",
+  "branches: [main]",
+  "PUSH_BEFORE: ${{ github.event.before }}",
+  "push)",
+  'test -n "$PUSH_BEFORE"',
+  'test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"',
+  'BASE="$PUSH_BEFORE"',
+]){
+  assert.equal(workflowText.includes(required),true,required);
+}
+
 const sourceText=fs.readFileSync(
   path.join(ROOT,"tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs"),
   "utf8",
@@ -262,7 +316,14 @@ for(const required of [
   "control_connection_bytes_before_challenge_forbidden:true",
   "revalidator_reruns_all_privileged_checks_after_challenge_required:true",
   "response_binds_publish_request_sha256_required:true",
-  "privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation:true",
+  "response_writer_half_close_after_exact_frame_required:true",
+  "response_eof_after_exact_frame_before_store_mutation_required:true",
+  "response_delayed_extra_after_valid_prefix_rejected_required:true",
+  "both_source_identities_rechecked_before_store_mutation_required:true",
+  "exec_in_place_source_drift_rejected_required:true",
+  "provenance_source_identity_drift_before_mutation_rejects_required:true",
+  "exec_sensitive_source_identity_revalidation_must_be_proven:true",
+  "privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation_required:true",
   "claim_service_local_revalidation_after_challenge_response_required:true",
   "no_unbounded_or_external_work_between_challenge_response_and_store_mutation_required:true",
   "serialized_privileged_attestation_or_bearer_token_forbidden:true",
@@ -287,6 +348,8 @@ console.log("kernel_so_peercred_pidfd_generation_required=true");
 console.log("fresh_prepublication_challenge_required=true");
 console.log("challenge_frame_exact_bytes=32");
 console.log("response_frame_exact_bytes=64");
+console.log("response_half_close_eof_required=true");
+console.log("exec_sensitive_source_revalidation_required=true");
 console.log("provenance_session_reuse=false");
 console.log("post_challenge_privileged_revalidation_required=true");
 console.log("host_qualification_performed=false");

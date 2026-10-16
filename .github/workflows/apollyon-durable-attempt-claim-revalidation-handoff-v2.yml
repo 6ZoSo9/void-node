@@ -10,6 +10,24 @@ on:
       - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+  push:
+    branches: [main]
+    paths:
+      - "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs"
+      - "scripts/prove_apollyon_durable_attempt_claim_revalidation_handoff_v2.mjs"
+      - "docs/security/apollyon-durable-attempt-claim-revalidation-handoff-v2.md"
+      - ".github/workflows/apollyon-durable-attempt-claim-revalidation-handoff-v2.yml"
+      - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
   workflow_dispatch:
 
 permissions:
@@ -37,6 +55,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -45,6 +64,11 @@ jobs:
             pull_request)
               test -n "$PR_BASE"
               BASE="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"
+              BASE="$PUSH_BEFORE"
               ;;
             workflow_dispatch)
               BASE="$(git rev-parse HEAD^)"

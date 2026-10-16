@@ -131,9 +131,17 @@ store mutation**, the service must:
 4. require one exact **64-byte binary response**:
    the 32 challenge bytes followed by the 32 raw bytes obtained by decoding the
    parsed lowercase-hex `publish_request_sha256`;
-5. reject trailing bytes, extra responses, challenge reuse and provenance
-   session reuse;
-6. retain and recheck root/publisher pidfd liveness and process generations.
+5. require the root revalidator to write-half-close immediately after those
+   64 bytes; before any store mutation, the service must observe EOF after
+   exactly 64 bytes. EOF before 64 bytes, bytes beyond 64 before EOF, delayed
+   extra bytes after a valid 64-byte prefix, or timeout waiting for EOF are
+   rejection with zero store mutation. The read half remains open so the
+   service can send the later acknowledgment;
+6. reject extra responses, challenge reuse and provenance session reuse;
+7. retain and recheck root/publisher pidfd liveness, PID/start generations
+   **and exact executable/source identities** before body read, before store
+   mutation and before success acknowledgment. Same PID/start/pidfd with
+   exec-in-place source drift is a HOLD.
 
 Each provenance session binds exactly one direct-child publisher generation and
 exactly one publisher request. The publisher may connect only after the root
@@ -172,8 +180,9 @@ In particular, the future gate must prove:
 - `SO_PEERCRED`;
 - pidfd creation/liveness;
 - direct PPid lineage;
-- cross-UID generation/source checks;
-- challenge ordering and liveness;
+- cross-UID generation/source checks, including an exec-sensitive mechanism
+  that detects in-place executable/source changes with stable PID/start/pidfd;
+- challenge ordering, response write-half-close/EOF framing and liveness;
 - fail-closed behavior around store mutation and success acknowledgment.
 
 ## Authority
