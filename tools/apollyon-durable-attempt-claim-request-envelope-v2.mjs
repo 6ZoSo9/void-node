@@ -210,7 +210,7 @@ export function parseApollyonDurableAttemptClaimPublishRequestBytesV2(input){
     fail("apollyon_claim_request_v2_noncanonical");
   }
   return Object.freeze({
-    request:Object.freeze(structuredClone(normalized)),
+    request:normalized,
     publish_request_sha256:sha256(bytes),
     canonical_request_bytes:Buffer.from(bytes),
   });

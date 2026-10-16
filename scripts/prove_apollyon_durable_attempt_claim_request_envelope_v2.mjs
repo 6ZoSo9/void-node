@@ -28,7 +28,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
-    "710b35f2066f21243ded594c10421e0687bf4371",
+    "d29d434e8e7aaa0b707ed617ce054cd41a5f264f",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -101,6 +101,14 @@ const bytes=serializeApollyonDurableAttemptClaimPublishRequestV2(positive);
 assert.deepEqual(bytes,canonicalBytes(validated));
 const parsed=parseApollyonDurableAttemptClaimPublishRequestBytesV2(bytes);
 assert.deepEqual(parsed.request,validated);
+assert.equal(Object.isFrozen(parsed.request),true);
+assert.equal(Object.isFrozen(parsed.request.claim_record),true);
+assert.throws(
+  ()=>{parsed.request.claim_record.store_contract_id=
+    "apollyon_claim_store_contract_v2:"+"0".repeat(64);},
+  TypeError,
+);
+assert.equal(parsed.request.claim_record.store_contract_id,STORE_CONTRACT_ID);
 assert.equal(parsed.publish_request_sha256,sha256(bytes));
 assert.deepEqual(parsed.canonical_request_bytes,bytes);
 
