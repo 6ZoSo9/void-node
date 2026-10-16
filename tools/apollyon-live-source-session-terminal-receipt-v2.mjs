@@ -139,6 +139,11 @@ function validateBinding(value){
     "transaction_signing_performed","transaction_broadcast_performed",
     "funds_movement_performed",
   ],"apollyon_terminal_receipt_v2_binding_invalid");
+  exactKeys(
+    value.authority,
+    Object.keys(VOID_APOLLYON_LIVE_CUSTODY_SERVICE_SOURCE_SESSION_BINDING_AUTHORITY_V2),
+    "apollyon_terminal_receipt_v2_binding_authority_invalid",
+  );
   if(canonical(value.authority)!==
      canonical(VOID_APOLLYON_LIVE_CUSTODY_SERVICE_SOURCE_SESSION_BINDING_AUTHORITY_V2)){
     fail("apollyon_terminal_receipt_v2_binding_authority_invalid");
