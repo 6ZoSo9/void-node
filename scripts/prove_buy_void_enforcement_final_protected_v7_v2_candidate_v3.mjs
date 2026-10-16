@@ -54,7 +54,7 @@ const CANDIDATE_WORKFLOW_TRIGGER_DEPENDENCIES=Object.freeze([
   "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs",
   "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs",
 ]);
-const RUNTIME_SOURCE_PARENT="16563121f8d6c2a1fa7cd2f99ca4be2f88aa3cca";
+const RUNTIME_SOURCE_PARENT="ccb1bd973a60875ecebf570905e6d8fc1c15ae3c";
 const CURRENT_ENFORCEMENT_PARENT="6080389131c3cdb80fa9935b5ff80f4e40f09938";
 const CURRENT_ENFORCEMENT_INVENTORY_DEFINITION=
   "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
@@ -212,6 +212,7 @@ function inventories(){
   });
 }
 function requireRuntimeSourceStable(){
+  git(["merge-base","--is-ancestor",RUNTIME_SOURCE_PARENT,"HEAD"]);
   const r=spawnSync("/usr/bin/git",["--no-replace-objects","-C",ROOT,"diff","--quiet","--no-ext-diff","--no-textconv",
     RUNTIME_SOURCE_PARENT,"HEAD","--","src/economic","package.json","package-lock.json","tsconfig.build.json"],{
     encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30000,
