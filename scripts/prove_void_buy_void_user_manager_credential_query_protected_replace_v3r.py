@@ -167,14 +167,11 @@ def executable_key_wallet_authority_violations(
 ) -> list[str]:
     tree = ast.parse(source_text)
     violations: list[str] = []
-
-    def dotted_name(node: ast.AST) -> str:
-        if isinstance(node, ast.Name):
-            return node.id
-        if isinstance(node, ast.Attribute):
-            parent = dotted_name(node.value)
-            return (parent + "." if parent else "") + node.attr
-        return ""
+    parents = {
+        child: parent
+        for parent in ast.walk(tree)
+        for child in ast.iter_child_nodes(parent)
+    }
 
     allowed_imports = frozenset({
         "argparse",
@@ -213,52 +210,6 @@ def executable_key_wallet_authority_violations(
         "nacl.signing",
         "web3",
     )
-
-    def normalized_identifier(value: str) -> str:
-        return value.casefold().replace("_", "").replace("-", "")
-
-    def identifier_is_sensitive(value: str) -> bool:
-        folded = value.casefold()
-        compact = normalized_identifier(value)
-        return (
-            "privatekey" in compact
-            or "signingkey" in compact
-            or "wallet" in compact
-            or "signer" in compact
-            or compact in signing_constructor_names
-            or folded in {"account", "eth_account", "web3"}
-        )
-
-    def import_path_is_sensitive(value: str) -> bool:
-        folded = value.casefold()
-        return any(
-            folded == prefix or folded.startswith(prefix + ".")
-            for prefix in sensitive_import_prefixes
-        ) or "wallet" in folded
-
-    def call_path_is_sensitive(value: str) -> bool:
-        folded = value.casefold()
-        parts = [part for part in folded.split(".") if part]
-        compact_parts = [normalized_identifier(part) for part in parts]
-        if any(
-            "privatekey" in part
-            or "signingkey" in part
-            or "wallet" in part
-            or "signer" in part
-            for part in compact_parts
-        ):
-            return True
-        if any(part in signing_constructor_names for part in compact_parts):
-            return True
-        if compact_parts and compact_parts[-1] in signing_call_names:
-            return True
-        if "account" in compact_parts and any(
-            part in {"fromkey", *signing_call_names}
-            for part in compact_parts
-        ):
-            return True
-        return False
-
     forbidden_builtin_calls = {
         "__import__",
         "compile",
@@ -291,24 +242,81 @@ def executable_key_wallet_authority_violations(
         "system",
     }
 
-    def safe_reviewed_getattr_call(node: ast.Call) -> bool:
+    def normalized_identifier(value: str) -> str:
+        return value.casefold().replace("_", "").replace("-", "")
+
+    def identifier_is_sensitive(value: str) -> bool:
+        folded = value.casefold()
+        compact = normalized_identifier(value)
         return (
-            isinstance(node.func, ast.Name)
-            and node.func.id == "getattr"
-            and len(node.args) == 3
-            and not node.keywords
-            and isinstance(node.args[0], ast.Name)
-            and node.args[0].id == "libc"
-            and isinstance(node.args[1], ast.Constant)
-            and node.args[1].value == "renameat2"
-            and isinstance(node.args[2], ast.Constant)
-            and node.args[2].value is None
+            "privatekey" in compact
+            or "signingkey" in compact
+            or "wallet" in compact
+            or "signer" in compact
+            or compact in signing_constructor_names
+            or folded in {"account", "eth_account", "web3"}
         )
 
+    def import_path_is_sensitive(value: str) -> bool:
+        folded = value.casefold()
+        return any(
+            folded == prefix or folded.startswith(prefix + ".")
+            for prefix in sensitive_import_prefixes
+        ) or "wallet" in folded
+
+    bindings: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                local = alias.asname or alias.name.split(".", 1)[0]
+                bindings[local] = alias.name
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            for alias in node.names:
+                local = alias.asname or alias.name
+                bindings[local] = (
+                    module + "." + alias.name if module else alias.name
+                )
+
+    def resolve_name(value: str) -> str:
+        current = value
+        seen: set[str] = set()
+        while current in bindings and current not in seen:
+            seen.add(current)
+            next_value = bindings[current]
+            if next_value == current:
+                break
+            current = next_value
+        return current
+
+    def resolved_dotted_name(node: ast.AST) -> str:
+        if isinstance(node, ast.Name):
+            return resolve_name(node.id)
+        if isinstance(node, ast.Attribute):
+            parent = resolved_dotted_name(node.value)
+            return (parent + "." if parent else "") + node.attr
+        return ""
+
+    def assignment_target_name(node: ast.AST) -> str | None:
+        parent = parents.get(node)
+        if isinstance(parent, ast.Assign):
+            if (
+                parent.value is node
+                and len(parent.targets) == 1
+                and isinstance(parent.targets[0], ast.Name)
+            ):
+                return parent.targets[0].id
+        if (
+            isinstance(parent, ast.AnnAssign)
+            and parent.value is node
+            and isinstance(parent.target, ast.Name)
+        ):
+            return parent.target.id
+        return None
+
     def safe_reviewed_cdll_call(node: ast.Call) -> bool:
-        chain = dotted_name(node.func)
         return (
-            chain == "ctypes.CDLL"
+            resolved_dotted_name(node.func) == "ctypes.CDLL"
             and len(node.args) == 1
             and isinstance(node.args[0], ast.Constant)
             and node.args[0].value is None
@@ -316,18 +324,163 @@ def executable_key_wallet_authority_violations(
             and node.keywords[0].arg == "use_errno"
             and isinstance(node.keywords[0].value, ast.Constant)
             and node.keywords[0].value.value is True
+            and assignment_target_name(node) == "libc"
         )
 
+    def safe_reviewed_getattr_call(node: ast.Call) -> bool:
+        return (
+            resolved_dotted_name(node.func) == "getattr"
+            and len(node.args) == 3
+            and not node.keywords
+            and resolved_dotted_name(node.args[0]) == "libc"
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value == "renameat2"
+            and isinstance(node.args[2], ast.Constant)
+            and node.args[2].value is None
+            and assignment_target_name(node) == "fn"
+        )
+
+    # Bind only the two reviewed dynamic-call handles. Any other CDLL/getattr
+    # result is rejected by the call guard below.
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        chain = resolved_dotted_name(node.func)
+        target = assignment_target_name(node)
+        if chain == "ctypes.CDLL" and safe_reviewed_cdll_call(node):
+            bindings["libc"] = "libc"
+        elif chain == "getattr" and safe_reviewed_getattr_call(node):
+            bindings["fn"] = "libc.renameat2"
+        elif target in {"libc", "fn"}:
+            violations.append("reviewed_dynamic_binding_reassigned:" + target)
+
+    # Resolve simple callable/module aliases to a fixed point so textual
+    # renaming cannot hide process, dynamic-loading or signing authority.
+    for _ in range(32):
+        changed = False
+        for node in ast.walk(tree):
+            value: ast.AST | None = None
+            target: str | None = None
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+            ):
+                target = node.targets[0].id
+                value = node.value
+            elif (
+                isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name)
+                and node.value is not None
+            ):
+                target = node.target.id
+                value = node.value
+            if target is None or value is None:
+                continue
+            if isinstance(value, (ast.Name, ast.Attribute)):
+                canonical = resolved_dotted_name(value)
+                if canonical and bindings.get(target) != canonical:
+                    bindings[target] = canonical
+                    changed = True
+        if not changed:
+            break
+    else:
+        violations.append("alias_resolution_did_not_converge")
+
+    def call_path_is_sensitive(value: str) -> bool:
+        folded = value.casefold()
+        parts = [part for part in folded.split(".") if part]
+        compact_parts = [normalized_identifier(part) for part in parts]
+        if any(
+            "privatekey" in part
+            or "signingkey" in part
+            or "wallet" in part
+            or "signer" in part
+            for part in compact_parts
+        ):
+            return True
+        if any(part in signing_constructor_names for part in compact_parts):
+            return True
+        if compact_parts and compact_parts[-1] in signing_call_names:
+            return True
+        if "account" in compact_parts and any(
+            part in {"fromkey", *signing_call_names}
+            for part in compact_parts
+        ):
+            return True
+        return False
+
+    def alias_binding_is_high_risk(value: str) -> bool:
+        folded_parts = [
+            normalized_identifier(part)
+            for part in value.casefold().split(".")
+            if part
+        ]
+        terminal = folded_parts[-1] if folded_parts else ""
+        if value in forbidden_builtin_calls or value == "getattr":
+            return True
+        if value == "ctypes.CDLL":
+            return True
+        if folded_parts and folded_parts[0] == "os":
+            if terminal in forbidden_os_call_names:
+                return True
+        if terminal == "open" and value != "os.open":
+            return True
+        if folded_parts and folded_parts[0] == "libc":
+            return value != "libc.renameat2"
+        return call_path_is_sensitive(value)
+
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        target: str | None = None
+        value: ast.AST | None = None
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+        ):
+            target = node.targets[0].id
+            value = node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.value is not None
+        ):
+            target = node.target.id
+            value = node.value
+        if target is None or value is None:
+            continue
+        if isinstance(value, (ast.Name, ast.Attribute)):
+            canonical = resolved_dotted_name(value)
+            if alias_binding_is_high_risk(canonical):
+                violations.append(
+                    "high_risk_alias_binding:" + target + ":" + canonical
+                )
+            if canonical == "libc.renameat2" and target != "fn":
+                violations.append(
+                    "unreviewed_renameat2_alias_binding:" + target
+                )
+
     def high_risk_call_violation(node: ast.Call) -> str | None:
-        chain = dotted_name(node.func)
-        if isinstance(node.func, ast.Name):
-            if node.func.id in forbidden_builtin_calls:
-                return "forbidden_builtin_call:" + node.func.id
-            if node.func.id == "getattr":
-                if not safe_reviewed_getattr_call(node):
-                    return "unreviewed_getattr_call"
-                return None
+        chain = resolved_dotted_name(node.func)
+        if chain in forbidden_builtin_calls:
+            return "forbidden_builtin_call:" + chain
+        if chain == "getattr":
+            if not safe_reviewed_getattr_call(node):
+                return "unreviewed_getattr_call"
+            return None
+        if chain == "ctypes.CDLL":
+            if not safe_reviewed_cdll_call(node):
+                return "unreviewed_ctypes_cdll_call"
+            return None
         if not chain:
+            if (
+                isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Call)
+                and resolved_dotted_name(node.func.value.func) == "ctypes.CDLL"
+            ):
+                return "call_from_unreviewed_dynamic_cdll"
             return None
         folded_parts = [
             normalized_identifier(part)
@@ -335,10 +488,6 @@ def executable_key_wallet_authority_violations(
             if part
         ]
         terminal = folded_parts[-1] if folded_parts else ""
-        if chain == "ctypes.CDLL":
-            if not safe_reviewed_cdll_call(node):
-                return "unreviewed_ctypes_cdll_call"
-            return None
         if folded_parts and folded_parts[0] == "os":
             if terminal in forbidden_os_call_names:
                 return "forbidden_os_process_call:" + chain
@@ -373,11 +522,11 @@ def executable_key_wallet_authority_violations(
             if identifier_is_sensitive(node.id):
                 violations.append("name:" + node.id)
         elif isinstance(node, ast.Attribute):
-            chain = dotted_name(node)
+            chain = resolved_dotted_name(node)
             if identifier_is_sensitive(node.attr) or call_path_is_sensitive(chain):
                 violations.append("attribute:" + chain)
         elif isinstance(node, ast.Call):
-            chain = dotted_name(node.func)
+            chain = resolved_dotted_name(node.func)
             high_risk = high_risk_call_violation(node)
             if high_risk is not None:
                 violations.append(high_risk)
@@ -434,10 +583,42 @@ for unsafe_authority_source in (
     'import os\ngetattr(os, "system")("/usr/bin/true")',
     'import ctypes\nctypes.CDLL("/tmp/unreviewed.so")',
     'eval("1+1")',
+    'import os as p\np.system("id")',
+    'reader = open\nreader("/run/credentials/key", "rb").read()',
+    (
+        'import ctypes\n'
+        'lib = ctypes.CDLL(None, use_errno=True)\n'
+        'lib.system(b"id")'
+    ),
+    'import os\nrunner = os.system\nrunner("id")',
+    'loader = __import__\nloader("subprocess")',
+    (
+        'import ctypes\n'
+        'libc = ctypes.CDLL(None, use_errno=True)\n'
+        'system = libc.system\n'
+        'system(b"id")'
+    ),
+    (
+        'import ctypes\n'
+        'libc = ctypes.CDLL(None, use_errno=True)\n'
+        'fn = getattr(libc, "renameat2", None)\n'
+        'alias = fn\n'
+        'alias(1, b"a", 1, b"b", 1)'
+    ),
 ):
     assert executable_key_wallet_authority_violations(
         unsafe_authority_source
     ), unsafe_authority_source
+
+
+assert executable_key_wallet_authority_violations(
+    (
+        "import ctypes\n"
+        "libc = ctypes.CDLL(None, use_errno=True)\n"
+        "fn = getattr(libc, \"renameat2\", None)\n"
+        "fn(1, b'a', 1, b'b', 1)\n"
+    )
+) == []
 
 
 for forbidden in (
@@ -667,6 +848,9 @@ print("closed_import_allowlist_guard=true")
 print("nacl_bindings_signing_adversary_exercised=true")
 print("high_risk_call_guard=true")
 print("process_dynamic_authority_adversaries_exercised=true")
+print("alias_resolved_high_risk_call_guard=true")
+print("callable_alias_adversaries_exercised=true")
+print("reviewed_libc_renameat2_binding_only=true")
 print("ast_signing_key_authority_guard=true")
 print("ast_generic_sign_call_adversary_exercised=true")
 print("query_execution=false")
