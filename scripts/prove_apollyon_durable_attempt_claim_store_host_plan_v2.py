@@ -11,6 +11,7 @@ import subprocess
 ROOT=Path(__file__).resolve().parents[1]
 PLAN=ROOT/"ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py"
 CONTRACT=ROOT/"tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-v2.yml"
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
@@ -56,6 +57,22 @@ policy_run=subprocess.run(
 assert policy_run.returncode==0,policy_run.stderr
 assert policy_run.stderr=="",policy_run.stderr
 assert policy_run.stdout==EXPECTED_STORE_POLICY_ID+"\n",policy_run.stdout
+
+workflow=WORKFLOW.read_text(encoding="utf-8")
+assert "  push:\n" in workflow
+assert "  workflow_dispatch:\n" in workflow
+pull_section=workflow.split("  push:\n",1)[0]
+push_section=workflow.split("  push:\n",1)[1].split("  workflow_dispatch:\n",1)[0]
+for dependency in (
+    "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs",
+    "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
+    "tools/apollyon-live-source-session-terminal-receipt-v2.mjs",
+    "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
+):
+    entry='      - "'+dependency+'"'
+    assert pull_section.count(entry)==1,(dependency,"pull_request")
+    assert push_section.count(entry)==1,(dependency,"push")
+
 
 for required in (
     'TARGET_HOST="Xiphos"',
@@ -210,6 +227,7 @@ print("remote_nss_provider_rejected=true")
 print("candidate_slot_revalidation_required=true")
 print("store_policy_id_rederived_from_parent_contract=true")
 print("store_policy_esm_dependency_closure_exact=true")
+print("store_policy_import_trigger_symmetry=true")
 print("stable_store_policy_id="+EXPECTED_STORE_POLICY_ID)
 print("persistent_filesystem_write=false")
 print("account_mutation=false")
