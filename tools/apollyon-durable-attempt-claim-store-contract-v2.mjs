@@ -333,7 +333,10 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     migration_prior_generation_lineage_count_required:true,
     migration_prior_generation_lineage_sha256_required:true,
     migration_new_generation_lineage_exact_extension_required:true,
-    migration_every_prior_claim_generation_in_authenticated_lineage_required:true,
+    migration_every_prior_claim_generation_in_declared_lineage_shape_required:true,
+    migration_protected_lineage_origin_authentication_required:true,
+    migration_protected_lineage_origin_proven_by_source_contract:false,
+    migration_host_qualification_required_for_lineage_authority:true,
     migration_claim_set_order:"claim_record_id_lexicographic",
     migration_every_prior_claim_exact_schema_and_hash_required:true,
     migration_authorization_ids_unique_across_complete_history_required:true,
@@ -508,6 +511,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTRACT_AUTHORITY_V2 =
     host_installation_performed:false,
     protected_claim_store_proven:false,
     protected_runner_origin_proven:false,
+    protected_generation_lineage_origin_proven:false,
     current_host_revalidation_performed:false,
     custody_record_revalidation_performed:false,
     durable_attempt_claim_performed:false,
@@ -982,8 +986,11 @@ function validateApollyonDurableAttemptClaimStoreGenerationRecordV2(value){
     VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,
     "apollyon_claim_store_generation_record_v2_invalid",
   );
+  const reviewedPolicyId=
+    qualifyApollyonDurableAttemptClaimStorePolicyV2().store_policy_id;
   if(
     value.marker!=="VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_V2"||
+    value.store_policy_id!==reviewedPolicyId||
     value.version!==2||
     value.status!=="durable_attempt_claim_store_generation_v2"||
     !STORE_POLICY_ID.test(value.store_policy_id)||
@@ -1055,6 +1062,8 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
   }
   const historySha=sha256(Buffer.from(canonical(sorted),"utf8"));
   const receipt=snapshot.continuity_receipt;
+  const reviewedPolicyId=
+    qualifyApollyonDurableAttemptClaimStorePolicyV2().store_policy_id;
   exactKeys(
     receipt,
     VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2,
@@ -1065,6 +1074,7 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
     receipt.version!==2||
     receipt.status!=="durable_attempt_claim_store_history_continuity_v2"||
     !STORE_POLICY_ID.test(receipt.store_policy_id)||
+    receipt.store_policy_id!==reviewedPolicyId||
     !STORE_GENERATION_ID.test(receipt.new_store_generation_id)||
     !HASH64.test(receipt.new_root_identity_sha256)||
     typeof receipt.genesis!=="boolean"||
@@ -1151,7 +1161,16 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
   if(receipt.continuity_receipt_id!==expected){
     fail("apollyon_claim_store_continuity_v2_id_invalid");
   }
-  return Object.freeze(structuredClone(receipt));
+  return Object.freeze({
+    lineage_shape_qualified:true,
+    continuity_receipt:Object.freeze(structuredClone(receipt)),
+    store_policy_id:receipt.store_policy_id,
+    protected_generation_lineage_origin_required:true,
+    protected_generation_lineage_origin_proven:false,
+    host_qualification_required_for_lineage_authority:true,
+    durable_attempt_claim_performed:false,
+    training_execution_performed:false,
+  });
 }
 
 function validateTerminalReceipt(value){
