@@ -1071,8 +1071,13 @@ def _failure_receipt(exc: BaseException) -> dict[str, str]:
         return {
             "protected_upgrade_performed": "true",
             "publication": "true",
-            "publication_state": "published_needs_inspection",
-            "final_state_verified": "false",
+            "publication_state": (
+                "published_verified_close_failed"
+                if exc.final_verification_completed is True
+                and exc.phase == "install_parent_close"
+                else "published_needs_inspection"
+            ),
+            "final_state_verified": tri(exc.final_verification_completed),
             "publication_failure_phase": exc.phase,
             "parent_fsync_completed": tri(exc.parent_fsync_completed),
             "final_verification_completed": tri(exc.final_verification_completed),
@@ -1268,7 +1273,19 @@ def apply(
         try:
             os.close(opt_fd)
         except OSError as close_exc:
-            raise InstallError("install_parent_close_failed_after_upgrade") from close_exc
+            failure = _published_failure(
+                "install_parent_close_failed_after_upgrade",
+                phase="install_parent_close",
+                parent_fsync_completed=True,
+                final_verification_completed=True,
+                cause=close_exc,
+            )
+            failure.install_parent_close_completed = False
+            (
+                failure.close_failure_class,
+                failure.close_failure_reason,
+            ) = _bounded_failure(close_exc)
+            raise failure from close_exc
 
     print(MARKER)
     print("mode=apply")
@@ -1331,6 +1348,35 @@ def self_test() -> None:
     libc = ctypes.CDLL(None)
     assert getattr(libc, "renameat2", None) is not None
 
+    success_close_error = OSError(5, "synthetic_close_failure")
+    success_close_failure = _published_failure(
+        "install_parent_close_failed_after_upgrade",
+        phase="install_parent_close",
+        parent_fsync_completed=True,
+        final_verification_completed=True,
+        cause=success_close_error,
+    )
+    success_close_failure.install_parent_close_completed = False
+    (
+        success_close_failure.close_failure_class,
+        success_close_failure.close_failure_reason,
+    ) = _bounded_failure(success_close_error)
+    success_close_receipt = _failure_receipt(success_close_failure)
+    assert success_close_receipt == {
+        "protected_upgrade_performed": "true",
+        "publication": "true",
+        "publication_state": "published_verified_close_failed",
+        "final_state_verified": "true",
+        "publication_failure_phase": "install_parent_close",
+        "parent_fsync_completed": "true",
+        "final_verification_completed": "true",
+        "original_failure_class": "OSError",
+        "original_failure_reason": "os_error_5",
+        "install_parent_close_completed": "false",
+        "close_failure_class": "OSError",
+        "close_failure_reason": "os_error_5",
+    }
+
     import tempfile
     with tempfile.TemporaryDirectory(prefix="void-e2-v6r2-upgrade-exchange-") as td:
         parent = pathlib.Path(td)
@@ -1376,6 +1422,7 @@ def main() -> int:
         print("setpriv_tool_drift_during_checkout_rejected=true")
         print("pre_mutation_authority_boundary=true")
         print("pre_mutation_authority_flush_required=true")
+        print("post_upgrade_close_receipt_truthful=true")
         return 0
     if args.source_plan:
         source_plan()
