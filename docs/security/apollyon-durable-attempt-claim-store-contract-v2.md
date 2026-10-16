@@ -62,7 +62,7 @@ A success acknowledgment is forbidden until all of the following have completed 
 4. claim-directory fsync completes;
 5. the final visible record metadata and bytes are revalidated.
 
-An indeterminate file/directory durability outcome is never success. Failure responses use a separate exact key schema and classify rejected, duplicate, or indeterminate outcomes. The future training caller may accept only the exact durable-success response; socket close, generic truthiness, or a generic ok token is never training admission.
+An indeterminate file/directory durability outcome is never success. Failure responses use a separate exact key schema and classify rejected, duplicate, or indeterminate outcomes. Durable-claim success proves only that the exact claim exists durably; it is never itself training-start admission. Socket close, generic truthiness, a generic ok token, or replay of the durable-success response cannot admit a trainer start.
 
 ## Least-authority claim publisher
 
