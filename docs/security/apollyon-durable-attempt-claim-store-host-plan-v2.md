@@ -73,13 +73,50 @@ The live read-only plan parses the exact `SYS_UID_MIN/MAX` and `SYS_GID_MIN/MAX`
 - two unused system UID candidates;
 - three unused system GID candidates.
 
-Selection is deterministic from the highest available values downward. For conservative separation, the five selected numbers must be globally distinct and cannot collide with any currently used UID/GID or any observed protected identity.
+Selection is deterministic from the highest available values downward. For conservative separation, the five selected numbers must be globally distinct and cannot collide with any currently used UID/GID, any observed protected identity, **or any numeric credential carried by a stable live process generation**.
+
+### Host-wide live-process credential exclusion
+
+Local account files are not enough to prove a numeric UID/GID is unused. A
+process can retain its numeric credentials after the corresponding passwd/group
+entry is deleted. Reusing that number for a new protected principal could grant
+the stale process access to future claim-store paths or sockets.
+
+Therefore authoritative `--run` is read-only but root-required on Xiphos and
+also requires an externally reviewed same-boot host PID-namespace identity
+lease in `<st_dev>:<st_ino>` form. The plan requires:
+
+- canonical root-owned `/proc` backed by procfs with no `hidepid` option;
+- the planner and PID 1 to occupy the exact externally leased PID namespace;
+- full root UID/GID slots for the planner and PID 1;
+- a stable start-time generation around each process status read;
+- every still-existing numeric `/proc/<pid>/status` to be readable and
+  structurally valid;
+- all four `Uid:` slots, all four `Gid:` slots, and every supplementary
+  `Groups:` value to enter the unavailable numeric-ID set;
+- malformed or unreadable status for a still-existing PID to HOLD;
+- a PID that disappears during observation to be skipped rather than invented;
+- a PID generation change during one credential read to HOLD;
+- a second authoritative process census before plan emission, with every
+  selected candidate still absent from live credentials.
+
+The externally reviewed PID-namespace dev/inode is a host-evidence lease; the
+planner does not manufacture or infer host-wide namespace authority from its own
+namespace. A separately reviewed operator step obtains that lease from the
+designated Xiphos host before running this planner.
+
+The emitted process census is still only an **observation**. It does not make the
+selected slots safe to provision later. Any future create-only account/group
+provisioner must repeat the same root + host-PID-namespace + procfs census
+immediately before mutation and must HOLD if any selected UID/GID has become
+live.
 
 The result binds candidate numbers and the accepted stable
 `store_policy_id` into the content-addressed plan. The numeric values are only
 candidates until a separately reviewed create-only account/bootstrap gate
-provisions them. That later provisioning gate must repeat the local-files
-authority census, prove the selected numeric slots are still free immediately
+provisions them. That later provisioning gate must repeat both the local-files
+authority census and the authoritative live-process credential census, prove
+the selected numeric slots are still free immediately
 before create-only mutation, and preserve the same accepted store policy
 identity.
 
