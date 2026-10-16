@@ -27,6 +27,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_CANDIDATE_
     fixed_identity_names_bound:true,
     fixed_paths_bound:true,
     host_plan_receipt_required_for_numeric_identity_binding:true,
+    host_plan_receipt_content_address_reverification_required:true,
     caller_supplied_host_plan_sufficient:false,
     live_host_plan_reexecution_required_before_provisioning:true,
     numeric_host_identity_binding_performed:false,
