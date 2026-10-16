@@ -13,9 +13,14 @@ binding and the host-clock -> durable observation-store composition are also
 merged, but the durable observation contract intentionally HOLDs whenever the
 process generation changes.
 
-This bridge closes only the next source boundary: proving that an exact durable
-observation head can be continued by a later process on the **same boot** when
-the restart evidence is fully cross-bound.
+This bridge closes only the next source-classification boundary: proving that a
+caller-supplied evidence tuple is internally consistent with a potential later
+process on the **same boot** and with one exact prior durable head.
+
+The classifier does not establish where those evidence objects came from. A
+content-addressed, production-shaped object is not by itself proof that the
+fixed host collector or the live durable-store inspector actually produced it.
+Therefore this generation does not prove production restart continuity.
 
 It does not modify the durable store and it does not authorize execution.
 
@@ -65,33 +70,41 @@ The current host binding must prove:
 
 A boot change always HOLDs. Cross-boot continuity remains out of scope.
 
-## Production versus CI evidence
+## Evidence mode versus evidence origin
 
-Production continuity may be reported true only when:
+The classifier requires the prior composition and both host bindings to agree on
+their declared production/test evidence mode, and it rederives their
+content-addressed identities. That proves shape and cross-binding consistency,
+not origin custody.
 
-- the prior composition is a production-fixed-source composition;
-- the prior host binding is production-fixed-source evidence; and
-- the current host binding is production-fixed-source evidence.
-
-All three evidence modes must match.
-
-Hosted CI uses only the explicit test-only host binding collector. Therefore the
-focused proof must keep:
+This generation therefore always keeps:
 
 ```text
+caller_supplied_evidence_only=true
+evidence_origin_custody_proven=false
+live_store_inspection_origin_proven=false
 production_fixed_sources_observed=false
 cross_process_restart_continuity_proven=false
 ```
 
-while still proving the complete same-boot restart algorithm.
+even when the supplied objects are internally consistent with production mode.
 
-CI cannot manufacture a production continuity claim.
+A later protected wrapper must internally obtain the live store inspection and
+current fixed host binding, and must establish admitted custody/provenance for
+the prior composition/host-binding evidence before production cross-process
+continuity can become true.
+
+Hosted CI uses only the explicit test-only host binding collector and proves the
+same classifier algorithm without manufacturing production authority.
 
 ## Deliberate remaining HOLDs
 
-Even a production-positive bridge receipt keeps:
+Every bridge receipt keeps:
 
 ```text
+evidence_origin_custody_proven=false
+live_store_inspection_origin_proven=false
+cross_process_restart_continuity_proven=false
 cross_boot_restart_continuity_proven=false
 durable_time_store_mutation=false
 trusted_clock_runtime_authority=false
@@ -131,8 +144,10 @@ The focused proof:
 - rejects non-forward boot-relative time;
 - rejects wall-time regression;
 - rejects cumulative skew beyond the existing 5-second bound;
-- rejects a durable-store head different from the prior receipt; and
-- rejects accessor-backed top-level evidence without invoking the accessor.
+- rejects a durable-store head different from the prior receipt;
+- rejects accessor-backed top-level evidence without invoking the accessor; and
+- rejects accessor-backed nested host observation samples without invoking the
+  accessor before content-address verification.
 
 No production clock, durable store, service, transaction, or funds path is
 called by hosted CI.
