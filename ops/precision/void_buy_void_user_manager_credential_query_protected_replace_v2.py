@@ -23,7 +23,8 @@ LOCK_ID = (
 )
 
 MARKER = "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V2"
-INSTALL_ROOT = pathlib.Path("/opt/void-buy-void-user-manager-credential-query-v1")
+OPT_ROOT = pathlib.Path("/opt")
+INSTALL_ROOT = OPT_ROOT / "void-buy-void-user-manager-credential-query-v1"
 
 PREEXEC_NAME = "void_buy_void_user_manager_private_credential_unit_query_preexec_v1"
 QUERY_NAME = "void_buy_void_user_manager_private_credential_unit_query_v1"
@@ -405,9 +406,11 @@ def _create_exact_stage(
             os.fsync(fd)
         finally:
             os.close(fd)
-        _require_owned_path(STAGING_TARGET, created_identity)
+        _require_owned_path(
+            _fd_child_path(dir_fd, STAGING_NAME), created_identity
+        )
         _file_digest(
-            STAGING_TARGET,
+            _fd_child_path(dir_fd, STAGING_NAME),
             expected_bytes=V2_QUERY_BYTES,
             expected_sha256=V2_QUERY_SHA256,
         )
@@ -420,14 +423,21 @@ def _create_exact_stage(
         raise
 
 
-def _root_entries() -> list[str]:
+def _fd_child_path(dir_fd: int, name: str) -> pathlib.Path:
+    return pathlib.Path("/proc/self/fd") / str(dir_fd) / name
+
+
+def _root_entries_at(dir_fd: int) -> list[str]:
     try:
-        return sorted(os.listdir(INSTALL_ROOT))
+        return sorted(os.listdir(dir_fd))
     except OSError as exc:
         raise ReplaceError("installed_root_list_failed") from exc
 
 
-def _installed_kind(path: pathlib.Path, *, allow_absent: bool) -> str:
+def _installed_kind_at(
+    dir_fd: int, name: str, *, allow_absent: bool
+) -> str:
+    path = _fd_child_path(dir_fd, name)
     if allow_absent and not _exists(path):
         return "absent"
     try:
@@ -447,7 +457,7 @@ def _installed_kind(path: pathlib.Path, *, allow_absent: bool) -> str:
             return "v2"
         except ReplaceError as exc:
             raise ReplaceError(
-                "installed_generation_unrecognized:" + path.name
+                "installed_generation_unrecognized:" + name
             ) from exc
 
 
@@ -480,50 +490,88 @@ def _classify_state(
     return state
 
 
-def _base_state() -> str:
-    _trusted_root_directory(pathlib.Path("/"))
-    _trusted_root_directory(pathlib.Path("/opt"))
-    _trusted_root_directory(INSTALL_ROOT, exact_mode=0o755)
+
+def _base_state_at(dir_fd: int) -> str:
     _file_digest(
-        PREEXEC_TARGET,
+        _fd_child_path(dir_fd, PREEXEC_NAME),
         expected_bytes=PREEXEC_BYTES,
         expected_sha256=PREEXEC_SHA256,
     )
     return _classify_state(
-        _installed_kind(QUERY_TARGET, allow_absent=False),
-        _installed_kind(STAGING_TARGET, allow_absent=True),
-        _installed_kind(V1_PREDECESSOR_TARGET, allow_absent=True),
-        _root_entries(),
+        _installed_kind_at(dir_fd, QUERY_NAME, allow_absent=False),
+        _installed_kind_at(dir_fd, STAGING_NAME, allow_absent=True),
+        _installed_kind_at(
+            dir_fd, V1_PREDECESSOR_NAME, allow_absent=True
+        ),
+        _root_entries_at(dir_fd),
     )
 
 
-def _open_locked_install_root() -> int:
-    fd = os.open(
-        INSTALL_ROOT,
+def _open_protected_root(lock_mode: int) -> tuple[int, int]:
+    _trusted_root_directory(pathlib.Path("/"))
+    _trusted_root_directory(OPT_ROOT)
+
+    parent_fd = os.open(
+        OPT_ROOT,
         os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
     )
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(parent_fd, lock_mode | fcntl.LOCK_NB)
         except OSError as exc:
             raise ReplaceError("replacement_operation_in_progress") from exc
-        visible = INSTALL_ROOT.lstat()
-        opened = os.fstat(fd)
+
+        visible_parent = OPT_ROOT.lstat()
+        opened_parent = os.fstat(parent_fd)
         if (
-            not stat.S_ISDIR(opened.st_mode)
-            or stat.S_ISLNK(visible.st_mode)
-            or visible.st_dev != opened.st_dev
-            or visible.st_ino != opened.st_ino
-            or visible.st_uid != 0
-            or visible.st_gid != 0
-            or stat.S_IMODE(visible.st_mode) != 0o755
-            or (visible.st_mode & 0o022) != 0
+            not stat.S_ISDIR(opened_parent.st_mode)
+            or stat.S_ISLNK(visible_parent.st_mode)
+            or visible_parent.st_dev != opened_parent.st_dev
+            or visible_parent.st_ino != opened_parent.st_ino
+            or visible_parent.st_uid != 0
+            or (visible_parent.st_mode & 0o022) != 0
         ):
-            raise ReplaceError("locked_install_root_identity_invalid")
-        return fd
+            raise ReplaceError("locked_parent_identity_invalid")
+
+        dir_fd = os.open(
+            INSTALL_ROOT.name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=parent_fd,
+        )
+        try:
+            visible = os.stat(
+                INSTALL_ROOT.name,
+                dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+            opened = os.fstat(dir_fd)
+            if (
+                not stat.S_ISDIR(opened.st_mode)
+                or stat.S_ISLNK(visible.st_mode)
+                or visible.st_dev != opened.st_dev
+                or visible.st_ino != opened.st_ino
+                or visible.st_uid != 0
+                or visible.st_gid != 0
+                or stat.S_IMODE(visible.st_mode) != 0o755
+                or (visible.st_mode & 0o022) != 0
+            ):
+                raise ReplaceError("locked_install_root_identity_invalid")
+            return parent_fd, dir_fd
+        except BaseException:
+            os.close(dir_fd)
+            raise
     except BaseException:
-        os.close(fd)
+        os.close(parent_fd)
         raise
+
+
+def _base_state() -> str:
+    parent_fd, dir_fd = _open_protected_root(fcntl.LOCK_SH)
+    try:
+        return _base_state_at(dir_fd)
+    finally:
+        os.close(dir_fd)
+        os.close(parent_fd)
 
 def source_plan() -> None:
     accepted_lock()
@@ -543,6 +591,8 @@ def source_plan() -> None:
     print("crash_state_classification_required=true")
     print("apply_crash_resume_supported=true")
     print("rollback_crash_resume_supported=true")
+    print("stable_parent_operation_lock_required=true")
+    print("descriptor_bound_state_inspection_required=true")
     print("query_execution=false")
     print("credential_contents_read=false")
     print("service_mutation=false")
@@ -597,22 +647,22 @@ def _restore_ready_after_failed_apply(
 ) -> bool:
     try:
         if created_identity is None:
-            return _base_state() == READY_STATE
+            return _base_state_at(dir_fd) == READY_STATE
 
-        if old_name is not None and _exists(INSTALL_ROOT / old_name):
+        if old_name is not None and _exists(_fd_child_path(dir_fd, old_name)):
             current_is_v2 = False
             try:
                 _file_digest(
-                    QUERY_TARGET,
+                    _fd_child_path(dir_fd, QUERY_NAME),
                     expected_bytes=V2_QUERY_BYTES,
                     expected_sha256=V2_QUERY_SHA256,
                 )
-                _require_owned_path(QUERY_TARGET, created_identity)
+                _require_owned_path(_fd_child_path(dir_fd, QUERY_NAME), created_identity)
                 current_is_v2 = True
             except ReplaceError:
                 current_is_v2 = False
 
-            old_path = INSTALL_ROOT / old_name
+            old_path = _fd_child_path(dir_fd, old_name)
             if current_is_v2:
                 _file_digest(
                     old_path,
@@ -623,11 +673,11 @@ def _restore_ready_after_failed_apply(
                 os.fsync(dir_fd)
 
             _file_digest(
-                QUERY_TARGET,
+                _fd_child_path(dir_fd, QUERY_NAME),
                 expected_bytes=V1_QUERY_BYTES,
                 expected_sha256=V1_QUERY_SHA256,
             )
-            residue = INSTALL_ROOT / old_name
+            residue = _fd_child_path(dir_fd, old_name)
             if _exists(residue):
                 _require_owned_path(residue, created_identity)
                 _file_digest(
@@ -639,10 +689,10 @@ def _restore_ready_after_failed_apply(
                     dir_fd, old_name, created_identity
                 ):
                     return False
-        elif _exists(STAGING_TARGET):
-            _require_owned_path(STAGING_TARGET, created_identity)
+        elif _exists(_fd_child_path(dir_fd, STAGING_NAME)):
+            _require_owned_path(_fd_child_path(dir_fd, STAGING_NAME), created_identity)
             _file_digest(
-                STAGING_TARGET,
+                _fd_child_path(dir_fd, STAGING_NAME),
                 expected_bytes=V2_QUERY_BYTES,
                 expected_sha256=V2_QUERY_SHA256,
             )
@@ -650,7 +700,7 @@ def _restore_ready_after_failed_apply(
                 dir_fd, STAGING_NAME, created_identity
             ):
                 return False
-        return _base_state() == READY_STATE
+        return _base_state_at(dir_fd) == READY_STATE
     except BaseException:
         return False
 
@@ -663,12 +713,12 @@ def apply(query: pathlib.Path, confirm: str) -> None:
     accepted_lock()
     raw = read_exact_candidate(query)
 
-    dir_fd = _open_locked_install_root()
+    parent_fd, dir_fd = _open_protected_root(fcntl.LOCK_EX)
     old_name: str | None = None
     created_stage_identity: tuple[int, int] | None = None
     resumed_from = "none"
     try:
-        state = _base_state()
+        state = _base_state_at(dir_fd)
         if state == GREEN_STATE:
             print(MARKER)
             print("mode=apply")
@@ -690,39 +740,39 @@ def apply(query: pathlib.Path, confirm: str) -> None:
         if state == READY_STATE:
             created_stage_identity = _create_exact_stage(dir_fd, raw)
             os.fsync(dir_fd)
-            state = _base_state()
+            state = _base_state_at(dir_fd)
             if state != STAGED_STATE:
                 raise ReplaceError("stage_publication_state_invalid")
         elif state == STAGED_STATE:
-            read_exact_candidate(STAGING_TARGET)
-            created_stage_identity = _path_inode(STAGING_TARGET)
+            read_exact_candidate(_fd_child_path(dir_fd, STAGING_NAME))
+            created_stage_identity = _path_inode(_fd_child_path(dir_fd, STAGING_NAME))
             resumed_from = STAGED_STATE
 
         if state == STAGED_STATE:
             old_name = STAGING_NAME
             _renameat2(dir_fd, STAGING_NAME, QUERY_NAME, RENAME_EXCHANGE)
             os.fsync(dir_fd)
-            state = _base_state()
+            state = _base_state_at(dir_fd)
             if state != EXCHANGED_STATE:
                 raise ReplaceError("exchange_state_invalid")
         elif state == EXCHANGED_STATE:
-            created_stage_identity = _path_inode(QUERY_TARGET)
+            created_stage_identity = _path_inode(_fd_child_path(dir_fd, QUERY_NAME))
             old_name = STAGING_NAME
             resumed_from = EXCHANGED_STATE
 
         _file_digest(
-            QUERY_TARGET,
+            _fd_child_path(dir_fd, QUERY_NAME),
             expected_bytes=V2_QUERY_BYTES,
             expected_sha256=V2_QUERY_SHA256,
         )
-        _require_owned_path(QUERY_TARGET, created_stage_identity)
+        _require_owned_path(_fd_child_path(dir_fd, QUERY_NAME), created_stage_identity)
         _file_digest(
-            STAGING_TARGET,
+            _fd_child_path(dir_fd, STAGING_NAME),
             expected_bytes=V1_QUERY_BYTES,
             expected_sha256=V1_QUERY_SHA256,
         )
         _file_digest(
-            PREEXEC_TARGET,
+            _fd_child_path(dir_fd, PREEXEC_NAME),
             expected_bytes=PREEXEC_BYTES,
             expected_sha256=PREEXEC_SHA256,
         )
@@ -736,7 +786,7 @@ def apply(query: pathlib.Path, confirm: str) -> None:
         old_name = V1_PREDECESSOR_NAME
         os.fsync(dir_fd)
 
-        if _base_state() != GREEN_STATE:
+        if _base_state_at(dir_fd) != GREEN_STATE:
             raise ReplaceError("post_exchange_state_invalid")
     except BaseException:
         rollback_green = _restore_ready_after_failed_apply(
@@ -747,6 +797,7 @@ def apply(query: pathlib.Path, confirm: str) -> None:
         raise
     finally:
         os.close(dir_fd)
+        os.close(parent_fd)
 
     print(MARKER)
     print("mode=apply")
@@ -777,10 +828,10 @@ def rollback(confirm: str) -> None:
     _require_secure_apply_context()
     accepted_lock()
 
-    dir_fd = _open_locked_install_root()
+    parent_fd, dir_fd = _open_protected_root(fcntl.LOCK_EX)
     resumed_from = "none"
     try:
-        state = _base_state()
+        state = _base_state_at(dir_fd)
         if state == READY_STATE:
             print(MARKER)
             print("mode=rollback")
@@ -796,7 +847,7 @@ def rollback(confirm: str) -> None:
 
         if state == STAGED_STATE:
             _file_digest(
-                STAGING_TARGET,
+                _fd_child_path(dir_fd, STAGING_NAME),
                 expected_bytes=V2_QUERY_BYTES,
                 expected_sha256=V2_QUERY_SHA256,
             )
@@ -809,12 +860,12 @@ def rollback(confirm: str) -> None:
             )
             os.fsync(dir_fd)
             _file_digest(
-                QUERY_TARGET,
+                _fd_child_path(dir_fd, QUERY_NAME),
                 expected_bytes=V1_QUERY_BYTES,
                 expected_sha256=V1_QUERY_SHA256,
             )
             _file_digest(
-                STAGING_TARGET,
+                _fd_child_path(dir_fd, STAGING_NAME),
                 expected_bytes=V2_QUERY_BYTES,
                 expected_sha256=V2_QUERY_SHA256,
             )
@@ -829,11 +880,11 @@ def rollback(confirm: str) -> None:
                 RENAME_EXCHANGE,
             )
             os.fsync(dir_fd)
-            state = _base_state()
+            state = _base_state_at(dir_fd)
             if state != ROLLBACK_PENDING_STATE:
                 raise ReplaceError("rollback_exchange_state_invalid")
             _file_digest(
-                V1_PREDECESSOR_TARGET,
+                _fd_child_path(dir_fd, V1_PREDECESSOR_NAME),
                 expected_bytes=V2_QUERY_BYTES,
                 expected_sha256=V2_QUERY_SHA256,
             )
@@ -841,7 +892,7 @@ def rollback(confirm: str) -> None:
             os.fsync(dir_fd)
         elif state == ROLLBACK_PENDING_STATE:
             _file_digest(
-                V1_PREDECESSOR_TARGET,
+                _fd_child_path(dir_fd, V1_PREDECESSOR_NAME),
                 expected_bytes=V2_QUERY_BYTES,
                 expected_sha256=V2_QUERY_SHA256,
             )
@@ -851,10 +902,11 @@ def rollback(confirm: str) -> None:
         else:
             raise ReplaceError("rollback_state_not_recoverable")
 
-        if _base_state() != READY_STATE:
+        if _base_state_at(dir_fd) != READY_STATE:
             raise ReplaceError("rollback_post_state_invalid")
     finally:
         os.close(dir_fd)
+        os.close(parent_fd)
 
     print(MARKER)
     print("mode=rollback")
@@ -1027,6 +1079,8 @@ def main() -> int:
         print("rollback_crash_resume_supported=true")
         print("operation_lock_exclusivity_exercised=true")
         print("crash_transition_primitives_exercised=true")
+        print("stable_parent_operation_lock=true")
+        print("descriptor_bound_state_inspection=true")
         print("query_execution=false")
         print("credential_contents_read=false")
         return 0
