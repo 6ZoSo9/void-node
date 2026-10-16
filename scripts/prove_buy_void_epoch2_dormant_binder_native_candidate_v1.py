@@ -83,6 +83,7 @@ EXPECTED_SELF_TEST = (
     "private_parent_proof_channel=true\n"
     "caller_stdin_javascript_forbidden=true\n"
     "loader_environment_sanitized=true\n"
+    "failure_truth_boundary_test_modes=true\n"
     "credential_content_access=false\n"
     "transaction=false\n"
     "public_presale_activation=false\n"
