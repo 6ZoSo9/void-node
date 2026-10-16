@@ -17,8 +17,8 @@ INSTALLER_REL = (
     "void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
 )
 
-TARGET_BLOB = "a904b47577c9dd9b071d855b99d2d50616185684"
-INSTALLER_BLOB = "f3d6b1559be7490303cf36338c4bfa38fdaa390a"
+TARGET_BLOB = "0d7d41a2bcdcd570865b0a75c1e7879561f7a6d5"
+INSTALLER_BLOB = "9b38d2186c2a0db0042e5fd0d551566a1f8f646c"
 
 
 def git_blob(raw: bytes) -> str:
@@ -51,7 +51,7 @@ compile(source, TARGET_REL, "exec", dont_inherit=True)
 
 for required in (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLED_QUALIFICATION_V2",
-    'INSTALLER_SOURCE_GIT_BLOB_SHA1 = "f3d6b1559be7490303cf36338c4bfa38fdaa390a"',
+    'INSTALLER_SOURCE_GIT_BLOB_SHA1 = "9b38d2186c2a0db0042e5fd0d551566a1f8f646c"',
     "installer._verify_checkout(expected_head)",
     "installer.accepted_lock(expected_head)",
     "installer.protected_state()",
