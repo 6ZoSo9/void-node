@@ -49,12 +49,17 @@ The CLI loader graph is closed:
 
 ```text
 bin/tsc --require("../lib/tsc.js")--> lib/tsc.js
+lib/tsc.js --require("node:module")--> Node builtin compile-cache API
 lib/tsc.js --require("./_tsc.js")--> lib/_tsc.js
 ```
 
+The `node:module` edge is intentional: current TypeScript enables Node's
+compile-cache API before loading the real compiler. It is a reviewed builtin
+loader dependency, not a repository file.
+
 For the two loader files, every syntactic `require(` call must be a static
-string literal. Their complete static require-specifier lists must equal those
-two reviewed edges exactly. Dynamic or additional loader targets HOLD.
+string literal. Their complete ordered static require-specifier lists must equal
+those three reviewed edges exactly. Dynamic or additional loader targets HOLD.
 
 ## Candidate verification
 
