@@ -263,6 +263,21 @@ static bool same_generation_times(const struct stat *a, const struct stat *b) {
            a->st_ctim.tv_nsec == b->st_ctim.tv_nsec;
 }
 
+static void require_devnull_stdin(void) {
+    struct stat stdin_st, null_st;
+    if (
+        fstat(STDIN_FILENO, &stdin_st) != 0 ||
+        lstat(FIXED_DEVNULL, &null_st) != 0 ||
+        !S_ISCHR(stdin_st.st_mode) ||
+        !S_ISCHR(null_st.st_mode) ||
+        stdin_st.st_dev != null_st.st_dev ||
+        stdin_st.st_ino != null_st.st_ino ||
+        stdin_st.st_rdev != null_st.st_rdev
+    ) {
+        hold("dormant_binder_installer_first_entry_stdin_python_source_forbidden");
+    }
+}
+
 static void require_safe_directory(const char *pathname, const char *reason) {
     struct stat st;
     if (lstat(pathname, &st) != 0 ||
@@ -562,6 +577,7 @@ static int self_test(void) {
     puts("static_native_first_instruction_required=true");
     puts("fixed_plan_apply_operation_allowlist=true");
     puts("caller_stdin_never_python_source=true");
+    puts("caller_stdin_must_be_devnull=true");
     puts("installer_generation_compile_bound=true");
     puts("native_candidate_generation_compile_bound=true");
     puts("expected_head_compile_bound=true");
@@ -588,6 +604,7 @@ static int self_test(void) {
 int main(int argc, char **argv) {
     if (argc == 2 && strcmp(argv[1], "--self-test") == 0) return self_test();
     if (geteuid() != 0) hold("dormant_binder_installer_first_entry_root_required");
+    require_devnull_stdin();
 
     request_v1 request = parse_request(argc, argv);
     receipt_operation = request.operation;
