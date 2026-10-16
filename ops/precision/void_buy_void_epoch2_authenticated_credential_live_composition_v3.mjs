@@ -50,7 +50,7 @@ const NODE="/usr/bin/node";
 const SETPRIV="/usr/bin/setpriv";
 const FIXED_ROOT="/opt/void-buy-void-epoch2-live-composition-v3";
 const FIXED_PREENTRY=
-  FIXED_ROOT+"/void_buy_void_epoch2_live_composition_native_preentry_v1";
+  FIXED_ROOT+"/void_buy_void_epoch2_live_composition_native_preentry_v3";
 const FIXED_RUNNER=
   FIXED_ROOT+"/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs";
 const PREENTRY_MARKER=
