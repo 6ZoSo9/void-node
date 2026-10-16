@@ -22,6 +22,28 @@ function gitBlob(bytes) {
   return crypto.createHash("sha1").update(prefix).update(bytes).digest("hex");
 }
 
+const candidateWorkflowSource = fs.readFileSync(
+  path.resolve(
+    ".github/workflows/buy-void-legacy-request-history-nimo-runtime-bundle-candidate-v2.yml",
+  ),
+  "utf8",
+);
+for (const relative of [
+  "src/economic/buy_void_broadcast_outcome_journal_v1.ts",
+  "src/economic/buy_void_execution_attempt_journal_v1.ts",
+  "src/economic/buy_void_fulfillment_confirmation_v1.ts",
+  "src/economic/buy_void_fulfillment_journal_v1.ts",
+  "src/economic/buy_void_inventory_reservation_journal_v1.ts",
+  "src/economic/buy_void_verified_payment_v2.ts"
+]) {
+  const quoted = `"${relative}"`;
+  assert.equal(
+    candidateWorkflowSource.split(quoted).length - 1,
+    2,
+    "focused workflow must trigger on build input: " + relative,
+  );
+}
+
 const candidate =
   buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2();
 
