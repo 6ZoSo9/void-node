@@ -626,6 +626,7 @@ static int self_test(void) {
   printf("af_unix_sock_stream=true\n");
   printf("so_peercred_proven=true\n");
   printf("pidfd_liveness_proven=true\n");
+  printf("pidfd_exit_state_proven=true\n");
   printf("exec_in_place_source_drift_detected=true\n");
   printf("native_executable_inode_drift_proven=true\n");
   printf("interpreted_body_source_identity_proven=false\n");
@@ -636,6 +637,7 @@ static int self_test(void) {
   printf("response_short_eof_rejected=true\n");
   printf("response_delayed_extra_rejected=true\n");
   printf("response_no_eof_timeout_rejected=true\n");
+  printf("response_exact_prefix_before_no_eof_timeout_proven=true\n");
   printf("read_half_ack_after_peer_eof_proven=true\n");
   printf("cross_uid_host_qualification_performed=false\n");
   printf("host_installation=false\n");
