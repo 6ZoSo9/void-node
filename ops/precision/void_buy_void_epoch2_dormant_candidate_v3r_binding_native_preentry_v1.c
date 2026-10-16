@@ -27,16 +27,16 @@
 #define BINDER_FD_ENV_PREFIX "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V1_BINDER_FD="
 #define PROOF_FD_ENV_PREFIX "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V1_PROOF_FD="
 #define PROOF_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V1"
-#define BINDER_GIT_BLOB "af31dcd6f381c04c77aeef2a20d2846c0446807a"
-#define BINDER_BYTES 38974U
-#define MAX_POLICY_BYTES 1024U
+#define BINDER_GIT_BLOB "eba8675de998af42ff9022997ed20063ba1257d0"
+#define BINDER_BYTES 39391U
+#define MAX_POLICY_BYTES 1024U\n#define MAX_RUNNER_BYTES (4U * 1024U * 1024U)
 #define MAX_NODE_BYTES (512U * 1024U * 1024U)
 
 static const unsigned char BINDER_SHA256[32]={
-  0x28,0x4f,0xf1,0x26,0x36,0x0a,0xe4,0xfe,
-  0x7e,0x77,0x04,0x47,0x7a,0xac,0x3b,0xff,
-  0x39,0xe7,0xc1,0x41,0x8a,0x95,0xfe,0xc0,
-  0x18,0xf9,0x55,0x0f,0x06,0xa9,0xff,0x03
+  0x3f,0x0d,0xef,0x49,0x42,0x18,0xf8,0x5b,
+  0x13,0x1d,0x92,0x3d,0x80,0xd1,0x5e,0x9a,
+  0x28,0x30,0xe5,0xb7,0x74,0xc1,0x72,0x1b,
+  0x6e,0xae,0x82,0x4b,0x8c,0xe1,0x21,0x65
 };
 
 typedef struct{unsigned char data[64];uint32_t datalen;uint64_t bitlen;uint32_t state[8];} sha256_ctx;
@@ -101,9 +101,17 @@ static int open_trusted(const char*p,bool executable,const char*r){
   if(fstat(fd,&opened)!=0||lstat(p,&visible)!=0||!same_identity(&before,&opened)||!same_identity(&opened,&visible)||!safe_regular(&opened,executable)){close(fd);hold(r);}
   return fd;
 }
-static void require_self_identity(void){
+static struct stat require_self_identity(void){
   char observed[PATH_MAX];ssize_t n=readlink("/proc/self/exe",observed,sizeof(observed)-1U);if(n<=0||(size_t)n>=sizeof(observed))hold("binder_preentry_self_unreadable");
-  observed[n]='\0';if(strcmp(observed,FIXED_SELF)!=0)hold("binder_preentry_fixed_path_required");int fd=open_trusted(FIXED_SELF,true,"binder_preentry_self_custody_invalid");close(fd);
+  observed[n]='\0';if(strcmp(observed,FIXED_SELF)!=0)hold("binder_preentry_fixed_path_required");
+  int fixed_fd=open_trusted(FIXED_SELF,true,"binder_preentry_self_custody_invalid");
+  int actual_fd=open("/proc/self/exe",O_RDONLY|O_CLOEXEC);if(actual_fd<0){close(fixed_fd);hold("binder_preentry_self_actual_open_failed");}
+  struct stat fixed_st,actual_st,visible;
+  if(fstat(fixed_fd,&fixed_st)!=0||fstat(actual_fd,&actual_st)!=0||lstat(FIXED_SELF,&visible)!=0||
+     !same_identity(&fixed_st,&actual_st)||!same_identity(&actual_st,&visible)){
+    close(actual_fd);close(fixed_fd);hold("binder_preentry_self_running_generation_mismatch");
+  }
+  close(actual_fd);close(fixed_fd);return actual_st;
 }
 static void require_devnull_stdin(void){
   struct stat a,b;if(fstat(STDIN_FILENO,&a)!=0||lstat(FIXED_DEVNULL,&b)!=0||!S_ISCHR(a.st_mode)||!S_ISCHR(b.st_mode)||a.st_dev!=b.st_dev||a.st_ino!=b.st_ino||a.st_rdev!=b.st_rdev)hold("binder_preentry_caller_stdin_forbidden");
@@ -127,10 +135,15 @@ static policy_v1 read_policy(void){
   struct stat after,visible;if(fstat(fd,&after)!=0||lstat(FIXED_POLICY,&visible)!=0||!same_identity(&st,&after)||!same_identity(&after,&visible)){free(buf);close(fd);hold("binder_preentry_policy_changed");}close(fd);
   if(buf[n-1U]!='\n'){free(buf);hold("binder_preentry_policy_newline_required");}
   char*save=NULL,*lines[6];size_t count=0;for(char*l=strtok_r(buf,"\n",&save);l;l=strtok_r(NULL,"\n",&save)){if(count>=6U){free(buf);hold("binder_preentry_policy_shape_invalid");}lines[count++]=l;}if(count!=6U){free(buf);hold("binder_preentry_policy_shape_invalid");}
-  const char*s0="schema=",*s1="expected_head=",*s4="node_sha256=",*s5="node_bytes=";
-  if(strncmp(lines[0],s0,strlen(s0))!=0||strcmp(lines[0]+strlen(s0),POLICY_SCHEMA)!=0||strncmp(lines[1],s1,strlen(s1))!=0||strncmp(lines[4],s4,strlen(s4))!=0||strncmp(lines[5],s5,strlen(s5))!=0){free(buf);hold("binder_preentry_policy_schema_invalid");}
-  policy_v1 p;memset(&p,0,sizeof(p));const char*head=lines[1]+strlen(s1),*node_sha=lines[4]+strlen(s4),*node_bytes=lines[5]+strlen(s5);
-  if(!lower_hex_exact(head,40U)||!lower_hex_exact(node_sha,64U)||!decimal_size(node_bytes,MAX_NODE_BYTES,&p.node_bytes)){free(buf);hold("binder_preentry_policy_value_invalid");}
+  const char*s0="schema=",*s1="expected_head=",*s2="runner_sha256=",*s3="runner_bytes=",*s4="node_sha256=",*s5="node_bytes=";
+  if(strncmp(lines[0],s0,strlen(s0))!=0||strcmp(lines[0]+strlen(s0),POLICY_SCHEMA)!=0||
+     strncmp(lines[1],s1,strlen(s1))!=0||strncmp(lines[2],s2,strlen(s2))!=0||
+     strncmp(lines[3],s3,strlen(s3))!=0||strncmp(lines[4],s4,strlen(s4))!=0||
+     strncmp(lines[5],s5,strlen(s5))!=0){free(buf);hold("binder_preentry_policy_schema_invalid");}
+  policy_v1 p;memset(&p,0,sizeof(p));const char*head=lines[1]+strlen(s1),*runner_sha=lines[2]+strlen(s2),*runner_bytes=lines[3]+strlen(s3),*node_sha=lines[4]+strlen(s4),*node_bytes=lines[5]+strlen(s5);size_t ignored_runner_bytes=0;
+  if(!lower_hex_exact(head,40U)||!lower_hex_exact(runner_sha,64U)||
+     !decimal_size(runner_bytes,MAX_RUNNER_BYTES,&ignored_runner_bytes)||
+     !lower_hex_exact(node_sha,64U)||!decimal_size(node_bytes,MAX_NODE_BYTES,&p.node_bytes)){free(buf);hold("binder_preentry_policy_value_invalid");}
   memcpy(p.expected_head,head,41U);memcpy(p.node_sha256,node_sha,65U);free(buf);return p;
 }
 static void sha256_fd_hex(int fd,char out[65]){
@@ -153,16 +166,16 @@ static void emit_proof(int fd,pid_t child,const char head[41],const struct stat*
 }
 static int self_test(void){
   static const unsigned char abc_expected[32]={0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
-  unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=38974U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
+  unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=39391U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
   puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
 }
 int main(int argc,char**argv){
   if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
-  if(geteuid()!=0)hold("binder_preentry_root_required");char requested_head[41];parse_args(argc,argv,requested_head);require_self_identity();require_devnull_stdin();
+  if(geteuid()!=0)hold("binder_preentry_root_required");char requested_head[41];parse_args(argc,argv,requested_head);struct stat self_st=require_self_identity();require_devnull_stdin();
   policy_v1 policy=read_policy();if(strcmp(requested_head,policy.expected_head)!=0)hold("binder_preentry_expected_head_policy_mismatch");
   int binder_fd=open_trusted(FIXED_BINDER,false,"binder_preentry_binder_custody_invalid");struct stat binder_st;if(fstat(binder_fd,&binder_st)!=0||(uintmax_t)binder_st.st_size!=BINDER_BYTES||!sha256_fd_matches(binder_fd,BINDER_SHA256)){close(binder_fd);hold("binder_preentry_binder_identity_mismatch");}
   int node_fd=open_trusted(FIXED_NODE,true,"binder_preentry_node_custody_invalid");require_node_policy(node_fd,&policy);
-  struct stat self_st,node_st;if(lstat(FIXED_SELF,&self_st)!=0||fstat(node_fd,&node_st)!=0){close(node_fd);close(binder_fd);hold("binder_preentry_generation_snapshot_failed");}
+  struct stat node_st;if(fstat(node_fd,&node_st)!=0){close(node_fd);close(binder_fd);hold("binder_preentry_generation_snapshot_failed");}
   unsigned long long parent_ticks=0;if(!read_start_ticks(getpid(),&parent_ticks)){close(node_fd);close(binder_fd);hold("binder_preentry_parent_generation_unavailable");}
   int source_pipe[2],proof_pipe[2];if(pipe2(source_pipe,O_CLOEXEC)!=0||pipe2(proof_pipe,O_CLOEXEC)!=0){close(node_fd);close(binder_fd);hold("binder_preentry_pipe_failed");}
   if(signal(SIGPIPE,SIG_IGN)==SIG_ERR){close(source_pipe[0]);close(source_pipe[1]);close(proof_pipe[0]);close(proof_pipe[1]);close(node_fd);close(binder_fd);hold("binder_preentry_sigpipe_guard_failed");}
