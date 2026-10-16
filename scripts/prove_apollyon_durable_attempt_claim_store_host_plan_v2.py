@@ -226,6 +226,73 @@ with tempfile.TemporaryDirectory(prefix="apollyon-substituted-planner-") as td:
         assert str(exc)=="synthetic_substituted_planner"
     else:
         raise AssertionError("substituted planner bytes must HOLD")
+
+def fixture_git(root:Path,*args:str)->str:
+    result=subprocess.run(
+        ["/usr/bin/git","-C",str(root),*args],
+        stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        text=True,check=False,timeout=10,env=git_env,
+    )
+    assert result.returncode==0,(args,result.stdout,result.stderr)
+    return result.stdout.strip()
+
+with tempfile.TemporaryDirectory(prefix="apollyon-git-replace-adversary-") as td:
+    fixture=Path(td)
+    fixture_git(fixture,"init","-q")
+    fixture_git(fixture,"config","user.name","VOID CI")
+    fixture_git(fixture,"config","user.email","void-ci@example.invalid")
+    fixture_plan=fixture/module.PLANNER_REL
+    fixture_contract=fixture/module.PARENT_CONTRACT_REL
+    fixture_plan.parent.mkdir(parents=True,exist_ok=True)
+    fixture_contract.parent.mkdir(parents=True,exist_ok=True)
+    fixture_plan.write_bytes(PLAN.read_bytes())
+    fixture_contract.write_bytes(CONTRACT.read_bytes())
+    fixture_git(fixture,"add",module.PLANNER_REL.as_posix(),module.PARENT_CONTRACT_REL.as_posix())
+    fixture_git(fixture,"commit","-q","-m","fixture parent")
+    fixture_parent=fixture_git(fixture,"rev-parse","HEAD")
+
+    (fixture/"fixture.txt").write_text("reviewed child\n",encoding="utf-8")
+    fixture_git(fixture,"add","fixture.txt")
+    fixture_git(fixture,"commit","-q","-m","fixture reviewed head")
+    fixture_reviewed=fixture_git(fixture,"rev-parse","HEAD")
+
+    fixture_plan.write_bytes(PLAN.read_bytes()+b"\n# malicious replacement planner\n")
+    fixture_git(fixture,"add",module.PLANNER_REL.as_posix())
+    fixture_git(fixture,"commit","-q","-m","fixture malicious replacement")
+    fixture_malicious=fixture_git(fixture,"rev-parse","HEAD")
+    fixture_git(fixture,"replace",fixture_reviewed,fixture_malicious)
+    fixture_git(fixture,"reset","--soft",fixture_reviewed)
+
+    saved_root=module.SOURCE_ROOT
+    saved_path=module.SOURCE_PATH
+    saved_parent=module.PARENT_HEAD
+    try:
+        module.SOURCE_ROOT=fixture
+        module.SOURCE_PATH=fixture_plan
+        module.PARENT_HEAD=fixture_parent
+        try:
+            module.verify_source_generation(fixture_reviewed)
+        except module.Hold as exc:
+            assert str(exc)=="source_planner_worktree_blob_mismatch",str(exc)
+        else:
+            raise AssertionError("Git replacement + substituted planner must HOLD")
+
+        fixture_git(fixture,"replace","-d",fixture_reviewed)
+        fixture_plan.write_bytes(PLAN.read_bytes())
+        grafts=fixture/".git"/"info"/"grafts"
+        grafts.parent.mkdir(parents=True,exist_ok=True)
+        grafts.write_text(fixture_reviewed+" "+fixture_malicious+"\n",encoding="ascii")
+        module.PARENT_HEAD=fixture_malicious
+        try:
+            module.verify_source_generation(fixture_reviewed)
+        except module.Hold as exc:
+            assert str(exc)=="source_parent_not_ancestor",str(exc)
+        else:
+            raise AssertionError("Git graft must not manufacture reviewed parent ancestry")
+    finally:
+        module.SOURCE_ROOT=saved_root
+        module.SOURCE_PATH=saved_path
+        module.PARENT_HEAD=saved_parent
 try:
     module.parse_login_defs(
         "SYS_UID_MIN 100\nSYS_UID_MIN 101\nSYS_UID_MAX 999\n"
@@ -302,6 +369,8 @@ print("live_source_head_and_blob_authenticated=true")
 print("wrong_source_head_rejected=true")
 print("substituted_planner_rejected=true")
 print("git_replace_objects_disabled=true")
+print("git_replace_substitution_adversary_rejected=true")
+print("git_graft_ancestry_adversary_rejected=true")
 print("raw_commit_ancestry_verified=true")
 print("reviewed_source_head_external_lease_required=true")
 print("stable_store_policy_id="+EXPECTED_STORE_POLICY_ID)
