@@ -5,7 +5,7 @@ import argparse
 import errno
 import fcntl
 import hashlib
-import importlib.util
+import types
 import json
 import os
 from pathlib import Path
@@ -78,14 +78,23 @@ def load_v1():
     data = bounded_regular(V1_PATH, 2 * 1024 * 1024, "merged v1 candidate proof")
     if git_blob_sha1(data) != V1_BLOB:
         raise AssertionError("merged V1 candidate proof blob drift")
-    spec = importlib.util.spec_from_file_location(
-        "void_buy_void_epoch2_dormant_binder_native_candidate_v1",
-        V1_PATH,
+    try:
+        source = data.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        raise AssertionError("merged V1 candidate proof UTF-8 invalid") from exc
+    module = types.ModuleType(
+        "void_buy_void_epoch2_dormant_binder_native_candidate_v1_verified"
     )
-    if spec is None or spec.loader is None:
-        raise AssertionError("V1 import spec unavailable")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module.__file__ = os.fspath(V1_PATH)
+    module.__package__ = None
+    code = compile(
+        source,
+        os.fspath(V1_PATH),
+        "exec",
+        dont_inherit=True,
+        optimize=0,
+    )
+    exec(code, module.__dict__)
     if (
         module.SOURCE_REL != SOURCE_REL
         or module.SOURCE_BLOB != SOURCE_BLOB
@@ -867,6 +876,8 @@ def self_test() -> None:
     validate_toolchain(toolchain)
     own = Path(__file__).read_text(encoding="utf-8")
     for required in (
+        "data.decode(\"utf-8\", \"strict\")",
+        "exec(code, module.__dict__)",
         "create_sealed_source_snapshot(source_data)",
         "preprocessed_identity_from_snapshot(source_fd)",
         "compile_one_from_snapshot(",
