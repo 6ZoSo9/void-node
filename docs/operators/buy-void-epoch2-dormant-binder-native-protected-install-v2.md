@@ -55,21 +55,27 @@ The installer:
    `INSTALL_ACCEPTED_EPOCH2_DORMANT_BINDER_V3_CREATE_ONLY`;
 2. requires isolated Python and rejects loader/Python injection variables;
 3. rejects direct mutable-worktree apply;
-4. requires the authenticated native first-entry marker plus inherited installer
-   and native-candidate file descriptors for privileged apply;
-5. verifies that its executing script path and `--native` argument correspond
+4. requires the authenticated native first-entry marker plus inherited installer,
+   native-candidate and private parent-proof file descriptors for privileged
+   apply;
+5. consumes the one-shot parent proof and binds real parent PID/start ticks,
+   fixed launcher device/inode, executing installer FD, retained native FD and
+   running Python device/inode to the launcher-authenticated generation;
+6. verifies that its executing script path and `--native` argument correspond
    exactly to those inherited descriptors;
-6. verifies exact current-main checkout through fixed runtime-user Git;
-7. validates accepted V3 lock from the exact expected Git head;
-8. verifies the retained native-candidate descriptor by exact bytes/SHA-256;
-9. obtains binder bytes from the exact expected Git object;
-10. requires the exact operation-bound plan ID before host mutation;
-11. creates a private staging root;
-12. writes and verifies exact root-owned files;
-13. immediately before publication revalidates clean expected checkout, accepted
-    V3 lock, retained native-candidate descriptor and binder Git-object bytes;
-14. publishes exactly once with `renameat2(RENAME_NOREPLACE)`;
-15. fsyncs the parent and verifies final state.
+7. verifies exact current-main checkout through fixed runtime-user Git;
+8. validates accepted V3 lock from the exact expected Git head;
+9. verifies the retained native-candidate descriptor by exact bytes/SHA-256;
+10. obtains binder bytes from the exact expected Git object;
+11. requires the exact operation-bound plan ID before host mutation;
+12. immediately before the first staging mutation revalidates the live
+    first-entry parent/Python generation;
+13. creates a private staging root and writes/verifies exact root-owned files;
+14. immediately before publication revalidates clean expected checkout, accepted
+    V3 lock, retained native-candidate descriptor, binder Git-object bytes and
+    the same live first-entry parent/Python generation;
+15. publishes exactly once with `renameat2(RENAME_NOREPLACE)`;
+16. fsyncs the parent and verifies final state.
 
 The first-entry parent separately retains and revalidates the visible installer
 and native-candidate generations after the child exits. Visible pathname drift
@@ -103,7 +109,11 @@ The focused proof:
 - proves missing confirmation fails before host/candidate access;
 - proves direct mutable-worktree apply is rejected;
 - proves privileged apply requires the authenticated first-entry inherited-FD
-  contract rather than caller-selected stdin or a reopened native pathname;
+  and private parent-proof contract rather than caller-selected stdin, a
+  reopened native pathname, or caller-forged marker/FD state;
+- requires fixed native-parent and running-Python generation checks before the
+  first mutation and again before publication;
+- supplies a forged direct-parent proof shape and requires fail-closed rejection;
 - verifies create-only publication structure and non-authority markers.
 
 Hosted CI performs no protected install and no native/binder execution.
