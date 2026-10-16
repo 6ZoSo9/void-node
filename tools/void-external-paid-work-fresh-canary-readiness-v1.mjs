@@ -237,6 +237,17 @@ function validateCredentialGateway(healthResponse, statusResponse) {
     status.max_requests_per_minute,
     "fresh_canary_credential_rate_limit_invalid",
   );
+  for (const key of ["request_count", "receipt_count"]) {
+    if (
+      !Number.isSafeInteger(status[key]) ||
+      status[key] < 0
+    ) {
+      fail("fresh_canary_credential_count_invalid");
+    }
+  }
+  if (status.request_count !== status.receipt_count) {
+    fail("fresh_canary_credential_state_count_mismatch");
+  }
   for (const key of [
     "credential_issuance_authorized",
     "credential_registry_mutation_authorized",
