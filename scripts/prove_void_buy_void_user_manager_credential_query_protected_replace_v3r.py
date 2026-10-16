@@ -430,6 +430,25 @@ def executable_key_wallet_authority_violations(
             return True
         return False
 
+    ctypes_loader_prefixes = (
+        "ctypes.CDLL",
+        "ctypes.PyDLL",
+        "ctypes.WinDLL",
+        "ctypes.OleDLL",
+        "ctypes.LibraryLoader",
+        "ctypes.cdll",
+        "ctypes.pydll",
+        "ctypes.windll",
+        "ctypes.oledll",
+        "ctypes.pythonapi",
+    )
+
+    def ctypes_reference_is_loader(value: str) -> bool:
+        return any(
+            value == prefix or value.startswith(prefix + ".")
+            for prefix in ctypes_loader_prefixes
+        )
+
     def alias_binding_is_high_risk(value: str) -> bool:
         folded_parts = [
             normalized_identifier(part)
@@ -439,7 +458,7 @@ def executable_key_wallet_authority_violations(
         terminal = folded_parts[-1] if folded_parts else ""
         if value in forbidden_builtin_calls or value == "getattr":
             return True
-        if value == "ctypes.CDLL":
+        if ctypes_reference_is_loader(value):
             return True
         if folded_parts and folded_parts[0] == "os":
             if terminal in forbidden_os_call_names:
@@ -450,36 +469,64 @@ def executable_key_wallet_authority_violations(
             return value != "libc.renameat2"
         return call_path_is_sensitive(value)
 
+    def assignment_value(node: ast.AST) -> ast.AST | None:
+        if isinstance(node, ast.Assign):
+            return node.value
+        if isinstance(node, ast.AnnAssign):
+            return node.value
+        if isinstance(node, ast.NamedExpr):
+            return node.value
+        return None
+
+    def assignment_target_names(node: ast.AST) -> list[str]:
+        raw_targets: list[ast.AST] = []
+        if isinstance(node, ast.Assign):
+            raw_targets.extend(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            raw_targets.append(node.target)
+        elif isinstance(node, ast.NamedExpr):
+            raw_targets.append(node.target)
+        names: list[str] = []
+        for target in raw_targets:
+            for item in ast.walk(target):
+                if isinstance(item, ast.Name):
+                    names.append(item.id)
+        return sorted(set(names))
+
     for node in ast.walk(tree):
-        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
             continue
-        target: str | None = None
-        value: ast.AST | None = None
-        if (
-            isinstance(node, ast.Assign)
-            and len(node.targets) == 1
-            and isinstance(node.targets[0], ast.Name)
-        ):
-            target = node.targets[0].id
-            value = node.value
-        elif (
-            isinstance(node, ast.AnnAssign)
-            and isinstance(node.target, ast.Name)
-            and node.value is not None
-        ):
-            target = node.target.id
-            value = node.value
-        if target is None or value is None:
+        value = assignment_value(node)
+        if value is None:
             continue
+
+        # The only approved dynamic assignments are the exact retained libc
+        # handle and its exact renameat2 function pointer.
+        if isinstance(value, ast.Call) and (
+            safe_reviewed_cdll_call(value)
+            or safe_reviewed_getattr_call(value)
+        ):
+            continue
+
+        targets = assignment_target_names(node)
+        for child in ast.walk(value):
+            if not isinstance(child, (ast.Name, ast.Attribute)):
+                continue
+            canonical = resolved_dotted_name(child)
+            if not alias_binding_is_high_risk(canonical):
+                continue
+            violations.append(
+                "authority_reference_in_assignment:"
+                + (",".join(targets) if targets else "<unknown>")
+                + ":" + canonical
+            )
+
         if isinstance(value, (ast.Name, ast.Attribute)):
             canonical = resolved_dotted_name(value)
-            if alias_binding_is_high_risk(canonical):
+            if canonical == "libc.renameat2" and targets != ["fn"]:
                 violations.append(
-                    "high_risk_alias_binding:" + target + ":" + canonical
-                )
-            if canonical == "libc.renameat2" and target != "fn":
-                violations.append(
-                    "unreviewed_renameat2_alias_binding:" + target
+                    "unreviewed_renameat2_alias_binding:"
+                    + (",".join(targets) if targets else "<unknown>")
                 )
 
     def high_risk_call_violation(node: ast.Call) -> str | None:
@@ -494,6 +541,10 @@ def executable_key_wallet_authority_violations(
             if not safe_reviewed_cdll_call(node):
                 return "unreviewed_ctypes_cdll_call"
             return None
+        if chain == "ctypes.get_errno":
+            return None
+        if chain.startswith("ctypes."):
+            return "unreviewed_ctypes_call:" + chain
         if not chain:
             if (
                 isinstance(node.func, ast.Attribute)
@@ -626,6 +677,11 @@ for unsafe_authority_source in (
         'alias = fn\n'
         'alias(1, b"a", 1, b"b", 1)'
     ),
+    'import ctypes\nctypes.cdll.LoadLibrary("/tmp/unreviewed.so")',
+    'import ctypes\nctypes.pythonapi.PyRun_SimpleString(b"print(1)")',
+    'import os\nrunner, = (os.system,)\nrunner("id")',
+    'import os\nrunner = [os.system][0]\nrunner("id")',
+    'import os\n(runner := os.system)("id")',
 ):
     assert executable_key_wallet_authority_violations(
         unsafe_authority_source
@@ -640,6 +696,101 @@ assert executable_key_wallet_authority_violations(
         "fn(1, b'a', 1, b'b', 1)\n"
     )
 ) == []
+
+
+def production_content_read_callsite_fingerprint(
+    source_text: str,
+) -> dict[str, int]:
+    parsed = ast.parse(source_text)
+    parents = {
+        child: parent
+        for parent in ast.walk(parsed)
+        for child in ast.iter_child_nodes(parent)
+    }
+
+    def enclosing_function(node: ast.AST) -> str:
+        current: ast.AST | None = node
+        while current is not None:
+            if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return current.name
+            current = parents.get(current)
+        return "<module>"
+
+    def dotted(node: ast.AST) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            parent = dotted(node.value)
+            return (parent + "." if parent else "") + node.attr
+        return ""
+
+    counts: dict[str, int] = {}
+    for node in ast.walk(parsed):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = enclosing_function(node)
+        if fn == "self_test":
+            continue
+        chain = dotted(node.func)
+        kind: str | None = None
+        if chain in {
+            "os.open",
+            "os.read",
+            "os.pread",
+            "os.readv",
+            "os.preadv",
+            "os.fdopen",
+        }:
+            kind = chain
+        elif isinstance(node.func, ast.Attribute) and node.func.attr in {
+            "open",
+            "read_bytes",
+            "read_text",
+        }:
+            kind = "method." + node.func.attr
+        if kind is None:
+            continue
+        key = fn + ":" + kind
+        counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+EXPECTED_PRODUCTION_CONTENT_READ_CALLS = {
+    "_create_exact_stage:os.open": 1,
+    "_create_exact_stage:os.read": 1,
+    "_direct_repo_bytes:method.read_bytes": 1,
+    "_file_digest:os.open": 1,
+    "_file_digest:os.read": 2,
+    "_open_protected_root:os.open": 2,
+    "read_exact_candidate:os.open": 1,
+    "read_exact_candidate:os.read": 2,
+}
+
+assert (
+    production_content_read_callsite_fingerprint(source)
+    == EXPECTED_PRODUCTION_CONTENT_READ_CALLS
+)
+
+for credential_read_adversary in (
+    (
+        "import pathlib\n"
+        "def added_read():\n"
+        "    return pathlib.Path('/run/credentials/key').read_bytes()\n"
+    ),
+    (
+        "import os\n"
+        "def added_read():\n"
+        "    fd = os.open('/run/credentials/key', os.O_RDONLY)\n"
+        "    try:\n"
+        "        return os.read(fd, 32)\n"
+        "    finally:\n"
+        "        os.close(fd)\n"
+    ),
+):
+    observed = production_content_read_callsite_fingerprint(
+        source + "\n" + credential_read_adversary
+    )
+    assert observed != EXPECTED_PRODUCTION_CONTENT_READ_CALLS
 
 
 for forbidden in (
@@ -873,6 +1024,10 @@ print("alias_resolved_high_risk_call_guard=true")
 print("callable_alias_adversaries_exercised=true")
 print("ordinary_state_aliases_excluded_from_authority_resolution=true")
 print("reviewed_libc_renameat2_binding_only=true")
+print("all_ctypes_calls_closed=true")
+print("destructured_authority_aliases_rejected=true")
+print("production_read_callsite_fingerprint_bound=true")
+print("credential_read_adversaries_exercised=true")
 print("ast_signing_key_authority_guard=true")
 print("ast_generic_sign_call_adversary_exercised=true")
 print("query_execution=false")
