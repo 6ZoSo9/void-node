@@ -5,6 +5,7 @@ on:
     paths:
       - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py"
       - "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v1.py"
+      - "scripts/materialize_buy_void_epoch2_live_composition_native_v3.py"
       - "docs/operators/buy-void-epoch2-live-composition-native-protected-install-v1.md"
       - ".github/workflows/buy-void-epoch2-live-composition-native-protected-install-v1.yml"
       - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v3.json"
@@ -19,6 +20,7 @@ on:
     paths:
       - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py"
       - "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v1.py"
+      - "scripts/materialize_buy_void_epoch2_live_composition_native_v3.py"
       - "docs/operators/buy-void-epoch2-live-composition-native-protected-install-v1.md"
       - ".github/workflows/buy-void-epoch2-live-composition-native-protected-install-v1.yml"
       - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v3.json"
@@ -28,6 +30,8 @@ on:
       - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml"
       - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
       - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v3.py"
+
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,7 +43,7 @@ concurrency:
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Checkout exact installer head
@@ -58,7 +62,8 @@ jobs:
           git merge-base --is-ancestor             fab1f7feccc2d32313e6c2cc5c729c9ebe2dd492             "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v3.json)" =             57f965a944031eac90d69b4104b0f8f2473e66cc
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py)" =             6546c0045d5e5c523cf1aac7bba899b5797f2afb
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v1.py)" =             4d3b2bf5f9399715440d1373fae3619822d3c45c
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v1.py)" =             53e7613f6e5eb79768124adc23d1399a5c0ca0f3
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_live_composition_native_v3.py)" =             be564645b31bd49cf1ed08f663eff4bba53cdf99
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs)" =             92e8c8696ea7e2bb81b6ef089db8baa657188935
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -68,7 +73,7 @@ jobs:
           python3 -I -B -c 'compile(open("ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py",encoding="utf-8").read(),"installer","exec")'
           python3 -I -B -c 'compile(open("scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v1.py",encoding="utf-8").read(),"proof","exec")'
           python3 -I -B scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v1.py             | tee "$RUNNER_TEMP/epoch2-native-protected-install-v1.log"
-          for marker in             'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_PROTECTED_INSTALL_V1_PROOF_GREEN'             'accepted_v3_lock_blob_bound=true'             'installer_blob_bound=true'             'native_candidate_tamper_rejected=true'             'native_candidate_symlink_rejected=true'             'rename_noreplace_exercised=true'             'final_metadata_fsync_before_publication_bound=true'             'repository_node_parent_revalidated_before_publication=true'             'atomic_complete_root_publication_bound=true'             'expected_head_dependency_generation_bound=true'             'truthful_post_publication_receipt_bound=true'             'post_publication_fsync_failure_injected=true'             'post_publication_final_verification_failure_injected=true'             'post_verification_close_failure_preserves_verified_state=true'             'hosted_apply_execution=false'             'live_execution_authorized=false'             'public_presale_activation_authorized=false'             'wc_void_market_activation_authorized=false'             'funds_movement_authorized=false'
+          for marker in             'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_PROTECTED_INSTALL_V1_PROOF_GREEN'             'accepted_v3_lock_blob_bound=true'             'installer_blob_bound=true'             'materializer_blob_bound=true'             'accepted_native_binary_materialized=true'             'native_candidate_tamper_rejected=true'             'native_candidate_symlink_rejected=true'             'rename_noreplace_exercised=true'             'final_metadata_fsync_before_publication_bound=true'             'repository_node_parent_revalidated_before_publication=true'             'atomic_complete_root_publication_bound=true'             'expected_head_dependency_generation_bound=true'             'truthful_post_publication_receipt_bound=true'             'post_publication_fsync_failure_injected=true'             'post_publication_final_verification_failure_injected=true'             'post_verification_close_failure_preserves_verified_state=true'             'hosted_apply_execution=false'             'live_execution_authorized=false'             'public_presale_activation_authorized=false'             'wc_void_market_activation_authorized=false'             'funds_movement_authorized=false'
           do
             grep -Fx "$marker" "$RUNNER_TEMP/epoch2-native-protected-install-v1.log"
           done
@@ -86,6 +91,38 @@ jobs:
           grep -Fx 'public_presale_activation=false' "$OUT"
           grep -Fx 'wc_void_market_activation=false' "$OUT"
           grep -Fx 'funds_movement=false' "$OUT"
+
+      - name: Materialize exact accepted native V3 ELF
+        run: |
+          set -euo pipefail
+          BIN="$RUNNER_TEMP/void_buy_void_epoch2_live_composition_native_preentry_v1"
+          RECEIPT="$RUNNER_TEMP/epoch2-native-v3-materialize.log"
+          python3 -I -B scripts/materialize_buy_void_epoch2_live_composition_native_v3.py --self-test
+          python3 -I -B scripts/materialize_buy_void_epoch2_live_composition_native_v3.py --derive "$BIN" | tee "$RECEIPT"
+          test "$(stat -c %s "$BIN")" = 726976
+          test "$(sha256sum "$BIN" | awk '{print $1}')" = 78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_V3_MATERIALIZER_V1_DERIVE_GREEN' "$RECEIPT"
+          grep -Fx 'candidate_binary_identity_accepted=true' "$RECEIPT"
+          grep -Fx 'protected_install_authorized=false' "$RECEIPT"
+          readelf -l "$BIN" > "$RUNNER_TEMP/epoch2-native-v3-readelf.txt"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/epoch2-native-v3-readelf.txt"; then
+            echo materialized_native_has_dynamic_interpreter >&2
+            exit 1
+          fi
+          printf '%s  %s\n' \
+            78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589 \
+            void_buy_void_epoch2_live_composition_native_preentry_v1 \
+            > "$RUNNER_TEMP/SHA256SUMS_epoch2_native_v3.txt"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-native-v3-install-candidate-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/void_buy_void_epoch2_live_composition_native_preentry_v1
+            ${{ runner.temp }}/SHA256SUMS_epoch2_native_v3.txt
+            ${{ runner.temp }}/epoch2-native-v3-materialize.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Diff hygiene
         run: |
