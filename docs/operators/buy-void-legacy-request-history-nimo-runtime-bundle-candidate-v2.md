@@ -97,7 +97,7 @@ The verifier re-reads the current checkout and independently rebuilds:
 - the exact 14-file package-free runtime import graph;
 - all runtime byte hashes;
 - the exact ordered four-file TypeScript compiler identity;
-- the exact two loader edges.
+- the exact three loader edges.
 
 A resealed candidate with a changed CLI-entry hash, changed loader hash, or
 changed loader edge is rejected even when its candidate ID is recomputed.
