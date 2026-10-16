@@ -11,13 +11,9 @@ Status: **read-only qualification source; live host execution remains separately
 This is the post-install evidence gate named by the accepted V3 dormant-binder
 protected installer.
 
-This qualification generation is rebound to the authenticated first-entry
-installer accepted in the same transition; it does not recognize the earlier
-stdin-only installer generation as current qualification authority.
-
 It consumes only the hardened installer generation whose source Git blob is:
 
-`f3d6b1559be7490303cf36338c4bfa38fdaa390a`.
+`9b38d2186c2a0db0042e5fd0d551566a1f8f646c`.
 
 The installed root is fixed at:
 
