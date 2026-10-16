@@ -644,6 +644,12 @@ def _hex(value: object, width: int) -> bool:
     )
 
 
+def _exact_keys(value: object, expected: set[str], label: str) -> dict:
+    if not isinstance(value, dict) or set(value) != expected:
+        raise AssertionError(label + "_keys_invalid")
+    return value
+
+
 def _readdress(report: dict) -> dict:
     value = json.loads(json.dumps(report))
     value["candidate_id"] = (
@@ -654,6 +660,25 @@ def _readdress(report: dict) -> dict:
 
 
 def validate(report: dict, binary: bytes) -> None:
+    _exact_keys(
+        report,
+        {
+            "accepted_native_input",
+            "authority",
+            "binary",
+            "candidate_id",
+            "compile_binding",
+            "marker",
+            "repository",
+            "repository_head",
+            "repository_tree",
+            "schema",
+            "source_generation",
+            "toolchain",
+            "version",
+        },
+        "candidate_report",
+    )
     if (
         report.get("schema") != SCHEMA
         or report.get("marker") != MARKER
@@ -679,10 +704,24 @@ def validate(report: dict, binary: bytes) -> None:
 
     launcher_raw = stable_file(LAUNCHER_REL, MAX_SOURCE_BYTES, LAUNCHER_BLOB)
     installer_raw = stable_file(INSTALLER_REL, MAX_INSTALLER_BYTES, INSTALLER_BLOB)
-    source = report.get("source_generation")
+    proof_raw = stable_file(SELF_REL, 2 * 1024 * 1024)
+    source = _exact_keys(
+        report.get("source_generation"),
+        {
+            "derivation_proof_git_blob_sha1",
+            "installer_source_bytes",
+            "installer_source_git_blob_sha1",
+            "installer_source_path",
+            "installer_source_sha256",
+            "launcher_source_bytes",
+            "launcher_source_git_blob_sha1",
+            "launcher_source_path",
+            "launcher_source_sha256",
+        },
+        "candidate_source_generation",
+    )
     if (
-        not isinstance(source, dict)
-        or not _hex(source.get("derivation_proof_git_blob_sha1"), 40)
+        source.get("derivation_proof_git_blob_sha1") != git_blob(proof_raw)
         or source.get("launcher_source_path") != LAUNCHER_REL
         or source.get("launcher_source_git_blob_sha1") != LAUNCHER_BLOB
         or source.get("launcher_source_bytes") != len(launcher_raw)
@@ -694,10 +733,24 @@ def validate(report: dict, binary: bytes) -> None:
     ):
         raise AssertionError("candidate_source_generation_invalid")
 
-    compiled = report.get("compile_binding")
+    compiled = _exact_keys(
+        report.get("compile_binding"),
+        {
+            "apply_confirmation",
+            "expected_head",
+            "fixed_install_root_default_used",
+            "fixed_python_default_used",
+            "installer_bytes",
+            "installer_sha256",
+            "native_bytes",
+            "native_sha256",
+            "required_seal_mask",
+            "sealed_launcher_source_snapshot",
+        },
+        "compile_binding",
+    )
     if (
-        not isinstance(compiled, dict)
-        or compiled.get("fixed_install_root_default_used") is not True
+        compiled.get("fixed_install_root_default_used") is not True
         or compiled.get("fixed_python_default_used") is not True
         or compiled.get("expected_head") != current_head
         or compiled.get("apply_confirmation") != APPLY_CONFIRM
@@ -710,17 +763,38 @@ def validate(report: dict, binary: bytes) -> None:
     ):
         raise AssertionError("compile_binding_invalid")
 
-    toolchain = report.get("toolchain")
+    toolchain = _exact_keys(
+        report.get("toolchain"),
+        {
+            "cc",
+            "compile_flags",
+            "compiler_dumpmachine",
+            "compiler_dumpversion",
+            "compiler_version_line",
+            "link_flags",
+            "static_link_inputs",
+            "strip",
+            "toolchain_revalidated_after_build",
+        },
+        "toolchain",
+    )
+    expected_cc_version = (
+        run(["/usr/bin/cc", "--version"])
+        .stdout.decode("utf-8", "strict")
+        .splitlines()[0]
+    )
+    expected_cc_machine = (
+        run(["/usr/bin/cc", "-dumpmachine"]).stdout.decode("utf-8", "strict").strip()
+    )
+    expected_cc_dumpversion = (
+        run(["/usr/bin/cc", "-dumpversion"]).stdout.decode("utf-8", "strict").strip()
+    )
     if (
-        not isinstance(toolchain, dict)
-        or toolchain.get("cc") != tool_identity("/usr/bin/cc")
+        toolchain.get("cc") != tool_identity("/usr/bin/cc")
         or toolchain.get("strip") != tool_identity("/usr/bin/strip")
-        or not isinstance(toolchain.get("compiler_version_line"), str)
-        or not toolchain["compiler_version_line"]
-        or not isinstance(toolchain.get("compiler_dumpmachine"), str)
-        or not toolchain["compiler_dumpmachine"]
-        or not isinstance(toolchain.get("compiler_dumpversion"), str)
-        or not toolchain["compiler_dumpversion"]
+        or toolchain.get("compiler_version_line") != expected_cc_version
+        or toolchain.get("compiler_dumpmachine") != expected_cc_machine
+        or toolchain.get("compiler_dumpversion") != expected_cc_dumpversion
         or toolchain.get("compile_flags") != list(COMPILE_FLAGS)
         or toolchain.get("link_flags") != list(LINK_FLAGS)
         or toolchain.get("toolchain_revalidated_after_build") is not True
@@ -736,9 +810,13 @@ def validate(report: dict, binary: bytes) -> None:
     ):
         raise AssertionError("static_libc_identity_missing")
     for item in static_inputs:
+        _exact_keys(
+            item,
+            {"bytes", "path", "root_owned_protected", "sha256"},
+            "static_link_input",
+        )
         if (
-            not isinstance(item, dict)
-            or not isinstance(item.get("path"), str)
+            not isinstance(item.get("path"), str)
             or not str(item["path"]).startswith("/")
             or not isinstance(item.get("bytes"), int)
             or item["bytes"] < 1
@@ -746,20 +824,72 @@ def validate(report: dict, binary: bytes) -> None:
             or item.get("root_owned_protected") is not True
         ):
             raise AssertionError("static_link_input_identity_invalid")
+        input_path = Path(item["path"])
+        safe_root_chain(input_path)
+        st = input_path.lstat()
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_uid != 0
+            or stat.S_IMODE(st.st_mode) & 0o022
+            or st.st_size != item["bytes"]
+            or sha256(input_path.read_bytes()) != item["sha256"]
+        ):
+            raise AssertionError("static_link_input_current_identity_invalid")
 
-    accepted = report.get("accepted_native_input")
+    accepted = _exact_keys(
+        report.get("accepted_native_input"),
+        {
+            "accepted_lock_git_blob_sha1",
+            "accepted_lock_id",
+            "binary_bytes",
+            "binary_sha256",
+            "candidate_deriver",
+            "candidate_id",
+            "independently_rederived",
+        },
+        "accepted_native_input",
+    )
+    helper = _exact_keys(
+        accepted.get("candidate_deriver"),
+        {
+            "bytes",
+            "executed_from_verified_bytes",
+            "git_blob_sha1",
+            "mutable_path_import",
+            "sha256",
+        },
+        "accepted_native_deriver",
+    )
     if (
-        not isinstance(accepted, dict)
-        or accepted.get("accepted_lock_id") != LOCK_ID
+        accepted.get("accepted_lock_id") != LOCK_ID
+        or accepted.get("accepted_lock_git_blob_sha1") != LOCK_BLOB
         or accepted.get("candidate_id") != NATIVE_CANDIDATE_ID
         or accepted.get("binary_sha256") != NATIVE_SHA256
         or accepted.get("binary_bytes") != NATIVE_BYTES
         or accepted.get("independently_rederived") is not True
+        or helper.get("git_blob_sha1") != NATIVE_DERIVER_BLOB
+        or not isinstance(helper.get("bytes"), int)
+        or helper["bytes"] < 1
+        or not _hex(helper.get("sha256"), 64)
+        or helper.get("executed_from_verified_bytes") is not True
+        or helper.get("mutable_path_import") is not False
     ):
         raise AssertionError("accepted_native_binding_invalid")
-    result = report.get("binary")
+    result = _exact_keys(
+        report.get("binary"),
+        {
+            "bytes",
+            "elf_dynamic_needed_absent",
+            "elf_static_no_interp",
+            "git_blob_sha1",
+            "self_test_green",
+            "sha256",
+            "two_builds_byte_identical",
+        },
+        "binary",
+    )
     if (
-        not isinstance(result, dict)
         or result.get("bytes") != len(binary)
         or result.get("sha256") != sha256(binary)
         or result.get("git_blob_sha1") != git_blob(binary)
@@ -769,9 +899,33 @@ def validate(report: dict, binary: bytes) -> None:
         or result.get("self_test_green") is not True
     ):
         raise AssertionError("launcher_binary_identity_invalid")
-    authority = report.get("authority")
-    if not isinstance(authority, dict) or authority.get("source_only_candidate") is not True:
+    authority = _exact_keys(
+        report.get("authority"),
+        {
+            "candidate_accepted",
+            "candidate_report_filesystem_write",
+            "credential_access",
+            "customer_safe_to_pay",
+            "funds_movement",
+            "native_or_binder_live_execution_authorized",
+            "payment_acceptance",
+            "precision_install_authorized",
+            "private_key_access",
+            "production_host_evidence_authority",
+            "protected_install_authorized",
+            "public_presale_activation",
+            "signing",
+            "source_only_candidate",
+            "transaction",
+            "treasury_liquidity_action",
+            "wc_void_market_activation",
+        },
+        "authority",
+    )
+    if authority.get("source_only_candidate") is not True:
         raise AssertionError("authority_missing")
+    if authority.get("candidate_report_filesystem_write") is not True:
+        raise AssertionError("authority_report_write_truth_invalid")
     for key, value in authority.items():
         if key in ("source_only_candidate", "candidate_report_filesystem_write"):
             continue
