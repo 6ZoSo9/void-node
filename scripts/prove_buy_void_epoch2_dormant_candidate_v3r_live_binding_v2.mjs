@@ -134,10 +134,12 @@ const nativeCall=source.indexOf("const r=run(FIXED_NATIVE",nativeAt);
 assert.ok(nativeAt>0&&nativeCall>nativeAt&&ignoreAt>nativeCall);
 
 const env={PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"};
-const self=spawnSync("/usr/bin/node",[path.join(ROOT,BINDER),"--self-test"],{
+const self=spawnSync(process.execPath,[path.join(ROOT,BINDER),"--self-test"],{
   cwd:ROOT,encoding:"utf8",env,
   timeout:30_000,maxBuffer:2*1024*1024,
 });
+assert.equal(self.error,undefined,String(self.error?.message||""));
+assert.equal(self.signal,null,String(self.signal||""));
 assert.equal(self.status,0,String(self.stderr||self.stdout));
 assert.equal(self.stderr,"");
 const selfLines=new Set(self.stdout.split("\n").filter(Boolean));
@@ -163,10 +165,12 @@ for(const line of [
   assert.ok(selfLines.has(line),line);
 }
 
-const plan=spawnSync("/usr/bin/node",[path.join(ROOT,BINDER),"--plan"],{
+const plan=spawnSync(process.execPath,[path.join(ROOT,BINDER),"--plan"],{
   cwd:ROOT,encoding:"utf8",env,
   timeout:30_000,maxBuffer:2*1024*1024,
 });
+assert.equal(plan.error,undefined,String(plan.error?.message||""));
+assert.equal(plan.signal,null,String(plan.signal||""));
 assert.equal(plan.status,0,String(plan.stderr||plan.stdout));
 assert.equal(plan.stderr,"");
 const planLines=new Set(plan.stdout.split("\n").filter(Boolean));
@@ -198,7 +202,7 @@ for(const line of [
 }
 
 // Direct worktree invocation cannot become live authority.
-const direct=spawnSync("/usr/bin/node",[
+const direct=spawnSync(process.execPath,[
   path.join(ROOT,BINDER),"--run","--confirm",
   "RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V2",
   "--expected-head","a".repeat(40),
@@ -209,7 +213,7 @@ const direct=spawnSync("/usr/bin/node",[
 assert.equal(direct.status,2);
 assert.match(direct.stderr,/binder_native_first_entry_required/u);
 
-const directStdin=spawnSync("/usr/bin/node",[
+const directStdin=spawnSync(process.execPath,[
   "--input-type=module","-","--run","--confirm",
   "RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V2",
   "--expected-head","a".repeat(40),
