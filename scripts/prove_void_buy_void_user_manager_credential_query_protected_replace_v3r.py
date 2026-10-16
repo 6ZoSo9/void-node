@@ -4,6 +4,8 @@ from __future__ import annotations
 import ast
 import pathlib
 import subprocess
+import sys
+import types
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = (
@@ -14,7 +16,7 @@ LOCK = "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json"
 V2_LOCK = "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
 
 EXPECTED = {
-    SOURCE: "df103c1439dd054d98132c3beee226f3d8222314",
+    SOURCE: "98f8b9fda89e33c50e19008268d97655aad54e6d",
     LOCK: "c4870f3178aebc9a0bb6557562f663b8480cfefa",
     V2_LOCK: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
 }
@@ -44,6 +46,33 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
         },
         timeout=120,
         check=True,
+    )
+
+def run_unchecked(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        env={
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/nonexistent",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "TZ": "UTC",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+        },
+        timeout=120,
+        check=False,
     )
 
 def git_blob(path: str) -> str:
@@ -112,6 +141,15 @@ for needle in (
     "descriptor_bound_state_inspection_required=true",
     "private_stage_publication_required=true",
     "visible_install_root_generation_revalidation_required=true",
+    "def emit_operation_authority(mode: str) -> None:",
+    "authority_boundary=PRE_MUTATION",
+    "filesystem_mutation_possible=true",
+    "filesystem_mutation_performed=false",
+    "protected_root_opened=false",
+    "sys.stdout.flush()",
+    'emit_operation_authority("apply")',
+    'emit_operation_authority("rollback")',
+    "pre_mutation_authority_boundary=true",
     "crash_state_classifier_complete=true",
     "apply_crash_resume_supported=true",
     "rollback_crash_resume_supported=true",
@@ -129,8 +167,9 @@ for forbidden in (
     "service restart",
     "eth_sendRawTransaction",
     "eth_sendTransaction",
-    "private_key",
-    "wallet",
+    "signTransaction(",
+    "Wallet(",
+    "from eth_account",
     "ATOMIC_EXCHANGE_ACCEPTED_CREDENTIAL_QUERY_V1_TO_V2",
     "ATOMIC_EXCHANGE_ROLLBACK_CREDENTIAL_QUERY_V2_TO_V1",
 ):
@@ -158,6 +197,10 @@ for line in (
     "descriptor_bound_state_inspection=true",
     "private_stage_published_only_after_complete=true",
     "visible_install_root_generation_revalidation=true",
+    "pre_mutation_authority_boundary=true",
+    "apply_authority_boundary_pre_mutation=true",
+    "rollback_authority_boundary_pre_mutation=true",
+    "pre_mutation_authority_flush_required=true",
     "query_execution=false",
     "credential_contents_read=false",
 ):
@@ -198,8 +241,125 @@ for line in (
 ):
     assert line in source_plan.splitlines(), line
 
+main_at = source.index("def main() -> int:")
+apply_emit_at = source.index('emit_operation_authority("apply")', main_at)
+apply_call_at = source.index("apply(args.query, args.confirm)", apply_emit_at)
+rollback_emit_at = source.index('emit_operation_authority("rollback")', apply_call_at)
+rollback_call_at = source.index("rollback(args.confirm)", rollback_emit_at)
+assert apply_emit_at < apply_call_at
+assert rollback_emit_at < rollback_call_at
+authority_fn_at = source.index("def emit_operation_authority(mode: str) -> None:")
+authority_flush_at = source.index("sys.stdout.flush()", authority_fn_at)
+source_plan_at = source.index("def source_plan() -> None:", authority_flush_at)
+assert authority_fn_at < authority_flush_at < source_plan_at
+
+module = types.ModuleType("v3r_authority_flush_probe")
+module.__file__ = str(ROOT / SOURCE)
+module.__package__ = ""
+exec(compile(source, str(ROOT / SOURCE), "exec", dont_inherit=True), module.__dict__)
+
+class FlushProbe:
+    def __init__(self) -> None:
+        self.parts: list[str] = []
+        self.events: list[tuple[str, str]] = []
+        self.flush_count = 0
+    def write(self, text: str) -> int:
+        self.parts.append(text)
+        self.events.append(("write", text))
+        return len(text)
+    def flush(self) -> None:
+        self.flush_count += 1
+        self.events.append(("flush", "".join(self.parts)))
+
+probe = FlushProbe()
+saved_stdout = sys.stdout
+try:
+    sys.stdout = probe
+    module.emit_operation_authority("apply")
+finally:
+    sys.stdout = saved_stdout
+assert probe.flush_count == 1
+probe_lines = "".join(probe.parts).splitlines()
+flush_events = [event for event in probe.events if event[0] == "flush"]
+assert len(flush_events) == 1
+flushed_lines = flush_events[0][1].splitlines()
+assert flushed_lines == probe_lines
+assert probe.events[-1][0] == "flush"
+assert probe_lines[0] == "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R"
+assert probe_lines[1] == "mode=apply"
+assert probe_lines[2] == "authority_boundary=PRE_MUTATION"
+for flushed_required in (
+    "filesystem_mutation_possible=true",
+    "filesystem_mutation_performed=false",
+    "protected_root_opened=false",
+    "query_execution=false",
+    "credential_contents_read=false",
+    "service_mutation=false",
+    "systemd_mutation=false",
+    "private_key_access=false",
+    "wallet_or_signer_access=false",
+    "transaction=false",
+    "payment_acceptance=false",
+    "public_presale_activation=false",
+    "wc_void_market_activation=false",
+    "treasury_liquidity_action=false",
+    "funds_movement=false",
+    "production_host_evidence_authority=false",
+):
+    assert flushed_required in flushed_lines
+
+for mode_name, argv, expected_reason in (
+    (
+        "apply",
+        (
+            "--apply",
+            "--query",
+            "/definitely/not/a/real/v3-query-candidate",
+            "--confirm",
+            "wrong-confirmation",
+        ),
+        "explicit_atomic_exchange_confirmation_required",
+    ),
+    (
+        "rollback",
+        ("--rollback", "--confirm", "wrong-confirmation"),
+        "explicit_rollback_confirmation_required",
+    ),
+):
+    held = run_unchecked(
+        "/usr/bin/python3", "-I", "-B", str(ROOT / SOURCE), *argv
+    )
+    assert held.returncode == 2, held.stderr
+    lines = held.stdout.splitlines()
+    assert lines[0] == "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R"
+    assert lines[1] == "mode=" + mode_name
+    assert lines[2] == "authority_boundary=PRE_MUTATION"
+    for required in (
+        "filesystem_mutation_possible=true",
+        "filesystem_mutation_performed=false",
+        "protected_root_opened=false",
+        "query_execution=false",
+        "credential_contents_read=false",
+        "service_mutation=false",
+        "systemd_mutation=false",
+        "private_key_access=false",
+        "wallet_or_signer_access=false",
+        "transaction=false",
+        "payment_acceptance=false",
+        "public_presale_activation=false",
+        "wc_void_market_activation=false",
+        "treasury_liquidity_action=false",
+        "funds_movement=false",
+        "production_host_evidence_authority=false",
+    ):
+        assert required in lines, (mode_name, required)
+    hold_at = lines.index("status=HOLD")
+    boundary_at = lines.index("authority_boundary=PRE_MUTATION")
+    assert boundary_at < hold_at
+    assert "reason=" + expected_reason in lines
+
 print("VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R_PROOF_GREEN")
-print("source_blob=df103c1439dd054d98132c3beee226f3d8222314")
+print("source_blob=98f8b9fda89e33c50e19008268d97655aad54e6d")
 print("accepted_lock_blob=c4870f3178aebc9a0bb6557562f663b8480cfefa")
 print("accepted_lock_id=voidbuyumqcredelflock3r_8b064214e22ce54ac193b426f38b9d6a7ea4cee07b38b68c8d1eeb6c51de6f34")
 print("installed_predecessor_lock_id=voidbuyumqcredelflock2_c05afb1a6fbd44a00d4f220652e87ee099e0456992a17a6ae7b60bda9229cf54")
@@ -220,6 +380,12 @@ print("stable_parent_operation_lock=true")
 print("descriptor_bound_state_inspection=true")
 print("private_stage_published_only_after_complete=true")
 print("visible_install_root_generation_revalidation=true")
+print("pre_mutation_authority_boundary=true")
+print("apply_authority_boundary_pre_mutation=true")
+print("rollback_authority_boundary_pre_mutation=true")
+print("pre_mutation_authority_flush_required=true")
+print("authority_flush_behavior_exercised=true")
+print("authority_flush_complete_summary_exercised=true")
 print("query_execution=false")
 print("credential_contents_read=false")
 print("service_mutation=false")
