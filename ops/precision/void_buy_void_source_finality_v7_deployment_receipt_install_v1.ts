@@ -475,6 +475,12 @@ export function buildBuyVoidSourceFinalityV7DeploymentReceiptV1(input:{
   });
 }
 
+function sameMetadataIdentityV1(a:fs.Stats,b:fs.Stats):boolean{
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode&&a.nlink===b.nlink;
+}
+
+
 function validateRootAncestorsV1(absolute:string){
   let current=path.dirname(absolute);
   for(;;){
