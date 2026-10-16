@@ -73,16 +73,19 @@ A later gate must:
 2. bind its public-key SHA-256 to the already-reviewed transport policy;
 3. create a reviewed additive successor authorization set that preserves every
    accepted existing entry byte-for-byte and adds exactly one legacy-history
-   line whose options begin with both `restrict` **and** the exact reviewed
+   line whose options include both `restrict` **and** the exact reviewed
    forced-command option;
-4. require that option to be the exact OpenSSH-escaped encoding of the selected
-   `forced_command.command`: backslashes are escaped first, then embedded
-   double quotes are escaped, yielding
+4. require the **materialized authorized-key entry itself** to contain that
+   command option; `restrict` without `command="..."` is never sufficient;
+5. require the command option to be the exact OpenSSH-escaped encoding of the
+   selected `forced_command.command`: backslashes are escaped first, then
+   embedded double quotes are escaped, yielding
    `command="<exact reviewed command>"`;
-5. reject a missing command option, `restrict=false`, a differently encoded
-   command option, or any different command value before an additive successor
-   can qualify; and
-6. prove the effective sshd `AuthorizedKeysFile` is still the reviewed
+6. require the decoded command value to equal `forced_command.command`
+   byte-for-byte and reject a missing command option, `restrict=false`, a
+   differently encoded command option, or any different command value before
+   an additive successor can qualify; and
+7. prove the effective sshd `AuthorizedKeysFile` is still the reviewed
    root-owned `/etc/ssh/authorized_keys/voidwitness`.
 
 The machine-readable plan exposes the exact expected `forced_command_value`
