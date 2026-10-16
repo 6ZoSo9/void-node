@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -29,8 +30,11 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     compiler_identity_bound: true,
     compiler_cli_entry_chain_bound: true,
     compiler_cli_loader_edges_bound: true,
+    compiler_execution_generation_bound: true,
+    candidate_owned_rebuild_required: true,
     three_node_byte_equality_required: true,
     candidate_report_filesystem_write: true,
+    candidate_build_artifact_filesystem_write: true,
     runtime_bundle_candidate_accepted: false,
     runtime_bundle_lock_created: false,
     protected_runtime_install_authorized: false,
@@ -469,6 +473,60 @@ export function testOnlyLegacyHistoryNimoCompilerIdentityV2(root = ROOT) {
   return compilerIdentity(root);
 }
 
+const CANDIDATE_COMPILE_ENV_V2 = Object.freeze({
+  PATH: "/usr/bin:/bin",
+  LANG: "C",
+  LC_ALL: "C",
+  TZ: "UTC",
+  NODE_DISABLE_COMPILE_CACHE: "1",
+});
+
+function compileReviewedRuntimeWithBoundCompilerV2(root) {
+  const absoluteRoot = path.resolve(root);
+  const compilerBefore = compilerIdentity(absoluteRoot);
+  fs.rmSync(path.join(absoluteRoot, "dist"), {
+    recursive: true,
+    force: true,
+  });
+
+  const tscEntry = path.join(
+    absoluteRoot,
+    "node_modules/typescript/bin/tsc",
+  );
+  const tsconfig = path.join(absoluteRoot, "tsconfig.build.json");
+  const result = spawnSync(
+    process.execPath,
+    [tscEntry, "-p", tsconfig],
+    {
+      cwd: absoluteRoot,
+      env: { ...CANDIDATE_COMPILE_ENV_V2 },
+      encoding: "utf8",
+      timeout: 120_000,
+      maxBuffer: 2 * 1024 * 1024,
+    },
+  );
+  if (result.error) {
+    fail("legacy_history_nimo_bundle_candidate_compile_spawn_failed");
+  }
+  if (
+    result.status !== 0 ||
+    result.signal !== null ||
+    result.stdout !== "" ||
+    result.stderr !== ""
+  ) {
+    fail("legacy_history_nimo_bundle_candidate_compile_failed_or_output");
+  }
+
+  const compilerAfter = compilerIdentity(absoluteRoot);
+  if (
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerAfter) !==
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerBefore)
+  ) {
+    fail("legacy_history_nimo_bundle_compiler_generation_changed_during_build");
+  }
+  return compilerAfter;
+}
+
 function candidateId(body) {
   return (
     "voidblrhnrb2_" +
@@ -486,8 +544,8 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
 ) {
   const parentPlan = parentPlanRecord(root);
   const sourceInputs = verifyParentSourceRoots(root);
+  const compiler = compileReviewedRuntimeWithBoundCompilerV2(root);
   const runtime = runtimeClosure(root);
-  const compiler = compilerIdentity(root);
   const plan = planVoidBuyVoidLegacyHistoryNimoInstallV1();
 
   const body = {
@@ -509,6 +567,10 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     build_recipe: {
       dependency_install: "npm ci --ignore-scripts --no-audit --no-fund",
       compile: "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
+      compile_node_executable_source: "process.execPath",
+      compile_environment: CANDIDATE_COMPILE_ENV_V2,
+      candidate_owned_rebuild_required: true,
+      compiler_pre_post_identity_required: true,
       source_maps_expected: false,
       supported_node_majors: [22, 24, 26],
       three_node_byte_equality_required: true,
@@ -728,16 +790,35 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
   ) {
     fail("legacy_history_nimo_bundle_compiler_file_identity_invalid");
   }
+  exactKeys(
+    body.build_recipe,
+    [
+      "candidate_owned_rebuild_required","compile",
+      "compile_environment","compile_node_executable_source",
+      "compiler_pre_post_identity_required","dependency_install",
+      "source_maps_expected","supported_node_majors",
+      "three_node_byte_equality_required",
+    ],
+    "legacy_history_nimo_bundle_build_recipe_shape_invalid",
+  );
   if (
-    body.build_recipe?.dependency_install !==
+    body.build_recipe.dependency_install !==
       "npm ci --ignore-scripts --no-audit --no-fund" ||
-    body.build_recipe?.compile !==
+    body.build_recipe.compile !==
       "node node_modules/typescript/bin/tsc -p tsconfig.build.json" ||
-    body.build_recipe?.source_maps_expected !== false ||
+    body.build_recipe.compile_node_executable_source !== "process.execPath" ||
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
-      body.build_recipe?.supported_node_majors,
+      body.build_recipe.compile_environment,
+    ) !== canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
+      CANDIDATE_COMPILE_ENV_V2,
+    ) ||
+    body.build_recipe.candidate_owned_rebuild_required !== true ||
+    body.build_recipe.compiler_pre_post_identity_required !== true ||
+    body.build_recipe.source_maps_expected !== false ||
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
+      body.build_recipe.supported_node_majors,
     ) !== "[22,24,26]" ||
-    body.build_recipe?.three_node_byte_equality_required !== true
+    body.build_recipe.three_node_byte_equality_required !== true
   ) {
     fail("legacy_history_nimo_bundle_build_recipe_invalid");
   }
