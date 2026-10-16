@@ -61,17 +61,24 @@ The installer:
 7. verifies the external native candidate by exact bytes/SHA-256;
 8. obtains binder bytes from the exact expected Git object;
 9. requires the exact operation-bound plan ID before host mutation;
-10. creates a private staging root;
-11. writes and verifies exact root-owned files;
-12. immediately before publication revalidates clean expected checkout, accepted V3 lock, external native candidate and binder Git-object bytes;
-13. publishes exactly once with `renameat2(RENAME_NOREPLACE)`;
-14. fsyncs the parent and verifies final state.
+10. creates a private staging root and retains its directory FD;
+11. writes and verifies exact root-owned files through that retained FD;
+12. requires the visible stage pathname to resolve to the retained directory generation;
+13. immediately before publication revalidates clean expected checkout, accepted V3 lock, external native candidate and binder Git-object bytes;
+14. rechecks stage pathname↔retained-FD identity and exact file bytes;
+15. publishes exactly once with `renameat2(RENAME_NOREPLACE)`;
+16. requires the visible final install pathname to resolve to that same retained directory generation before releasing the FD;
+17. fsyncs the parent and verifies final state.
 
 No overwrite/exchange/final-root unlink path exists.
 
 ## Failure truth
 
-Before publication, an incomplete private stage may be cleaned.
+Before publication, an incomplete private stage may be cleaned only while the
+installer still retains the exact stage directory FD. Cleanup revalidates the
+visible stage pathname against that retained inode, verifies both expected files
+by descriptor, deletes only those verified files descriptor-relative, rechecks
+the directory binding, and only then removes the stage directory.
 
 After publication begins, parent-fsync, final-readback, or close failures are
 reported as published-needs-inspection. The installer never reports
@@ -90,6 +97,9 @@ The focused proof:
 - runs installer self-test and inert source-plan;
 - proves content-addressed plan-ID determinism and plan-ID validation before host access;
 - proves candidate/binder/checkout revalidation immediately before publication;
+- proves retained stage-directory generation binding before publication;
+- proves pre-publication cleanup is descriptor/generation-bound;
+- proves visible final-root identity matches the retained staged generation;
 - proves exactly one final-root publish call and no post-publication rollback;
 - proves missing confirmation fails before host/candidate access;
 - proves direct mutable-worktree apply is rejected;
