@@ -71,7 +71,9 @@ const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+b.length+"\0","utf8")).update(b).digest("hex");
 
-function run(command,args,{cwd=ROOT,timeout=300000,encoding=null}={}){
+function run(command,args,{
+  cwd=ROOT,timeout=300000,encoding=null,extraEnv=Object.freeze({}),
+}={}){
   const r=spawnSync(command,args,{
     cwd,encoding,stdio:["ignore","pipe","pipe"],timeout,
     maxBuffer:64*1024*1024,
@@ -82,6 +84,7 @@ function run(command,args,{cwd=ROOT,timeout=300000,encoding=null}={}){
       GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",
       GIT_CONFIG_SYSTEM:"/dev/null",GIT_NO_REPLACE_OBJECTS:"1",
       GIT_OPTIONAL_LOCKS:"0",GIT_TERMINAL_PROMPT:"0",
+      ...extraEnv,
     },
   });
   assert.equal(r.error,undefined,String(r.error||""));
@@ -235,10 +238,20 @@ function deriveFullCandidate(){
       "detached_candidate_proof_blob",
     );
 
+    const npmHome=path.join(holder,"npm-home");
+    const npmCache=path.join(holder,"npm-cache");
+    fs.mkdirSync(npmHome,{mode:0o700});
+    fs.mkdirSync(npmCache,{mode:0o700});
+    const npmEnv=Object.freeze({
+      HOME:npmHome,
+      npm_config_cache:npmCache,
+    });
     run(NPM,["ci","--ignore-scripts","--no-audit","--no-fund"],
-      {cwd:wt,timeout:300000});
-    run(NPM,["run","typecheck"],{cwd:wt,timeout:300000});
-    run(NPM,["run","build"],{cwd:wt,timeout:300000});
+      {cwd:wt,timeout:300000,extraEnv:npmEnv});
+    run(NPM,["run","typecheck"],
+      {cwd:wt,timeout:300000,extraEnv:npmEnv});
+    run(NPM,["run","build"],
+      {cwd:wt,timeout:300000,extraEnv:npmEnv});
 
     const r=run(process.execPath,[
       path.join(wt,...CANDIDATE_PROOF.split("/")),"--derive",
