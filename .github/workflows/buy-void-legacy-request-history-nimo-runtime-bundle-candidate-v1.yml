@@ -119,6 +119,8 @@ jobs:
           grep -Fx 'parent_source_input_count=19' "$proof"
           grep -Fx 'typescript_version=5.9.3' "$proof"
           grep -Fx 'third_party_runtime_packages=0' "$proof"
+          grep -Fx 'rehashed_runtime_bytes_tamper_rejected=true' "$proof"
+          grep -Fx 'rehashed_compiler_bytes_tamper_rejected=true' "$proof"
           grep -Fx 'runtime_bundle_candidate_accepted=false' "$proof"
           grep -Fx 'live_nimo_installed=false' "$proof"
           grep -Fx 'funds_movement=false' "$proof"
