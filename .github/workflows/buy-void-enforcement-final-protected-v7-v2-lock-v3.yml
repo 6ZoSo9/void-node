@@ -5,29 +5,17 @@ on:
     paths:
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v3.yml"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3_canonical_transition_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3.md"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3-canonical-transition-v1.md"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs"
-      - "scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
-      - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
-      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
-      - ".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v3.yml"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v5.yml"
-      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
-      - "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs"
-      - "ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json"
-      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
-      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
-      - "ops/**"
-      - "runtime/**"
-      - "scripts/**"
-      - "src/**"
-      - "tools/**"
+      - "scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs"
+      - "ops/run-void-node-live-v1.sh"
+      - "src/index.ts"
+      - "src/economic/**"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -37,29 +25,17 @@ on:
     paths:
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v3.yml"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3_canonical_transition_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3.md"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3-canonical-transition-v1.md"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs"
-      - "scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
-      - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
-      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
-      - ".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v3.yml"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v5.yml"
-      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
-      - "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs"
-      - "ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json"
-      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
-      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
-      - "ops/**"
-      - "runtime/**"
-      - "scripts/**"
-      - "src/**"
-      - "tools/**"
+      - "scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs"
+      - "ops/run-void-node-live-v1.sh"
+      - "src/index.ts"
+      - "src/economic/**"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -69,29 +45,32 @@ permissions:
   contents: read
 
 jobs:
-  derive:
+  transition:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         node: [22, 24, 26]
+
     steps:
-      - name: Checkout exact lock generation
+      - name: Checkout exact current generation
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Bind exact checkout
+      - name: Bind current and accepted ancestry
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git merge-base --is-ancestor 4af6cf87a555616e9c154da3676865194d795a6d "$EXPECTED_HEAD"
-          test "$(git rev-parse 4af6cf87a555616e9c154da3676865194d795a6d:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = b2cf2514e2a75c91446edbe4b56ed995fb0a8fc6
+          git merge-base --is-ancestor ee22c668ae2ac896b4b39a0690f65cc329a7717c "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 67ea723bd2abeb3894a0eb8f4b7a0044a141ed03 "$EXPECTED_HEAD"
+          test "$(git rev-parse '67ea723bd2abeb3894a0eb8f4b7a0044a141ed03^{tree}')" = f373912f46ec72b7743e83768e5b48ebb02d7ec0
+          test "$(git rev-parse 67ea723bd2abeb3894a0eb8f4b7a0044a141ed03:.github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v3.yml)" = adc1fe44afb9ebc5b45916f35477a5176b1b8674
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Setup Node
@@ -102,58 +81,44 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Build reviewed economic closure without repository helper execution
+      - name: Build reviewed economic closure
         run: |
           set -euo pipefail
           node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
           node node_modules/typescript/bin/tsc -p tsconfig.build.json
 
-      - name: Verify exact hosted candidate and derive V3 acceptance lock
+      - name: Prove accepted V3 lock on canonical descendant
         run: |
           set -euo pipefail
-          proof="scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs"
+          proof="scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3_canonical_transition_v1.mjs"
           node --check "$proof"
-          candidate="$RUNNER_TEMP/protected-v7-v2-candidate-v3-node-${{ matrix.node }}.json"
-          lock="$RUNNER_TEMP/protected-v7-v2-lock-v3-node-${{ matrix.node }}.json"
-          cp ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json "$candidate"
-          node "$proof" --derive > "$lock"
-          cmp "$lock" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json
-          test "$(wc -c < "$candidate")" -eq 18142
-          test "$(sha256sum "$candidate" | awk '{print $1}')" = "58a1d773523e025e6f66a9fe0f3098cd7951a60810da8cf0b2f16584bd100a45"
-          test "$(git hash-object "$candidate")" = "092642b365976d3ea8d50682a1c7a8724455362b"
-          node --input-type=module - "$candidate" "$lock" <<'NODE'
+          self="$RUNNER_TEMP/protected-v3-transition-self-${{ matrix.node }}.txt"
+          receipt="$RUNNER_TEMP/protected-v3-transition-${{ matrix.node }}.json"
+          node "$proof" --self-test | tee "$self"
+          grep -Fx 'VOID_BUY_VOID_PROTECTED_V3_CANONICAL_TRANSITION_V1_GREEN' "$self"
+          grep -Fx 'current_candidate_matches_accepted_enforcement_set=true' "$self"
+          grep -Fx 'accepted_lock_origin_preserved=true' "$self"
+          grep -Fx 'historical_predecessors_preserved=true' "$self"
+          grep -Fx 'current_head_transition_verified=true' "$self"
+          grep -Fx 'accepted_v3_lock_identity_preserved=true' "$self"
+          grep -Fx 'production_source_finality_authority_ready=false' "$self"
+          grep -Fx 'public_presale_activation=false' "$self"
+          grep -Fx 'funds_movement=false' "$self"
+          node "$proof" --receipt > "$receipt"
+          node --input-type=module - "$receipt" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
-          const candidate=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          const lock=JSON.parse(fs.readFileSync(process.argv[3],"utf8"));
-          assert.equal(candidate.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V3");
-          assert.equal(candidate.candidate_enforcement_set_sha256,
+          const r=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(r.marker,"VOID_BUY_VOID_PROTECTED_V3_CANONICAL_TRANSITION_V1");
+          assert.equal(r.accepted_lock_head,"67ea723bd2abeb3894a0eb8f4b7a0044a141ed03");
+          assert.equal(r.accepted_enforcement_set_sha256,
             "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d");
-          assert.equal(candidate.dependency_provider.historical_lock_proof_reexecuted,false);
-          assert.equal(candidate.dependency_provider.current_content_semantics_requalified,true);
-          assert.equal(lock.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3");
-          assert.equal(lock.candidate_head,"4af6cf87a555616e9c154da3676865194d795a6d");
-          assert.equal(lock.candidate_evidence.sha256,
-            "58a1d773523e025e6f66a9fe0f3098cd7951a60810da8cf0b2f16584bd100a45");
-          assert.equal(lock.candidate_evidence.git_blob_sha1,
-            "092642b365976d3ea8d50682a1c7a8724455362b");
-          assert.equal(lock.candidate_evidence.candidate_enforcement_set_sha256,
-            "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d");
-          assert.equal(lock.dependency_provider.historical_lock_proof_reexecuted,false);
-          assert.equal(lock.dependency_provider.current_content_semantics_requalified,true);
-          assert.equal(lock.candidate_enforcement_identity_accepted,true);
-          assert.equal(lock.deployed_artifact_generation_verified,false);
-          assert.equal(lock.runtime_mount_authority,false);
-          assert.equal(lock.production_source_finality_authority_ready,false);
-          assert.equal(lock.public_presale_activation,false);
-          assert.equal(lock.funds_movement,false);
-          console.log("VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3_NODE_GREEN");
-          console.log("provider_historical_lock_proof_reexecuted=false");
-          console.log("provider_current_content_semantics_requalified=true");
-          console.log("candidate_enforcement_identity_accepted=true");
-          console.log("production_source_finality_authority_ready=false");
-          console.log("public_presale_activation=false");
-          console.log("funds_movement=false");
+          assert.equal(r.current_candidate_matches_accepted_enforcement_set,true);
+          assert.equal(r.accepted_v3_lock_identity_preserved,true);
+          assert.equal(r.current_candidate_enforcement_identity_accepted,false);
+          assert.equal(r.production_source_finality_authority_ready,false);
+          assert.equal(r.public_presale_activation,false);
+          assert.equal(r.funds_movement,false);
           NODE
 
       - name: Prove accepted V3 lock is deployment-planner consumable
@@ -171,10 +136,8 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: protected-v7-v2-lock-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: |
-            ${{ runner.temp }}/protected-v7-v2-candidate-v3-node-${{ matrix.node }}.json
-            ${{ runner.temp }}/protected-v7-v2-lock-v3-node-${{ matrix.node }}.json
+          name: protected-v3-canonical-transition-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/protected-v3-transition-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
 
@@ -194,49 +157,31 @@ jobs:
           git diff --check "$merge_base" "$HEAD"
 
   compare:
-    needs: [derive]
+    needs: [transition]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: protected-v7-v2-lock-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: protected-v3-canonical-transition-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
-          path: lock
+          path: transition
 
-      - name: Require Node 22/24/26 candidate and lock byte identity
+      - name: Require Node 22/24/26 transition byte identity
         run: |
           set -euo pipefail
           for node in 22 24 26; do
-            test -s "lock/protected-v7-v2-candidate-v3-node-$node.json"
-            test -s "lock/protected-v7-v2-lock-v3-node-$node.json"
+            test -s "transition/protected-v3-transition-$node.json"
           done
-          cmp lock/protected-v7-v2-candidate-v3-node-22.json lock/protected-v7-v2-candidate-v3-node-24.json
-          cmp lock/protected-v7-v2-candidate-v3-node-22.json lock/protected-v7-v2-candidate-v3-node-26.json
-          cmp lock/protected-v7-v2-lock-v3-node-22.json lock/protected-v7-v2-lock-v3-node-24.json
-          cmp lock/protected-v7-v2-lock-v3-node-22.json lock/protected-v7-v2-lock-v3-node-26.json
+          cmp transition/protected-v3-transition-22.json transition/protected-v3-transition-24.json
+          cmp transition/protected-v3-transition-22.json transition/protected-v3-transition-26.json
           node --input-type=module - <<'NODE'
           import assert from "node:assert/strict";
-          import crypto from "node:crypto";
           import fs from "node:fs";
-          const candidateBytes=fs.readFileSync("lock/protected-v7-v2-candidate-v3-node-22.json");
-          const lockBytes=fs.readFileSync("lock/protected-v7-v2-lock-v3-node-22.json");
-          const candidate=JSON.parse(candidateBytes);
-          const lock=JSON.parse(lockBytes);
-          assert.equal(candidate.candidate_enforcement_set_sha256,
-            "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d");
-          assert.equal(lock.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3");
-          assert.equal(lock.candidate_enforcement_identity_accepted,true);
-          assert.equal(lock.production_source_finality_authority_ready,false);
-          assert.equal(lock.public_presale_activation,false);
-          assert.equal(lock.funds_movement,false);
-          console.log("VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3_CROSS_NODE_GREEN");
-          console.log("candidate_json_sha256="+
-            crypto.createHash("sha256").update(candidateBytes).digest("hex"));
-          console.log("lock_json_sha256="+
-            crypto.createHash("sha256").update(lockBytes).digest("hex"));
-          console.log("accepted_enforcement_set_sha256="+
-            lock.candidate_evidence.candidate_enforcement_set_sha256);
-          console.log("candidate_enforcement_identity_accepted=true");
-          console.log("funds_movement=false");
+          const r=JSON.parse(fs.readFileSync("transition/protected-v3-transition-22.json","utf8"));
+          assert.equal(r.current_candidate_matches_accepted_enforcement_set,true);
+          assert.equal(r.accepted_v3_lock_identity_preserved,true);
+          assert.equal(r.production_source_finality_authority_ready,false);
+          assert.equal(r.funds_movement,false);
+          console.log("VOID_BUY_VOID_PROTECTED_V3_CANONICAL_TRANSITION_V1_CROSS_NODE_GREEN");
           NODE
