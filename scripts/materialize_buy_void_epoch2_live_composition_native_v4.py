@@ -149,18 +149,41 @@ def derive_binary()->bytes:
 
 def write_create_only(output:Path,raw:bytes)->None:
     output=Path(os.path.abspath(os.fspath(output)))
-    if output.exists():
-        raise MaterializeError("output_exists")
     parent=output.parent
-    st=parent.lstat()
-    if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
+    before_parent=parent.lstat()
+    if (
+        not stat.S_ISDIR(before_parent.st_mode)
+        or stat.S_ISLNK(before_parent.st_mode)
+    ):
         raise MaterializeError("output_parent_invalid")
-    fd=os.open(
-        output,
-        os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_CLOEXEC|os.O_NOFOLLOW,
-        0o500,
+
+    parent_fd=os.open(
+        parent,
+        os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW,
     )
+    fd:int|None=None
     try:
+        opened_parent=os.fstat(parent_fd)
+        visible_parent=parent.lstat()
+        if (
+            visible_parent.st_dev!=opened_parent.st_dev
+            or visible_parent.st_ino!=opened_parent.st_ino
+            or visible_parent.st_dev!=before_parent.st_dev
+            or visible_parent.st_ino!=before_parent.st_ino
+        ):
+            raise MaterializeError("output_parent_generation_changed")
+
+        try:
+            fd=os.open(
+                output.name,
+                os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_CLOEXEC|os.O_NOFOLLOW,
+                0o500,
+                dir_fd=parent_fd,
+            )
+        except FileExistsError as exc:
+            raise MaterializeError("output_exists") from exc
+
+        created=os.fstat(fd)
         view=memoryview(raw)
         offset=0
         while offset<len(view):
@@ -170,27 +193,52 @@ def write_create_only(output:Path,raw:bytes)->None:
             offset+=wrote
         os.fchmod(fd,0o555)
         os.fsync(fd)
+
         final=os.fstat(fd)
         if (
-            not stat.S_ISREG(final.st_mode) or final.st_nlink!=1 or
-            stat.S_IMODE(final.st_mode)!=0o555 or final.st_size!=EXPECTED_BYTES
+            not stat.S_ISREG(final.st_mode)
+            or final.st_nlink!=1
+            or stat.S_IMODE(final.st_mode)!=0o555
+            or final.st_size!=EXPECTED_BYTES
+            or final.st_dev!=created.st_dev
+            or final.st_ino!=created.st_ino
         ):
             raise MaterializeError("output_metadata_invalid")
-    except BaseException:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
-        try:
-            os.unlink(output)
-        except OSError:
-            pass
-        raise
-    else:
-        os.close(fd)
-    raw_check=output.read_bytes()
-    if len(raw_check)!=EXPECTED_BYTES or sha256(raw_check)!=EXPECTED_SHA256:
-        raise MaterializeError("output_readback_mismatch")
+
+        os.lseek(fd,0,os.SEEK_SET)
+        observed=b""
+        while len(observed)<EXPECTED_BYTES:
+            chunk=os.read(fd,min(1024*1024,EXPECTED_BYTES-len(observed)))
+            if not chunk:
+                break
+            observed+=chunk
+        if (
+            len(observed)!=EXPECTED_BYTES
+            or sha256(observed)!=EXPECTED_SHA256
+            or os.read(fd,1)
+        ):
+            raise MaterializeError("output_descriptor_readback_mismatch")
+
+        os.fsync(parent_fd)
+        visible=os.stat(
+            output.name,dir_fd=parent_fd,follow_symlinks=False
+        )
+        if (
+            not stat.S_ISREG(visible.st_mode)
+            or visible.st_dev!=created.st_dev
+            or visible.st_ino!=created.st_ino
+            or visible.st_nlink!=1
+            or stat.S_IMODE(visible.st_mode)!=0o555
+            or visible.st_size!=EXPECTED_BYTES
+        ):
+            raise MaterializeError("output_visible_generation_changed")
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        os.close(parent_fd)
 
 
 def self_test()->None:
@@ -225,6 +273,9 @@ def self_test()->None:
     print("candidate_tool_verified_before_execution=true")
     print("native_source_blob_bound=true")
     print("create_only_output=true")
+    print("output_descriptor_readback=true")
+    print("output_parent_directory_fsync=true")
+    print("output_failure_destructive_cleanup=false")
     print("candidate_binary_identity_accepted=true")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
@@ -248,6 +299,9 @@ def main()->int:
     print("binary_bytes="+str(len(raw)))
     print("binary_sha256="+sha256(raw))
     print("accepted_lock_id="+LOCK_ID)
+    print("output_descriptor_readback=true")
+    print("output_parent_directory_fsync=true")
+    print("output_failure_destructive_cleanup=false")
     print("candidate_binary_identity_accepted=true")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
