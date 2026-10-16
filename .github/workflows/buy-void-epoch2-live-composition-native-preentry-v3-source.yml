@@ -1,0 +1,83 @@
+name: Buy VOID Epoch-2 native preentry V3 source
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-preentry-v3-source.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-preentry-v3-source.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact V3 source generation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" = "2e75b8a6fa5ecc36ce2ca05d920001a16abcf5b7"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py)" = "5eaa10bebca7cd1c3a8220b2e901900bc95e39f8"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs)" = "baab733e43c030d24f8d4abd1644f3c4ae55c3b2"
+
+      - name: Syntax check proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          relative="scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+          compile(Path(relative).read_text("utf-8"),relative,"exec",dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V3_SOURCE_SYNTAX_GREEN")
+          PY
+
+      - name: Prove exact V3 native source
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/native-v3-source-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py | tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V3_SOURCE_PROOF_GREEN"
+            "v3_runner_source_blob_bound=true"
+            "v3_fixed_root_separate=true"
+            "v3_fixed_preentry_path_separate=true"
+            "v3_fixed_runner_path_separate=true"
+            "v3_policy_schema_separate=true"
+            "v3_parent_proof_schema_separate=true"
+            "v3_environment_names_separate=true"
+            "v2_native_entry_cannot_satisfy_v3_contract=true"
+            "native_first_instruction_preserved=true"
+            "runner_digest_policy_binding_preserved=true"
+            "node_digest_policy_binding_preserved=true"
+            "native_parent_retained_for_child_lifetime=true"
+            "candidate_accepted=false"
+            "install_authorized=false"
+            "live_execution_authorized=false"
+            "credential_content_access=false"
+            "transaction=false"
+            "public_presale_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
