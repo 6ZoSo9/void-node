@@ -46,6 +46,11 @@ assert unit_path == [
     "/usr/lib/systemd/system",
 ]
 
+manager_absence = module.parse_systemd_unit_absence(
+    "LoadState=not-found\nFragmentPath=\nSourcePath=\n"
+)
+assert manager_absence["manager_unit_name_absence_verified"] is True
+
 
 def state(path: str, selected_exists: bool) -> dict:
     return {
@@ -68,6 +73,19 @@ def expect_hold(fn, code: str) -> None:
     else:
         raise AssertionError("expected HOLD: " + code)
 
+
+for loaded_state in (
+    "LoadState=loaded\nFragmentPath=/run/systemd/transient/"
+    + module.SERVICE_UNIT
+    + "\nSourcePath=\n",
+    "LoadState=masked\nFragmentPath=/etc/systemd/system/"
+    + module.SERVICE_UNIT
+    + "\nSourcePath=\n",
+):
+    expect_hold(
+        lambda value=loaded_state: module.parse_systemd_unit_absence(value),
+        "selected_systemd_unit_loaded_or_known",
+    )
 
 for collision_root in (
     "/usr/local/lib/systemd/system",
@@ -132,6 +150,8 @@ for required in (
     '"UnitPath"',
     "systemd_bus_owner_pid1_verified",
     "unit_name_absence_bound_to_authenticated_manager_unit_path",
+    "unit_name_absence_bound_to_running_manager_state",
+    "parse_systemd_unit_absence",
     "systemd_unit_path_stability_verified",
     "systemd_unit_path_root_generations_revalidated",
     "PREDECESSOR_V2_GIT_BLOB_SHA1",
@@ -176,6 +196,7 @@ print("systemd_bus_owner_pid1_bound=true")
 print("systemd_running_installed_version_match_required=true")
 print("manager_unit_path_exact_array_bound=true")
 print("all_manager_unit_path_roots_observed=true")
+print("manager_loaded_unit_rejected=true")
 print("usr_local_unit_collision_rejected=true")
 print("transient_unit_collision_rejected=true")
 print("unit_path_reorder_rejected=true")
