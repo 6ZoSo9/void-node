@@ -186,6 +186,10 @@ for required in [
     '"TZ=UTC"',
     'revalidate_retained_regular(',
     'revalidate_retained_python(',
+    'receipt_operation = request.operation;',
+    'receipt_child_created = true;',
+    'child_process_created=%s',
+    'unknown_or_partial_if_child_created',
     'privileged_first_entry_authenticated=true',
 ]:
     assert required in source, required
@@ -215,6 +219,8 @@ with tempfile.TemporaryDirectory(prefix="void-e2-operator-first-entry-proof-") a
     assert f"{MARKER}_SELF_TEST_GREEN" in self_test.stdout
     assert "fixed_operation_allowlist=true" in self_test.stdout
     assert "child_environment_closed=true" in self_test.stdout
+    assert "prefork_operation_receipts_strict_false=true" in self_test.stdout
+    assert "postfork_selected_operation_receipt_conservative=true" in self_test.stdout
     assert "installer_apply_performed=false" in self_test.stdout
     assert "installed_qualifier_run_performed=false" in self_test.stdout
 
@@ -225,15 +231,19 @@ with tempfile.TemporaryDirectory(prefix="void-e2-operator-first-entry-proof-") a
     local_installer = temp / "installer_fixture.py"
     local_qualifier = temp / "qualifier_fixture.py"
     invocation_marker = temp / "fixture-invoked.txt"
+    abnormal_control = temp / "fixture-abnormal-child"
 
     installer_fixture = textwrap.dedent(
         f"""\
         #!/usr/bin/env python3
         import argparse
+        import os
         import pathlib
+        import signal
         import time
 
         marker = pathlib.Path({str(invocation_marker)!r})
+        abnormal = pathlib.Path({str(abnormal_control)!r})
         parser = argparse.ArgumentParser()
         modes = parser.add_mutually_exclusive_group(required=True)
         modes.add_argument("--plan", action="store_true")
@@ -254,6 +264,9 @@ with tempfile.TemporaryDirectory(prefix="void-e2-operator-first-entry-proof-") a
         else:
             assert args.expected_plan_id == {EXPECTED_PLAN_ID!r}
             assert args.confirm == {CONFIRM!r}
+            if abnormal.exists():
+                os.kill(os.getpid(), signal.SIGKILL)
+            time.sleep(0.35)
             print("FIXTURE_INSTALLER_APPLY_GREEN")
         """
     )
@@ -261,15 +274,22 @@ with tempfile.TemporaryDirectory(prefix="void-e2-operator-first-entry-proof-") a
         f"""\
         #!/usr/bin/env python3
         import argparse
+        import os
         import pathlib
+        import signal
+        import time
 
         marker = pathlib.Path({str(invocation_marker)!r})
+        abnormal = pathlib.Path({str(abnormal_control)!r})
         parser = argparse.ArgumentParser()
         parser.add_argument("--run", action="store_true", required=True)
         parser.add_argument("--expected-head", required=True)
         args = parser.parse_args()
         marker.write_text("qualifier\\n", encoding="utf-8")
         assert args.expected_head == {"1"*40!r}
+        if abnormal.exists():
+            os.kill(os.getpid(), signal.SIGKILL)
+        time.sleep(0.35)
         print("FIXTURE_QUALIFIER_GREEN")
         """
     )
@@ -392,6 +412,10 @@ with tempfile.TemporaryDirectory(prefix="void-e2-operator-first-entry-proof-") a
         )
         assert wrong_confirm.returncode == 2
         assert "operator_first_entry_confirmation_or_arguments_invalid" in wrong_confirm.stderr
+        assert "child_process_created=false" in wrong_confirm.stderr
+        assert "installer_apply_performed=false" in wrong_confirm.stderr
+        assert "installed_qualifier_run_performed=false" in wrong_confirm.stderr
+        assert "unknown_or_partial_if_child_created" not in wrong_confirm.stderr
         assert not invocation_marker.exists()
 
         arbitrary = sudo(
@@ -460,6 +484,79 @@ with tempfile.TemporaryDirectory(prefix="void-e2-operator-first-entry-proof-") a
         assert f"{MARKER}_GREEN" not in race_stdout
         assert "operator_first_entry_installer_generation_changed" in race_stderr
         install_file(local_installer, installer_remote, "0444")
+
+        if invocation_marker.exists():
+            invocation_marker.unlink()
+        abnormal_control.write_text("kill\n", encoding="utf-8")
+        abnormal_apply = sudo(
+            [
+                str(preentry),
+                "--installer-apply",
+                "--expected-head",
+                EXPECTED_HEAD,
+                "--expected-plan-id",
+                EXPECTED_PLAN_ID,
+                "--confirm",
+                CONFIRM,
+            ],
+            check=False,
+        )
+        abnormal_control.unlink()
+        assert abnormal_apply.returncode == 2
+        assert "operator_first_entry_child_not_cleanly_exited" in abnormal_apply.stderr
+        assert "child_process_created=true" in abnormal_apply.stderr
+        assert (
+            "installer_apply_state=unknown_or_partial_if_child_created"
+            in abnormal_apply.stderr
+        )
+        assert "installer_apply_performed=false" not in abnormal_apply.stderr
+        assert "installed_qualifier_run_performed=false" in abnormal_apply.stderr
+
+        if invocation_marker.exists():
+            invocation_marker.unlink()
+        qualifier_race = subprocess.Popen(
+            [
+                "sudo",
+                "-n",
+                str(preentry),
+                "--qualifier-run",
+                "--expected-head",
+                EXPECTED_HEAD,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+        )
+        wait_for(invocation_marker)
+        qualifier_replacement = temp / "qualifier-replacement.py"
+        qualifier_replacement.write_bytes(fixture_qualifier_raw)
+        install_file(
+            qualifier_replacement,
+            qualifier_remote.with_suffix(".replacement"),
+            "0444",
+        )
+        sudo([
+            "mv",
+            "-f",
+            str(qualifier_remote.with_suffix(".replacement")),
+            str(qualifier_remote),
+        ])
+        qualifier_stdout, qualifier_stderr = qualifier_race.communicate(timeout=20)
+        assert qualifier_race.returncode == 2
+        assert "FIXTURE_QUALIFIER_GREEN" in qualifier_stdout
+        assert f"{MARKER}_GREEN" not in qualifier_stdout
+        assert "operator_first_entry_qualifier_generation_changed" in qualifier_stderr
+        assert "child_process_created=true" in qualifier_stderr
+        assert (
+            "installed_qualifier_run_state=unknown_or_partial_if_child_created"
+            in qualifier_stderr
+        )
+        assert "installed_qualifier_run_performed=false" not in qualifier_stderr
+        assert "installer_apply_performed=false" in qualifier_stderr
+        install_file(local_qualifier, qualifier_remote, "0444")
 
         preload_marker = temp / "ld-preload-marker"
         preload_c = temp / "preload.c"
@@ -551,6 +648,10 @@ print("ld_preload_cannot_reach_static_preentry_or_python_child=true")
 print("pythonpath_dynamic_control_executes=true")
 print("caller_python_environment_cannot_reach_child=true")
 print("final_parent_green_requires_post_child_revalidation=true")
+print("prefork_operation_receipts_strict_false=true")
+print("postfork_apply_receipt_conservative=true")
+print("postfork_qualifier_receipt_conservative=true")
+print("abnormal_child_receipt_conservative=true")
 print("live_host_installation=false")
 print("installer_apply_performed=false")
 print("installed_qualifier_run_performed=false")
