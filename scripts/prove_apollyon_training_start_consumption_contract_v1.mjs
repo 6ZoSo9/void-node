@@ -48,17 +48,26 @@ const expectedTriggerPaths=[
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
 ];
-const triggerPaths=[...workflow.matchAll(/^      - "([^"]+)"$/gmu)].map(m=>m[1]);
-assert.equal(triggerPaths.length,expectedTriggerPaths.length*2,"unexpected trigger path count");
-assert.deepEqual([...new Set(triggerPaths)].sort(),[...expectedTriggerPaths].sort(),"trigger closure mismatch");
-for(const dependency of expectedTriggerPaths){
-  assert.equal(triggerPaths.filter(value=>value===dependency).length,2,"PR/push trigger parity missing for "+dependency);
+function eventTriggerPaths(startMarker,endMarker){
+  const startIndex=workflow.indexOf(startMarker);
+  const endIndex=workflow.indexOf(endMarker,startIndex+startMarker.length);
+  assert.notEqual(startIndex,-1,"missing event marker "+startMarker);
+  assert.notEqual(endIndex,-1,"missing event boundary "+endMarker);
+  assert.ok(startIndex<endIndex,"event markers out of order");
+  return [...workflow.slice(startIndex,endIndex).matchAll(/^      - "([^"]+)"$/gmu)]
+    .map(match=>match[1]);
 }
-assert.equal(workflow.includes("pull_request:"),true);
-assert.equal(workflow.includes("push:"),true);
+function assertExactEventTriggerPaths(label,actual){
+  assert.equal(actual.length,expectedTriggerPaths.length,label+" trigger path count");
+  assert.equal(new Set(actual).size,actual.length,label+" duplicate trigger path");
+  assert.deepEqual([...actual].sort(),[...expectedTriggerPaths].sort(),label+" trigger closure mismatch");
+}
+const pullRequestTriggerPaths=eventTriggerPaths("  pull_request:\n","  push:\n");
+const pushTriggerPaths=eventTriggerPaths("  push:\n","  workflow_dispatch:\n");
+assertExactEventTriggerPaths("pull_request",pullRequestTriggerPaths);
+assertExactEventTriggerPaths("push",pushTriggerPaths);
 assert.equal(workflow.includes("PUSH_BEFORE:"),true);
 assert.equal(workflow.includes("github.event.before"),true);
-
 const policy=qualifyApollyonDurableAttemptClaimStorePolicyV2();
 assert.equal(
   policy.store_policy_id,
@@ -445,5 +454,5 @@ console.log("lost_ack_second_start_forbidden=true");
 console.log("training_start_consumption_performed=false");
 console.log("bound_trainer_generation_revalidation_required_before_release=true");
 console.log("bound_trainer_generation_loss_after_consumption_forfeits_attempt=true");
-console.log("transitive_workflow_trigger_closure=true");
+console.log("event_specific_transitive_workflow_trigger_closure=true");
 console.log("training_execution=false");
