@@ -191,6 +191,19 @@ assert.equal(
   candidate.build_recipe.compile,
   "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
 );
+assert.equal(
+  candidate.build_recipe.compile_node_executable_source,
+  "process.execPath",
+);
+assert.deepEqual(candidate.build_recipe.compile_environment, {
+  PATH: "/usr/bin:/bin",
+  LANG: "C",
+  LC_ALL: "C",
+  TZ: "UTC",
+  NODE_DISABLE_COMPILE_CACHE: "1",
+});
+assert.equal(candidate.build_recipe.candidate_owned_rebuild_required, true);
+assert.equal(candidate.build_recipe.compiler_pre_post_identity_required, true);
 assert.equal(candidate.build_recipe.source_maps_expected, false);
 assert.deepEqual(candidate.build_recipe.supported_node_majors, [22, 24, 26]);
 assert.equal(candidate.build_recipe.three_node_byte_equality_required, true);
@@ -273,8 +286,11 @@ for (const [key, expected] of Object.entries({
   compiler_identity_bound: true,
   compiler_cli_entry_chain_bound: true,
   compiler_cli_loader_edges_bound: true,
+  compiler_execution_generation_bound: true,
+  candidate_owned_rebuild_required: true,
   three_node_byte_equality_required: true,
   candidate_report_filesystem_write: true,
+  candidate_build_artifact_filesystem_write: true,
   runtime_bundle_candidate_accepted: false,
   runtime_bundle_lock_created: false,
   protected_runtime_install_authorized: false,
@@ -453,6 +469,9 @@ console.log("typescript_cli_entry_bound=true");
 console.log("typescript_cli_loader_bound=true");
 console.log("compiler_cli_edges_exact=true");
 console.log("typescript_compile_cache_builtin_bound=true");
+console.log("candidate_owned_compiler_rebuild=true");
+console.log("compiler_pre_post_identity_stable=true");
+console.log("compiler_closed_environment=true");
 console.log("typescript_cli_entry_fixture_tamper_rejected=true");
 console.log("typescript_cli_loader_fixture_tamper_rejected=true");
 console.log("typescript_cli_edge_fixture_tamper_rejected=true");
