@@ -178,6 +178,15 @@ function safeMs(value,reason){
   return value;
 }
 
+function exactAuthority(value,expected,reason){
+  const keys=Object.keys(expected);
+  const normalized=exactSnapshot(value,keys,reason);
+  for(const key of keys){
+    if(normalized[key]!==expected[key]) fail(reason);
+  }
+  return normalized;
+}
+
 function hostBindingBody(binding,sample){
   const body={};
   for(const key of HOST_BINDING_KEYS){
@@ -190,11 +199,15 @@ function hostBindingBody(binding,sample){
 function normalizeHostBinding(value,reason){
   const binding=exactSnapshot(value,HOST_BINDING_KEYS,reason);
   const sample=exactSnapshot(binding.observation_sample,SAMPLE_KEYS,reason);
+  exactAuthority(
+    binding.authority,
+    VOID_ECONOMIC_SPONSORED_HOST_TRUSTED_CLOCK_BINDING_AUTHORITY_V1,
+    reason,
+  );
   if(
     binding.marker!==VOID_ECONOMIC_SPONSORED_HOST_TRUSTED_CLOCK_BINDING_V1 ||
     binding.schema!==VOID_ECONOMIC_SPONSORED_HOST_TRUSTED_CLOCK_BINDING_SCHEMA_V1 ||
     binding.version!==1 ||
-    binding.authority!==VOID_ECONOMIC_SPONSORED_HOST_TRUSTED_CLOCK_BINDING_AUTHORITY_V1 ||
     typeof binding.binding_id!=="string" || !HOST_BINDING_ID.test(binding.binding_id) ||
     binding.binding_id!==contentId(
       VOID_ECONOMIC_SPONSORED_HOST_TRUSTED_CLOCK_BINDING_ID_PREFIX_V1,
@@ -256,14 +269,17 @@ function normalizeComposition(value){
     value,COMPOSITION_KEYS,"sponsored_restart_bridge_prior_composition_invalid",
   );
   const production=composition.production_fixed_sources_observed===true;
+  exactAuthority(
+    composition.authority,
+    VOID_ECONOMIC_SPONSORED_HOST_OBSERVATION_TIME_STORE_BINDING_AUTHORITY_V1,
+    "sponsored_restart_bridge_prior_composition_invalid",
+  );
   if(
     composition.ok!==true || composition.status!=="source_observed_bound" ||
     composition.marker!==VOID_ECONOMIC_SPONSORED_HOST_OBSERVATION_TIME_STORE_BINDING_V1 ||
     composition.schema!==
       VOID_ECONOMIC_SPONSORED_HOST_OBSERVATION_TIME_STORE_BINDING_SCHEMA_V1 ||
     composition.version!==1 || composition.operation!=="observe" ||
-    composition.authority!==
-      VOID_ECONOMIC_SPONSORED_HOST_OBSERVATION_TIME_STORE_BINDING_AUTHORITY_V1 ||
     composition.store_marker!==VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_V1 ||
     composition.test_only_injected_dependencies!==!production ||
     composition.host_binding_capture_count!==1 ||
@@ -319,6 +335,11 @@ function normalizeStoreInspection(value){
   const inspected=exactSnapshot(
     value,STORE_INSPECTION_KEYS,"sponsored_restart_bridge_store_inspection_invalid",
   );
+  exactAuthority(
+    inspected.authority,
+    VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_AUTHORITY_V1,
+    "sponsored_restart_bridge_store_inspection_invalid",
+  );
   if(
     inspected.ok!==true || inspected.status!=="source_inspected" ||
     inspected.marker!==VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_V1 ||
@@ -335,7 +356,6 @@ function normalizeStoreInspection(value){
     inspected.transaction_submission!==false ||
     inspected.transaction_broadcast!==false ||
     inspected.funds_movement!==false ||
-    inspected.authority!==VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_AUTHORITY_V1 ||
     !Number.isSafeInteger(inspected.durable_receipt_count) ||
     inspected.durable_receipt_count<1 ||
     typeof inspected.head_receipt_sha256!=="string" ||
