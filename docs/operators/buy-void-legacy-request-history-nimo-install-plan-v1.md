@@ -73,26 +73,33 @@ A later gate must:
 2. bind its public-key SHA-256 to the already-reviewed transport policy;
 3. create a reviewed additive successor authorization set that preserves every
    accepted existing entry byte-for-byte and adds exactly one legacy-history
-   line whose options include both `restrict` **and** the exact reviewed
-   forced-command option;
-4. require the **materialized authorized-key entry itself** to contain that
-   command option; `restrict` without `command="..."` is never sufficient;
-5. require the command option to be the exact OpenSSH-escaped encoding of the
+   line whose option list is **exactly**, in this order:
+   `restrict,<exact reviewed command option>`;
+4. forbid every additional, duplicate, or reordered key option. This matters
+   because positive OpenSSH options such as `pty`, `port-forwarding`,
+   `user-rc`, and `X11-forwarding` can re-enable capabilities disabled by
+   `restrict`;
+5. require the **materialized authorized-key entry itself** to contain the
+   exact command option; `restrict` without `command="..."` is never
+   sufficient;
+6. require the command option to be the exact OpenSSH-escaped encoding of the
    selected `forced_command.command`: backslashes are escaped first, then
    embedded double quotes are escaped, yielding
    `command="<exact reviewed command>"`;
-6. require the decoded command value to equal `forced_command.command`
+7. require the decoded command value to equal `forced_command.command`
    byte-for-byte and reject a missing command option, `restrict=false`, a
-   differently encoded command option, or any different command value before
-   an additive successor can qualify; and
-7. prove the effective sshd `AuthorizedKeysFile` is still the reviewed
+   differently encoded command option, any different command value, or any
+   third option before an additive successor can qualify; and
+8. prove the effective sshd `AuthorizedKeysFile` is still the reviewed
    root-owned `/etc/ssh/authorized_keys/voidwitness`.
 
-The machine-readable plan exposes the exact expected `forced_command_value`
-and exact `forced_command_option` but deliberately does **not** materialize the
+The machine-readable plan exposes the exact expected `forced_command_value`,
+exact `forced_command_option`, exact two-element `exact_options` array, and
+exact `exact_option_prefix`. It deliberately does **not** materialize the
 complete authorized-key line because no public key has been selected yet.
 The pure source classifier accepts only
-`{restrict:true, command_option:<exact expected option>}` and keeps
+`{restrict:true, command_option:<exact>, options:["restrict",<exact>]}`;
+`additional_options_forbidden=true` and
 `authorized_keys_mutation_authorized=false`.
 
 This plan contains no private key, no public-key blob, no key fingerprint and
@@ -141,8 +148,10 @@ Mutation-shaped modes such as `--apply`, `--install`, `--run` and
 The focused proof independently derives the OpenSSH command-option escaping and
 requires equality with the plan. Adversaries cover a missing command option,
 missing `restrict`, `restrict=false`, unescaped/differently encoded command
-text, and a different forced command; every case must HOLD while exact-line
-materialization and authorized-keys mutation remain false.
+text, a different forced command, capability re-enablers (`pty`,
+`port-forwarding`, `user-rc`, `X11-forwarding`), reordered options,
+duplicate `restrict`, and any third option. Every case must HOLD while
+exact-line materialization and authorized-keys mutation remain false.
 
 Hosted validation also binds committed diff hygiene. Pull-request runs use the
 exact event base SHA, require it to be an ancestor of the exact checked-out
