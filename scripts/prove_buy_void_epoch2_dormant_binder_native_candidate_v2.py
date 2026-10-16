@@ -213,12 +213,15 @@ def protected_file_identity(identity: dict, label: str) -> dict:
 def protected_command_alias(path: Path, expected_real: str, label: str) -> None:
     absolute = Path(os.path.abspath(os.fspath(path)))
     st = absolute.lstat()
-    if (
-        st.st_uid != 0
-        or stat.S_IMODE(st.st_mode) & 0o022
-        or os.path.realpath(absolute) != expected_real
-    ):
+    if st.st_uid != 0 or os.path.realpath(absolute) != expected_real:
         raise AssertionError(label + " command alias custody invalid")
+    if stat.S_ISLNK(st.st_mode):
+        pass
+    elif stat.S_ISREG(st.st_mode):
+        if stat.S_IMODE(st.st_mode) & 0o022:
+            raise AssertionError(label + " command alias custody invalid")
+    else:
+        raise AssertionError(label + " command alias type invalid")
     protected_parent_chain(absolute, label)
 
 
