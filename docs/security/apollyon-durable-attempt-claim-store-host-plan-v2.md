@@ -18,6 +18,15 @@ Parent contract Git blob:
 
 `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`
 
+Stable terminal-independent store policy:
+
+`apollyon_claim_store_policy_v2:e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137`
+
+The focused proof independently imports the exact accepted parent contract and
+re-derives this policy ID from its canonical policy material. The host plan
+carries this stable policy identity directly. It does **not** use a
+terminal-specific `store_contract_id` as the durable host-store identity.
+
 ## Fixed future names
 
 - claim service user/group: `voidapollyonclaim`
@@ -62,7 +71,13 @@ The live read-only plan parses the exact `SYS_UID_MIN/MAX` and `SYS_GID_MIN/MAX`
 
 Selection is deterministic from the highest available values downward. For conservative separation, the five selected numbers must be globally distinct and cannot collide with any currently used UID/GID or any observed protected identity.
 
-The result binds candidate numbers into the content-addressed plan. They are only candidates until a separately reviewed create-only account/bootstrap gate provisions them. That later provisioning gate must repeat the local-files authority census and prove the selected numeric slots are still free immediately before create-only mutation.
+The result binds candidate numbers and the accepted stable
+`store_policy_id` into the content-addressed plan. The numeric values are only
+candidates until a separately reviewed create-only account/bootstrap gate
+provisions them. That later provisioning gate must repeat the local-files
+authority census, prove the selected numeric slots are still free immediately
+before create-only mutation, and preserve the same accepted store policy
+identity.
 
 ## Host binding
 
