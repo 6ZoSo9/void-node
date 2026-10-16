@@ -111,4 +111,10 @@ acceptance, public presale/WC activation or funds movement occurs.
 A later live run would remain separately authorized even after a future V3
 native entry is accepted and installed.
 
+HOLD receipts also preserve native-entry lifecycle truth. A failure before
+successful native parent authentication reports
+`privileged_first_entry_authenticated=false`; any later failure after
+`requireNativePreentry()` succeeds reports it as `true`. The source self-test
+injects failures on both sides of that boundary.
+
 PROTECT THE CORE.
