@@ -911,6 +911,62 @@ def self_test() -> None:
         raise AssertionError("invalid_crash_state_unexpectedly_admitted")
 
     with tempfile.TemporaryDirectory(
+        prefix="void-credential-query-v2-lock-and-crash-"
+    ) as raw:
+        root = pathlib.Path(raw)
+        query = root / "query"
+        stage = root / "stage"
+        predecessor = root / "predecessor"
+        query.write_bytes(b"V1")
+        stage.write_bytes(b"V2")
+        first_fd = os.open(
+            root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
+        )
+        second_fd = os.open(
+            root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
+        )
+        try:
+            fcntl.flock(first_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                fcntl.flock(
+                    second_fd, fcntl.LOCK_EX | fcntl.LOCK_NB
+                )
+            except OSError:
+                pass
+            else:
+                raise AssertionError(
+                    "second_operation_lock_unexpectedly_acquired"
+                )
+
+            _renameat2(
+                first_fd, "stage", "query", RENAME_EXCHANGE
+            )
+            os.fsync(first_fd)
+            assert query.read_bytes() == b"V2"
+            assert stage.read_bytes() == b"V1"
+
+            _renameat2(
+                first_fd, "stage", "predecessor", RENAME_NOREPLACE
+            )
+            os.fsync(first_fd)
+            assert query.read_bytes() == b"V2"
+            assert predecessor.read_bytes() == b"V1"
+
+            _renameat2(
+                first_fd, "query", "predecessor", RENAME_EXCHANGE
+            )
+            os.fsync(first_fd)
+            assert query.read_bytes() == b"V1"
+            assert predecessor.read_bytes() == b"V2"
+            os.unlink("predecessor", dir_fd=first_fd)
+            os.fsync(first_fd)
+            assert query.read_bytes() == b"V1"
+            assert not predecessor.exists()
+        finally:
+            os.close(second_fd)
+            os.close(first_fd)
+
+    with tempfile.TemporaryDirectory(
         prefix="void-credential-query-v2-owned-cleanup-"
     ) as raw:
         root = pathlib.Path(raw)
@@ -969,6 +1025,8 @@ def main() -> int:
         print("crash_state_classifier_complete=true")
         print("apply_crash_resume_supported=true")
         print("rollback_crash_resume_supported=true")
+        print("operation_lock_exclusivity_exercised=true")
+        print("crash_transition_primitives_exercised=true")
         print("query_execution=false")
         print("credential_contents_read=false")
         return 0
