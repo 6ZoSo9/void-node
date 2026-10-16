@@ -17,12 +17,12 @@ LOCK_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-
 LOCK_PATH = ROOT / LOCK_REL
 LOCK_GIT_BLOB_SHA1 = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 LOCK_ID = (
-    "voidbuye2nativecandlock6_"
-    "016c2764d5d33c9078fd5120addd2ff7ef25c8d6bf30d5d6741b05a5036a1f22"
+    "voidbuye2nativecandlock6r2_"
+    "ab95f15c8f2731adf6bfd97dfd5467495c90bdb5ee267948efc6a522be74b417"
 )
 CANDIDATE_ID = (
-    "voidbuye2nativecand6_"
-    "06aa80d52c84e6e466dc4c43ed21dcf1de79e1d69f0280ba9e3ffb8212404a53"
+    "voidbuye2nativecand6r2_"
+    "5d643422fb1c53686edd9386d6a65f000d9f399538bf94cca98b232fdfb15e8d"
 )
 
 MARKER = "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_PROTECTED_INSTALL_V5"
@@ -32,7 +32,7 @@ FIXED_CHECKOUT = pathlib.Path("/home/zoso/dev/void-node")
 INSTALL_PARENT = pathlib.Path("/opt")
 INSTALL_NAME = "void-buy-void-epoch2-live-composition-v3"
 INSTALL_ROOT = INSTALL_PARENT / INSTALL_NAME
-STAGE_NAME = ".void-buy-void-epoch2-live-composition-v3.upgrade-v6.stage"
+STAGE_NAME = ".void-buy-void-epoch2-live-composition-v3.upgrade-v6r2.stage"
 STAGE_ROOT = INSTALL_PARENT / STAGE_NAME
 PREDECESSOR_NAME = ".void-buy-void-epoch2-live-composition-v3.predecessor-v4"
 PREDECESSOR_ROOT = INSTALL_PARENT / PREDECESSOR_NAME
@@ -203,9 +203,9 @@ def accepted_lock() -> dict[str, Any]:
         raise InstallError("accepted_lock_shape_invalid")
 
     required = {
-        "schema": "void_buy_void_epoch2_live_composition_native_candidate_lock_v6",
-        "marker": "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_LOCK_V6",
-        "version": 6,
+        "schema": "void_buy_void_epoch2_live_composition_native_candidate_lock_v6r2",
+        "marker": "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_LOCK_V6R2",
+        "version": 2,
         "repository": "6ZoSo9/void-node",
         "candidate_accepted": True,
         "native_binary_identity_accepted": True,
@@ -222,7 +222,7 @@ def accepted_lock() -> dict[str, Any]:
         "treasury_liquidity_action_authorized": False,
         "funds_movement_authorized": False,
         "production_host_evidence_authority": False,
-        "next_gate": "void_buy_void_epoch2_live_composition_native_protected_install_v4",
+        "next_gate": "void_buy_void_epoch2_live_composition_native_candidate_materializer_v6r2",
         "lock_id": LOCK_ID,
     }
     for key, expected in required.items():
@@ -873,7 +873,7 @@ def plan(native: pathlib.Path, runner: pathlib.Path, expected_head: str) -> None
         print("next_action=SEPARATELY_AUTHORIZE_EPOCH2_NATIVE_INSTALLED_READ_ONLY_QUALIFICATION")
     else:
         print("already_upgraded=false")
-        print("next_action=SEPARATELY_AUTHORIZE_EPOCH2_NATIVE_ATOMIC_V4_TO_V6_UPGRADE")
+        print("next_action=SEPARATELY_AUTHORIZE_EPOCH2_NATIVE_ATOMIC_V4_TO_V6R2_UPGRADE")
 
 
 def _renameat2(dir_fd: int, source: str, target: str, flags: int) -> None:
@@ -1303,7 +1303,7 @@ def apply(
     print("treasury_liquidity_action=false")
     print("funds_movement=false")
     print("production_host_evidence_authority=false")
-    print("next_action=EPOCH2_V6_NATIVE_INSTALLED_READ_ONLY_QUALIFICATION")
+    print("next_action=EPOCH2_V6R2_NATIVE_INSTALLED_READ_ONLY_QUALIFICATION")
 
 
 def self_test() -> None:
@@ -1311,8 +1311,8 @@ def self_test() -> None:
     assert lock["candidate_accepted"] is True
     assert lock["protected_install_authorized"] is False
     assert lock["live_execution_authorized"] is False
-    assert LOCK_ID.startswith("voidbuye2nativecandlock6_")
-    assert CANDIDATE_ID.startswith("voidbuye2nativecand6_")
+    assert LOCK_ID.startswith("voidbuye2nativecandlock6r2_")
+    assert CANDIDATE_ID.startswith("voidbuye2nativecand6r2_")
     assert NATIVE_BYTES == 726_976
     assert RUNNER_BYTES == 45_147
     assert PREDECESSOR_NATIVE_BYTES == 722_880
@@ -1332,7 +1332,7 @@ def self_test() -> None:
     assert getattr(libc, "renameat2", None) is not None
 
     import tempfile
-    with tempfile.TemporaryDirectory(prefix="void-e2-v6-upgrade-exchange-") as td:
+    with tempfile.TemporaryDirectory(prefix="void-e2-v6r2-upgrade-exchange-") as td:
         parent = pathlib.Path(td)
         left = parent / "left"
         right = parent / "right"
