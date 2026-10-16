@@ -50,6 +50,17 @@ The candidate independently inspects the current 49-path enforcement inventory
 and requires no protected path drift after exact #2872 head
 `6080389131c3cdb80fa9935b5ff80f4e40f09938`.
 
+This generation does **not** runtime-import the TypeScript deployment installer
+to obtain that list. The current source tree contains source-relative `.js`
+imports that are valid for the reviewed compiled/runtime path but are not
+directly executable from the TypeScript source location on every hosted Node
+major. V3 therefore authenticates the installer source blob first, parses the
+exact frozen `VOID_BUY_VOID_CURRENT_ENFORCEMENT_TRACKED_SOURCE_PATHS_V1`
+array with the locked TypeScript parser, requires exactly 49 unique sorted
+string literals, and rederives every visible Git blob and executable mode
+directly from the checkout. The resulting canonical inventory must equal the
+accepted V5 census digest.
+
 ## Preserved executable closure
 
 V3 retains V2's accepted derivation logic for:
