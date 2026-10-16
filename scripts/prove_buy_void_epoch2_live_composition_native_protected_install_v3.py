@@ -28,7 +28,7 @@ RUNNER_SOURCE = (
     "void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
 )
 
-TARGET_BLOB = "ff31ae5a9c3440e5cb63e17e8080ad7c99a19eae"
+TARGET_BLOB = "2a565bd4dcbfd4b9c5d3aae61f198e218e2e61e1"
 LOCK_BLOB = "db59358bab68a0fa33d0840bd9afe967dd809e61"
 NATIVE_SOURCE_BLOB = "5021727f1def1ec11f870d735cab65acc1701a5e"
 RUNNER_SOURCE_BLOB = "baab733e43c030d24f8d4abd1644f3c4ae55c3b2"
@@ -103,9 +103,12 @@ assert "os.replace(" not in source
 assert "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)" in source
 assert "expected_plan_id_mismatch" in source
 assert "node_generation_changed_before_publication" in source
-assert "git_generation_changed_before_publication" in source
-assert "setpriv_generation_changed_before_publication" in source
 assert "checkout_generation_changed_before_publication" in source
+assert "checkout_snapshot_with_tools" in source
+assert "git_generation_changed_before_checkout" in source
+assert "setpriv_generation_changed_before_checkout" in source
+assert "git_generation_changed_during_checkout" in source
+assert "setpriv_generation_changed_during_checkout" in source
 assert "post_publication_node_generation_changed" in source
 assert "post_publication_checkout_generation_changed" in source
 assert "expected_mode=0o555" in source
@@ -246,6 +249,7 @@ for line in (
     "node_generation_bound_at_plan_apply=true",
     "expected_main_head_bound_at_plan_apply=true",
     "truthful_post_publication_failure_receipt_required=true",
+    "checkout_tool_generation_bracket_required=true",
     "protected_install_authorized=false",
     "live_execution_authorized=false",
     "credential_access_authorized=false",
@@ -378,6 +382,9 @@ print("runtime_user_git_checkout_binding=true")
 print("expected_plan_id_apply_binding=true")
 print("create_only_atomic_publication=true")
 print("truthful_post_publication_failure_receipt=true")
+print("checkout_tool_generation_bracketed=true")
+print("git_tool_drift_during_checkout_rejected=true")
+print("setpriv_tool_drift_during_checkout_rejected=true")
 print("pre_mutation_authority_boundary=true")
 print("pre_mutation_authority_flush_required=true")
 print("wrong_confirmation_pre_mutation_hold_exercised=true")
