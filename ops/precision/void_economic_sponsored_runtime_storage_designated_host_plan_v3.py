@@ -787,13 +787,18 @@ def parse_systemd_unit_path(raw: str) -> list[str]:
         tokens = shlex.split(raw.strip(), comments=False, posix=True)
     except ValueError as exc:
         raise PlanError("systemd_unit_path_parse_failed") from exc
+    if len(tokens) < 3 or tokens[0] != "as":
+        raise PlanError("systemd_unit_path_shape_invalid")
+    count_text = tokens[1]
     if (
-        len(tokens) < 3
-        or tokens[0] != "as"
-        or not tokens[1].isdecimal()
+        not count_text.isascii()
+        or not count_text.isdecimal()
+        or (len(count_text) > 1 and count_text.startswith("0"))
     ):
         raise PlanError("systemd_unit_path_shape_invalid")
-    count = int(tokens[1])
+    if len(count_text) > len(str(MAX_UNIT_PATHS)):
+        raise PlanError("systemd_unit_path_count_invalid")
+    count = int(count_text)
     paths = tokens[2:]
     if (
         count != len(paths)
@@ -815,6 +820,7 @@ def parse_systemd_unit_path(raw: str) -> list[str]:
             or "\r" in value
             or "\n" in value
             or not value.startswith("/")
+            or any(part in (".", "..") for part in value.split("/"))
             or str(pathlib.PurePosixPath(value)) != value
             or value in seen
         ):
@@ -1379,12 +1385,34 @@ SYS_GID_MAX 999
         "/usr/local/lib/systemd/system",
         "/run/systemd/transient",
     ]
+    max_unit_path = "as " + str(MAX_UNIT_PATHS) + " " + " ".join(
+        f'"/synthetic/systemd/unit-path-{index}"'
+        for index in range(MAX_UNIT_PATHS)
+    )
+    assert len(parse_systemd_unit_path(max_unit_path)) == MAX_UNIT_PATHS
+    max_plus_one_unit_path = "as " + str(MAX_UNIT_PATHS + 1) + " " + " ".join(
+        f'"/synthetic/systemd/unit-path-{index}"'
+        for index in range(MAX_UNIT_PATHS + 1)
+    )
+    oversized_count = "9" * 5000
     for bad, code in (
         ('as 2 "/run/systemd/system" "/run/systemd/system"\n',
          "systemd_unit_path_entry_invalid"),
         ('as 1 "relative/systemd/system"\n',
          "systemd_unit_path_entry_invalid"),
+        ('as 1 "/missing/../etc/systemd/system"\n',
+         "systemd_unit_path_entry_invalid"),
+        ('as 1 "/etc/./systemd/system"\n',
+         "systemd_unit_path_entry_invalid"),
+        ('as 01 "/run/systemd/system"\n',
+         "systemd_unit_path_shape_invalid"),
+        ('as ١ "/run/systemd/system"\n',
+         "systemd_unit_path_shape_invalid"),
         ('as 2 "/run/systemd/system"\n',
+         "systemd_unit_path_count_invalid"),
+        (max_plus_one_unit_path,
+         "systemd_unit_path_count_invalid"),
+        ("as " + oversized_count + ' "/run/systemd/system"\n',
          "systemd_unit_path_count_invalid"),
     ):
         _expect_hold(lambda value=bad: parse_systemd_unit_path(value), code)

@@ -46,6 +46,17 @@ assert unit_path == [
     "/usr/lib/systemd/system",
 ]
 
+max_unit_path = "as " + str(module.MAX_UNIT_PATHS) + " " + " ".join(
+    f'"/synthetic/systemd/unit-path-{index}"'
+    for index in range(module.MAX_UNIT_PATHS)
+)
+assert len(module.parse_systemd_unit_path(max_unit_path)) == module.MAX_UNIT_PATHS
+max_plus_one_unit_path = "as " + str(module.MAX_UNIT_PATHS + 1) + " " + " ".join(
+    f'"/synthetic/systemd/unit-path-{index}"'
+    for index in range(module.MAX_UNIT_PATHS + 1)
+)
+oversized_count = "9" * 5000
+
 manager_absence = module.parse_systemd_unit_absence(
     "LoadState=not-found\nFragmentPath=\nSourcePath=\n"
 )
@@ -97,17 +108,27 @@ for collision_root in (
         "selected_systemd_unit_already_exists",
     )
 
-for bad in (
-    'as 2 "/etc/systemd/system" "/etc/systemd/system"\n',
-    'as 1 "run/systemd/transient"\n',
-    'as 2 "/run/systemd/system"\n',
+for bad, code in (
+    ('as 2 "/etc/systemd/system" "/etc/systemd/system"\n',
+     "systemd_unit_path_entry_invalid"),
+    ('as 1 "run/systemd/transient"\n',
+     "systemd_unit_path_entry_invalid"),
+    ('as 1 "/missing/../etc/systemd/system"\n',
+     "systemd_unit_path_entry_invalid"),
+    ('as 1 "/etc/./systemd/system"\n',
+     "systemd_unit_path_entry_invalid"),
+    ('as 01 "/run/systemd/system"\n',
+     "systemd_unit_path_shape_invalid"),
+    ('as ١ "/run/systemd/system"\n',
+     "systemd_unit_path_shape_invalid"),
+    ('as 2 "/run/systemd/system"\n',
+     "systemd_unit_path_count_invalid"),
+    (max_plus_one_unit_path,
+     "systemd_unit_path_count_invalid"),
+    ("as " + oversized_count + ' "/run/systemd/system"\n',
+     "systemd_unit_path_count_invalid"),
 ):
-    try:
-        module.parse_systemd_unit_path(bad)
-    except module.PlanError:
-        pass
-    else:
-        raise AssertionError("malformed UnitPath accepted")
+    expect_hold(lambda value=bad: module.parse_systemd_unit_path(value), code)
 
 manager = {
     "systemd_bus_owner_pid": 1,
