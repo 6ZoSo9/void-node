@@ -187,10 +187,21 @@ assert.match(workflow,/pull_request:/u);
 assert.match(workflow,/push:\n\s+branches:\s+\[main\]/u);
 assert.match(workflow,/workflow_dispatch:/u);
 assert.match(workflow,/node:\s+\[22, 24, 26\]/u);
+for(const required of [
+  "PR_BASE_SHA:",
+  "PUSH_BEFORE_SHA:",
+  'BASE="$(git rev-parse "$HEAD^1")"',
+  'git merge-base --is-ancestor "$BASE" "$HEAD"',
+  'git diff --check "$BASE" "$HEAD"',
+  'test -z "$(git status --porcelain=v1 --untracked-files=all)"',
+]){
+  assert.equal(workflow.includes(required),true,"committed diff guard missing: "+required);
+}
 
 console.log("VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_V1_PROOF_GREEN");
 console.log("reviewed_source_roots="+String(observed.length));
 console.log("runtime_bundle_candidate_accepted=false");
+console.log("committed_base_to_head_diff_hygiene_bound=true");
 console.log("authorized_keys_additive_successor_required=true");
 console.log("private_key_access=false");
 console.log("live_nimo_installed=false");
