@@ -1,0 +1,156 @@
+name: Buy VOID Epoch-2 dormant binder native candidate lock v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_lock_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.yml"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-candidate-v2.yml"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md"
+  push:
+    branches: [main]
+    paths:
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_lock_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.yml"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-candidate-v2.yml"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact accepted candidate generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          lock_base=f036dbcf98ba032b701a0e35721d22bec4f09735
+          candidate_head=f34d495e99e4b9af576cf3c1f57c0d849594bc79
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$candidate_head" "$lock_base"
+          git merge-base --is-ancestor "$lock_base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.md' \
+            'ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.json' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_lock_v2.py' \
+            | sort > "$expected"
+          git diff --name-only "$lock_base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.json)" = \
+            173652a5d78e77fc324e17b31a41f231783e1d1a
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_lock_v2.py)" = \
+            f533980e932170bf1f9e75ce525bd1d4efbf12bf
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.md)" = \
+            9c4b6690945217e595cf00cb29213b907bfb244b
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py)" = \
+            f74716fd81c234ba1f97951f765b4683821ad856
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-binder-native-candidate-v2.yml)" = \
+            b23372fc59b035e1d5d5e05bd09d4bac527125f7
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py)" = \
+            5ac4264d7f9bdb394cf5be4490aa1eadd1f929ee
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" = \
+            4fdf3f627f407335b9d50800fbbc913d1edae523
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" = \
+            9c29eb4716077e459b9154f39d0f30cf2e56729f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" = \
+            4671d37fcdb43c2bee9d3de16402df0cd25257bb
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml)" = \
+            2742145ab88d721747f978927a6eb64a7c5f805f
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md)" = \
+            cd90bafa39682284a6d9e87daebfe5966adac8d6
+
+          git diff --check "$lock_base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Rederive and verify exact V2 acceptance lock
+        run: |
+          set -euo pipefail
+          proof=scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_lock_v2.py
+          out="$RUNNER_TEMP/dormant-binder-candidate-lock-v2.json"
+
+          python3 -I -B "$proof" --self-test |
+            tee "$RUNNER_TEMP/lock-proof.log"
+
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_CANDIDATE_LOCK_V2_GREEN"
+            "lock_id=voidbuye2dormantbinderlock2_ede439cc33655c3a89a1a47b1fa55a81b90e07662880c42ed88b578462618d0d"
+            "candidate_report_sha256=eff80dfa0fc19455fa46cb5db2db6b49a467bd473ad11057b834a5c511f87559"
+            "candidate_report_git_blob_sha1=1692d67d966f5ff61c5e5fd0e34cb579d1a4c990"
+            "candidate_id=voidbuye2dormantbindercand2_342712bbfdc6c999ca3c4bb132b02531df94356ffd1e5bb0b21d40c8f82d33ce"
+            "native_binary_sha256=ca078f3a81191847d5b0b75de99e4d8f7e389fd051afdb76338f28e157ae5a7c"
+            "native_binary_bytes=726976"
+            "sealed_source_snapshot_bound=true"
+            "checkout_path_is_not_build_authority=true"
+            "toolchain_root_custody_bound=true"
+            "toolchain_revalidated_after_build=true"
+            "failure_truth_boundary_semantics_bound=true"
+            "hosted_three_report_identity_bound=true"
+            "hosted_three_binary_identity_bound=true"
+            "hosted_independent_rederivation_bound=true"
+            "candidate_accepted=true"
+            "native_binary_identity_accepted=true"
+            "binder_source_identity_bound=true"
+            "protected_install_authorized=false"
+            "live_execution_authorized=false"
+            "credential_access_authorized=false"
+            "private_key_access_authorized=false"
+            "signing_authorized=false"
+            "transaction_authorized=false"
+            "payment_acceptance_authorized=false"
+            "public_presale_activation_authorized=false"
+            "wc_void_market_activation_authorized=false"
+            "treasury_liquidity_action_authorized=false"
+            "funds_movement_authorized=false"
+            "production_host_evidence_authority=false"
+            "next_gate=void_buy_void_epoch2_dormant_binder_native_protected_install_v1"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$RUNNER_TEMP/lock-proof.log"
+          done
+
+          python3 -I -B "$proof" --derive > "$out"
+          cmp "$out" ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-dormant-binder-native-candidate-lock-v2-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/dormant-binder-candidate-lock-v2.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - run: git diff --check
