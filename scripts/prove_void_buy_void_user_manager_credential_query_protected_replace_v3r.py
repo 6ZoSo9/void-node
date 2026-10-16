@@ -354,8 +354,20 @@ def executable_key_wallet_authority_violations(
         elif target in {"libc", "fn"}:
             violations.append("reviewed_dynamic_binding_reassigned:" + target)
 
-    # Resolve simple callable/module aliases to a fixed point so textual
-    # renaming cannot hide process, dynamic-loading or signing authority.
+    def authority_alias_origin(value: str) -> bool:
+        if not value:
+            return False
+        root = value.split(".", 1)[0]
+        return (
+            root in allowed_imports
+            or root == "libc"
+            or value in forbidden_builtin_calls
+            or value == "getattr"
+        )
+
+    # Resolve only authority-bearing callable/module aliases. Ordinary state
+    # variables may legitimately take different constant values in different
+    # branches; tracking those globally creates meaningless alias cycles.
     for _ in range(32):
         changed = False
         for node in ast.walk(tree):
@@ -379,13 +391,21 @@ def executable_key_wallet_authority_violations(
                 continue
             if isinstance(value, (ast.Name, ast.Attribute)):
                 canonical = resolved_dotted_name(value)
-                if canonical and bindings.get(target) != canonical:
+                if not authority_alias_origin(canonical):
+                    continue
+                prior = bindings.get(target)
+                if prior is None:
                     bindings[target] = canonical
                     changed = True
+                elif prior != canonical:
+                    violations.append(
+                        "ambiguous_authority_alias_binding:"
+                        + target + ":" + prior + ":" + canonical
+                    )
         if not changed:
             break
     else:
-        violations.append("alias_resolution_did_not_converge")
+        violations.append("authority_alias_resolution_did_not_converge")
 
     def call_path_is_sensitive(value: str) -> bool:
         folded = value.casefold()
@@ -850,7 +870,7 @@ print("nacl_bindings_signing_adversary_exercised=true")
 print("high_risk_call_guard=true")
 print("process_dynamic_authority_adversaries_exercised=true")
 print("alias_resolved_high_risk_call_guard=true")
-print("callable_alias_adversaries_exercised=true")
+print("callable_alias_adversaries_exercised=true")\nprint("ordinary_state_aliases_excluded_from_authority_resolution=true")
 print("reviewed_libc_renameat2_binding_only=true")
 print("ast_signing_key_authority_guard=true")
 print("ast_generic_sign_call_adversary_exercised=true")
