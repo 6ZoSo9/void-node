@@ -26,7 +26,7 @@ BINDER_REL = (
 )
 
 EXPECTED_BLOBS = {
-    INSTALLER_REL: "9b38d2186c2a0db0042e5fd0d551566a1f8f646c",
+    INSTALLER_REL: "f3d6b1559be7490303cf36338c4bfa38fdaa390a",
     LOCK_REL: "5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1",
     NATIVE_SOURCE_REL: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     BINDER_REL: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
@@ -106,6 +106,53 @@ assert (
     is False
 )
 
+# Caller-created marker/FD/proof state is not native-parent authority.
+installer_fd = os.open(ROOT / INSTALLER_REL, os.O_RDONLY | os.O_CLOEXEC)
+native_fd = os.open(ROOT / NATIVE_SOURCE_REL, os.O_RDONLY | os.O_CLOEXEC)
+try:
+    parent_pid = os.getppid()
+    parent_stat = pathlib.Path(f"/proc/{parent_pid}/stat").read_text(
+        encoding="ascii"
+    )
+    right = parent_stat.rfind(")")
+    parent_start = parent_stat[right + 2:].split()[19]
+    parent_exe = os.stat(f"/proc/{parent_pid}/exe")
+    python_exe = os.stat("/proc/self/exe")
+    installer_st = os.fstat(installer_fd)
+    native_st = os.fstat(native_fd)
+    forged = {
+        "schema": module.FIRST_ENTRY_PROOF_SCHEMA,
+        "parent_pid": str(parent_pid),
+        "parent_start_ticks": parent_start,
+        "launcher_dev": str(parent_exe.st_dev),
+        "launcher_ino": str(parent_exe.st_ino),
+        "installer_dev": str(installer_st.st_dev),
+        "installer_ino": str(installer_st.st_ino),
+        "native_dev": str(native_st.st_dev),
+        "native_ino": str(native_st.st_ino),
+        "python_dev": str(python_exe.st_dev),
+        "python_ino": str(python_exe.st_ino),
+        "installer_fd": str(installer_fd),
+        "native_fd": str(native_fd),
+        "operation": "installer_apply",
+        "expected_head": head,
+    }
+    try:
+        module._validate_first_entry_parent(
+            forged,
+            installer_fd,
+            native_fd,
+            operation="installer_apply",
+            expected_head=head,
+        )
+    except module.InstallError as exc:
+        assert str(exc).startswith("authenticated_first_entry_"), str(exc)
+    else:
+        raise AssertionError("forged_direct_parent_was_accepted")
+finally:
+    os.close(native_fd)
+    os.close(installer_fd)
+
 for token in (
     '"voidbuye2dormantbinderlock3_"',
     '"a206b43c158746ac2b685f770efe573f014ec672f2c9e8cf0759c2cf7ac1f23a"',
@@ -120,7 +167,19 @@ for token in (
     'BINDER_NAME = "void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"',
     'READY_STATE = "DORMANT_BINDER_ROOT_ABSENT_READY_FOR_CREATE_ONLY"',
     'GREEN_STATE = "DORMANT_BINDER_NATIVE_PAIR_GREEN"',
-    'raise InstallError("installer_git_object_stdin_required")',
+    '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_INSTALLER_FD"',
+    '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_NATIVE_FD"',
+    '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROOF_FD"',
+    '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_PARENT_PROOF_V1"',
+    'FIRST_ENTRY_LAUNCHER = pathlib.Path(',
+    'raise InstallError("authenticated_first_entry_required")',
+    '"authenticated_first_entry_fd_contract_required_for_apply=true"',
+    '"authenticated_first_entry_parent_proof_required=true"',
+    '"authenticated_first_entry_parent_revalidation_before_mutation_required=true"',
+    '"authenticated_first_entry_parent_revalidation_before_publication_required=true"',
+    '"running_python_generation_binding_required=true"',
+    "_read_exact_candidate_inherited",
+    "_validate_first_entry_parent",
     'if os.geteuid() == 0:',
     '"--clear-groups"',
     'elif os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:',
@@ -132,6 +191,11 @@ for token in (
     "atomic_root_publication_required=true",
     "rename_noreplace_required=true",
     "operation_bound_plan_id_required=true",
+    "authenticated_first_entry_fd_contract_required_for_apply=true",
+    "authenticated_first_entry_parent_proof_required=true",
+    "authenticated_first_entry_parent_revalidation_before_mutation_required=true",
+    "authenticated_first_entry_parent_revalidation_before_publication_required=true",
+    "running_python_generation_binding_required=true",
     "prepublication_revalidation_required=true",
     "retained_stage_directory_generation_required=true",
     "generation_bound_stage_cleanup_required=true",
@@ -193,11 +257,11 @@ assert revalidate_source is not None
 
 confirm_at = apply_source.index("if confirm != CONFIRM_TOKEN")
 plan_shape_at = apply_source.index("not expected_plan_id.startswith(PLAN_PREFIX)")
-stdin_at = apply_source.index("_require_apply_context()")
+entry_at = apply_source.index("_require_apply_context(native, expected_head)")
 root_at = apply_source.index('if os.geteuid() != 0:')
 collect_at = apply_source.index("result = _collect_plan(native, expected_head)")
 plan_match_at = apply_source.index('result["plan_id"] != expected_plan_id')
-assert confirm_at < plan_shape_at < stdin_at < root_at < collect_at < plan_match_at
+assert confirm_at < plan_shape_at < entry_at < root_at < collect_at < plan_match_at
 
 checkout_at = collect_source.index("_verify_checkout(expected_head)")
 lock_at = collect_source.index("accepted_lock(expected_head)")
@@ -254,6 +318,12 @@ assert (
     < cleanup_rmdir
 )
 
+first_parent_revalidation = apply_source.index(
+    '_first_entry_fd_context(\n            native,\n            operation="installer_apply",\n            expected_head=expected_head,\n        )'
+)
+first_mutation = apply_source.index("os.mkdir(STAGE_NAME, 0o755, dir_fd=opt_fd)")
+assert first_parent_revalidation < first_mutation
+
 stage_open = apply_source.index("stage_fd = os.open(")
 stage_bind_first = apply_source.index(
     "_require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)",
@@ -274,6 +344,12 @@ publish = apply_source.index(
     "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)",
     stage_verify_second,
 )
+second_parent_revalidation = apply_source.rindex(
+    '_first_entry_fd_context(\n            native,\n            operation="installer_apply",\n            expected_head=expected_head,\n        )',
+    0,
+    publish,
+)
+assert stage_verify_second < second_parent_revalidation < publish
 published_flag = apply_source.index("published = True", publish)
 install_bind = apply_source.index(
     "_require_visible_directory_matches_fd(opt_fd, INSTALL_NAME, stage_fd)",
@@ -459,7 +535,7 @@ direct_apply = subprocess.run(
 )
 assert direct_apply.returncode == 2
 direct_lines = set(direct_apply.stdout.splitlines())
-assert "reason=installer_git_object_stdin_required" in direct_lines
+assert "reason=authenticated_first_entry_required" in direct_lines
 assert "protected_install_performed=false" in direct_lines
 assert "publication=false" in direct_lines
 
@@ -471,7 +547,12 @@ print("superseded_pre_3363_locks_install_authority=false")
 print("exact_native_candidate_bound=true")
 print("exact_binder_git_object_bound=true")
 print("distinct_fixed_install_root=true")
-print("root_git_object_stdin_required_for_apply=true")
+print("authenticated_first_entry_fd_contract_required_for_apply=true")
+print("authenticated_first_entry_parent_proof_required=true")
+print("forged_direct_parent_rejected=true")
+print("parent_revalidated_before_first_mutation=true")
+print("parent_revalidated_before_publication=true")
+print("running_python_generation_binding_required=true")
 print("create_only=true")
 print("atomic_root_publication_required=true")
 print("rename_noreplace_required=true")

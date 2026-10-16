@@ -54,21 +54,37 @@ The installer:
 1. requires explicit confirmation
    `INSTALL_ACCEPTED_EPOCH2_DORMANT_BINDER_V3_CREATE_ONLY`;
 2. requires isolated Python and rejects loader/Python injection variables;
-3. rejects direct mutable-worktree apply;
-4. requires Git-object stdin execution for privileged apply;
-5. verifies exact current-main checkout through fixed runtime-user Git;
-6. validates accepted V3 lock from the exact expected Git head;
-7. verifies the external native candidate by exact bytes/SHA-256;
-8. obtains binder bytes from the exact expected Git object;
-9. requires the exact operation-bound plan ID before host mutation;
-10. creates a private staging root and retains its directory FD;
-11. writes and verifies exact root-owned files through that retained FD;
-12. requires the visible stage pathname to resolve to the retained directory generation;
-13. immediately before publication revalidates clean expected checkout, accepted V3 lock, external native candidate and binder Git-object bytes;
-14. rechecks stage pathname↔retained-FD identity and exact file bytes;
-15. publishes exactly once with `renameat2(RENAME_NOREPLACE)`;
-16. requires the visible final install pathname to resolve to that same retained directory generation before releasing the FD;
-17. fsyncs the parent and verifies final state.
+3. rejects direct mutable-worktree/root-Python apply;
+4. requires the reviewed static native first-entry marker plus inherited
+   installer, native-candidate and private parent-proof file descriptors;
+5. consumes the one-shot parent proof and binds real parent PID/start ticks,
+   fixed launcher device/inode, executing installer FD, retained native FD and
+   running Python device/inode to the launcher-authenticated generation;
+6. verifies exact current-main checkout through fixed runtime-user Git;
+7. validates accepted V3 lock from the exact expected Git head;
+8. verifies the retained native-candidate descriptor by exact bytes/SHA-256
+   without reopening the visible candidate pathname;
+9. obtains binder bytes from the exact expected Git object;
+10. requires the exact operation-bound plan ID before host mutation;
+11. immediately before the first staging mutation revalidates the live
+    first-entry parent/Python generation;
+12. creates a private staging root, retains its directory FD, and writes/verifies
+    exact root-owned files through that retained FD;
+13. requires the visible stage pathname to resolve to the retained directory generation;
+14. immediately before publication revalidates clean expected checkout, accepted
+    V3 lock, retained native-candidate descriptor and binder Git-object bytes;
+15. rechecks the same live first-entry parent/Python generation;
+16. rechecks stage pathname↔retained-FD identity and exact file bytes;
+17. publishes exactly once with `renameat2(RENAME_NOREPLACE)`;
+18. requires the visible final install pathname to resolve to that same retained directory generation before releasing the FD;
+19. fsyncs the parent and verifies final state.
+
+The native launcher proof is non-bearer. Marker strings, FD numbers, plan IDs
+and confirmation tokens cannot substitute for the live kernel relationship: the
+installer cross-checks `getppid()`, parent start ticks, `/proc/<ppid>/exe`,
+the fixed root-custodied launcher path, the installer/native descriptors and
+`/proc/self/exe`. The proof FD is one-shot and bounded; later checks use the
+cached exact proof only while revalidating the live parent generation.
 
 No overwrite/exchange/final-root unlink path exists.
 
@@ -102,7 +118,11 @@ The focused proof:
 - proves visible final-root identity matches the retained staged generation;
 - proves exactly one final-root publish call and no post-publication rollback;
 - proves missing confirmation fails before host/candidate access;
-- proves direct mutable-worktree apply is rejected;
+- proves direct mutable-worktree/root-Python apply is rejected;
+- proves caller-forged marker/FD/proof state cannot authenticate a direct parent;
+- requires parent PID/start/executable and running-Python generation binding;
+- proves parent provenance revalidation occurs before the first protected
+  mutation and again immediately before final publication;
 - verifies create-only publication structure and non-authority markers.
 
 Hosted CI performs no protected install and no native/binder execution.
