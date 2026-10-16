@@ -51,6 +51,12 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_REQUIREMENTS
     migration_preserves_authorization_slots_required:true,
     authorization_slot_identity_stable_across_store_generation_migration_required:true,
     migration_authorization_slot_set_continuity_required:true,
+    migration_authorization_slot_records_byte_identical_required:true,
+    migration_authorization_slot_set_commitment_required:true,
+    migration_authorization_slot_set_count_required:true,
+    migration_authorization_slot_set_sha256_required:true,
+    migration_authorization_slot_drop_or_rewrite_rejected_required:true,
+    migration_parent_store_continuity_receipt_revalidation_required:true,
     training_start_consumption_must_revalidate_unique_authorization_claim_required:true,
   });
 
@@ -71,6 +77,9 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_AUTHORITY_V1
     publish_request_revalidation_performed:false,
     store_generation_revalidation_required:true,
     store_generation_revalidation_performed:false,
+    parent_store_continuity_receipt_revalidation_required:true,
+    parent_store_continuity_receipt_revalidation_performed:false,
+    authorization_slot_set_migration_continuity_performed:false,
     authorization_slot_publication_required:true,
     authorization_slot_publication_performed:false,
     durable_attempt_claim_performed:false,
@@ -120,6 +129,9 @@ const CLAIM_RECORD_ID=/^apollyon_attempt_claim_record_v2:[0-9a-f]{64}$/u;
 const TERMINAL_ID=/^apollyon_terminal_receipt_v2:[0-9a-f]{64}$/u;
 const SLOT_ID=/^apollyon_attempt_claim_auth_slot_v1:[0-9a-f]{64}$/u;
 const SLOT_RECORD_ID=/^apollyon_attempt_claim_auth_slot_record_v1:[0-9a-f]{64}$/u;
+const SLOT_SET_ID=/^apollyon_attempt_claim_auth_slot_set_v1:[0-9a-f]{64}$/u;
+const SLOT_MIGRATION_ID=/^apollyon_attempt_claim_auth_slot_migration_v1:[0-9a-f]{64}$/u;
+const STORE_CONTINUITY_ID=/^apollyon_claim_store_continuity_v2:[0-9a-f]{64}$/u;
 
 function fail(code){throw new Error(code);}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
@@ -313,6 +325,111 @@ export function classifyApollyonDurableAttemptClaimAuthorizationSlotRecoveryV1(i
   });
 }
 
+
+function validatedSortedAuthorizationSlotRecordsV1(input){
+  if(!Array.isArray(input))fail("apollyon_claim_auth_slot_v1_set_invalid");
+  const records=input.map(
+    record=>validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1(record)
+  );
+  records.sort((a,b)=>a.authorization_slot_id.localeCompare(b.authorization_slot_id));
+  for(let i=1;i<records.length;i++){
+    if(records[i-1].authorization_slot_id===records[i].authorization_slot_id||
+       records[i-1].authorization_id===records[i].authorization_id){
+      fail("apollyon_claim_auth_slot_v1_set_duplicate_authorization");
+    }
+  }
+  return records;
+}
+
+export function qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1(input){
+  const value=clonePlain(input,"apollyon_claim_auth_slot_v1_set_input_invalid");
+  exactOwnKeys(
+    value,["authorization_slot_records"],
+    "apollyon_claim_auth_slot_v1_set_input_invalid",
+  );
+  const records=validatedSortedAuthorizationSlotRecordsV1(
+    value.authorization_slot_records,
+  );
+  const material={
+    marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_SET_V1",
+    version:1,
+    store_policy_id:ACCEPTED_STORE_POLICY_ID,
+    authorization_slot_count:records.length,
+    authorization_slot_set_sha256:
+      sha256(Buffer.from(canonical(records),"utf8")),
+  };
+  return Object.freeze({
+    ...material,
+    authorization_slot_set_id:"apollyon_attempt_claim_auth_slot_set_v1:"+
+      sha256(Buffer.from(canonical(material),"utf8")),
+  });
+}
+
+export function qualifyApollyonDurableAttemptClaimAuthorizationSlotMigrationV1(input){
+  const value=clonePlain(input,"apollyon_claim_auth_slot_v1_migration_input_invalid");
+  exactOwnKeys(value,[
+    "new_authorization_slot_records",
+    "new_store_generation_id",
+    "old_authorization_slot_records",
+    "old_store_generation_id",
+    "parent_store_continuity_receipt_id",
+  ],"apollyon_claim_auth_slot_v1_migration_input_invalid");
+  if(!STORE_GENERATION_ID.test(value.old_store_generation_id)||
+     !STORE_GENERATION_ID.test(value.new_store_generation_id)||
+     value.old_store_generation_id===value.new_store_generation_id||
+     !STORE_CONTINUITY_ID.test(value.parent_store_continuity_receipt_id)){
+    fail("apollyon_claim_auth_slot_v1_migration_input_invalid");
+  }
+  const oldRecords=validatedSortedAuthorizationSlotRecordsV1(
+    value.old_authorization_slot_records,
+  );
+  const newRecords=validatedSortedAuthorizationSlotRecordsV1(
+    value.new_authorization_slot_records,
+  );
+  const oldSet=qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1({
+    authorization_slot_records:oldRecords,
+  });
+  const newSet=qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1({
+    authorization_slot_records:newRecords,
+  });
+  if(oldSet.authorization_slot_count!==newSet.authorization_slot_count||
+     oldSet.authorization_slot_set_sha256!==newSet.authorization_slot_set_sha256||
+     oldSet.authorization_slot_set_id!==newSet.authorization_slot_set_id||
+     canonical(oldRecords)!==canonical(newRecords)){
+    fail("apollyon_claim_auth_slot_v1_migration_slot_set_changed");
+  }
+  if(!SLOT_SET_ID.test(oldSet.authorization_slot_set_id)){
+    fail("apollyon_claim_auth_slot_v1_migration_slot_set_invalid");
+  }
+  const material={
+    marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_MIGRATION_V1",
+    version:1,
+    store_policy_id:ACCEPTED_STORE_POLICY_ID,
+    old_store_generation_id:value.old_store_generation_id,
+    new_store_generation_id:value.new_store_generation_id,
+    parent_store_continuity_receipt_id:value.parent_store_continuity_receipt_id,
+    authorization_slot_set_id:oldSet.authorization_slot_set_id,
+    authorization_slot_count:oldSet.authorization_slot_count,
+    authorization_slot_set_sha256:oldSet.authorization_slot_set_sha256,
+    authorization_slot_records_byte_identical:true,
+    authorization_slot_set_preserved:true,
+    parent_store_continuity_receipt_revalidation_required:true,
+    parent_store_continuity_receipt_revalidation_performed:false,
+    protected_old_slot_set_origin_proven:false,
+    protected_new_slot_set_origin_proven:false,
+  };
+  const receipt=Object.freeze({
+    ...material,
+    authorization_slot_migration_id:
+      "apollyon_attempt_claim_auth_slot_migration_v1:"+
+      sha256(Buffer.from(canonical(material),"utf8")),
+  });
+  if(!SLOT_MIGRATION_ID.test(receipt.authorization_slot_migration_id)){
+    fail("apollyon_claim_auth_slot_v1_migration_id_invalid");
+  }
+  return receipt;
+}
+
 export function qualifyApollyonDurableAttemptClaimAuthorizationSlotContractV1(){
   const candidate=qualifyApollyonDurableAttemptClaimStoreServiceSourceCandidateV2();
   if(candidate.store_policy_id!==ACCEPTED_STORE_POLICY_ID||
@@ -336,6 +453,8 @@ export function qualifyApollyonDurableAttemptClaimAuthorizationSlotContractV1(){
     claim_record_semantic_revalidation_performed:false,
     terminal_receipt_revalidation_performed:false,
     publish_request_revalidation_performed:false,
+    parent_store_continuity_receipt_revalidation_performed:false,
+    authorization_slot_set_migration_continuity_performed:false,
     authorization_slot_publication_performed:false,
     durable_attempt_claim_performed:false,
     attempt_claim_authorized:false,

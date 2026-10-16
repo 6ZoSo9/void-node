@@ -20,6 +20,8 @@ import {
   qualifyApollyonDurableAttemptClaimAuthorizationSlotContractV1,
   qualifyApollyonDurableAttemptClaimAuthorizationSlotPolicyV1,
   qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
+  qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1,
+  qualifyApollyonDurableAttemptClaimAuthorizationSlotMigrationV1,
   validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
 } from "../tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs";
 
@@ -36,7 +38,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "08749ec3db211f8490de2ea1af819748176b9d6a",
+    "8bfa572b098176962e05241badf801211f8162c5",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -209,6 +211,92 @@ for(const mutate of [
   );
 }
 
+
+const authBRecord=record({
+  authorization_id:AUTH_B,
+  store_contract_id:"apollyon_claim_store_contract_v2:"+"a".repeat(64),
+  store_generation_id:"apollyon_claim_store_generation_v2:"+"b".repeat(64),
+  terminal_receipt_id:"apollyon_terminal_receipt_v2:"+"c".repeat(64),
+  claim_record_id:"apollyon_attempt_claim_record_v2:"+"d".repeat(64),
+  claim_record_sha256:"e".repeat(64),
+  publish_request_sha256:"f".repeat(64),
+});
+const slotSet=qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1({
+  authorization_slot_records:[authBRecord,first],
+});
+const slotSetReordered=qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1({
+  authorization_slot_records:[first,authBRecord],
+});
+assert.deepEqual(slotSetReordered,slotSet);
+assert.equal(slotSet.authorization_slot_count,2);
+assert.match(
+  slotSet.authorization_slot_set_id,
+  /^apollyon_attempt_claim_auth_slot_set_v1:[0-9a-f]{64}$/u,
+);
+
+const migration=qualifyApollyonDurableAttemptClaimAuthorizationSlotMigrationV1({
+  old_store_generation_id:"apollyon_claim_store_generation_v2:"+"1".repeat(64),
+  new_store_generation_id:"apollyon_claim_store_generation_v2:"+"2".repeat(64),
+  parent_store_continuity_receipt_id:
+    "apollyon_claim_store_continuity_v2:"+"3".repeat(64),
+  old_authorization_slot_records:[first,authBRecord],
+  new_authorization_slot_records:[authBRecord,first],
+});
+assert.equal(migration.authorization_slot_set_preserved,true);
+assert.equal(migration.authorization_slot_records_byte_identical,true);
+assert.equal(migration.authorization_slot_count,2);
+assert.equal(
+  migration.authorization_slot_set_sha256,
+  slotSet.authorization_slot_set_sha256,
+);
+assert.equal(migration.parent_store_continuity_receipt_revalidation_required,true);
+assert.equal(migration.parent_store_continuity_receipt_revalidation_performed,false);
+assert.equal(migration.protected_old_slot_set_origin_proven,false);
+assert.equal(migration.protected_new_slot_set_origin_proven,false);
+assert.match(
+  migration.authorization_slot_migration_id,
+  /^apollyon_attempt_claim_auth_slot_migration_v1:[0-9a-f]{64}$/u,
+);
+
+assert.throws(
+  ()=>qualifyApollyonDurableAttemptClaimAuthorizationSlotMigrationV1({
+    old_store_generation_id:"apollyon_claim_store_generation_v2:"+"1".repeat(64),
+    new_store_generation_id:"apollyon_claim_store_generation_v2:"+"2".repeat(64),
+    parent_store_continuity_receipt_id:
+      "apollyon_claim_store_continuity_v2:"+"3".repeat(64),
+    old_authorization_slot_records:[first,authBRecord],
+    new_authorization_slot_records:[first],
+  }),
+  /migration_slot_set_changed/u,
+);
+const rewrittenAuthB=record({
+  authorization_id:AUTH_B,
+  store_contract_id:"apollyon_claim_store_contract_v2:"+"4".repeat(64),
+  store_generation_id:"apollyon_claim_store_generation_v2:"+"5".repeat(64),
+  terminal_receipt_id:"apollyon_terminal_receipt_v2:"+"6".repeat(64),
+  claim_record_id:"apollyon_attempt_claim_record_v2:"+"7".repeat(64),
+  claim_record_sha256:"8".repeat(64),
+  publish_request_sha256:"9".repeat(64),
+});
+assert.equal(rewrittenAuthB.authorization_slot_id,authBRecord.authorization_slot_id);
+assert.throws(
+  ()=>qualifyApollyonDurableAttemptClaimAuthorizationSlotMigrationV1({
+    old_store_generation_id:"apollyon_claim_store_generation_v2:"+"1".repeat(64),
+    new_store_generation_id:"apollyon_claim_store_generation_v2:"+"2".repeat(64),
+    parent_store_continuity_receipt_id:
+      "apollyon_claim_store_continuity_v2:"+"3".repeat(64),
+    old_authorization_slot_records:[first,authBRecord],
+    new_authorization_slot_records:[first,rewrittenAuthB],
+  }),
+  /migration_slot_set_changed/u,
+);
+assert.throws(
+  ()=>qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1({
+    authorization_slot_records:[first,structuredClone(first)],
+  }),
+  /set_duplicate_authorization/u,
+);
+
 const contract=qualifyApollyonDurableAttemptClaimAuthorizationSlotContractV1();
 assert.equal(
   contract.status,
@@ -252,6 +340,12 @@ for(const [key,expected] of Object.entries({
   concurrent_same_authorization_different_terminal_at_most_one_success_required:true,
   migration_preserves_authorization_slots_required:true,
   authorization_slot_identity_stable_across_store_generation_migration_required:true,
+  migration_authorization_slot_records_byte_identical_required:true,
+  migration_authorization_slot_set_commitment_required:true,
+  migration_authorization_slot_set_count_required:true,
+  migration_authorization_slot_set_sha256_required:true,
+  migration_authorization_slot_drop_or_rewrite_rejected_required:true,
+  migration_parent_store_continuity_receipt_revalidation_required:true,
   training_start_consumption_must_revalidate_unique_authorization_claim_required:true,
 })){
   assert.equal(
@@ -267,6 +361,8 @@ for(const [key,expected] of Object.entries({
   terminal_receipt_revalidation_performed:false,
   publish_request_revalidation_performed:false,
   store_generation_revalidation_performed:false,
+  parent_store_continuity_receipt_revalidation_performed:false,
+  authorization_slot_set_migration_continuity_performed:false,
   authorization_slot_publication_performed:false,
   durable_attempt_claim_performed:false,
   attempt_claim_authorized:false,
@@ -320,6 +416,8 @@ console.log("claim_record_semantic_revalidation_performed=false");
 console.log("terminal_receipt_revalidation_performed=false");
 console.log("publish_request_revalidation_performed=false");
 console.log("migration_preserves_authorization_slots_required=true");
+console.log("migration_authorization_slot_set_commitment_proven=true");
+console.log("migration_slot_drop_or_rewrite_rejected=true");
 console.log("authorization_slot_publication_performed=false");
 console.log("durable_attempt_claim_performed=false");
 console.log("training_execution=false");
