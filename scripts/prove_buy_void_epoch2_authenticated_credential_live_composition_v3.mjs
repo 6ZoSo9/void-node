@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const RUNNER=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs";
-const RUNNER_BLOB="cbeba318c54daf0f32c0a11a7070aea3692b8f48";
+const RUNNER_BLOB="499df9b94b5b89354837570da0c7e47ec280025d";
 const QUALIFIER=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py";
 const QUALIFIER_BLOB="74c69fe8a95ed5f361a39971618f43f7c768c865";
@@ -46,9 +46,12 @@ for(const required of [
   "void_buy_void_user_manager_credential_query_installed_qualification_v3r.py",
   "74c69fe8a95ed5f361a39971618f43f7c768c865",
   "parseQualificationHoldStdout",
+  "qualificationProcessFailure",
   "credential_qualification_hold:",
+  "qualification_process_exit_mapping_proven=true",
   "qualification_hold_contract_invalid",
   "nested_qualification_hold_reason_preserved=true",
+  "qualification_process_exit_mapping_proven=true",
   "unexpected_qualification_exit_not_reclassified_as_hold=true",
   "voidbuyumqcredelflock3r_8b064214e22ce54ac193b426f38b9d6a7ea4cee07b38b68c8d1eeb6c51de6f34",
   "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_INSTALLED_QUALIFICATION_V3R",
@@ -249,6 +252,7 @@ console.log("live_execution_authorized=false");
 console.log("future_native_parent_proof_required=true");
 console.log("truthful_hold_lifecycle_stage=true");
 console.log("nested_qualification_hold_reason_preserved=true");
+console.log("qualification_process_exit_mapping_proven=true");
 console.log("unexpected_qualification_exit_not_reclassified_as_hold=true");
 console.log("pre_native_auth_failure_receipt_false=true");
 console.log("post_native_auth_failure_receipt_true=true");
