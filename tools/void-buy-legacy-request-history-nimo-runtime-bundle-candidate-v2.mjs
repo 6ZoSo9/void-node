@@ -38,6 +38,8 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     compiler_package_snapshot_bound: true,
     compiler_snapshot_nonwritable_during_build: true,
     compiler_snapshot_root_custody_required: true,
+    compiler_snapshot_privileged_creation_required: true,
+    compiler_snapshot_privileged_population_required: true,
     compiler_snapshot_builder_uid_direct_mutation_denied: true,
     compiler_source_post_revalidation_required: true,
     compiler_snapshot_post_revalidation_required: true,
@@ -45,6 +47,8 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     build_input_private_snapshot_required: true,
     build_input_snapshot_content_addressed: true,
     build_input_snapshot_root_custody_required: true,
+    build_input_snapshot_privileged_creation_required: true,
+    build_input_snapshot_privileged_population_required: true,
     build_input_snapshot_builder_uid_direct_mutation_denied: true,
     build_input_snapshot_post_revalidation_required: true,
     build_input_source_generation_bound: true,
@@ -52,6 +56,8 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     build_input_type_packages_bound: true,
     runtime_output_private_snapshot_required: true,
     runtime_output_snapshot_root_custody_required: true,
+    runtime_output_snapshot_privileged_creation_required: true,
+    runtime_output_snapshot_descendants_finalized_before_root_exposure_required: true,
     runtime_output_snapshot_builder_uid_direct_mutation_denied: true,
     runtime_output_snapshot_observed_before_cleanup: true,
     candidate_owned_rebuild_required: true,
@@ -521,7 +527,10 @@ const COMPILER_SNAPSHOT_PARENT_V2 = "/tmp";
 const SUDO_V2 = "/usr/bin/sudo";
 const CHOWN_V2 = "/usr/bin/chown";
 const CHMOD_V2 = "/usr/bin/chmod";
+const DD_V2 = "/usr/bin/dd";
 const ENV_V2 = "/usr/bin/env";
+const FIND_V2 = "/usr/bin/find";
+const MKDIR_V2 = "/usr/bin/mkdir";
 const RM_V2 = "/usr/bin/rm";
 
 const RUNTIME_OUTPUT_SNAPSHOT_SCHEMA_V2 =
@@ -715,52 +724,78 @@ function cleanupBuildInputSnapshotV2(snapshotRoot){ cleanupCompilerSnapshotV2(sn
 function createPrivateBuildInputSnapshotV2(sourceRoot,profile){
   assertFixedSnapshotParentV2();
   const before=buildInputStateV2(sourceRoot,profile);
-  const snapshotRoot=fs.mkdtempSync(path.join(COMPILER_SNAPSHOT_PARENT_V2,"void-nimo-build-input-snapshot-v2-"));
+  const snapshotRoot=createPrivilegedSnapshotRootV2(
+    "void-nimo-build-input-snapshot-v2-",
+  );
   try{
-    fs.chmodSync(snapshotRoot,0o755);
     const copied=new Set();
     for(const record of before.project_files){
       const bytes=readRegular(sourceRoot,record.path,32*1024*1024);
-      const target=path.join(snapshotRoot,record.path);
-      fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o755});
-      fs.writeFileSync(target,bytes,{flag:"wx",mode:0o444});
-      fs.chmodSync(target,0o444);
+      if(
+        bytes.length!==record.bytes ||
+        sha256(bytes)!==record.sha256 ||
+        gitBlobSha1(bytes)!==record.git_blob_sha1
+      ){
+        fail("legacy_history_nimo_bundle_build_input_source_drift");
+      }
+      writePrivilegedSnapshotFileV2(
+        snapshotRoot,
+        record.path,
+        bytes,
+        "build_input_project_file",
+      );
       copied.add(record.path);
     }
     for(const packageRoot of before.package_roots){
       for(const record of packageRoot.files){
-        if(copied.has(record.path)) fail("legacy_history_nimo_bundle_build_input_snapshot_duplicate_path");
+        if(copied.has(record.path)){
+          fail("legacy_history_nimo_bundle_build_input_snapshot_duplicate_path");
+        }
         const bytes=readRegular(sourceRoot,record.path,32*1024*1024);
         if(bytes.length!==record.bytes||sha256(bytes)!==record.sha256){
           fail("legacy_history_nimo_bundle_build_input_package_source_drift");
         }
-        const target=path.join(snapshotRoot,record.path);
-        fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o755});
-        fs.writeFileSync(target,bytes,{flag:"wx",mode:0o444});
-        fs.chmodSync(target,0o444);
+        writePrivilegedSnapshotFileV2(
+          snapshotRoot,
+          record.path,
+          bytes,
+          "build_input_package_file",
+        );
         copied.add(record.path);
       }
     }
     const derived=derivedBuildInputTsconfigBytesV2(profile);
-    const derivedTarget=path.join(snapshotRoot,BUILD_INPUT_DERIVED_TSCONFIG_V2);
-    fs.writeFileSync(derivedTarget,derived,{flag:"wx",mode:0o444});
-    fs.chmodSync(derivedTarget,0o444);
-    for(const directory of snapshotAllFileRecordsV2(snapshotRoot).directories.reverse()){
-      fs.chmodSync(directory,0o555);
-    }
-    runPrivilegedSnapshotToolV2(CHOWN_V2,["-R","root:root","--",snapshotRoot],"build_input_chown");
+    writePrivilegedSnapshotFileV2(
+      snapshotRoot,
+      BUILD_INPUT_DERIVED_TSCONFIG_V2,
+      derived,
+      "build_input_derived_tsconfig",
+    );
+    finalizePrivilegedSnapshotV2(snapshotRoot,"build_input_snapshot");
     assertBuildInputSnapshotNonwritableV2(snapshotRoot);
     const snapshotState=buildInputStateV2(snapshotRoot,profile);
     const after=buildInputStateV2(sourceRoot,profile);
-    if(canonicalLegacyHistoryNimoRuntimeBundleJsonV1(before)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(snapshotState)||
-       canonicalLegacyHistoryNimoRuntimeBundleJsonV1(before)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(after)){
+    if(
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(before)!==
+        canonicalLegacyHistoryNimoRuntimeBundleJsonV1(snapshotState)||
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(before)!==
+        canonicalLegacyHistoryNimoRuntimeBundleJsonV1(after)
+    ){
       fail("legacy_history_nimo_bundle_build_input_snapshot_source_mismatch");
     }
-    const observedDerived=readRegular(snapshotRoot,BUILD_INPUT_DERIVED_TSCONFIG_V2,1024*1024);
+    const observedDerived=readRegular(
+      snapshotRoot,
+      BUILD_INPUT_DERIVED_TSCONFIG_V2,
+      1024*1024,
+    );
     if(!observedDerived.equals(derived)){
       fail("legacy_history_nimo_bundle_build_input_derived_tsconfig_mismatch");
     }
-    return Object.freeze({root:snapshotRoot,state:before,record:buildInputSnapshotRecordV2(before,profile)});
+    return Object.freeze({
+      root:snapshotRoot,
+      state:before,
+      record:buildInputSnapshotRecordV2(before,profile),
+    });
   }catch(error){
     cleanupBuildInputSnapshotV2(snapshotRoot);
     throw error;
@@ -850,41 +885,13 @@ function cleanupRuntimeOutputSnapshotV2(snapshotRoot) {
 }
 
 function createPrivateRuntimeOutputRootV2() {
-  assertFixedSnapshotParentV2();
-  const outputRoot = fs.mkdtempSync(
-    path.join(
-      COMPILER_SNAPSHOT_PARENT_V2,
-      "void-nimo-runtime-output-snapshot-v2-",
-    ),
+  return createPrivilegedSnapshotRootV2(
+    "void-nimo-runtime-output-snapshot-v2-",
   );
-  fs.chmodSync(outputRoot, 0o700);
-  const before = fs.lstatSync(outputRoot);
-  runPrivilegedSnapshotToolV2(
-    CHOWN_V2,
-    ["root:root", "--", outputRoot],
-    "runtime_output_prebuild_chown",
-  );
-  const after = fs.lstatSync(outputRoot);
-  if (
-    !after.isDirectory() ||
-    after.isSymbolicLink() ||
-    after.dev !== before.dev ||
-    after.ino !== before.ino ||
-    after.uid !== 0 ||
-    after.gid !== 0 ||
-    (after.mode & 0o7777) !== 0o700
-  ) {
-    fail("legacy_history_nimo_bundle_runtime_output_prebuild_custody_invalid");
-  }
-  return outputRoot;
 }
 
 function finalizeRuntimeOutputSnapshotV2(outputRoot) {
-  runPrivilegedSnapshotToolV2(
-    CHMOD_V2,
-    ["-R", "a-w,go+rX,u+rX", "--", outputRoot],
-    "runtime_output_chmod",
-  );
+  finalizePrivilegedSnapshotV2(outputRoot,"runtime_output_snapshot");
   const inventory = snapshotAllFileRecordsV2(outputRoot);
   if (inventory.files.length < 1) {
     fail("legacy_history_nimo_bundle_runtime_output_snapshot_empty");
@@ -1112,6 +1119,171 @@ function runPrivilegedSnapshotToolV2(tool, args, label, timeout=30_000) {
 }
 
 
+function runPrivilegedSnapshotToolInputV2(
+  tool,
+  args,
+  label,
+  input,
+  timeout=30_000,
+) {
+  assertPrivilegedSnapshotToolV2(SUDO_V2, "sudo");
+  assertPrivilegedSnapshotToolV2(tool, label);
+  const result = spawnSync(
+    SUDO_V2,
+    ["-n", tool, ...args],
+    {
+      input,
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout,
+      env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
+    },
+  );
+  if (
+    result.error ||
+    result.status !== 0 ||
+    result.signal !== null ||
+    (result.stdout && result.stdout.length !== 0) ||
+    (result.stderr && result.stderr.length !== 0)
+  ) {
+    fail("legacy_history_nimo_bundle_snapshot_privileged_input_failed:" + label);
+  }
+}
+
+function snapshotRelativePathV2(relative) {
+  if (
+    typeof relative !== "string" ||
+    !relative ||
+    path.isAbsolute(relative) ||
+    relative.includes("\0")
+  ) {
+    fail("legacy_history_nimo_bundle_snapshot_relative_path_invalid");
+  }
+  const normalized = path.posix.normalize(relative.split(path.sep).join("/"));
+  if (
+    normalized !== relative.split(path.sep).join("/") ||
+    normalized === "." ||
+    normalized === ".." ||
+    normalized.startsWith("../")
+  ) {
+    fail("legacy_history_nimo_bundle_snapshot_relative_path_invalid");
+  }
+  return normalized;
+}
+
+function createPrivilegedSnapshotRootV2(prefix) {
+  assertFixedSnapshotParentV2();
+  if (!/^[a-z0-9-]+$/u.test(prefix)) {
+    fail("legacy_history_nimo_bundle_snapshot_prefix_invalid");
+  }
+  const snapshotRoot = path.join(
+    COMPILER_SNAPSHOT_PARENT_V2,
+    prefix + crypto.randomBytes(16).toString("hex"),
+  );
+  if (fs.existsSync(snapshotRoot)) {
+    fail("legacy_history_nimo_bundle_snapshot_root_collision");
+  }
+  runPrivilegedSnapshotToolV2(
+    MKDIR_V2,
+    ["--mode=0700", "--", snapshotRoot],
+    "snapshot_root_mkdir",
+  );
+  const st = fs.lstatSync(snapshotRoot);
+  if (
+    !st.isDirectory() ||
+    st.isSymbolicLink() ||
+    st.uid !== 0 ||
+    st.gid !== 0 ||
+    (st.mode & 0o7777) !== 0o700
+  ) {
+    fail("legacy_history_nimo_bundle_snapshot_root_custody_invalid");
+  }
+  return snapshotRoot;
+}
+
+function writePrivilegedSnapshotFileV2(
+  snapshotRoot,
+  relative,
+  bytes,
+  label,
+) {
+  const normalized = snapshotRelativePathV2(relative);
+  const target = path.resolve(snapshotRoot, normalized);
+  const rootPrefix = path.resolve(snapshotRoot) + path.sep;
+  if (!target.startsWith(rootPrefix)) {
+    fail("legacy_history_nimo_bundle_snapshot_target_escape");
+  }
+  const parent = path.dirname(target);
+  runPrivilegedSnapshotToolV2(
+    MKDIR_V2,
+    ["-p", "--mode=0700", "--", parent],
+    label + "_parent_mkdir",
+  );
+  runPrivilegedSnapshotToolInputV2(
+    DD_V2,
+    [
+      "of=" + target,
+      "bs=65536",
+      "status=none",
+      "conv=excl,fsync",
+    ],
+    label + "_write",
+    bytes,
+    60_000,
+  );
+  runPrivilegedSnapshotToolV2(
+    CHMOD_V2,
+    ["0444", "--", target],
+    label + "_chmod",
+  );
+}
+
+function finalizePrivilegedSnapshotV2(snapshotRoot, label) {
+  const rootBefore = fs.lstatSync(snapshotRoot);
+  if (
+    !rootBefore.isDirectory() ||
+    rootBefore.isSymbolicLink() ||
+    rootBefore.uid !== 0 ||
+    rootBefore.gid !== 0 ||
+    (rootBefore.mode & 0o7777) !== 0o700
+  ) {
+    fail("legacy_history_nimo_bundle_snapshot_root_not_private_before_finalize");
+  }
+  runPrivilegedSnapshotToolV2(
+    FIND_V2,
+    [
+      snapshotRoot,
+      "-mindepth", "1",
+      "-type", "f",
+      "-exec", CHMOD_V2, "0444", "--", "{}", "+",
+    ],
+    label + "_files_finalize",
+  );
+  runPrivilegedSnapshotToolV2(
+    FIND_V2,
+    [
+      snapshotRoot,
+      "-mindepth", "1",
+      "-type", "d",
+      "-exec", CHMOD_V2, "0555", "--", "{}", "+",
+    ],
+    label + "_directories_finalize",
+  );
+  const rootStillPrivate = fs.lstatSync(snapshotRoot);
+  if (
+    rootStillPrivate.uid !== 0 ||
+    rootStillPrivate.gid !== 0 ||
+    (rootStillPrivate.mode & 0o7777) !== 0o700
+  ) {
+    fail("legacy_history_nimo_bundle_snapshot_root_exposed_before_descendants");
+  }
+  runPrivilegedSnapshotToolV2(
+    CHMOD_V2,
+    ["0555", "--", snapshotRoot],
+    label + "_root_finalize",
+  );
+}
+
 function retainedCompileNodeV2() {
   if (!Number.isSafeInteger(process.pid) || process.pid <= 1) {
     fail("legacy_history_nimo_bundle_compile_node_pid_invalid");
@@ -1196,29 +1368,23 @@ function createPrivateCompilerSnapshotV2(
   packageSummary,
 ) {
   assertFixedSnapshotParentV2();
-  const snapshotRoot = fs.mkdtempSync(
-    path.join(COMPILER_SNAPSHOT_PARENT_V2, "void-nimo-tsc-snapshot-v2-"),
+  const snapshotRoot=createPrivilegedSnapshotRootV2(
+    "void-nimo-tsc-snapshot-v2-",
   );
   try {
-    fs.chmodSync(snapshotRoot, 0o755);
     for (const record of packageSummary.files) {
       const bytes = readRegular(sourceRoot, record.path, 32 * 1024 * 1024);
       if (bytes.length !== record.bytes || sha256(bytes) !== record.sha256) {
         fail("legacy_history_nimo_bundle_compiler_snapshot_source_drift");
       }
-      const target = path.join(snapshotRoot, record.path);
-      fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o755 });
-      fs.writeFileSync(target, bytes, { flag: "wx", mode: 0o444 });
-      fs.chmodSync(target, 0o444);
+      writePrivilegedSnapshotFileV2(
+        snapshotRoot,
+        record.path,
+        bytes,
+        "compiler_snapshot_file",
+      );
     }
-    for (const directory of compilerSnapshotDirectoriesV2(snapshotRoot).reverse()) {
-      fs.chmodSync(directory, 0o555);
-    }
-    runPrivilegedSnapshotToolV2(
-      CHOWN_V2,
-      ["-R", "root:root", "--", snapshotRoot],
-      "chown",
-    );
+    finalizePrivilegedSnapshotV2(snapshotRoot,"compiler_snapshot");
     assertCompilerSnapshotNonwritableV2(snapshotRoot, packageSummary);
     const observedCompiler = snapshotCompilerIdentityV2(snapshotRoot);
     const observedPackage = snapshotPackageSummaryV2(
@@ -1242,6 +1408,7 @@ function createPrivateCompilerSnapshotV2(
     throw error;
   }
 }
+
 
 function compileReviewedRuntimeWithBoundCompilerV2(
   root,
@@ -1461,6 +1628,8 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
       runtime_output_snapshot_required: true,
       runtime_output_snapshot_root_custody_required: true,
       runtime_output_snapshot_builder_uid_direct_mutation_denied_required: true,
+      runtime_output_snapshot_privileged_creation_required: true,
+      runtime_output_snapshot_descendants_finalized_before_root_exposure_required: true,
       runtime_output_snapshot_observed_before_cleanup_required: true,
       source_maps_expected: false,
       supported_node_majors: [22, 24, 26],
@@ -1718,9 +1887,13 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
       "build_input_snapshot_post_revalidation_required",
       "build_input_snapshot_required",
       "build_input_snapshot_root_custody_required",
+      "build_input_snapshot_privileged_creation_required",
+      "build_input_snapshot_privileged_population_required",
       "candidate_owned_rebuild_required","compile",
       "compile_node_retained_process_generation_required",
       "runtime_output_snapshot_builder_uid_direct_mutation_denied_required",
+      "runtime_output_snapshot_privileged_creation_required",
+      "runtime_output_snapshot_descendants_finalized_before_root_exposure_required",
       "runtime_output_snapshot_observed_before_cleanup_required",
       "runtime_output_snapshot_required",
       "runtime_output_snapshot_root_custody_required",
@@ -1764,6 +1937,8 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     body.build_recipe.runtime_output_snapshot_required !== true ||
     body.build_recipe.runtime_output_snapshot_root_custody_required !== true ||
     body.build_recipe.runtime_output_snapshot_builder_uid_direct_mutation_denied_required !== true ||
+    body.build_recipe.runtime_output_snapshot_privileged_creation_required !== true ||
+    body.build_recipe.runtime_output_snapshot_descendants_finalized_before_root_exposure_required !== true ||
     body.build_recipe.runtime_output_snapshot_observed_before_cleanup_required !== true ||
     body.build_recipe.source_maps_expected !== false ||
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
