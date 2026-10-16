@@ -30,16 +30,35 @@ It:
 6. requires protected state
    `EPOCH2_LIVE_COMPOSITION_PROTECTED_INSTALL_GREEN`;
 7. snapshots root/native/runner/policy plus host tool/check-out generations;
-8. opens the exact installed native with `O_NOFOLLOW`, rebinds it to the verified snapshot, hashes that retained descriptor, and executes `/proc/self/fd/<fd> --self-test` with only that FD passed to the child;
-9. revalidates the retained inode and visible native pathname after execution;
+8. opens the installed native with `O_RDONLY|O_NOFOLLOW`, requires the
+   retained descriptor generation/hash to equal the accepted snapshot, and
+   executes only that retained FD through Linux `/proc/self/fd/<fd>` while
+   inheriting exactly that descriptor;
+9. revalidates the retained descriptor and visible native generation after the
+   child exits;
 10. repeats the full installed/host snapshot;
-11. executes the same descriptor-bound inert self-test a second time;
+11. repeats the same descriptor-bound inert self-test independently;
 12. repeats the full snapshot again;
-13. requires all three snapshots and both complete self-test transcripts to be identical.
+13. requires all three snapshots and both complete self-test transcripts to be
+    identical.
+
+## Executed-generation binding
+
+The self-test is no longer reopened by its visible pathname after verification.
+Each run retains one exact native file descriptor, hashes that descriptor,
+executes through `/proc/self/fd/<fd>` with `pass_fds`, and then requires both
+the retained FD and visible pathname to remain the exact accepted generation.
+
+The focused proof swaps the visible pathname after descriptor retention and
+before exec. The retained original ELF and the replacement ELF write distinct
+sentinels; the proof requires the retained-original sentinel and requires the
+replacement sentinel to remain absent. Qualification must then HOLD on retained
+and/or visible generation drift. A pathname swap therefore cannot redirect the
+self-test to a different executable or hide behind a compatible transcript.
 
 ## No live composition
 
-The native `--self-test` exits before the native root/live path. The qualifier never executes the mutable pathname after verification: execution is bound to the already-open verified inode via `/proc/self/fd/<fd>` and any visible-path rebinding during the child run causes HOLD.
+The native `--self-test` exits before the native root/live path.
 
 The qualifier does not:
 - execute the V2 runner;
