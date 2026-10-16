@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import fcntl
 import hashlib
 import json
 import os
@@ -79,7 +80,10 @@ RENAME_NOREPLACE = 1
 RENAME_EXCHANGE = 2
 
 READY_STATE = "CREDENTIAL_QUERY_V1_GREEN_READY_FOR_V2"
+STAGED_STATE = "CREDENTIAL_QUERY_V2_STAGE_READY_WITH_V1"
+EXCHANGED_STATE = "CREDENTIAL_QUERY_V2_EXCHANGED_PENDING_PREDECESSOR"
 GREEN_STATE = "CREDENTIAL_QUERY_V2_GREEN_WITH_V1_PREDECESSOR"
+ROLLBACK_PENDING_STATE = "CREDENTIAL_QUERY_V1_ROLLBACK_PENDING_V2_CLEANUP"
 
 
 class ReplaceError(RuntimeError):
@@ -423,60 +427,103 @@ def _root_entries() -> list[str]:
         raise ReplaceError("installed_root_list_failed") from exc
 
 
+def _installed_kind(path: pathlib.Path, *, allow_absent: bool) -> str:
+    if allow_absent and not _exists(path):
+        return "absent"
+    try:
+        _file_digest(
+            path,
+            expected_bytes=V1_QUERY_BYTES,
+            expected_sha256=V1_QUERY_SHA256,
+        )
+        return "v1"
+    except ReplaceError:
+        try:
+            _file_digest(
+                path,
+                expected_bytes=V2_QUERY_BYTES,
+                expected_sha256=V2_QUERY_SHA256,
+            )
+            return "v2"
+        except ReplaceError as exc:
+            raise ReplaceError(
+                "installed_generation_unrecognized:" + path.name
+            ) from exc
+
+
+def _classify_state(
+    query_kind: str,
+    stage_kind: str,
+    predecessor_kind: str,
+    entries: list[str],
+) -> str:
+    expected_entries = {
+        READY_STATE: sorted((PREEXEC_NAME, QUERY_NAME)),
+        STAGED_STATE: sorted((PREEXEC_NAME, QUERY_NAME, STAGING_NAME)),
+        EXCHANGED_STATE: sorted((PREEXEC_NAME, QUERY_NAME, STAGING_NAME)),
+        GREEN_STATE: sorted((PREEXEC_NAME, QUERY_NAME, V1_PREDECESSOR_NAME)),
+        ROLLBACK_PENDING_STATE:
+            sorted((PREEXEC_NAME, QUERY_NAME, V1_PREDECESSOR_NAME)),
+    }
+    table = {
+        ("v1", "absent", "absent"): READY_STATE,
+        ("v1", "v2", "absent"): STAGED_STATE,
+        ("v2", "v1", "absent"): EXCHANGED_STATE,
+        ("v2", "absent", "v1"): GREEN_STATE,
+        ("v1", "absent", "v2"): ROLLBACK_PENDING_STATE,
+    }
+    state = table.get((query_kind, stage_kind, predecessor_kind))
+    if state is None:
+        raise ReplaceError("protected_query_state_invalid")
+    if entries != expected_entries[state]:
+        raise ReplaceError("protected_query_root_entries_invalid")
+    return state
+
+
 def _base_state() -> str:
     _trusted_root_directory(pathlib.Path("/"))
     _trusted_root_directory(pathlib.Path("/opt"))
     _trusted_root_directory(INSTALL_ROOT, exact_mode=0o755)
-
     _file_digest(
         PREEXEC_TARGET,
         expected_bytes=PREEXEC_BYTES,
         expected_sha256=PREEXEC_SHA256,
     )
-    if _exists(STAGING_TARGET):
-        raise ReplaceError("staging_path_present")
+    return _classify_state(
+        _installed_kind(QUERY_TARGET, allow_absent=False),
+        _installed_kind(STAGING_TARGET, allow_absent=True),
+        _installed_kind(V1_PREDECESSOR_TARGET, allow_absent=True),
+        _root_entries(),
+    )
 
-    query_is_v1 = False
-    query_is_v2 = False
+
+def _open_locked_install_root() -> int:
+    fd = os.open(
+        INSTALL_ROOT,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+    )
     try:
-        _file_digest(
-            QUERY_TARGET,
-            expected_bytes=V1_QUERY_BYTES,
-            expected_sha256=V1_QUERY_SHA256,
-        )
-        query_is_v1 = True
-    except ReplaceError:
         try:
-            _file_digest(
-                QUERY_TARGET,
-                expected_bytes=V2_QUERY_BYTES,
-                expected_sha256=V2_QUERY_SHA256,
-            )
-            query_is_v2 = True
-        except ReplaceError as exc:
-            raise ReplaceError("fixed_query_identity_unrecognized") from exc
-
-    predecessor_exists = _exists(V1_PREDECESSOR_TARGET)
-
-    if query_is_v1 and not predecessor_exists:
-        if _root_entries() != sorted((PREEXEC_NAME, QUERY_NAME)):
-            raise ReplaceError("v1_ready_root_entries_invalid")
-        return READY_STATE
-
-    if query_is_v2 and predecessor_exists:
-        _file_digest(
-            V1_PREDECESSOR_TARGET,
-            expected_bytes=V1_QUERY_BYTES,
-            expected_sha256=V1_QUERY_SHA256,
-        )
-        if _root_entries() != sorted(
-            (PREEXEC_NAME, QUERY_NAME, V1_PREDECESSOR_NAME)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise ReplaceError("replacement_operation_in_progress") from exc
+        visible = INSTALL_ROOT.lstat()
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISDIR(opened.st_mode)
+            or stat.S_ISLNK(visible.st_mode)
+            or visible.st_dev != opened.st_dev
+            or visible.st_ino != opened.st_ino
+            or visible.st_uid != 0
+            or visible.st_gid != 0
+            or stat.S_IMODE(visible.st_mode) != 0o755
+            or (visible.st_mode & 0o022) != 0
         ):
-            raise ReplaceError("v2_green_root_entries_invalid")
-        return GREEN_STATE
-
-    raise ReplaceError("protected_query_state_invalid")
-
+            raise ReplaceError("locked_install_root_identity_invalid")
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
 
 def source_plan() -> None:
     accepted_lock()
@@ -517,6 +564,8 @@ def plan(query: pathlib.Path | None) -> None:
     print("preexec_replacement=false")
     print("v1_predecessor_preserved_after_success=true")
     print("query_atomic_exchange_required=true")
+    print("operation_directory_lock_required=true")
+    print("crash_state_classification_required=true")
     print("filesystem_write=false")
     print("query_execution=false")
     print("credential_contents_read=false")
@@ -527,10 +576,15 @@ def plan(query: pathlib.Path | None) -> None:
     if state == GREEN_STATE:
         print("already_replaced=true")
         print("next_action=NO_MUTATION_REQUIRED")
+    elif state in (STAGED_STATE, EXCHANGED_STATE):
+        print("already_replaced=false")
+        print("next_action=SEPARATELY_AUTHORIZE_ATOMIC_V1_TO_V2_RESUME")
+    elif state == ROLLBACK_PENDING_STATE:
+        print("already_replaced=false")
+        print("next_action=SEPARATELY_AUTHORIZE_V2_TO_V1_ROLLBACK_RESUME")
     else:
         print("already_replaced=false")
         print("next_action=SEPARATELY_AUTHORIZE_ATOMIC_V1_TO_V2_REPLACEMENT")
-
 
 def _restore_ready_after_failed_apply(
     dir_fd: int,
@@ -603,46 +657,61 @@ def apply(query: pathlib.Path, confirm: str) -> None:
         raise ReplaceError("root_required_for_apply")
     _require_secure_apply_context()
     accepted_lock()
-
     raw = read_exact_candidate(query)
-    state = _base_state()
-    if state == GREEN_STATE:
-        print(MARKER)
-        print("mode=apply")
-        print("status=ALREADY_GREEN")
-        print("protected_query_replacement_performed=false")
-        print("query_execution=false")
-        print("credential_contents_read=false")
-        print("service_mutation=false")
-        print("systemd_mutation=false")
-        print("transaction=false")
-        print("funds_movement=false")
-        return
-    if state != READY_STATE:
-        raise ReplaceError("apply_state_not_v1_ready")
 
-    dir_fd = os.open(
-        INSTALL_ROOT,
-        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-    )
+    dir_fd = _open_locked_install_root()
     old_name: str | None = None
     created_stage_identity: tuple[int, int] | None = None
+    resumed_from = "none"
     try:
-        if _exists(STAGING_TARGET) or _exists(V1_PREDECESSOR_TARGET):
-            raise ReplaceError("replacement_target_changed_before_apply")
+        state = _base_state()
+        if state == GREEN_STATE:
+            print(MARKER)
+            print("mode=apply")
+            print("status=ALREADY_GREEN")
+            print("protected_query_replacement_performed=false")
+            print("crash_recovery_resumed=false")
+            print("query_execution=false")
+            print("credential_contents_read=false")
+            print("service_mutation=false")
+            print("systemd_mutation=false")
+            print("transaction=false")
+            print("funds_movement=false")
+            return
+        if state == ROLLBACK_PENDING_STATE:
+            raise ReplaceError("rollback_resume_required_before_apply")
+        if state not in (READY_STATE, STAGED_STATE, EXCHANGED_STATE):
+            raise ReplaceError("apply_state_not_recoverable")
 
-        created_stage_identity = _create_exact_stage(dir_fd, raw)
-        os.fsync(dir_fd)
+        if state == READY_STATE:
+            created_stage_identity = _create_exact_stage(dir_fd, raw)
+            os.fsync(dir_fd)
+            state = _base_state()
+            if state != STAGED_STATE:
+                raise ReplaceError("stage_publication_state_invalid")
+        elif state == STAGED_STATE:
+            read_exact_candidate(STAGING_TARGET)
+            created_stage_identity = _path_inode(STAGING_TARGET)
+            resumed_from = STAGED_STATE
 
-        old_name = STAGING_NAME
-        _renameat2(dir_fd, STAGING_NAME, QUERY_NAME, RENAME_EXCHANGE)
-        os.fsync(dir_fd)
+        if state == STAGED_STATE:
+            old_name = STAGING_NAME
+            _renameat2(dir_fd, STAGING_NAME, QUERY_NAME, RENAME_EXCHANGE)
+            os.fsync(dir_fd)
+            state = _base_state()
+            if state != EXCHANGED_STATE:
+                raise ReplaceError("exchange_state_invalid")
+        elif state == EXCHANGED_STATE:
+            created_stage_identity = _path_inode(QUERY_TARGET)
+            old_name = STAGING_NAME
+            resumed_from = EXCHANGED_STATE
 
         _file_digest(
             QUERY_TARGET,
             expected_bytes=V2_QUERY_BYTES,
             expected_sha256=V2_QUERY_SHA256,
         )
+        _require_owned_path(QUERY_TARGET, created_stage_identity)
         _file_digest(
             STAGING_TARGET,
             expected_bytes=V1_QUERY_BYTES,
@@ -681,6 +750,9 @@ def apply(query: pathlib.Path, confirm: str) -> None:
     print("installed_predecessor_lock_id=" + V1_LOCK_ID)
     print("protected_query_replacement_performed=true")
     print("atomic_exchange=true")
+    print("operation_directory_lock_held=true")
+    print("crash_recovery_resumed=" + str(resumed_from != "none").lower())
+    print("crash_recovery_initial_state=" + resumed_from)
     print("preexec_replacement=false")
     print("installed_query_sha256=" + V2_QUERY_SHA256)
     print("installed_query_bytes=" + str(V2_QUERY_BYTES))
@@ -693,7 +765,6 @@ def apply(query: pathlib.Path, confirm: str) -> None:
     print("funds_movement=false")
     print("next_action=V2_INSTALLED_READ_ONLY_QUALIFICATION")
 
-
 def rollback(confirm: str) -> None:
     if confirm != CONFIRM_ROLLBACK:
         raise ReplaceError("explicit_rollback_confirmation_required")
@@ -702,34 +773,79 @@ def rollback(confirm: str) -> None:
     _require_secure_apply_context()
     accepted_lock()
 
-    if _base_state() != GREEN_STATE:
-        raise ReplaceError("rollback_state_not_v2_green")
-
-    dir_fd = os.open(
-        INSTALL_ROOT,
-        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-    )
+    dir_fd = _open_locked_install_root()
+    resumed_from = "none"
     try:
-        _renameat2(
-            dir_fd,
-            QUERY_NAME,
-            V1_PREDECESSOR_NAME,
-            RENAME_EXCHANGE,
-        )
-        os.fsync(dir_fd)
+        state = _base_state()
+        if state == READY_STATE:
+            print(MARKER)
+            print("mode=rollback")
+            print("status=ALREADY_V1_READY")
+            print("crash_recovery_resumed=false")
+            print("query_execution=false")
+            print("credential_contents_read=false")
+            print("service_mutation=false")
+            print("systemd_mutation=false")
+            print("transaction=false")
+            print("funds_movement=false")
+            return
 
-        _file_digest(
-            QUERY_TARGET,
-            expected_bytes=V1_QUERY_BYTES,
-            expected_sha256=V1_QUERY_SHA256,
-        )
-        _file_digest(
-            V1_PREDECESSOR_TARGET,
-            expected_bytes=V2_QUERY_BYTES,
-            expected_sha256=V2_QUERY_SHA256,
-        )
-        os.unlink(V1_PREDECESSOR_NAME, dir_fd=dir_fd)
-        os.fsync(dir_fd)
+        if state == STAGED_STATE:
+            _file_digest(
+                STAGING_TARGET,
+                expected_bytes=V2_QUERY_BYTES,
+                expected_sha256=V2_QUERY_SHA256,
+            )
+            os.unlink(STAGING_NAME, dir_fd=dir_fd)
+            os.fsync(dir_fd)
+            resumed_from = STAGED_STATE
+        elif state == EXCHANGED_STATE:
+            _renameat2(
+                dir_fd, QUERY_NAME, STAGING_NAME, RENAME_EXCHANGE
+            )
+            os.fsync(dir_fd)
+            _file_digest(
+                QUERY_TARGET,
+                expected_bytes=V1_QUERY_BYTES,
+                expected_sha256=V1_QUERY_SHA256,
+            )
+            _file_digest(
+                STAGING_TARGET,
+                expected_bytes=V2_QUERY_BYTES,
+                expected_sha256=V2_QUERY_SHA256,
+            )
+            os.unlink(STAGING_NAME, dir_fd=dir_fd)
+            os.fsync(dir_fd)
+            resumed_from = EXCHANGED_STATE
+        elif state == GREEN_STATE:
+            _renameat2(
+                dir_fd,
+                QUERY_NAME,
+                V1_PREDECESSOR_NAME,
+                RENAME_EXCHANGE,
+            )
+            os.fsync(dir_fd)
+            state = _base_state()
+            if state != ROLLBACK_PENDING_STATE:
+                raise ReplaceError("rollback_exchange_state_invalid")
+            _file_digest(
+                V1_PREDECESSOR_TARGET,
+                expected_bytes=V2_QUERY_BYTES,
+                expected_sha256=V2_QUERY_SHA256,
+            )
+            os.unlink(V1_PREDECESSOR_NAME, dir_fd=dir_fd)
+            os.fsync(dir_fd)
+        elif state == ROLLBACK_PENDING_STATE:
+            _file_digest(
+                V1_PREDECESSOR_TARGET,
+                expected_bytes=V2_QUERY_BYTES,
+                expected_sha256=V2_QUERY_SHA256,
+            )
+            os.unlink(V1_PREDECESSOR_NAME, dir_fd=dir_fd)
+            os.fsync(dir_fd)
+            resumed_from = ROLLBACK_PENDING_STATE
+        else:
+            raise ReplaceError("rollback_state_not_recoverable")
 
         if _base_state() != READY_STATE:
             raise ReplaceError("rollback_post_state_invalid")
@@ -739,6 +855,9 @@ def rollback(confirm: str) -> None:
     print(MARKER)
     print("mode=rollback")
     print("status=ROLLBACK_GREEN")
+    print("operation_directory_lock_held=true")
+    print("crash_recovery_resumed=" + str(resumed_from != "none").lower())
+    print("crash_recovery_initial_state=" + resumed_from)
     print("v1_query_restored=true")
     print("v2_query_removed=true")
     print("preexec_replacement=false")
@@ -748,7 +867,6 @@ def rollback(confirm: str) -> None:
     print("systemd_mutation=false")
     print("transaction=false")
     print("funds_movement=false")
-
 
 def self_test() -> None:
     lock = accepted_lock()
@@ -762,6 +880,31 @@ def self_test() -> None:
     assert PREEXEC_SHA256 != V1_QUERY_SHA256
     assert V1_QUERY_SHA256 != V2_QUERY_SHA256
     assert V1_QUERY_BYTES != V2_QUERY_BYTES
+
+    names_ready = sorted((PREEXEC_NAME, QUERY_NAME))
+    names_stage = sorted((PREEXEC_NAME, QUERY_NAME, STAGING_NAME))
+    names_pred = sorted((PREEXEC_NAME, QUERY_NAME, V1_PREDECESSOR_NAME))
+    assert _classify_state(
+        "v1", "absent", "absent", names_ready
+    ) == READY_STATE
+    assert _classify_state(
+        "v1", "v2", "absent", names_stage
+    ) == STAGED_STATE
+    assert _classify_state(
+        "v2", "v1", "absent", names_stage
+    ) == EXCHANGED_STATE
+    assert _classify_state(
+        "v2", "absent", "v1", names_pred
+    ) == GREEN_STATE
+    assert _classify_state(
+        "v1", "absent", "v2", names_pred
+    ) == ROLLBACK_PENDING_STATE
+    try:
+        _classify_state("v1", "v2", "v1", names_stage + [V1_PREDECESSOR_NAME])
+    except ReplaceError as exc:
+        assert str(exc) == "protected_query_state_invalid"
+    else:
+        raise AssertionError("invalid_crash_state_unexpectedly_admitted")
 
     with tempfile.TemporaryDirectory(
         prefix="void-credential-query-v2-owned-cleanup-"
@@ -818,6 +961,10 @@ def main() -> int:
         print("automatic_failure_rollback=true")
         print("foreign_stage_cleanup_rejected=true")
         print("current_invocation_stage_inode_bound=true")
+        print("operation_directory_lock_required=true")
+        print("crash_state_classifier_complete=true")
+        print("apply_crash_resume_supported=true")
+        print("rollback_crash_resume_supported=true")
         print("query_execution=false")
         print("credential_contents_read=false")
         return 0
