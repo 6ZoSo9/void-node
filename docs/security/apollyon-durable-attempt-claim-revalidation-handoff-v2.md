@@ -81,13 +81,22 @@ while the publisher request is being parsed.
 After the service has parsed the publisher request but **before any protected
 store mutation**, the service must:
 
-1. generate a fresh bounded 32-byte challenge;
-2. send it on the retained, kernel-authenticated root revalidator connection;
+1. generate a fresh cryptographic-random 32-byte challenge;
+2. send **exactly those 32 raw bytes** on the retained, kernel-authenticated
+   root revalidator connection; no control bytes are accepted before this
+   challenge;
 3. require the same revalidator generation to rerun the complete privileged
    checks;
-4. require an exact response binding both the challenge and the parsed
-   `publish_request_sha256`;
-5. retain and recheck root/publisher pidfd liveness and process generations.
+4. require one exact **64-byte binary response**:
+   the 32 challenge bytes followed by the 32 raw bytes obtained by decoding the
+   parsed lowercase-hex `publish_request_sha256`;
+5. reject trailing bytes, extra responses, challenge reuse and provenance
+   session reuse;
+6. retain and recheck root/publisher pidfd liveness and process generations.
+
+Each provenance session binds exactly one direct-child publisher generation and
+exactly one publisher request. The publisher may connect only after the root
+control peer is authenticated.
 
 This response is live channel evidence. It is not a transferable credential.
 

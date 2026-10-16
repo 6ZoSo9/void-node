@@ -89,7 +89,22 @@ assert.equal(result.privileged_revalidation.serialized_privileged_attestation_or
 assert.equal(result.fresh_prepublication_challenge.challenge_after_publisher_request_parse_required,true);
 assert.equal(result.fresh_prepublication_challenge.challenge_before_any_store_mutation_required,true);
 assert.equal(result.fresh_prepublication_challenge.challenge_bytes,32);
+assert.equal(result.fresh_prepublication_challenge.challenge_frame_exact_bytes,32);
+assert.equal(result.fresh_prepublication_challenge.challenge_frame_raw_binary_required,true);
+assert.equal(result.fresh_prepublication_challenge.challenge_unique_per_provenance_session_required,true);
 assert.equal(result.fresh_prepublication_challenge.challenge_timeout_ms,5000);
+assert.equal(result.fresh_prepublication_challenge.control_connection_bytes_before_challenge_forbidden,true);
+assert.equal(result.fresh_prepublication_challenge.response_frame_exact_bytes,64);
+assert.equal(
+  result.fresh_prepublication_challenge.response_frame_layout,
+  "challenge_32_bytes_then_publish_request_sha256_raw_32_bytes",
+);
+assert.equal(result.fresh_prepublication_challenge.publish_request_sha256_hex_decode_exact_32_bytes_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_trailing_or_extra_bytes_forbidden,true);
+assert.equal(result.fresh_prepublication_challenge.exactly_one_challenge_response_per_session_required,true);
+assert.equal(result.fresh_prepublication_challenge.provenance_session_exactly_one_publisher_request_required,true);
+assert.equal(result.fresh_prepublication_challenge.provenance_session_reuse_forbidden,true);
+assert.equal(result.fresh_prepublication_challenge.publisher_connection_after_authenticated_control_required,true);
 assert.equal(result.fresh_prepublication_challenge.revalidator_reruns_all_privileged_checks_after_challenge_required,true);
 assert.equal(result.fresh_prepublication_challenge.response_binds_publish_request_sha256_required,true);
 assert.equal(result.mutation_and_ack_boundary.provenance_loss_after_mutation_must_not_return_success_required,true);
@@ -186,6 +201,10 @@ for(const required of [
   "revalidator_pidfd_retained_required:true",
   "publisher_pidfd_retained_required:true",
   "challenge_after_publisher_request_parse_required:true",
+  "challenge_frame_exact_bytes:32",
+  "response_frame_exact_bytes:64",
+  "provenance_session_reuse_forbidden:true",
+  "control_connection_bytes_before_challenge_forbidden:true",
   "revalidator_reruns_all_privileged_checks_after_challenge_required:true",
   "response_binds_publish_request_sha256_required:true",
   "serialized_privileged_attestation_or_bearer_token_forbidden:true",
@@ -208,6 +227,9 @@ console.log("root_publish_authority=false");
 console.log("publisher_direct_child_of_revalidator_required=true");
 console.log("kernel_so_peercred_pidfd_generation_required=true");
 console.log("fresh_prepublication_challenge_required=true");
+console.log("challenge_frame_exact_bytes=32");
+console.log("response_frame_exact_bytes=64");
+console.log("provenance_session_reuse=false");
 console.log("post_challenge_privileged_revalidation_required=true");
 console.log("host_qualification_performed=false");
 console.log("durable_attempt_claim_performed=false");
