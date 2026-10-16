@@ -47,8 +47,21 @@ The client does not trust a relay-supplied absolute clock. `RELAY_RESERVED`
 returns a bounded TTL, and the client derives expiry from its own request time.
 A relay cannot extend a reservation beyond the TTL the client requested.
 
+The relay server also treats its own clock as a state-generation boundary. If a
+later valid local clock observation moves backward, all in-memory relay-server
+reservations and streams are cleared fail closed before the regressed time can
+extend a TTL, idle timeout, or move stream activity backward. That regressed
+observation becomes the new empty-state baseline, so fresh reservations may be
+established deliberately afterward. Timed state helpers may observe the clock
+between owner sweeps; stream closures produced by those internal observations
+are queued and drained exactly once by the next owner `sweep()`, so clock
+regression or expiry cannot silently discard the relay close lifecycle signal.
+
 Incoming streams carry the exact active reservation ID. A stale or fabricated
-reservation ID cannot allocate a local relay stream.
+reservation ID cannot allocate a local relay stream. A normal monotonic
+reservation refresh may rotate the active reservation ID without terminating an
+already established end-to-end-authenticated stream; the reservation ID is an
+admission binding, not a post-admission stream lease.
 
 ## Multipath behavior
 
@@ -147,6 +160,10 @@ healthy_relay_connected_with_dead_sibling=true
 direct_path_suppressed_by_relay=false
 relayed_peer_promoted_to_verified_direct_cache=false
 relay_reservation_client_ttl_bounded=true
+relay_clock_regression_clears_transient_state=true
+relay_clock_regression_fresh_state_recovery=true
+relay_clock_regression_internal_close_notification_preserved=true
+relay_monotonic_reservation_refresh_preserves_stream=true
 relay_pending_request_timeout_bounded=true
 relay_forwarding_queue_bounded=true
 incoming_reservation_id_bound=true

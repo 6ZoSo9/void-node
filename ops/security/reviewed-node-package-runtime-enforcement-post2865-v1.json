@@ -1,0 +1,35 @@
+{
+  "marker": "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_POST2865_V1",
+  "version": 1,
+  "status": "REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_POST2865_IDENTITY",
+  "repository": "6ZoSo9/void-node",
+  "candidate_parent": "d80f258d7b55fb66d5ec29761befe828efca2b0c",
+  "candidate_source_parent": "35ff3f8ec453f8104b59967580a84347d6bc1d23",
+  "root_packages": [
+    "ethers",
+    "express"
+  ],
+  "package_json_git_blob_sha1": "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f",
+  "package_lock_git_blob_sha1": "15b5c82ea36f13079a2f9e8863722f654eb3f201",
+  "profile_id": "voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac",
+  "packages_aggregate_sha256": "77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6",
+  "profile_canonical_sha256": "3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757",
+  "candidate_json_sha256": "24650a7984afe461406da3cf21c410ab4104b70d8cf939711b5c1936a1240037",
+  "package_count": 82,
+  "total_file_count": 2498,
+  "total_bytes": 21290060,
+  "root_versions": {
+    "ethers": "6.17.0",
+    "express": "4.22.3"
+  },
+  "post_2865_dependency_generation": true,
+  "profile_identity_accepted": true,
+  "supersedes_pre_2865_package_identity": true,
+  "whole_enforcement_closure_verified": false,
+  "candidate_enforcement_identity_accepted": false,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}

@@ -498,7 +498,7 @@ function transportFixture(options={}){
         if(options.nonceDriftFinalOnly===true&&nonceReads>2)return "0x8";
         return options.nonceDrift===true&&nonceReads>1?"0x8":"0x7";
       case "eth_gasPrice":
-        return "0x3b9aca00";
+        return "0x0";
       case "eth_estimateGas":
         return options.gasTooHigh===true?"0x989680":"0xc350";
       case "eth_getBalance":
@@ -518,9 +518,9 @@ function policy(overrides={}){
     gas_limit_multiplier_bps:"12000",
     max_gas_limit:"100000",
     fee_multiplier_bps:"20000",
-    max_fee_per_gas_wei:"3000000000",
-    max_priority_fee_per_gas_wei:"1000000000",
-    max_total_gas_cost_wei:"300000000000000",
+    max_fee_per_gas_wei:"0",
+    max_priority_fee_per_gas_wei:"0",
+    max_total_gas_cost_wei:"0",
     request_timeout_ms:5000,
     max_response_bytes:65536,
     ...overrides,
@@ -599,6 +599,8 @@ function eligibilityInput(transport,credentialsDirectory,overrides={}){
       result.transaction_candidate.from_address,
       PUBLISHER,
     );
+    assert.equal(result.transaction_candidate.max_fee_per_gas_wei,"0");
+    assert.equal(result.transaction_candidate.max_priority_fee_per_gas_wei,"0");
     assert.equal(
       result.transaction_candidate_sha256,
       sha256(canonicalJson(result.transaction_candidate)),
@@ -718,7 +720,7 @@ function eligibilityInput(transport,credentialsDirectory,overrides={}){
       if(call.method==="eth_getTransactionCount"){
         nonceReads+=1;
         if(nonceReads===3){
-          input.policy.max_total_gas_cost_wei="400000000000000";
+          input.policy.request_timeout_ms=5001;
         }
       }
       return result;
@@ -945,3 +947,5 @@ console.log("signer_object_exposed=false");
 console.log("signing=false");
 console.log("transaction_broadcast=false");
 console.log("chain2050_write=false");
+
+console.log("epoch2_zero_fee_candidate_accepted=true");

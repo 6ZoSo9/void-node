@@ -1,0 +1,69 @@
+name: VOID Buy custody socket RuntimeDirectory policy v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_socket_runtime_directory_policy_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-socket-runtime-directory-policy-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-socket-runtime-directory-policy-v1.yml"
+      - "tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_socket_runtime_directory_policy_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-socket-runtime-directory-policy-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-socket-runtime-directory-policy-v1.yml"
+      - "tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: custody socket RuntimeDirectory / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Bind exact source and prove policy
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$(git hash-object tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs)" = "63eb0aa4e4211869284d389839e71e23554d62b1"
+          test "$(git hash-object tools/void-buy-allocation-custody-service-v2.mjs)" = "3afcc450b11f93209253a5cc10b300596942d07d"
+          node --check tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs
+          node --check scripts/prove_void_buy_allocation_custody_socket_runtime_directory_policy_v1.mjs
+          proof="$RUNNER_TEMP/custody-socket-runtime-directory-v1.txt"
+          node scripts/prove_void_buy_allocation_custody_socket_runtime_directory_policy_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_SOCKET_RUNTIME_DIRECTORY_POLICY_V1_GREEN' "$proof"
+          grep -Fx 'runtime_directory_mechanism_selected=true' "$proof"
+          grep -Fx 'custody_primary_group_preserved=true' "$proof"
+          grep -Fx 'supplementary_ipc_group_required=true' "$proof"
+          grep -Fx 'existing_two_read_write_paths_preserved=true' "$proof"
+          grep -Fx 'third_read_write_path_added=false' "$proof"
+          grep -Fx 'systemd_socket_activation_used=false' "$proof"
+          grep -Fx 'host_socket_bind_verified=false' "$proof"
+          grep -Fx 'service_install=false' "$proof"
+          grep -Fx 'production_gate_ready=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+      - name: Repository regression
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck -- --pretty false
+          npm run build
+          git diff --check

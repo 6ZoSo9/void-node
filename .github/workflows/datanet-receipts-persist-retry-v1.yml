@@ -1,0 +1,77 @@
+name: Datanet receipts persisted retry v1
+
+on:
+  pull_request:
+    paths:
+      - "src/diag/datanet_receipts_persist_v1.cjs"
+      - "scripts/prove_datanet_receipts_persist_retry_v1.cjs"
+      - ".github/workflows/datanet-receipts-persist-retry-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: retry proof / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact head without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove atomic retry and single-flight scanning
+        run: |
+          set -euo pipefail
+          node --check src/diag/datanet_receipts_persist_v1.cjs
+          node --check scripts/prove_datanet_receipts_persist_retry_v1.cjs
+          proof_file="$RUNNER_TEMP/datanet-receipts-persist-retry-v1.txt"
+          node scripts/prove_datanet_receipts_persist_retry_v1.cjs | tee "$proof_file"
+          grep -Fx "VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN" "$proof_file"
+          grep -Fx "failed_read_rollback=true" "$proof_file"
+          grep -Fx "short_read_rollback=true" "$proof_file"
+          grep -Fx "premature_close_rollback=true" "$proof_file"
+          grep -Fx "close_after_end_preserved=true" "$proof_file"
+          grep -Fx "concurrent_scan_coalesced=true" "$proof_file"
+          grep -Fx "same_bytes_counted_once=true" "$proof_file"
+          grep -Fx "descriptor_generation_bound=true" "$proof_file"
+          grep -Fx "path_replacement_next_scan_resets=true" "$proof_file"
+          grep -Fx "descriptor_close_verified=true" "$proof_file"
+          grep -Fx "scan_deadline_ms=5000" "$proof_file"
+          grep -Fx "max_scan_window_bytes=262144" "$proof_file"
+          grep -Fx "bounded_window_progress=true" "$proof_file"
+          grep -Fx "utf8_boundary_carry_preserved=true" "$proof_file"
+          grep -Fx "multi_window_valid_backlog_completed=true" "$proof_file"
+          grep -Fx "scan_timeout_rollback=true" "$proof_file"
+          grep -Fx "single_flight_released_after_timeout=true" "$proof_file"
+          grep -Fx "timed_out_stream_destroyed=true" "$proof_file"
+          grep -Fx "max_carry_bytes=1048576" "$proof_file"
+          grep -Fx "line_too_large_rollback=true" "$proof_file"
+          grep -Fx "overlimit_stream_destroyed=true" "$proof_file"
+          grep -Fx "valid_generation_recovery_after_line_too_large=true" "$proof_file"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+            echo "diff_scope=manual_exact_first_parent"
+          else
+            git merge-base --is-ancestor "$BASE" "$HEAD"
+            echo "diff_scope=reviewed_pull_request_base"
+          fi
+          git diff --check "$BASE" "$HEAD"

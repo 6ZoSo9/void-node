@@ -1,0 +1,76 @@
+name: VOID Buy user manager query ELF candidate v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v2.yml"
+      - "docs/operators/buy-void-user-manager-query-elf-candidate-v2.md"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v2.yml"
+      - "docs/operators/buy-void-user-manager-query-elf-candidate-v2.md"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v2.json"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+
+permissions:
+  contents: read
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Preserve historical V2 and reject superseded 3114 generation
+        run: |
+          set -euo pipefail
+          query_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)"
+          peer_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c)"
+          preexec_blob="$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c)"
+
+          test "$peer_blob" = "d8b30ac499c3bb8a5d223dbc6be687dd175be611"
+          test "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff"
+
+          if [ "$query_blob" = "5355b7f177574ac4fa173a693605acaf9c5f26e4" ]; then
+            echo "superseded_3114_query_generation_reintroduced" >&2
+            exit 1
+          fi
+
+          case "$query_blob" in
+            6aefc385bcc4212d3c45e36871bfde0da3529baa|ddca2c544ce14261dffb80a202c0a4ae2979ec1e|fc1f640689b7da7278ff013669ef8a10cd8f6659) ;;
+            *) echo "unknown canonical query successor: $query_blob" >&2; exit 2 ;;
+          esac
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v2.json)" = "57026c4d8ca6cc9a40a3fa61f8cf4ee2c9df47be"
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v2.json)" = "347951dbaa2d9bb5c31c8b718d9965ab3fdf7301"
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v4.json)" = "988542122028843b2848063dbbaf7a94c32d6cd4"
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-user-manager-query-elf-candidate-v2.md)" = "a67daac2629b75cd4fbfa6860721d65e41f52c14"
+          echo "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V2_HISTORICAL_PRESERVED"
+          echo "canonical_v4_query_generation_required=true"
+          echo "superseded_3114_candidate_derivation=false"
+          echo "install_authorized=false"
+          echo "funds_movement=false"
+      - run: git diff --check

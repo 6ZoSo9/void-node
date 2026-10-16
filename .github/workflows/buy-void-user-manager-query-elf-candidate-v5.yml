@@ -1,0 +1,40 @@
+name: VOID Buy user manager query ELF candidate v5
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v5.yml"
+      - "docs/operators/buy-void-user-manager-query-elf-candidate-v5.md"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v5.yml"
+      - "docs/operators/buy-void-user-manager-query-elf-candidate-v5.md"
+
+permissions:
+  contents: read
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Preserve hosted V5 candidate evidence on exact V6 successor
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "fc1f640689b7da7278ff013669ef8a10cd8f6659"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-user-manager-query-elf-candidate-v5.md)" = "f11a02fa292c868ca83440a9e664df8b6de54c4d"
+          echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_CANDIDATE_V5_HISTORICAL_PRESERVED
+          echo hosted_run=38759148727
+          echo query_binary_sha256=faaafc906433cd31b8e2069d187348c4467717de03d4f757d46e30b4f14b3aab
+          echo candidate_accepted=false
+          echo install_authorized=false
+          echo live_query_authorized=false
+          echo funds_movement=false
+      - run: git diff --check

@@ -1,0 +1,114 @@
+name: VOID Buy user manager query ELF lock v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v1.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v1.json"
+      - "scripts/prove_void_buy_user_manager_query_elf_lock_v1.mjs"
+      - "docs/operators/buy-void-user-manager-query-elf-lock-v1.md"
+      - ".github/workflows/buy-void-user-manager-query-elf-lock-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-candidate-v1.yml"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v1.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v1.json"
+      - "scripts/prove_void_buy_user_manager_query_elf_lock_v1.mjs"
+      - "docs/operators/buy-void-user-manager-query-elf-lock-v1.md"
+      - ".github/workflows/buy-void-user-manager-query-elf-lock-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22,24,26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Rederive V1 or preserve it as historical evidence
+        run: |
+          set -euo pipefail
+          proof=scripts/prove_void_buy_user_manager_query_elf_lock_v1.mjs
+          query=ops/precision/void_buy_void_user_manager_private_unit_query_v1.c
+          peer=ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c
+          preexec=ops/precision/void_buy_void_user_manager_private_unit_query_preexec_v1.c
+          out="$RUNNER_TEMP/user-manager-query-elf-lock-${{ matrix.node }}.json"
+          query_blob="$(git rev-parse "HEAD:$query")"
+          peer_blob="$(git rev-parse "HEAD:$peer")"
+          preexec_blob="$(git rev-parse "HEAD:$preexec")"
+          if [ "$query_blob" = "ad49cd7f71c41e0f559a561b5a62a00cec60c215" ] && [ "$peer_blob" = "cab88f4642ab929d1f7a4d2f1511462a94ef34ca" ] && [ "$preexec_blob" = "f0fbfaae97df3294097a281100f06ada2ef157ff" ]; then
+            node "$proof" --self-test | tee "$RUNNER_TEMP/query-elf-lock-proof.log"
+            grep -Fx "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V1_GREEN" "$RUNNER_TEMP/query-elf-lock-proof.log"
+            grep -Fx "candidate_accepted=true" "$RUNNER_TEMP/query-elf-lock-proof.log"
+            grep -Fx "install_authorized=false" "$RUNNER_TEMP/query-elf-lock-proof.log"
+            grep -Fx "production_host_evidence_authority=false" "$RUNNER_TEMP/query-elf-lock-proof.log"
+            node "$proof" --derive > "$out"
+            cmp "$out" ops/security/buy-void-user-manager-query-elf-lock-v1.json
+          else
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v1.json)" = "1ac068dab592afa923b51434e87bc13b01966246"
+            test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v1.json)" = "4f255dbc98ac4b65fb4e6433f4e7aee7b86351db"
+            test "$(git rev-parse HEAD:scripts/prove_void_buy_user_manager_query_elf_lock_v1.mjs)" = "f296886d8ac23c6ea8848be8c6823403c744396b"
+            cp ops/security/buy-void-user-manager-query-elf-lock-v1.json "$out"
+            echo "VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V1_HISTORICAL_PRESERVED"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-user-manager-query-elf-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/user-manager-query-elf-lock-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+      - run: git diff --check
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-user-manager-query-elf-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: locks
+      - name: Require exact Node 22 24 26 lock equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "locks/user-manager-query-elf-lock-$node.json"; done
+          cmp locks/user-manager-query-elf-lock-22.json locks/user-manager-query-elf-lock-24.json
+          cmp locks/user-manager-query-elf-lock-22.json locks/user-manager-query-elf-lock-26.json
+          sha256sum locks/user-manager-query-elf-lock-22.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const l=JSON.parse(fs.readFileSync("locks/user-manager-query-elf-lock-22.json","utf8"));
+          assert.equal(l.marker,"VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V1");
+          assert.equal(l.lock_id,"voidbuyumqelflock1_0b0b791995f7a3346c3562387e211e9e2bb54ca6a050a964950e70a0e4cd1a16");
+          assert.equal(l.candidate_accepted,true);
+          assert.equal(l.install_authorized,false);
+          assert.equal(l.production_host_evidence_authority,false);
+          assert.equal(l.public_presale_activation,false);
+          assert.equal(l.funds_movement,false);
+          console.log("VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V1_CROSS_NODE_GREEN");
+          console.log("lock_id="+l.lock_id);
+          console.log("candidate_accepted=true");
+          console.log("install_authorized=false");
+          NODE

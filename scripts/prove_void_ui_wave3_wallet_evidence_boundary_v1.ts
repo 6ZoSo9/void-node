@@ -7,6 +7,7 @@ import {
   VOID_UI_WAVE3_WALLET_SOURCE_MAX_RESPONSE_BYTES_V1,
   fetchVoidUiWave3WalletSourceJsonV1,
   walletAccountIdV1,
+  walletAccountingDisplayV1,
   walletFiniteNumberV1,
   walletNativeGasDisplayV1,
   walletNonNegativeSafeIntegerV1,
@@ -16,6 +17,7 @@ import {
   WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS,
   bindWalletViewV1,
   clearWalletViewV1,
+  formatWalletAccountingBalanceV1,
   loadWalletAccountV1,
   renderWalletErrorV1,
   renderWalletLoadingV1,
@@ -153,6 +155,22 @@ assert.equal(walletFiniteNumberV1(0), 0);
 assert.equal(walletFiniteNumberV1(1.25), 1.25);
 assert.equal(walletFiniteNumberV1(Number.NaN), null);
 assert.equal(walletFiniteNumberV1(Number.POSITIVE_INFINITY), null);
+
+for (const [balance, display] of [
+  [3, "3"],
+  [1.5, "1.5"],
+  [1000.5, "1,000.5"],
+  [4e-10, "4e-10"],
+  [1.0000000004, "1.0000000004"],
+] as const) {
+  assert.equal(walletAccountingDisplayV1(balance), display);
+  assert.equal(formatWalletAccountingBalanceV1(balance), display);
+}
+assert.equal(walletAccountingDisplayV1(-0), null);
+assert.throws(
+  () => formatWalletAccountingBalanceV1(-0),
+  /nonnegative finite number other than -0/,
+);
 
 for (const wrong of [null, true, "0", -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
   assert.equal(walletNonNegativeSafeIntegerV1(wrong), null);
@@ -505,6 +523,40 @@ for (const balanceKey of ["ledger_wc", "production_wc"] as const) {
     /display does not match balance/,
   );
 }
+
+const tinyPositive = validSnapshot() as any;
+tinyPositive.balances.ledger_wc.balance = 4e-10;
+tinyPositive.balances.ledger_wc.display = "4e-10";
+assert.doesNotThrow(() => validateWalletAt(tinyPositive));
+
+const tinyPositiveCollapsed = validSnapshot() as any;
+tinyPositiveCollapsed.balances.ledger_wc.balance = 4e-10;
+tinyPositiveCollapsed.balances.ledger_wc.display = "0";
+assert.throws(
+  () => validateWalletAt(tinyPositiveCollapsed),
+  /display does not match balance/,
+);
+
+const preciseFraction = validSnapshot() as any;
+preciseFraction.balances.production_wc.balance = 1.0000000004;
+preciseFraction.balances.production_wc.display = "1.0000000004";
+assert.doesNotThrow(() => validateWalletAt(preciseFraction));
+
+const preciseFractionCollapsed = validSnapshot() as any;
+preciseFractionCollapsed.balances.production_wc.balance = 1.0000000004;
+preciseFractionCollapsed.balances.production_wc.display = "1";
+assert.throws(
+  () => validateWalletAt(preciseFractionCollapsed),
+  /display does not match balance/,
+);
+
+const negativeZeroAccounting = validSnapshot() as any;
+negativeZeroAccounting.balances.ledger_wc.balance = -0;
+negativeZeroAccounting.balances.ledger_wc.display = "0";
+assert.throws(
+  () => validateWalletAt(negativeZeroAccounting),
+  /nonnegative finite number other than -0/,
+);
 
 const inventedVoidDisplay = validSnapshot() as any;
 inventedVoidDisplay.balances.void.display = "999 VOID";
@@ -1190,7 +1242,7 @@ try {
 
 /**
  * Exercise the ACTUAL mounted Wave 3 Wallet HTTP adapter, not a handwritten
- * snapshot, with three independent malformed HTTP-200 upstream bodies.
+ * snapshot, with malformed, wrong-account, and missing-account HTTP-200 upstream bodies.
  * This mock HTTP app and its three fixed sources are fully in-process.
  */
 const oldMountedWalletApp = (globalThis as any).__void_http_app;
@@ -1205,18 +1257,20 @@ const validUpstream = (): Map<string, Record<string, unknown>> => new Map([
     "/__void/participant/wallet/status",
     {
       ok: true,
+      account: "account-A",
       has_wallet: true,
       unlocked: false,
       address: "0x" + "a".repeat(40),
       native_gas: "1",
     },
   ],
-  ["/wc/balance", { ok: true, balance: 3, count: 2 }],
+  ["/wc/balance", { ok: true, account: "account-A", balance: 3, count: 2 }],
   [
     "/wc/production/balance",
     {
       ok: true,
       marker: "VOID_WC_PRODUCTION_BALANCE_V1",
+      account: "account-A",
       balance: 1.5,
       count: 1,
       ledger_version: "v1",
@@ -1311,17 +1365,31 @@ try {
     return snapshot;
   };
 
-  const variants: Array<{
-    source: (typeof sourceKeys)[number];
-    route: string;
-    wrongField: string;
-    wrongValue: string;
-  }> = [
+  type MountedWalletAdversary =
+    | {
+        source: (typeof sourceKeys)[number];
+        route: string;
+        wrongField: string;
+        wrongValue: string;
+      }
+    | {
+        source: (typeof sourceKeys)[number];
+        route: string;
+        wrongField: string;
+        deleteField: true;
+      };
+  const variants: MountedWalletAdversary[] = [
     {
       source: "wallet_status",
       route: "/__void/participant/wallet/status",
       wrongField: "has_wallet",
       wrongValue: "yes",
+    },
+    {
+      source: "wallet_status",
+      route: "/__void/participant/wallet/status",
+      wrongField: "account",
+      wrongValue: "account-B",
     },
     {
       source: "ledger_wc",
@@ -1335,11 +1403,47 @@ try {
       wrongField: "count",
       wrongValue: "1",
     },
+    {
+      source: "ledger_wc",
+      route: "/wc/balance",
+      wrongField: "account",
+      wrongValue: "account-B",
+    },
+    {
+      source: "production_wc",
+      route: "/wc/production/balance",
+      wrongField: "account",
+      wrongValue: "account-B",
+    },
+    {
+      source: "wallet_status",
+      route: "/__void/participant/wallet/status",
+      wrongField: "account",
+      deleteField: true,
+    },
+    {
+      source: "ledger_wc",
+      route: "/wc/balance",
+      wrongField: "account",
+      deleteField: true,
+    },
+    {
+      source: "production_wc",
+      route: "/wc/production/balance",
+      wrongField: "account",
+      deleteField: true,
+    },
   ];
   for (const variant of variants) {
     upstreamBodies.clear();
     for (const [key, value] of validUpstream()) upstreamBodies.set(key, value);
-    upstreamBodies.get(variant.route)![variant.wrongField] = variant.wrongValue;
+    const upstreamBody = upstreamBodies.get(variant.route)!;
+    if ("deleteField" in variant) {
+      assert.equal(variant.deleteField, true);
+      delete upstreamBody[variant.wrongField];
+    } else {
+      upstreamBody[variant.wrongField] = variant.wrongValue;
+    }
 
     // Actual HTTP adapter must preserve transport HTTP 200 but reject exactly
     // one malformed semantic source. No synthetic snapshot toggles are used.
@@ -1361,6 +1465,7 @@ try {
     if (variant.source === "wallet_status") {
       assert.equal(snapshot.wallet.address, "");
       assert.equal(snapshot.wallet.native_gas_available, false);
+      assert.equal(snapshot.wallet.native_gas_display, "—");
       assert.equal(adapterNodes.get("[data-wallet-state-chip]")?.textContent,
         "Wallet status unavailable");
     } else {
@@ -1414,6 +1519,9 @@ for (const marker of [
   "export function walletAccountIdV1(raw: unknown): string | null",
   'if (typeof raw !== "string") return null;',
   "const account = walletAccountIdV1(req?.query?.account);",
+  "const walletAccountMatches = walletBody.account === account;",
+  "const ledgerAccountMatches = ledgerBody.account === account;",
+  "const productionAccountMatches = productionBody.account === account;",
 ]) {
   assert.ok(adapterSource.includes(marker), `missing Wallet adapter boundary: ${marker}`);
 }
@@ -1482,6 +1590,8 @@ for (const forbidden of [
 console.log("VOID_UI_WAVE3_WALLET_EVIDENCE_BOUNDARY_V1_GREEN");
 console.log("server_numeric_types_strict=true");
 console.log("server_account_query_type_strict=true");
+console.log("server_wallet_source_account_bound=true");
+console.log("server_wc_source_account_bound=true");
 console.log("server_response_stream_bounded=true");
 console.log("server_deadline_owns_body=true");
 console.log("server_redirects_rejected=true");
@@ -1496,6 +1606,7 @@ console.log("browser_available_evidence_source_bound=true");
 console.log("browser_native_gas_wallet_bound=true");
 console.log("browser_wallet_source_unavailable_truthful=true");
 console.log("wallet_actual_adapter_http200_invalid_body_isolated=true");
+console.log("wallet_actual_adapter_missing_account_rejected=true");
 console.log("wallet_actual_adapter_http200_valid_recovery=true");
 console.log("browser_wallet_stale_evidence_cleared=true");
 console.log("browser_wallet_invalid_input_supersedes_active_request=true");

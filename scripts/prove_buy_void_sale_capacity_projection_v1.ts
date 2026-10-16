@@ -198,6 +198,10 @@ const context = vm.createContext({
   // production Symbol.for import without executing host/runtime modules.
   VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1:
     Symbol.for("VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1"),
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_ENABLED_V1: false,
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_GID_V1: null,
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_DIRECTORY_MODE_V1: 0o2750,
+  VOID_BUY_VOID_REQUEST_CUSTODY_READ_JOURNAL_MODE_V1: 0o640,
   process: { pid: 1, getuid: () => 1, env: { VOID_BUY_REQUEST_DIR: requestDir, get VOID_BUY_POOL_VOID_TOTAL() { return pool; } } },
   path,
   Buffer,
@@ -281,6 +285,7 @@ evaluate(declarations(admissionPath, [
   "canonicalJsonStringByteLengthV1", "addCanonicalEventBytesV1",
   "detachedCanonicalJsonValueV1", "deepFreezeJsonValueV1",
   "canonicalVerifiedPaymentEventV1",
+  "prepareRequestDirectoryV1",
   "recoverPaymentVerifiedSidecarsV1", "writeBuyVoidOperatorEventWithCapacityAdmissionV1",
   "withBuyVoidVerifiedPaymentCapacityAdmissionV1",
 ]), context);

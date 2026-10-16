@@ -4,7 +4,7 @@
 
 This is the validator-specific journal/replay layer for issue #2255, stacked on the generic cross-box transaction contract in Draft #2278.
 
-The legacy validator closeout still performs live mutations sequentially. This source slice deliberately does **not** edit or execute that shell yet. Instead, it defines the append-only semantic journal that the eventual live executor must persist and replay before it is safe to replace the legacy sequence.
+The legacy validator closeout is now retired fail-closed: after validating the explicit target, bounded epoch/vault, retired-host wall, confirmation token, and presence of this reviewed journal controller, the shell HOLDs before any live mutation. This journal remains the append-only semantic contract that the eventual live adapter must persist and replay before validator cross-box mutation can be re-enabled.
 
 Marker:
 
@@ -16,7 +16,7 @@ Confirmation:
 
 ## Why this slice exists
 
-The current validator closeout has crash seams around:
+The retired historical validator closeout had crash seams around:
 
 - local `verified-current` publication;
 - local validator-truth service restart;
@@ -128,11 +128,11 @@ The eventual live executor must separately execute and prove tag publication.
 
 ## What this slice does not do
 
-This slice does not yet edit:
+The journal/controller itself does not execute:
 
 `ops/mainnet/validator-crossbox-closeout.sh`
 
-It performs no:
+The shell is now a HOLD-only compatibility entrypoint and does not perform the historical sequential mutation sequence. Neither layer performs:
 
 - SSH or network access;
 - systemd mutation;

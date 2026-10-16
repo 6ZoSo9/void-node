@@ -434,6 +434,18 @@ try {
     "invalid-utf8-generation-holds",
     `held=${invalidUtf8Held}`,
   );
+  const invalidUtf8Retry = invalidUtf8Index.scan({
+    jobsFile: invalidUtf8JobsFile,
+    receiptsFile: invalidUtf8ReceiptsFile,
+    jobStateFile: invalidUtf8JobStateFile,
+  });
+  assert(
+    invalidUtf8Retry.ready === false &&
+      invalidUtf8Retry.jobs.length === 0 &&
+      invalidUtf8Retry.holdReason === "jobs_invalid_utf8",
+    "invalid-utf8-retry-remains-quarantined",
+    `ready=${invalidUtf8Retry.ready} jobs=${invalidUtf8Retry.jobs.length} reason=${invalidUtf8Retry.holdReason || ""}`,
+  );
 
   // The shared record ceiling applies to exact framed bytes before optional
   // CR normalization. A MAX+1 raw frame must HOLD even when the extra byte is CR.
@@ -475,6 +487,73 @@ try {
     crCeilingHeld,
     "cr-normalization-cannot-bypass-record-byte-ceiling",
     `held=${crCeilingHeld} reason=${crCeilingReason}`,
+  );
+  const crCeilingRetry = crCeilingIndex.scan({
+    jobsFile: crCeilingJobsFile,
+    receiptsFile: crCeilingReceiptsFile,
+    jobStateFile: crCeilingJobStateFile,
+  });
+  assert(
+    crCeilingRetry.ready === false &&
+      crCeilingRetry.jobs.length === 0 &&
+      crCeilingRetry.holdReason === "jobs_record_too_large",
+    "oversized-record-retry-remains-quarantined",
+    `ready=${crCeilingRetry.ready} jobs=${crCeilingRetry.jobs.length} reason=${crCeilingRetry.holdReason || ""}`,
+  );
+
+  // Oversized completion sources other than jobsFile must not poison the jobs
+  // generation. Deliberately make the receipts pathname begin with the exact
+  // jobs pathname plus a space so prefix-only error matching would fail this
+  // adversary.
+  const foreignJobsFile = path.join(root, "completion-foreign-jobs.jsonl");
+  const foreignReceiptsFile = foreignJobsFile + " receipt-shadow.jsonl";
+  const foreignJobStateFile = path.join(
+    root,
+    "completion-foreign-job-state.jsonl",
+  );
+  fs.writeFileSync(foreignJobsFile, "");
+  fs.writeFileSync(foreignJobStateFile, "");
+  fs.writeFileSync(
+    foreignReceiptsFile,
+    Buffer.concat([
+      Buffer.alloc(VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 + 1, 0x20),
+      Buffer.from("\n", "ascii"),
+    ]),
+  );
+  const foreignCompletionIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4 * 1024 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 2 * 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  let foreignCompletionHeld = false;
+  try {
+    foreignCompletionIndex.scan({
+      jobsFile: foreignJobsFile,
+      receiptsFile: foreignReceiptsFile,
+      jobStateFile: foreignJobStateFile,
+    });
+  } catch (error) {
+    foreignCompletionHeld = String(
+      (error as Error)?.message || error,
+    ).includes("VOID_AGENT_PICK2_JSONL_RECORD_TOO_LARGE");
+  }
+  assert(
+    foreignCompletionHeld,
+    "oversized-foreign-completion-source-first-fails",
+    `held=${foreignCompletionHeld}`,
+  );
+  fs.writeFileSync(foreignReceiptsFile, "");
+  const foreignCompletionRetry = foreignCompletionIndex.scan({
+    jobsFile: foreignJobsFile,
+    receiptsFile: foreignReceiptsFile,
+    jobStateFile: foreignJobStateFile,
+  });
+  assert(
+    foreignCompletionRetry.ready === true &&
+      foreignCompletionRetry.holdReason === null,
+    "oversized-foreign-completion-source-does-not-quarantine-jobs",
+    `ready=${foreignCompletionRetry.ready} reason=${foreignCompletionRetry.holdReason || ""}`,
   );
 
   // Only the shared canonical writer may advance an already-admitted jobs
@@ -1848,7 +1927,9 @@ try {
     "fatal TextDecoder present",
   );
   assert(
-    helperSource.includes("framed[index] !== 0x0a"),
+    helperSource.includes('this.rejectJobsSourceV1("jobs_invalid_utf8")') &&
+      helperSource.includes('this.rejectJobsSourceV1("jobs_record_too_large")') &&
+      helperSource.includes("framed[index] !== 0x0a"),
     "runtime-index-byte-framing-source",
     "newline framing occurs on exact bytes",
   );

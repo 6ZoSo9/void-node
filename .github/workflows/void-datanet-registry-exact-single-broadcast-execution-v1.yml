@@ -3,16 +3,44 @@ name: VOID DataNet registry exact single broadcast execution v1
 on:
   pull_request:
     paths:
-      - "tools/void-datanet-registry-*.mjs"
-      - "tools/datanet-content-commitment-*.mjs"
-      - "tools/void-economic-epoch2-*.mjs"
+      - "tools/datanet-content-commitment-compiled-identity-acceptance-v1.mjs"
+      - "tools/datanet-content-commitment-compiler-profile-v1.mjs"
+      - "tools/datanet-content-commitment-deployment-attestation-v1.mjs"
+      - "tools/datanet-content-commitment-dual-compiler-identity-v1.mjs"
+      - "tools/void-datanet-registry-candidate-fresh-revalidation-v1.mjs"
+      - "tools/void-datanet-registry-consumed-authorization-signing-v1.mjs"
+      - "tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs"
+      - "tools/void-datanet-registry-deployer-credential-binding-v1.mjs"
+      - "tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs"
+      - "tools/void-datanet-registry-deployment-pre-sign-revalidation-v1.mjs"
+      - "tools/void-datanet-registry-exact-signing-request-v1.mjs"
+      - "tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
+      - "tools/void-datanet-registry-final-signing-review-v1.mjs"
+      - "tools/void-datanet-registry-prebroadcast-observer-v1.mjs"
+      - "tools/void-datanet-registry-signed-verification-broadcast-request-v1.mjs"
+      - "tools/void-datanet-registry-signing-state-identity-provision-v1.mjs"
+      - "tools/void-datanet-registry-single-transaction-signing-authorization-v1.mjs"
+      - "tools/void-datanet-registry-single-use-broadcast-authorization-consumption-v1.mjs"
+      - "tools/void-datanet-registry-single-use-signing-authorization-consumption-v1.mjs"
+      - "tools/void-datanet-registry-transaction-construction-admission-v1.mjs"
+      - "tools/void-datanet-registry-unsigned-deployment-input-plan-v1.mjs"
+      - "tools/void-datanet-registry-unsigned-transaction-candidate-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs"
+      - "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs"
       - "tools/void-datanet-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "package.json"
+      - "package-lock.json"
       - "ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
       - "ops/precision/void-datanet-registry-exact-single-broadcast-isolated-execution-v1.mjs"
       - "ops/precision/void-datanet-registry-reviewed-execution-child-v1.mjs"
+      - "tools/void-datanet-registry-isolated-parent-support-v1.mjs"
       - "scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs"
       - "scripts/prove_void_datanet_registry_isolated_reviewed_execution_v1.mjs"
+      - "scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1_historical_refusal_v2.mjs"
       - ".github/workflows/void-datanet-registry-exact-single-broadcast-execution-v1.yml"
       - "docs/operators/datanet-registry-exact-single-broadcast-execution-v1.md"
   workflow_dispatch:
@@ -32,7 +60,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
       - name: Bind exact checkout identity
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -45,7 +73,23 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - name: Install locked dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Classify exact reviewed package generation
+        id: package-generation
+        run: |
+          set -euo pipefail
+          package_blob="$(git rev-parse HEAD:package.json)"
+          lock_blob="$(git rev-parse HEAD:package-lock.json)"
+          if [ "$package_blob" = "f28c3e9446c7623ef203da36a9642d046e5f34ee" ] &&
+             [ "$lock_blob" = "b2671f0149f522b2489247016df0a5ec4bb72b8b" ]; then
+            echo "mode=historical_positive" >> "$GITHUB_OUTPUT"
+          elif [ "$package_blob" = "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f" ] &&
+               [ "$lock_blob" = "15b5c82ea36f13079a2f9e8863722f654eb3f201" ]; then
+            echo "mode=historical_refusal" >> "$GITHUB_OUTPUT"
+          else
+            echo "unsupported reviewed Node package generation" >&2
+            exit 2
+          fi
       - name: Syntax
         run: |
           set -euo pipefail
@@ -56,11 +100,75 @@ jobs:
           node --check ops/precision/void-datanet-registry-reviewed-execution-child-v1.mjs
           node --check scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs
           node --check scripts/prove_void_datanet_registry_isolated_reviewed_execution_v1.mjs
+          node --check scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1_historical_refusal_v2.mjs
+      - name: Refuse historical V1 reviewed-closure mutation on current package generation
+        if: steps.package-generation.outputs.mode == 'historical_refusal' && github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          changed="$(
+            git diff --name-only "$BASE" "$HEAD" -- \
+              tools/datanet-content-commitment-compiled-identity-acceptance-v1.mjs \
+              tools/datanet-content-commitment-compiler-profile-v1.mjs \
+              tools/datanet-content-commitment-deployment-attestation-v1.mjs \
+              tools/datanet-content-commitment-dual-compiler-identity-v1.mjs \
+              tools/void-datanet-registry-candidate-fresh-revalidation-v1.mjs \
+              tools/void-datanet-registry-consumed-authorization-signing-v1.mjs \
+              tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs \
+              tools/void-datanet-registry-deployer-credential-binding-v1.mjs \
+              tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs \
+              tools/void-datanet-registry-deployment-pre-sign-revalidation-v1.mjs \
+              tools/void-datanet-registry-exact-signing-request-v1.mjs \
+              tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs \
+              tools/void-datanet-registry-final-signing-review-v1.mjs \
+              tools/void-datanet-registry-prebroadcast-observer-v1.mjs \
+              tools/void-datanet-registry-signed-verification-broadcast-request-v1.mjs \
+              tools/void-datanet-registry-signing-state-identity-provision-v1.mjs \
+              tools/void-datanet-registry-single-transaction-signing-authorization-v1.mjs \
+              tools/void-datanet-registry-single-use-broadcast-authorization-consumption-v1.mjs \
+              tools/void-datanet-registry-single-use-signing-authorization-consumption-v1.mjs \
+              tools/void-datanet-registry-transaction-construction-admission-v1.mjs \
+              tools/void-datanet-registry-unsigned-deployment-input-plan-v1.mjs \
+              tools/void-datanet-registry-unsigned-transaction-candidate-v1.mjs \
+              tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs \
+              tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs \
+              tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs \
+              tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs \
+              tools/void-economic-epoch2-raw-transaction-domain-v1.mjs
+          )"
+          if [ -n "$changed" ]; then
+            printf '%s\n' "$changed" >&2
+            echo "historical V1 reviewed closure changed; versioned successor required" >&2
+            exit 2
+          fi
+          echo "historical_v1_reviewed_closure_changed=false"
       - name: Prove exact single broadcast execution
+        if: steps.package-generation.outputs.mode == 'historical_positive'
         run: |
           set -euo pipefail
           node scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs
+      - name: Preserve historical V1 execution on audited current package generation
+        if: steps.package-generation.outputs.mode == 'historical_refusal'
+        run: |
+          set -euo pipefail
+          receipt="$RUNNER_TEMP/datanet-registry-v1-historical-refusal.txt"
+          node scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1_historical_refusal_v2.mjs | tee "$receipt"
+          grep -Fx 'VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_V1_HISTORICAL_REFUSAL_V2_GREEN' "$receipt"
+          grep -Fx 'frozen_v1_executor_sources_unchanged=true' "$receipt"
+          grep -Fx 'frozen_v1_profile_refuses_current_package_generation=true' "$receipt"
+          grep -Fx 'reviewed_closure_trigger_exact=true' "$receipt"
+          grep -Fx 'reviewed_closure_mutation_fail_closed=true' "$receipt"
+          grep -Fx 'broad_sibling_globs_present=false' "$receipt"
+          grep -Fx 'v2_executor_authority_created=false' "$receipt"
+          grep -Fx 'transaction_broadcast=false' "$receipt"
+          grep -Fx 'chain2050_write=false' "$receipt"
+          grep -Fx 'funds_movement=false' "$receipt"
       - name: Prove isolated reviewed execution
+        if: steps.package-generation.outputs.mode == 'historical_positive'
         run: |
           set -euo pipefail
           node scripts/prove_void_datanet_registry_isolated_reviewed_execution_v1.mjs

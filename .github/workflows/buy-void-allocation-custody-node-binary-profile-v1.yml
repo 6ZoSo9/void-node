@@ -1,0 +1,73 @@
+name: VOID Buy allocation custody Node binary profile v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-node-binary-profile-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_node_binary_profile_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-node-binary-profile-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-node-binary-profile-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-allocation-custody-node-binary-profile-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_node_binary_profile_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-node-binary-profile-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-node-binary-profile-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: custody Node profile / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove exact expected identity
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-allocation-custody-node-binary-profile-v1.mjs
+          node --check scripts/prove_void_buy_allocation_custody_node_binary_profile_v1.mjs
+          cli="$RUNNER_TEMP/custody-node-profile-cli.txt"
+          node tools/void-buy-allocation-custody-node-binary-profile-v1.mjs | tee "$cli"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_NODE_BINARY_PROFILE_V1' "$cli"
+          grep -Fx 'fixed_node_path=/usr/bin/node' "$cli"
+          grep -Fx 'node_binary_identity_verified=false' "$cli"
+          out="$RUNNER_TEMP/custody-node-profile.txt"
+          node scripts/prove_void_buy_allocation_custody_node_binary_profile_v1.mjs | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_NODE_BINARY_PROFILE_V1_GREEN' "$out"
+          grep -Fx 'fixed_node_path=/usr/bin/node' "$out"
+          grep -Fx 'node_version=v22.23.3' "$out"
+          grep -Fx 'node_sha256=fde6a4bf8d0562f7751d1a2d6cb9b417c4cfe107bbcb0aa3e9a24e125e348f48' "$out"
+          grep -Fx 'expected_node_binary_identity_selected=true' "$out"
+          grep -Fx 'operator_evidence_authenticated=false' "$out"
+          grep -Fx 'live_at_use_reverification_required=true' "$out"
+          grep -Fx 'node_binary_identity_verified=false' "$out"
+          grep -Fx 'runtime_integration=false' "$out"
+          grep -Fx 'payment_acceptance=false' "$out"
+          grep -Fx 'public_presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+      - name: Diff hygiene
+        run: git diff --check

@@ -23,6 +23,8 @@ const CHECKPOINT_MANIFEST_PATH_RE_V1 =
   /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/checkpoint\.json$/;
 const CHECKPOINT_SEGMENT_PATH_RE_V1 =
   /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/segments\/([0-9]{8})\/blocks\.bin$/;
+// Bound manifest allocation independently of its content hash/schema checks.
+const VOID_PUBLIC_CHECKPOINT_MANIFEST_MAX_BYTES_V1 = 8 * 1024 * 1024;
 const CHECKPOINT_ROOT_RAW_V1 = String(
   process.env.VOID_PUBLIC_SEED_CHECKPOINT_ROOT || "",
 ).trim();
@@ -160,36 +162,241 @@ function sha256BytesV1(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
-function noSymlinkComponentsV1(target) {
-  const resolved = path.resolve(target);
+const CHECKPOINT_DIR_OPEN_FLAGS_V1 =
+  fs.constants.O_RDONLY |
+  Number(fs.constants.O_DIRECTORY || 0) |
+  Number(fs.constants.O_NOFOLLOW || 0) |
+  Number(fs.constants.O_NONBLOCK || 0);
+const CHECKPOINT_FILE_OPEN_FLAGS_V1 =
+  fs.constants.O_RDONLY |
+  Number(fs.constants.O_NOFOLLOW || 0) |
+  Number(fs.constants.O_NONBLOCK || 0);
+const CHECKPOINT_PROC_FD_ROOT_V1 = "/proc/self/fd";
+
+function requireCheckpointDescriptorSupportV1() {
+  if (
+    typeof fs.constants.O_DIRECTORY !== "number" ||
+    fs.constants.O_DIRECTORY <= 0 ||
+    typeof fs.constants.O_NOFOLLOW !== "number" ||
+    fs.constants.O_NOFOLLOW <= 0 ||
+    !fs.existsSync(CHECKPOINT_PROC_FD_ROOT_V1)
+  ) {
+    throw new Error("checkpoint descriptor traversal unavailable");
+  }
+}
+
+function checkpointDescriptorChildPathV1(parentFd, component) {
+  if (
+    typeof component !== "string" ||
+    component.length === 0 ||
+    component === "." ||
+    component === ".." ||
+    component.includes(path.sep) ||
+    component.includes("\0")
+  ) {
+    throw new Error("checkpoint path component invalid");
+  }
+  return path.join(
+    CHECKPOINT_PROC_FD_ROOT_V1,
+    String(parentFd),
+    component,
+  );
+}
+
+function sameCheckpointDescriptorIdentityV1(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
+}
+
+function openCheckpointDirectoryPathV1(absolutePath) {
+  requireCheckpointDescriptorSupportV1();
+  const resolved = path.resolve(absolutePath);
+  if (!path.isAbsolute(resolved) || resolved !== absolutePath) {
+    throw new Error("checkpoint directory path must be canonical absolute");
+  }
   const parsed = path.parse(resolved);
-  const parts = resolved.slice(parsed.root.length).split(path.sep).filter(Boolean);
-  let current = parsed.root;
-  for (const part of parts) {
-    current = path.join(current, part);
-    if (!fs.existsSync(current)) continue;
-    const st = fs.lstatSync(current);
-    if (st.isSymbolicLink()) {
-      throw new Error("checkpoint path contains a symlink component");
+  const components = resolved
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+  let fd = fs.openSync(parsed.root, CHECKPOINT_DIR_OPEN_FLAGS_V1);
+  try {
+    for (const component of components) {
+      const nextFd = fs.openSync(
+        checkpointDescriptorChildPathV1(fd, component),
+        CHECKPOINT_DIR_OPEN_FLAGS_V1,
+      );
+      const nextStat = fs.fstatSync(nextFd);
+      if (!nextStat.isDirectory()) {
+        fs.closeSync(nextFd);
+        throw new Error("checkpoint directory component is not a directory");
+      }
+      fs.closeSync(fd);
+      fd = nextFd;
+    }
+    const st = fs.fstatSync(fd);
+    if (!st.isDirectory()) {
+      throw new Error("checkpoint root must be a directory");
+    }
+    return { path: resolved, fd, st };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function assertCheckpointRootPathPinnedV1(rootAuthority) {
+  const current = openCheckpointDirectoryPathV1(rootAuthority.path);
+  try {
+    if (
+      current.st.dev !== rootAuthority.st.dev ||
+      current.st.ino !== rootAuthority.st.ino
+    ) {
+      throw new Error("checkpoint root generation changed");
+    }
+  } finally {
+    fs.closeSync(current.fd);
+  }
+}
+
+function openCheckpointFileV1(rootAuthority, relativePath) {
+  if (
+    typeof relativePath !== "string" ||
+    relativePath.length === 0 ||
+    path.isAbsolute(relativePath) ||
+    path.normalize(relativePath) !== relativePath
+  ) {
+    throw new Error("checkpoint relative path invalid");
+  }
+  const components = relativePath.split(path.sep);
+  if (
+    components.length === 0 ||
+    components.some(
+      (component) =>
+        !component ||
+        component === "." ||
+        component === ".." ||
+        component.includes("\0"),
+    )
+  ) {
+    throw new Error("checkpoint relative path invalid");
+  }
+
+  let parentFd = rootAuthority.fd;
+  const ownedDirectoryFds = [];
+  try {
+    for (let index = 0; index < components.length; index += 1) {
+      const component = components[index];
+      const final = index === components.length - 1;
+      if (!final) {
+        const directoryFd = fs.openSync(
+          checkpointDescriptorChildPathV1(parentFd, component),
+          CHECKPOINT_DIR_OPEN_FLAGS_V1,
+        );
+        const directoryStat = fs.fstatSync(directoryFd);
+        if (!directoryStat.isDirectory()) {
+          fs.closeSync(directoryFd);
+          throw new Error("checkpoint path component is not a directory");
+        }
+        ownedDirectoryFds.push(directoryFd);
+        parentFd = directoryFd;
+        continue;
+      }
+
+      const fd = fs.openSync(
+        checkpointDescriptorChildPathV1(parentFd, component),
+        CHECKPOINT_FILE_OPEN_FLAGS_V1,
+      );
+      const st = fs.fstatSync(fd);
+      if (!st.isFile()) {
+        fs.closeSync(fd);
+        throw new Error("checkpoint entry is not a regular file");
+      }
+      if ((st.mode & 0o002) !== 0) {
+        fs.closeSync(fd);
+        throw new Error("checkpoint entry is world-writable");
+      }
+      return { fd, st, relativePath };
+    }
+    throw new Error("checkpoint relative path invalid");
+  } finally {
+    for (
+      let index = ownedDirectoryFds.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      fs.closeSync(ownedDirectoryFds[index]);
     }
   }
 }
 
-function safeCheckpointFileV1(root, relativePath) {
-  const file = path.resolve(root, relativePath);
-  const rootPrefix = `${path.resolve(root)}${path.sep}`;
-  if (!file.startsWith(rootPrefix)) {
-    throw new Error("checkpoint path escapes root");
+function readCheckpointFileV1(
+  rootAuthority,
+  relativePath,
+  maximumBytes = null,
+  expectedBytes = null,
+) {
+  assertCheckpointRootPathPinnedV1(rootAuthority);
+  const opened = openCheckpointFileV1(rootAuthority, relativePath);
+  try {
+    const before = opened.st;
+    if (
+      !Number.isSafeInteger(before.size) ||
+      before.size < 0 ||
+      (
+        maximumBytes !== null &&
+        (
+          !Number.isSafeInteger(maximumBytes) ||
+          maximumBytes < 0 ||
+          before.size > maximumBytes
+        )
+      ) ||
+      (
+        expectedBytes !== null &&
+        (
+          !Number.isSafeInteger(expectedBytes) ||
+          expectedBytes < 0 ||
+          before.size !== expectedBytes
+        )
+      )
+    ) {
+      throw new Error("checkpoint entry size invalid");
+    }
+
+    const bytes = Buffer.allocUnsafe(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const bytesRead = fs.readSync(
+        opened.fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0) {
+        throw new Error("checkpoint entry short read");
+      }
+      offset += bytesRead;
+    }
+
+    const after = fs.fstatSync(opened.fd);
+    if (
+      !sameCheckpointDescriptorIdentityV1(before, after) ||
+      offset !== before.size
+    ) {
+      throw new Error("checkpoint entry generation changed during read");
+    }
+    assertCheckpointRootPathPinnedV1(rootAuthority);
+    return { bytes, st: before };
+  } finally {
+    fs.closeSync(opened.fd);
   }
-  noSymlinkComponentsV1(path.dirname(file));
-  const st = fs.lstatSync(file);
-  if (!st.isFile() || st.isSymbolicLink()) {
-    throw new Error("checkpoint entry is not a regular file");
-  }
-  if ((st.mode & 0o002) !== 0) {
-    throw new Error("checkpoint entry is world-writable");
-  }
-  return { file, st };
 }
 
 function checkpointBodyIdV1(manifest) {
@@ -227,17 +434,18 @@ function loadCheckpointPublicationV1() {
   if (root !== CHECKPOINT_ROOT_RAW_V1) {
     throw new Error("checkpoint root must be canonical");
   }
-  noSymlinkComponentsV1(root);
-  const rootStat = fs.lstatSync(root);
-  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
-    throw new Error("checkpoint root must be a real directory");
-  }
-  if ((rootStat.mode & 0o002) !== 0) {
+  const rootAuthority = openCheckpointDirectoryPathV1(root);
+  if ((rootAuthority.st.mode & 0o002) !== 0) {
+    fs.closeSync(rootAuthority.fd);
     throw new Error("checkpoint root must not be world-writable");
   }
 
-  const manifestEntry = safeCheckpointFileV1(root, "checkpoint.json");
-  const manifestBytes = fs.readFileSync(manifestEntry.file);
+  const manifestEntry = readCheckpointFileV1(
+    rootAuthority,
+    "checkpoint.json",
+    VOID_PUBLIC_CHECKPOINT_MANIFEST_MAX_BYTES_V1,
+  );
+  const manifestBytes = manifestEntry.bytes;
   const manifestSha256 = sha256BytesV1(manifestBytes);
   if (manifestSha256 !== CHECKPOINT_EXPECTED_MANIFEST_SHA256_V1) {
     throw new Error("checkpoint manifest sha256 mismatch");
@@ -338,15 +546,19 @@ function loadCheckpointPublicationV1() {
       throw new Error("checkpoint segment contract mismatch");
     }
 
-    const fileEntry = safeCheckpointFileV1(root, expectedPath);
+    const fileEntry = readCheckpointFileV1(
+      rootAuthority,
+      expectedPath,
+      VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+      entry.bytes,
+    );
     if (
       fileEntry.st.size !== entry.bytes ||
       fileEntry.st.size > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
     ) {
       throw new Error("checkpoint segment size mismatch");
     }
-    const bytes = fs.readFileSync(fileEntry.file);
-    if (sha256BytesV1(bytes) !== entry.sha256) {
+    if (sha256BytesV1(fileEntry.bytes) !== entry.sha256) {
       throw new Error("checkpoint segment sha256 mismatch");
     }
 
@@ -386,6 +598,7 @@ function loadCheckpointPublicationV1() {
 
   return Object.freeze({
     root,
+    rootAuthority,
     manifest,
     manifestBytes,
     manifestSha256,
@@ -445,14 +658,19 @@ function checkpointResponseBytesV1(route) {
     throw new Error("checkpoint publication unavailable");
   }
   if (route.kind === "manifest") {
-    const bytes = fs.readFileSync(
-      safeCheckpointFileV1(CHECKPOINT_PUBLICATION_V1.root, "checkpoint.json").file,
+    const opened = readCheckpointFileV1(
+      CHECKPOINT_PUBLICATION_V1.rootAuthority,
+      "checkpoint.json",
+      VOID_PUBLIC_CHECKPOINT_MANIFEST_MAX_BYTES_V1,
     );
-    if (sha256BytesV1(bytes) !== CHECKPOINT_PUBLICATION_V1.manifestSha256) {
+    if (
+      sha256BytesV1(opened.bytes) !==
+      CHECKPOINT_PUBLICATION_V1.manifestSha256
+    ) {
       throw new Error("checkpoint manifest changed after publication admission");
     }
     return {
-      bytes,
+      bytes: opened.bytes,
       contentType: "application/json; charset=utf-8",
     };
   }
@@ -460,20 +678,24 @@ function checkpointResponseBytesV1(route) {
   const expected = CHECKPOINT_PUBLICATION_V1.segmentFiles.get(route.name);
   if (!expected) throw new Error("checkpoint segment is not admitted");
   const relative = `segments/${route.name}/blocks.bin`;
-  const fileEntry = safeCheckpointFileV1(CHECKPOINT_PUBLICATION_V1.root, relative);
+  const opened = readCheckpointFileV1(
+    CHECKPOINT_PUBLICATION_V1.rootAuthority,
+    relative,
+    VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+    expected.bytes,
+  );
   if (
     expected.bytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1 ||
-    fileEntry.st.size !== expected.bytes ||
-    fileEntry.st.size > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
+    opened.st.size !== expected.bytes ||
+    opened.st.size > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
   ) {
     throw new Error("checkpoint segment size changed after publication admission");
   }
-  const bytes = fs.readFileSync(fileEntry.file);
-  if (sha256BytesV1(bytes) !== expected.sha256) {
+  if (sha256BytesV1(opened.bytes) !== expected.sha256) {
     throw new Error("checkpoint segment hash changed after publication admission");
   }
   return {
-    bytes,
+    bytes: opened.bytes,
     contentType: "application/octet-stream",
   };
 }

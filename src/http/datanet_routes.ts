@@ -5,6 +5,13 @@ import { createHash } from "node:crypto";
 import { merkleRoot } from "../datanet/merkle.js";
 import * as crypto from "node:crypto";
 import { packFile } from "../datanet/pack.js";
+import {
+  DATANET_PUBLIC_CHUNK_SNAPSHOT_AGGREGATE_BYTES_V1,
+  DATANET_PUBLIC_CHUNK_SNAPSHOT_MAX_IN_FLIGHT_V1,
+  DataNetChunkSnapshotBudgetV1,
+  DataNetChunkSnapshotCapacityErrorV1,
+  type DataNetChunkSnapshotReservationV1,
+} from "./datanet_chunk_snapshot_budget_v1.js";
 
 function recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts(scope: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -207,6 +214,252 @@ function validateManifestRoot(man: any, claimedRoot: string): Readonly<{
 
 function sha256Hex(buf: Buffer) {
   return createHash("sha256").update(buf).digest("hex");
+}
+
+const DATANET_CHUNK_HASH_READ_BYTES = 64 * 1024;
+const DATANET_CHUNK_MAX_BYTES = 64 * 1024 * 1024;
+const DATANET_PUBLIC_CHUNK_SNAPSHOT_BUDGET_V1 =
+  new DataNetChunkSnapshotBudgetV1({
+    maxAggregateBytes:
+      DATANET_PUBLIC_CHUNK_SNAPSHOT_AGGREGATE_BYTES_V1,
+    maxReservationBytes: DATANET_CHUNK_MAX_BYTES,
+    maxReservations:
+      DATANET_PUBLIC_CHUNK_SNAPSHOT_MAX_IN_FLIGHT_V1,
+  });
+
+type VerifiedDataNetChunkSnapshotV1 = Readonly<{
+  bytes: Buffer;
+  size: number;
+  reservation: DataNetChunkSnapshotReservationV1 | null;
+}>;
+
+function sameDataNetChunkIdentityV1(a: fs.Stats, b: fs.Stats): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.mode === b.mode &&
+    a.size === b.size &&
+    a.mtimeMs === b.mtimeMs &&
+    a.ctimeMs === b.ctimeMs
+  );
+}
+
+function sameDataNetChunkInodeV1(a: fs.Stats, b: fs.Stats): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+
+export function readVerifiedDataNetChunkSnapshotV1(
+  file: string,
+  expectedLeaf: string,
+  budget: DataNetChunkSnapshotBudgetV1 | null = null,
+): VerifiedDataNetChunkSnapshotV1 {
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number" || noFollow <= 0) {
+    throw new Error("datanet_chunk_nofollow_unavailable");
+  }
+
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY |
+      noFollow |
+      Number(fs.constants.O_NONBLOCK || 0),
+  );
+  let reservation: DataNetChunkSnapshotReservationV1 | null = null;
+  try {
+    const before = fs.fstatSync(fd);
+    if (
+      !before.isFile() ||
+      before.size <= 0 ||
+      before.size > DATANET_CHUNK_MAX_BYTES ||
+      (before.mode & 0o022) !== 0
+    ) {
+      throw new Error("datanet_chunk_metadata_invalid");
+    }
+
+    if (budget !== null) {
+      reservation = budget.tryReserve(before.size);
+      if (reservation === null) {
+        throw new DataNetChunkSnapshotCapacityErrorV1();
+      }
+    }
+
+    // Snapshot the exact bounded bytes that will be served. Hashing a retained
+    // descriptor and then streaming the mutable inode later would allow a
+    // same-UID writer to change the response after verification. Public GET
+    // callers reserve aggregate snapshot capacity before this allocation.
+    const bytes = Buffer.allocUnsafe(before.size);
+    let position = 0;
+    while (position < bytes.length) {
+      const got = fs.readSync(
+        fd,
+        bytes,
+        position,
+        bytes.length - position,
+        position,
+      );
+      if (got <= 0) {
+        throw new Error("datanet_chunk_short_read");
+      }
+      position += got;
+    }
+
+    const after = fs.fstatSync(fd);
+    if (!sameDataNetChunkIdentityV1(before, after)) {
+      throw new Error("datanet_chunk_identity_changed");
+    }
+    if (createHash("sha256").update(bytes).digest("hex") !== expectedLeaf) {
+      throw new Error("datanet_chunk_hash_mismatch");
+    }
+
+    return Object.freeze({
+      bytes,
+      size: before.size,
+      reservation,
+    });
+  } catch (error) {
+    reservation?.release();
+    throw error;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+export function armDataNetChunkSnapshotReservationV1(
+  req: {
+    once(event: string, listener: (...args: any[]) => void): unknown;
+    readonly aborted?: boolean;
+  },
+  res: {
+    once(event: string, listener: (...args: any[]) => void): unknown;
+    readonly destroyed?: boolean;
+  },
+  reservation: DataNetChunkSnapshotReservationV1,
+): () => void {
+  let released = false;
+  const releaseOnce = (): void => {
+    if (released) return;
+    released = true;
+    reservation.release();
+  };
+
+  req.once("aborted", releaseOnce);
+  res.once("finish", releaseOnce);
+  res.once("close", releaseOnce);
+  res.once("error", releaseOnce);
+
+  if (req.aborted === true || res.destroyed === true) {
+    releaseOnce();
+  }
+
+  return releaseOnce;
+}
+
+function publishDataNetChunkCreateOnlyV1(
+  file: string,
+  expectedLeaf: string,
+  body: Buffer,
+): Readonly<{ reused: boolean }> {
+  if (body.length <= 0 || body.length > DATANET_CHUNK_MAX_BYTES) {
+    throw new Error("datanet_chunk_body_size_invalid");
+  }
+
+  if (fs.existsSync(file)) {
+    const visible = fs.lstatSync(file);
+    if (!visible.isFile() || visible.isSymbolicLink()) {
+      throw new Error("datanet_chunk_existing_path_invalid");
+    }
+    const opened = readVerifiedDataNetChunkSnapshotV1(file, expectedLeaf);
+    if (opened.size !== body.length) {
+      throw new Error("datanet_chunk_existing_size_mismatch");
+    }
+    return Object.freeze({ reused: true });
+  }
+
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number" || noFollow <= 0) {
+    throw new Error("datanet_chunk_nofollow_unavailable");
+  }
+
+  const directory = path.dirname(file);
+  const temporary = path.join(
+    directory,
+    "." +
+      path.basename(file) +
+      ".tmp-" +
+      String(process.pid) +
+      "-" +
+      crypto.randomBytes(12).toString("hex"),
+  );
+  let fd: number | null = null;
+  let retainedStagingIdentity: fs.Stats | null = null;
+  try {
+    fd = fs.openSync(
+      temporary,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        noFollow,
+      0o600,
+    );
+    retainedStagingIdentity = fs.fstatSync(fd);
+    let position = 0;
+    while (position < body.length) {
+      const written = fs.writeSync(
+        fd,
+        body,
+        position,
+        body.length - position,
+        position,
+      );
+      if (written <= 0) {
+        throw new Error("datanet_chunk_short_write");
+      }
+      position += written;
+    }
+    fs.fsyncSync(fd);
+    const staged = fs.fstatSync(fd);
+    if (
+      !staged.isFile() ||
+      staged.size !== body.length ||
+      (staged.mode & 0o077) !== 0
+    ) {
+      throw new Error("datanet_chunk_staging_metadata_invalid");
+    }
+
+    // Retain the staged descriptor across create-only publication. If a
+    // same-directory actor substitutes the temporary pathname after the write,
+    // the final leaf cannot match the descriptor identity and is rejected.
+    fs.linkSync(temporary, file);
+    const stagedAfterLink = fs.fstatSync(fd);
+    const published = fs.lstatSync(file);
+    if (
+      !published.isFile() ||
+      published.isSymbolicLink() ||
+      !sameDataNetChunkIdentityV1(stagedAfterLink, published)
+    ) {
+      // Do not unlink a mismatched pathname: it may now name a foreign inode.
+      // The content-addressed GET path will independently hash-reject it.
+      throw new Error("datanet_chunk_publish_identity_mismatch");
+    }
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+    if (retainedStagingIdentity !== null) {
+      try {
+        const visibleTemporary = fs.lstatSync(temporary);
+        if (sameDataNetChunkInodeV1(retainedStagingIdentity, visibleTemporary)) {
+          fs.unlinkSync(temporary);
+        }
+      } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+      }
+    }
+  }
+
+  const opened = readVerifiedDataNetChunkSnapshotV1(file, expectedLeaf);
+  if (opened.size !== body.length) {
+    throw new Error("datanet_chunk_published_size_mismatch");
+  }
+  return Object.freeze({ reused: false });
 }
 
 
@@ -436,11 +689,55 @@ const router = express.Router();
     if (!isHex64(leaf)) return res.status(400).json({ ok: false, err: "bad_leaf" });
     const p = path.join(chunksDir, `${leaf}.bin`);
     if (!fs.existsSync(p)) return res.status(404).json({ ok: false, err: "not_found" });
-    res.setHeader("content-type", "application/octet-stream");
-    fs.createReadStream(p).pipe(res);
+    const visible = fs.lstatSync(p);
+    if (!visible.isFile() || visible.isSymbolicLink()) {
+      return res.status(409).json({ ok: false, err: "stored_chunk_invalid" });
+    }
+
+    let opened: VerifiedDataNetChunkSnapshotV1;
+    try {
+      opened = readVerifiedDataNetChunkSnapshotV1(
+        p,
+        leaf,
+        DATANET_PUBLIC_CHUNK_SNAPSHOT_BUDGET_V1,
+      );
+    } catch (error) {
+      if (error instanceof DataNetChunkSnapshotCapacityErrorV1) {
+        res.setHeader("retry-after", "1");
+        return res.status(503).json({
+          ok: false,
+          err: "datanet_chunk_snapshot_capacity_exceeded",
+        });
+      }
+      throw error;
+    }
+
+    if (opened.reservation === null) {
+      throw new Error("datanet_chunk_snapshot_reservation_missing");
+    }
+    const reservation = opened.reservation;
+    const releaseSnapshot = armDataNetChunkSnapshotReservationV1(
+      req,
+      res,
+      reservation,
+    );
+
+    if (req.aborted || res.destroyed) {
+      releaseSnapshot();
+      return;
+    }
+
+    try {
+      res.setHeader("content-type", "application/octet-stream");
+      res.setHeader("content-length", String(opened.size));
+      return res.status(200).end(opened.bytes);
+    } catch (error) {
+      releaseSnapshot();
+      throw error;
+    }
   });
 
-  router.put("/chunks/:leaf", express.raw({ type: "*/*", limit: "64mb" }), (req, res) => {
+  router.put("/chunks/:leaf", express.raw({ type: "*/*", limit: DATANET_CHUNK_MAX_BYTES }), (req, res) => {
     const leaf = String(req.params.leaf || "").toLowerCase().replace(/^0x/, "");
     if (!isHex64(leaf)) return res.status(400).json({ ok: false, err: "bad_leaf" });
     const body = req.body as Buffer;
@@ -451,8 +748,22 @@ const router = express.Router();
     if (got !== leaf) return res.status(400).json({ ok: false, err: "leaf_hash_mismatch", want: leaf, got });
 
     const p = path.join(chunksDir, `${leaf}.bin`);
-    fs.writeFileSync(p, body);
-    res.json({ ok: true, leaf, bytes: body.length });
+    if (fs.existsSync(p)) {
+      const visible = fs.lstatSync(p);
+      if (!visible.isFile() || visible.isSymbolicLink()) {
+        return res.status(409).json({
+          ok: false,
+          err: "chunk_storage_conflict",
+        });
+      }
+    }
+    const published = publishDataNetChunkCreateOnlyV1(p, leaf, body);
+    res.json({
+      ok: true,
+      leaf,
+      bytes: body.length,
+      reused: published.reused,
+    });
   });
 
   router.get("/proof/:root/:index", (req, res) => {

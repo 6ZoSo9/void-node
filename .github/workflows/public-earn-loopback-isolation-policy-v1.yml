@@ -1,0 +1,68 @@
+name: VOID Public Earn loopback isolation policy v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-public-earn-loopback-isolation-policy-v1.mjs"
+      - "scripts/prove_public_earn_loopback_isolation_policy_v1.mjs"
+      - "docs/architecture/public-earn-loopback-isolation-policy-v1.md"
+      - ".github/workflows/public-earn-loopback-isolation-policy-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-public-earn-loopback-isolation-policy-v1.mjs"
+      - "scripts/prove_public_earn_loopback_isolation_policy_v1.mjs"
+      - "docs/architecture/public-earn-loopback-isolation-policy-v1.md"
+      - ".github/workflows/public-earn-loopback-isolation-policy-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: public Earn isolation / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove policy
+        run: |
+          set -euo pipefail
+          node --check tools/void-public-earn-loopback-isolation-policy-v1.mjs
+          node --check scripts/prove_public_earn_loopback_isolation_policy_v1.mjs
+          proof="$RUNNER_TEMP/public-earn-loopback-isolation-policy-v1.txt"
+          node scripts/prove_public_earn_loopback_isolation_policy_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_PUBLIC_EARN_LOOPBACK_ISOLATION_POLICY_V1_GREEN' "$proof"
+          grep -Fx 'dispatcher_to_edge_uid_policy_shape_qualified=true' "$proof"
+          grep -Fx 'edge_to_dedicated_gateway_uid_policy_shape_qualified=true' "$proof"
+          grep -Fx 'shared_mutation_bypass_policy_shape_qualified=true' "$proof"
+          grep -Fx 'edge_rate_state_custody_policy_shape_qualified=true' "$proof"
+          grep -Fx 'funnel_to_dispatcher_trust_proven=false' "$proof"
+          grep -Fx 'live_host_evidence_verified=false' "$proof"
+          grep -Fx 'local_transport_trust_proven=false' "$proof"
+          grep -Fx 'runtime_integration=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+      - name: Repository regression
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+          git diff --check

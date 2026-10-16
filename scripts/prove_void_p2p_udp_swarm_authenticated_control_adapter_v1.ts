@@ -40,6 +40,7 @@ async function main(): Promise<void> {
     relayState.markReady(b.nodeId, stream.stream_id, 10_003).started_now,
     true,
   );
+  const startedRelayStreamIds = new Set([stream.stream_id]);
 
   const authenticatedPem = new Map<string, string>([
     [a.nodeId, a.publicPem],
@@ -61,9 +62,8 @@ async function main(): Promise<void> {
     if (relayNodeId !== relay.nodeId) return false;
     const expectedPeer = localPeerNodeId === a.nodeId ? b.nodeId : a.nodeId;
     if (peerNodeId !== expectedPeer) return false;
-    return relayState.snapshot(10_050).streams.some(
-      (entry) => entry.stream_id === streamId && entry.started,
-    );
+    // Mirror production Node's clock-free relayStreams membership check.
+    return startedRelayStreamIds.has(streamId);
   };
 
   const adapterA = new VoidUdpSwarmAuthenticatedControlAdapterV1({
@@ -283,6 +283,7 @@ async function main(): Promise<void> {
   assert.equal(rejectAdapter.snapshot(10_162).pending_request_count, 0);
 
   assert(relayState.closeStream(a.nodeId, stream.stream_id, 10_200));
+  startedRelayStreamIds.delete(stream.stream_id);
   assert.equal(adapterA.snapshot(10_201).active_route_count, 0);
   assert.equal(adapterB.snapshot(10_201).active_route_count, 0);
 

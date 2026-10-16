@@ -104,7 +104,13 @@ export function walletNonNegativeSafeIntegerV1(raw: unknown): number | null {
 
 function walletNonNegativeFiniteNumberV1(raw: unknown): number | null {
   const value = walletFiniteNumberV1(raw);
-  return value !== null && value >= 0 ? value : null;
+  return (
+    value !== null &&
+    value >= 0 &&
+    !Object.is(value, -0)
+  )
+    ? value
+    : null;
 }
 
 const NATIVE_GAS_DISPLAY_PATTERN_V1 =
@@ -119,12 +125,28 @@ export function walletNativeGasDisplayV1(raw: unknown): string | null {
     : null;
 }
 
+const WALLET_ACCOUNTING_DISPLAY_MAX_FRACTION_DIGITS_V1 = 9;
+const walletAccountingCompactFormatterV1 = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: WALLET_ACCOUNTING_DISPLAY_MAX_FRACTION_DIGITS_V1,
+  useGrouping: false,
+});
+const walletAccountingFriendlyFormatterV1 = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: WALLET_ACCOUNTING_DISPLAY_MAX_FRACTION_DIGITS_V1,
+});
+
+export function walletAccountingDisplayV1(raw: unknown): string | null {
+  const value = walletNonNegativeFiniteNumberV1(raw);
+  if (value === null) return null;
+
+  const compact = walletAccountingCompactFormatterV1.format(value);
+  return Number(compact) === value
+    ? walletAccountingFriendlyFormatterV1.format(value)
+    : String(value);
+}
+
 function displayNumber(raw: number | null): string {
   if (raw === null) return "—";
-
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 9,
-  }).format(raw);
+  return walletAccountingDisplayV1(raw) ?? "—";
 }
 
 function sourceDeadlineErrorV1(signal: AbortSignal): Error {
@@ -370,9 +392,11 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
   const ledgerBody = objectBody(ledgerSource);
   const productionBody = objectBody(productionSource);
 
+  const walletAccountMatches = walletBody.account === account;
   const walletShapeValid =
     walletSource.status === 200 &&
     walletBody.ok === true &&
+    walletAccountMatches &&
     typeof walletBody.has_wallet === "boolean" &&
     typeof walletBody.unlocked === "boolean";
   const walletAddress =
@@ -394,12 +418,17 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
           (walletBody.unlocked === false || walletUnlocked)
     );
 
+  const ledgerAccountMatches = ledgerBody.account === account;
   const ledgerBalanceCandidate =
-    ledgerSource.status === 200 && ledgerBody.ok === true
+    ledgerSource.status === 200 &&
+    ledgerBody.ok === true &&
+    ledgerAccountMatches
       ? walletNonNegativeFiniteNumberV1(ledgerBody.balance)
       : null;
   const ledgerCountCandidate =
-    ledgerSource.status === 200 && ledgerBody.ok === true
+    ledgerSource.status === 200 &&
+    ledgerBody.ok === true &&
+    ledgerAccountMatches
       ? walletNonNegativeSafeIntegerV1(ledgerBody.count)
       : null;
   const ledgerAvailable =
@@ -407,16 +436,19 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
   const ledgerBalance = ledgerAvailable ? ledgerBalanceCandidate : null;
   const ledgerCount = ledgerAvailable ? ledgerCountCandidate : null;
 
+  const productionAccountMatches = productionBody.account === account;
   const productionBalanceCandidate =
     productionSource.status === 200 &&
     productionBody.ok === true &&
-    productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1"
+    productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1" &&
+    productionAccountMatches
       ? walletNonNegativeFiniteNumberV1(productionBody.balance)
       : null;
   const productionCountCandidate =
     productionSource.status === 200 &&
     productionBody.ok === true &&
-    productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1"
+    productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1" &&
+    productionAccountMatches
       ? walletNonNegativeSafeIntegerV1(productionBody.count)
       : null;
   const productionAvailable =

@@ -1,0 +1,55 @@
+name: VOID Buy user manager query ELF lock v4
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-lock-v4.yml"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - ".github/workflows/buy-void-user-manager-query-elf-lock-v4.yml"
+      - "ops/security/buy-void-user-manager-query-elf-candidate-v4.json"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v4.json"
+
+permissions:
+  contents: read
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Preserve accepted V4 lock on exact V5 successor
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "fc1f640689b7da7278ff013669ef8a10cd8f6659"
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-candidate-v4.json)" = "988542122028843b2848063dbbaf7a94c32d6cd4"
+          test "$(git rev-parse HEAD:ops/security/buy-void-user-manager-query-elf-lock-v4.json)" = "55ceccf61d59a18809e74979afa518ed150d62a0"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_user_manager_query_elf_lock_v4.mjs)" = "e86a1c27186d47e05b1c6292475f71c5d591a44e"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-user-manager-query-elf-lock-v4.md)" = "b31694b2351195b8947b7fad8bf2aaabea49695b"
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const l=JSON.parse(fs.readFileSync("ops/security/buy-void-user-manager-query-elf-lock-v4.json","utf8"));
+          assert.equal(l.lock_id,"voidbuyumqelflock4_846047629dd2dd58f73f926d85cddde5b0a1510493d59a2d7ef778d235a70301");
+          assert.equal(l.candidate_evidence.query_source_git_blob_sha1,"6aefc385bcc4212d3c45e36871bfde0da3529baa");
+          assert.equal(l.candidate_accepted,true);
+          assert.equal(l.install_authorized,false);
+          assert.equal(l.live_query_authorized,false);
+          assert.equal(l.public_presale_activation,false);
+          assert.equal(l.funds_movement,false);
+          NODE
+          echo VOID_BUY_VOID_USER_MANAGER_QUERY_ELF_LOCK_V4_HISTORICAL_PRESERVED
+          echo v6_query_source_exact=true
+          echo install_authorized=false
+          echo live_query_authorized=false
+          echo funds_movement=false
+      - run: git diff --check

@@ -36,8 +36,6 @@
     "screenshots/mobile-network-320x568.png": "79e0e87a70876cffdb7cc703c9409d15c2986d384dd828d77974e4e75d4dd16a",
     "screenshots/tablet-home-768x1024.png": "a470e799fc54879e4420a230b10c2815ac175bfdff55dba2613668bdca81c649"
   },
-  "repository_hashes_refreshed_after_whitespace_cleanup": true,
-  "repository_hashes_refreshed_date": "2026-07-14",
   "wave2_home_readonly_transition": true,
   "wave2_home_readonly_transition_date": "2026-07-14",
   "wave3_wallet_readonly_transition": {
@@ -83,7 +81,7 @@
     "authority_added": false
   },
   "advanced_unavailable_controls_truth_repair": {
-    "date": "2026-10-13",
+    "date": "2026-10-14",
     "surface": "advanced-drawer",
     "former_dead_controls": [
       "Records",
@@ -110,5 +108,26 @@
     "overscroll_contained": true,
     "body_scroll_lock_safe": true,
     "authority_added": false
+  },
+  "command_search_filter_repair": {
+    "date": "2026-10-15",
+    "surface": "command-menu",
+    "destinations": 7,
+    "empty_state": "No matching destinations.",
+    "keyboard": [
+      "Enter",
+      "ArrowDown"
+    ],
+    "query_normalization": [
+      "trim",
+      "unicode_lowercase"
+    ],
+    "authority_added": false
+  },
+  "payload_hashes_are_source_bundle_only": true,
+  "repository_hashes": {
+    "public/void-app-wave1-v1/assets/css/components.css": "2dac0177de78ccf3dc140db5167e7297dd0fd6d5c276844d648f7435c11336ee",
+    "public/void-app-wave1-v1/assets/js/app.js": "85c9e43adc98250c728b02f7222e19aa1a190892683aec67e22469c483898f5b",
+    "public/void-app-wave1-v1/index.html": "d629ab00117ad6534651d66789887de2d9a0d101b7bb4b7d29eb0816acc37743"
   }
 }

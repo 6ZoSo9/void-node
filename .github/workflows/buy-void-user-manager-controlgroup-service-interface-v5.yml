@@ -1,0 +1,41 @@
+name: VOID Buy user manager ControlGroup service interface v5
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "scripts/prove_void_buy_user_manager_controlgroup_service_interface_v5.mjs"
+      - "docs/architecture/buy-void-user-manager-controlgroup-service-interface-v5.md"
+      - ".github/workflows/buy-void-user-manager-controlgroup-service-interface-v5.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "scripts/prove_void_buy_user_manager_controlgroup_service_interface_v5.mjs"
+      - "docs/architecture/buy-void-user-manager-controlgroup-service-interface-v5.md"
+      - ".github/workflows/buy-void-user-manager-controlgroup-service-interface-v5.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Preserve V5 ControlGroup repair on exact V6 successor
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_private_unit_query_v1.c)" = "fc1f640689b7da7278ff013669ef8a10cd8f6659"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_user_manager_controlgroup_service_interface_v5.mjs)" = "c014c1c2e8319484288f75ed201deb79544bd781"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-user-manager-controlgroup-service-interface-v5.md)" = "dbcd97ffaab23a960cc280a3f06983e373ddd417"
+          echo VOID_BUY_VOID_USER_MANAGER_CONTROLGROUP_SERVICE_INTERFACE_V5_HISTORICAL_PRESERVED
+          echo v6_kernel_cap_last_cap_projection_successor=true
+          echo install_authorized=false
+          echo live_query_authorized=false
+          echo funds_movement=false
+      - run: git diff --check
