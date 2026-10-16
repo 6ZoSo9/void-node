@@ -1,0 +1,53 @@
+{
+  "schema": "void_buy_void_enforcement_final_protected_v7_v2_lock_v5",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V5",
+  "version": 5,
+  "repository": "6ZoSo9/void-node",
+  "candidate_head": "a884c8b69d19523e99da02899ff5fa8ab18e7100",
+  "candidate_hosted_evidence": {
+    "workflow_run": 38981095232,
+    "node22_artifact_id": 12081296713,
+    "node24_artifact_id": 12081326032,
+    "node26_artifact_id": 12081610318,
+    "cross_node_job": 117242335606,
+    "three_node_byte_identity_verified": true,
+    "independent_rederivation_verified": true
+  },
+  "full_candidate_evidence": {
+    "bytes": 25406,
+    "sha256": "c712aaeeb6ca4b1d7547542f6542c9e58c37291e73662bf4822f9df7a55af50b",
+    "git_blob_sha1": "b625034452da860b3b6419dd317e642edaa35991",
+    "candidate_enforcement_set_sha256": "1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf",
+    "independently_rederived_from_candidate_head": true
+  },
+  "candidate_evidence": {
+    "path": "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json",
+    "derivation_proof_path": "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs",
+    "derivation_proof_git_blob_sha1": "80f076711b9c955c494cc70effafc3737b9c9c57",
+    "bytes": 8157,
+    "sha256": "fd0caed2df8b5e727f9f5f24b97f3d353e8267c6cfab70d70d5acafa48846fd0",
+    "git_blob_sha1": "dd849928bc945478a1a8fcf687f374cfca59f4e4",
+    "candidate_enforcement_set_sha256": "1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf"
+  },
+  "protected_census_evidence": {
+    "census_id": "voidbefv7c7_1a85dcb768ab6d5348024cec816d82b7f3ac5cc53e738ec2169e78d4021a73a8",
+    "census_json_sha256": "326b81bf51fa4efa449b01b6b53e244b1d08dd7ea0d859cafd04954f6f4aa1fb",
+    "census_json_git_blob_sha1": "92ca40eb9b7bb79f6b56ad87807dc3586a3ce6ec",
+    "protected_tracked_source_inventory_canonical_sha256": "e7e0625ff47dc4b4c7e0f93e4b75be30d04d9538acc233174c0abc18198b38e3"
+  },
+  "predecessor_lock_evidence": {
+    "path": "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json",
+    "git_blob_sha1": "92054f19fed9e8c243eb23321dbcf53fc9227a99",
+    "candidate_enforcement_set_sha256": "bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d",
+    "historical_identity_preserved": true
+  },
+  "current_enforcement_tracked_source_inventory_sha256": "e7e0625ff47dc4b4c7e0f93e4b75be30d04d9538acc233174c0abc18198b38e3",
+  "complete_executable_closure_verified": true,
+  "current_enforcement_tracked_source_inventory_verified": true,
+  "candidate_enforcement_identity_accepted": true,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}
