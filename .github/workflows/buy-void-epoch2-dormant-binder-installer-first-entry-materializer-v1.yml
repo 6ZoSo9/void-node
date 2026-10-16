@@ -199,7 +199,10 @@ jobs:
             void_buy_void_epoch2_dormant_binder_installer_first_entry_v1 \
             > "$sums"
 
-          sha256sum -c "$sums" --ignore-missing
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum -c "$(basename "$sums")"
+          )
           git diff --check
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
