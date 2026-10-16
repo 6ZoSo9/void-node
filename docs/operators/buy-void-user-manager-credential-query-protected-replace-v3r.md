@@ -75,6 +75,30 @@ The implementation preserves the merged V1->V2 replacement primitives:
 
 The fixed preexec is never replaced.
 
+## Pre-mutation operator authority boundary
+
+Before either `--apply` or `--rollback` calls the protected operation
+implementation, the CLI emits a closed `authority_boundary=PRE_MUTATION`
+summary.
+
+That summary appears before candidate access, protected-root open, flock,
+stage creation, rename/exchange, cleanup, or other protected filesystem
+mutation. It states that filesystem mutation is possible for the requested
+mode but has not yet been performed, and it keeps query execution, credential
+contents, service/systemd mutation, private-key/wallet/signer access,
+transaction, payment acceptance, presale/WC activation, treasury/liquidity
+action, funds movement, and production host-evidence authority false.
+
+The boundary is informational and does not itself authorize the operation.
+The existing exact confirmation token, root requirement, isolated Python
+context, accepted-lock verification, and protected-root state machine remain
+separate fail-closed gates.
+
+The focused proof executes both operation modes with deliberately wrong
+confirmation tokens and requires the pre-mutation authority summary to precede
+the resulting HOLD. It also binds source order so the authority emitter is
+called before the apply/rollback operation function.
+
 ## Operation-bound confirmations
 
 Future apply confirmation:
