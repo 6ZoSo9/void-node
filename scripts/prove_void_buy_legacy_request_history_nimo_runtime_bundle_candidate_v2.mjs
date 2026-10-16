@@ -17,6 +17,11 @@ import {
   verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2,
 } from "../tools/void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v2.mjs";
 
+function gitBlob(bytes) {
+  const prefix = Buffer.from("blob " + bytes.length + "\0", "utf8");
+  return crypto.createHash("sha1").update(prefix).update(bytes).digest("hex");
+}
+
 const candidate =
   buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2();
 
