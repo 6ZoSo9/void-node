@@ -48,6 +48,8 @@ for(const [relative,expected] of Object.entries({
     "4333df6c7918fe9efaada36cac765000eec7948f",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
     "93582c324ca85aeff56eb61f82b32f1e4c18dfe9",
+  "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
+    "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
     "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
@@ -68,6 +70,7 @@ const expectedTriggerPaths=[
   ".github/workflows/apollyon-training-start-release-binding-v1.yml",
   "tools/apollyon-training-start-consumption-contract-v1.mjs",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs",
+  "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs",
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
