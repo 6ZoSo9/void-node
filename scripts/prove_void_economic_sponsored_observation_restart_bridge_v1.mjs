@@ -131,9 +131,13 @@ async function priorComposition(priorBinding,priorReceipt){
     testOnlyCreateVoidEconomicSponsoredHostObservationTimeStoreBindingWithStoreV1({
       root_dir:"/tmp/void-sponsored-restart-proof-unused",
       collectBinding:()=>priorBinding,
-      createStore(){
+      createStore({trustedClock}){
         return Object.freeze({
           async observe(){
+            assert.deepEqual(
+              trustedClock(),
+              priorBinding.observation_sample,
+            );
             return Object.freeze({
               ok:true,
               status:"source_accepted",
