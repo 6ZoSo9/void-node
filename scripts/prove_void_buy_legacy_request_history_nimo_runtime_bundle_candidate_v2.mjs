@@ -133,10 +133,9 @@ assert.deepEqual(
     );
     const binOriginal = fs.readFileSync(binTsc, "utf8");
     fs.writeFileSync(binTsc, binOriginal + "\n// v2-cli-byte-tamper\n", "utf8");
-    assert.notDeepEqual(
-      testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
-      candidate.compiler,
-      "CLI entry byte tamper must change compiler identity",
+    assert.throws(
+      () => testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
+      /legacy_history_nimo_bundle_typescript_compiler_file_identity_mismatch/u,
     );
     fs.writeFileSync(binTsc, binOriginal, "utf8");
 
@@ -148,7 +147,7 @@ assert.deepEqual(
     fs.writeFileSync(binTsc, badBin, "utf8");
     assert.throws(
       () => testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
-      /legacy_history_nimo_bundle_typescript_bin_loader_edge_invalid/u,
+      /legacy_history_nimo_bundle_typescript_compiler_file_identity_mismatch/u,
     );
     fs.writeFileSync(binTsc, binOriginal, "utf8");
 
@@ -162,10 +161,9 @@ assert.deepEqual(
       loaderOriginal + "\n// v2-loader-byte-tamper\n",
       "utf8",
     );
-    assert.notDeepEqual(
-      testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
-      candidate.compiler,
-      "CLI loader byte tamper must change compiler identity",
+    assert.throws(
+      () => testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
+      /legacy_history_nimo_bundle_typescript_compiler_file_identity_mismatch/u,
     );
     fs.writeFileSync(libTsc, loaderOriginal, "utf8");
 
@@ -177,7 +175,7 @@ assert.deepEqual(
     fs.writeFileSync(libTsc, badLoader, "utf8");
     assert.throws(
       () => testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
-      /legacy_history_nimo_bundle_typescript_cli_loader_edge_invalid/u,
+      /legacy_history_nimo_bundle_typescript_compiler_file_identity_mismatch/u,
     );
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
@@ -286,6 +284,7 @@ for (const [key, expected] of Object.entries({
   compiler_identity_bound: true,
   compiler_cli_entry_chain_bound: true,
   compiler_cli_loader_edges_bound: true,
+  compiler_exact_file_identity_allowlist_bound: true,
   compiler_execution_generation_bound: true,
   candidate_owned_rebuild_required: true,
   three_node_byte_equality_required: true,
@@ -388,6 +387,17 @@ function rehashCandidate(value) {
     /legacy_history_nimo_bundle_compiler_file_identity_invalid/u,
   );
 }
+{
+  const tampered = structuredClone(candidate);
+  tampered.build_recipe.post_compile = "node unreviewed-helper.mjs";
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_build_recipe_shape_invalid/u,
+  );
+}
 
 {
   const tampered = structuredClone(candidate);
@@ -469,6 +479,7 @@ console.log("typescript_cli_entry_bound=true");
 console.log("typescript_cli_loader_bound=true");
 console.log("compiler_cli_edges_exact=true");
 console.log("typescript_compile_cache_builtin_bound=true");
+console.log("typescript_compiler_exact_file_allowlist_bound=true");
 console.log("candidate_owned_compiler_rebuild=true");
 console.log("compiler_pre_post_identity_stable=true");
 console.log("compiler_closed_environment=true");
@@ -482,6 +493,7 @@ console.log("rehashed_compiler_bytes_tamper_rejected=true");
 console.log("rehashed_cli_entry_tamper_rejected=true");
 console.log("rehashed_cli_loader_tamper_rejected=true");
 console.log("rehashed_cli_edge_tamper_rejected=true");
+console.log("rehashed_build_recipe_extra_field_rejected=true");
 console.log("rehashed_runtime_kind_tamper_rejected=true");
 console.log("rehashed_builtin_set_tamper_rejected=true");
 console.log("rehashed_compiler_identity_tamper_rejected=true");
