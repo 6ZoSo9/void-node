@@ -12,8 +12,10 @@ import {
 } from "../tools/apollyon-live-source-session-terminal-receipt-v2.mjs";
 import {
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_LEAST_AUTHORITY_KEYS_V2,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTRACT_AUTHORITY_V2,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2,
+  qualifyApollyonDurableAttemptClaimServiceLeastAuthorityV2,
   qualifyApollyonDurableAttemptClaimStoreContractV2,
 } from "../tools/apollyon-durable-attempt-claim-store-contract-v2.mjs";
 
@@ -32,7 +34,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "a3bd3921f2507b06b9ea41a78f825fa15d62ae89",
+    "be1454fae96ebae7c686f300aadcca4a103cc596",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -142,6 +144,22 @@ assert.deepEqual(
 
 for(const [key,expected] of Object.entries({
   dedicated_claim_service_identity_required:true,
+  claim_service_non_root_uid_required:true,
+  claim_service_non_root_gid_required:true,
+  claim_service_numeric_uid_distinct_from_training_required:true,
+  claim_service_numeric_uid_distinct_from_custody_required:true,
+  claim_service_numeric_uid_distinct_from_public_runtime_required:true,
+  claim_service_numeric_uid_distinct_from_interactive_operator_required:true,
+  claim_service_numeric_gid_distinct_from_training_required:true,
+  claim_service_numeric_gid_distinct_from_custody_required:true,
+  claim_service_numeric_gid_distinct_from_public_runtime_required:true,
+  claim_service_numeric_gid_distinct_from_interactive_operator_required:true,
+  claim_service_no_new_privileges_required:true,
+  claim_service_inheritable_capabilities_empty_required:true,
+  claim_service_permitted_capabilities_empty_required:true,
+  claim_service_effective_capabilities_empty_required:true,
+  claim_service_bounding_capabilities_empty_required:true,
+  claim_service_ambient_capabilities_empty_required:true,
   claim_identity_distinct_from_training_required:true,
   claim_identity_distinct_from_custody_required:true,
   claim_identity_distinct_from_public_runtime_required:true,
@@ -213,6 +231,9 @@ for(const [key,expected] of Object.entries({
   claim_service_source_identity_revalidation_immediately_before_publication_required:true,
   claim_service_supplementary_groups_revalidation_immediately_before_publication_required:true,
   claim_service_effective_policy_revalidation_immediately_before_publication_required:true,
+  claim_service_numeric_identity_revalidation_immediately_before_publication_required:true,
+  claim_service_no_new_privileges_revalidation_immediately_before_publication_required:true,
+  claim_service_capability_sets_revalidation_immediately_before_publication_required:true,
   claim_store_generation_revalidation_immediately_before_publication_required:true,
   claim_store_root_identity_revalidation_immediately_before_publication_required:true,
   claim_write_authority_revalidation_immediately_before_publication_required:true,
@@ -322,6 +343,77 @@ for(const mutate of [
 }
 
 
+assert.deepEqual(
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_LEAST_AUTHORITY_KEYS_V2,
+  [
+    "cap_ambient","cap_bounding","cap_effective","cap_inheritable","cap_permitted",
+    "claim_gid","claim_uid","custody_gid","custody_uid",
+    "interactive_operator_gid","interactive_operator_uid","no_new_privileges",
+    "public_runtime_gid","public_runtime_uid","training_gid","training_uid",
+  ],
+);
+
+function leastAuthority(overrides={}){
+  return {
+    claim_uid:994,
+    claim_gid:981,
+    training_uid:995,
+    training_gid:982,
+    custody_uid:996,
+    custody_gid:983,
+    public_runtime_uid:997,
+    public_runtime_gid:984,
+    interactive_operator_uid:1000,
+    interactive_operator_gid:1000,
+    no_new_privileges:true,
+    cap_inheritable:"0000000000000000",
+    cap_permitted:"0000000000000000",
+    cap_effective:"0000000000000000",
+    cap_bounding:"0000000000000000",
+    cap_ambient:"0000000000000000",
+    ...overrides,
+  };
+}
+{
+  const qualified=qualifyApollyonDurableAttemptClaimServiceLeastAuthorityV2(
+    leastAuthority(),
+  );
+  assert.equal(qualified.qualified,true);
+  assert.equal(qualified.non_root_identity,true);
+  assert.equal(qualified.numeric_identity_separation_verified,true);
+  assert.equal(qualified.no_new_privileges,true);
+  assert.equal(qualified.all_capability_sets_empty,true);
+  assert.equal(qualified.host_installation_performed,false);
+  assert.equal(qualified.durable_attempt_claim_performed,false);
+  assert.equal(qualified.training_execution_performed,false);
+}
+for(const [label,overrides,pattern] of [
+  ["root_uid",{claim_uid:0},/root_uid_forbidden/u],
+  ["root_gid",{claim_gid:0},/root_gid_forbidden/u],
+  ["training_uid_collision",{claim_uid:995},/uid_collision:training_uid/u],
+  ["custody_uid_collision",{claim_uid:996},/uid_collision:custody_uid/u],
+  ["public_runtime_uid_collision",{claim_uid:997},/uid_collision:public_runtime_uid/u],
+  ["operator_uid_collision",{claim_uid:1000},/uid_collision:interactive_operator_uid/u],
+  ["training_gid_collision",{claim_gid:982},/gid_collision:training_gid/u],
+  ["custody_gid_collision",{claim_gid:983},/gid_collision:custody_gid/u],
+  ["public_runtime_gid_collision",{claim_gid:984},/gid_collision:public_runtime_gid/u],
+  ["operator_gid_collision",{claim_gid:1000},/gid_collision:interactive_operator_gid/u],
+  ["nnp_false",{no_new_privileges:false},/no_new_privileges_required/u],
+  ["cap_inheritable",{cap_inheritable:"0000000000000001"},/capabilities_not_empty:cap_inheritable/u],
+  ["cap_permitted",{cap_permitted:"0000000000000001"},/capabilities_not_empty:cap_permitted/u],
+  ["cap_effective",{cap_effective:"0000000000000001"},/capabilities_not_empty:cap_effective/u],
+  ["cap_bounding",{cap_bounding:"0000000000000001"},/capabilities_not_empty:cap_bounding/u],
+  ["cap_ambient",{cap_ambient:"0000000000000001"},/capabilities_not_empty:cap_ambient/u],
+]){
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimServiceLeastAuthorityV2(
+      leastAuthority(overrides),
+    ),
+    pattern,
+    label,
+  );
+}
+
 const WORKFLOW=fs.readFileSync(
   path.join(ROOT,".github/workflows/apollyon-durable-attempt-claim-store-contract-v2.yml"),
   "utf8",
@@ -350,6 +442,17 @@ for(const required of [
   'terminal_receipt_shape_bound:true','terminal_receipt_source_origin_proven:false',
   'claim_must_be_durable_before_training_start:true',
   'claim_uid_only_reviewed_service_required:true',
+  'claim_service_non_root_uid_required:true',
+  'claim_service_non_root_gid_required:true',
+  'claim_service_no_new_privileges_required:true',
+  'claim_service_inheritable_capabilities_empty_required:true',
+  'claim_service_permitted_capabilities_empty_required:true',
+  'claim_service_effective_capabilities_empty_required:true',
+  'claim_service_bounding_capabilities_empty_required:true',
+  'claim_service_ambient_capabilities_empty_required:true',
+  'claim_service_numeric_identity_revalidation_immediately_before_publication_required:true',
+  'claim_service_no_new_privileges_revalidation_immediately_before_publication_required:true',
+  'claim_service_capability_sets_revalidation_immediately_before_publication_required:true',
   'claim_request_kernel_peer_credentials_required:true',
   'claim_request_exact_caller_uid_gid_required:true',
   'claim_request_unauthorized_peer_rejected_before_body_read_required:true',
@@ -390,6 +493,11 @@ console.log("requirements_defined=true");
 console.log("terminal_receipt_shape_bound=true");
 console.log("terminal_receipt_source_origin_proven=false");
 console.log("dedicated_claim_service_identity_required=true");
+console.log("claim_service_non_root_uid_gid_required=true");
+console.log("claim_service_no_new_privileges_required=true");
+console.log("claim_service_all_capability_sets_empty_required=true");
+console.log("claim_service_numeric_identity_separation_required=true");
+console.log("claim_service_least_authority_adversaries_rejected=true");
 console.log("claim_uid_only_reviewed_service_required=true");
 console.log("claim_request_kernel_peer_credentials_required=true");
 console.log("claim_request_exact_caller_uid_gid_required=true");
