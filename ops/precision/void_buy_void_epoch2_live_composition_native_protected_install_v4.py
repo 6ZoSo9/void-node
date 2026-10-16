@@ -79,7 +79,7 @@ MAX_NODE_BYTES = 512 * 1024 * 1024
 READY_STATE = "EPOCH2_LIVE_COMPOSITION_V3_V4_PREDECESSOR_READY_FOR_V6_ATOMIC_UPGRADE"
 GREEN_STATE = "EPOCH2_LIVE_COMPOSITION_V3_V6_GREEN_WITH_V4_PREDECESSOR"
 
-FORBIDDEN_APPLY_ENV = (FORBIDDEN_APPLY_ENV = (
+FORBIDDEN_APPLY_ENV = (
     "LD_PRELOAD",
     "LD_LIBRARY_PATH",
     "LD_AUDIT",
@@ -699,7 +699,7 @@ def protected_state(expected_policy: bytes) -> str:
     return READY_STATE
 
 
-def inspect_candidates(def inspect_candidates(
+def inspect_candidates(
     native: pathlib.Path,
     runner: pathlib.Path,
 ) -> tuple[bytes, bytes]:
@@ -876,7 +876,7 @@ def plan(native: pathlib.Path, runner: pathlib.Path, expected_head: str) -> None
         print("next_action=SEPARATELY_AUTHORIZE_EPOCH2_NATIVE_ATOMIC_V4_TO_V6_UPGRADE")
 
 
-def _renameat2(def _renameat2(dir_fd: int, source: str, target: str, flags: int) -> None:
+def _renameat2(dir_fd: int, source: str, target: str, flags: int) -> None:
     libc = ctypes.CDLL(None, use_errno=True)
     fn = getattr(libc, "renameat2", None)
     if fn is None:
@@ -1069,7 +1069,7 @@ def _failure_receipt(exc: BaseException) -> dict[str, str]:
             return str(value).lower()
 
         return {
-            "protected_install_performed": "true",
+            "protected_upgrade_performed": "true",
             "publication": "true",
             "publication_state": "published_needs_inspection",
             "final_state_verified": "false",
@@ -1085,7 +1085,7 @@ def _failure_receipt(exc: BaseException) -> dict[str, str]:
             "close_failure_reason": exc.close_failure_reason,
         }
     return {
-        "protected_install_performed": "false",
+        "protected_upgrade_performed": "false",
         "publication": "false",
         "publication_state": "not_published",
         "final_state_verified": "false",
@@ -1349,7 +1349,7 @@ def self_test() -> None:
         assert (right / "generation").read_text("utf-8") == "old"
 
 
-def main() -> int:def main() -> int:
+def main() -> int:
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--self-test", action="store_true")
