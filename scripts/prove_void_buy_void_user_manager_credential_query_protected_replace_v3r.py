@@ -14,7 +14,7 @@ LOCK = "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json"
 V2_LOCK = "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
 
 EXPECTED = {
-    SOURCE: "df103c1439dd054d98132c3beee226f3d8222314",
+    SOURCE: "573fd2785910eae62568a4add0be4d176886b28e",
     LOCK: "c4870f3178aebc9a0bb6557562f663b8480cfefa",
     V2_LOCK: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
 }
@@ -44,6 +44,33 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
         },
         timeout=120,
         check=True,
+    )
+
+def run_unchecked(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        env={
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/nonexistent",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "TZ": "UTC",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+        },
+        timeout=120,
+        check=False,
     )
 
 def git_blob(path: str) -> str:
@@ -112,6 +139,14 @@ for needle in (
     "descriptor_bound_state_inspection_required=true",
     "private_stage_publication_required=true",
     "visible_install_root_generation_revalidation_required=true",
+    "def emit_operation_authority(mode: str) -> None:",
+    "authority_boundary=PRE_MUTATION",
+    "filesystem_mutation_possible=true",
+    "filesystem_mutation_performed=false",
+    "protected_root_opened=false",
+    'emit_operation_authority("apply")',
+    'emit_operation_authority("rollback")',
+    "pre_mutation_authority_boundary=true",
     "crash_state_classifier_complete=true",
     "apply_crash_resume_supported=true",
     "rollback_crash_resume_supported=true",
@@ -158,6 +193,9 @@ for line in (
     "descriptor_bound_state_inspection=true",
     "private_stage_published_only_after_complete=true",
     "visible_install_root_generation_revalidation=true",
+    "pre_mutation_authority_boundary=true",
+    "apply_authority_boundary_pre_mutation=true",
+    "rollback_authority_boundary_pre_mutation=true",
     "query_execution=false",
     "credential_contents_read=false",
 ):
@@ -198,6 +236,64 @@ for line in (
 ):
     assert line in source_plan.splitlines(), line
 
+main_at = source.index("def main() -> int:")
+apply_emit_at = source.index('emit_operation_authority("apply")', main_at)
+apply_call_at = source.index("apply(args.query, args.confirm)", apply_emit_at)
+rollback_emit_at = source.index('emit_operation_authority("rollback")', apply_call_at)
+rollback_call_at = source.index("rollback(args.confirm)", rollback_emit_at)
+assert apply_emit_at < apply_call_at
+assert rollback_emit_at < rollback_call_at
+
+for mode_name, argv, expected_reason in (
+    (
+        "apply",
+        (
+            "--apply",
+            "--query",
+            "/definitely/not/a/real/v3-query-candidate",
+            "--confirm",
+            "wrong-confirmation",
+        ),
+        "explicit_atomic_exchange_confirmation_required",
+    ),
+    (
+        "rollback",
+        ("--rollback", "--confirm", "wrong-confirmation"),
+        "explicit_rollback_confirmation_required",
+    ),
+):
+    held = run_unchecked(
+        "/usr/bin/python3", "-I", "-B", str(ROOT / SOURCE), *argv
+    )
+    assert held.returncode == 2, held.stderr
+    lines = held.stdout.splitlines()
+    assert lines[0] == "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R"
+    assert lines[1] == "mode=" + mode_name
+    assert lines[2] == "authority_boundary=PRE_MUTATION"
+    for required in (
+        "filesystem_mutation_possible=true",
+        "filesystem_mutation_performed=false",
+        "protected_root_opened=false",
+        "query_execution=false",
+        "credential_contents_read=false",
+        "service_mutation=false",
+        "systemd_mutation=false",
+        "private_key_access=false",
+        "wallet_or_signer_access=false",
+        "transaction=false",
+        "payment_acceptance=false",
+        "public_presale_activation=false",
+        "wc_void_market_activation=false",
+        "treasury_liquidity_action=false",
+        "funds_movement=false",
+        "production_host_evidence_authority=false",
+    ):
+        assert required in lines, (mode_name, required)
+    hold_at = lines.index("status=HOLD")
+    boundary_at = lines.index("authority_boundary=PRE_MUTATION")
+    assert boundary_at < hold_at
+    assert "reason=" + expected_reason in lines
+
 print("VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R_PROOF_GREEN")
 print("source_blob=df103c1439dd054d98132c3beee226f3d8222314")
 print("accepted_lock_blob=c4870f3178aebc9a0bb6557562f663b8480cfefa")
@@ -220,6 +316,9 @@ print("stable_parent_operation_lock=true")
 print("descriptor_bound_state_inspection=true")
 print("private_stage_published_only_after_complete=true")
 print("visible_install_root_generation_revalidation=true")
+print("pre_mutation_authority_boundary=true")
+print("apply_authority_boundary_pre_mutation=true")
+print("rollback_authority_boundary_pre_mutation=true")
 print("query_execution=false")
 print("credential_contents_read=false")
 print("service_mutation=false")
