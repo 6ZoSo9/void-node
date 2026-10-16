@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import importlib.util
 from pathlib import Path
 import subprocess
 
@@ -16,7 +17,7 @@ INSTALLER = (
     "void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
 )
 
-TARGET_BLOB = "3a00cf67b550f0ea140c53c6b4c1f8adca7b7594"
+TARGET_BLOB = "94fd2344fe2a4cfb66c9976ca1541d52c27ec17d"
 INSTALLER_BLOB = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
 
 
@@ -51,6 +52,13 @@ for required in (
     "policy_atomic_exchange_required",
     "old_policy_retention_required",
     "automatic_rollback_required",
+    "filesystem_mutation_performed_at_pre_mutation_boundary=false",
+    "authority_boundary=FINAL_FAILURE_RECEIPT",
+    "policy_exchange_performed",
+    "policy_publication_performed",
+    "final_state_verified",
+    "_failure_receipt(",
+    "_emit_failure_receipt(",
     "native_mutation_authorized=false",
     "runner_mutation_authorized=false",
     "transaction_authorized=false",
@@ -99,6 +107,46 @@ rename_calls = [
     and node.func.id == "_renameat2"
 ]
 assert len(rename_calls) >= 4
+assert 'print("filesystem_mutation_performed=false")' not in source
+assert 'print("filesystem_mutation_performed_at_pre_mutation_boundary=false")' in source
+
+spec = importlib.util.spec_from_file_location("policy_rebind_v1", TARGET)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+receipt = module._failure_receipt(
+    failure_phase="policy_exchanged",
+    policy_exchange_performed=True,
+    rollback_attempted=True,
+    rollback_green=True,
+    final_state_verified=True,
+    final_state=module.READY_STATE,
+)
+assert receipt["policy_publication_performed"] is True
+assert receipt["final_state_verified"] is True
+
+receipt = module._failure_receipt(
+    failure_phase="backup_retained",
+    policy_exchange_performed=True,
+    rollback_attempted=True,
+    rollback_green=True,
+    final_state_verified=True,
+    final_state=module.READY_STATE,
+)
+assert receipt["policy_exchange_performed"] is True
+
+receipt = module._failure_receipt(
+    failure_phase="post_backup_revalidation",
+    policy_exchange_performed=True,
+    rollback_attempted=True,
+    rollback_green=False,
+    final_state_verified=False,
+    final_state="UNKNOWN",
+)
+assert receipt["policy_publication_performed"] is True
+assert receipt["automatic_rollback_green"] is False
+assert receipt["final_state_verified"] is False
 
 python = "/usr/bin/python3"
 self_test = subprocess.run(
@@ -121,6 +169,10 @@ for line in (
     "runner_mutation_authorized=false",
     "old_policy_retention_required=true",
     "automatic_rollback_required=true",
+    "publication_aware_failure_receipt=true",
+    "post_exchange_failure_reports_publication=true",
+    "rollback_failure_final_state_uncertain=true",
+    "pre_mutation_authority_scoped=true",
     "live_execution_authorized=false",
     "credential_access_authorized=false",
     "transaction_authorized=false",
@@ -174,6 +226,10 @@ print("exact_v4_predecessor_generation_required=true")
 print("atomic_cross_directory_policy_exchange_required=true")
 print("old_policy_retention_required=true")
 print("automatic_rollback_required=true")
+print("publication_aware_failure_receipt=true")
+print("post_exchange_failure_reports_publication=true")
+print("rollback_failure_final_state_uncertain=true")
+print("pre_mutation_authority_scoped=true")
 print("native_mutation_authorized=false")
 print("runner_mutation_authorized=false")
 print("live_execution_authorized=false")

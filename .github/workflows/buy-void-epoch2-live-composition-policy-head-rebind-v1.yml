@@ -30,7 +30,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=78d8a43293e21e51e2a89cb9b1de90ec24b73a02
+          parent=1c2e3db1165cacd998ab21b504a053b3c6fdea82
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
 
@@ -46,11 +46,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = \
-            3a00cf67b550f0ea140c53c6b4c1f8adca7b7594
+            94fd2344fe2a4cfb66c9976ca1541d52c27ec17d
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = \
-            a05e670559c0ac066f90d1c0497711b84bb4fb41
+            862779ec7a91ffe01eeabad4abdfae0be8c628d8
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-policy-head-rebind-v1.md)" = \
-            cc49478d901dbe5737f3baf54bab2e93c7db3ebd
+            1790363c6a7229e9431f62749294db30fe60409c
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
             fd7a06490ccf6fb14831d8b0372a892e2764c9dc
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = \
@@ -86,6 +86,10 @@ jobs:
             'atomic_cross_directory_policy_exchange_required=true' \
             'old_policy_retention_required=true' \
             'automatic_rollback_required=true' \
+            'publication_aware_failure_receipt=true' \
+            'post_exchange_failure_reports_publication=true' \
+            'rollback_failure_final_state_uncertain=true' \
+            'pre_mutation_authority_scoped=true' \
             'native_mutation_authorized=false' \
             'runner_mutation_authorized=false' \
             'live_execution_authorized=false' \
