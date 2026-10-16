@@ -76,13 +76,22 @@ successful `RENAME_EXCHANGE`; exchanging the historical root back does not erase
 that audit boundary.
 
 Every terminal after that publication boundary remains publication-aware,
-including a **proven-green rollback**. A green rollback reports
+including a **proven-green filesystem rollback**. A green rollback reports
 `publication_state=published_rolled_back_green`, preserves the bounded original
-failure, and separately reports rollback attempted/green/final-state-verified.
-It never regresses to generic `not_published`. If rollback cannot be proven
-green — including the case where the historical live root is restored but
-cleanup of the staged V6R2 generation is ambiguous — the terminal reports
-`published_needs_inspection`.
+failure, and separately reports rollback attempted/green. It never regresses to
+generic `not_published`.
+
+Filesystem rollback success alone does **not** prove the broader final state.
+After a green rollback the upgrader rechecks the same Node and checkout/Git/
+setpriv bindings carried by the plan. Only if those bindings still match may
+`rollback_final_state_verified=true` and `final_state_verified=true` be
+reported. If node/checkout/tool drift caused the post-exchange failure, the
+filesystem rollback may remain green while final-state verification stays
+false.
+
+If rollback cannot be proven green — including the case where the historical
+live root is restored but cleanup of the staged V6R2 generation is ambiguous —
+the terminal reports `published_needs_inspection`.
 
 The focused proof executes the real production apply state machine with
 synthetic/injected host primitives and no real `/opt` I/O. It requires:
@@ -94,6 +103,9 @@ synthetic/injected host primitives and no real `/opt` I/O. It requires:
 - failure of the parent fsync immediately after exchange with rollback,
   requiring the original `OSError` to be wrapped in a publication-aware
   terminal instead of escaping the receipt surface;
+- post-exchange Node-generation drift with a green filesystem rollback but
+  `final_state_verified=false`;
+- post-exchange checkout-generation drift with the same conservative result;
 - rollback-stage cleanup ambiguity after the historical live root has been
   exchanged back, requiring a publication-aware inspection receipt;
 - rollback rename failure with publication-aware HOLD; and
