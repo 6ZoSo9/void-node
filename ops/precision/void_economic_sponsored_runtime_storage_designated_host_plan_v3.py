@@ -757,6 +757,31 @@ def parse_running_systemd_manager_version(raw: str) -> str:
     return tokens[1]
 
 
+def parse_systemd_unit_absence(raw: str) -> dict[str, Any]:
+    values: dict[str, str] = {}
+    for line in raw.splitlines():
+        if "=" not in line:
+            raise PlanError("systemd_unit_state_line_invalid")
+        key, value = line.split("=", 1)
+        if key in values:
+            raise PlanError("systemd_unit_state_duplicate")
+        values[key] = value
+    if set(values) != {"LoadState", "FragmentPath", "SourcePath"}:
+        raise PlanError("systemd_unit_state_shape_invalid")
+    if (
+        values["LoadState"] != "not-found"
+        or values["FragmentPath"] != ""
+        or values["SourcePath"] != ""
+    ):
+        raise PlanError("selected_systemd_unit_loaded_or_known")
+    return {
+        "load_state": "not-found",
+        "fragment_path": "",
+        "source_path": "",
+        "manager_unit_name_absence_verified": True,
+    }
+
+
 def parse_systemd_unit_path(raw: str) -> list[str]:
     try:
         tokens = shlex.split(raw.strip(), comments=False, posix=True)
@@ -848,6 +873,19 @@ def _systemd_manager_snapshot() -> dict[str, Any]:
         )
     )
     wire = ("\n".join(unit_path) + "\n").encode("utf-8")
+    unit_state = parse_systemd_unit_absence(
+        _run_fixed_tool(
+            SYSTEMCTL,
+            [
+                "show",
+                SERVICE_UNIT,
+                "--no-pager",
+                "--property=LoadState",
+                "--property=FragmentPath",
+                "--property=SourcePath",
+            ],
+        )
+    )
     return {
         **installed,
         "systemd_bus_owner_pid": owner_pid,
@@ -858,6 +896,8 @@ def _systemd_manager_snapshot() -> dict[str, Any]:
         "unit_path_count": len(unit_path),
         "unit_path_sha256": sha256(wire),
         "unit_path_order_preserved": True,
+        "selected_unit_manager_state": unit_state,
+        "selected_unit_manager_absence_verified": True,
     }
 
 
@@ -1133,6 +1173,7 @@ def _plan_body(expected_head: str) -> dict[str, Any]:
         "account_name_absence_verified": True,
         "unit_name_absence_verified": True,
         "unit_name_absence_bound_to_authenticated_manager_unit_path": True,
+        "unit_name_absence_bound_to_running_manager_state": True,
         "systemd_bus_owner_pid1_verified": True,
         "systemd_running_installed_version_match": True,
         "systemd_unit_path_complete_observed": True,
@@ -1314,6 +1355,23 @@ SYS_GID_MAX 999
         parse_running_systemd_manager_version('s "255.4-1ubuntu8.11"\n')
         == "255.4-1ubuntu8.11"
     )
+    unit_absence = parse_systemd_unit_absence(
+        "LoadState=not-found\nFragmentPath=\nSourcePath=\n"
+    )
+    assert unit_absence["manager_unit_name_absence_verified"] is True
+    for raw in (
+        "LoadState=loaded\nFragmentPath=/run/systemd/transient/"
+        + SERVICE_UNIT
+        + "\nSourcePath=\n",
+        "LoadState=not-found\nFragmentPath=/etc/systemd/system/"
+        + SERVICE_UNIT
+        + "\nSourcePath=\n",
+        "LoadState=not-found\nFragmentPath=\nSourcePath=/tmp/source\n",
+    ):
+        _expect_hold(
+            lambda value=raw: parse_systemd_unit_absence(value),
+            "selected_systemd_unit_loaded_or_known",
+        )
     unit_path = parse_systemd_unit_path(
         'as 2 "/usr/local/lib/systemd/system" "/run/systemd/transient"\n'
     )
@@ -1386,6 +1444,7 @@ SYS_GID_MAX 999
     print("systemd_manager_bus_owner_pid1_required=true")
     print("systemd_manager_version_match_required=true")
     print("systemd_manager_unit_path_required=true")
+    print("systemd_manager_selected_unit_absence_required=true")
     print("systemd_unit_path_mid_observation_stability_required=true")
     print("systemd_unit_path_all_returned_roots_observed=true")
     print("host_mutation=false")
@@ -1413,6 +1472,7 @@ def source_plan() -> None:
     print("systemd_bus_owner_pid1_required=true")
     print("systemd_running_installed_version_match_required=true")
     print("systemd_manager_unit_path_required=true")
+    print("systemd_manager_selected_unit_absence_required=true")
     print("nsswitch_passwd_group_files_only_required=true")
     print("libc_nss_lookup_used=false")
     print("remote_nss_provider_allowed=false")
