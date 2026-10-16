@@ -877,6 +877,7 @@ static void run_gate(
     frame_result_v1 fr=read_frame_then_eof(RELEASE_FD,expected,RUN_TIMEOUT_MS);
     if(fr!=FRAME_OK) {
         close(self_fd);
+        close(pidfd);
         if(fr==FRAME_SHORT) hold("release_native_frame_short");
         if(fr==FRAME_EXTRA) hold("release_native_frame_extra");
         if(fr==FRAME_TIMEOUT) hold("release_native_frame_or_eof_timeout");
