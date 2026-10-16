@@ -11,7 +11,9 @@ export const VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_V1 =
   "VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_V1";
 
 export const PARENT_TRAINING_START_CONTRACT_BLOB_SHA1 =
-  "af983452d8807db34b446fc64dff5266e9bc5953";
+  "4333df6c7918fe9efaada36cac765000eec7948f";
+export const AUTHORIZATION_SLOT_V1_BLOB_SHA1 =
+  "93582c324ca85aeff56eb61f82b32f1e4c18dfe9";
 export const CANONICALIZER_V1_BLOB_SHA1 =
   "f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 export const RELEASE_FRAME_BYTES_V1 = 64;
@@ -53,6 +55,9 @@ export const VOID_APOLLYON_TRAINING_START_RELEASE_REQUIREMENTS_V1 =
     consumption_file_fsync_required:true,
     consumption_directory_fsync_required:true,
     final_visible_consumption_record_reread_required:true,
+    unique_authorization_claim_slot_ids_preserved_required:true,
+    unique_authorization_claim_slot_protected_origin_required:true,
+    unique_authorization_claim_slot_revalidation_immediately_before_release_required:true,
     same_trainer_generation_revalidation_immediately_before_release_required:true,
     exact_uid_gid_groups_nnp_caps_revalidation_required:true,
     trainer_consumption_store_write_rename_unlink_denied_required:true,
@@ -69,6 +74,8 @@ export const VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_KEYS_V1 =
     "attempt_limit",
     "authority",
     "authorization_id",
+    "authorization_slot_id",
+    "authorization_slot_record_id",
     "automatic_retry_authorized",
     "blocked_native_first_entry_required",
     "bound_generation_loss_forfeits_attempt",
@@ -130,6 +137,11 @@ export const VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_AUTHORITY_V1 =
     protected_consumption_record_origin_proven:false,
     consumption_durability_revalidation_required:true,
     consumption_durability_revalidation_performed:false,
+    unique_authorization_claim_slot_required:true,
+    unique_authorization_claim_slot_protected_origin_required:true,
+    unique_authorization_claim_slot_protected_origin_proven:false,
+    unique_authorization_claim_slot_revalidation_required:true,
+    unique_authorization_claim_slot_revalidation_performed:false,
     live_trainer_generation_revalidation_required:true,
     live_trainer_generation_revalidation_performed:false,
     training_identity_policy_revalidation_required:true,
@@ -215,6 +227,7 @@ function releasePolicyMaterial(){
     version:1,
     parent_training_start_contract_blob_sha1:
       PARENT_TRAINING_START_CONTRACT_BLOB_SHA1,
+    authorization_slot_v1_blob_sha1:AUTHORIZATION_SLOT_V1_BLOB_SHA1,
     canonicalizer_v1_blob_sha1:CANONICALIZER_V1_BLOB_SHA1,
     requirements:VOID_APOLLYON_TRAINING_START_RELEASE_REQUIREMENTS_V1,
   };
@@ -263,6 +276,8 @@ export function qualifyApollyonTrainingStartReleaseBindingV1(input){
     store_generation_id:record.store_generation_id,
     terminal_receipt_id:record.terminal_receipt_id,
     authorization_id:record.authorization_id,
+    authorization_slot_id:record.authorization_slot_id,
+    authorization_slot_record_id:record.authorization_slot_record_id,
     custody_generation_id:record.custody_generation_id,
     custody_record_sha256:record.custody_record_sha256,
     claim_record_id:record.claim_record_id,
@@ -283,6 +298,10 @@ export function qualifyApollyonTrainingStartReleaseBindingV1(input){
     protected_consumption_record_origin_proven:false,
     consumption_durability_revalidation_required:true,
     consumption_durability_revalidation_performed:false,
+    unique_authorization_claim_slot_protected_origin_required:true,
+    unique_authorization_claim_slot_protected_origin_proven:false,
+    unique_authorization_claim_slot_revalidation_required:true,
+    unique_authorization_claim_slot_revalidation_performed:false,
     blocked_native_first_entry_required:true,
     live_trainer_generation_revalidation_required:true,
     live_trainer_generation_revalidation_performed:false,
@@ -424,6 +443,8 @@ export function validateApollyonTrainingStartReleaseBindingV1(input){
       store_generation_id:value.store_generation_id,
       terminal_receipt_id:value.terminal_receipt_id,
       authorization_id:value.authorization_id,
+      authorization_slot_id:value.authorization_slot_id,
+      authorization_slot_record_id:value.authorization_slot_record_id,
       custody_generation_id:value.custody_generation_id,
       custody_record_sha256:value.custody_record_sha256,
       claim_record_id:value.claim_record_id,
