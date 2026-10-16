@@ -64,8 +64,7 @@ the reviewed current proofs for every changed protected path.
 V5 pins and executes:
 
 - `scripts/prove_void_index_block_range_bounds_v1.mjs`
-  at `e478c71c730b554c414c88c550a4475234485370`? No: the proof's Git blob is
-  `e478c71c564c4cf7349353a7936a9e8f56f97da1`;
+  at Git blob `e478c71c564c4cf7349353a7936a9e8f56f97da1`;
 - `scripts/prove_void_attach_block_range_bounds_v1.mjs`
   at `814e858bf8c326f7ea61341a60dd53269e75f7f3`;
 - `src/http/api_attach.ts`
