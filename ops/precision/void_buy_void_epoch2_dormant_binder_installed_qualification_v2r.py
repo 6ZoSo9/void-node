@@ -525,7 +525,7 @@ def plan() -> None:
     print("production_host_evidence_authority=false")
     print(
         "next_action="
-        "SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_BINDER_INSTALLED_READ_ONLY_QUALIFICATION_V2"
+        "SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_BINDER_INSTALLED_READ_ONLY_QUALIFICATION_V2R"
     )
 
 
