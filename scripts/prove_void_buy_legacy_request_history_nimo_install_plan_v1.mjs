@@ -255,7 +255,6 @@ for(const [label,value,reason] of [
     },
     "legacy_history_nimo_authorized_key_exact_option_set_required",
   ],
-]
 ]){
   const held=classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1(value);
   assert.equal(held.ok,false,label);
