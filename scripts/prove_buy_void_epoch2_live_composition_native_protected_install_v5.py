@@ -32,7 +32,7 @@ QUALIFIER_SOURCE = (
     "void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
 )
 
-TARGET_BLOB = "2f1a834e378c3ae8062140079c43beb16fad9d14"
+TARGET_BLOB = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
 LOCK_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 NATIVE_SOURCE_BLOB = "5021727f1def1ec11f870d735cab65acc1701a5e"
 RUNNER_SOURCE_BLOB = "499df9b94b5b89354837570da0c7e47ec280025d"
@@ -92,6 +92,11 @@ for required in (
     'automatic_rollback_attempted=',
     'automatic_rollback_green=',
     'protected_upgrade_performed=true',
+    'publication_state=atomic_exchange_verified',
+    'final_state_verified=true',
+    'install_parent_close_failed_after_upgrade',
+    'published_verified_close_failed',
+    'post_upgrade_close_receipt_truthful=true',
     'predecessor_retained=true',
     'next_action=EPOCH2_V6R2_NATIVE_INSTALLED_READ_ONLY_QUALIFICATION',
 ):
@@ -378,6 +383,371 @@ assert "candidate_files_opened=false" in wrong_lines
 assert "protected_root_opened=false" in wrong_lines
 assert wrong_lines.index("authority_boundary=PRE_MUTATION") < wrong_lines.index("status=HOLD")
 
+
+def run_synthetic_apply_case(case: str):
+    events: list[tuple] = []
+    expected_head = "3" * 40
+    plan_id = "voidbuye2nativeupgrade5_" + "4" * 64
+    body = {
+        "protected_state": module.READY_STATE,
+        "git_tool": {"sha256": "5" * 64},
+        "setpriv_tool": {"sha256": "6" * 64},
+        "node": {"sha256": "7" * 64, "bytes": 12345},
+        "checkout": {"head": expected_head, "branch": "main"},
+    }
+    policy = b"synthetic-policy\n"
+    counts = {
+        "open": 0,
+        "fsync": 0,
+        "rename": 0,
+        "install_verify": 0,
+        "node": 0,
+        "checkout": 0,
+    }
+
+    originals = {
+        "emit_operation_authority": module.emit_operation_authority,
+        "_require_secure_apply_context": module._require_secure_apply_context,
+        "inspect_candidates": module.inspect_candidates,
+        "collect_plan": module.collect_plan,
+        "_exists": module._exists,
+        "_verify_predecessor_root": module._verify_predecessor_root,
+        "_verify_install_root": module._verify_install_root,
+        "_verify_root_generation": module._verify_root_generation,
+        "checkout_snapshot_with_tools": module.checkout_snapshot_with_tools,
+        "node_snapshot": module.node_snapshot,
+        "_create_file": module._create_file,
+        "_renameat2": module._renameat2,
+        "_cleanup_stage": module._cleanup_stage,
+        "geteuid": module.os.geteuid,
+        "open": module.os.open,
+        "mkdir": module.os.mkdir,
+        "fchown": module.os.fchown,
+        "fchmod": module.os.fchmod,
+        "fsync": module.os.fsync,
+        "close": module.os.close,
+    }
+
+    module.emit_operation_authority = lambda: events.append(("authority",))
+    module._require_secure_apply_context = lambda: events.append(("secure_context",))
+    module.inspect_candidates = lambda _native, _runner: (b"native", b"runner")
+    module.collect_plan = lambda _native, _runner, _head: {
+        "plan_id": plan_id,
+        "body": body,
+        "policy": policy,
+    }
+    module._exists = lambda _path: False
+
+    def verify_predecessor(root=module.INSTALL_ROOT):
+        events.append(("verify_predecessor", str(root)))
+
+    module._verify_predecessor_root = verify_predecessor
+
+    def verify_install(_policy):
+        counts["install_verify"] += 1
+        events.append(("verify_install", counts["install_verify"]))
+        if case in (
+            "after_first_exchange_failure",
+            "rollback_cleanup_ambiguous",
+            "rollback_failure",
+        ) and counts["install_verify"] == 1:
+            raise module.InstallError("synthetic_after_first_exchange")
+        if case == "after_predecessor_retention_failure" and counts["install_verify"] == 2:
+            raise module.InstallError("synthetic_after_predecessor_retention")
+
+    module._verify_install_root = verify_install
+    module._verify_root_generation = (
+        lambda root, **_kwargs: events.append(("verify_stage", str(root)))
+    )
+    def synthetic_checkout(_head, **_kwargs):
+        counts["checkout"] += 1
+        if case == "checkout_binding_drift_after_exchange" and counts["checkout"] >= 2:
+            return {
+                "checkout": {"head": "9" * 40, "branch": "main"},
+                "git_tool": body["git_tool"],
+                "setpriv_tool": body["setpriv_tool"],
+            }
+        return {
+            "checkout": body["checkout"],
+            "git_tool": body["git_tool"],
+            "setpriv_tool": body["setpriv_tool"],
+        }
+
+    def synthetic_node_snapshot():
+        counts["node"] += 1
+        if case == "node_binding_drift_after_exchange" and counts["node"] >= 2:
+            return {"sha256": "8" * 64, "bytes": 12345}
+        return body["node"]
+
+    module.checkout_snapshot_with_tools = synthetic_checkout
+    module.node_snapshot = synthetic_node_snapshot
+    module._create_file = (
+        lambda _fd, name, _raw, **_kwargs: events.append(("create_file", name))
+    )
+
+    def rename(_fd, source, target, flags):
+        counts["rename"] += 1
+        events.append(("rename", source, target, flags))
+        if case == "rollback_failure" and counts["rename"] == 2:
+            raise module.InstallError("synthetic_rollback_rename_failure")
+
+    module._renameat2 = rename
+
+    def cleanup(_fd):
+        green = case != "rollback_cleanup_ambiguous"
+        events.append(("cleanup_stage", green))
+        return green
+
+    module._cleanup_stage = cleanup
+    module.os.geteuid = lambda: 0
+
+    def fake_open(*_args, **_kwargs):
+        counts["open"] += 1
+        fd = 100 if counts["open"] == 1 else 101
+        events.append(("open", fd))
+        return fd
+
+    module.os.open = fake_open
+    module.os.mkdir = (
+        lambda name, mode, **_kwargs: events.append(("mkdir", name, mode))
+    )
+    module.os.fchown = lambda fd, uid, gid: events.append(("fchown", fd, uid, gid))
+    module.os.fchmod = lambda fd, mode: events.append(("fchmod", fd, mode))
+
+    def fake_fsync(fd):
+        counts["fsync"] += 1
+        events.append(("fsync", fd, counts["fsync"]))
+        if case == "fsync_after_exchange_failure" and counts["fsync"] == 2:
+            raise OSError(5, "synthetic_post_exchange_fsync_failure")
+
+    module.os.fsync = fake_fsync
+
+    def fake_close(fd):
+        events.append(("close", fd))
+        if case == "success_close_failure" and fd == 100:
+            raise OSError(5, "synthetic_success_close_failure")
+
+    module.os.close = fake_close
+
+    probe = FlushProbe()
+    saved_stdout = sys.stdout
+    caught = None
+    try:
+        sys.stdout = probe
+        try:
+            module.apply(
+                Path("/synthetic/native"),
+                Path("/synthetic/runner"),
+                expected_head,
+                plan_id,
+                module.CONFIRM_TOKEN,
+            )
+        except BaseException as exc:
+            caught = exc
+    finally:
+        sys.stdout = saved_stdout
+        module.emit_operation_authority = originals["emit_operation_authority"]
+        module._require_secure_apply_context = originals["_require_secure_apply_context"]
+        module.inspect_candidates = originals["inspect_candidates"]
+        module.collect_plan = originals["collect_plan"]
+        module._exists = originals["_exists"]
+        module._verify_predecessor_root = originals["_verify_predecessor_root"]
+        module._verify_install_root = originals["_verify_install_root"]
+        module._verify_root_generation = originals["_verify_root_generation"]
+        module.checkout_snapshot_with_tools = originals["checkout_snapshot_with_tools"]
+        module.node_snapshot = originals["node_snapshot"]
+        module._create_file = originals["_create_file"]
+        module._renameat2 = originals["_renameat2"]
+        module._cleanup_stage = originals["_cleanup_stage"]
+        module.os.geteuid = originals["geteuid"]
+        module.os.open = originals["open"]
+        module.os.mkdir = originals["mkdir"]
+        module.os.fchown = originals["fchown"]
+        module.os.fchmod = originals["fchmod"]
+        module.os.fsync = originals["fsync"]
+        module.os.close = originals["close"]
+
+    return caught, events, "".join(probe.parts).splitlines()
+
+
+success_exc, success_events, success_lines = run_synthetic_apply_case("success")
+assert success_exc is None
+assert "protected_upgrade_performed=true" in success_lines
+assert "publication_state=atomic_exchange_verified" in success_lines
+assert "final_state_verified=true" in success_lines
+assert [
+    event for event in success_events if event[0] == "rename"
+] == [
+    ("rename", module.STAGE_NAME, module.INSTALL_NAME, module.RENAME_EXCHANGE),
+    ("rename", module.STAGE_NAME, module.PREDECESSOR_NAME, module.RENAME_NOREPLACE),
+]
+
+first_exc, first_events, first_lines = run_synthetic_apply_case(
+    "after_first_exchange_failure"
+)
+assert isinstance(first_exc, module.PublishedInstallError)
+assert str(first_exc) == "atomic_upgrade_rolled_back_after_failure"
+first_receipt = module._failure_receipt(first_exc)
+assert first_receipt["protected_upgrade_performed"] == "true"
+assert first_receipt["publication"] == "true"
+assert first_receipt["publication_state"] == "published_rolled_back_green"
+assert first_receipt["final_state_verified"] == "true"
+assert first_receipt["parent_fsync_completed"] == "true"
+assert first_receipt["final_verification_completed"] == "false"
+assert first_receipt["rollback_attempted"] == "true"
+assert first_receipt["rollback_green"] == "true"
+assert first_receipt["rollback_final_state_verified"] == "true"
+assert "automatic_rollback_final_state_verified=true" in first_lines
+assert first_receipt["original_failure_class"] == "InstallError"
+assert "automatic_rollback_attempted=true" in first_lines
+assert "automatic_rollback_green=true" in first_lines
+assert [
+    event for event in first_events if event[0] == "rename"
+] == [
+    ("rename", module.STAGE_NAME, module.INSTALL_NAME, module.RENAME_EXCHANGE),
+    ("rename", module.STAGE_NAME, module.INSTALL_NAME, module.RENAME_EXCHANGE),
+]
+
+retained_exc, retained_events, retained_lines = run_synthetic_apply_case(
+    "after_predecessor_retention_failure"
+)
+assert isinstance(retained_exc, module.PublishedInstallError)
+assert str(retained_exc) == "atomic_upgrade_rolled_back_after_failure"
+retained_receipt = module._failure_receipt(retained_exc)
+assert retained_receipt["publication"] == "true"
+assert retained_receipt["publication_state"] == "published_rolled_back_green"
+assert retained_receipt["final_state_verified"] == "true"
+assert retained_receipt["rollback_attempted"] == "true"
+assert retained_receipt["rollback_green"] == "true"
+assert retained_receipt["rollback_final_state_verified"] == "true"
+assert retained_receipt["original_failure_class"] == "InstallError"
+assert "automatic_rollback_attempted=true" in retained_lines
+assert "automatic_rollback_green=true" in retained_lines
+assert [
+    event for event in retained_events if event[0] == "rename"
+] == [
+    ("rename", module.STAGE_NAME, module.INSTALL_NAME, module.RENAME_EXCHANGE),
+    ("rename", module.STAGE_NAME, module.PREDECESSOR_NAME, module.RENAME_NOREPLACE),
+    ("rename", module.PREDECESSOR_NAME, module.INSTALL_NAME, module.RENAME_EXCHANGE),
+    ("rename", module.PREDECESSOR_NAME, module.STAGE_NAME, module.RENAME_NOREPLACE),
+]
+
+fsync_exc, fsync_events, fsync_lines = run_synthetic_apply_case(
+    "fsync_after_exchange_failure"
+)
+assert isinstance(fsync_exc, module.PublishedInstallError)
+assert str(fsync_exc) == "atomic_upgrade_rolled_back_after_failure"
+fsync_receipt = module._failure_receipt(fsync_exc)
+assert fsync_receipt["publication"] == "true"
+assert fsync_receipt["publication_state"] == "published_rolled_back_green"
+assert fsync_receipt["final_state_verified"] == "true"
+assert fsync_receipt["parent_fsync_completed"] == "false"
+assert fsync_receipt["rollback_attempted"] == "true"
+assert fsync_receipt["rollback_green"] == "true"
+assert fsync_receipt["rollback_final_state_verified"] == "true"
+assert fsync_receipt["original_failure_class"] == "OSError"
+assert fsync_receipt["original_failure_reason"] == "os_error_5"
+assert "automatic_rollback_attempted=true" in fsync_lines
+assert "automatic_rollback_green=true" in fsync_lines
+assert len([event for event in fsync_events if event[0] == "rename"]) == 2
+
+ambiguous_exc, ambiguous_events, ambiguous_lines = run_synthetic_apply_case(
+    "rollback_cleanup_ambiguous"
+)
+assert isinstance(ambiguous_exc, module.PublishedInstallError)
+assert str(ambiguous_exc) == "atomic_upgrade_rollback_failed"
+ambiguous_receipt = module._failure_receipt(ambiguous_exc)
+assert ambiguous_receipt["protected_upgrade_performed"] == "true"
+assert ambiguous_receipt["publication"] == "true"
+assert ambiguous_receipt["publication_state"] == "published_needs_inspection"
+assert ambiguous_receipt["final_state_verified"] == "false"
+assert ambiguous_receipt["publication_failure_phase"] == "atomic_upgrade_rollback"
+assert ambiguous_receipt["rollback_attempted"] == "true"
+assert ambiguous_receipt["rollback_green"] == "false"
+assert ambiguous_receipt["rollback_final_state_verified"] == "false"
+assert "automatic_rollback_attempted=true" in ambiguous_lines
+assert "automatic_rollback_green=false" in ambiguous_lines
+assert ("cleanup_stage", False) in ambiguous_events
+assert [
+    event for event in ambiguous_events if event[0] == "rename"
+] == [
+    ("rename", module.STAGE_NAME, module.INSTALL_NAME, module.RENAME_EXCHANGE),
+    ("rename", module.STAGE_NAME, module.INSTALL_NAME, module.RENAME_EXCHANGE),
+]
+
+rollback_exc, rollback_events, rollback_lines = run_synthetic_apply_case(
+    "rollback_failure"
+)
+assert isinstance(rollback_exc, module.PublishedInstallError)
+assert str(rollback_exc) == "atomic_upgrade_rollback_failed"
+rollback_receipt = module._failure_receipt(rollback_exc)
+assert rollback_receipt["protected_upgrade_performed"] == "true"
+assert rollback_receipt["publication"] == "true"
+assert rollback_receipt["publication_state"] == "published_needs_inspection"
+assert rollback_receipt["final_state_verified"] == "false"
+assert rollback_receipt["rollback_attempted"] == "true"
+assert rollback_receipt["rollback_green"] == "false"
+assert rollback_receipt["rollback_final_state_verified"] == "false"
+assert "automatic_rollback_green=false" in rollback_lines
+assert len([event for event in rollback_events if event[0] == "rename"]) == 2
+
+node_drift_exc, node_drift_events, node_drift_lines = run_synthetic_apply_case(
+    "node_binding_drift_after_exchange"
+)
+assert isinstance(node_drift_exc, module.PublishedInstallError)
+assert str(node_drift_exc) == "atomic_upgrade_rolled_back_after_failure"
+node_drift_receipt = module._failure_receipt(node_drift_exc)
+assert node_drift_receipt["publication_state"] == "published_rolled_back_green"
+assert node_drift_receipt["rollback_attempted"] == "true"
+assert node_drift_receipt["rollback_green"] == "true"
+assert node_drift_receipt["rollback_final_state_verified"] == "false"
+assert node_drift_receipt["final_state_verified"] == "false"
+assert node_drift_receipt["original_failure_class"] == "InstallError"
+assert "automatic_rollback_green=true" in node_drift_lines
+assert "automatic_rollback_final_state_verified=false" in node_drift_lines
+assert len([event for event in node_drift_events if event[0] == "rename"]) == 2
+
+checkout_drift_exc, checkout_drift_events, checkout_drift_lines = run_synthetic_apply_case(
+    "checkout_binding_drift_after_exchange"
+)
+assert isinstance(checkout_drift_exc, module.PublishedInstallError)
+assert str(checkout_drift_exc) == "atomic_upgrade_rolled_back_after_failure"
+checkout_drift_receipt = module._failure_receipt(checkout_drift_exc)
+assert checkout_drift_receipt["publication_state"] == "published_rolled_back_green"
+assert checkout_drift_receipt["rollback_attempted"] == "true"
+assert checkout_drift_receipt["rollback_green"] == "true"
+assert checkout_drift_receipt["rollback_final_state_verified"] == "false"
+assert checkout_drift_receipt["final_state_verified"] == "false"
+assert checkout_drift_receipt["original_failure_class"] == "InstallError"
+assert "automatic_rollback_green=true" in checkout_drift_lines
+assert "automatic_rollback_final_state_verified=false" in checkout_drift_lines
+assert len([event for event in checkout_drift_events if event[0] == "rename"]) == 2
+
+close_exc, close_events, _close_lines = run_synthetic_apply_case(
+    "success_close_failure"
+)
+assert isinstance(close_exc, module.PublishedInstallError)
+assert str(close_exc) == "install_parent_close_failed_after_upgrade"
+close_receipt = module._failure_receipt(close_exc)
+assert close_receipt == {
+    "protected_upgrade_performed": "true",
+    "publication": "true",
+    "publication_state": "published_verified_close_failed",
+    "final_state_verified": "true",
+    "publication_failure_phase": "install_parent_close",
+    "parent_fsync_completed": "true",
+    "final_verification_completed": "true",
+    "rollback_attempted": "false",
+    "rollback_green": "unknown",
+    "rollback_final_state_verified": "unknown",
+    "original_failure_class": "OSError",
+    "original_failure_reason": "os_error_5",
+    "install_parent_close_completed": "false",
+    "close_failure_class": "OSError",
+    "close_failure_reason": "os_error_5",
+}
+assert ("close", 100) in close_events
+
 print("VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_PROTECTED_INSTALL_V5_PROOF_GREEN")
 print("accepted_v6r2_lock_bound=true")
 print("accepted_native_binary_rederived=true")
@@ -388,6 +758,20 @@ print("ready_green_state_machine_exercised=true")
 print("atomic_root_exchange_primitive_exercised=true")
 print("predecessor_retention_required=true")
 print("automatic_rollback_required=true")
+print("production_apply_state_machine_synthetic_exercised=true")
+print("post_first_exchange_rollback_exercised=true")
+print("post_predecessor_retention_rollback_exercised=true")
+print("green_rollback_publication_receipt_truthful=true")
+print("post_exchange_oserror_receipt_truthful=true")
+print("post_rollback_plan_binding_revalidation=true")
+print("node_drift_after_rollback_final_state_unverified=true")
+print("checkout_drift_after_rollback_final_state_unverified=true")
+print("rollback_cleanup_ambiguity_exercised=true")
+print("rollback_cleanup_publication_receipt_truthful=true")
+print("rollback_failure_receipt_exercised=true")
+print("post_exchange_fsync_failure_exercised=true")
+print("success_close_receipt_truthful=true")
+print("post_upgrade_close_receipt_truthful=true")
 print("runtime_user_git_checkout_binding=true")
 print("expected_plan_id_apply_binding=true")
 print("checkout_tool_generation_bracketed=true")

@@ -125,6 +125,9 @@ class PublishedInstallError(InstallError):
         self.install_parent_close_completed: bool | None = None
         self.close_failure_class = "none"
         self.close_failure_reason = "none"
+        self.rollback_attempted: bool = False
+        self.rollback_green: bool | None = None
+        self.rollback_final_state_verified: bool | None = None
 
 
 def git_blob_sha1(raw: bytes) -> str:
@@ -1068,14 +1071,32 @@ def _failure_receipt(exc: BaseException) -> dict[str, str]:
                 return "unknown"
             return str(value).lower()
 
+        rollback_verified = exc.rollback_final_state_verified is True
+        final_state_verified = (
+            exc.final_verification_completed is True or rollback_verified
+        )
+        if (
+            exc.final_verification_completed is True
+            and exc.phase == "install_parent_close"
+        ):
+            publication_state = "published_verified_close_failed"
+        elif exc.rollback_attempted and exc.rollback_green is True:
+            publication_state = "published_rolled_back_green"
+        else:
+            publication_state = "published_needs_inspection"
         return {
             "protected_upgrade_performed": "true",
             "publication": "true",
-            "publication_state": "published_needs_inspection",
-            "final_state_verified": "false",
+            "publication_state": publication_state,
+            "final_state_verified": str(final_state_verified).lower(),
             "publication_failure_phase": exc.phase,
             "parent_fsync_completed": tri(exc.parent_fsync_completed),
             "final_verification_completed": tri(exc.final_verification_completed),
+            "rollback_attempted": str(exc.rollback_attempted).lower(),
+            "rollback_green": tri(exc.rollback_green),
+            "rollback_final_state_verified": tri(
+                exc.rollback_final_state_verified
+            ),
             "original_failure_class": exc.original_failure_class,
             "original_failure_reason": exc.original_failure_reason,
             "install_parent_close_completed": tri(
@@ -1092,12 +1113,32 @@ def _failure_receipt(exc: BaseException) -> dict[str, str]:
         "publication_failure_phase": "not_published",
         "parent_fsync_completed": "not_applicable",
         "final_verification_completed": "not_applicable",
+        "rollback_attempted": "not_applicable",
+        "rollback_green": "not_applicable",
+        "rollback_final_state_verified": "not_applicable",
         "original_failure_class": failure_class,
         "original_failure_reason": failure_reason,
         "install_parent_close_completed": "not_applicable",
         "close_failure_class": "not_applicable",
         "close_failure_reason": "not_applicable",
     }
+
+
+def _post_rollback_plan_bindings_verified(
+    expected_head: str,
+    body: dict[str, object],
+) -> bool:
+    try:
+        if node_snapshot() != body["node"]:
+            return False
+        checkout_bound = checkout_snapshot_with_tools(
+            expected_head,
+            expected_git=body["git_tool"],
+            expected_setpriv=body["setpriv_tool"],
+        )
+        return checkout_bound["checkout"] == body["checkout"]
+    except Exception:
+        return False
 
 
 def _require_secure_apply_context() -> None:
@@ -1149,9 +1190,12 @@ def apply(
     )
     stage_created = False
     exchanged = False
+    publication_occurred = False
+    forward_parent_fsync_completed = False
     predecessor_retained = False
     rollback_attempted = False
     rollback_green = False
+    rollback_final_state_verified = False
     try:
         if _exists(STAGE_ROOT) or _exists(PREDECESSOR_ROOT):
             raise InstallError("upgrade_auxiliary_root_present")
@@ -1196,7 +1240,9 @@ def apply(
 
         _renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_EXCHANGE)
         exchanged = True
+        publication_occurred = True
         os.fsync(opt_fd)
+        forward_parent_fsync_completed = True
 
         _verify_install_root(policy)
         _verify_predecessor_root(STAGE_ROOT)
@@ -1242,22 +1288,42 @@ def apply(
             rollback_attempted = True
             rollback_green = _cleanup_stage(opt_fd)
 
+        if publication_occurred and rollback_green:
+            rollback_final_state_verified = _post_rollback_plan_bindings_verified(
+                expected_head,
+                body,
+            )
+
         print("automatic_rollback_attempted=" + str(rollback_attempted).lower())
         print("automatic_rollback_green=" + str(rollback_green).lower())
-        if exchanged and not rollback_green:
+        print(
+            "automatic_rollback_final_state_verified="
+            + str(rollback_final_state_verified).lower()
+        )
+        if publication_occurred:
             failure = _published_failure(
-                "atomic_upgrade_rollback_failed",
+                (
+                    "atomic_upgrade_rolled_back_after_failure"
+                    if rollback_green
+                    else "atomic_upgrade_rollback_failed"
+                ),
                 phase="atomic_upgrade_rollback",
-                parent_fsync_completed=None,
+                parent_fsync_completed=forward_parent_fsync_completed,
                 final_verification_completed=False,
                 cause=exc,
             )
+            failure.rollback_attempted = rollback_attempted
+            failure.rollback_green = rollback_green
+            failure.rollback_final_state_verified = rollback_final_state_verified
             try:
                 os.close(opt_fd)
                 failure.install_parent_close_completed = True
             except OSError as close_exc:
                 failure.install_parent_close_completed = False
-                failure.close_failure_class, failure.close_failure_reason = _bounded_failure(close_exc)
+                (
+                    failure.close_failure_class,
+                    failure.close_failure_reason,
+                ) = _bounded_failure(close_exc)
             raise failure from exc
         try:
             os.close(opt_fd)
@@ -1268,7 +1334,19 @@ def apply(
         try:
             os.close(opt_fd)
         except OSError as close_exc:
-            raise InstallError("install_parent_close_failed_after_upgrade") from close_exc
+            failure = _published_failure(
+                "install_parent_close_failed_after_upgrade",
+                phase="install_parent_close",
+                parent_fsync_completed=True,
+                final_verification_completed=True,
+                cause=close_exc,
+            )
+            failure.install_parent_close_completed = False
+            (
+                failure.close_failure_class,
+                failure.close_failure_reason,
+            ) = _bounded_failure(close_exc)
+            raise failure from close_exc
 
     print(MARKER)
     print("mode=apply")
@@ -1318,6 +1396,14 @@ def self_test() -> None:
     assert PREDECESSOR_NATIVE_BYTES == 722_880
     assert PREDECESSOR_RUNNER_BYTES == 40_616
     assert PREDECESSOR_POLICY_BYTES == 305
+    own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
+    assert "publication_occurred = False" in own_source
+    assert "publication_occurred = True" in own_source
+    assert "if publication_occurred:" in own_source
+    assert "atomic_upgrade_rolled_back_after_failure" in own_source
+    assert 'publication_state = "published_rolled_back_green"' in own_source
+    assert "_post_rollback_plan_bindings_verified" in own_source
+    assert "automatic_rollback_final_state_verified=" in own_source
     sample_node = {"sha256": "a" * 64, "bytes": 123}
     policy = build_policy("b" * 40, sample_node)
     assert policy == (
@@ -1330,6 +1416,38 @@ def self_test() -> None:
     ).encode("ascii")
     libc = ctypes.CDLL(None)
     assert getattr(libc, "renameat2", None) is not None
+
+    success_close_error = OSError(5, "synthetic_close_failure")
+    success_close_failure = _published_failure(
+        "install_parent_close_failed_after_upgrade",
+        phase="install_parent_close",
+        parent_fsync_completed=True,
+        final_verification_completed=True,
+        cause=success_close_error,
+    )
+    success_close_failure.install_parent_close_completed = False
+    (
+        success_close_failure.close_failure_class,
+        success_close_failure.close_failure_reason,
+    ) = _bounded_failure(success_close_error)
+    success_close_receipt = _failure_receipt(success_close_failure)
+    assert success_close_receipt == {
+        "protected_upgrade_performed": "true",
+        "publication": "true",
+        "publication_state": "published_verified_close_failed",
+        "final_state_verified": "true",
+        "publication_failure_phase": "install_parent_close",
+        "parent_fsync_completed": "true",
+        "final_verification_completed": "true",
+        "rollback_attempted": "false",
+        "rollback_green": "unknown",
+        "rollback_final_state_verified": "unknown",
+        "original_failure_class": "OSError",
+        "original_failure_reason": "os_error_5",
+        "install_parent_close_completed": "false",
+        "close_failure_class": "OSError",
+        "close_failure_reason": "os_error_5",
+    }
 
     import tempfile
     with tempfile.TemporaryDirectory(prefix="void-e2-v6r2-upgrade-exchange-") as td:
@@ -1376,6 +1494,7 @@ def main() -> int:
         print("setpriv_tool_drift_during_checkout_rejected=true")
         print("pre_mutation_authority_boundary=true")
         print("pre_mutation_authority_flush_required=true")
+        print("post_upgrade_close_receipt_truthful=true")
         return 0
     if args.source_plan:
         source_plan()

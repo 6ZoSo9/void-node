@@ -68,6 +68,7 @@ jobs:
           grep -Fx 'postbuild_builder_uid_processes_zero_required=true' "$proof"
           grep -Fx 'runtime_output_candidate_observation_while_builder_live=false' "$proof"
           grep -Fx 'runtime_output_custody_after_builder_terminal_required=true' "$proof"
+          grep -Fx 'output_generation_revalidation_before_candidate_observation=true' "$proof"
           grep -Fx 'supervisor_first_entry_proven=false' "$proof"
           grep -Fx 'v3_candidate_derivation_authorized=false' "$proof"
           grep -Fx 'runtime_bundle_candidate_accepted=false' "$proof"

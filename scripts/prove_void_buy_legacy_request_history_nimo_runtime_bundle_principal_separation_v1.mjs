@@ -21,7 +21,7 @@ assert.equal(
     ROOT,
     "tools/void-buy-legacy-request-history-nimo-runtime-bundle-principal-separation-v1.mjs",
   ))),
-  "9374c84fc7cf5dca7200a9d130bafde0cc6af075",
+  "95d9cedc342ae305d7424b3d677a7cd9ab2eec83",
 );
 
 const policy=
@@ -36,6 +36,7 @@ assert.equal(policy.builder_preexisting_uid_process_count_required,0);
 assert.equal(policy.builder_max_observed_concurrent_uid_processes,1);
 assert.equal(policy.builder_postbuild_uid_process_count_required,0);
 assert.equal(policy.runtime_output_candidate_observation_while_builder_live_allowed,false);
+assert.equal(policy.runtime_output_generation_revalidation_before_candidate_observation_required,true);
 
 function fixture(){
   return {
@@ -92,6 +93,7 @@ function fixture(){
       postbuild_uid_census_zero:50,
       output_custody_complete:60,
       output_fsync_complete:70,
+      output_generation_revalidation_complete:75,
       candidate_observation:80,
     },
   };
@@ -108,6 +110,7 @@ assert.equal(accepted.builder_no_new_privs,true);
 assert.equal(accepted.builder_uid_process_exclusivity_shape_qualified,true);
 assert.equal(accepted.compiler_input_root_custody_order_shape_qualified,true);
 assert.equal(accepted.runtime_output_terminal_handoff_shape_qualified,true);
+assert.equal(accepted.runtime_output_generation_revalidation_order_shape_qualified,true);
 assert.equal(accepted.outer_runner_same_uid_hostile_exclusion_claimed,false);
 assert.equal(accepted.supervisor_first_entry_provenance_authenticated,false);
 assert.equal(accepted.builder_process_census_provenance_authenticated,false);
@@ -180,6 +183,8 @@ expectHold(x=>{x.timeline.builder_launch=5;},/timeline_invalid/u);
 expectHold(x=>{x.timeline.terminal_generation_confirmed=25;},/timeline_invalid/u);
 expectHold(x=>{x.timeline.postbuild_uid_census_zero=35;},/timeline_invalid/u);
 expectHold(x=>{x.timeline.output_custody_complete=45;},/timeline_invalid/u);
+expectHold(x=>{x.timeline.output_generation_revalidation_complete=65;},/timeline_invalid/u);
+expectHold(x=>{x.timeline.output_generation_revalidation_complete=90;},/timeline_invalid/u);
 expectHold(x=>{x.timeline.candidate_observation=55;},/timeline_invalid/u);
 
 {
@@ -210,6 +215,7 @@ for(const [key,expected] of Object.entries({
   postbuild_builder_uid_processes_zero_required:true,
   compiler_input_root_custody_before_builder_start_required:true,
   runtime_output_root_custody_after_builder_terminal_required:true,
+  runtime_output_generation_revalidation_before_candidate_observation_required:true,
   runtime_output_candidate_observation_before_custody:false,
   outer_runner_same_uid_hostile_exclusion_claimed:false,
   supervisor_first_entry_proven:false,
@@ -252,6 +258,7 @@ for(const required of [
   "supervisor_first_entry_provenance_authenticated:false",
   "builder_process_census_provenance_authenticated:false",
   "runtime_output_custody_provenance_authenticated:false",
+  "runtime_output_generation_revalidation_before_candidate_observation_required:true",
   "v3_candidate_derivation_authorized:false",
   "runtime_bundle_candidate_accepted:false",
 ]) assert.equal(source.includes(required),true,required);
@@ -281,6 +288,7 @@ console.log("postbuild_builder_uid_processes_zero_required=true");
 console.log("compiler_input_custody_before_builder_start_required=true");
 console.log("runtime_output_candidate_observation_while_builder_live=false");
 console.log("runtime_output_custody_after_builder_terminal_required=true");
+console.log("output_generation_revalidation_before_candidate_observation=true");
 console.log("candidate_observation_after_custody_required=true");
 console.log("supervisor_first_entry_proven=false");
 console.log("builder_process_census_provenance_authenticated=false");

@@ -22,6 +22,7 @@ export const VOID_BUY_LEGACY_REQUEST_HISTORY_NIMO_RUNTIME_BUNDLE_PRINCIPAL_SEPAR
     postbuild_builder_uid_processes_zero_required:true,
     compiler_input_root_custody_before_builder_start_required:true,
     runtime_output_root_custody_after_builder_terminal_required:true,
+    runtime_output_generation_revalidation_before_candidate_observation_required:true,
     runtime_output_candidate_observation_before_custody:false,
     outer_runner_same_uid_hostile_exclusion_claimed:false,
     supervisor_first_entry_proven:false,
@@ -183,6 +184,7 @@ const TIMELINE_KEYS=Object.freeze([
   "input_custody_complete",
   "output_custody_complete",
   "output_fsync_complete",
+  "output_generation_revalidation_complete",
   "postbuild_uid_census_zero",
   "terminal_generation_confirmed",
 ]);
@@ -284,6 +286,7 @@ export function classifyVoidBuyLegacyRequestHistoryNimoRuntimeBundlePrincipalSep
     "postbuild_uid_census_zero",
     "output_custody_complete",
     "output_fsync_complete",
+    "output_generation_revalidation_complete",
     "candidate_observation",
   ];
   let previous=0;
@@ -315,6 +318,7 @@ export function classifyVoidBuyLegacyRequestHistoryNimoRuntimeBundlePrincipalSep
     builder_uid_process_exclusivity_shape_qualified:true,
     compiler_input_root_custody_order_shape_qualified:true,
     runtime_output_terminal_handoff_shape_qualified:true,
+    runtime_output_generation_revalidation_order_shape_qualified:true,
     outer_runner_same_uid_hostile_exclusion_claimed:false,
     supervisor_first_entry_provenance_authenticated:false,
     builder_process_census_provenance_authenticated:false,

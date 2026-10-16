@@ -86,8 +86,12 @@ compiler/input custody complete
   -> candidate observation
 ```
 
-After custody, output descendants are non-writable. Post-exit substitution or a
-second builder process must therefore HOLD before candidate hashing.
+After custody, output descendants are non-writable. The classifier timeline now
+carries an explicit `output_generation_revalidation_complete` event and requires
+it strictly after parent fsync and strictly before `candidate_observation`.
+A revalidation reported only after candidate observation fails closed.
+Post-exit substitution or a second builder process must therefore HOLD before
+candidate hashing.
 
 ## Pure shape classifier
 
@@ -132,6 +136,7 @@ Focused proof rejects:
 - candidate observation while builder is live;
 - output custody/finalization/fsync/revalidation omissions;
 - timeline reorder that observes candidate bytes before terminal handoff;
+- output-generation revalidation before fsync or only after candidate observation;
 - policy-ID drift and extra-field drift.
 
 ## Authority
