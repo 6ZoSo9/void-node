@@ -128,7 +128,20 @@ jobs:
           done
 
       - name: Diff hygiene
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          PUSH_BEFORE_SHA: ${{ github.event.before || '' }}
         run: |
           set -euo pipefail
-          git diff --check
+          HEAD="$(git rev-parse HEAD)"
+          BASE="$PR_BASE_SHA"
+          if [ -z "$BASE" ]; then
+            BASE="$PUSH_BEFORE_SHA"
+          fi
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git cat-file -e "$BASE^{commit}"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
