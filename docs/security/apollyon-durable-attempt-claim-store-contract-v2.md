@@ -37,6 +37,72 @@ A host-qualified successor must prove the static boundary below, and the future 
 
 This source contract does not choose the future literal account name, UID/GID, socket path, or state-root path. It does define a pure least-authority classifier for a later chosen numeric identity/policy: claim UID/GID must be non-root and collision-free against the four protected identities, `NoNewPrivileges` must be true, and every Linux capability mask must be exactly zero. Hosted proof rejects root, collision, and capability-bearing fixtures without observing or changing Xiphos.
 
+## Exact durable record and response schemas
+
+The protected store may persist only one exact canonical claim-record shape. The record key set is closed to:
+
+- marker, version and fixed status;
+- content-addressed claim-record ID;
+- store-contract and store-generation IDs;
+- terminal-receipt ID and exact terminal runner-receipt SHA-256;
+- authorization ID, custody generation and custody-record SHA-256;
+- request/source/tree/corpus/parent-adapter/operator-key identities;
+- attempt_limit=1;
+- automatic_retry_authorized=false.
+
+Unknown record keys are rejected. In particular, a canonical record may not add an authority-looking field such as training_execution_authorized, automatic_retry_authorized=true, or a future policy flag. The claim-record ID is derived from the exact canonical record material.
+
+The future service response is also a closed protocol. The exact success schema binds the store contract/generation, terminal receipt, authorization/custody generation, content-addressed claim record, canonical claim-record SHA-256, and exact publish-request SHA-256. Success is one of two explicit outcomes only: newly created durable record or recovered existing exact durable record. A different pre-existing record is duplicate rejection.
+
+A success acknowledgment is forbidden until all of the following have completed successfully:
+
+1. final claim metadata/bytes are fixed;
+2. claim file fsync completes;
+3. create-only publication completes;
+4. claim-directory fsync completes;
+5. the final visible record metadata and bytes are revalidated.
+
+An indeterminate file/directory durability outcome is never success. Failure responses use a separate exact key schema and classify rejected, duplicate, or indeterminate outcomes. The future training caller may accept only the exact durable-success response; socket close, generic truthiness, or a generic ok token is never training admission.
+
+## Least-authority claim publisher
+
+The AF_UNIX publisher/client is a distinct protected identity, not the interactive operator, claim service, training identity, custody identity, or public runtime. The selected publisher UID/GID must be non-root, have closed supplementary groups, only the reviewed claim IPC membership, NoNewPrivileges, and empty inheritable/permitted/effective/bounding/ambient capabilities.
+
+The publisher must have no direct write/rename/unlink authority over the claim root, no control over claim/training/custody services, no private-key/wallet/signing authority, and exactly the reviewed process/source generation. Any privileged read-only host/session revalidation is a separate evidence-producing gate; its receipt may be handed to the non-root publisher, but root itself is not the publisher.
+
+## Exact claim-service sandbox and AF_UNIX server authentication
+
+The future claim service must be qualified against an exact loaded systemd policy, not a generic sandbox boolean. Required policy includes:
+
+- exact FragmentPath, no drop-ins, NeedDaemonReload=no and complete reviewed Exec arrays;
+- exact claim User/Group and claim-IPC-only supplementary groups;
+- UMask=0077;
+- PrivateTmp and PrivateDevices;
+- ProtectSystem=strict and protected home/kernel tunables/modules/logs/control-groups;
+- LockPersonality, RestrictSUIDSGID and RestrictRealtime;
+- NoNewPrivileges and empty bounding/ambient capability sets;
+- AF_UNIX as the only admitted address family;
+- exactly the reviewed writable target roles claim_state_root and claim_socket_parent, with no extra writable home/system/project paths and read-only temporary filesystems.
+
+The socket path and socket-parent path must be versioned/fixed before installation. The parent is direct/symlink-free, retained-ancestor protected, claim-service:claim-IPC owned mode 0750, and unauthorized rename/unlink is denied. The final AF_UNIX socket is claim-service:claim-IPC mode 0660 with an exact reviewed link count.
+
+Authentication is bidirectional. The server validates the publisher before reading the body; the publisher/client authenticates the server before sending the body and again before accepting the response. Server UID/GID/PID, PID start ticks, executable/source generation and socket inode must remain stable across the request/response. Path replacement, peer PID reuse, wrong executable/source, or server restart mid-request is a HOLD.
+
+## Store-generation history continuity
+
+Store replacement never resets replay history. Every generation has an exact store-generation record, and every migration has an exact content-addressed continuity receipt binding:
+
+- old generation -> new generation;
+- old and new root identities;
+- complete prior claim count;
+- deterministic SHA-256 over the complete prior claim set sorted by claim_record_id;
+- fixed claim-set ordering;
+- fresh authorization identity.
+
+Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check. The predecessor generation record must commit the same complete count and history digest; missing, extra, duplicate or mutated claims fail closed. The new generation must commit the continuity receipt, and fresh Sovereign authorization must bind the new generation plus prior-history digest.
+
+Genesis is a separate exact zero-history shape with no predecessor. A migration cannot masquerade as genesis, including by presenting a forged zero-count history. Migration is accepted only after the new generation and retained history are durably published and reread.
+
 ## Required future revalidation
 
 Immediately before any durable claim publication, the future host gate/executor must re-establish:

@@ -19,6 +19,187 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_KEYS_V2 =
     "version",
   ]);
 
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RECORD_KEYS_V2 =
+  Object.freeze([
+    "attempt_limit",
+    "authorization_id",
+    "automatic_retry_authorized",
+    "canonical_main",
+    "canonical_tree",
+    "claim_record_id",
+    "corpus_sha256",
+    "custody_generation_id",
+    "custody_record_sha256",
+    "marker",
+    "operator_public_key_raw_sha256",
+    "parent_adapter_sha256",
+    "request_sha256",
+    "status",
+    "store_contract_id",
+    "store_generation_id",
+    "terminal_receipt_id",
+    "terminal_runner_receipt_sha256",
+    "version",
+  ]);
+
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SUCCESS_RESPONSE_KEYS_V2 =
+  Object.freeze([
+    "authorization_id",
+    "claim_record_id",
+    "claim_record_sha256",
+    "custody_generation_id",
+    "durability_proven",
+    "final_visible_record_revalidated",
+    "marker",
+    "outcome",
+    "publish_request_sha256",
+    "status",
+    "store_contract_id",
+    "store_generation_id",
+    "terminal_receipt_id",
+    "training_start_admission",
+    "version",
+  ]);
+
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_FAILURE_RESPONSE_KEYS_V2 =
+  Object.freeze([
+    "authorization_id",
+    "durability_proven",
+    "marker",
+    "publish_request_sha256",
+    "reason",
+    "status",
+    "store_contract_id",
+    "store_generation_id",
+    "terminal_receipt_id",
+    "training_start_admission",
+    "version",
+  ]);
+
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_V2 =
+  Object.freeze([
+    "cap_ambient",
+    "cap_bounding",
+    "cap_effective",
+    "cap_inheritable",
+    "cap_permitted",
+    "claim_gid",
+    "claim_root_rename_unlink_denied",
+    "claim_root_write_denied",
+    "claim_service_control_denied",
+    "claim_uid",
+    "custody_gid",
+    "custody_service_control_denied",
+    "custody_uid",
+    "interactive_operator_gid",
+    "interactive_operator_uid",
+    "no_new_privileges",
+    "private_key_access_denied",
+    "public_runtime_gid",
+    "public_runtime_uid",
+    "publisher_gid",
+    "publisher_process_exclusive",
+    "publisher_source_identity_reviewed",
+    "publisher_uid",
+    "signing_denied",
+    "training_gid",
+    "training_service_control_denied",
+    "training_uid",
+    "wallet_access_denied",
+  ]);
+
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2 =
+  Object.freeze([
+    "claim_history_count",
+    "claim_history_sha256",
+    "continuity_receipt_id",
+    "genesis",
+    "marker",
+    "predecessor_store_generation_id",
+    "root_identity_sha256",
+    "status",
+    "store_contract_id",
+    "store_generation_id",
+    "version",
+  ]);
+
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2 =
+  Object.freeze([
+    "claim_set_order",
+    "continuity_receipt_id",
+    "fresh_authorization_id",
+    "genesis",
+    "marker",
+    "new_root_identity_sha256",
+    "new_store_generation_id",
+    "old_root_identity_sha256",
+    "old_store_generation_id",
+    "prior_claim_count",
+    "prior_claim_set_sha256",
+    "status",
+    "store_contract_id",
+    "version",
+  ]);
+
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_SYSTEMD_REQUIREMENTS_V2 =
+  Object.freeze({
+    system_manager_required:true,
+    fragment_path_versioned_fixed_required:true,
+    drop_in_paths_empty_required:true,
+    need_daemon_reload_no_required:true,
+    exact_user_group_required:true,
+    exact_supplementary_groups_claim_ipc_only_required:true,
+    umask:"0077",
+    private_tmp_required:true,
+    private_devices_required:true,
+    protect_system:"strict",
+    protect_home_required:true,
+    protect_kernel_tunables_required:true,
+    protect_kernel_modules_required:true,
+    protect_kernel_logs_required:true,
+    protect_control_groups_required:true,
+    lock_personality_required:true,
+    restrict_suid_sgid_required:true,
+    restrict_realtime_required:true,
+    no_new_privileges_required:true,
+    capability_bounding_set_empty_required:true,
+    ambient_capabilities_empty_required:true,
+    restrict_address_families_exact:Object.freeze(["AF_UNIX"]),
+    read_write_target_roles_exact:Object.freeze(["claim_state_root","claim_socket_parent"]),
+    no_extra_read_write_paths_required:true,
+    home_system_project_write_forbidden:true,
+    temporary_filesystems_read_only_required:true,
+    complete_exec_arrays_exact_reviewed_required:true,
+    unexpected_exec_commands_forbidden:true,
+  });
+
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SOCKET_REQUIREMENTS_V2 =
+  Object.freeze({
+    socket_path_versioned_fixed_before_install_required:true,
+    socket_parent_path_versioned_fixed_before_install_required:true,
+    socket_parent_direct_non_symlink_required:true,
+    socket_parent_retained_ancestor_custody_required:true,
+    socket_parent_exact_owner_group_mode_required:true,
+    socket_parent_owner_role:"claim_service",
+    socket_parent_group_role:"claim_ipc",
+    socket_parent_mode:"0750",
+    socket_parent_unauthorized_rename_unlink_denied_required:true,
+    socket_type_af_unix_required:true,
+    socket_owner_role:"claim_service",
+    socket_group_role:"claim_ipc",
+    socket_mode:"0660",
+    socket_link_count_exact_before_install_required:true,
+    socket_exact_owner_group_mode_link_count_required:true,
+    client_server_peer_credentials_required:true,
+    client_exact_server_uid_gid_pid_required:true,
+    client_server_pid_start_ticks_required:true,
+    client_server_executable_source_identity_required:true,
+    client_server_auth_before_request_body_required:true,
+    socket_inode_stable_across_request_response_required:true,
+    server_process_generation_stable_across_request_response_required:true,
+    server_restart_mid_request_rejected_required:true,
+  });
+
 export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_LEAST_AUTHORITY_KEYS_V2 =
   Object.freeze([
     "cap_ambient",
@@ -82,6 +263,21 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     cross_generation_authorization_replay_rejected_required:true,
     store_generation_change_blocks_claim_publication_until_requalified_required:true,
     prior_claim_history_continuity_required_for_store_migration:true,
+    store_generation_record_exact_schema_required:true,
+    store_generation_record_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,
+    migration_continuity_receipt_exact_schema_required:true,
+    migration_continuity_receipt_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2,
+    migration_old_new_generation_cross_binding_required:true,
+    migration_old_new_root_identity_cross_binding_required:true,
+    migration_complete_prior_claim_count_required:true,
+    migration_complete_prior_claim_set_sha256_required:true,
+    migration_claim_set_order:"claim_record_id_lexicographic",
+    migration_every_prior_claim_exact_schema_and_hash_required:true,
+    new_store_generation_commits_continuity_receipt_required:true,
+    fresh_authorization_binds_new_generation_and_prior_history_digest_required:true,
+    genesis_zero_history_shape_distinct_from_migration_required:true,
+    migration_publish_then_reread_durability_required:true,
+    migration_missing_extra_mutated_history_permanent_hold_required:true,
     claim_store_generation_replacement_without_retained_history_is_permanent_hold_required:true,
     fresh_sovereign_rebootstrap_required_for_new_store_generation:true,
     protected_root_mode:"0700",
@@ -99,6 +295,22 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     custody_uid_claim_ipc_membership_forbidden:true,
     public_runtime_claim_ipc_membership_forbidden:true,
     claim_request_caller_identity_must_be_versioned_and_fixed_before_install:true,
+    dedicated_claim_publisher_identity_required:true,
+    claim_publisher_non_root_uid_gid_required:true,
+    claim_publisher_no_new_privileges_required:true,
+    claim_publisher_all_capability_sets_empty_required:true,
+    claim_publisher_numeric_identity_separation_required:true,
+    claim_publisher_supplementary_groups_closed_required:true,
+    claim_publisher_claim_ipc_membership_exact_required:true,
+    claim_publisher_process_exclusivity_revalidation_required:true,
+    claim_publisher_source_identity_revalidation_required:true,
+    claim_publisher_direct_claim_root_write_denied_required:true,
+    claim_publisher_direct_claim_root_rename_unlink_denied_required:true,
+    claim_publisher_claim_service_control_denied_required:true,
+    claim_publisher_training_service_control_denied_required:true,
+    claim_publisher_custody_service_control_denied_required:true,
+    claim_publisher_private_key_wallet_signing_authority_forbidden:true,
+    privileged_read_only_revalidation_must_be_separate_gate_required:true,
     claim_request_kernel_peer_credentials_required:true,
     claim_request_no_caller_supplied_identity_trust:true,
     claim_request_exact_caller_uid_gid_required:true,
@@ -116,8 +328,40 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     claim_request_max_bytes:65536,
     claim_request_timeout_ms:5000,
     claim_response_max_bytes:65536,
+    claim_response_marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RESPONSE_V2",
+    claim_response_version:2,
+    claim_success_response_exact_schema_required:true,
+    claim_success_response_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SUCCESS_RESPONSE_KEYS_V2,
+    claim_success_response_unknown_keys_rejected_required:true,
+    claim_success_response_status:"durable_claim_success_v2",
+    claim_success_response_outcomes:Object.freeze(["created_durable","recovered_existing_exact_durable"]),
+    claim_failure_response_exact_schema_required:true,
+    claim_failure_response_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_FAILURE_RESPONSE_KEYS_V2,
+    claim_failure_response_unknown_keys_rejected_required:true,
+    claim_failure_response_statuses:Object.freeze(["rejected","duplicate","indeterminate"]),
+    claim_success_bind_publish_request_sha256_required:true,
+    claim_success_bind_claim_record_id_sha256_required:true,
+    claim_success_bind_store_generation_required:true,
+    claim_success_bind_terminal_receipt_authorization_custody_required:true,
+    claim_success_ack_only_after_file_fsync_required:true,
+    claim_success_ack_only_after_directory_fsync_required:true,
+    claim_success_ack_only_after_final_visible_record_revalidation_required:true,
+    indeterminate_publication_must_not_return_success_required:true,
+    exact_existing_record_recovery_distinct_from_new_create_required:true,
+    different_existing_claim_is_duplicate_rejection_required:true,
+    trainer_accepts_only_exact_durable_success_response_required:true,
+    socket_close_or_generic_ok_never_training_admission_required:true,
     claim_service_max_concurrent_connections:16,
     claim_service_socket_backlog_bound_required:true,
+    claim_service_systemd_sandbox_exact_required:true,
+    claim_service_systemd_requirements:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_SYSTEMD_REQUIREMENTS_V2,
+    claim_service_exact_writable_target_roles_required:true,
+    claim_service_no_extra_writable_paths_required:true,
+    claim_service_loaded_fragment_dropin_reload_exec_closure_required:true,
+    claim_socket_namespace_exact_required:true,
+    claim_socket_requirements:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SOCKET_REQUIREMENTS_V2,
+    claim_client_authenticates_server_before_body_required:true,
+    claim_client_server_process_and_socket_stability_required:true,
     claim_service_network_access_forbidden:true,
     claim_service_private_key_access_forbidden:true,
     claim_service_signing_forbidden:true,
@@ -146,6 +390,15 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     exact_v2_custody_generation_revalidation_required:true,
     create_only_no_overwrite_claim_publication_required:true,
     canonical_claim_record_required:true,
+    claim_record_exact_key_schema_required:true,
+    claim_record_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RECORD_KEYS_V2,
+    claim_record_unknown_keys_rejected_required:true,
+    claim_record_marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RECORD_V2",
+    claim_record_version:2,
+    claim_record_status:"durable_candidate_training_attempt_claim_record_v2",
+    claim_record_content_addressed_id_required:true,
+    claim_record_bind_store_contract_id_required:true,
+    claim_record_automatic_retry_authorized_literal_false_required:true,
     claim_record_bind_store_generation_id_required:true,
     claim_record_bind_terminal_receipt_id_required:true,
     claim_record_bind_terminal_runner_receipt_sha256_required:true,
@@ -161,6 +414,8 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     claim_record_bind_attempt_limit_required:true,
     claim_file_fsync_before_publication_required:true,
     claim_directory_fsync_after_publication_required:true,
+    final_visible_claim_record_metadata_bytes_revalidation_required:true,
+    success_ack_after_durable_revalidation_required:true,
     crash_recovery_exact_state_classification_required:true,
     duplicate_claim_rejected_required:true,
     claim_must_be_durable_before_training_start:true,
@@ -214,6 +469,10 @@ const LIVE_V2_ID=/^apollyon_custody_live_v2:[0-9a-f]{64}$/u;
 const ISOLATION_ID=/^apollyon_training_isolation_live_v1:[0-9a-f]{64}$/u;
 const AUTH_ID=/^apollyon_authz_v1:[0-9a-f]{64}$/u;
 const GENERATION_ID=/^apollyon_custody_generation_v1:[0-9a-f]{64}$/u;
+const STORE_CONTRACT_ID=/^apollyon_claim_store_contract_v2:[0-9a-f]{64}$/u;
+const STORE_GENERATION_ID=/^apollyon_claim_store_generation_v2:[0-9a-f]{64}$/u;
+const CLAIM_RECORD_ID=/^apollyon_attempt_claim_record_v2:[0-9a-f]{64}$/u;
+const CONTINUITY_RECEIPT_ID=/^apollyon_claim_store_continuity_v2:[0-9a-f]{64}$/u;
 
 function fail(code){throw new Error(code);}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
@@ -304,6 +563,86 @@ export function qualifyApollyonDurableAttemptClaimServiceLeastAuthorityV2(input)
   });
 }
 
+
+export function qualifyApollyonDurableAttemptClaimPublisherLeastAuthorityV2(input){
+  let value;
+  try{
+    value=structuredClone(input);
+  }catch{
+    fail("apollyon_claim_publisher_least_authority_v2_input_invalid");
+  }
+  exactKeys(
+    value,
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_V2,
+    "apollyon_claim_publisher_least_authority_v2_input_invalid",
+  );
+  for(const key of [
+    "publisher_uid","publisher_gid","claim_uid","claim_gid",
+    "training_uid","training_gid","custody_uid","custody_gid",
+    "public_runtime_uid","public_runtime_gid",
+    "interactive_operator_uid","interactive_operator_gid",
+  ]){
+    if(!Number.isSafeInteger(value[key])||value[key]<0||value[key]>65533){
+      fail("apollyon_claim_publisher_least_authority_v2_numeric_identity_invalid");
+    }
+  }
+  if(value.publisher_uid===0||value.publisher_gid===0){
+    fail("apollyon_claim_publisher_least_authority_v2_root_identity_forbidden");
+  }
+  for(const [label,observed] of [
+    ["claim_uid",value.claim_uid],["training_uid",value.training_uid],
+    ["custody_uid",value.custody_uid],["public_runtime_uid",value.public_runtime_uid],
+    ["interactive_operator_uid",value.interactive_operator_uid],
+  ]){
+    if(value.publisher_uid===observed){
+      fail("apollyon_claim_publisher_least_authority_v2_uid_collision:"+label);
+    }
+  }
+  for(const [label,observed] of [
+    ["claim_gid",value.claim_gid],["training_gid",value.training_gid],
+    ["custody_gid",value.custody_gid],["public_runtime_gid",value.public_runtime_gid],
+    ["interactive_operator_gid",value.interactive_operator_gid],
+  ]){
+    if(value.publisher_gid===observed){
+      fail("apollyon_claim_publisher_least_authority_v2_gid_collision:"+label);
+    }
+  }
+  if(value.no_new_privileges!==true){
+    fail("apollyon_claim_publisher_least_authority_v2_no_new_privileges_required");
+  }
+  for(const key of [
+    "cap_inheritable","cap_permitted","cap_effective","cap_bounding","cap_ambient",
+  ]){
+    if(value[key]!=="0000000000000000"){
+      fail("apollyon_claim_publisher_least_authority_v2_capabilities_not_empty:"+key);
+    }
+  }
+  for(const key of [
+    "claim_root_write_denied","claim_root_rename_unlink_denied",
+    "claim_service_control_denied","training_service_control_denied",
+    "custody_service_control_denied","private_key_access_denied","wallet_access_denied",
+    "signing_denied","publisher_process_exclusive","publisher_source_identity_reviewed",
+  ]){
+    if(value[key]!==true){
+      fail("apollyon_claim_publisher_least_authority_v2_denial_or_identity_unproven:"+key);
+    }
+  }
+  return Object.freeze({
+    qualified:true,
+    publisher_uid:value.publisher_uid,
+    publisher_gid:value.publisher_gid,
+    non_root_identity:true,
+    numeric_identity_separation_verified:true,
+    no_new_privileges:true,
+    all_capability_sets_empty:true,
+    direct_claim_store_mutation_denied:true,
+    broad_privileged_authority_denied:true,
+    host_installation_performed:false,
+    durable_attempt_claim_performed:false,
+    training_execution_performed:false,
+  });
+}
+
 const TERMINAL_KEYS=[
   "attempt_claim_authorized","attempt_claimed","authority","authorization_id",
   "binding_v2_blob_sha1","boot_id_sha256","candidate_weight_mutation_performed",
@@ -324,6 +663,247 @@ const TERMINAL_KEYS=[
   "training_execution_performed","training_generation_absent_after","training_pid",
   "training_process_start_time_ticks","training_service_exact_dormant_after","version",
 ];
+
+
+function validateApollyonDurableAttemptClaimRecordShapeOnlyV2(record){
+  exactKeys(
+    record,
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RECORD_KEYS_V2,
+    "apollyon_claim_record_v2_schema_invalid",
+  );
+  if(
+    record.marker!=="VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RECORD_V2"||
+    record.version!==2||
+    record.status!=="durable_candidate_training_attempt_claim_record_v2"||
+    !STORE_CONTRACT_ID.test(record.store_contract_id)||
+    !STORE_GENERATION_ID.test(record.store_generation_id)||
+    !TERMINAL_ID.test(record.terminal_receipt_id)||
+    !HASH64.test(record.terminal_runner_receipt_sha256)||
+    !AUTH_ID.test(record.authorization_id)||
+    !GENERATION_ID.test(record.custody_generation_id)||
+    !HASH64.test(record.custody_record_sha256)||
+    !HASH64.test(record.request_sha256)||
+    !GIT40.test(record.canonical_main)||!GIT40.test(record.canonical_tree)||
+    !HASH64.test(record.corpus_sha256)||!HASH64.test(record.parent_adapter_sha256)||
+    !HASH64.test(record.operator_public_key_raw_sha256)||
+    record.attempt_limit!==1||
+    record.automatic_retry_authorized!==false||
+    !CLAIM_RECORD_ID.test(record.claim_record_id)
+  ){
+    fail("apollyon_claim_record_v2_schema_invalid");
+  }
+  const material=structuredClone(record);
+  delete material.claim_record_id;
+  const expected="apollyon_attempt_claim_record_v2:"+
+    sha256(Buffer.from(canonical(material),"utf8"));
+  if(record.claim_record_id!==expected){
+    fail("apollyon_claim_record_v2_id_invalid");
+  }
+  return Object.freeze(structuredClone(record));
+}
+
+export function qualifyApollyonDurableAttemptClaimRecordShapeV2(input){
+  let snapshot;
+  try{
+    snapshot=structuredClone(input);
+  }catch{
+    fail("apollyon_claim_record_v2_input_invalid");
+  }
+  exactKeys(
+    snapshot,
+    ["claim_record","store_contract_id","store_generation_id","terminal_receipt"],
+    "apollyon_claim_record_v2_input_invalid",
+  );
+  if(!STORE_CONTRACT_ID.test(snapshot.store_contract_id)||
+     !STORE_GENERATION_ID.test(snapshot.store_generation_id)){
+    fail("apollyon_claim_record_v2_input_invalid");
+  }
+  const terminal=validateTerminalReceipt(snapshot.terminal_receipt);
+  const record=validateApollyonDurableAttemptClaimRecordShapeOnlyV2(
+    snapshot.claim_record,
+  );
+  for(const [key,expected] of [
+    ["store_contract_id",snapshot.store_contract_id],
+    ["store_generation_id",snapshot.store_generation_id],
+    ["terminal_receipt_id",terminal.terminal_receipt_id],
+    ["terminal_runner_receipt_sha256",terminal.terminal_runner_receipt_sha256],
+    ["authorization_id",terminal.authorization_id],
+    ["custody_generation_id",terminal.custody_generation_id],
+    ["custody_record_sha256",terminal.custody_record_sha256],
+    ["request_sha256",terminal.request_sha256],
+    ["canonical_main",terminal.canonical_main],
+    ["canonical_tree",terminal.canonical_tree],
+    ["corpus_sha256",terminal.corpus_sha256],
+    ["parent_adapter_sha256",terminal.parent_adapter_sha256],
+    ["operator_public_key_raw_sha256",terminal.operator_public_key_raw_sha256],
+  ]){
+    if(record[key]!==expected){
+      fail("apollyon_claim_record_v2_cross_binding_invalid:"+key);
+    }
+  }
+  return record;
+}
+
+export function qualifyApollyonDurableAttemptClaimSuccessResponseShapeV2(input){
+  let snapshot;
+  try{
+    snapshot=structuredClone(input);
+  }catch{
+    fail("apollyon_claim_success_response_v2_input_invalid");
+  }
+  exactKeys(
+    snapshot,
+    ["claim_record","publish_request_sha256","success_response"],
+    "apollyon_claim_success_response_v2_input_invalid",
+  );
+  const record=validateApollyonDurableAttemptClaimRecordShapeOnlyV2(
+    snapshot.claim_record,
+  );
+  if(!HASH64.test(snapshot.publish_request_sha256)){
+    fail("apollyon_claim_success_response_v2_input_invalid");
+  }
+  const value=snapshot.success_response;
+  exactKeys(
+    value,
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SUCCESS_RESPONSE_KEYS_V2,
+    "apollyon_claim_success_response_v2_schema_invalid",
+  );
+  if(
+    value.marker!=="VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RESPONSE_V2"||
+    value.version!==2||
+    value.status!=="durable_claim_success_v2"||
+    !["created_durable","recovered_existing_exact_durable"].includes(value.outcome)||
+    value.store_contract_id!==record.store_contract_id||
+    value.store_generation_id!==record.store_generation_id||
+    value.terminal_receipt_id!==record.terminal_receipt_id||
+    value.authorization_id!==record.authorization_id||
+    value.custody_generation_id!==record.custody_generation_id||
+    value.claim_record_id!==record.claim_record_id||
+    value.claim_record_sha256!==
+      sha256(Buffer.from(canonical(record)+"\n","utf8"))||
+    value.publish_request_sha256!==snapshot.publish_request_sha256||
+    value.durability_proven!==true||
+    value.final_visible_record_revalidated!==true||
+    value.training_start_admission!==true
+  ){
+    fail("apollyon_claim_success_response_v2_schema_invalid");
+  }
+  return Object.freeze(structuredClone(value));
+}
+
+function validateApollyonDurableAttemptClaimStoreGenerationRecordV2(value){
+  exactKeys(
+    value,
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,
+    "apollyon_claim_store_generation_record_v2_invalid",
+  );
+  if(
+    value.marker!=="VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_V2"||
+    value.version!==2||
+    value.status!=="durable_attempt_claim_store_generation_v2"||
+    !STORE_CONTRACT_ID.test(value.store_contract_id)||
+    !STORE_GENERATION_ID.test(value.store_generation_id)||
+    !HASH64.test(value.root_identity_sha256)||
+    typeof value.genesis!=="boolean"||
+    !Number.isSafeInteger(value.claim_history_count)||value.claim_history_count<0||
+    !HASH64.test(value.claim_history_sha256)||
+    !CONTINUITY_RECEIPT_ID.test(value.continuity_receipt_id)
+  ){
+    fail("apollyon_claim_store_generation_record_v2_invalid");
+  }
+  if(value.genesis){
+    if(value.predecessor_store_generation_id!==null){
+      fail("apollyon_claim_store_generation_record_v2_invalid");
+    }
+  }else if(!STORE_GENERATION_ID.test(value.predecessor_store_generation_id)){
+    fail("apollyon_claim_store_generation_record_v2_invalid");
+  }
+  return Object.freeze(structuredClone(value));
+}
+
+export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input){
+  let snapshot;
+  try{
+    snapshot=structuredClone(input);
+  }catch{
+    fail("apollyon_claim_store_continuity_v2_input_invalid");
+  }
+  exactKeys(
+    snapshot,
+    ["continuity_receipt","predecessor_generation_record","prior_claim_records"],
+    "apollyon_claim_store_continuity_v2_input_invalid",
+  );
+  if(!Array.isArray(snapshot.prior_claim_records)){
+    fail("apollyon_claim_store_continuity_v2_input_invalid");
+  }
+  const records=snapshot.prior_claim_records.map(
+    validateApollyonDurableAttemptClaimRecordShapeOnlyV2,
+  );
+  const sorted=[...records].sort((a,b)=>a.claim_record_id.localeCompare(b.claim_record_id));
+  if(new Set(sorted.map(x=>x.claim_record_id)).size!==sorted.length){
+    fail("apollyon_claim_store_continuity_v2_duplicate_claim_record");
+  }
+  const historySha=sha256(Buffer.from(canonical(sorted),"utf8"));
+  const receipt=snapshot.continuity_receipt;
+  exactKeys(
+    receipt,
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2,
+    "apollyon_claim_store_continuity_v2_receipt_invalid",
+  );
+  if(
+    receipt.marker!=="VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTINUITY_V2"||
+    receipt.version!==2||
+    receipt.status!=="durable_attempt_claim_store_history_continuity_v2"||
+    !STORE_CONTRACT_ID.test(receipt.store_contract_id)||
+    !STORE_GENERATION_ID.test(receipt.new_store_generation_id)||
+    !HASH64.test(receipt.new_root_identity_sha256)||
+    receipt.claim_set_order!=="claim_record_id_lexicographic"||
+    receipt.prior_claim_count!==sorted.length||
+    receipt.prior_claim_set_sha256!==historySha||
+    !AUTH_ID.test(receipt.fresh_authorization_id)||
+    !CONTINUITY_RECEIPT_ID.test(receipt.continuity_receipt_id)
+  ){
+    fail("apollyon_claim_store_continuity_v2_receipt_invalid");
+  }
+  if(receipt.genesis){
+    if(
+      receipt.old_store_generation_id!==null||
+      receipt.old_root_identity_sha256!==null||
+      sorted.length!==0||
+      snapshot.predecessor_generation_record!==null
+    ){
+      fail("apollyon_claim_store_continuity_v2_genesis_invalid");
+    }
+  }else{
+    if(
+      !STORE_GENERATION_ID.test(receipt.old_store_generation_id)||
+      !HASH64.test(receipt.old_root_identity_sha256)||
+      snapshot.predecessor_generation_record===null
+    ){
+      fail("apollyon_claim_store_continuity_v2_migration_invalid");
+    }
+    const predecessor=validateApollyonDurableAttemptClaimStoreGenerationRecordV2(
+      snapshot.predecessor_generation_record,
+    );
+    if(
+      predecessor.store_contract_id!==receipt.store_contract_id||
+      predecessor.store_generation_id!==receipt.old_store_generation_id||
+      predecessor.root_identity_sha256!==receipt.old_root_identity_sha256||
+      predecessor.claim_history_count!==sorted.length||
+      predecessor.claim_history_sha256!==historySha
+    ){
+      fail("apollyon_claim_store_continuity_v2_predecessor_mismatch");
+    }
+  }
+  const material=structuredClone(receipt);
+  delete material.continuity_receipt_id;
+  const expected="apollyon_claim_store_continuity_v2:"+
+    sha256(Buffer.from(canonical(material),"utf8"));
+  if(receipt.continuity_receipt_id!==expected){
+    fail("apollyon_claim_store_continuity_v2_id_invalid");
+  }
+  return Object.freeze(structuredClone(receipt));
+}
 
 function validateTerminalReceipt(value){
   exactKeys(value,TERMINAL_KEYS,"apollyon_claim_store_contract_v2_terminal_invalid");

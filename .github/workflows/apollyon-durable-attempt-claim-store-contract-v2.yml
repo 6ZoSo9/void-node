@@ -47,6 +47,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -57,7 +58,9 @@ jobs:
               BASE="$PR_BASE"
               ;;
             push)
-              BASE="$(git rev-parse "$HEAD^")"
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"
+              BASE="$PUSH_BEFORE"
               ;;
             workflow_dispatch)
               BASE="$(git rev-parse HEAD^)"
