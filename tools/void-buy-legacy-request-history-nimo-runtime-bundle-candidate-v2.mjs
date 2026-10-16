@@ -951,6 +951,8 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
       compiler_pre_post_identity_required: true,
       compiler_snapshot_required: true,
       compiler_snapshot_nonwritable_required: true,
+      compiler_snapshot_root_custody_required: true,
+      compiler_snapshot_builder_uid_direct_mutation_denied_required: true,
       compiler_source_post_revalidation_required: true,
       compiler_snapshot_post_revalidation_required: true,
       source_maps_expected: false,
@@ -1190,6 +1192,8 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
       "compile_environment","compile_node_executable_source",
       "compiler_pre_post_identity_required","compiler_snapshot_required",
       "compiler_snapshot_nonwritable_required",
+      "compiler_snapshot_root_custody_required",
+      "compiler_snapshot_builder_uid_direct_mutation_denied_required",
       "compiler_source_post_revalidation_required",
       "compiler_snapshot_post_revalidation_required","dependency_install",
       "source_maps_expected","supported_node_majors",
@@ -1212,6 +1216,8 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     body.build_recipe.compiler_pre_post_identity_required !== true ||
     body.build_recipe.compiler_snapshot_required !== true ||
     body.build_recipe.compiler_snapshot_nonwritable_required !== true ||
+    body.build_recipe.compiler_snapshot_root_custody_required !== true ||
+    body.build_recipe.compiler_snapshot_builder_uid_direct_mutation_denied_required !== true ||
     body.build_recipe.compiler_source_post_revalidation_required !== true ||
     body.build_recipe.compiler_snapshot_post_revalidation_required !== true ||
     body.build_recipe.source_maps_expected !== false ||
