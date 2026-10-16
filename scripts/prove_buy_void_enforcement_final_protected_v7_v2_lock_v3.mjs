@@ -158,7 +158,7 @@ function candidateBytes(){
     attached=true;
     run("/bin/cp",["-al",path.join(ROOT,"node_modules"),path.join(wt,"node_modules")],
       {cwd:wt,timeout:120000});
-    run("/bin/cp",["-al",path.join(ROOT,"dist"),path.join(wt,"dist")],
+    run("/bin/cp",["-a",path.join(ROOT,"dist"),path.join(wt,"dist")],
       {cwd:wt,timeout:120000});
     const result=run(process.execPath,[path.join(wt,CANDIDATE_PROOF),"--derive"],
       {cwd:wt,timeout:300000});
