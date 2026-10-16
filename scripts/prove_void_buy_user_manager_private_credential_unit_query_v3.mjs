@@ -36,7 +36,7 @@ for(const required of [
   'VOID_BUY_VOID_USER_MANAGER_PRIVATE_CREDENTIAL_UNIT_QUERY_V3',
   'MAX_DROPIN_PATHS 64',
   'MAX_LOAD_CREDENTIALS 32',
-  'unique_credential_ids_required=true',
+  'duplicate_credential_ids_rejected=true',
   'unrelated_credentials_allowed=true',
   'credential_set_generation_stability_required=true',
   'credential_sha256_hex',
