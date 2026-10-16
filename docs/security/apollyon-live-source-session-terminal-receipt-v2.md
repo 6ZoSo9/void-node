@@ -10,7 +10,9 @@ The current V2 live source/session runner creates its inner live binding while t
 
 Therefore the inner live binding alone is not sufficient authority for a durable candidate-training attempt claim.
 
-This contract accepts only the exact terminal runner receipt from the reviewed #3217 generation. It requires:
+This contract first snapshots the caller input exactly once into plain structured-clone data, then validates, carries identities, and hashes only that single frozen snapshot. Accessors, proxies, or other caller-controlled objects therefore cannot present one binding during validation and a different binding during carried-identity or digest construction.
+
+It accepts only the exact terminal runner receipt from the reviewed #3217 generation. It requires:
 
 - runner status live_source_session_binding_complete_training_service_stopped;
 - the enclosed live binding to be an exact valid current V2 binding;
@@ -55,4 +57,4 @@ No future executor may treat the enclosed inner live binding, by itself, as suff
 
 ## Authority
 
-This module imports no filesystem, network, child-process, service, key, wallet, signing, transaction, trainer, or funds capability. It only validates immutable input objects and returns a content-addressed source-only receipt.
+This module imports no filesystem, network, child-process, service, key, wallet, signing, transaction, trainer, or funds capability. It snapshots caller input once into plain data, validates only that snapshot, and returns a content-addressed source-only receipt.
