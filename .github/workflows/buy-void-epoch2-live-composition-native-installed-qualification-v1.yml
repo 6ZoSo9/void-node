@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v1.py)" =             "9722996a3a062fda61d3a35980a2a07242f54dcd"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v1.py)" =             "932be6eae99dca2331cd18b49da1e5803de220b9"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v1.py)" =             "5d8d6a2078f67565cd07baf8284f3918177f1e92"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py)" =             "f572868ea0edacbb3404771b793c4c60f9471abb"
 
       - name: Syntax check without bytecode writes
@@ -67,6 +67,8 @@ jobs:
             "double_native_self_test_required=true"
             "descriptor_bound_native_self_test_required=true"
             "pathname_swap_during_self_test_rejected=true"
+            "retained_fd_executed_during_path_swap=true"
+            "replacement_path_not_executed=true"
             "runner_execution=false"
             "live_composition_execution=false"
             "credential_access=false"
