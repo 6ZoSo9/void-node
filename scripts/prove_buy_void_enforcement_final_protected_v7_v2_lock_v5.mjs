@@ -302,9 +302,24 @@ function deriveFullCandidate(){
     return Object.freeze({bytes,value:c});
   }finally{
     if(added){
-      try{git(["worktree","remove","--force",wt]);}catch{}
+      const removed=spawnSync("/usr/bin/git",[
+        "--no-replace-objects","-c","core.hooksPath=/dev/null",
+        "-c","core.fsmonitor=false","-C",ROOT,
+        "worktree","remove","--force",wt,
+      ],{
+        cwd:ROOT,encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30000,
+        env:{
+          PATH:NODE_BIN+":/usr/bin:/bin",
+          HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",
+          GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",
+          GIT_CONFIG_SYSTEM:"/dev/null",GIT_NO_REPLACE_OBJECTS:"1",
+          GIT_OPTIONAL_LOCKS:"0",GIT_TERMINAL_PROMPT:"0",
+        },
+      });
+      assert.equal(removed.error,undefined,String(removed.error||""));
+      assert.equal(removed.status,0,String(removed.stderr||removed.stdout||""));
     }
-    try{fs.rmSync(holder,{recursive:true,force:true});}catch{}
+    fs.rmSync(holder,{recursive:true,force:true});
   }
 }
 function verifyProjectionAgainstFull(p,c){
