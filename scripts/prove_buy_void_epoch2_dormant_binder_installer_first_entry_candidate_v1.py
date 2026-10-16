@@ -890,7 +890,7 @@ def validate(report: dict, binary: bytes) -> None:
         "binary",
     )
     if (
-        or result.get("bytes") != len(binary)
+        result.get("bytes") != len(binary)
         or result.get("sha256") != sha256(binary)
         or result.get("git_blob_sha1") != git_blob(binary)
         or result.get("two_builds_byte_identical") is not True
