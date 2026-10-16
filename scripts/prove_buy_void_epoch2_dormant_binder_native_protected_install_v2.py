@@ -152,7 +152,7 @@ for token in (
     "published_needs_inspection",
     "post_publication_parent_fsync_failed",
     "post_publication_final_verification_failed",
-    "automatic_stage_cleanup_attempted=true",
+    '"automatic_stage_cleanup_attempted=" + str(attempted).lower()',
     "candidate_native_verified=",
     "binder_source_verified=",
     "native_execution=false",
