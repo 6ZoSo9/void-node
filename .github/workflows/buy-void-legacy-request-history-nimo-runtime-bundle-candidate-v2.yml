@@ -96,6 +96,14 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
+      - name: Qualify root snapshot custody helper
+        run: |
+          set -euo pipefail
+          test -x /usr/bin/sudo
+          test -x /usr/bin/chown
+          test -x /usr/bin/rm
+          sudo -n true
+
       - name: Install locked compiler
         run: npm ci --ignore-scripts --no-audit --no-fund
 
@@ -129,6 +137,9 @@ jobs:
           grep -Fx 'compiler_private_snapshot_bound=true' "$proof"
           grep -Fx 'compiler_package_snapshot_bound=true' "$proof"
           grep -Fx 'compiler_snapshot_nonwritable=true' "$proof"
+          grep -Fx 'compiler_snapshot_root_custody=true' "$proof"
+          grep -Fx 'compiler_snapshot_builder_uid_direct_mutation_denied=true' "$proof"
+          grep -Fx 'compiler_snapshot_chmod_substitute_restore_rejected=true' "$proof"
           grep -Fx 'compiler_snapshot_post_revalidated=true' "$proof"
           grep -Fx 'compiler_aba_checkout_mutation_isolated=true' "$proof"
           grep -Fx 'compiler_closed_environment=true' "$proof"
