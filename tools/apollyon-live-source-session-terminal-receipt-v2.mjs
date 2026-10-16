@@ -186,7 +186,7 @@ function validateRunnerReceipt(value){
 
 export function finalizeApollyonLiveSourceSessionTerminalReceiptV2(input){
   exactKeys(input,["runner_receipt"],"apollyon_terminal_receipt_v2_input_invalid");
-  const {binding}=validateRunnerReceipt(input.runner_receipt);
+  const {receipt,binding}=validateRunnerReceipt(input.runner_receipt);
   const material={
     marker:VOID_APOLLYON_LIVE_SOURCE_SESSION_TERMINAL_RECEIPT_V2,
     version:2,
@@ -216,7 +216,7 @@ export function finalizeApollyonLiveSourceSessionTerminalReceiptV2(input){
     live_service_source_identity_proven:true,
     same_live_custody_session_binding_proven:true,
     terminal_runner_receipt_sha256:
-      sha256(Buffer.from(canonical(input.runner_receipt),"utf8")),
+      sha256(Buffer.from(canonical(receipt),"utf8")),
     training_pid:binding.training_pid,
     training_process_start_time_ticks:binding.training_process_start_time_ticks,
     boot_id_sha256:binding.boot_id_sha256,

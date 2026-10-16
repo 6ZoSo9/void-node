@@ -28,7 +28,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
     "981935515e08634be96446e58922c16be56d33ad",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "53d5ed4f897276d5105236b4284ab00247431494",
+    "4c662db61322ed3d9751a1e00804ef44faa0057d",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -246,6 +246,8 @@ for(const required of [
   'current_host_revalidation_required:true',
   'revalidation_identity_hashes_carried:true',
   'terminal_runner_receipt_digest_carried:true',
+  'const {receipt,binding}=validateRunnerReceipt(input.runner_receipt);',
+  'canonical(receipt)',
   'protected_runner_origin_required:true',
   'protected_runner_origin_proven:false',
   'next_gate:"durable_candidate_training_attempt_claim_executor_v2"',
@@ -254,6 +256,7 @@ for(const forbidden of [
   "node:fs","node:net","node:child_process","systemctl","writeFileSync(","spawn(",
   "createPrivateKey","crypto.sign(","attempt_claimed:true",
   "training_execution_performed:true","candidate_weight_mutation_performed:true",
+  "canonical(input.runner_receipt)",
 ])assert.equal(source.includes(forbidden),false,forbidden);
 
 console.log("VOID_APOLLYON_LIVE_SOURCE_SESSION_TERMINAL_RECEIPT_V2_PROOF_GREEN");
