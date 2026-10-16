@@ -16,7 +16,7 @@ CANDIDATE=ROOT/"scripts/prove_buy_void_epoch2_live_composition_native_candidate_
 SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
 RUNNER=ROOT/"ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
 
-MATERIALIZER_BLOB="5ff70ae18840d8d4cb380960b6d141ffd6d19be4"
+MATERIALIZER_BLOB="465f223dce8ab8fb653f28e11cbe6610d7616661"
 LOCK_BLOB="34340b5a8d13b7496bf5cafcf9d2937cb777d45c"
 CANDIDATE_BLOB="9d0f3740d12e136e0a47d13451a83ae1c99b112a"
 SOURCE_BLOB="2e75b8a6fa5ecc36ce2ca05d920001a16abcf5b7"
@@ -94,7 +94,11 @@ for required in (
     'write_create_only(args.derive,raw)',
     'os.O_EXCL',
     'os.O_NOFOLLOW',
+    'os.O_DIRECTORY',
     'os.fsync(fd)',
+    'os.fsync(parent_fd)',
+    'output_descriptor_readback_mismatch',
+    'output_visible_generation_changed',
     'protected_install_authorized=false',
     'live_execution_authorized=false',
     'treasury_liquidity_action_authorized=false',
@@ -127,6 +131,9 @@ for line in (
     "candidate_tool_verified_before_execution=true",
     "native_source_blob_bound=true",
     "create_only_output=true",
+    "output_descriptor_readback=true",
+    "output_parent_directory_fsync=true",
+    "output_failure_destructive_cleanup=false",
     "candidate_binary_identity_accepted=true",
     "protected_install_authorized=false",
     "live_execution_authorized=false",
@@ -156,6 +163,9 @@ with tempfile.TemporaryDirectory(
             "binary_bytes=722880",
             "binary_sha256="+EXPECTED_SHA256,
             "accepted_lock_id="+LOCK_ID,
+            "output_descriptor_readback=true",
+            "output_parent_directory_fsync=true",
+            "output_failure_destructive_cleanup=false",
             "candidate_binary_identity_accepted=true",
             "protected_install_authorized=false",
             "live_execution_authorized=false",
@@ -205,6 +215,9 @@ print("accepted_binary_bytes=722880")
 print("accepted_binary_sha256="+EXPECTED_SHA256)
 print("static_no_pt_interp_verified=true")
 print("create_only_output_replay_rejected=true")
+print("output_descriptor_readback=true")
+print("output_parent_directory_fsync=true")
+print("output_failure_destructive_cleanup=false")
 print("artifact_publication_only=true")
 print("protected_install_authorized=false")
 print("live_execution_authorized=false")
