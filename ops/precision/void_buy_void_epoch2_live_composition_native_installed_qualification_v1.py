@@ -214,39 +214,48 @@ def _installed_snapshot(installer: Any, expected_head: str) -> dict[str, Any]:
     }
 
 
-def _native_stat_matches_snapshot(
-    observed: os.stat_result,
-    expected: dict[str, Any],
-) -> bool:
+def _native_snapshot_matches_stat(expected: dict[str, Any], st: os.stat_result) -> bool:
     return (
-        observed.st_dev == expected["dev"]
-        and observed.st_ino == expected["ino"]
-        and observed.st_uid == expected["uid"]
-        and observed.st_gid == expected["gid"]
-        and format(stat.S_IMODE(observed.st_mode), "04o") == expected["mode"]
-        and observed.st_nlink == expected["nlink"]
-        and observed.st_size == expected["bytes"]
-        and observed.st_mtime_ns == expected["mtime_ns"]
-        and observed.st_ctime_ns == expected["ctime_ns"]
+        expected.get("dev") == st.st_dev
+        and expected.get("ino") == st.st_ino
+        and expected.get("uid") == st.st_uid
+        and expected.get("gid") == st.st_gid
+        and expected.get("mode") == format(stat.S_IMODE(st.st_mode), "04o")
+        and expected.get("nlink") == st.st_nlink
+        and expected.get("bytes") == st.st_size
+        and expected.get("mtime_ns") == st.st_mtime_ns
+        and expected.get("ctime_ns") == st.st_ctime_ns
     )
+
+
+def _hash_retained_fd(fd: int, expected_bytes: int) -> str:
+    os.lseek(fd, 0, os.SEEK_SET)
+    digest = hashlib.sha256()
+    remaining = expected_bytes
+    while remaining:
+        chunk = os.read(fd, min(1024 * 1024, remaining))
+        if not chunk:
+            raise QualificationError("native_retained_fd_short_read")
+        digest.update(chunk)
+        remaining -= len(chunk)
+    if os.read(fd, 1):
+        raise QualificationError("native_retained_fd_grew")
+    os.lseek(fd, 0, os.SEEK_SET)
+    return digest.hexdigest()
 
 
 def _run_native_self_test(
     installer: Any,
     expected_native: dict[str, Any],
+    *,
+    _test_before_exec_hook: Any = None,
 ) -> tuple[str, str]:
     if os.geteuid() != 0:
         raise QualificationError("root_required_for_installed_qualification")
 
     try:
         visible_before = installer.NATIVE_TARGET.lstat()
-    except OSError as exc:
-        raise QualificationError("native_self_test_target_unavailable") from exc
-    if not _native_stat_matches_snapshot(visible_before, expected_native):
-        raise QualificationError("native_self_test_target_generation_mismatch")
-
-    try:
-        native_fd = os.open(
+        fd = os.open(
             installer.NATIVE_TARGET,
             os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
@@ -254,39 +263,24 @@ def _run_native_self_test(
         raise QualificationError("native_self_test_open_failed") from exc
 
     try:
-        opened_before = os.fstat(native_fd)
+        opened_before = os.fstat(fd)
         if (
             not _same_stat(visible_before, opened_before)
-            or not _native_stat_matches_snapshot(opened_before, expected_native)
+            or not _native_snapshot_matches_stat(expected_native, opened_before)
         ):
-            raise QualificationError("native_self_test_target_rebound")
-
-        digest = hashlib.sha256()
-        remaining = installer.NATIVE_BYTES
-        while remaining:
-            chunk = os.read(native_fd, min(1024 * 1024, remaining))
-            if not chunk:
-                raise QualificationError("native_self_test_target_short_read")
-            digest.update(chunk)
-            remaining -= len(chunk)
-        if os.read(native_fd, 1):
-            raise QualificationError("native_self_test_target_grew")
-        if digest.hexdigest() != installer.NATIVE_SHA256:
-            raise QualificationError("native_self_test_target_sha256_mismatch")
-
-        opened_after_hash = os.fstat(native_fd)
-        visible_after_hash = installer.NATIVE_TARGET.lstat()
+            raise QualificationError("native_self_test_generation_mismatch")
+        digest = _hash_retained_fd(fd, opened_before.st_size)
         if (
-            not _same_stat(opened_before, opened_after_hash)
-            or not _same_stat(opened_after_hash, visible_after_hash)
-            or not _native_stat_matches_snapshot(
-                opened_after_hash,
-                expected_native,
-            )
+            digest != expected_native.get("sha256")
+            or digest != installer.NATIVE_SHA256
+            or opened_before.st_size != installer.NATIVE_BYTES
         ):
-            raise QualificationError("native_self_test_target_changed_before_exec")
+            raise QualificationError("native_self_test_digest_mismatch")
 
-        exec_path = "/proc/self/fd/" + str(native_fd)
+        if _test_before_exec_hook is not None:
+            _test_before_exec_hook()
+
+        exec_path = "/proc/self/fd/" + str(fd)
         try:
             completed = subprocess.run(
                 [exec_path, "--self-test"],
@@ -301,29 +295,31 @@ def _run_native_self_test(
                 timeout=SELF_TEST_TIMEOUT_SECONDS,
                 check=False,
                 close_fds=True,
-                pass_fds=(native_fd,),
+                pass_fds=(fd,),
             )
         except (OSError, subprocess.SubprocessError, UnicodeError) as exc:
             raise QualificationError("native_self_test_execution_failed") from exc
 
-        opened_after_exec = os.fstat(native_fd)
+        opened_after = os.fstat(fd)
         try:
-            visible_after_exec = installer.NATIVE_TARGET.lstat()
+            visible_after = installer.NATIVE_TARGET.lstat()
         except OSError as exc:
             raise QualificationError(
-                "native_self_test_target_unavailable_after_exec"
+                "native_visible_generation_changed_during_execution"
             ) from exc
-        if (
-            not _same_stat(opened_before, opened_after_exec)
-            or not _same_stat(opened_after_exec, visible_after_exec)
-            or not _native_stat_matches_snapshot(
-                opened_after_exec,
-                expected_native,
+        if not _same_stat(opened_before, opened_after):
+            raise QualificationError(
+                "native_retained_generation_changed_during_execution"
             )
+        if (
+            not _same_stat(opened_after, visible_after)
+            or not _native_snapshot_matches_stat(expected_native, visible_after)
         ):
-            raise QualificationError("native_self_test_target_changed_during_exec")
+            raise QualificationError(
+                "native_visible_generation_changed_during_execution"
+            )
     finally:
-        os.close(native_fd)
+        os.close(fd)
 
     if completed.returncode != 0:
         raise QualificationError(
@@ -357,22 +353,15 @@ def _run_native_self_test(
         raise QualificationError("native_self_test_marker_missing:" + missing[0])
     return completed.stdout, "sha256:" + hashlib.sha256(encoded).hexdigest()
 
-
 def collect(expected_head: str) -> dict[str, Any]:
     if os.geteuid() != 0:
         raise QualificationError("root_required_for_installed_qualification")
     installer = _load_installer()
 
     before = _installed_snapshot(installer, expected_head)
-    first_output, first_sha = _run_native_self_test(
-        installer,
-        before["native"],
-    )
+    first_output, first_sha = _run_native_self_test(installer, before["native"])
     middle = _installed_snapshot(installer, expected_head)
-    second_output, second_sha = _run_native_self_test(
-        installer,
-        middle["native"],
-    )
+    second_output, second_sha = _run_native_self_test(installer, middle["native"])
     after = _installed_snapshot(installer, expected_head)
 
     if before != middle or middle != after:
@@ -395,6 +384,7 @@ def collect(expected_head: str) -> dict[str, Any]:
         "git_generation_bound": True,
         "setpriv_generation_bound": True,
         "native_self_test_execution": True,
+        "native_self_test_descriptor_bound": True,
         "native_self_test_stable": True,
         "native_self_test_sha256": first_sha,
         "native_sha256": installer.NATIVE_SHA256,
@@ -448,7 +438,7 @@ def plan() -> None:
     print("node_generation_binding_required=true")
     print("checkout_generation_binding_required=true")
     print("double_native_self_test_required=true")
-    print("native_self_test_verified_fd_execution_required=true")
+    print("descriptor_bound_native_self_test_required=true")
     print("native_self_test_execution=false")
     print("runner_execution=false")
     print("live_composition_execution=false")
@@ -497,6 +487,7 @@ def main() -> int:
         "git_generation_bound",
         "setpriv_generation_bound",
         "native_self_test_execution",
+        "native_self_test_descriptor_bound",
         "native_self_test_stable",
         "native_self_test_sha256",
         "native_sha256",
