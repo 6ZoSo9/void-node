@@ -102,8 +102,20 @@ with tempfile.TemporaryDirectory(prefix="void-e2-installed-native-fd-swap-") as 
     native=root/"native"
     replacement=root/"replacement"
     saved=root/"native.saved"
-    source_a.write_text("int main(void){return 0;}\n",encoding="utf-8")
-    source_b.write_text("int main(void){return 17;}\n",encoding="utf-8")
+    ran_a=root/"ran-a"
+    ran_b=root/"ran-b"
+    source_a.write_text(
+        '#include <stdio.h>\n'
+        'int main(void){FILE*f=fopen("'+str(ran_a)+'","w");'
+        'if(f){fputs("a",f);fclose(f);}return 0;}\n',
+        encoding="utf-8",
+    )
+    source_b.write_text(
+        '#include <stdio.h>\n'
+        'int main(void){FILE*f=fopen("'+str(ran_b)+'","w");'
+        'if(f){fputs("b",f);fclose(f);}return 17;}\n',
+        encoding="utf-8",
+    )
     for source_file,target in ((source_a,native),(source_b,replacement)):
         cp=subprocess.run(
             [
@@ -155,7 +167,13 @@ with tempfile.TemporaryDirectory(prefix="void-e2-installed-native-fd-swap-") as 
                 _test_before_exec_hook=swap_visible_path,
             )
         except module.QualificationError as exc:
-            assert str(exc)=="native_visible_generation_changed_during_execution"
+            assert str(exc) in (
+                "native_visible_generation_changed_during_execution",
+                "native_retained_generation_changed_during_execution",
+            )
+            assert ran_a.is_file()
+            assert ran_a.read_text("utf-8")=="a"
+            assert not ran_b.exists()
         else:
             raise AssertionError("pathname swap unexpectedly qualified")
     finally:
@@ -222,6 +240,8 @@ print("checkout_generation_binding_required=true")
 print("double_native_self_test_required=true")
 print("descriptor_bound_native_self_test_required=true")
 print("pathname_swap_during_self_test_rejected=true")
+print("retained_fd_executed_during_path_swap=true")
+print("replacement_path_not_executed=true")
 print("runner_execution=false")
 print("live_composition_execution=false")
 print("credential_access=false")
