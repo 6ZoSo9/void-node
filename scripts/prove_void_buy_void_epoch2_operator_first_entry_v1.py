@@ -218,8 +218,9 @@ with tempfile.TemporaryDirectory(prefix="void-e2-operator-first-entry-proof-") a
     assert "installer_apply_performed=false" in self_test.stdout
     assert "installed_qualifier_run_performed=false" in self_test.stdout
 
+    initial_opt = os.lstat("/opt")
     fixture_root = pathlib.Path(
-        f"/opt/void-buy-void-epoch2-operator-first-entry-proof-{os.getpid()}"
+        f"/root/void-buy-void-epoch2-operator-first-entry-proof-{os.getpid()}"
     )
     local_installer = temp / "installer_fixture.py"
     local_qualifier = temp / "qualifier_fixture.py"
@@ -529,8 +530,13 @@ with tempfile.TemporaryDirectory(prefix="void-e2-operator-first-entry-proof-") a
     finally:
         sudo(["rm", "-rf", str(fixture_root)], check=False)
 
+    final_opt = os.lstat("/opt")
+    for field in ("st_dev", "st_ino", "st_uid", "st_gid", "st_mode"):
+        assert getattr(final_opt, field) == getattr(initial_opt, field), field
+
 print("VOID_BUY_VOID_EPOCH2_OPERATOR_FIRST_ENTRY_V1_PROOF_GREEN")
 print("production_static_no_pt_interp=true")
+print("host_opt_identity_unchanged=true")
 print("fixed_operation_allowlist_proven=true")
 print("caller_selected_paths_rejected=true")
 print("wrong_apply_confirmation_rejected_before_child=true")
