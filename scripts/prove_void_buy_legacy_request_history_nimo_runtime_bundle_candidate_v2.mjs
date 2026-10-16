@@ -21,6 +21,7 @@ assert.equal(
   VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_CANDIDATE_V2,
 );
 assert.match(candidate.candidate_id, /^voidblrhnrb2_[0-9a-f]{64}$/u);
+assert.equal(candidate.version, 2);
 assert.equal(
   candidate.parent_plan.exact_parent_head,
   "a89523ac7f6e6d013a86054e998fcb51f051ec51",
