@@ -8,6 +8,7 @@ import {
   qualifyApollyonDurableAttemptClaimSuccessResponseShapeV2,
 } from "./apollyon-durable-attempt-claim-store-contract-v2.mjs";
 import {
+  deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1,
   validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
 } from "./apollyon-durable-attempt-claim-authorization-slot-v1.mjs";
 
@@ -38,6 +39,7 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_AUTHORITY_V1 =
     unique_authorization_claim_slot_protected_origin_proven:false,
     unique_authorization_claim_slot_revalidation_required:true,
     unique_authorization_claim_slot_revalidation_performed:false,
+    training_start_slot_derived_from_authorization_slot_required:true,
     protected_namespace_keyed_by_consumption_slot_required:true,
     training_start_consumption_performed:false,
     existing_exact_consumption_reusable_admission:false,
@@ -240,6 +242,15 @@ export function validateApollyonTrainingStartConsumptionRecordV1(input){
     )
   ){
     fail("apollyon_training_start_v1_consumption_record_invalid");
+  }
+  const expectedAuthorizationSlot=
+    deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1({
+      authorization_id:value.authorization_id,
+      attempt_limit:value.attempt_limit,
+      automatic_retry_authorized:value.automatic_retry_authorized,
+    });
+  if(value.authorization_slot_id!==expectedAuthorizationSlot){
+    fail("apollyon_training_start_v1_authorization_slot_id_invalid");
   }
   const expectedSlot=trainingStartConsumptionSlotId({
     authorization_slot_id:value.authorization_slot_id,
@@ -457,6 +468,7 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     unique_authorization_claim_slot_protected_origin_proven:false,
     unique_authorization_claim_slot_revalidation_required:true,
     unique_authorization_claim_slot_revalidation_performed:false,
+    training_start_slot_derived_from_authorization_slot:true,
     protected_namespace_keyed_by_consumption_slot_required:true,
     training_start_consumption_performed:false,
     existing_exact_consumption_reusable_admission:false,
