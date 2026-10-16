@@ -42,7 +42,8 @@ ENV={"PATH":"/usr/bin:/bin","LANG":"C","LC_ALL":"C","TZ":"UTC","SOURCE_DATE_EPOC
 COMPILE=("-std=c11","-Wall","-Wextra","-Werror","-O2","-fno-ident")
 PREEXEC_COMPILE=(*COMPILE,"-fno-pie")
 PREEXEC_LINK=("-static","-fno-pie","-no-pie","-Wl,--build-id=none","-Wl,-t,-t")
-QUERY_LINK=("-Wl,--build-id=none","-Wl,-t,-t","-ldl")
+QUERY_LINK=("-Wl,--build-id=none","-Wl,-t,-t")
+QUERY_LINK_TAIL=("-ldl",)
 ARCHIVE_PREFIX=re.compile(r"^\((/[^()\x00\r\n]+)\)([^()\x00\r\n]+)$")
 ARCHIVE_SUFFIX=re.compile(r"^(/[^()\x00\r\n]+)\(([^()\x00\r\n]+)\)$")
 
@@ -120,8 +121,14 @@ def toolchain_base()->dict:
     executables["strip"]=file_identity(STRIP,"strip")
     return {
         "executables":executables,
-        "gcc_specs_sha256":sha256(capture([os.fspath(CC),"-dumpspecs"])),
-        "gcc_search_dirs_sha256":sha256(capture([os.fspath(CC),"-print-search-dirs"])),
+        "gcc_specs":{
+            "bytes":len(capture([os.fspath(CC),"-dumpspecs"])),
+            "sha256":sha256(capture([os.fspath(CC),"-dumpspecs"])),
+        },
+        "gcc_search_dirs":{
+            "bytes":len(capture([os.fspath(CC),"-print-search-dirs"])),
+            "sha256":sha256(capture([os.fspath(CC),"-print-search-dirs"])),
+        },
         "dumpmachine":capture([os.fspath(CC),"-dumpmachine"]).decode().strip(),
         "dumpversion":capture([os.fspath(CC),"-dumpfullversion","-dumpversion"]).decode().strip(),
     }
@@ -175,7 +182,10 @@ def parse_trace(raw:bytes,obj:Path)->dict:
         "file_identities":[identities[k] for k in sorted(identities)],
     }
 
-def build_one(label:str,source_rel:str,compile_flags:tuple[str,...],link_flags:tuple[str,...],root:Path)->dict:
+def build_one(
+    label:str,source_rel:str,compile_flags:tuple[str,...],
+    link_flags:tuple[str,...],link_tail:tuple[str,...],root:Path
+)->dict:
     source=ROOT/source_rel
     pre=root/(label+".i")
     obj=root/(label+".o")
@@ -186,7 +196,7 @@ def build_one(label:str,source_rel:str,compile_flags:tuple[str,...],link_flags:t
     r=run([os.fspath(CC),*compile_flags,"-c","-o",os.fspath(obj),os.fspath(source)])
     if r.stdout or r.stderr: raise AssertionError(label+" compile emitted output")
     obj_b=read(obj,4*1024*1024,label+" object")
-    r=run([os.fspath(CC),*link_flags,"-o",os.fspath(elf),os.fspath(obj)])
+    r=run([os.fspath(CC),*link_flags,"-o",os.fspath(elf),os.fspath(obj),*link_tail])
     if r.stderr: raise AssertionError(label+" linker stderr: "+r.stderr.decode("utf-8","replace")[-1000:])
     trace=parse_trace(r.stdout,obj)
     r=run([os.fspath(STRIP),"--strip-all",os.fspath(elf)])
@@ -227,10 +237,10 @@ def derive()->tuple[dict,bytes,bytes]:
     base=toolchain_base()
     with tempfile.TemporaryDirectory(prefix="void-credential-v3-provenance-") as td:
         root=Path(td)
-        pre_a=build_one("preexec-a",PREEXEC_REL,PREEXEC_COMPILE,PREEXEC_LINK,root)
-        pre_b=build_one("preexec-b",PREEXEC_REL,PREEXEC_COMPILE,PREEXEC_LINK,root)
-        query_a=build_one("query-a",QUERY_REL,COMPILE,QUERY_LINK,root)
-        query_b=build_one("query-b",QUERY_REL,COMPILE,QUERY_LINK,root)
+        pre_a=build_one("preexec-a",PREEXEC_REL,PREEXEC_COMPILE,PREEXEC_LINK,(),root)
+        pre_b=build_one("preexec-b",PREEXEC_REL,PREEXEC_COMPILE,PREEXEC_LINK,(),root)
+        query_a=build_one("query-a",QUERY_REL,COMPILE,QUERY_LINK,QUERY_LINK_TAIL,root)
+        query_b=build_one("query-b",QUERY_REL,COMPILE,QUERY_LINK,QUERY_LINK_TAIL,root)
         for a,b,label in ((pre_a,pre_b,"preexec"),(query_a,query_b,"query")):
             aa={k:v for k,v in a.items() if k!="_path"};bb={k:v for k,v in b.items() if k!="_path"}
             if aa!=bb: raise AssertionError(label+" two local builds/toolchain closures differ")
@@ -248,6 +258,21 @@ def derive()->tuple[dict,bytes,bytes]:
         "v2_predecessor_lock_id":V2_LOCK_ID,
         "source_identity":source_identity,
         "toolchain":base,
+        "build_recipe":{
+            "preexec":{
+                "preprocess":[os.fspath(CC),*PREEXEC_COMPILE,"-E","-P"],
+                "compile":[os.fspath(CC),*PREEXEC_COMPILE,"-c"],
+                "link":[os.fspath(CC),*PREEXEC_LINK,"-o","<output>","<object>"],
+                "strip":[os.fspath(STRIP),"--strip-all"],
+            },
+            "query":{
+                "preprocess":[os.fspath(CC),*COMPILE,"-E","-P"],
+                "compile":[os.fspath(CC),*COMPILE,"-c"],
+                "link":[os.fspath(CC),*QUERY_LINK,"-o","<output>","<object>",*QUERY_LINK_TAIL],
+                "strip":[os.fspath(STRIP),"--strip-all"],
+            },
+            "source_date_epoch":"0",
+        },
         "preexec_build":pre_report,
         "query_build":query_report,
         "preexec_predecessor_identity_required":True,
