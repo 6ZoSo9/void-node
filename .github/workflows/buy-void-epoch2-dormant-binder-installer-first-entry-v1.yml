@@ -39,11 +39,11 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c)" = \
-            6ebd3d7f7f87250f5583a9a93d07cd46b20e0669
+            9bfb57273255a0d6070874a5454f4f0ab1e6216e
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py)" = \
-            0467c043d54d73dc4e9738e594b756dcc0844d1f
+            904b5bf6c0b24f13a2edbf25864652cef41cbcde
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md)" = \
-            0638f3e49f491b313045f603beac1646dd7d20b1
+            d236fc1625d0a92c16c8cee464cd9557706f6ce5
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Prove privileged first entry
@@ -66,6 +66,11 @@ jobs:
             'native_candidate_generation_bound_before_python=true' \
             'python_generation_bound_before_payload=true' \
             'retained_installer_descriptor_execution=true' \
+            'retained_native_descriptor_consumed_by_child=true' \
+            'private_parent_proof_fd_consumed=true' \
+            'parent_kernel_generation_proof_required=true' \
+            'direct_installer_apply_without_parent_proof_authorized=false' \
+            'mid_child_native_path_substitution_cannot_change_child_bytes=true' \
             'post_child_generation_revalidation=true' \
             'abnormal_apply_receipt_conservative=true' \
             'ld_preload_dynamic_control_executes=true' \
