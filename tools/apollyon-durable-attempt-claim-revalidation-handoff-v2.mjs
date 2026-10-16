@@ -163,6 +163,8 @@ export function qualifyApollyonDurableAttemptClaimRevalidationHandoffV2(){
       privileged_revalidator_control_can_publish_claim:false,
       publisher_request_is_only_claim_body_role:true,
       claim_service_so_peercred_before_any_request_body_required:true,
+      publisher_authenticates_claim_service_before_request_body_required:true,
+      claim_service_socket_and_process_stability_revalidation_required:true,
       revalidator_peer_uid:0,
       revalidator_peer_gid:0,
       revalidator_supplementary_groups_empty_required:true,
@@ -222,6 +224,7 @@ export function qualifyApollyonDurableAttemptClaimRevalidationHandoffV2(){
       retained_authenticated_revalidator_connection_required:true,
       control_connection_bytes_before_challenge_forbidden:true,
       revalidator_reruns_all_privileged_checks_after_challenge_required:true,
+      revalidator_revalidates_exact_same_request_after_challenge_required:true,
       response_frame_exact_bytes:64,
       response_frame_layout:
         "challenge_32_bytes_then_publish_request_sha256_raw_32_bytes",
@@ -238,6 +241,8 @@ export function qualifyApollyonDurableAttemptClaimRevalidationHandoffV2(){
       challenge_failure_or_timeout_rejects_without_store_mutation_required:true,
     },
     mutation_and_ack_boundary:{
+      privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation:true,
+      all_parent_store_contract_local_prepublication_checks_remain_required:true,
       request_digest_must_match_fresh_revalidator_response_required:true,
       provenance_connections_must_remain_live_before_store_mutation_required:true,
       provenance_generation_drift_before_mutation_rejects_required:true,

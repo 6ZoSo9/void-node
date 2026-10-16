@@ -80,6 +80,8 @@ assert.equal(result.provenance_connections.privileged_revalidator_control_carrie
 assert.equal(result.provenance_connections.privileged_revalidator_control_can_publish_claim,false);
 assert.equal(result.provenance_connections.publisher_request_is_only_claim_body_role,true);
 assert.equal(result.provenance_connections.claim_service_so_peercred_before_any_request_body_required,true);
+assert.equal(result.provenance_connections.publisher_authenticates_claim_service_before_request_body_required,true);
+assert.equal(result.provenance_connections.claim_service_socket_and_process_stability_revalidation_required,true);
 assert.equal(result.provenance_connections.root_not_implicitly_authorized_to_publish,true);
 assert.equal(result.parent_child_lineage.revalidator_must_spawn_publisher_directly,true);
 assert.equal(result.parent_child_lineage.publisher_ppid_must_equal_authenticated_revalidator_pid,true);
@@ -106,7 +108,10 @@ assert.equal(result.fresh_prepublication_challenge.provenance_session_exactly_on
 assert.equal(result.fresh_prepublication_challenge.provenance_session_reuse_forbidden,true);
 assert.equal(result.fresh_prepublication_challenge.publisher_connection_after_authenticated_control_required,true);
 assert.equal(result.fresh_prepublication_challenge.revalidator_reruns_all_privileged_checks_after_challenge_required,true);
+assert.equal(result.fresh_prepublication_challenge.revalidator_revalidates_exact_same_request_after_challenge_required,true);
 assert.equal(result.fresh_prepublication_challenge.response_binds_publish_request_sha256_required,true);
+assert.equal(result.mutation_and_ack_boundary.privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation,true);
+assert.equal(result.mutation_and_ack_boundary.all_parent_store_contract_local_prepublication_checks_remain_required,true);
 assert.equal(result.mutation_and_ack_boundary.provenance_loss_after_mutation_must_not_return_success_required,true);
 assert.equal(result.future_host_qualification.this_source_contract_is_not_host_proof,true);
 assert.equal(result.implementation_present,false);
@@ -197,6 +202,7 @@ const sourceText=fs.readFileSync(
 );
 for(const required of [
   "claim_service_so_peercred_before_any_request_body_required:true",
+  "publisher_authenticates_claim_service_before_request_body_required:true",
   "publisher_ppid_must_equal_authenticated_revalidator_pid:true",
   "revalidator_pidfd_retained_required:true",
   "publisher_pidfd_retained_required:true",
@@ -207,6 +213,7 @@ for(const required of [
   "control_connection_bytes_before_challenge_forbidden:true",
   "revalidator_reruns_all_privileged_checks_after_challenge_required:true",
   "response_binds_publish_request_sha256_required:true",
+  "privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation:true",
   "serialized_privileged_attestation_or_bearer_token_forbidden:true",
   "provenance_loss_after_mutation_must_not_return_success_required:true",
 ])assert.equal(sourceText.includes(required),true,required);

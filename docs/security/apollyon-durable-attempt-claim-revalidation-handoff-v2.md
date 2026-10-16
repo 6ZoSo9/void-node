@@ -50,6 +50,11 @@ Both roles require `SO_PEERCRED`, retained pidfds, process start-time identity
 and exact source-generation binding. The publisher must be a direct child of
 the exact retained root revalidator generation.
 
+Before sending its request body, the publisher must also authenticate the claim
+service and its fixed socket/process generation as required by #3233. Provenance
+is mutual: the service authenticates caller lineage, and the publisher
+authenticates the server boundary.
+
 These are future runtime requirements. This source contract performs none of
 them.
 
@@ -100,8 +105,16 @@ control peer is authenticated.
 
 This response is live channel evidence. It is not a transferable credential.
 
+The post-challenge rerun must revalidate the exact same canonical request whose
+digest the claim service parsed.
+
 Timeout, disconnect, generation drift, challenge mismatch, request-digest
 mismatch, or failed privileged revalidation must prevent store mutation.
+
+The privileged handoff is additive. It never replaces the claim service's own
+accepted #3233 local pre-publication checks over its service policy, numeric
+identity, capability state, writable authority, store generation/root identity,
+or durability boundary.
 
 If provenance is lost after a mutation may have occurred, the service must not
 return a false success; the existing protected-store recovery/indeterminate
