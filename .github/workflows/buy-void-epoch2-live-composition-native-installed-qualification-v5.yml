@@ -53,13 +53,10 @@ jobs:
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v5.md)" =             "d7ad157a837c818e26c4588e310c6db46de88620"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" =             "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py)" =             "767e088d1383a8cecf4d5daa7bf6779f368db56e"
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py)" =             "34367fa59f9e09878bb74077b09b08d5c736310e"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v4.md)" =             "83179adb27081bbdfee0ab0f4eb1ff44a09929d1"
 
           git diff --check "$repaired_parent" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          echo historical_v4_qualifier_frozen=true
+          echo historical_v4_qualifier_preservation_owned_by_parent=true
 
       - name: Syntax check
         run: |
