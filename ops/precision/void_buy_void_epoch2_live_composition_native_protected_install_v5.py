@@ -125,6 +125,9 @@ class PublishedInstallError(InstallError):
         self.install_parent_close_completed: bool | None = None
         self.close_failure_class = "none"
         self.close_failure_reason = "none"
+        self.rollback_attempted: bool = False
+        self.rollback_green: bool | None = None
+        self.rollback_final_state_verified: bool | None = None
 
 
 def git_blob_sha1(raw: bytes) -> str:
@@ -1068,19 +1071,32 @@ def _failure_receipt(exc: BaseException) -> dict[str, str]:
                 return "unknown"
             return str(value).lower()
 
+        rollback_verified = exc.rollback_final_state_verified is True
+        final_state_verified = (
+            exc.final_verification_completed is True or rollback_verified
+        )
+        if (
+            exc.final_verification_completed is True
+            and exc.phase == "install_parent_close"
+        ):
+            publication_state = "published_verified_close_failed"
+        elif exc.rollback_attempted and exc.rollback_green is True:
+            publication_state = "published_rolled_back_green"
+        else:
+            publication_state = "published_needs_inspection"
         return {
             "protected_upgrade_performed": "true",
             "publication": "true",
-            "publication_state": (
-                "published_verified_close_failed"
-                if exc.final_verification_completed is True
-                and exc.phase == "install_parent_close"
-                else "published_needs_inspection"
-            ),
-            "final_state_verified": tri(exc.final_verification_completed),
+            "publication_state": publication_state,
+            "final_state_verified": str(final_state_verified).lower(),
             "publication_failure_phase": exc.phase,
             "parent_fsync_completed": tri(exc.parent_fsync_completed),
             "final_verification_completed": tri(exc.final_verification_completed),
+            "rollback_attempted": str(exc.rollback_attempted).lower(),
+            "rollback_green": tri(exc.rollback_green),
+            "rollback_final_state_verified": tri(
+                exc.rollback_final_state_verified
+            ),
             "original_failure_class": exc.original_failure_class,
             "original_failure_reason": exc.original_failure_reason,
             "install_parent_close_completed": tri(
@@ -1097,6 +1113,9 @@ def _failure_receipt(exc: BaseException) -> dict[str, str]:
         "publication_failure_phase": "not_published",
         "parent_fsync_completed": "not_applicable",
         "final_verification_completed": "not_applicable",
+        "rollback_attempted": "not_applicable",
+        "rollback_green": "not_applicable",
+        "rollback_final_state_verified": "not_applicable",
         "original_failure_class": failure_class,
         "original_failure_reason": failure_reason,
         "install_parent_close_completed": "not_applicable",
@@ -1155,6 +1174,7 @@ def apply(
     stage_created = False
     exchanged = False
     publication_occurred = False
+    forward_parent_fsync_completed = False
     predecessor_retained = False
     rollback_attempted = False
     rollback_green = False
@@ -1204,6 +1224,7 @@ def apply(
         exchanged = True
         publication_occurred = True
         os.fsync(opt_fd)
+        forward_parent_fsync_completed = True
 
         _verify_install_root(policy)
         _verify_predecessor_root(STAGE_ROOT)
@@ -1251,20 +1272,30 @@ def apply(
 
         print("automatic_rollback_attempted=" + str(rollback_attempted).lower())
         print("automatic_rollback_green=" + str(rollback_green).lower())
-        if publication_occurred and not rollback_green:
+        if publication_occurred:
             failure = _published_failure(
-                "atomic_upgrade_rollback_failed",
+                (
+                    "atomic_upgrade_rolled_back_after_failure"
+                    if rollback_green
+                    else "atomic_upgrade_rollback_failed"
+                ),
                 phase="atomic_upgrade_rollback",
-                parent_fsync_completed=None,
+                parent_fsync_completed=forward_parent_fsync_completed,
                 final_verification_completed=False,
                 cause=exc,
             )
+            failure.rollback_attempted = rollback_attempted
+            failure.rollback_green = rollback_green
+            failure.rollback_final_state_verified = rollback_green
             try:
                 os.close(opt_fd)
                 failure.install_parent_close_completed = True
             except OSError as close_exc:
                 failure.install_parent_close_completed = False
-                failure.close_failure_class, failure.close_failure_reason = _bounded_failure(close_exc)
+                (
+                    failure.close_failure_class,
+                    failure.close_failure_reason,
+                ) = _bounded_failure(close_exc)
             raise failure from exc
         try:
             os.close(opt_fd)
@@ -1340,7 +1371,9 @@ def self_test() -> None:
     own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
     assert "publication_occurred = False" in own_source
     assert "publication_occurred = True" in own_source
-    assert "if publication_occurred and not rollback_green:" in own_source
+    assert "if publication_occurred:" in own_source
+    assert "atomic_upgrade_rolled_back_after_failure" in own_source
+    assert 'publication_state = "published_rolled_back_green"' in own_source
     sample_node = {"sha256": "a" * 64, "bytes": 123}
     policy = build_policy("b" * 40, sample_node)
     assert policy == (
@@ -1376,6 +1409,9 @@ def self_test() -> None:
         "publication_failure_phase": "install_parent_close",
         "parent_fsync_completed": "true",
         "final_verification_completed": "true",
+        "rollback_attempted": "false",
+        "rollback_green": "unknown",
+        "rollback_final_state_verified": "unknown",
         "original_failure_class": "OSError",
         "original_failure_reason": "os_error_5",
         "install_parent_close_completed": "false",
