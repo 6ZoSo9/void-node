@@ -13,7 +13,7 @@ composition stack after #3296/#3297 corrected parent abnormal-child receipt trut
 
 Its source-generation anchor is exact reconciled native-preentry head:
 
-`5deec4ea5126ef657e0ae0e4a212423f9438e0a2`.
+`8aeabf286a99d2dc9d11a489c6052d4914198cf3`.
 
 The candidate does not reuse or repin the affected accepted V4 candidate/lock.
 It derives a new identity from #3297's repaired V3 native source and the same
