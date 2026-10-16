@@ -126,6 +126,8 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2
     "claim_history_count",
     "claim_history_sha256",
     "continuity_receipt_id",
+    "generation_lineage_count",
+    "generation_lineage_sha256",
     "genesis",
     "marker",
     "predecessor_store_generation_id",
@@ -142,12 +144,17 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2 =
     "claim_set_order",
     "continuity_receipt_id",
     "fresh_authorization_id",
+    "generation_lineage_order",
     "genesis",
     "marker",
+    "new_generation_lineage_count",
+    "new_generation_lineage_sha256",
     "new_root_identity_sha256",
     "new_store_generation_id",
     "old_root_identity_sha256",
     "old_store_generation_id",
+    "prior_generation_lineage_count",
+    "prior_generation_lineage_sha256",
     "predecessor_generation_record_id",
     "prior_claim_count",
     "prior_claim_set_sha256",
@@ -310,6 +317,12 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     migration_continuity_binds_predecessor_generation_record_id_required:true,
     migration_complete_prior_claim_count_required:true,
     migration_complete_prior_claim_set_sha256_required:true,
+    migration_generation_lineage_commitment_required:true,
+    migration_generation_lineage_order:"store_generation_id_lexicographic",
+    migration_prior_generation_lineage_count_required:true,
+    migration_prior_generation_lineage_sha256_required:true,
+    migration_new_generation_lineage_exact_extension_required:true,
+    migration_every_prior_claim_generation_in_authenticated_lineage_required:true,
     migration_claim_set_order:"claim_record_id_lexicographic",
     migration_every_prior_claim_exact_schema_and_hash_required:true,
     migration_authorization_ids_unique_across_complete_history_required:true,
@@ -957,6 +970,8 @@ function validateApollyonDurableAttemptClaimStoreGenerationRecordV2(value){
     typeof value.genesis!=="boolean"||
     !Number.isSafeInteger(value.claim_history_count)||value.claim_history_count<0||
     !HASH64.test(value.claim_history_sha256)||
+    !Number.isSafeInteger(value.generation_lineage_count)||value.generation_lineage_count<1||
+    !HASH64.test(value.generation_lineage_sha256)||
     !CONTINUITY_RECEIPT_ID.test(value.continuity_receipt_id)||
     !STORE_GENERATION_RECORD_ID.test(value.store_generation_record_id)
   ){
@@ -988,12 +1003,24 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
   }
   exactKeys(
     snapshot,
-    ["continuity_receipt","predecessor_generation_record","prior_claim_records"],
+    ["continuity_receipt","predecessor_generation_record","prior_claim_records","prior_generation_ids"],
     "apollyon_claim_store_continuity_v2_input_invalid",
   );
-  if(!Array.isArray(snapshot.prior_claim_records)){
+  if(
+    !Array.isArray(snapshot.prior_claim_records)||
+    !Array.isArray(snapshot.prior_generation_ids)
+  ){
     fail("apollyon_claim_store_continuity_v2_input_invalid");
   }
+  const lineage=[...snapshot.prior_generation_ids];
+  if(
+    lineage.some(value=>!STORE_GENERATION_ID.test(value))||
+    new Set(lineage).size!==lineage.length
+  ){
+    fail("apollyon_claim_store_continuity_v2_generation_lineage_invalid");
+  }
+  const sortedLineage=[...lineage].sort();
+  const lineageSha=sha256(Buffer.from(canonical(sortedLineage),"utf8"));
   const records=snapshot.prior_claim_records.map(
     validateApollyonDurableAttemptClaimRecordShapeOnlyV2,
   );
@@ -1020,8 +1047,14 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
     !HASH64.test(receipt.new_root_identity_sha256)||
     typeof receipt.genesis!=="boolean"||
     receipt.claim_set_order!=="claim_record_id_lexicographic"||
+    receipt.generation_lineage_order!=="store_generation_id_lexicographic"||
     receipt.prior_claim_count!==sorted.length||
     receipt.prior_claim_set_sha256!==historySha||
+    receipt.prior_generation_lineage_count!==sortedLineage.length||
+    receipt.prior_generation_lineage_sha256!==lineageSha||
+    !Number.isSafeInteger(receipt.new_generation_lineage_count)||
+    receipt.new_generation_lineage_count<1||
+    !HASH64.test(receipt.new_generation_lineage_sha256)||
     !AUTH_ID.test(receipt.fresh_authorization_id)||
     !CONTINUITY_RECEIPT_ID.test(receipt.continuity_receipt_id)
   ){
@@ -1030,12 +1063,28 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
   if(sorted.some(record=>record.authorization_id===receipt.fresh_authorization_id)){
     fail("apollyon_claim_store_continuity_v2_fresh_authorization_reused");
   }
+  const priorLineageSet=new Set(sortedLineage);
+  const newLineage=[...sortedLineage,receipt.new_store_generation_id].sort();
+  const newLineageSha=sha256(Buffer.from(canonical(newLineage),"utf8"));
+  if(
+    priorLineageSet.has(receipt.new_store_generation_id)||
+    receipt.new_generation_lineage_count!==newLineage.length||
+    receipt.new_generation_lineage_sha256!==newLineageSha
+  ){
+    fail("apollyon_claim_store_continuity_v2_new_generation_lineage_invalid");
+  }
+  if(sorted.some(record=>!priorLineageSet.has(record.store_generation_id))){
+    fail("apollyon_claim_store_continuity_v2_record_generation_not_in_lineage");
+  }
   if(receipt.genesis){
     if(
       receipt.old_store_generation_id!==null||
       receipt.old_root_identity_sha256!==null||
       receipt.predecessor_generation_record_id!==null||
       sorted.length!==0||
+      sortedLineage.length!==0||
+      receipt.prior_generation_lineage_count!==0||
+      receipt.prior_generation_lineage_sha256!==sha256(Buffer.from(canonical([]),"utf8"))||
       snapshot.predecessor_generation_record!==null
     ){
       fail("apollyon_claim_store_continuity_v2_genesis_invalid");
@@ -1060,7 +1109,10 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
       predecessor.store_generation_record_id!==receipt.predecessor_generation_record_id||
       predecessor.root_identity_sha256!==receipt.old_root_identity_sha256||
       predecessor.claim_history_count!==sorted.length||
-      predecessor.claim_history_sha256!==historySha
+      predecessor.claim_history_sha256!==historySha||
+      predecessor.generation_lineage_count!==sortedLineage.length||
+      predecessor.generation_lineage_sha256!==lineageSha||
+      !priorLineageSet.has(predecessor.store_generation_id)
     ){
       fail("apollyon_claim_store_continuity_v2_predecessor_mismatch");
     }

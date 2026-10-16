@@ -48,7 +48,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "81a289b5c7e33cf335f8e7b9266e9f0abecc9808",
+    "ac05731055bf888f59469df1769a2ec650f40a98",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -172,8 +172,9 @@ assert.deepEqual(
   [
     "authorization_id","claim_record_id","claim_record_sha256","custody_generation_id",
     "durability_proven","final_visible_record_revalidated","marker","outcome",
-    "publish_request_sha256","status","store_contract_id","store_generation_id",
-    "terminal_receipt_id","training_start_admission","version",
+    "next_gate","publish_request_sha256","status","store_contract_id","store_generation_id",
+    "terminal_receipt_id","training_start_admission","training_start_consumption_performed",
+    "training_start_consumption_required","version",
   ],
 );
 assert.deepEqual(
@@ -187,7 +188,8 @@ assert.deepEqual(
 assert.deepEqual(
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,
   [
-    "claim_history_count","claim_history_sha256","continuity_receipt_id","genesis",
+    "claim_history_count","claim_history_sha256","continuity_receipt_id",
+    "generation_lineage_count","generation_lineage_sha256","genesis",
     "marker","predecessor_store_generation_id","root_identity_sha256","status",
     "store_contract_id","store_generation_id","store_generation_record_id","version",
   ],
@@ -195,11 +197,14 @@ assert.deepEqual(
 assert.deepEqual(
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2,
   [
-    "claim_set_order","continuity_receipt_id","fresh_authorization_id","genesis",
-    "marker","new_root_identity_sha256","new_store_generation_id",
+    "claim_set_order","continuity_receipt_id","fresh_authorization_id",
+    "generation_lineage_order","genesis","marker",
+    "new_generation_lineage_count","new_generation_lineage_sha256",
+    "new_root_identity_sha256","new_store_generation_id",
     "old_root_identity_sha256","old_store_generation_id","predecessor_generation_record_id",
-    "prior_claim_count",
-    "prior_claim_set_sha256","status","store_contract_id","version",
+    "prior_claim_count","prior_claim_set_sha256",
+    "prior_generation_lineage_count","prior_generation_lineage_sha256",
+    "status","store_contract_id","version",
   ],
 );
 assert.equal(VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_SYSTEMD_REQUIREMENTS_V2.umask,"0077");
@@ -831,8 +836,17 @@ const PRIOR_HISTORY_SHA=sha256(Buffer.from(
 ));
 const OLD_GENERATION_ID="apollyon_claim_store_generation_v2:"+"c".repeat(64);
 const NEW_GENERATION_ID="apollyon_claim_store_generation_v2:"+"d".repeat(64);
+const ROGUE_GENERATION_ID="apollyon_claim_store_generation_v2:"+"b".repeat(64);
 const OLD_ROOT_SHA="e".repeat(64);
 const NEW_ROOT_SHA="f".repeat(64);
+const PRIOR_GENERATION_IDS=[STORE_GENERATION_ID,OLD_GENERATION_ID].sort();
+const PRIOR_LINEAGE_SHA=sha256(Buffer.from(
+  canonicalApollyonClaimContractJsonV1(PRIOR_GENERATION_IDS),"utf8",
+));
+const NEW_GENERATION_IDS=[...PRIOR_GENERATION_IDS,NEW_GENERATION_ID].sort();
+const NEW_LINEAGE_SHA=sha256(Buffer.from(
+  canonicalApollyonClaimContractJsonV1(NEW_GENERATION_IDS),"utf8",
+));
 const predecessorMaterial={
   marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_V2",
   version:2,
@@ -840,10 +854,12 @@ const predecessorMaterial={
   store_contract_id:result.store_contract_id,
   store_generation_id:OLD_GENERATION_ID,
   root_identity_sha256:OLD_ROOT_SHA,
-  genesis:true,
-  predecessor_store_generation_id:null,
+  genesis:false,
+  predecessor_store_generation_id:STORE_GENERATION_ID,
   claim_history_count:PRIOR_RECORDS.length,
   claim_history_sha256:PRIOR_HISTORY_SHA,
+  generation_lineage_count:PRIOR_GENERATION_IDS.length,
+  generation_lineage_sha256:PRIOR_LINEAGE_SHA,
   continuity_receipt_id:"apollyon_claim_store_continuity_v2:"+"5".repeat(64),
 };
 const predecessor={
@@ -867,6 +883,11 @@ function continuityReceipt(overrides={}){
     prior_claim_set_sha256:PRIOR_HISTORY_SHA,
     claim_set_order:"claim_record_id_lexicographic",
     fresh_authorization_id:"apollyon_authz_v1:"+"6".repeat(64),
+    generation_lineage_order:"store_generation_id_lexicographic",
+    prior_generation_lineage_count:PRIOR_GENERATION_IDS.length,
+    prior_generation_lineage_sha256:PRIOR_LINEAGE_SHA,
+    new_generation_lineage_count:NEW_GENERATION_IDS.length,
+    new_generation_lineage_sha256:NEW_LINEAGE_SHA,
     ...overrides,
   };
   return {
@@ -880,9 +901,74 @@ function continuityReceipt(overrides={}){
     continuity_receipt:continuityReceipt(),
     predecessor_generation_record:predecessor,
     prior_claim_records:PRIOR_RECORDS,
+    prior_generation_ids:PRIOR_GENERATION_IDS,
   });
   assert.equal(q.prior_claim_count,2);
   assert.equal(q.prior_claim_set_sha256,PRIOR_HISTORY_SHA);
+}
+{
+  const duplicateLineage=[...PRIOR_GENERATION_IDS,PRIOR_GENERATION_IDS[0]];
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
+      continuity_receipt:continuityReceipt(),
+      predecessor_generation_record:predecessor,
+      prior_claim_records:PRIOR_RECORDS,
+      prior_generation_ids:duplicateLineage,
+    }),
+    /generation_lineage_invalid/u,
+  );
+}
+{
+  const rogue=oldClaimRecord("8","9");
+  const rogueMaterial={...rogue,store_generation_id:ROGUE_GENERATION_ID};
+  delete rogueMaterial.claim_record_id;
+  const rogueRecord={
+    ...rogueMaterial,
+    claim_record_id:"apollyon_attempt_claim_record_v2:"+
+      sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(rogueMaterial),"utf8")),
+  };
+  const rogueRecords=[PRIOR_RECORDS[0],rogueRecord].sort(
+    (a,b)=>a.claim_record_id.localeCompare(b.claim_record_id),
+  );
+  const rogueHistorySha=sha256(Buffer.from(
+    canonicalApollyonClaimContractJsonV1(rogueRecords),"utf8",
+  ));
+  const roguePredMaterial={
+    ...predecessorMaterial,
+    claim_history_count:rogueRecords.length,
+    claim_history_sha256:rogueHistorySha,
+  };
+  const roguePredecessor={
+    ...roguePredMaterial,
+    store_generation_record_id:"apollyon_claim_store_generation_record_v2:"+
+      sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(roguePredMaterial),"utf8")),
+  };
+  const rogueReceipt=continuityReceipt({
+    predecessor_generation_record_id:roguePredecessor.store_generation_record_id,
+    prior_claim_count:rogueRecords.length,
+    prior_claim_set_sha256:rogueHistorySha,
+  });
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
+      continuity_receipt:rogueReceipt,
+      predecessor_generation_record:roguePredecessor,
+      prior_claim_records:rogueRecords,
+      prior_generation_ids:PRIOR_GENERATION_IDS,
+    }),
+    /record_generation_not_in_lineage/u,
+  );
+}
+{
+  const reusedNewLineage=[...PRIOR_GENERATION_IDS,NEW_GENERATION_ID].sort();
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
+      continuity_receipt:continuityReceipt(),
+      predecessor_generation_record:predecessor,
+      prior_claim_records:PRIOR_RECORDS,
+      prior_generation_ids:reusedNewLineage,
+    }),
+    /new_generation_lineage_invalid|predecessor_mismatch/u,
+  );
 }
 {
   const badPredecessor={...predecessor,store_generation_record_id:
@@ -892,6 +978,7 @@ function continuityReceipt(overrides={}){
       continuity_receipt:continuityReceipt(),
       predecessor_generation_record:badPredecessor,
       prior_claim_records:PRIOR_RECORDS,
+      prior_generation_ids:PRIOR_GENERATION_IDS,
     }),
     /generation_record_v2_id_invalid|predecessor_mismatch/u,
   );
@@ -902,6 +989,7 @@ function continuityReceipt(overrides={}){
       continuity_receipt:continuityReceipt(),
       predecessor_generation_record:predecessor,
       prior_claim_records:[PRIOR_RECORDS[0]],
+      prior_generation_ids:PRIOR_GENERATION_IDS,
     }),
     /receipt_invalid|predecessor_mismatch/u,
   );
@@ -916,6 +1004,7 @@ function continuityReceipt(overrides={}){
       continuity_receipt:continuityReceipt(),
       predecessor_generation_record:predecessor,
       prior_claim_records:duplicateAuthorization,
+      prior_generation_ids:PRIOR_GENERATION_IDS,
     }),
     /authorization_replay/u,
   );
@@ -929,6 +1018,7 @@ function continuityReceipt(overrides={}){
       continuity_receipt:reused,
       predecessor_generation_record:predecessor,
       prior_claim_records:PRIOR_RECORDS,
+      prior_generation_ids:PRIOR_GENERATION_IDS,
     }),
     /fresh_authorization_reused/u,
   );
@@ -942,6 +1032,7 @@ function continuityReceipt(overrides={}){
       continuity_receipt:sameGeneration,
       predecessor_generation_record:predecessor,
       prior_claim_records:PRIOR_RECORDS,
+      prior_generation_ids:PRIOR_GENERATION_IDS,
     }),
     /migration_invalid/u,
   );
@@ -955,6 +1046,7 @@ function continuityReceipt(overrides={}){
       continuity_receipt:sameRoot,
       predecessor_generation_record:predecessor,
       prior_claim_records:PRIOR_RECORDS,
+      prior_generation_ids:PRIOR_GENERATION_IDS,
     }),
     /migration_invalid/u,
   );
@@ -966,6 +1058,7 @@ function continuityReceipt(overrides={}){
       continuity_receipt:nonBoolean,
       predecessor_generation_record:predecessor,
       prior_claim_records:PRIOR_RECORDS,
+      prior_generation_ids:PRIOR_GENERATION_IDS,
     }),
     /receipt_invalid/u,
   );
@@ -977,6 +1070,7 @@ function continuityReceipt(overrides={}){
       continuity_receipt:continuityReceipt(),
       predecessor_generation_record:predecessor,
       prior_claim_records:[mutated,PRIOR_RECORDS[1]],
+      prior_generation_ids:PRIOR_GENERATION_IDS,
     }),
     /id_invalid/u,
   );
@@ -997,6 +1091,7 @@ function continuityReceipt(overrides={}){
       continuity_receipt:forged,
       predecessor_generation_record:predecessor,
       prior_claim_records:[],
+      prior_generation_ids:[],
     }),
     /genesis_invalid/u,
   );
@@ -1079,6 +1174,10 @@ for(const required of [
   'store_generation_record_content_addressed_id_required:true',
   'migration_continuity_receipt_exact_schema_required:true',
   'migration_continuity_binds_predecessor_generation_record_id_required:true',
+  'migration_generation_lineage_commitment_required:true',
+  'migration_prior_generation_lineage_sha256_required:true',
+  'migration_new_generation_lineage_exact_extension_required:true',
+  'migration_every_prior_claim_generation_in_authenticated_lineage_required:true',
   'migration_old_new_generation_distinct_required:true',
   'migration_old_new_root_identity_distinct_required:true',
   'migration_authorization_ids_unique_across_complete_history_required:true',
@@ -1149,6 +1248,8 @@ console.log("claim_client_server_authentication_required=true");
 console.log("store_generation_record_content_addressed_id_required=true");
 console.log("migration_continuity_receipt_exact_schema_required=true");
 console.log("migration_continuity_binds_predecessor_generation_record_id_required=true");
+console.log("migration_generation_lineage_commitment_required=true");
+console.log("migration_every_prior_claim_generation_in_authenticated_lineage_required=true");
 console.log("migration_old_new_generation_distinct_required=true");
 console.log("migration_old_new_root_identity_distinct_required=true");
 console.log("migration_authorization_ids_unique_across_complete_history_required=true");
