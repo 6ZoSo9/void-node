@@ -581,6 +581,19 @@ export function parseQualificationHoldStdout(stdout){
   return Object.freeze({...out,reason});
 }
 
+export function qualificationProcessFailure(result){
+  const status=result?.status;
+  if(status===2&&result?.stderr===""){
+    try{
+      const hold=parseQualificationHoldStdout(String(result?.stdout??""));
+      return new Error("credential_qualification_hold:"+hold.reason);
+    }catch{
+      // Malformed output is not a reviewed qualification HOLD.
+    }
+  }
+  return new Error("credential_qualification_failed:"+String(status));
+}
+
 function pythonBootstrap(source){
   const absolute=path.join(ROOT,QUALIFIER_REL);
   const encoded=source.toString("base64");
@@ -604,19 +617,7 @@ function runQualification(expectedHead){
       input:bootstrap,
       timeout:60_000,
     });
-    if(r.status!==0){
-      if(r.status===2&&r.stderr===""){
-        try{
-          const hold=parseQualificationHoldStdout(r.stdout);
-          throw new Error("credential_qualification_hold:"+hold.reason);
-        }catch(error){
-          if(String(error?.message||"").startsWith("credential_qualification_hold:")){
-            throw error;
-          }
-        }
-      }
-      throw new Error("credential_qualification_failed:"+String(r.status));
-    }
+    if(r.status!==0)throw qualificationProcessFailure(r);
     if(r.stderr!=="")throw new Error("credential_qualification_unexpected_stderr");
     const parsed=parseQualificationStdout(r.stdout);
     validateQualification(parsed);
@@ -993,14 +994,32 @@ function selfTest(){
      "v6_security_qualification_hold:protected_v6_generation_not_green"){
     throw new Error("qualification_hold_reason_self_test_failed");
   }
+  const mappedHold=qualificationProcessFailure({
+    status:2,stderr:"",stdout:nestedHoldText,
+  });
+  if(mappedHold.message!==
+     "credential_qualification_hold:"+
+     "v6_security_qualification_hold:protected_v6_generation_not_green"){
+    throw new Error("qualification_hold_process_mapping_failed");
+  }
   let malformedHoldRejected=false;
+  const forgedHoldText=
+    nestedHoldText.replace("transaction=false","transaction=true");
   try{
-    parseQualificationHoldStdout(
-      nestedHoldText.replace("transaction=false","transaction=true")
-    );
+    parseQualificationHoldStdout(forgedHoldText);
   }catch{malformedHoldRejected=true;}
   if(!malformedHoldRejected){
     throw new Error("qualification_hold_authority_adversary_accepted");
+  }
+  if(qualificationProcessFailure({
+       status:2,stderr:"",stdout:forgedHoldText,
+     }).message!=="credential_qualification_failed:2"){
+    throw new Error("forged_qualification_hold_reclassified");
+  }
+  if(qualificationProcessFailure({
+       status:1,stderr:"Traceback: synthetic",stdout:"",
+     }).message!=="credential_qualification_failed:1"){
+    throw new Error("unexpected_qualification_exit_reclassified");
   }
 
   let checkoutCount=0;
@@ -1091,6 +1110,7 @@ function selfTest(){
   console.log("post_native_auth_failure_receipt_true=true");
   console.log("truthful_hold_lifecycle_stage=true");
   console.log("nested_qualification_hold_reason_preserved=true");
+  console.log("qualification_process_exit_mapping_proven=true");
   console.log("unexpected_qualification_exit_not_reclassified_as_hold=true");
   console.log("runner_parent_credential_content_access=false");
   console.log("sealed_child_credential_content_access=true");
