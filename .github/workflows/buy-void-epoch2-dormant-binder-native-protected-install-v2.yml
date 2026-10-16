@@ -54,8 +54,8 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" =             5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             a2720335448788912e62df5a000e9e38087942eb
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             09ea384d8aed4770c6ec1adaa4fb434855964fe1
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             9b38d2186c2a0db0042e5fd0d551566a1f8f646c
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             bfe88ec923d1aa888e9862eba7102aefe2aa7ca4
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" =             4fdf3f627f407335b9d50800fbbc913d1edae523
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             9c29eb4716077e459b9154f39d0f30cf2e56729f
 
@@ -101,6 +101,9 @@ jobs:
             "operation_bound_plan_id_required=true"
             "plan_id_validation_precedes_host_access=true"
             "prepublication_revalidation_required=true"
+            "retained_stage_directory_generation_required=true"
+            "generation_bound_stage_cleanup_required=true"
+            "post_publication_visible_generation_binding_required=true"
             "post_publication_rollback=false"
             "single_final_root_publish_call=true"
             "truthful_post_publication_failure_receipt=true"
