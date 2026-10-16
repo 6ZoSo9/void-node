@@ -46,6 +46,16 @@ const HOSTED_PROTECTED_CENSUS=Object.freeze({
   cross_node_byte_identity_verified:true,
 });
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v4.yml";
+
+const RUNTIME_SOURCE_PARENT="ccb1bd973a60875ecebf570905e6d8fc1c15ae3c";
+const CURRENT_ENFORCEMENT_PARENT="6080389131c3cdb80fa9935b5ff80f4e40f09938";
+const CURRENT_RANGE_PARENT="ee22c668ae2ac896b4b39a0690f65cc329a7717c";
+const ACCEPTED_V3_LOCK_HEAD="67ea723bd2abeb3894a0eb8f4b7a0044a141ed03";
+const ACCEPTED_V3_LOCK="ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json";
+const ACCEPTED_V3_LOCK_BLOB="92054f19fed9e8c243eb23321dbcf53fc9227a99";
+const ACCEPTED_V3_SET="bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d";
+const V3_PRESERVATION_PROOF="scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs";
+const V3_PRESERVATION_PROOF_BLOB="d5474b8584aca62814357ce9a29017b933d96450";
 const CANDIDATE_WORKFLOW_TRIGGER_DEPENDENCIES=Object.freeze([
   PROTECTED_CENSUS_PROOF,
   PROTECTED_CENSUS_WORKFLOW,
@@ -57,15 +67,6 @@ const CANDIDATE_WORKFLOW_TRIGGER_DEPENDENCIES=Object.freeze([
   "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs",
   "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs",
 ]);
-const RUNTIME_SOURCE_PARENT="ccb1bd973a60875ecebf570905e6d8fc1c15ae3c";
-const CURRENT_ENFORCEMENT_PARENT="6080389131c3cdb80fa9935b5ff80f4e40f09938";
-const CURRENT_RANGE_PARENT="ee22c668ae2ac896b4b39a0690f65cc329a7717c";
-const ACCEPTED_V3_LOCK_HEAD="67ea723bd2abeb3894a0eb8f4b7a0044a141ed03";
-const ACCEPTED_V3_LOCK="ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json";
-const ACCEPTED_V3_LOCK_BLOB="92054f19fed9e8c243eb23321dbcf53fc9227a99";
-const ACCEPTED_V3_SET="bf158923831b21dd1e907c91cd4889afbe9fd8bce221e12b0fa1a2bb0896943d";
-const V3_PRESERVATION_PROOF="scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs";
-const V3_PRESERVATION_PROOF_BLOB="d5474b8584aca62814357ce9a29017b933d96450";
 const CURRENT_ENFORCEMENT_INVENTORY_DEFINITION=
   "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
 const CURRENT_ENFORCEMENT_INVENTORY_DEFINITION_BLOB=
