@@ -87,7 +87,15 @@ assert.equal(result.parent_child_lineage.revalidator_must_spawn_publisher_direct
 assert.equal(result.parent_child_lineage.request_bytes_validated_before_publisher_spawn_required,true);
 assert.equal(result.parent_child_lineage.publisher_request_bytes_must_come_only_from_revalidator_required,true);
 assert.equal(result.parent_child_lineage.revalidator_to_publisher_private_inherited_descriptor_required,true);
+assert.equal(result.parent_child_lineage.revalidator_to_publisher_transport,"anonymous_unidirectional_pipe");
+assert.equal(result.parent_child_lineage.revalidator_retains_exact_request_bytes_and_digest_through_challenge_required,true);
+assert.equal(result.parent_child_lineage.revalidator_pipe_write_end_only_required,true);
+assert.equal(result.parent_child_lineage.publisher_pipe_read_end_only_required,true);
+assert.equal(result.parent_child_lineage.publisher_must_not_inherit_pipe_write_end_required,true);
 assert.equal(result.parent_child_lineage.publisher_request_input_descriptor_number_fixed_before_install_required,true);
+assert.equal(result.parent_child_lineage.publisher_request_input_max_bytes,65536);
+assert.equal(result.parent_child_lineage.publisher_reads_exact_canonical_bytes_then_eof_required,true);
+assert.equal(result.parent_child_lineage.publisher_unexpected_inherited_descriptors_forbidden,true);
 assert.equal(result.parent_child_lineage.publisher_request_from_argv_forbidden,true);
 assert.equal(result.parent_child_lineage.publisher_request_from_environment_forbidden,true);
 assert.equal(result.parent_child_lineage.publisher_request_from_stdin_forbidden,true);
@@ -123,6 +131,8 @@ assert.equal(result.fresh_prepublication_challenge.revalidator_revalidates_exact
 assert.equal(result.fresh_prepublication_challenge.response_binds_publish_request_sha256_required,true);
 assert.equal(result.mutation_and_ack_boundary.privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation,true);
 assert.equal(result.mutation_and_ack_boundary.all_parent_store_contract_local_prepublication_checks_remain_required,true);
+assert.equal(result.mutation_and_ack_boundary.claim_service_local_revalidation_after_challenge_response_required,true);
+assert.equal(result.mutation_and_ack_boundary.no_unbounded_or_external_work_between_challenge_response_and_store_mutation_required,true);
 assert.equal(result.mutation_and_ack_boundary.provenance_loss_after_mutation_must_not_return_success_required,true);
 assert.equal(result.future_host_qualification.this_source_contract_is_not_host_proof,true);
 assert.equal(result.implementation_present,false);
@@ -216,6 +226,9 @@ for(const required of [
   "publisher_authenticates_claim_service_before_request_body_required:true",
   "publisher_ppid_must_equal_authenticated_revalidator_pid:true",
   "publisher_request_bytes_must_come_only_from_revalidator_required:true",
+  'revalidator_to_publisher_transport:"anonymous_unidirectional_pipe"',
+  "publisher_must_not_inherit_pipe_write_end_required:true",
+  "publisher_reads_exact_canonical_bytes_then_eof_required:true",
   "revalidator_to_publisher_private_inherited_descriptor_required:true",
   "publisher_request_from_argv_forbidden:true",
   "publisher_request_from_environment_forbidden:true",
@@ -232,6 +245,8 @@ for(const required of [
   "revalidator_reruns_all_privileged_checks_after_challenge_required:true",
   "response_binds_publish_request_sha256_required:true",
   "privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation:true",
+  "claim_service_local_revalidation_after_challenge_response_required:true",
+  "no_unbounded_or_external_work_between_challenge_response_and_store_mutation_required:true",
   "serialized_privileged_attestation_or_bearer_token_forbidden:true",
   "provenance_loss_after_mutation_must_not_return_success_required:true",
 ])assert.equal(sourceText.includes(required),true,required);

@@ -76,11 +76,16 @@ The revalidator then establishes the provenance connection and directly spawns
 the fixed non-root publisher.
 
 The exact canonical request bytes already validated by root must be handed to
-that child only through a private inherited descriptor whose descriptor number
-is fixed by the later implementation contract. The publisher may not source a
-request from argv, environment, stdin, filesystem or another network input; it
-must forward the exact inherited bytes without reconstructing or
-recanonicalizing them.
+that child only through an anonymous one-way root→publisher pipe whose read-end
+descriptor number is fixed by the later implementation contract. The
+revalidator retains its own exact request bytes and digest through the challenge
+window. The child inherits only the read end, never the write end, must read the
+bounded exact canonical bytes followed by EOF, and may not inherit unrelated
+descriptors.
+
+The publisher may not source a request from argv, environment, stdin,
+filesystem or another network input; it must forward the exact inherited bytes
+without reconstructing or recanonicalizing them.
 
 The request bytes reach the claim service only from that publisher role; the
 root control connection never becomes a claim request. If the publisher alters
@@ -123,7 +128,9 @@ mismatch, or failed privileged revalidation must prevent store mutation.
 The privileged handoff is additive. It never replaces the claim service's own
 accepted #3233 local pre-publication checks over its service policy, numeric
 identity, capability state, writable authority, store generation/root identity,
-or durability boundary.
+or durability boundary. After the root challenge response, the claim service
+must rerun its bounded local checks and perform no unbounded or external work
+before the protected-store mutation.
 
 If provenance is lost after a mutation may have occurred, the service must not
 return a false success; the existing protected-store recovery/indeterminate
