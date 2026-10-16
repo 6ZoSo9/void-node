@@ -57,6 +57,24 @@ The accepted source shape requires:
 This plan observes and content-addresses the exact package/version generation.
 It does not silently substitute an Xiphos-specific package value for Precision.
 
+### Running-manager unit-name absence
+
+Filesystem search-root absence is not enough by itself. A unit can remain loaded
+in the running manager after its backing file is removed, or exist as a
+transient/generated generation.
+
+V3 therefore also queries the exact selected service through the authenticated
+system manager and requires:
+
+- `LoadState=not-found`;
+- empty `FragmentPath`;
+- empty `SourcePath`.
+
+Any loaded, masked, generated, transient, or otherwise manager-known selected
+unit name causes HOLD. This manager unit-state evidence is included in both the
+pre- and post-observation manager snapshots, so a unit appearing/disappearing
+during the window also fails manager-generation equality.
+
 ## Complete UnitPath absence census
 
 Every root returned by the authenticated manager is observed in order.
@@ -93,7 +111,7 @@ The observation window is:
 
 1. bind local identity authority;
 2. bind fixed systemd client tools;
-3. authenticate PID-1 manager + Version + exact UnitPath;
+3. authenticate PID-1 manager + Version + exact UnitPath and require the selected unit name is manager-not-found;
 4. census all returned roots and require selected-unit absence;
 5. census selected storage paths;
 6. revalidate local identity authority;
@@ -119,6 +137,7 @@ The focused proof includes synthetic adversaries for:
 - duplicate UnitPath roots;
 - non-absolute UnitPath roots;
 - UnitPath count mismatch;
+- manager-known loaded/masked selected-unit state;
 - manager PID/version/UnitPath drift;
 - UnitPath reorder;
 - UnitPath-root generation drift.
