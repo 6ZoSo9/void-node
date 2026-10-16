@@ -1,0 +1,191 @@
+name: VOID Buy VOID final protected V7/V2 enforcement lock v3
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3-lock-projection-v1.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v3.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3-lock-projection-v1.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v3.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V3 lock generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          if [ "$EVENT_NAME" = pull_request ]; then
+            expected="$RUNNER_TEMP/expected-scope.txt"
+            actual="$RUNNER_TEMP/actual-scope.txt"
+            printf '%s\n' \
+              '.github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v3.yml' \
+              'docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3.md' \
+              'ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3-lock-projection-v1.json' \
+              'ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json' \
+              'scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs' \
+              | sort > "$expected"
+            git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+            diff -u "$expected" "$actual"
+          fi
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3-lock-projection-v1.json)" = \
+            d6ccd1e19ba5454b69e76242088b342f4ae5331e
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = \
+            4f8069cbaf0f0dc695140907d5f43a2db886d6ba
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs)" = \
+            7f2abf8d41d93085119f5952a1b672c31b6954f8
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3.md)" = \
+            242dba31a4729940f90af25dbbc742b75906a4c2
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = \
+            a2872ca1a4b0458144a24a6b851e2b218eacd27d
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = \
+            589845615654da8b688764377b34296267ac0063
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = \
+            72dec8920c1a7177d353400c33b71c2de2562aba
+
+          node --check scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  prove:
+    name: prove V3 lock / Node ${{ matrix.node }}
+    needs: source-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Rebuild full V3 and prove exact acceptance lock
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/lock-v3-proof.log"
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs \
+            --self-test | tee "$out"
+
+          for marker in \
+            'VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3_GREEN' \
+            'full_candidate_json_sha256=d882529c2791bf9073b50aebbf751e54dc36c2a954b5b4f29044474d829289d7' \
+            'full_candidate_git_blob_sha1=101433562c848fbb279d08b039239d56a299c4db' \
+            'candidate_projection_git_blob_sha1=d6ccd1e19ba5454b69e76242088b342f4ae5331e' \
+            'candidate_enforcement_set_sha256=75fe0351276ed21b7231b3dd9b50f3d4d6b68ad930b508a1f1f7fdb18d2063c4' \
+            'protected_census_id=voidbefv7c5_5c022759d732fec4f42907c11451f7b90036ac823ef4fc090642eab700417966' \
+            'projection_exact_full_candidate_inventory=true' \
+            'full_candidate_independently_rederived=true' \
+            'complete_executable_closure_verified=true' \
+            'current_enforcement_tracked_source_inventory_verified=true' \
+            'candidate_enforcement_identity_accepted=true' \
+            'deployed_artifact_generation_verified=false' \
+            'runtime_mount_authority=false' \
+            'production_source_finality_authority_ready=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove existing deployment-receipt verifier consumes lock V3
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse HEAD^{tree})"
+          git switch -C main "$head"
+
+          out="$RUNNER_TEMP/deployment-receipt-plan-v3.log"
+          npx --no-install tsx \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --plan \
+            --receipt-path "$RUNNER_TEMP/void-buy-source-finality-v7-deployment-receipt-v1.json" \
+            --expected-head "$head" \
+            --expected-tree "$tree" \
+            --accepted-enforcement-lock-path \
+              ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json \
+            | tee "$out"
+
+          for marker in \
+            'VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1' \
+            'mode=plan' \
+            'accepted_enforcement_set_sha256=75fe0351276ed21b7231b3dd9b50f3d4d6b68ad930b508a1f1f7fdb18d2063c4' \
+            'candidate_enforcement_identity_accepted=true' \
+            'complete_executable_closure_verified=true' \
+            'current_enforcement_tracked_source_inventory_verified=true' \
+            'filesystem_mutation=false' \
+            'receipt_write=false' \
+            'runtime_mount_authority=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          test ! -e "$RUNNER_TEMP/void-buy-source-finality-v7-deployment-receipt-v1.json"
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
