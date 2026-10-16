@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -32,6 +33,11 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     compiler_cli_loader_edges_bound: true,
     compiler_exact_file_identity_allowlist_bound: true,
     compiler_execution_generation_bound: true,
+    compiler_private_snapshot_required: true,
+    compiler_snapshot_content_addressed: true,
+    compiler_snapshot_nonwritable_during_build: true,
+    compiler_source_post_revalidation_required: true,
+    compiler_snapshot_post_revalidation_required: true,
     candidate_owned_rebuild_required: true,
     three_node_byte_equality_required: true,
     candidate_report_filesystem_write: true,
@@ -473,50 +479,221 @@ const CANDIDATE_COMPILE_ENV_V2 = Object.freeze({
   NODE_DISABLE_COMPILE_CACHE: "1",
 });
 
-function compileReviewedRuntimeWithBoundCompilerV2(root) {
+const COMPILER_SNAPSHOT_SCHEMA_V2 =
+  "void_buy_void_legacy_history_nimo_compiler_snapshot_v2";
+const COMPILER_SNAPSHOT_ID_PREFIX_V2 = "voidblrhntscsnap2_";
+
+function compilerSnapshotRecordV2(compiler) {
+  const body = {
+    schema: COMPILER_SNAPSHOT_SCHEMA_V2,
+    version: 2,
+    layout: "typescript_cli_four_file_relative_v1",
+    compiler,
+    private_parent_mode: "0500",
+    directory_mode: "0500",
+    file_mode: "0400",
+    nonwritable_during_build: true,
+    source_compiler_identity_revalidated_after_build: true,
+    snapshot_identity_revalidated_after_build: true,
+  };
+  return Object.freeze({
+    ...body,
+    snapshot_id:
+      COMPILER_SNAPSHOT_ID_PREFIX_V2 +
+      sha256(
+        Buffer.from(
+          canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body) + "\n",
+          "utf8",
+        ),
+      ),
+  });
+}
+
+function snapshotCompilerIdentityV2(snapshotRoot) {
+  const files = TYPESCRIPT_COMPILER_FILES_V2.map((relative) => {
+    const bytes = readRegular(snapshotRoot, relative, 16 * 1024 * 1024);
+    return Object.freeze({
+      path: relative,
+      bytes: bytes.length,
+      sha256: sha256(bytes),
+    });
+  });
+  if (
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(files) !==
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
+      EXPECTED_TYPESCRIPT_COMPILER_FILES_V2,
+    )
+  ) {
+    fail("legacy_history_nimo_bundle_compiler_snapshot_identity_mismatch");
+  }
+  return Object.freeze({
+    typescript_version: EXPECTED_TYPESCRIPT_VERSION,
+    compiler_files: Object.freeze(files),
+    cli_edges: TYPESCRIPT_CLI_EDGES_V2,
+  });
+}
+
+function compilerSnapshotDirectoriesV2(snapshotRoot) {
+  return [
+    snapshotRoot,
+    path.join(snapshotRoot, "node_modules"),
+    path.join(snapshotRoot, "node_modules/typescript"),
+    path.join(snapshotRoot, "node_modules/typescript/bin"),
+    path.join(snapshotRoot, "node_modules/typescript/lib"),
+  ];
+}
+
+function assertCompilerSnapshotNonwritableV2(snapshotRoot) {
+  for (const directory of compilerSnapshotDirectoriesV2(snapshotRoot)) {
+    const st = fs.lstatSync(directory);
+    if (!st.isDirectory() || st.isSymbolicLink() || (st.mode & 0o222) !== 0) {
+      fail("legacy_history_nimo_bundle_compiler_snapshot_directory_writable");
+    }
+  }
+  for (const relative of TYPESCRIPT_COMPILER_FILES_V2) {
+    const st = fs.lstatSync(path.join(snapshotRoot, relative));
+    if (
+      !st.isFile() ||
+      st.isSymbolicLink() ||
+      st.nlink !== 1 ||
+      (st.mode & 0o222) !== 0
+    ) {
+      fail("legacy_history_nimo_bundle_compiler_snapshot_file_writable");
+    }
+  }
+}
+
+function cleanupCompilerSnapshotV2(snapshotRoot) {
+  for (const directory of compilerSnapshotDirectoriesV2(snapshotRoot).reverse()) {
+    try {
+      fs.chmodSync(directory, 0o700);
+    } catch {}
+  }
+  fs.rmSync(snapshotRoot, { recursive: true, force: true });
+}
+
+function createPrivateCompilerSnapshotV2(sourceRoot, compiler) {
+  const snapshotRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-nimo-tsc-snapshot-v2-"),
+  );
+  try {
+    fs.chmodSync(snapshotRoot, 0o700);
+    for (const record of compiler.compiler_files) {
+      const bytes = readRegular(sourceRoot, record.path, 16 * 1024 * 1024);
+      if (bytes.length !== record.bytes || sha256(bytes) !== record.sha256) {
+        fail("legacy_history_nimo_bundle_compiler_snapshot_source_drift");
+      }
+      const target = path.join(snapshotRoot, record.path);
+      fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+      fs.writeFileSync(target, bytes, { flag: "wx", mode: 0o400 });
+      fs.chmodSync(target, 0o400);
+    }
+    for (const directory of compilerSnapshotDirectoriesV2(snapshotRoot).reverse()) {
+      fs.chmodSync(directory, 0o500);
+    }
+    assertCompilerSnapshotNonwritableV2(snapshotRoot);
+    const observed = snapshotCompilerIdentityV2(snapshotRoot);
+    if (
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(observed) !==
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compiler)
+    ) {
+      fail("legacy_history_nimo_bundle_compiler_snapshot_source_mismatch");
+    }
+    return Object.freeze({
+      root: snapshotRoot,
+      record: compilerSnapshotRecordV2(compiler),
+    });
+  } catch (error) {
+    cleanupCompilerSnapshotV2(snapshotRoot);
+    throw error;
+  }
+}
+
+function compileReviewedRuntimeWithBoundCompilerV2(root, testHooks = null) {
   const absoluteRoot = path.resolve(root);
   const compilerBefore = compilerIdentity(absoluteRoot);
-  fs.rmSync(path.join(absoluteRoot, "dist"), {
-    recursive: true,
-    force: true,
-  });
-
-  const tscEntry = path.join(
+  const snapshot = createPrivateCompilerSnapshotV2(
     absoluteRoot,
-    "node_modules/typescript/bin/tsc",
+    compilerBefore,
   );
-  const tsconfig = path.join(absoluteRoot, "tsconfig.build.json");
-  const result = spawnSync(
-    process.execPath,
-    [tscEntry, "-p", tsconfig],
-    {
-      cwd: absoluteRoot,
-      env: { ...CANDIDATE_COMPILE_ENV_V2 },
-      encoding: "utf8",
-      timeout: 120_000,
-      maxBuffer: 2 * 1024 * 1024,
-    },
-  );
-  if (result.error) {
-    fail("legacy_history_nimo_bundle_candidate_compile_spawn_failed");
-  }
-  if (
-    result.status !== 0 ||
-    result.signal !== null ||
-    result.stdout !== "" ||
-    result.stderr !== ""
-  ) {
-    fail("legacy_history_nimo_bundle_candidate_compile_failed_or_output");
-  }
+  try {
+    fs.rmSync(path.join(absoluteRoot, "dist"), {
+      recursive: true,
+      force: true,
+    });
 
-  const compilerAfter = compilerIdentity(absoluteRoot);
-  if (
-    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerAfter) !==
-    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerBefore)
-  ) {
-    fail("legacy_history_nimo_bundle_compiler_generation_changed_during_build");
+    if (typeof testHooks?.after_snapshot_before_build === "function") {
+      testHooks.after_snapshot_before_build({
+        snapshot_root: snapshot.root,
+        compiler_snapshot: snapshot.record,
+      });
+    }
+
+    const tscEntry = path.join(
+      snapshot.root,
+      "node_modules/typescript/bin/tsc",
+    );
+    const tsconfig = path.join(absoluteRoot, "tsconfig.build.json");
+    const result = spawnSync(
+      process.execPath,
+      [tscEntry, "-p", tsconfig],
+      {
+        cwd: absoluteRoot,
+        env: { ...CANDIDATE_COMPILE_ENV_V2 },
+        encoding: "utf8",
+        timeout: 120_000,
+        maxBuffer: 2 * 1024 * 1024,
+      },
+    );
+    if (result.error) {
+      fail("legacy_history_nimo_bundle_candidate_compile_spawn_failed");
+    }
+    if (
+      result.status !== 0 ||
+      result.signal !== null ||
+      result.stdout !== "" ||
+      result.stderr !== ""
+    ) {
+      fail("legacy_history_nimo_bundle_candidate_compile_failed_or_output");
+    }
+
+    if (typeof testHooks?.after_build_before_revalidation === "function") {
+      testHooks.after_build_before_revalidation({
+        snapshot_root: snapshot.root,
+        compiler_snapshot: snapshot.record,
+      });
+    }
+
+    assertCompilerSnapshotNonwritableV2(snapshot.root);
+    const snapshotAfter = snapshotCompilerIdentityV2(snapshot.root);
+    if (
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(snapshotAfter) !==
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerBefore)
+    ) {
+      fail("legacy_history_nimo_bundle_compiler_snapshot_changed_during_build");
+    }
+
+    const compilerAfter = compilerIdentity(absoluteRoot);
+    if (
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerAfter) !==
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerBefore)
+    ) {
+      fail("legacy_history_nimo_bundle_compiler_generation_changed_during_build");
+    }
+    return Object.freeze({
+      compiler: compilerAfter,
+      compiler_snapshot: snapshot.record,
+    });
+  } finally {
+    cleanupCompilerSnapshotV2(snapshot.root);
   }
-  return compilerAfter;
+}
+
+export function testOnlyCompileReviewedRuntimeWithBoundCompilerV2(
+  root,
+  hooks = null,
+) {
+  return compileReviewedRuntimeWithBoundCompilerV2(root, hooks);
 }
 
 function candidateId(body) {
@@ -536,7 +713,9 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
 ) {
   const parentPlan = parentPlanRecord(root);
   const sourceInputs = verifyParentSourceRoots(root);
-  const compiler = compileReviewedRuntimeWithBoundCompilerV2(root);
+  const compiled = compileReviewedRuntimeWithBoundCompilerV2(root);
+  const compiler = compiled.compiler;
+  const compilerSnapshot = compiled.compiler_snapshot;
   const runtime = runtimeClosure(root);
   const plan = planVoidBuyVoidLegacyHistoryNimoInstallV1();
 
@@ -556,13 +735,18 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     node_modules_runtime_files: [],
     parent_source_inputs: sourceInputs,
     compiler,
+    compiler_snapshot: compilerSnapshot,
     build_recipe: {
       dependency_install: "npm ci --ignore-scripts --no-audit --no-fund",
-      compile: "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
+      compile: "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p tsconfig.build.json",
       compile_node_executable_source: "process.execPath",
       compile_environment: CANDIDATE_COMPILE_ENV_V2,
       candidate_owned_rebuild_required: true,
       compiler_pre_post_identity_required: true,
+      compiler_snapshot_required: true,
+      compiler_snapshot_nonwritable_required: true,
+      compiler_source_post_revalidation_required: true,
+      compiler_snapshot_post_revalidation_required: true,
       source_maps_expected: false,
       supported_node_majors: [22, 24, 26],
       three_node_byte_equality_required: true,
@@ -601,7 +785,7 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     candidate,
     [
       "authority","authorized_keys_mutation_authorized","build_recipe",
-      "candidate_id","compiler","entrypoint","external_node_builtins",
+      "candidate_id","compiler","compiler_snapshot","entrypoint","external_node_builtins",
       "external_transport_authenticated","funds_movement","live_nimo_installed",
       "marker","next_gate","node_modules_runtime_files","parent_plan",
       "parent_source_inputs","payment_acceptance","planned_handler_path",
@@ -782,12 +966,23 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
   ) {
     fail("legacy_history_nimo_bundle_compiler_file_identity_invalid");
   }
+  const expectedCompilerSnapshot = compilerSnapshotRecordV2(body.compiler);
+  if (
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body.compiler_snapshot) !==
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(expectedCompilerSnapshot)
+  ) {
+    fail("legacy_history_nimo_bundle_compiler_snapshot_identity_invalid");
+  }
+
   exactKeys(
     body.build_recipe,
     [
       "candidate_owned_rebuild_required","compile",
       "compile_environment","compile_node_executable_source",
-      "compiler_pre_post_identity_required","dependency_install",
+      "compiler_pre_post_identity_required","compiler_snapshot_required",
+      "compiler_snapshot_nonwritable_required",
+      "compiler_source_post_revalidation_required",
+      "compiler_snapshot_post_revalidation_required","dependency_install",
       "source_maps_expected","supported_node_majors",
       "three_node_byte_equality_required",
     ],
@@ -797,7 +992,7 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     body.build_recipe.dependency_install !==
       "npm ci --ignore-scripts --no-audit --no-fund" ||
     body.build_recipe.compile !==
-      "node node_modules/typescript/bin/tsc -p tsconfig.build.json" ||
+      "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p tsconfig.build.json" ||
     body.build_recipe.compile_node_executable_source !== "process.execPath" ||
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
       body.build_recipe.compile_environment,
@@ -806,6 +1001,10 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     ) ||
     body.build_recipe.candidate_owned_rebuild_required !== true ||
     body.build_recipe.compiler_pre_post_identity_required !== true ||
+    body.build_recipe.compiler_snapshot_required !== true ||
+    body.build_recipe.compiler_snapshot_nonwritable_required !== true ||
+    body.build_recipe.compiler_source_post_revalidation_required !== true ||
+    body.build_recipe.compiler_snapshot_post_revalidation_required !== true ||
     body.build_recipe.source_maps_expected !== false ||
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
       body.build_recipe.supported_node_majors,
@@ -836,6 +1035,13 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(observedCompiler)
   ) {
     fail("legacy_history_nimo_bundle_compiler_bytes_identity_invalid");
+  }
+  const observedSnapshotRecord = compilerSnapshotRecordV2(observedCompiler);
+  if (
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body.compiler_snapshot) !==
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(observedSnapshotRecord)
+  ) {
+    fail("legacy_history_nimo_bundle_compiler_snapshot_bytes_identity_invalid");
   }
   if (
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body.authority) !==

@@ -48,7 +48,7 @@
     "fixtures/ops/guard-baselines/index-ts-size-v1.json": "754cfd001172cba6642cdd773a85164a9af01b3811e501f0fdd7079da5787ff2",
     "public/void-app-wave1-v1/assets/css/views.css": "f09b736ba9129cd1249479a61b54b22a967a008716bdad34b90ea93fa0d62b86",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "1ec51efe296a1d1a9817eb8e9e0cd7b022ebaceb9de9fff2ae00280fba0f13a2",
-    "public/void-app-wave1-v1/assets/js/home-live.js": "c41092b10b50cb902df02649684bf82f993183d408940f5b4453c693d689c0a9",
+    "public/void-app-wave1-v1/assets/js/home-live.js": "b7b45c5e899a316d52a9ae3b0ccf837e4f7e077c1e78379533a6213f938b0f70",
     "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "6c57387c41ca70bc844eda6f29a84f95544133bb52f51cc1b6eeb5a777dd1037",
     "public/void-app-wave1-v1/index.html": "d629ab00117ad6534651d66789887de2d9a0d101b7bb4b7d29eb0816acc37743",
@@ -146,5 +146,6 @@
   "advanced_drawer_short_viewport_scroll_refresh_date": "2026-10-14",
   "command_search_filter_refresh_date": "2026-10-15",
   "wallet_account_attribution_refresh_date": "2026-10-15",
-  "wallet_status_account_attribution_refresh_date": "2026-10-15"
+  "wallet_status_account_attribution_refresh_date": "2026-10-15",
+  "home_stale_evidence_clear_refresh_date": "2026-10-15"
 }

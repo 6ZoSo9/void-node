@@ -63,29 +63,46 @@ those three reviewed edges exactly. Dynamic or additional loader targets HOLD.
 
 ## Candidate-owned compiler execution
 
-The candidate builder does not trust a workflow build followed by a later
-compiler hash as one atomic provenance statement.
+The candidate builder does not execute the compiler by reopening mutable
+checkout paths after an endpoint hash.
 
 For every V2 candidate creation it:
 
-1. derives the exact four-file TypeScript compiler identity and loader graph;
-2. removes only the generated `dist/` build output;
-3. invokes the current Node process executable with the exact
-   `node_modules/typescript/bin/tsc -p tsconfig.build.json` entry under the
-   closed environment:
+1. derives the exact four-file TypeScript compiler identity and loader graph
+   from the checkout;
+2. copies those exact reviewed bytes into a fresh private temporary snapshot
+   preserving the reviewed `node_modules/typescript/bin` and `lib` layout;
+3. changes the snapshot parent/directories to mode `0500` and compiler files
+   to mode `0400`, then re-derives the snapshot identity before execution;
+4. removes only the generated `dist/` build output;
+5. invokes the current Node process executable against the **snapshot**
+   `bin/tsc`, not the checkout `bin/tsc`, under the closed environment
    `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, `TZ=UTC`,
    `NODE_DISABLE_COMPILE_CACHE=1`;
-4. re-derives the complete compiler identity after the build and requires exact
-   canonical equality with the pre-build identity;
-5. only then derives the 14-file runtime closure from the newly built output.
+6. rechecks that every snapshot directory/file remained non-writable and that
+   the exact four-file snapshot identity is unchanged;
+7. re-derives the checkout compiler identity and requires exact canonical
+   equality with the pre-snapshot generation;
+8. only then derives the 14-file runtime closure from the newly built output;
+9. removes the private temporary snapshot.
 
-Therefore the compiler identity in the candidate brackets the actual build that
-produced the runtime bytes. A compiler entry/loader/body generation change
-during compilation HOLDs rather than becoming an accepted post-build hash.
+The candidate records a deterministic content-addressed
+`compiler_snapshot.snapshot_id` over the exact compiler identity plus the
+reviewed snapshot policy. The random temporary path is never candidate
+material, so Node 22/24/26 can still produce byte-identical candidate JSON.
 
-The candidate builder truthfully declares its generated-build filesystem
-mutation; that authority is confined to source/test candidate construction and
-does not grant protected Nimo installation.
+The focused proof includes an ABA adversary: after the snapshot is created it
+replaces the checkout `bin/tsc` with a deliberately failing compiler for the
+entire build interval, restores the reviewed checkout bytes before final source
+revalidation, and requires the build to succeed from the unchanged read-only
+snapshot. This is the case that pre/post hashes on mutable checkout pathname
+reopens could not distinguish.
+
+The snapshot modes are a source/test execution boundary, not a claim that an
+arbitrary same-UID hostile process is cryptographically excluded from every
+temporary filesystem object. Production Nimo installation remains separately
+unauthorized.
+
 
 ## Candidate verification
 

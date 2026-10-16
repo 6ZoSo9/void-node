@@ -12,6 +12,7 @@ import {
   buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2,
   canonicalLegacyHistoryNimoRuntimeBundleJsonV1,
   parseLegacyHistoryNimoRuntimeImportsV1,
+  testOnlyCompileReviewedRuntimeWithBoundCompilerV2,
   testOnlyLegacyHistoryNimoCompilerIdentityV2,
   verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2,
 } from "../tools/void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v2.mjs";
@@ -105,6 +106,28 @@ assert.deepEqual(
   candidate.compiler,
 );
 
+assert.deepEqual(candidate.compiler_snapshot.compiler, candidate.compiler);
+assert.match(
+  candidate.compiler_snapshot.snapshot_id,
+  /^voidblrhntscsnap2_[0-9a-f]{64}$/u,
+);
+assert.equal(
+  candidate.compiler_snapshot.layout,
+  "typescript_cli_four_file_relative_v1",
+);
+assert.equal(candidate.compiler_snapshot.private_parent_mode, "0500");
+assert.equal(candidate.compiler_snapshot.directory_mode, "0500");
+assert.equal(candidate.compiler_snapshot.file_mode, "0400");
+assert.equal(candidate.compiler_snapshot.nonwritable_during_build, true);
+assert.equal(
+  candidate.compiler_snapshot.source_compiler_identity_revalidated_after_build,
+  true,
+);
+assert.equal(
+  candidate.compiler_snapshot.snapshot_identity_revalidated_after_build,
+  true,
+);
+
 {
   const fixture = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-legacy-history-nimo-tsc-v2-"),
@@ -181,13 +204,106 @@ assert.deepEqual(
     fs.rmSync(fixture, { recursive: true, force: true });
   }
 }
+{
+  const fixture = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-legacy-history-nimo-tsc-aba-v2-"),
+  );
+  const compilerPaths = [
+    "package-lock.json",
+    "node_modules/typescript/package.json",
+    ...candidate.compiler.compiler_files.map((record) => record.path),
+  ];
+  const binRelative = "node_modules/typescript/bin/tsc";
+  const binTarget = path.join(fixture, binRelative);
+  let binOriginal = null;
+  let observedSnapshotRoot = null;
+  try {
+    for (const relative of compilerPaths) {
+      const source = path.resolve(relative);
+      const target = path.join(fixture, relative);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(source, target);
+    }
+    fs.mkdirSync(path.join(fixture, "src"), { recursive: true });
+    fs.writeFileSync(
+      path.join(fixture, "src/probe.ts"),
+      'export const compilerSnapshotProbe = "green";\n',
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(fixture, "tsconfig.build.json"),
+      JSON.stringify({
+        compilerOptions: {
+          target: "ES2022",
+          module: "CommonJS",
+          outDir: "dist",
+          rootDir: "src",
+          sourceMap: false,
+          declaration: false,
+        },
+        include: ["src/**/*.ts"],
+      }) + "\n",
+      "utf8",
+    );
+
+    binOriginal = fs.readFileSync(binTarget);
+    const compiled =
+      testOnlyCompileReviewedRuntimeWithBoundCompilerV2(fixture, {
+        after_snapshot_before_build({ snapshot_root, compiler_snapshot }) {
+          observedSnapshotRoot = snapshot_root;
+          assert.equal(
+            compiler_snapshot.snapshot_id,
+            candidate.compiler_snapshot.snapshot_id,
+          );
+          const snapshotEntry = path.join(snapshot_root, binRelative);
+          assert.throws(
+            () => fs.appendFileSync(snapshotEntry, "\n// forbidden\n"),
+            (error) =>
+              error?.code === "EACCES" ||
+              error?.code === "EPERM" ||
+              error?.code === "EROFS",
+          );
+          fs.writeFileSync(
+            binTarget,
+            '#!/usr/bin/env node\nthrow new Error("checkout compiler ABA executed");\n',
+            "utf8",
+          );
+        },
+        after_build_before_revalidation() {
+          assert.equal(
+            fs.existsSync(path.join(fixture, "dist/probe.js")),
+            true,
+          );
+          fs.writeFileSync(binTarget, binOriginal);
+        },
+      });
+
+    assert.ok(observedSnapshotRoot);
+    assert.deepEqual(compiled.compiler, candidate.compiler);
+    assert.deepEqual(
+      compiled.compiler_snapshot,
+      candidate.compiler_snapshot,
+    );
+    assert.deepEqual(
+      testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
+      candidate.compiler,
+    );
+    assert.equal(fs.existsSync(observedSnapshotRoot), false);
+  } finally {
+    if (binOriginal && fs.existsSync(binTarget)) {
+      fs.writeFileSync(binTarget, binOriginal);
+    }
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+}
+
 assert.equal(
   candidate.build_recipe.dependency_install,
   "npm ci --ignore-scripts --no-audit --no-fund",
 );
 assert.equal(
   candidate.build_recipe.compile,
-  "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
+  "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p tsconfig.build.json",
 );
 assert.equal(
   candidate.build_recipe.compile_node_executable_source,
@@ -202,6 +318,10 @@ assert.deepEqual(candidate.build_recipe.compile_environment, {
 });
 assert.equal(candidate.build_recipe.candidate_owned_rebuild_required, true);
 assert.equal(candidate.build_recipe.compiler_pre_post_identity_required, true);
+assert.equal(candidate.build_recipe.compiler_snapshot_required, true);
+assert.equal(candidate.build_recipe.compiler_snapshot_nonwritable_required, true);
+assert.equal(candidate.build_recipe.compiler_source_post_revalidation_required, true);
+assert.equal(candidate.build_recipe.compiler_snapshot_post_revalidation_required, true);
 assert.equal(candidate.build_recipe.source_maps_expected, false);
 assert.deepEqual(candidate.build_recipe.supported_node_majors, [22, 24, 26]);
 assert.equal(candidate.build_recipe.three_node_byte_equality_required, true);
@@ -286,6 +406,11 @@ for (const [key, expected] of Object.entries({
   compiler_cli_loader_edges_bound: true,
   compiler_exact_file_identity_allowlist_bound: true,
   compiler_execution_generation_bound: true,
+  compiler_private_snapshot_required: true,
+  compiler_snapshot_content_addressed: true,
+  compiler_snapshot_nonwritable_during_build: true,
+  compiler_source_post_revalidation_required: true,
+  compiler_snapshot_post_revalidation_required: true,
   candidate_owned_rebuild_required: true,
   three_node_byte_equality_required: true,
   candidate_report_filesystem_write: true,
@@ -358,6 +483,18 @@ function rehashCandidate(value) {
         rehashCandidate(tampered),
       ),
     /legacy_history_nimo_bundle_compiler_bytes_identity_invalid/u,
+  );
+}
+{
+  const tampered = structuredClone(candidate);
+  tampered.compiler_snapshot.snapshot_id =
+    "voidblrhntscsnap2_" + "0".repeat(64);
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_compiler_snapshot_identity_invalid/u,
   );
 }
 {
@@ -482,6 +619,10 @@ console.log("typescript_compile_cache_builtin_bound=true");
 console.log("typescript_compiler_exact_file_allowlist_bound=true");
 console.log("candidate_owned_compiler_rebuild=true");
 console.log("compiler_pre_post_identity_stable=true");
+console.log("compiler_private_snapshot_bound=true");
+console.log("compiler_snapshot_nonwritable=true");
+console.log("compiler_snapshot_post_revalidated=true");
+console.log("compiler_aba_checkout_mutation_isolated=true");
 console.log("compiler_closed_environment=true");
 console.log("typescript_cli_entry_fixture_tamper_rejected=true");
 console.log("typescript_cli_loader_fixture_tamper_rejected=true");
@@ -490,6 +631,7 @@ console.log("third_party_runtime_packages=0");
 console.log("node_modules_runtime_files=0");
 console.log("rehashed_runtime_bytes_tamper_rejected=true");
 console.log("rehashed_compiler_bytes_tamper_rejected=true");
+console.log("rehashed_compiler_snapshot_tamper_rejected=true");
 console.log("rehashed_cli_entry_tamper_rejected=true");
 console.log("rehashed_cli_loader_tamper_rejected=true");
 console.log("rehashed_cli_edge_tamper_rejected=true");
