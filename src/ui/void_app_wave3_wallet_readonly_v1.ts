@@ -28,6 +28,15 @@ type SourceFetchOptions = {
   fetchImpl?: FetchLike;
 };
 
+function isLoopbackAddressV1(value: string): boolean {
+  return (
+    value === "127.0.0.1" ||
+    value === "::1" ||
+    value === "::ffff:127.0.0.1" ||
+    value === "localhost"
+  );
+}
+
 function isLoopbackRequest(req: any): boolean {
   const values = [
     req?.ip,
@@ -37,13 +46,7 @@ function isLoopbackRequest(req: any): boolean {
     .map((value) => String(value || "").trim().toLowerCase())
     .filter(Boolean);
 
-  return values.some(
-    (value) =>
-      value === "127.0.0.1" ||
-      value === "::1" ||
-      value === "::ffff:127.0.0.1" ||
-      value === "localhost"
-  );
+  return values.length > 0 && values.every(isLoopbackAddressV1);
 }
 
 function sendJson(req: any, res: any, code: number, value: unknown): void {
