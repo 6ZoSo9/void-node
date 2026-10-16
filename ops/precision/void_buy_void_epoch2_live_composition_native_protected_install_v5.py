@@ -1124,6 +1124,23 @@ def _failure_receipt(exc: BaseException) -> dict[str, str]:
     }
 
 
+def _post_rollback_plan_bindings_verified(
+    expected_head: str,
+    body: dict[str, object],
+) -> bool:
+    try:
+        if node_snapshot() != body["node"]:
+            return False
+        checkout_bound = checkout_snapshot_with_tools(
+            expected_head,
+            expected_git=body["git_tool"],
+            expected_setpriv=body["setpriv_tool"],
+        )
+        return checkout_bound["checkout"] == body["checkout"]
+    except Exception:
+        return False
+
+
 def _require_secure_apply_context() -> None:
     if sys.flags.isolated != 1:
         raise InstallError("python_isolated_mode_required")
@@ -1178,6 +1195,7 @@ def apply(
     predecessor_retained = False
     rollback_attempted = False
     rollback_green = False
+    rollback_final_state_verified = False
     try:
         if _exists(STAGE_ROOT) or _exists(PREDECESSOR_ROOT):
             raise InstallError("upgrade_auxiliary_root_present")
@@ -1270,8 +1288,18 @@ def apply(
             rollback_attempted = True
             rollback_green = _cleanup_stage(opt_fd)
 
+        if publication_occurred and rollback_green:
+            rollback_final_state_verified = _post_rollback_plan_bindings_verified(
+                expected_head,
+                body,
+            )
+
         print("automatic_rollback_attempted=" + str(rollback_attempted).lower())
         print("automatic_rollback_green=" + str(rollback_green).lower())
+        print(
+            "automatic_rollback_final_state_verified="
+            + str(rollback_final_state_verified).lower()
+        )
         if publication_occurred:
             failure = _published_failure(
                 (
@@ -1286,7 +1314,7 @@ def apply(
             )
             failure.rollback_attempted = rollback_attempted
             failure.rollback_green = rollback_green
-            failure.rollback_final_state_verified = rollback_green
+            failure.rollback_final_state_verified = rollback_final_state_verified
             try:
                 os.close(opt_fd)
                 failure.install_parent_close_completed = True
@@ -1374,6 +1402,8 @@ def self_test() -> None:
     assert "if publication_occurred:" in own_source
     assert "atomic_upgrade_rolled_back_after_failure" in own_source
     assert 'publication_state = "published_rolled_back_green"' in own_source
+    assert "_post_rollback_plan_bindings_verified" in own_source
+    assert "automatic_rollback_final_state_verified=" in own_source
     sample_node = {"sha256": "a" * 64, "bytes": 123}
     policy = build_policy("b" * 40, sample_node)
     assert policy == (
