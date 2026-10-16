@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const RUNNER=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs";
-const RUNNER_BLOB="78ce64b2e8c629f8688f675ad9aa9c2114683576";
+const RUNNER_BLOB="baab733e43c030d24f8d4abd1644f3c4ae55c3b2";
 const QUALIFIER=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py";
 const QUALIFIER_BLOB="70b74ff2f09f5aef86eec39b8f643d8f2ebb63f5";
@@ -69,6 +69,12 @@ for(const required of [
   "protected_native_entry_accepted_by_this_pr=false",
   "protected_native_entry_install_authorized=false",
   "live_execution_authorized=false",
+  "runLiveLifecycle",
+  "buildHoldReceipt",
+  "privilegedFirstEntryAuthenticatedForInvocation",
+  "pre_native_auth_failure_receipt_false=true",
+  "post_native_auth_failure_receipt_true=true",
+  "truthful_hold_lifecycle_stage=true",
 ]){
   assert.ok(source.includes(required),required);
 }
@@ -133,6 +139,9 @@ for(const line of [
   "receipt_content_addressed=true",
   "final_checkout_revalidation_required=true",
   "late_source_drift_blocks_receipt=true",
+  "pre_native_auth_failure_receipt_false=true",
+  "post_native_auth_failure_receipt_true=true",
+  "truthful_hold_lifecycle_stage=true",
   "runner_parent_credential_content_access=false",
   "sealed_child_credential_content_access=true",
   "nontransaction_signature_only=true",
@@ -192,6 +201,9 @@ console.log("v3_native_preentry_accepted_by_this_pr=false");
 console.log("v3_native_preentry_install_authorized=false");
 console.log("live_execution_authorized=false");
 console.log("future_native_parent_proof_required=true");
+console.log("truthful_hold_lifecycle_stage=true");
+console.log("pre_native_auth_failure_receipt_false=true");
+console.log("post_native_auth_failure_receipt_true=true");
 console.log("runner_parent_credential_content_access=false");
 console.log("sealed_child_nontransaction_signing_only=true");
 console.log("transaction=false");
