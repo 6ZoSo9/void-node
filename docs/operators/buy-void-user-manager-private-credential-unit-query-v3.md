@@ -48,6 +48,14 @@ V3 emits two additional lowercase SHA-256 fields:
 The raw complete sets are **not** printed. Only the existing target Epoch-2
 drop-in/source fields remain visible.
 
+Non-disclosure is executable, not only a source-inspection claim. Production
+output and self-test share one transcript emitter. Self-test captures that
+emitter with synthetic unrelated drop-in and credential paths and requires:
+- both complete-set fingerprints are present;
+- intended Epoch-2 target fields are present;
+- neither complete canonical buffer is present;
+- neither unrelated synthetic path is present.
+
 This makes same-count / same-byte-length substitutions detectable across
 separate qualifier invocations without exposing unrelated credential source
 paths.
