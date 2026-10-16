@@ -11,6 +11,9 @@ import subprocess
 ROOT=Path(__file__).resolve().parents[1]
 PLAN=ROOT/"ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py"
 CONTRACT=ROOT/"tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -26,6 +29,9 @@ source=PLAN.read_text(encoding="utf-8")
 ast.parse(source)
 
 assert git_blob(CONTRACT.read_bytes())=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
+assert git_blob(CANONICALIZER.read_bytes())=="f97fafb0148527ae3a954e2752faef8c7fc9e88e"
+assert git_blob(TERMINAL_RECEIPT.read_bytes())=="e27f0ebb968f4611bfc069670325c3f5e6df1c65"
+assert git_blob(SESSION_BINDING.read_bytes())=="981935515e08634be96446e58922c16be56d33ad"
 assert 'PARENT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"' in source
 assert 'PARENT_CONTRACT_BLOB_SHA1="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"' in source
 assert '"e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"' in source
@@ -203,6 +209,7 @@ print("libc_nss_lookup_used=false")
 print("remote_nss_provider_rejected=true")
 print("candidate_slot_revalidation_required=true")
 print("store_policy_id_rederived_from_parent_contract=true")
+print("store_policy_esm_dependency_closure_exact=true")
 print("stable_store_policy_id="+EXPECTED_STORE_POLICY_ID)
 print("persistent_filesystem_write=false")
 print("account_mutation=false")
