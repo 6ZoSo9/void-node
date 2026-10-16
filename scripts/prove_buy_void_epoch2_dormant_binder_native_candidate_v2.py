@@ -412,8 +412,72 @@ def source_identity_and_bytes() -> tuple[dict, bytes]:
     return sources, source_data
 
 
+def compile_adversary_fixture(
+    source_arg: str,
+    output: Path,
+    inherited_fd: int | None = None,
+) -> bytes:
+    pass_fds = () if inherited_fd is None else (inherited_fd,)
+    result = subprocess.run(
+        [
+            os.fspath(V1.CC),
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-O2",
+            "-fno-ident",
+            "-fno-pie",
+            "-x",
+            "c",
+            source_arg,
+            "-static",
+            "-no-pie",
+            "-Wl,--build-id=none",
+            "-o",
+            os.fspath(output),
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=30,
+        env=V1.ENV,
+        pass_fds=pass_fds,
+    )
+    if result.returncode != 0 or result.stdout or result.stderr:
+        raise AssertionError("snapshot adversary fixture compile failed")
+    stripped = subprocess.run(
+        [os.fspath(V1.STRIP), "--strip-all", os.fspath(output)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=30,
+        env=V1.ENV,
+    )
+    if stripped.returncode != 0 or stripped.stdout or stripped.stderr:
+        raise AssertionError("snapshot adversary fixture strip failed")
+    return V1.bounded_file(output, MAX_BINARY_BYTES, "snapshot adversary ELF")
+
+
+def run_fixture(binary: Path) -> int:
+    result = subprocess.run(
+        [os.fspath(binary)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=10,
+        env=V1.ENV,
+    )
+    if result.stdout or result.stderr:
+        raise AssertionError("snapshot adversary fixture emitted output")
+    return result.returncode
+
+
 def prove_snapshot_substitute_restore() -> dict:
-    original = b"int main(void){return 0;}\n"
+    original = b"int main(void){return 3;}\n"
     substitute = b"int main(void){return 7;}\n"
     with tempfile.TemporaryDirectory(
         prefix="void-e2-dormant-binder-v2-snapshot-adversary-"
@@ -431,6 +495,26 @@ def prove_snapshot_substitute_restore() -> dict:
                 raise AssertionError("visible substitute adversary failed")
             if read_fd_exact(fd, 4096) != original:
                 raise AssertionError("sealed snapshot changed after substitution")
+
+            snapshot_a_path = root / "snapshot-a"
+            snapshot_a = compile_adversary_fixture(
+                snapshot_arg(fd),
+                snapshot_a_path,
+                fd,
+            )
+            if run_fixture(snapshot_a_path) != 3:
+                raise AssertionError("snapshot build followed substituted source")
+
+            visible_path = root / "visible-control"
+            visible_binary = compile_adversary_fixture(
+                os.fspath(visible),
+                visible_path,
+            )
+            if run_fixture(visible_path) != 7:
+                raise AssertionError("visible substitution positive control failed")
+            if visible_binary == snapshot_a:
+                raise AssertionError("visible substitution did not alter control ELF")
+
             restored = root / "restored.c"
             restored.write_bytes(original)
             os.replace(restored, visible)
@@ -438,11 +522,26 @@ def prove_snapshot_substitute_restore() -> dict:
                 raise AssertionError("visible restore adversary failed")
             if read_fd_exact(fd, 4096) != original:
                 raise AssertionError("sealed snapshot changed after restore")
+
+            snapshot_b_path = root / "snapshot-b"
+            snapshot_b = compile_adversary_fixture(
+                snapshot_arg(fd),
+                snapshot_b_path,
+                fd,
+            )
+            if run_fixture(snapshot_b_path) != 3:
+                raise AssertionError("snapshot build changed after visible restore")
+            if snapshot_a != snapshot_b:
+                raise AssertionError(
+                    "sealed-source ELF changed across substitute/restore"
+                )
         finally:
             os.close(fd)
     return {
         "checkout_substitute_after_snapshot_cannot_change_build_input": True,
         "checkout_restore_cannot_rewrite_snapshot_history": True,
+        "substitute_visible_control_changed_semantics": True,
+        "snapshot_elf_stable_across_substitute_restore": True,
         "sealed_write_rejected": True,
     }
 
@@ -621,6 +720,12 @@ def validate(report: dict) -> None:
         ) is not True
         or snapshot.get(
             "checkout_restore_cannot_rewrite_snapshot_history"
+        ) is not True
+        or snapshot.get(
+            "substitute_visible_control_changed_semantics"
+        ) is not True
+        or snapshot.get(
+            "snapshot_elf_stable_across_substitute_restore"
         ) is not True
         or snapshot.get("sealed_write_rejected") is not True
         or snapshot.get("visible_source_revalidated_after_build") is not True
