@@ -24,7 +24,7 @@ const NATIVE_SOURCE=
 const NATIVE_SOURCE_BLOB="5021727f1def1ec11f870d735cab65acc1701a5e";
 const BINDER_PREENTRY=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c";
-const BINDER_PREENTRY_BLOB="09f3dd60393c289f7bfee83bea290dc58f37ce54";
+const BINDER_PREENTRY_BLOB="b6946d5b9067771369879f0d026bec7d51e428e1";
 
 function gitBlob(bytes){
   return crypto.createHash("sha1")
