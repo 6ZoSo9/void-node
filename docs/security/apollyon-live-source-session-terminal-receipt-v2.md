@@ -12,6 +12,8 @@ Therefore the inner live binding alone is not sufficient authority for a durable
 
 This contract first snapshots the caller input exactly once into plain structured-clone data, then validates, carries identities, and hashes only that single frozen snapshot. Accessors, proxies, or other caller-controlled objects therefore cannot present one binding during validation and a different binding during carried-identity or digest construction.
 
+The enclosed live binding authority is also an exact-key contract. Before canonical comparison, its own enumerable keys must match the reviewed V2 authority object exactly; unknown fields, including an own enumerable `__proto__` property, fail closed rather than being normalized away by object-prototype semantics.
+
 It accepts only the exact terminal runner receipt from the reviewed #3217 generation. It requires:
 
 - runner status live_source_session_binding_complete_training_service_stopped;
