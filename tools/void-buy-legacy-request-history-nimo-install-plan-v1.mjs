@@ -11,6 +11,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_AUTHORITY_V1 =
     fixed_installation_layout_selected: true,
     exact_forced_command_selected: true,
     authorized_key_exact_forced_command_option_required: true,
+    authorized_key_exact_option_set_required: true,
     materialized_authorized_key_command_binding_required: true,
     dedicated_client_public_key_required: true,
     additive_authorized_keys_successor_required: true,
@@ -88,7 +89,7 @@ export function classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1(input
       throw new Error("legacy_history_nimo_authorized_key_options_shape_invalid");
     }
     const keys=Object.keys(input).sort();
-    const expected=["command_option","restrict"].sort();
+    const expected=["command_option","options","restrict"].sort();
     if(keys.length!==expected.length||keys.some((key,index)=>key!==expected[index])){
       throw new Error("legacy_history_nimo_authorized_key_options_shape_invalid");
     }
@@ -98,12 +99,28 @@ export function classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1(input
     if(input.command_option!==VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1){
       throw new Error("legacy_history_nimo_authorized_key_command_option_mismatch");
     }
+    if(
+      !Array.isArray(input.options)||
+      input.options.length!==2||
+      input.options[0]!=="restrict"||
+      input.options[1]!==VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1
+    ){
+      throw new Error("legacy_history_nimo_authorized_key_exact_option_set_required");
+    }
     return Object.freeze({
       ok:true,
       status:"SOURCE_AUTHORIZED_KEY_OPTION_SHAPE_BOUND",
       restrict:true,
       command_option:VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
       command_value:VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1,
+      options:Object.freeze([
+        "restrict",
+        VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
+      ]),
+      option_prefix:
+        "restrict,"+
+        VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
+      additional_options_forbidden:true,
       exact_line_materialized:false,
       authorized_keys_mutation_authorized:false,
     });
@@ -195,8 +212,17 @@ export function planVoidBuyVoidLegacyHistoryNimoInstallV1(){
       materialized_entry_command_option_required:true,
       materialized_entry_command_value_must_equal_forced_command_command:true,
       materialized_entry_restrict_only_sufficient:false,
+      options_exact_order_required:true,
+      additional_options_forbidden:true,
       forced_command_value:VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1,
       forced_command_option:
+        VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
+      exact_options:Object.freeze([
+        "restrict",
+        VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
+      ]),
+      exact_option_prefix:
+        "restrict,"+
         VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
       dedicated_ed25519_client_key_required:true,
       transport_policy_client_public_key_sha256_required:true,
@@ -266,6 +292,7 @@ function main(){
        classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1({
          restrict:true,
          command_option:plan.authorized_key.forced_command_option,
+         options:plan.authorized_key.exact_options,
        }).ok!==true||
        plan.runtime_bundle.runtime_bundle_candidate_accepted!==false){
       throw new Error("legacy_history_nimo_install_plan_self_test_failed");
@@ -275,6 +302,7 @@ function main(){
       "source_only_installation_plan=true\n"+
       "runtime_bundle_candidate_accepted=false\n"+
       "authorized_key_exact_forced_command_option_required=true\n"+
+      "authorized_key_exact_option_set_required=true\n"+
       "materialized_authorized_key_command_binding_required=true\n"+
       "authorized_keys_additive_successor_required=true\n"+
       "live_nimo_installed=false\n"+
