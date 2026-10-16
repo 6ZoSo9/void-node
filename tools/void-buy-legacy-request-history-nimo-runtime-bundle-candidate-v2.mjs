@@ -374,7 +374,7 @@ function staticRequireSpecifiers(sourceText, label) {
   }
   const callPattern = /\brequire\s*\(/gu;
   const calls = [...sourceText.matchAll(callPattern)].length;
-  const literalPattern = /\brequire\s*\(\s*(["'])([^"'\\r\\n]+)\1\s*\)/gu;
+  const literalPattern = /\brequire\s*\(\s*(["'])([^"'\r\n]+)\1\s*\)/gu;
   const specifiers = [...sourceText.matchAll(literalPattern)].map(
     (match) => match[2],
   );
@@ -393,11 +393,19 @@ const TYPESCRIPT_COMPILER_FILES_V2 = Object.freeze([
 
 const TYPESCRIPT_CLI_EDGES_V2 = Object.freeze([
   Object.freeze({
+    kind: "file",
     from: "node_modules/typescript/bin/tsc",
     specifier: "../lib/tsc.js",
     to: "node_modules/typescript/lib/tsc.js",
   }),
   Object.freeze({
+    kind: "node_builtin",
+    from: "node_modules/typescript/lib/tsc.js",
+    specifier: "node:module",
+    to: "node:module",
+  }),
+  Object.freeze({
+    kind: "file",
     from: "node_modules/typescript/lib/tsc.js",
     specifier: "./_tsc.js",
     to: "node_modules/typescript/lib/_tsc.js",
@@ -445,7 +453,7 @@ function compilerIdentity(root) {
   );
   if (
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(loaderSpecs) !==
-    '["./_tsc.js"]'
+    '["node:module","./_tsc.js"]'
   ) {
     fail("legacy_history_nimo_bundle_typescript_cli_loader_edge_invalid");
   }
