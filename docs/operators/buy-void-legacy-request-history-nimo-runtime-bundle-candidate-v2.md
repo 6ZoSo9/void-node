@@ -85,21 +85,25 @@ For every V2 candidate creation it:
 4. creates a second root-custodied build-input snapshot containing the exact
    15-file TypeScript program, reviewed build config and exact locked type
    packages;
-5. verifies that the resolved `process.execPath` itself is a direct,
-   single-link, root-owned, non-setid, executable regular file beneath
-   root-owned non-group/world-writable ancestry;
+5. binds the exact currently executing Node inode through
+   `/proc/<builder-pid>/exe` and requires it to match the visible
+   `process.execPath` generation before compilation. The retained procfs
+   executable remains bound to the running builder process even if a writable
+   hosted-toolcache pathname or ancestor is renamed/replaced;
 6. creates a fresh runtime-output directory beneath sticky `/tmp`, records
    its generation, transfers that exact directory to `root:root` mode
    `0700` **before compilation begins**, and never emits candidate JS into
    checkout `dist/`;
-7. invokes fixed `/usr/bin/sudo -n /usr/bin/env -i` with the root-custodied
-   Node executable, compiler snapshot and build-input snapshot under exactly
+7. invokes fixed `/usr/bin/sudo -n /usr/bin/env -i` with that retained
+   `/proc/<builder-pid>/exe` generation, the root-custodied compiler snapshot
+   and build-input snapshot under exactly
    `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, `TZ=UTC`,
    `NODE_DISABLE_COMPILE_CACHE=1`, with
    `--outDir <root-custodied-runtime-output-snapshot>/dist`;
-8. after successful TypeScript execution, fixed privileged chmod removes write
-   authority and exposes only root-owned `0555` directories / `0444`
-   single-link files before any runtime observation;
+8. after successful TypeScript execution, the exact retained Node inode is
+   revalidated, then fixed privileged chmod removes write authority and exposes
+   only root-owned `0555` directories / `0444` single-link files before any
+   runtime observation;
 9. revalidates compiler and build-input snapshots plus the mutable checkout
    compiler/source endpoints, then derives the 14-file runtime closure using
    compiled `dist/*` only from the protected output tree and tracked
@@ -247,8 +251,10 @@ then finalized root:root with 0555 directories and 0444 files before TypeScript
 executes. The ordinary candidate-builder UID cannot chmod, replace, unlink, or
 rewrite those inputs during the build.
 
-Compilation uses the root-custodied Node executable, compiler snapshot,
-build-input snapshot, and pre-custodied runtime-output root simultaneously.
+Compilation uses the retained running-Node executable generation, the
+root-custodied compiler snapshot and build-input snapshot, and the pre-custodied
+runtime-output root simultaneously. The Node execution identity is generation
+bound through procfs rather than by trusting mutable hosted-toolcache ancestry.
 Compiler/build-input snapshots and mutable checkout source/package endpoints are
 revalidated after execution; the output tree is finalized root-owned and
 non-writable before it becomes candidate evidence.
