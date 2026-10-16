@@ -13,11 +13,6 @@ import {
   collectReviewedNodePackageRuntimeV1,
   verifyReviewedNodePackageRuntimeV1,
 } from "../tools/void-reviewed-node-package-runtime-v1.mjs";
-import {
-  VOID_BUY_VOID_CURRENT_ENFORCEMENT_TRACKED_SOURCE_PATHS_V1,
-  inspectBuyVoidCurrentEnforcementTrackedSourceInventoryV1,
-} from "../ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
-
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const PROTECTED_CENSUS_PARENT="c6313934b30e8bde185338455ed9125e5a91bc93";
 const PROTECTED_CENSUS_PROOF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_source_census_v5.mjs";
@@ -50,6 +45,10 @@ const CANDIDATE_WORKFLOW_TRIGGER_DEPENDENCIES=Object.freeze([
 ]);
 const RUNTIME_SOURCE_PARENT="16563121f8d6c2a1fa7cd2f99ca4be2f88aa3cca";
 const CURRENT_ENFORCEMENT_PARENT="6080389131c3cdb80fa9935b5ff80f4e40f09938";
+const CURRENT_ENFORCEMENT_INVENTORY_DEFINITION=
+  "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
+const CURRENT_ENFORCEMENT_INVENTORY_DEFINITION_BLOB=
+  "3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0";
 const PREDECESSOR_LOCK="ops/security/buy-void-enforcement-post2865-lock-v1.json";
 const PREDECESSOR_LOCK_BLOB="37210b74fa0de86250af84ec088c2d74e9e90499";
 const PREDECESSOR_SET="1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b";
@@ -288,15 +287,83 @@ function sagaEdge(){
   assert.ok(ts.isReturnStatement(second)&&second.expression&&ts.isCallExpression(second.expression)&&second.expression.arguments.length===1&&
     ts.isStringLiteral(second.expression.arguments[0])&&second.expression.arguments[0].text===TOOL_SPEC);
 }
+function extractCurrentEnforcementPaths(){
+  const bytes=pin(
+    CURRENT_ENFORCEMENT_INVENTORY_DEFINITION,
+    CURRENT_ENFORCEMENT_INVENTORY_DEFINITION_BLOB,
+    512*1024,
+  );
+  const ast=ts.createSourceFile(
+    CURRENT_ENFORCEMENT_INVENTORY_DEFINITION,
+    bytes.toString("utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  assert.equal(ast.parseDiagnostics.length,0,"current_enforcement_inventory_definition_parse_diagnostics");
+  let found=null;
+  for(const stmt of ast.statements){
+    if(!ts.isVariableStatement(stmt))continue;
+    for(const decl of stmt.declarationList.declarations){
+      if(
+        !ts.isIdentifier(decl.name)||
+        decl.name.text!=="VOID_BUY_VOID_CURRENT_ENFORCEMENT_TRACKED_SOURCE_PATHS_V1"
+      )continue;
+      let expr=decl.initializer;
+      assert.ok(expr,"current_enforcement_inventory_initializer_missing");
+      if(ts.isCallExpression(expr)){
+        assert.ok(
+          ts.isPropertyAccessExpression(expr.expression)&&
+          ts.isIdentifier(expr.expression.expression)&&
+          expr.expression.expression.text==="Object"&&
+          expr.expression.name.text==="freeze",
+          "current_enforcement_inventory_object_freeze_required",
+        );
+        assert.equal(expr.arguments.length,1,"current_enforcement_inventory_freeze_arg_count");
+        expr=expr.arguments[0];
+      }
+      while(
+        ts.isAsExpression(expr)||
+        ts.isTypeAssertionExpression(expr)||
+        ts.isParenthesizedExpression(expr)
+      )expr=expr.expression;
+      assert.ok(ts.isArrayLiteralExpression(expr),"current_enforcement_inventory_array_required");
+      found=expr.elements.map(element=>{
+        assert.ok(ts.isStringLiteral(element),"current_enforcement_inventory_literal_required");
+        return element.text;
+      });
+    }
+  }
+  assert.ok(found,"current_enforcement_inventory_definition_not_found");
+  assert.equal(found.length,49,"current_enforcement_required_path_count");
+  assert.equal(new Set(found).size,49,"current_enforcement_required_path_duplicate");
+  assert.deepEqual(found,[...found].sort(),"current_enforcement_required_paths_not_sorted");
+  return Object.freeze(found);
+}
+function inspectCurrentEnforcementRow(relative){
+  const bytes=read(relative,4*1024*1024);
+  const visibleBlob=gitBlob(bytes);
+  const headBlob=git(["rev-parse","--verify","HEAD:"+relative]);
+  assert.equal(visibleBlob,headBlob,"current_enforcement_source_worktree_blob_mismatch:"+relative);
+  const entry=git(["ls-tree","HEAD","--",relative]);
+  const match=entry.match(/^(100644|100755) blob ([0-9a-f]{40})\t(.+)$/u);
+  assert.ok(match,"current_enforcement_source_tree_entry_invalid:"+relative);
+  assert.equal(match[2],headBlob,"current_enforcement_source_tree_blob_mismatch:"+relative);
+  assert.equal(match[3],relative,"current_enforcement_source_tree_path_mismatch:"+relative);
+  const st=fs.lstatSync(path.join(ROOT,relative));
+  assert.ok(st.isFile()&&!st.isSymbolicLink()&&st.nlink===1,
+    "current_enforcement_source_not_direct_regular_file:"+relative);
+  const visibleMode=(st.mode&0o111)!==0?"100755":"100644";
+  assert.equal(visibleMode,match[1],"current_enforcement_source_worktree_mode_mismatch:"+relative);
+  return Object.freeze({path:relative,git_blob_sha1:headBlob,git_mode:visibleMode});
+}
 function currentEnforcementInventory(){
   git(["merge-base","--is-ancestor",PROTECTED_CENSUS_PARENT,"HEAD"]);
   pin(PROTECTED_CENSUS_PROOF,PROTECTED_CENSUS_PROOF_BLOB,256*1024);
-  const rows=inspectBuyVoidCurrentEnforcementTrackedSourceInventoryV1(ROOT);
+  const required=extractCurrentEnforcementPaths();
+  const rows=required.map(inspectCurrentEnforcementRow);
   assert.equal(rows.length,49,"current_enforcement_inventory_count");
-  const required=[...VOID_BUY_VOID_CURRENT_ENFORCEMENT_TRACKED_SOURCE_PATHS_V1];
-  assert.equal(required.length,49,"current_enforcement_required_path_count");
   assert.deepEqual(rows.map(row=>row.path),required,"current_enforcement_inventory_path_order");
-  assert.deepEqual(required,[...required].sort(),"current_enforcement_required_paths_not_sorted");
   git(["cat-file","-e",CURRENT_ENFORCEMENT_PARENT+"^{commit}"]);
   const diff=spawnSync("/usr/bin/git",[
     "--no-replace-objects","-C",ROOT,
