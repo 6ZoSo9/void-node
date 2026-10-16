@@ -16,6 +16,10 @@ MARKER="VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_HOST_PLAN_V2"
 TARGET_HOST="Xiphos"
 PARENT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"
 PARENT_CONTRACT_BLOB_SHA1="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
+PARENT_STORE_POLICY_ID=(
+    "apollyon_claim_store_policy_v2:"
+    "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
+)
 
 CLAIM_SERVICE_USER="voidapollyonclaim"
 CLAIM_SERVICE_GROUP="voidapollyonclaim"
@@ -474,6 +478,7 @@ def collect_plan(expected_parent_head:str)->dict[str,Any]:
         "machine_id_file":machine_evidence,
         "parent_head":PARENT_HEAD,
         "parent_contract_blob_sha1":PARENT_CONTRACT_BLOB_SHA1,
+        "store_policy_id":PARENT_STORE_POLICY_ID,
         "fixed_names":{
             "claim_service_user":CLAIM_SERVICE_USER,
             "claim_service_group":CLAIM_SERVICE_GROUP,
@@ -591,6 +596,10 @@ def self_test()->None:
     assert canonical(sample)=='{"a":1,"b":2}'
     assert git_blob_sha1(b"abc")==hashlib.sha1(b"blob 3\0abc").hexdigest()
     assert HASH64_RE.fullmatch("a"*64)
+    assert PARENT_STORE_POLICY_ID==(
+        "apollyon_claim_store_policy_v2:"
+        "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
+    )
     assert len(set(TARGET_USERS))==len(TARGET_USERS)
     assert len(set(TARGET_GROUPS))==len(TARGET_GROUPS)
     assert CLAIM_SOCKET.parent==CLAIM_SOCKET_PARENT
@@ -609,6 +618,7 @@ def self_test()->None:
     print("remote_nss_provider_rejected=true")
     print("identity_resolution_external_network_calls=false")
     print("candidate_slot_revalidation_required=true")
+    print("stable_store_policy_id_bound=true")
     print("host_installation_performed=false")
     print("durable_attempt_claim=false")
     print("training_execution=false")
