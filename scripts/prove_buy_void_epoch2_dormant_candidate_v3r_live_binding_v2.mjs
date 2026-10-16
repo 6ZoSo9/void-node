@@ -24,7 +24,7 @@ const NATIVE_SOURCE=
 const NATIVE_SOURCE_BLOB="5021727f1def1ec11f870d735cab65acc1701a5e";
 const BINDER_PREENTRY=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c";
-const BINDER_PREENTRY_BLOB="f2fcc922fa0679d781ec31e03a856486d1f2642a";
+const BINDER_PREENTRY_BLOB="dea2f96ef48076632cd593566fc4af61a115f395";
 
 function gitBlob(bytes){
   return crypto.createHash("sha1")
@@ -100,7 +100,20 @@ for(const required of [
   "require_devnull_stdin();",
   "fexecve(node_fd,next_argv,envp);",
   "stream_fd(binder_fd,source_pipe[1])",
+  "binder_source_release_started",
+  "credential_content_access=unknown_or_partial",
+  "private_key_access=unknown_or_partial",
+  "signing=unknown_or_partial",
+  "--self-test-hold-pre-source",
+  "--self-test-hold-post-source",
 ]) assert.ok(nativeSource.includes(required),required);
+
+const liveReleaseAt=nativeSource.lastIndexOf("binder_source_release_started=true;");
+const sourceStreamAt=nativeSource.indexOf(
+  "if(!stream_fd(binder_fd,source_pipe[1]))",
+  liveReleaseAt,
+);
+assert.ok(liveReleaseAt>0&&sourceStreamAt>liveReleaseAt);
 
 for(const forbidden of [
   "--receipt",
@@ -245,6 +258,7 @@ try{
   for(const line of [
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V2_SELF_TEST_GREEN",
     "native_first_instruction=true",
+    "sensitive_receipt_release_boundary=true",
     "fixed_self_path=true",
     "fixed_binder_path=true",
     "binder_exact_sha256_bound=true",
@@ -260,6 +274,62 @@ try{
     "public_presale_activation=false",
     "funds_movement=false",
   ]) assert.ok(nativeLines.has(line),line);
+
+  const receiptCases=[
+    {
+      mode:"--self-test-hold-pre-source",
+      release:"false",
+      sensitive:"false",
+      reason:"binder_preentry_self_test_pre_source_hold",
+    },
+    {
+      mode:"--self-test-hold-post-source",
+      release:"true",
+      sensitive:"unknown_or_partial",
+      reason:"binder_preentry_self_test_post_source_hold",
+    },
+  ];
+  for(const receiptCase of receiptCases){
+    const held=spawnSync(binary,[receiptCase.mode],{
+      cwd:ROOT,encoding:"utf8",env,
+      timeout:30_000,maxBuffer:2*1024*1024,
+    });
+    assert.equal(held.error,undefined,String(held.error?.message||""));
+    assert.equal(held.signal,null,String(held.signal||""));
+    assert.equal(held.status,2,String(held.stderr||held.stdout));
+    assert.equal(held.stdout,"");
+    const heldLines=new Set(held.stderr.split("\n").filter(Boolean));
+    assert.ok(
+      [...heldLines].some(line=>
+        line.includes("_HOLD reason="+receiptCase.reason)
+      ),
+      receiptCase.reason,
+    );
+    assert.ok(
+      heldLines.has("binder_source_release_started="+receiptCase.release),
+      receiptCase.mode,
+    );
+    for(const key of [
+      "credential_content_access",
+      "private_key_access",
+      "signing",
+    ]){
+      assert.ok(
+        heldLines.has(key+"="+receiptCase.sensitive),
+        receiptCase.mode+":"+key,
+      );
+      if(receiptCase.sensitive==="unknown_or_partial"){
+        assert.equal(heldLines.has(key+"=false"),false,receiptCase.mode+":"+key);
+      }
+    }
+    for(const line of [
+      "transaction=false",
+      "payment_acceptance=false",
+      "public_presale_activation=false",
+      "wc_void_market_activation=false",
+      "funds_movement=false",
+    ]) assert.ok(heldLines.has(line),receiptCase.mode+":"+line);
+  }
 }finally{
   fs.rmSync(buildRoot,{recursive:true,force:true});
 }
@@ -271,6 +341,10 @@ console.log("binder_exact_sha256_bound=true");
 console.log("private_binder_parent_proof_required=true");
 console.log("arbitrary_stdin_live_binding_rejected=true");
 console.log("native_source_stream_required=true");
+console.log("binder_source_release_receipt_monotonic=true");
+console.log("pre_source_sensitive_state_false=true");
+console.log("post_source_sensitive_state_unknown_or_partial=true");
+console.log("post_source_economic_state_false=true");
 console.log("native_node_policy_binding_required=true");
 console.log("candidate_v4_git_object_bound=true");
 console.log("candidate_v4_signer_control_preserved=true");
