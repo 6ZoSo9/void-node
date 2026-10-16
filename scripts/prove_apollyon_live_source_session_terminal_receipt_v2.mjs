@@ -28,7 +28,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
     "981935515e08634be96446e58922c16be56d33ad",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "6d099ec389a286d622e5b05a580486285bc85c64",
+    "53d5ed4f897276d5105236b4284ab00247431494",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -135,7 +135,8 @@ const result=finalizeApollyonLiveSourceSessionTerminalReceiptV2({
   runner_receipt:terminalInput,
 });
 assert.equal(result.status,"live_source_session_terminal_shutdown_qualified_unclaimed");
-assert.equal(result.terminal_shutdown_proven,true);
+assert.equal(result.terminal_shutdown_evidence_shape_qualified,true);
+assert.equal(result.terminal_shutdown_authority_proven,false);
 assert.equal(result.training_service_exact_dormant_after,true);
 assert.equal(result.training_generation_absent_after,true);
 assert.equal(result.inner_live_binding_alone_sufficient_for_executor,false);
@@ -212,6 +213,7 @@ for(const [key,expected] of Object.entries({
   protected_runner_origin_required:true,
   protected_runner_origin_proven:false,
   live_host_observation_performed:false,
+  terminal_shutdown_authority_proven:false,
   inner_live_binding_alone_sufficient_for_executor:false,
   same_training_process_generation_cross_binding_required:true,
   exact_training_service_dormancy_required:true,
@@ -238,6 +240,8 @@ const source=fs.readFileSync(
 );
 for(const required of [
   'status:"live_source_session_terminal_shutdown_qualified_unclaimed"',
+  'terminal_shutdown_evidence_shape_qualified:true',
+  'terminal_shutdown_authority_proven:false',
   'inner_live_binding_alone_sufficient_for_executor:false',
   'current_host_revalidation_required:true',
   'revalidation_identity_hashes_carried:true',
@@ -255,7 +259,8 @@ for(const forbidden of [
 console.log("VOID_APOLLYON_LIVE_SOURCE_SESSION_TERMINAL_RECEIPT_V2_PROOF_GREEN");
 console.log("exact_terminal_runner_receipt_required=true");
 console.log("inner_live_binding_alone_sufficient_for_executor=false");
-console.log("terminal_shutdown_proven=true");
+console.log("terminal_shutdown_evidence_shape_qualified=true");
+console.log("terminal_shutdown_authority_proven=false");
 console.log("training_service_exact_dormant_after=true");
 console.log("training_generation_absent_after=true");
 console.log("current_host_revalidation_required=true");
