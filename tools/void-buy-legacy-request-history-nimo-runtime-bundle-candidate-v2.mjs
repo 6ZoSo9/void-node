@@ -1435,6 +1435,7 @@ function compileReviewedRuntimeWithBoundCompilerV2(
         compiler_snapshot:snapshot.record,
         build_input_snapshot_root:buildInputSnapshot.root,
         build_input_snapshot:buildInputSnapshot.record,
+        runtime_output_snapshot_root:outputRoot,
       });
     }
     const tscEntry=path.join(
