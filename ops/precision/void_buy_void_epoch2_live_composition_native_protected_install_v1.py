@@ -26,6 +26,21 @@ RUNNER_GIT_BLOB_SHA1="92e8c8696ea7e2bb81b6ef089db8baa657188935"
 RUNNER_BYTES=30103
 RUNNER_SHA256="2ba779e98b76cd24c6b24de38b77dfded5ce7dd35869b8dd99490d3aa653af73"
 
+EXPECTED_HEAD_BLOBS={
+    LOCK_REL:LOCK_GIT_BLOB_SHA1,
+    RUNNER_REL:RUNNER_GIT_BLOB_SHA1,
+    "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c":
+        "4aa091e7835b32aa5c4e7b8e4059651c69a64eb3",
+    "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v1.mjs":
+        "73062194b5b5ed304ff820d7fa33e66c5c8da436",
+    ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v1.yml":
+        "85c28fdf03345240332cbf41d46fbda065958ec7",
+    "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs":
+        "14cbe81e27d04fee77cbe75225ce308bf8561a7b",
+    "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v3.py":
+        "3b779a27cfd071c2569c438e3319b756b46c85c9",
+}
+
 NATIVE_BYTES=726976
 NATIVE_SHA256="78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589"
 NODE_PATH=pathlib.Path("/usr/bin/node")
@@ -229,10 +244,9 @@ def repository_identity(expected_head:str)->str:
     )
     if ancestry.returncode!=0:
         raise InstallError("accepted_lock_merge_not_in_ancestry")
-    if _git(["rev-parse","HEAD:"+LOCK_REL]).stdout.strip()!=LOCK_GIT_BLOB_SHA1:
-        raise InstallError("repository_lock_blob_mismatch")
-    if _git(["rev-parse","HEAD:"+RUNNER_REL]).stdout.strip()!=RUNNER_GIT_BLOB_SHA1:
-        raise InstallError("repository_runner_blob_mismatch")
+    for relative,expected_blob in EXPECTED_HEAD_BLOBS.items():
+        if _git(["rev-parse","HEAD:"+relative]).stdout.strip()!=expected_blob:
+            raise InstallError("repository_dependency_blob_mismatch:"+relative)
     return head
 
 
@@ -960,6 +974,7 @@ def self_test()->None:
     print("policy_expected_head_bound=true")
     print("policy_runner_identity_bound=true")
     print("policy_node_identity_bound=true")
+    print("expected_head_dependency_generation_bound=true")
     print("post_publication_failure_receipt_truthful=true")
     print("create_only=true")
     print("protected_install_authorized=false")
