@@ -610,6 +610,8 @@ else if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   const c=derive();assert.match(c.candidate_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
   assert.equal(c.complete_executable_closure_verified,true);assert.equal(c.candidate_enforcement_identity_accepted,false);
   console.log("VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V3_GREEN");console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
+  console.log("provider_historical_lock_proof_reexecuted=false");
+  console.log("provider_current_content_semantics_requalified=true");
   console.log("complete_executable_closure_verified=true");console.log("candidate_enforcement_identity_accepted=false");
   console.log("production_source_finality_authority_ready=false");console.log("public_presale_activation=false");console.log("funds_movement=false");
 }else throw Error("usage: proof [--self-test|--derive]");
