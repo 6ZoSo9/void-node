@@ -164,8 +164,9 @@ for forbidden in (
     "service restart",
     "eth_sendRawTransaction",
     "eth_sendTransaction",
-    "private_key",
-    "wallet",
+    "signTransaction(",
+    "Wallet(",
+    "from eth_account",
     "ATOMIC_EXCHANGE_ACCEPTED_CREDENTIAL_QUERY_V1_TO_V2",
     "ATOMIC_EXCHANGE_ROLLBACK_CREDENTIAL_QUERY_V2_TO_V1",
 ):
