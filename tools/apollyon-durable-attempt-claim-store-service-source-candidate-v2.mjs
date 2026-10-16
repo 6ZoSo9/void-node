@@ -53,6 +53,9 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_CANDIDATE_
     transaction:false,
     funds_movement:false,
     durable_attempt_claim:false,
+    attempt_claim_authorized:false,
+    attempt_claimed:false,
+    training_execution_authorized:false,
     training_execution:false,
     candidate_weight_mutation:false,
   });

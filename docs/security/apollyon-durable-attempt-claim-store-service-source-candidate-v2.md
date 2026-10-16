@@ -68,6 +68,15 @@ The planned implementation boundary remains:
 
 This gate contains no filesystem/network/child-process import and no service implementation.
 
+The exported candidate authority also preserves the accepted zero-authorization state explicitly:
+
+- `durable_attempt_claim=false`;
+- `attempt_claim_authorized=false`;
+- `attempt_claimed=false`;
+- `training_execution_authorized=false`;
+- `training_execution=false`;
+- `candidate_weight_mutation=false`.
+
 It performs no:
 
 - account/group provisioning;

@@ -36,7 +36,7 @@ function sha256(value){return crypto.createHash("sha256").update(value).digest("
 
 const EXACT_BLOBS=Object.freeze({
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "4428c0056ae5311f418a1cffce2b67b09fab2aaf",
+    "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
   "ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py":
     "03ea7df9b7a548c73ec1c715d716391be5d5d223",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -253,6 +253,9 @@ for(const [key,expected] of Object.entries({
   transaction:false,
   funds_movement:false,
   durable_attempt_claim:false,
+  attempt_claim_authorized:false,
+  attempt_claimed:false,
+  training_execution_authorized:false,
   training_execution:false,
   candidate_weight_mutation:false,
 })){
