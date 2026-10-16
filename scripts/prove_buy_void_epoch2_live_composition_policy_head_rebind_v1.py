@@ -55,7 +55,7 @@ for required in (
     "old_policy_retention_required",
     "automatic_rollback_required",
     "filesystem_mutation_performed_at_pre_mutation_boundary=false",
-    "authority_boundary=FINAL_FAILURE_RECEIPT",
+    '"authority_boundary": "FINAL_FAILURE_RECEIPT"',
     "policy_exchange_performed",
     "policy_publication_performed",
     "final_state_verified",

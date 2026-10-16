@@ -48,7 +48,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = \
             37ab46ca5b77a642d84ad18c61388c30f4d63881
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = \
-            a6666ff9225365bf15e56276164e42876716739b
+            470dc724f42f55defb6ae0981c8c2225d12888b7
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-policy-head-rebind-v1.md)" = \
             1790363c6a7229e9431f62749294db30fe60409c
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
