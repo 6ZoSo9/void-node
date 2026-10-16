@@ -586,6 +586,7 @@ expected_paths = {
     ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml",
     "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md",
     "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c",
+    "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py",
     "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py",
 }
 for event,tail in (
