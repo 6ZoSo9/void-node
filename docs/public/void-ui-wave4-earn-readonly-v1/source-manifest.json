@@ -67,8 +67,8 @@
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest would create an unstable self-reference.",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "053c332d77fd2179046ab0c0638e5915e58cf331455134c8f8e1ccfd3e2e6340",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "fa1e8cbe5f2e9d501cd191cc580c65c7e3f7ebcb6923ddcdd0f4c2872421ced5",
-    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "1044e4faa4e6ecdf4654e8a63032041128a052d1611934aa03269552f31ce794",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "d00ca5609c0cbd87e4ab11f526e436a980c833374bfdc14eb6d715f1e460508f",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "b0f9bf82859946eee8e54a2029de309c9da28dc706c331d9dbeddadb0729164e",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5d490dff4febff19d58ea2ab1e856219e0cd38d7eca14b81dacd658116020886",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
@@ -77,7 +77,7 @@
     "public/void-app-wave1-v1/assets/js/earn-live.js": "1ec51efe296a1d1a9817eb8e9e0cd7b022ebaceb9de9fff2ae00280fba0f13a2",
     "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
     "public/void-app-wave1-v1/index.html": "d629ab00117ad6534651d66789887de2d9a0d101b7bb4b7d29eb0816acc37743",
-    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "ea6f9e03ac10cc13f688a0dd447906f76e4595e49672a30213fc1c3d47058d6b",
+    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "2d7cec49403b485878ee61d7232b730d0b79cd2e15bd8b31051843e00164163b",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "c3280ee022e07dbb8a9c8fa35156563358a786477b9c3e28a0ecc3b1706813d1"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
@@ -117,5 +117,7 @@
   "same_route_modal_navigation_focus_refresh_date": "2026-10-13",
   "advanced_unavailable_controls_truth_refresh_date": "2026-10-14",
   "advanced_drawer_short_viewport_scroll_refresh_date": "2026-10-14",
-  "command_search_filter_refresh_date": "2026-10-15"
+  "command_search_filter_refresh_date": "2026-10-15",
+  "wallet_account_attribution_refresh_date": "2026-10-15",
+  "wallet_status_account_attribution_refresh_date": "2026-10-15"
 }

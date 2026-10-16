@@ -1,0 +1,85 @@
+name: Buy VOID Epoch-2 native installed qualification v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v1.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v1.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v1.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v1.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v1.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v1.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact reviewed generation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v1.py)" =             "e026046ec5eff21add2220a16e313d7a1129903b"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v1.py)" =             "0f8592d82c43727a30365da4a0536d7a4dc6a4b8"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py)" =             "f572868ea0edacbb3404771b793c4c60f9471abb"
+
+      - name: Syntax check without bytecode writes
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v1.py",
+              "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v1.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V1_SYNTAX_GREEN")
+          PY
+
+      - name: Prove installed qualification source
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e2-native-installed-qualification-proof.log"
+          python3 -I -B             scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v1.py |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V1_PROOF_GREEN"
+            "installer_source_blob_bound=true"
+            "exact_installed_root_required=true"
+            "expected_head_policy_binding_required=true"
+            "node_generation_binding_required=true"
+            "checkout_generation_binding_required=true"
+            "double_native_self_test_required=true"
+            "native_self_test_verified_fd_execution=true"
+            "visible_native_swap_during_exec_rejected=true"
+            "runner_execution=false"
+            "live_composition_execution=false"
+            "credential_access=false"
+            "private_key_access=false"
+            "signing=false"
+            "transaction=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
