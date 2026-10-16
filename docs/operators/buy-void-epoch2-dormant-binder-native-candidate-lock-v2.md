@@ -109,7 +109,7 @@ The compare job independently rederived both once more.
 
 ## Lock identity
 
-`voidbuye2dormantbinderlock2_ede439cc33655c3a89a1a47b1fa55a81b90e07662880c42ed88b578462618d0d`.
+`voidbuye2dormantbinderlock2_34df85425460aa9fc5192cee326de4b711deefbcb195dc6b7b6c3ebd23eb5597`.
 
 The suffix is SHA-256 over canonical JSON of the complete lock body excluding
 the `lock_id` field.
