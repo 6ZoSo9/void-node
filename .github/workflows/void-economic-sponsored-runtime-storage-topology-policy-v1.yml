@@ -1,0 +1,90 @@
+name: VOID sponsored runtime storage topology policy v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-economic-sponsored-runtime-storage-topology-policy-v1.mjs"
+      - "scripts/prove_void_economic_sponsored_runtime_storage_topology_policy_v1.mjs"
+      - "docs/architecture/economic-sponsored-runtime-storage-topology-policy-v1.md"
+      - ".github/workflows/void-economic-sponsored-runtime-storage-topology-policy-v1.yml"
+      - "tools/void-economic-system-sponsored-observation-time-store-v1.mjs"
+      - "tools/void-economic-system-sponsored-reservation-store-v1.mjs"
+      - "tools/void-economic-epoch2-durable-replay-store-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: storage topology / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove sponsored storage topology policy
+        run: |
+          set -euo pipefail
+          node --check tools/void-economic-sponsored-runtime-storage-topology-policy-v1.mjs
+          node --check scripts/prove_void_economic_sponsored_runtime_storage_topology_policy_v1.mjs
+          proof="$RUNNER_TEMP/sponsored-runtime-storage-topology-policy-v1.txt"
+          node scripts/prove_void_economic_sponsored_runtime_storage_topology_policy_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_ECONOMIC_SPONSORED_RUNTIME_STORAGE_TOPOLOGY_POLICY_V1_GREEN' "$proof"
+          grep -Fx 'three_root_custody_policy_shape_qualified=true' "$proof"
+          grep -Fx 'preprovisioned_store_children_required=true' "$proof"
+          grep -Fx 'complete_root_ancestor_chain_required=true' "$proof"
+          grep -Fx 'root_owned_nonwritable_ancestors_required=true' "$proof"
+          grep -Fx 'zero_runtime_capabilities_required=true' "$proof"
+          grep -Fx 'historical_same_uid_home_replay_topology_accepted=false' "$proof"
+          grep -Fx 'production_service_identity_selected=false' "$proof"
+          grep -Fx 'production_root_paths_selected=false' "$proof"
+          grep -Fx 'live_host_evidence_verified=false' "$proof"
+          grep -Fx 'runtime_integration=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Repository typecheck
+        run: npm run typecheck -- --pretty false
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
