@@ -44,7 +44,7 @@ The binding carries the exact #3333:
 - trainer generation, boot ID, PID/start ticks, UID/GID and source identity;
 - attempt_limit=1 and automatic_retry_authorized=false.
 
-A second blocked trainer for the same durable claim derives the same consumption slot but a different consumption record and therefore a different release binding. A release cannot transfer from the consumed trainer generation to the replacement generation.
+A second blocked trainer for the same durable claim derives the same consumption slot but a different consumption record and therefore a different release binding. A release cannot transfer from the consumed trainer generation to the replacement generation. The binding validator closes both the top-level key set and the nested authority key set before canonical comparison; unknown/prototype-like authority fields fail closed.
 
 ## Deliberate non-authority
 

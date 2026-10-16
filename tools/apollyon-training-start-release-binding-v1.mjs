@@ -260,6 +260,11 @@ export function validateApollyonTrainingStartReleaseBindingV1(input){
     VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_KEYS_V1,
     "apollyon_training_start_release_v1_binding_invalid",
   );
+  exactOwnKeys(
+    value.authority,
+    Object.keys(VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_AUTHORITY_V1),
+    "apollyon_training_start_release_v1_authority_invalid",
+  );
   const expected=qualifyApollyonTrainingStartReleaseBindingV1({
     consumption_record:{
       marker:"VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_V1",

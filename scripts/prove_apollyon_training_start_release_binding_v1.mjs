@@ -35,7 +35,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-release-binding-v1.mjs":
-    "ae4b6419bc3122b559670ec97536ff0ea1d83a6a",
+    "35e89b68846f559ab3ec536236cac79b88dd8124",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "f4b5c984cc67de470df1af949723eeaefba0393f",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -297,6 +297,20 @@ assert.equal(binding2.release_not_transferable_to_replacement_generation,true);
   assert.throws(
     ()=>validateApollyonTrainingStartReleaseBindingV1(bad),
     /binding_invalid/u,
+  );
+}
+{
+  const bad=structuredClone(binding1);
+  Object.defineProperty(bad.authority,"__proto__",{
+    value:{training_execution_authorized:true},
+    enumerable:true,
+    configurable:true,
+    writable:true,
+  });
+  assert.equal(Object.keys(bad.authority).includes("__proto__"),true);
+  assert.throws(
+    ()=>validateApollyonTrainingStartReleaseBindingV1(bad),
+    /authority_invalid/u,
   );
 }
 
