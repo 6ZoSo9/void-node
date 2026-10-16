@@ -10,6 +10,15 @@ import {
 export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTRACT_V2 =
   "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTRACT_V2";
 
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_KEYS_V2 =
+  Object.freeze([
+    "claim_record",
+    "marker",
+    "method",
+    "store_contract_id",
+    "version",
+  ]);
+
 export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
   Object.freeze({
     dedicated_claim_service_identity_required:true,
@@ -48,6 +57,31 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     training_uid_service_control_denied_required:true,
     custody_uid_service_control_denied_required:true,
     claim_service_af_unix_only_required:true,
+    dedicated_claim_ipc_group_required:true,
+    claim_ipc_group_exact_members_required:true,
+    training_uid_claim_ipc_membership_forbidden:true,
+    custody_uid_claim_ipc_membership_forbidden:true,
+    public_runtime_claim_ipc_membership_forbidden:true,
+    claim_request_caller_identity_must_be_versioned_and_fixed_before_install:true,
+    claim_request_kernel_peer_credentials_required:true,
+    claim_request_no_caller_supplied_identity_trust:true,
+    claim_request_exact_caller_uid_gid_required:true,
+    claim_request_peer_pid_generation_revalidation_required:true,
+    claim_request_caller_process_source_identity_required:true,
+    claim_request_root_not_implicitly_authorized:true,
+    claim_request_unauthorized_peer_rejected_before_body_read_required:true,
+    claim_request_closed_method_set_required:true,
+    claim_request_method:"publish_claim_v2",
+    claim_request_exact_key_schema_required:true,
+    claim_request_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_KEYS_V2,
+    claim_request_unknown_keys_rejected_required:true,
+    claim_request_canonical_encoding_required:true,
+    claim_request_one_request_per_connection_required:true,
+    claim_request_max_bytes:65536,
+    claim_request_timeout_ms:5000,
+    claim_response_max_bytes:65536,
+    claim_service_max_concurrent_connections:16,
+    claim_service_socket_backlog_bound_required:true,
     claim_service_network_access_forbidden:true,
     claim_service_private_key_access_forbidden:true,
     claim_service_signing_forbidden:true,

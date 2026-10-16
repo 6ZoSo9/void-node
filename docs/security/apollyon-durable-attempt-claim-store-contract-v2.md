@@ -27,7 +27,11 @@ A host-qualified successor must prove the static boundary below, and the future 
 - training and custody cannot control the claim service, and the claim service cannot control training or custody services;
 - the reviewed claim service exposes no delete/overwrite API;
 - immediately before publication, revalidate claim-UID process exclusivity, exact service source identity, supplementary groups, effective sandbox/policy, store generation/root identity, write authority, and all service-control denials;
-- the claim service is AF_UNIX-only and has no external network, private-key, signing, wallet, transaction, or funds authority.
+- the claim service is AF_UNIX-only and has no external network, private-key, signing, wallet, transaction, or funds authority;
+- a dedicated claim IPC group has an exact reviewed membership set that excludes training, custody, and public-runtime identities;
+- every publish request is admitted from kernel peer credentials against the exact reviewed caller UID/GID and caller process generation/source identity; caller-supplied identity is never trusted and root has no implicit bypass;
+- unauthorized peers are rejected before request-body reads;
+- the only write method is `publish_claim_v2`, with exact request keys `claim_record`, `marker`, `method`, `store_contract_id`, `version`, canonical encoding, no unknown keys, one request per connection, maximum request/response size 65,536 bytes, 5,000 ms request deadline, and at most 16 concurrent connections.
 
 This source contract does not choose the future literal account name, UID/GID, socket path, or state-root path.
 
