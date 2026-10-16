@@ -340,12 +340,13 @@ for line in (
     "post_publication_final_readback_failure_receipt_truthful=true",
     "operation_bound_plan_id_required=true",
     "prepublication_revalidation_required=true",
-    "retained_stage_directory_generation_required=true",
-    "generation_bound_stage_cleanup_required=true",
-    "post_publication_visible_generation_binding_required=true",
     "post_publication_rollback=false",
 ):
     assert line in self_lines, line
+
+# Hardened stage-generation facts are source/plan/AST invariants rather than
+# self-test transcript markers. They are checked above against the real apply
+# control flow and again below in the inert source plan.
 
 source_plan = subprocess.run(
     cmd + ["--source-plan"],
