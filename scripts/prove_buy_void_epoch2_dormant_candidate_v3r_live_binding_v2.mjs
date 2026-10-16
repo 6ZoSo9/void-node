@@ -134,8 +134,8 @@ const nativeCall=source.indexOf("const r=run(FIXED_NATIVE",nativeAt);
 assert.ok(nativeAt>0&&nativeCall>nativeAt&&ignoreAt>nativeCall);
 
 const env={PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"};
-const self=spawnSync("/usr/bin/node",["--input-type=module","-","--self-test"],{
-  cwd:ROOT,input:source,encoding:"utf8",env,
+const self=spawnSync("/usr/bin/node",[path.join(ROOT,BINDER),"--self-test"],{
+  cwd:ROOT,encoding:"utf8",env,
   timeout:30_000,maxBuffer:2*1024*1024,
 });
 assert.equal(self.status,0,String(self.stderr||self.stdout));
@@ -163,8 +163,8 @@ for(const line of [
   assert.ok(selfLines.has(line),line);
 }
 
-const plan=spawnSync("/usr/bin/node",["--input-type=module","-","--plan"],{
-  cwd:ROOT,input:source,encoding:"utf8",env,
+const plan=spawnSync("/usr/bin/node",[path.join(ROOT,BINDER),"--plan"],{
+  cwd:ROOT,encoding:"utf8",env,
   timeout:30_000,maxBuffer:2*1024*1024,
 });
 assert.equal(plan.status,0,String(plan.stderr||plan.stdout));
