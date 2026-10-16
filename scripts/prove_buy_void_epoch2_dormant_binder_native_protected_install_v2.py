@@ -26,7 +26,7 @@ BINDER_REL = (
 )
 
 EXPECTED_BLOBS = {
-    INSTALLER_REL: "a2720335448788912e62df5a000e9e38087942eb",
+    INSTALLER_REL: "9b38d2186c2a0db0042e5fd0d551566a1f8f646c",
     LOCK_REL: "5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1",
     NATIVE_SOURCE_REL: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     BINDER_REL: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
@@ -133,6 +133,9 @@ for token in (
     "rename_noreplace_required=true",
     "operation_bound_plan_id_required=true",
     "prepublication_revalidation_required=true",
+    "retained_stage_directory_generation_required=true",
+    "generation_bound_stage_cleanup_required=true",
+    "post_publication_visible_generation_binding_required=true",
     "post_publication_rollback=false",
     "expected_plan_id_mismatch",
     "native_candidate_changed_before_publish",
@@ -210,14 +213,90 @@ assert "read_exact_candidate(native) != native_raw" in revalidate_source
 assert "current_binder = _git_object(" in revalidate_source
 assert "current_binder != binder_raw" in revalidate_source
 
-verify_stage = apply_source.index("_verify_install_root(STAGE_ROOT)")
-revalidate_at = apply_source.index("_revalidate_before_publication(")
+assert "_require_visible_directory_matches_fd" in functions
+assert "_verify_pair_fd" in functions
+assert "_cleanup_retained_stage" in functions
+cleanup_source = ast.get_source_segment(
+    source, functions["_cleanup_retained_stage"]
+)
+assert cleanup_source is not None
+cleanup_bind = cleanup_source.index(
+    "_require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)"
+)
+cleanup_verify = cleanup_source.index("_verify_pair_fd(stage_fd)", cleanup_bind)
+cleanup_native_verify = cleanup_source.index(
+    "_installed_file_ok(", cleanup_verify
+)
+cleanup_native_unlink = cleanup_source.index(
+    "os.unlink(NATIVE_NAME, dir_fd=stage_fd)", cleanup_native_verify
+)
+cleanup_binder_verify = cleanup_source.index(
+    "_installed_file_ok(", cleanup_native_unlink
+)
+cleanup_binder_unlink = cleanup_source.index(
+    "os.unlink(BINDER_NAME, dir_fd=stage_fd)", cleanup_binder_verify
+)
+cleanup_rebind = cleanup_source.index(
+    "_require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)",
+    cleanup_binder_unlink,
+)
+cleanup_rmdir = cleanup_source.index(
+    "os.rmdir(STAGE_NAME, dir_fd=opt_fd)", cleanup_rebind
+)
+assert (
+    cleanup_bind
+    < cleanup_verify
+    < cleanup_native_verify
+    < cleanup_native_unlink
+    < cleanup_binder_verify
+    < cleanup_binder_unlink
+    < cleanup_rebind
+    < cleanup_rmdir
+)
+
+stage_open = apply_source.index("stage_fd = os.open(")
+stage_bind_first = apply_source.index(
+    "_require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)",
+    stage_open,
+)
+stage_verify_first = apply_source.index("_verify_pair_fd(stage_fd)", stage_bind_first)
+revalidate_at = apply_source.index(
+    "_revalidate_before_publication(", stage_verify_first
+)
+stage_bind_second = apply_source.index(
+    "_require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)",
+    revalidate_at,
+)
+stage_verify_second = apply_source.index(
+    "_verify_pair_fd(stage_fd)", stage_bind_second
+)
 publish = apply_source.index(
-    "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)"
+    "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)",
+    stage_verify_second,
 )
 published_flag = apply_source.index("published = True", publish)
-post_checks = apply_source.index("_post_publication_checks(opt_fd)", published_flag)
-assert verify_stage < revalidate_at < publish < published_flag < post_checks
+install_bind = apply_source.index(
+    "_require_visible_directory_matches_fd(opt_fd, INSTALL_NAME, stage_fd)",
+    published_flag,
+)
+install_verify = apply_source.index("_verify_pair_fd(stage_fd)", install_bind)
+stage_close = apply_source.index("os.close(stage_fd)", install_verify)
+post_checks = apply_source.index("_post_publication_checks(opt_fd)", stage_close)
+assert (
+    stage_open
+    < stage_bind_first
+    < stage_verify_first
+    < revalidate_at
+    < stage_bind_second
+    < stage_verify_second
+    < publish
+    < published_flag
+    < install_bind
+    < install_verify
+    < stage_close
+    < post_checks
+)
+assert "_cleanup_retained_stage(opt_fd, stage_fd)" in apply_source
 assert apply_source.count("_renameat2(") == 1
 assert "INSTALL_NAME, STAGE_NAME" not in apply_source
 
@@ -261,6 +340,9 @@ for line in (
     "post_publication_final_readback_failure_receipt_truthful=true",
     "operation_bound_plan_id_required=true",
     "prepublication_revalidation_required=true",
+    "retained_stage_directory_generation_required=true",
+    "generation_bound_stage_cleanup_required=true",
+    "post_publication_visible_generation_binding_required=true",
     "post_publication_rollback=false",
 ):
     assert line in self_lines, line
@@ -291,6 +373,9 @@ for line in (
     "rename_noreplace_required=true",
     "operation_bound_plan_id_required=true",
     "prepublication_revalidation_required=true",
+    "retained_stage_directory_generation_required=true",
+    "generation_bound_stage_cleanup_required=true",
+    "post_publication_visible_generation_binding_required=true",
     "post_publication_rollback=false",
     "native_execution=false",
     "binder_execution=false",
@@ -396,6 +481,9 @@ print("explicit_apply_confirmation_required=true")
 print("operation_bound_plan_id_required=true")
 print("plan_id_validation_precedes_host_access=true")
 print("prepublication_revalidation_required=true")
+print("retained_stage_directory_generation_required=true")
+print("generation_bound_stage_cleanup_required=true")
+print("post_publication_visible_generation_binding_required=true")
 print("post_publication_rollback=false")
 print("single_final_root_publish_call=true")
 print("truthful_post_publication_failure_receipt=true")
