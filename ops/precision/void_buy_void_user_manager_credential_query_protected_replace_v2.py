@@ -656,9 +656,33 @@ def _open_protected_root(lock_mode: int) -> tuple[int, int]:
         raise
 
 
+def _require_visible_install_root(parent_fd: int, dir_fd: int) -> None:
+    try:
+        visible = os.stat(
+            INSTALL_ROOT.name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        opened = os.fstat(dir_fd)
+    except OSError as exc:
+        raise ReplaceError("visible_install_root_revalidation_failed") from exc
+    if (
+        not stat.S_ISDIR(visible.st_mode)
+        or stat.S_ISLNK(visible.st_mode)
+        or visible.st_dev != opened.st_dev
+        or visible.st_ino != opened.st_ino
+        or visible.st_uid != 0
+        or visible.st_gid != 0
+        or stat.S_IMODE(visible.st_mode) != 0o755
+        or (visible.st_mode & 0o022) != 0
+    ):
+        raise ReplaceError("visible_install_root_generation_changed")
+
+
 def _base_state() -> str:
     parent_fd, dir_fd = _open_protected_root(fcntl.LOCK_SH)
     try:
+        _require_visible_install_root(parent_fd, dir_fd)
         return _base_state_at(dir_fd)
     finally:
         os.close(dir_fd)
@@ -685,6 +709,7 @@ def source_plan() -> None:
     print("stable_parent_operation_lock_required=true")
     print("descriptor_bound_state_inspection_required=true")
     print("private_stage_publication_required=true")
+    print("visible_install_root_generation_revalidation_required=true")
     print("query_execution=false")
     print("credential_contents_read=false")
     print("service_mutation=false")
@@ -813,10 +838,12 @@ def apply(query: pathlib.Path, confirm: str) -> None:
     created_stage_identity: tuple[int, int] | None = None
     resumed_from = "none"
     try:
+        _require_visible_install_root(parent_fd, dir_fd)
         if _base_state_at(dir_fd) == PRIVATE_PENDING_STATE:
             if not _cleanup_private_pending(dir_fd):
                 raise ReplaceError("private_pending_cleanup_failed")
             resumed_from = PRIVATE_PENDING_STATE
+            _require_visible_install_root(parent_fd, dir_fd)
         state = _base_state_at(dir_fd)
         if state == GREEN_STATE:
             print(MARKER)
@@ -837,6 +864,7 @@ def apply(query: pathlib.Path, confirm: str) -> None:
             raise ReplaceError("apply_state_not_recoverable")
 
         if state == READY_STATE:
+            _require_visible_install_root(parent_fd, dir_fd)
             created_stage_identity = _create_exact_stage(dir_fd, raw)
             os.fsync(dir_fd)
             state = _base_state_at(dir_fd)
@@ -849,6 +877,7 @@ def apply(query: pathlib.Path, confirm: str) -> None:
 
         if state == STAGED_STATE:
             old_name = STAGING_NAME
+            _require_visible_install_root(parent_fd, dir_fd)
             _renameat2(dir_fd, STAGING_NAME, QUERY_NAME, RENAME_EXCHANGE)
             os.fsync(dir_fd)
             state = _base_state_at(dir_fd)
@@ -876,6 +905,7 @@ def apply(query: pathlib.Path, confirm: str) -> None:
             expected_sha256=PREEXEC_SHA256,
         )
 
+        _require_visible_install_root(parent_fd, dir_fd)
         _renameat2(
             dir_fd,
             STAGING_NAME,
@@ -885,6 +915,7 @@ def apply(query: pathlib.Path, confirm: str) -> None:
         old_name = V1_PREDECESSOR_NAME
         os.fsync(dir_fd)
 
+        _require_visible_install_root(parent_fd, dir_fd)
         if _base_state_at(dir_fd) != GREEN_STATE:
             raise ReplaceError("post_exchange_state_invalid")
     except BaseException:
@@ -930,10 +961,12 @@ def rollback(confirm: str) -> None:
     parent_fd, dir_fd = _open_protected_root(fcntl.LOCK_EX)
     resumed_from = "none"
     try:
+        _require_visible_install_root(parent_fd, dir_fd)
         if _base_state_at(dir_fd) == PRIVATE_PENDING_STATE:
             if not _cleanup_private_pending(dir_fd):
                 raise ReplaceError("private_pending_cleanup_failed")
             resumed_from = PRIVATE_PENDING_STATE
+            _require_visible_install_root(parent_fd, dir_fd)
         state = _base_state_at(dir_fd)
         if state == READY_STATE:
             print(MARKER)
@@ -953,6 +986,7 @@ def rollback(confirm: str) -> None:
             return
 
         if state == STAGED_STATE:
+            _require_visible_install_root(parent_fd, dir_fd)
             _file_digest(
                 _fd_child_path(dir_fd, STAGING_NAME),
                 expected_bytes=V2_QUERY_BYTES,
@@ -962,6 +996,7 @@ def rollback(confirm: str) -> None:
             os.fsync(dir_fd)
             resumed_from = STAGED_STATE
         elif state == EXCHANGED_STATE:
+            _require_visible_install_root(parent_fd, dir_fd)
             _renameat2(
                 dir_fd, QUERY_NAME, STAGING_NAME, RENAME_EXCHANGE
             )
@@ -980,6 +1015,7 @@ def rollback(confirm: str) -> None:
             os.fsync(dir_fd)
             resumed_from = EXCHANGED_STATE
         elif state == GREEN_STATE:
+            _require_visible_install_root(parent_fd, dir_fd)
             _renameat2(
                 dir_fd,
                 QUERY_NAME,
@@ -998,6 +1034,7 @@ def rollback(confirm: str) -> None:
             os.unlink(V1_PREDECESSOR_NAME, dir_fd=dir_fd)
             os.fsync(dir_fd)
         elif state == ROLLBACK_PENDING_STATE:
+            _require_visible_install_root(parent_fd, dir_fd)
             _file_digest(
                 _fd_child_path(dir_fd, V1_PREDECESSOR_NAME),
                 expected_bytes=V2_QUERY_BYTES,
@@ -1009,6 +1046,7 @@ def rollback(confirm: str) -> None:
         else:
             raise ReplaceError("rollback_state_not_recoverable")
 
+        _require_visible_install_root(parent_fd, dir_fd)
         if _base_state_at(dir_fd) != READY_STATE:
             raise ReplaceError("rollback_post_state_invalid")
     finally:
@@ -1189,6 +1227,7 @@ def main() -> int:
         print("stable_parent_operation_lock=true")
         print("descriptor_bound_state_inspection=true")
         print("private_stage_published_only_after_complete=true")
+        print("visible_install_root_generation_revalidation=true")
         print("query_execution=false")
         print("credential_contents_read=false")
         return 0
