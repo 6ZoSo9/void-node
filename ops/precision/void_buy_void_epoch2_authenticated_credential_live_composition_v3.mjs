@@ -1091,7 +1091,7 @@ function selfTest(){
   console.log("post_native_auth_failure_receipt_true=true");
   console.log("truthful_hold_lifecycle_stage=true");
   console.log("nested_qualification_hold_reason_preserved=true");
-  console.log("unexpected_qualification_bug_not_masked=true");
+  console.log("unexpected_qualification_exit_not_reclassified_as_hold=true");
   console.log("runner_parent_credential_content_access=false");
   console.log("sealed_child_credential_content_access=true");
   console.log("nontransaction_signature_only=true");
