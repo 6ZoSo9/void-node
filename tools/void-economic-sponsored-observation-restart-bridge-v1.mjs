@@ -209,7 +209,9 @@ function normalizeHostBinding(value,reason){
     binding.transaction_submission!==false ||
     binding.authoritative_chain2050_write!==false ||
     binding.public_presale_activation!==false ||
-    binding.funds_movement!==false
+    binding.funds_movement!==false ||
+    typeof binding.production_fixed_sources_observed!=="boolean" ||
+    typeof binding.test_only_injected_dependencies!=="boolean"
   ) fail(reason);
 
   const before=decimal(binding.boot_uptime_before_ns,reason);
@@ -285,6 +287,9 @@ function normalizeComposition(value){
     composition.public_presale_activation!==false ||
     composition.market_activation!==false ||
     composition.funds_movement!==false ||
+    typeof composition.production_fixed_sources_observed!=="boolean" ||
+    typeof composition.test_only_injected_dependencies!=="boolean" ||
+    typeof composition.mutation_performed!=="boolean" ||
     typeof composition.host_trusted_clock_binding_id!=="string" ||
     !HOST_BINDING_ID.test(composition.host_trusted_clock_binding_id) ||
     typeof composition.host_time_sync_evidence_id!=="string" ||
