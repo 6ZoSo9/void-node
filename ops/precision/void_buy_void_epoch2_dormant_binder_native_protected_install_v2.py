@@ -54,6 +54,7 @@ NATIVE_TARGET = INSTALL_ROOT / NATIVE_NAME
 BINDER_TARGET = INSTALL_ROOT / BINDER_NAME
 
 CONFIRM_TOKEN = "INSTALL_ACCEPTED_EPOCH2_DORMANT_BINDER_V3_CREATE_ONLY"
+PLAN_PREFIX = "voidbuye2dormantbinderinstall2_"
 RENAME_NOREPLACE = 1
 MAX_READ_CHUNK = 1024 * 1024
 READY_STATE = "DORMANT_BINDER_ROOT_ABSENT_READY_FOR_CREATE_ONLY"
@@ -730,6 +731,91 @@ def _require_apply_context() -> None:
         raise InstallError("forbidden_apply_environment:" + ",".join(present))
 
 
+def _canonical_json(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+
+
+def _collect_plan(
+    native: pathlib.Path,
+    expected_head: str,
+) -> dict[str, Any]:
+    _verify_checkout(expected_head)
+    accepted_lock(expected_head)
+    native_raw = read_exact_candidate(native)
+    binder_raw = _git_object(
+        expected_head,
+        BINDER_REL,
+        expected_blob=BINDER_GIT_BLOB_SHA1,
+        expected_bytes=BINDER_BYTES,
+        expected_sha256=BINDER_SHA256,
+    )
+    state = protected_state()
+    body = {
+        "schema": "void_buy_void_epoch2_dormant_binder_native_protected_install_plan_v2",
+        "version": 2,
+        "expected_head": expected_head,
+        "accepted_lock_id": LOCK_ID,
+        "candidate_id": CANDIDATE_ID,
+        "native_sha256": NATIVE_SHA256,
+        "native_bytes": NATIVE_BYTES,
+        "binder_git_blob_sha1": BINDER_GIT_BLOB_SHA1,
+        "binder_sha256": BINDER_SHA256,
+        "binder_bytes": BINDER_BYTES,
+        "install_root": str(INSTALL_ROOT),
+        "protected_state": state,
+        "create_only": True,
+        "atomic_root_publication_required": True,
+        "rename_noreplace_required": True,
+        "post_publication_rollback": False,
+        "filesystem_write_authorized": False,
+        "native_execution_authorized": False,
+        "binder_execution_authorized": False,
+        "service_mutation_authorized": False,
+        "systemd_mutation_authorized": False,
+        "credential_access_authorized": False,
+        "private_key_access_authorized": False,
+        "signing_authorized": False,
+        "transaction_authorized": False,
+        "payment_acceptance_authorized": False,
+        "public_presale_activation_authorized": False,
+        "wc_void_market_activation_authorized": False,
+        "funds_movement_authorized": False,
+        "production_host_evidence_authority": False,
+    }
+    return {
+        "body": body,
+        "plan_id": PLAN_PREFIX + sha256(_canonical_json(body)),
+        "native_raw": native_raw,
+        "binder_raw": binder_raw,
+    }
+
+
+def _revalidate_before_publication(
+    native: pathlib.Path,
+    expected_head: str,
+    native_raw: bytes,
+    binder_raw: bytes,
+) -> None:
+    _verify_checkout(expected_head)
+    accepted_lock(expected_head)
+    if read_exact_candidate(native) != native_raw:
+        raise InstallError("native_candidate_changed_before_publish")
+    current_binder = _git_object(
+        expected_head,
+        BINDER_REL,
+        expected_blob=BINDER_GIT_BLOB_SHA1,
+        expected_bytes=BINDER_BYTES,
+        expected_sha256=BINDER_SHA256,
+    )
+    if current_binder != binder_raw:
+        raise InstallError("binder_source_changed_before_publish")
+
+
 def source_plan() -> None:
     print(MARKER)
     print("mode=source-plan")
@@ -739,6 +825,9 @@ def source_plan() -> None:
     print("accepted_lock_id=" + LOCK_ID)
     print("post_3363_verified_helper_generation_required=true")
     print("superseded_pre_3363_locks_install_authority=false")
+    print("operation_bound_plan_id_required=true")
+    print("prepublication_revalidation_required=true")
+    print("post_publication_rollback=false")
     print("target_root=" + str(INSTALL_ROOT))
     print("staging_root=" + str(STAGE_ROOT))
     print("create_only=true")
@@ -760,28 +849,24 @@ def source_plan() -> None:
 
 
 def plan(native: pathlib.Path, expected_head: str) -> None:
-    _verify_checkout(expected_head)
-    accepted_lock(expected_head)
-    native_raw = read_exact_candidate(native)
-    binder_raw = _git_object(
-        expected_head,
-        BINDER_REL,
-        expected_blob=BINDER_GIT_BLOB_SHA1,
-        expected_bytes=BINDER_BYTES,
-        expected_sha256=BINDER_SHA256,
-    )
-    state = protected_state()
+    result = _collect_plan(native, expected_head)
+    body = result["body"]
     print(MARKER)
     print("mode=plan")
+    print("read_only=true")
+    print("plan_id=" + result["plan_id"])
     print("expected_head=" + expected_head)
     print("accepted_lock_id=" + LOCK_ID)
     print("candidate_id=" + CANDIDATE_ID)
-    print("protected_state=" + state)
-    print("candidate_native_verified=" + str(len(native_raw) == NATIVE_BYTES).lower())
-    print("binder_source_verified=" + str(len(binder_raw) == BINDER_BYTES).lower())
+    print("protected_state=" + str(body["protected_state"]))
+    print("candidate_native_verified=true")
+    print("binder_source_verified=true")
     print("create_only=true")
     print("atomic_root_publication_required=true")
     print("rename_noreplace_required=true")
+    print("operation_bound_plan_id_required=true")
+    print("prepublication_revalidation_required=true")
+    print("post_publication_rollback=false")
     print("filesystem_write=false")
     print("native_execution=false")
     print("binder_execution=false")
@@ -796,7 +881,7 @@ def plan(native: pathlib.Path, expected_head: str) -> None:
     print("wc_void_market_activation=false")
     print("funds_movement=false")
     print("production_host_evidence_authority=false")
-    if state == GREEN_STATE:
+    if body["protected_state"] == GREEN_STATE:
         print("already_installed=true")
         print("next_action=NO_MUTATION_REQUIRED")
     else:
@@ -807,6 +892,7 @@ def plan(native: pathlib.Path, expected_head: str) -> None:
 def apply(
     native: pathlib.Path,
     expected_head: str,
+    expected_plan_id: str,
     confirm: str,
 ) -> None:
     if confirm != CONFIRM_TOKEN:
@@ -815,18 +901,12 @@ def apply(
     if os.geteuid() != 0:
         raise InstallError("root_required_for_apply")
 
-    _verify_checkout(expected_head)
-    accepted_lock(expected_head)
-    native_raw = read_exact_candidate(native)
-    binder_raw = _git_object(
-        expected_head,
-        BINDER_REL,
-        expected_blob=BINDER_GIT_BLOB_SHA1,
-        expected_bytes=BINDER_BYTES,
-        expected_sha256=BINDER_SHA256,
-    )
-
-    state = protected_state()
+    result = _collect_plan(native, expected_head)
+    if result["plan_id"] != expected_plan_id:
+        raise InstallError("expected_plan_id_mismatch")
+    native_raw = result["native_raw"]
+    binder_raw = result["binder_raw"]
+    state = result["body"]["protected_state"]
     if state == GREEN_STATE:
         print(MARKER)
         print("mode=apply")
@@ -891,6 +971,12 @@ def apply(
             os.close(stage_fd)
 
         _verify_install_root(STAGE_ROOT)
+        _revalidate_before_publication(
+            native,
+            expected_head,
+            native_raw,
+            binder_raw,
+        )
         _renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)
         published = True
         stage_created = False
@@ -946,6 +1032,7 @@ def apply(
 
     print(MARKER)
     print("mode=apply")
+    print("plan_id=" + expected_plan_id)
     print("accepted_lock_id=" + LOCK_ID)
     print("candidate_id=" + CANDIDATE_ID)
     print("protected_install_performed=true")
@@ -984,6 +1071,15 @@ def self_test() -> None:
     assert NATIVE_SHA256 != BINDER_SHA256
     libc = ctypes.CDLL(None)
     assert getattr(libc, "renameat2", None) is not None
+
+    sample_body = {
+        "schema": "void_buy_void_epoch2_dormant_binder_native_protected_install_plan_v2",
+        "version": 2,
+        "expected_head": "a" * 40,
+    }
+    sample_id = PLAN_PREFIX + sha256(_canonical_json(sample_body))
+    assert sample_id == PLAN_PREFIX + sha256(_canonical_json(sample_body))
+    assert sample_id.startswith(PLAN_PREFIX)
 
     def injected_fsync_failure(_fd: int) -> None:
         raise OSError(5, "injected_fsync_failure")
@@ -1035,6 +1131,7 @@ def main() -> int:
     mode.add_argument("--apply", action="store_true")
     parser.add_argument("--native", type=pathlib.Path)
     parser.add_argument("--expected-head", default="")
+    parser.add_argument("--expected-plan-id", default="")
     parser.add_argument("--confirm", default="")
     args = parser.parse_args()
 
@@ -1046,6 +1143,9 @@ def main() -> int:
         print("truthful_post_publication_failure_receipt=true")
         print("post_publication_fsync_failure_receipt_truthful=true")
         print("post_publication_final_readback_failure_receipt_truthful=true")
+        print("operation_bound_plan_id_required=true")
+        print("prepublication_revalidation_required=true")
+        print("post_publication_rollback=false")
         return 0
     if args.source_plan:
         source_plan()
@@ -1057,7 +1157,9 @@ def main() -> int:
     if args.plan:
         plan(args.native, args.expected_head)
         return 0
-    apply(args.native, args.expected_head, args.confirm)
+    if not args.expected_plan_id:
+        raise InstallError("expected_plan_id_required")
+    apply(args.native, args.expected_head, args.expected_plan_id, args.confirm)
     return 0
 
 
