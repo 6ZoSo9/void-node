@@ -77,6 +77,15 @@ FORBIDDEN_APPLY_ENV = (
     "PYTHONHOME",
 )
 
+FIRST_ENTRY_ENV = "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY"
+FIRST_ENTRY_VALUE = "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V1"
+FIRST_ENTRY_INSTALLER_FD_ENV = (
+    "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_INSTALLER_FD"
+)
+FIRST_ENTRY_NATIVE_FD_ENV = (
+    "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_NATIVE_FD"
+)
+
 
 class InstallError(RuntimeError):
     pass
@@ -392,7 +401,7 @@ def accepted_lock(expected_head: str) -> dict[str, Any]:
     return value
 
 
-def read_exact_candidate(path: pathlib.Path) -> bytes:
+def _read_exact_candidate_path(path: pathlib.Path) -> bytes:
     path = _normalized_absolute(path)
     try:
         visible_before = path.lstat()
@@ -437,6 +446,106 @@ def read_exact_candidate(path: pathlib.Path) -> bytes:
     if digest.hexdigest() != NATIVE_SHA256:
         raise InstallError("candidate_sha256_mismatch")
     return bytes(data)
+
+
+def _parse_first_entry_fd(name: str) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.isdecimal():
+        raise InstallError("authenticated_first_entry_fd_invalid:" + name)
+    fd = int(raw, 10)
+    if fd <= 2:
+        raise InstallError("authenticated_first_entry_fd_invalid:" + name)
+    return fd
+
+
+def _first_entry_fd_context(
+    native: pathlib.Path,
+) -> tuple[int, int] | None:
+    marker = os.environ.get(FIRST_ENTRY_ENV)
+    fd_names = (FIRST_ENTRY_INSTALLER_FD_ENV, FIRST_ENTRY_NATIVE_FD_ENV)
+    if marker is None:
+        if any(name in os.environ for name in fd_names):
+            raise InstallError("authenticated_first_entry_environment_incomplete")
+        return None
+    if marker != FIRST_ENTRY_VALUE:
+        raise InstallError("authenticated_first_entry_marker_invalid")
+
+    installer_fd = _parse_first_entry_fd(FIRST_ENTRY_INSTALLER_FD_ENV)
+    native_fd = _parse_first_entry_fd(FIRST_ENTRY_NATIVE_FD_ENV)
+    if installer_fd == native_fd:
+        raise InstallError("authenticated_first_entry_fd_alias")
+
+    if sys.argv[0] != f"/proc/self/fd/{installer_fd}":
+        raise InstallError("authenticated_first_entry_installer_fd_mismatch")
+    if str(native) != f"/proc/self/fd/{native_fd}":
+        raise InstallError("authenticated_first_entry_native_fd_mismatch")
+
+    for fd, label in (
+        (installer_fd, "installer"),
+        (native_fd, "native"),
+    ):
+        try:
+            st = os.fstat(fd)
+        except OSError as exc:
+            raise InstallError(
+                "authenticated_first_entry_fd_unavailable:" + label
+            ) from exc
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or (st.st_mode & 0o022) != 0
+        ):
+            raise InstallError(
+                "authenticated_first_entry_fd_custody_invalid:" + label
+            )
+    return installer_fd, native_fd
+
+
+def _read_exact_candidate_inherited(fd: int) -> bytes:
+    try:
+        before = os.fstat(fd)
+        os.lseek(fd, 0, os.SEEK_SET)
+    except OSError as exc:
+        raise InstallError("candidate_inherited_fd_unavailable") from exc
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or before.st_uid != 0
+        or before.st_gid != 0
+        or (before.st_mode & 0o022) != 0
+        or before.st_size != NATIVE_BYTES
+    ):
+        raise InstallError("candidate_inherited_fd_metadata_invalid")
+
+    digest = hashlib.sha256()
+    data = bytearray()
+    remaining = NATIVE_BYTES
+    try:
+        while remaining:
+            chunk = os.read(fd, min(MAX_READ_CHUNK, remaining))
+            if not chunk:
+                raise InstallError("candidate_short_read")
+            digest.update(chunk)
+            data.extend(chunk)
+            remaining -= len(chunk)
+        if os.read(fd, 1):
+            raise InstallError("candidate_grew_during_read")
+        after = os.fstat(fd)
+        os.lseek(fd, 0, os.SEEK_SET)
+    except OSError as exc:
+        raise InstallError("candidate_inherited_fd_read_failed") from exc
+    if not _same_file_identity(before, after):
+        raise InstallError("candidate_inherited_fd_changed_during_read")
+    if digest.hexdigest() != NATIVE_SHA256:
+        raise InstallError("candidate_sha256_mismatch")
+    return bytes(data)
+
+
+def read_exact_candidate(path: pathlib.Path) -> bytes:
+    context = _first_entry_fd_context(path)
+    if context is not None:
+        return _read_exact_candidate_inherited(context[1])
+    return _read_exact_candidate_path(path)
 
 
 def _exists(path: pathlib.Path) -> bool:
@@ -779,11 +888,11 @@ def _failure_receipt(exc: InstallError) -> dict[str, str]:
     }
 
 
-def _require_apply_context() -> None:
+def _require_apply_context(native: pathlib.Path) -> None:
     if sys.flags.isolated != 1:
         raise InstallError("python_isolated_mode_required")
-    if sys.argv[0] != "-":
-        raise InstallError("installer_git_object_stdin_required")
+    if _first_entry_fd_context(native) is None:
+        raise InstallError("authenticated_first_entry_required")
     present = [name for name in FORBIDDEN_APPLY_ENV if name in os.environ]
     if present:
         raise InstallError("forbidden_apply_environment:" + ",".join(present))
@@ -884,6 +993,7 @@ def source_plan() -> None:
     print("post_3363_verified_helper_generation_required=true")
     print("superseded_pre_3363_locks_install_authority=false")
     print("operation_bound_plan_id_required=true")
+    print("authenticated_first_entry_fd_contract_required_for_apply=true")
     print("prepublication_revalidation_required=true")
     print("retained_stage_directory_generation_required=true")
     print("generation_bound_stage_cleanup_required=true")
@@ -970,7 +1080,7 @@ def apply(
         )
     ):
         raise InstallError("expected_plan_id_invalid")
-    _require_apply_context()
+    _require_apply_context(native)
     if os.geteuid() != 0:
         raise InstallError("root_required_for_apply")
 
