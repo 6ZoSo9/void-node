@@ -71,6 +71,17 @@ The static preexec is never replaced.
 If apply fails after staging or exchange, the script attempts to restore the
 exact V1-ready state. It does not retry V2.
 
+Cleanup authority is invocation-bound. Immediately after exclusive stage
+creation the updater records the new inode's device/inode identity. Any
+pre-publication cleanup or post-exchange rollback may unlink a staging or
+predecessor residue only after proving it is that same V2 inode. Merely finding
+an exact V2 file at the fixed staging pathname does not grant cleanup authority.
+
+This prevents a second concurrent operator invocation from deleting the first
+invocation's exact stage when the second invocation loses the create-only race.
+A built-in adversary proves a foreign inode is preserved while the creator's
+own inode remains removable.
+
 ## Deliberate rollback
 
 Rollback requires the exact V2-green state plus:
