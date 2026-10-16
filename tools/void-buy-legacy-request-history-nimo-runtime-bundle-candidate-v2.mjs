@@ -41,7 +41,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     compiler_snapshot_builder_uid_direct_mutation_denied: true,
     compiler_source_post_revalidation_required: true,
     compiler_snapshot_post_revalidation_required: true,
-    compile_node_root_custody_required: true,
+    compile_node_retained_process_generation_required: true,
     build_input_private_snapshot_required: true,
     build_input_snapshot_content_addressed: true,
     build_input_snapshot_root_custody_required: true,
@@ -1112,41 +1112,41 @@ function runPrivilegedSnapshotToolV2(tool, args, label, timeout=30_000) {
 }
 
 
-function rootCustodiedCompileNodeV2() {
-  const resolved = fs.realpathSync(process.execPath);
-  const leaf = fs.lstatSync(resolved);
+function retainedCompileNodeV2() {
+  if (!Number.isSafeInteger(process.pid) || process.pid <= 1) {
+    fail("legacy_history_nimo_bundle_compile_node_pid_invalid");
+  }
+  const procPath = "/proc/" + String(process.pid) + "/exe";
+  const procStat = fs.statSync(procPath);
+  const visibleStat = fs.statSync(process.execPath);
   if (
-    !leaf.isFile() ||
-    leaf.isSymbolicLink() ||
-    leaf.nlink !== 1 ||
-    leaf.uid !== 0 ||
-    leaf.gid !== 0 ||
-    (leaf.mode & 0o022) !== 0 ||
-    (leaf.mode & 0o111) === 0 ||
-    (leaf.mode & 0o6000) !== 0
+    !procStat.isFile() ||
+    !visibleStat.isFile() ||
+    procStat.dev !== visibleStat.dev ||
+    procStat.ino !== visibleStat.ino ||
+    procStat.size !== visibleStat.size ||
+    procStat.size < 1
   ) {
-    fail("legacy_history_nimo_bundle_compile_node_custody_invalid");
+    fail("legacy_history_nimo_bundle_compile_node_generation_invalid");
   }
-  let cursor = path.dirname(resolved);
-  for (;;) {
-    const st = fs.lstatSync(cursor);
-    if (
-      !st.isDirectory() ||
-      st.isSymbolicLink() ||
-      st.uid !== 0 ||
-      st.gid !== 0 ||
-      (st.mode & 0o022) !== 0
-    ) {
-      fail("legacy_history_nimo_bundle_compile_node_ancestry_invalid");
-    }
-    if (cursor === "/") break;
-    const parent = path.dirname(cursor);
-    if (parent === cursor) {
-      fail("legacy_history_nimo_bundle_compile_node_ancestry_invalid");
-    }
-    cursor = parent;
+  return Object.freeze({
+    path: procPath,
+    dev: procStat.dev,
+    ino: procStat.ino,
+    size: procStat.size,
+  });
+}
+
+function revalidateRetainedCompileNodeV2(record) {
+  const observed = fs.statSync(record.path);
+  if (
+    !observed.isFile() ||
+    observed.dev !== record.dev ||
+    observed.ino !== record.ino ||
+    observed.size !== record.size
+  ) {
+    fail("legacy_history_nimo_bundle_compile_node_generation_changed");
   }
-  return resolved;
 }
 
 function assertCompilerSnapshotNonwritableV2(snapshotRoot, packageSummary) {
@@ -1278,7 +1278,7 @@ function compileReviewedRuntimeWithBoundCompilerV2(
       buildInputSnapshot.root,
       BUILD_INPUT_DERIVED_TSCONFIG_V2,
     );
-    const compileNode=rootCustodiedCompileNodeV2();
+    const compileNode=retainedCompileNodeV2();
     runPrivilegedSnapshotToolV2(
       ENV_V2,
       [
@@ -1288,7 +1288,7 @@ function compileReviewedRuntimeWithBoundCompilerV2(
         "LC_ALL=C",
         "TZ=UTC",
         "NODE_DISABLE_COMPILE_CACHE=1",
-        compileNode,
+        compileNode.path,
         tscEntry,
         "-p",tsconfig,
         "--outDir",path.join(outputRoot,"dist"),
@@ -1298,6 +1298,7 @@ function compileReviewedRuntimeWithBoundCompilerV2(
     );
 
     finalizeRuntimeOutputSnapshotV2(outputRoot);
+    revalidateRetainedCompileNodeV2(compileNode);
 
     if(typeof testHooks?.after_build_before_revalidation==="function"){
       testHooks.after_build_before_revalidation({
@@ -1441,9 +1442,9 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     runtime_output_snapshot: runtimeOutputSnapshot,
     build_recipe: {
       dependency_install: "npm ci --ignore-scripts --no-audit --no-fund",
-      compile: "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <candidate-dist>",
-      compile_node_executable_source: "root_custodied_process.execPath_realpath",
-      compile_node_root_custody_required: true,
+      compile: "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <root-custodied-runtime-output-snapshot>/dist",
+      compile_node_executable_source: "retained_/proc/<builder-pid>/exe_generation",
+      compile_node_retained_process_generation_required: true,
       compile_environment: CANDIDATE_COMPILE_ENV_V2,
       candidate_owned_rebuild_required: true,
       compiler_pre_post_identity_required: true,
@@ -1718,7 +1719,7 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
       "build_input_snapshot_required",
       "build_input_snapshot_root_custody_required",
       "candidate_owned_rebuild_required","compile",
-      "compile_node_root_custody_required",
+      "compile_node_retained_process_generation_required",
       "runtime_output_snapshot_builder_uid_direct_mutation_denied_required",
       "runtime_output_snapshot_observed_before_cleanup_required",
       "runtime_output_snapshot_required",
@@ -1741,8 +1742,8 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     body.build_recipe.compile !==
       "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <root-custodied-runtime-output-snapshot>/dist" ||
     body.build_recipe.compile_node_executable_source !==
-      "root_custodied_process.execPath_realpath" ||
-    body.build_recipe.compile_node_root_custody_required !== true ||
+      "retained_/proc/<builder-pid>/exe_generation" ||
+    body.build_recipe.compile_node_retained_process_generation_required !== true ||
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
       body.build_recipe.compile_environment,
     ) !== canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
