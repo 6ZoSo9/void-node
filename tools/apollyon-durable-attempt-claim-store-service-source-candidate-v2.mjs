@@ -30,6 +30,10 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_CANDIDATE_
     host_plan_receipt_content_address_reverification_required:true,
     caller_supplied_host_plan_sufficient:false,
     live_host_plan_reexecution_required_before_provisioning:true,
+    live_process_credential_exclusion_required:true,
+    host_pid_namespace_external_lease_required:true,
+    host_user_namespace_external_lease_required:true,
+    host_root_user_namespace_binding_required:true,
     numeric_host_identity_binding_performed:false,
     service_implementation_present:false,
     publisher_implementation_present:false,
@@ -62,8 +66,8 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_CANDIDATE_
 
 const PARENT_STORE_CONTRACT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731";
 const PARENT_STORE_CONTRACT_BLOB_SHA1="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe";
-const PARENT_HOST_PLAN_HEAD="5693e0e060dd567acbbf7a1e44ab641efded4a98";
-const PARENT_HOST_PLANNER_BLOB_SHA1="03ea7df9b7a548c73ec1c715d716391be5d5d223";
+const PARENT_HOST_PLAN_HEAD="db2ca3c90b0dc58eccc82b55b5b0fadcf82f6705";
+const PARENT_HOST_PLANNER_BLOB_SHA1="69db13fffaf1678da03b90f0fa14fd60c3c5c98c";
 const EXPECTED_STORE_POLICY_ID=
   "apollyon_claim_store_policy_v2:"+
   "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137";
@@ -143,6 +147,22 @@ export function qualifyApollyonDurableAttemptClaimStoreServiceSourceCandidateV2(
     selected_candidate_values_pairwise_distinct_required:true,
     selected_candidate_values_within_system_id_ranges_required:true,
     selected_candidate_values_absent_from_current_local_identity_rows_required:true,
+    selected_candidate_values_absent_from_live_process_credentials_required:true,
+    live_process_identity_authority_required:true,
+    live_process_identity_authority_profile:
+      "reviewed_root_host_pid_user_namespace_procfs_v2",
+    root_execution_verified_required:true,
+    host_pid_namespace_external_lease_required:true,
+    host_user_namespace_external_lease_required:true,
+    pid1_namespace_matches_self_required:true,
+    pid1_user_namespace_matches_self_required:true,
+    procfs_hidepid_absent_required:true,
+    complete_process_visibility_required:true,
+    all_four_uid_slots_consumed_required:true,
+    all_four_gid_slots_consumed_required:true,
+    supplementary_groups_consumed_required:true,
+    initial_and_final_process_census_required:true,
+    candidate_slots_clear_in_final_process_census_required:true,
     source_generation_source_head:PARENT_HOST_PLAN_HEAD,
     source_generation_parent_head:PARENT_STORE_CONTRACT_HEAD,
     source_generation_planner_blob_sha1:PARENT_HOST_PLANNER_BLOB_SHA1,
@@ -155,6 +175,9 @@ export function qualifyApollyonDurableAttemptClaimStoreServiceSourceCandidateV2(
     candidate_slots_selected_in_plan_required:true,
     candidate_slots_globally_distinct_required:true,
     candidate_slots_revalidation_required_before_provisioning:true,
+    candidate_slots_live_process_recensus_required_before_provisioning:true,
+    candidate_slots_host_user_namespace_recensus_required_before_provisioning:true,
+    candidate_slots_provisioning_ready_required:false,
     claim_identity_provisioned_required:false,
     publisher_identity_provisioned_required:false,
     claim_ipc_group_provisioned_required:false,

@@ -18,16 +18,21 @@ object, bearer token, or field to the accepted six-key publish request**.
 
 The contract pins:
 
-- #3285 request-envelope blob
-  `498dec49189d1ceeda2702cf608d423a6fd1450b`;
-- #3276 service-candidate blob
-  `bbd02403695eecca3f07fd54e382b44b0d9b14e7`;
+- #3285 accepted repaired head
+  `5674d7335666cb9cf2f54a9bdd3d9edca7580ffd`, request-envelope blob
+  `d1726e3be042549769d2fe554371facd2ed60553`;
+- #3276 accepted repaired head
+  `68cbfbdd7a025e7a69403c9d072b0cbf70ceed0e`, service-candidate blob
+  `d67ef39c4cd034844fb0862e180de46ed4cd0c88`;
 - #3233 store-contract blob
   `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
 - reviewed native kernel peer-generation reference
   `d8b30ac499c3bb8a5d223dbc6be687dd175be611`.
 
-The last item is a **reference pattern only**, not host authority.
+The last item is a **reference pattern only**, not host authority. The repaired
+#3276 candidate transitively binds the fresh live-process credential exclusion
+and host PID/user-namespace evidence from #3265; this handoff does not weaken or
+replace that prerequisite.
 
 ## Two connection roles, one fixed claim socket
 

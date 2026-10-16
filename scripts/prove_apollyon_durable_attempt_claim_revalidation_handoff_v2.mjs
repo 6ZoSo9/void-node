@@ -22,9 +22,9 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
-    "498dec49189d1ceeda2702cf608d423a6fd1450b",
+    "d1726e3be042549769d2fe554371facd2ed60553",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
+    "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
     "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
@@ -40,11 +40,11 @@ for(const [relative,expected] of Object.entries({
 }
 assert.equal(
   PARENT_REQUEST_ENVELOPE_BLOB_SHA1,
-  "498dec49189d1ceeda2702cf608d423a6fd1450b",
+  "d1726e3be042549769d2fe554371facd2ed60553",
 );
 assert.equal(
   PARENT_SERVICE_CANDIDATE_BLOB_SHA1,
-  "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
+  "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
 );
 assert.equal(
   PARENT_STORE_CONTRACT_BLOB_SHA1,

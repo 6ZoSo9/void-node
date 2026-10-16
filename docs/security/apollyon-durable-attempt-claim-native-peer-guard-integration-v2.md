@@ -7,7 +7,7 @@ Status: **pure source/test integration contract; no runtime implementation or ho
 ## Purpose
 
 Accepted #3291 defines the privileged revalidator / publisher / claim-service
-provenance state machine. Accepted #3300 proves a bounded set of Linux kernel
+provenance state machine. Accepted #3300 current generation `cf1181f22657948107c10dd70c28ec652160af32` proves a bounded set of Linux kernel
 primitives in a self-test-only native candidate.
 
 This gate binds those two sources without pretending the native self-test is
@@ -16,11 +16,11 @@ already a claim-service implementation or Xiphos host qualification.
 ## Exact inputs
 
 - parent #3291 revalidation-handoff source blob:
-  `fab2b7699121b58010a5ed96ec50a47dd441726f`;
+  `5d913eb08d79c76ed926d8b88be05b12f475abd5`;
 - #3300 native peer-guard source blob:
   `defd863de841a1f1460e10985d1990ba1a382f70`;
 - #3300 focused proof blob:
-  `d9af4667a429a9e55f491676db48cdd5975b7e16`.
+  `4cf08f60a604496ea7087167f0ef6a744182aad4`.
 
 The hosted proof recompiles and executes the exact native self-test again.
 
