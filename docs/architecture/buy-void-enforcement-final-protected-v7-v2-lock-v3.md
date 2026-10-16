@@ -104,3 +104,30 @@ inventory/treasury/liquidity action, or funds movement is authorized or
 performed.
 
 **PROTECT THE CORE.**
+
+
+## Historical predecessor workflow transition
+
+V3 is a successor generation, so historical V1/V2/V4 workflows must not keep
+re-running the V2 “current protected integration” dispatcher against the V3
+tree.
+
+This lock branch therefore carries one explicit preservation transition:
+
+- frozen V1 candidate/lock objects remain byte-exact and V1 still refuses the
+  V3 source generation;
+- frozen V2 candidate/lock objects remain byte-exact but are not rederived or
+  re-presented as deployment authority on V3;
+- frozen V4 census proof remains byte-exact but is not rederived as the current
+  census;
+- V5 census, V3 candidate and V3 lock are the exact current successor evidence.
+
+The transition is proven by
+`scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs`.
+
+The V3 lock branch scope is therefore exactly nine paths: the original five V3
+lock artifacts plus that preservation proof and the three migrated historical
+workflow files. Unknown successor generations still fail closed.
+
+No historical identity is repinned. No deployed artifact, runtime mount,
+production source-finality, public presale, or funds authority is introduced.
