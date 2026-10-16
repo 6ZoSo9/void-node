@@ -47,7 +47,7 @@ for(const required of [
   "self_test_framing_extra",
   "self_test_framing_short",
   "self_test_framing_delayed_extra",
-  "self_test_framing_no_eof",
+  "self_test_framing_no_eof",\n  "pipe2(sync_pipe, O_CLOEXEC)",\n  "pidfd_alive(pidfd) == 0 || errno != ESRCH",
   "self_test_peer_and_exec_drift",
   'execl("/bin/sleep"',
   "source_candidate_self_test_only",
@@ -108,7 +108,7 @@ try{
     "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_NATIVE_PEER_GUARD_V2_SELF_TEST_GREEN",
     "af_unix_sock_stream=true",
     "so_peercred_proven=true",
-    "pidfd_liveness_proven=true",
+    "pidfd_liveness_proven=true",\n    "pidfd_exit_state_proven=true",
     "exec_in_place_source_drift_detected=true",
     "native_executable_inode_drift_proven=true",
     "interpreted_body_source_identity_proven=false",
@@ -118,7 +118,7 @@ try{
     "response_extra_byte_rejected=true",
     "response_short_eof_rejected=true",
     "response_delayed_extra_rejected=true",
-    "response_no_eof_timeout_rejected=true",
+    "response_no_eof_timeout_rejected=true",\n    "response_exact_prefix_before_no_eof_timeout_proven=true",
     "read_half_ack_after_peer_eof_proven=true",
     "cross_uid_host_qualification_performed=false",
     "host_installation=false",
@@ -168,14 +168,14 @@ console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_NATIVE_PEER_GUARD_V2_PROOF_GREE
 console.log("parent_handoff_blob_bound=true");
 console.log("kernel_reference_blob_bound=true");
 console.log("native_peer_credential_self_test=true");
-console.log("pidfd_liveness_self_test=true");
+console.log("pidfd_liveness_self_test=true");\nconsole.log("pidfd_exit_state_self_test=true");
 console.log("exec_in_place_source_drift_self_test=true");
 console.log("native_executable_inode_drift_proven=true");
 console.log("interpreted_body_source_identity_proven=false");
 console.log("exact_cmdline_and_script_identity_integration_required=true");
 console.log("stream_half_close_eof_self_test=true");
 console.log("short_eof_self_test=true");
-console.log("delayed_extra_self_test=true");
+console.log("delayed_extra_self_test=true");\nconsole.log("exact_prefix_before_no_eof_timeout_self_test=true");
 console.log("live_mode=false");
 console.log("claim_store_mutation=false");
 console.log("durable_attempt_claim=false");

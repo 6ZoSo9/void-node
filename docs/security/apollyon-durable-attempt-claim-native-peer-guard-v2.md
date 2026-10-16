@@ -35,7 +35,7 @@ It proves:
 
 1. a real Linux AF_UNIX connect/accept exposes the connecting child through
    `SO_PEERCRED`;
-2. `pidfd_open` retains a liveness handle for that child;
+2. `pidfd_open` retains a liveness handle for that child while alive and the same retained pidfd is proven non-live after that child terminates;
 3. the child initially resolves to the same executable inode as the reviewed
    self-test binary;
 4. the exact same PID/start-ticks/pidfd generation performs an in-place
@@ -47,7 +47,7 @@ It proves:
 7. a 65-byte response is rejected;
 8. EOF after only 63 bytes is rejected;
 9. an extra byte sent after a delay following a valid 64-byte prefix is rejected; and
-10. a 64-byte response with no timely EOF is rejected.
+10. after an explicit synchronization proves the child has already sent the full 64-byte prefix, keeping the write half open without timely EOF is rejected.
 
 The candidate has no live mode. Any invocation other than `--self-test`
 returns HOLD.

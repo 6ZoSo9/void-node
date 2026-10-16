@@ -447,21 +447,58 @@ static int self_test_framing_delayed_extra(void) {
 
 static int self_test_framing_no_eof(void) {
   int pair[2];
+  int sync_pipe[2];
   if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, pair) != 0) return -1;
+  if (pipe2(sync_pipe, O_CLOEXEC) != 0) {
+    close(pair[0]);
+    close(pair[1]);
+    return -1;
+  }
   pid_t child = fork();
-  if (child < 0) return -1;
+  if (child < 0) {
+    close(pair[0]);
+    close(pair[1]);
+    close(sync_pipe[0]);
+    close(sync_pipe[1]);
+    return -1;
+  }
   if (child == 0) {
     close(pair[0]);
+    close(sync_pipe[0]);
     unsigned char frame[FRAME_BYTES];
     memset(frame, 0x6B, sizeof(frame));
     if (send_all(pair[1], frame, sizeof(frame)) != 0) _exit(10);
+    const unsigned char sent = 0x53;
+    ssize_t written;
+    do {
+      written = write(sync_pipe[1], &sent, 1);
+    } while (written < 0 && errno == EINTR);
+    close(sync_pipe[1]);
+    if (written != 1) _exit(11);
     struct timespec delay = {.tv_sec = 0, .tv_nsec = 400000000L};
     nanosleep(&delay, NULL);
     close(pair[1]);
     _exit(0);
   }
+
   close(pair[1]);
+  close(sync_pipe[1]);
+  unsigned char sent = 0;
+  ssize_t n;
+  do {
+    n = read(sync_pipe[0], &sent, 1);
+  } while (n < 0 && errno == EINTR);
+  close(sync_pipe[0]);
+  if (n != 1 || sent != 0x53) {
+    close(pair[0]);
+    kill(child, SIGTERM);
+    waitpid(child, NULL, 0);
+    errno = EPROTO;
+    return -1;
+  }
+
   unsigned char observed[FRAME_BYTES];
+  memset(observed, 0, sizeof(observed));
   errno = 0;
   int result = read_exact_then_eof(pair[0], observed, sizeof(observed), 50);
   int saved = errno;
@@ -471,6 +508,12 @@ static int self_test_framing_no_eof(void) {
   if (result == 0 || saved != ETIMEDOUT) {
     errno = EPROTO;
     return -1;
+  }
+  for (size_t i = 0; i < sizeof(observed); ++i) {
+    if (observed[i] != 0x6B) {
+      errno = EPROTO;
+      return -1;
+    }
   }
   return 0;
 }
@@ -558,8 +601,14 @@ static int self_test_peer_and_exec_drift(void) {
   if (read_proc_stat(child, &after_ppid, &after_start) != 0) return -1;
   if (after_start != before_start || after_ppid != before_ppid) return -1;
 
-  kill(child, SIGTERM);
-  waitpid(child, NULL, 0);
+  if (kill(child, SIGTERM) != 0) return -1;
+  int status = 0;
+  if (waitpid(child, &status, 0) != child) return -1;
+  errno = 0;
+  if (pidfd_alive(pidfd) == 0 || errno != ESRCH) {
+    errno = EPROTO;
+    return -1;
+  }
   close(pidfd);
   close(expected_exe_fd);
   return 0;
