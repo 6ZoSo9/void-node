@@ -82,22 +82,33 @@ The native surface is intentionally limited to:
 
 The child receives no arbitrary caller path, source head or environment.
 
-Plan executes only:
+Plan executes only the retained installer source through retained Python with
+an inherited candidate descriptor and a private inherited parent-proof
+descriptor:
 
 ```text
 python3 -I -B /proc/self/fd/<retained-installer-fd> \
   --plan \
-  --native <fixed protected native path> \
+  --native-fd <retained-native-fd> \
+  --first-entry-proof-fd <private-proof-fd> \
   --expected-head <compile-bound exact head>
 ```
 
-Apply executes the same retained installer source with `--apply` and the
-compile-bound confirmation token.
+Apply uses the same two inherited descriptors plus `--apply` and the
+compile-bound confirmation token. The child is never given the visible native
+candidate pathname.
 
-The installer successor remains responsible for its own accepted lock,
-candidate semantics and create-only publication rules. This first-entry layer
-only authenticates what code/interpreter/input generation is permitted to reach
-that installer boundary.
+The private proof is written by the authenticated native parent before fork and
+binds the exact parent PID/start generation, launcher/installer/native/Python
+device+inode generations, inherited native FD number, operation, and expected
+head. A future canonical installer must verify that proof against its real
+kernel parent and its own inherited descriptors before any plan/apply logic.
+
+The current protected-installer successors do **not** yet consume this
+`--native-fd` / `--first-entry-proof-fd` interface. Until one canonical
+installer successor adopts it, end-to-end privileged apply remains HOLD. The
+installer successor also remains responsible for its accepted lock, candidate
+semantics and create-only publication rules.
 
 ## First-instruction and stdin boundary
 
@@ -130,12 +141,21 @@ Before fork the parent retains exact descriptors for:
 - the Python runtime.
 
 Installer source and native candidate are checked against the build-time
-SHA-256/byte identities before Python is started.
+SHA-256/byte identities before Python is started. Both descriptors survive
+exec into the child; the native candidate must be consumed from the inherited
+FD rather than reopened by pathname.
 
 After the child exits, before parent GREEN, the parent revalidates all retained
 and visible generations. A pathname replacement during child execution cannot
-change the retained installer bytes the child executes, but it prevents the
+change either the retained installer source or the retained native candidate
+bytes consumed by the child, but any visible-generation drift prevents the
 parent from emitting a trusted first-entry GREEN receipt.
+
+The private proof FD is not bearer authority. The child-side installer must
+cross-check the proof's parent PID/start generation and launcher executable
+identity against the live kernel parent. Direct root invocation of the Python
+installer without that proof is outside the accepted boundary and must fail
+closed in the canonical installer integration.
 
 If a parent-side failure occurs after an apply child was created, the receipt
 does not claim `installer_apply_performed=false`; it reports the conservative
@@ -159,6 +179,11 @@ The hosted proof:
 - substitutes installer bytes and requires HOLD before Python;
 - substitutes native-candidate bytes and requires HOLD before Python;
 - substitutes the Python target and requires HOLD before payload execution;
+- verifies the child consumes the exact inherited native FD plus the private
+  parent-proof FD;
+- swaps the visible native pathname after child creation but before native-byte
+  consumption, proving the child still reads the pre-authenticated descriptor
+  bytes while parent GREEN is withheld on visible-generation drift;
 - swaps the visible installer pathname while the retained child is running and
   requires child completion but parent HOLD/no GREEN;
 - forces abnormal apply-child termination and requires a conservative
@@ -187,9 +212,13 @@ This source candidate grants no:
 - treasury/liquidity action; or
 - funds movement.
 
-After source acceptance, later gates still must derive a candidate against the
-accepted post-#3363 installer/lock generation, create-only install the native
-preentry/policy/source/input namespace, and perform an installed read-only
-qualification before any root apply can be considered.
+After source acceptance, later gates still must:
+- choose exactly one canonical post-#3363 protected installer generation;
+- make that installer require/consume the inherited native FD and private
+  parent-proof FD instead of reopening the candidate pathname;
+- derive a first-entry candidate against that exact installer/lock generation;
+- create-only install the native preentry/policy/source/input namespace; and
+- perform installed read-only qualification before any root apply can be
+  considered.
 
 PROTECT THE CORE.
