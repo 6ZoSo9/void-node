@@ -119,6 +119,21 @@ The later host census must derive those facts from the operating system. Caller 
 
 This source policy is intentionally stronger than the generic same-UID assumptions accepted by some historical stores.
 
+### Root-path stability is not rollback resistance
+
+Protected parent ancestry can prevent the runtime identity from renaming or recreating the **root pathname**. It does not stop that same runtime identity from modifying data inside a root it legitimately owns and must write.
+
+Therefore this policy never promotes content/history rollback resistance, restart continuity, or execution replay consumption. Even a topology-shaped GREEN keeps:
+
+```text
+time_store_rollback_resistance_proven=false
+cross_process_restart_continuity_proven=false
+cross_boot_restart_continuity_proven=false
+execution_replay_atomic_consume_performed=false
+```
+
+Those require later independent evidence/authority.
+
 ## Historical replay topology is not promoted
 
 Current canonical replay evidence selects:
@@ -158,6 +173,10 @@ live_host_evidence_verified=false
 time_store_root_stability_proven=false
 reservation_store_root_stability_proven=false
 execution_replay_store_root_stability_proven=false
+time_store_rollback_resistance_proven=false
+cross_process_restart_continuity_proven=false
+cross_boot_restart_continuity_proven=false
+execution_replay_atomic_consume_performed=false
 storage_bootstrap=false
 service_installation=false
 service_start=false
