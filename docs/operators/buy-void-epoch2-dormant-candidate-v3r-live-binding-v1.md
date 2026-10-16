@@ -12,9 +12,11 @@ for the immutable Epoch-2 fulfiller, but deliberately keeps installed credential
 identity and runtime-source binding false.
 
 This successor defines the live evidence binding operation for the accepted
-V3R credential/V3 live-composition generation.
+V3R credential/V3 live-composition generation and closes the binder's
+privileged first-instruction boundary with a separate native preentry source.
 
-It does not accept a caller-provided live receipt.
+It does not accept a caller-provided live receipt or caller-provided JavaScript
+as live binding authority.
 
 ## Exact source inputs
 
@@ -37,28 +39,65 @@ V6R2 installed qualification:
 - accepted V6R2 lock:
   `voidbuye2nativecandlock6r2_ab95f15c8f2731adf6bfd97dfd5467495c90bdb5ee267948efc6a522be74b417`.
 
-Fixed installed native live entry:
+Fixed installed credential-composition native live entry:
 
 `/opt/void-buy-void-epoch2-live-composition-v3/void_buy_void_epoch2_live_composition_native_preentry_v3`.
 
-The native preentry owns the privileged first instruction and executes the
-accepted fixed V3 runner. The binder never executes the V3 runner directly.
+The credential-composition native preentry owns the privileged first
+instruction for the child signing-capability sequence and executes the accepted
+fixed V3 runner. The binder never executes that runner directly.
+
+The outer dormant-candidate binder now has its own source-only native first-entry
+candidate:
+
+`ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v1.c`.
+
+Future reviewed installed paths are fixed under:
+
+`/opt/void-buy-void-epoch2-dormant-v3r-binding-v1`.
+
+The native candidate binds the exact reviewed binder Git object
+`af31dcd6f381c04c77aeef2a20d2846c0446807a`, exact binder bytes
+(38974) and SHA-256
+`284ff126360ae4fe7e7704477aac3bff39e7c1418a95fec018f9550f06a9ff03`.
+It also verifies the fixed Node executable against the already protected V3
+policy before Node evaluates the binder.
+
+This PR defines the native source only. It does not install, materialize or
+accept a native binder-preentry binary.
 
 ## Future live sequence
 
-A future separately authorized root run:
+A future separately authorized root run, only after a separately reviewed
+native-binder candidate/install/qualification generation exists:
 
-1. requires this binder from its exact Git object on stdin;
-2. verifies clean exact `main`;
-3. loads exact dormant candidate V4 from Git;
-4. executes exact V6R2 installed qualification from its Git object;
-5. invokes the fixed installed native V3 preentry with `/dev/null` stdin;
-6. validates the directly returned `voide2livecomp3_...` receipt and its
+1. invokes the fixed installed binder native preentry with `/dev/null` stdin,
+   exact confirmation and exact expected HEAD;
+2. the native preentry proves its fixed root-owned generation, opens the fixed
+   root-owned binder source and fixed Node with `O_NOFOLLOW`, verifies the
+   exact binder digest and Node digest/size from the protected V3 policy, then
+   forks;
+3. the child enters the retained Node descriptor with `fexecve()`; the parent
+   supplies only the already-verified binder bytes over a private source pipe
+   and a separate private parent-proof pipe binding parent/child start ticks and
+   preentry/binder/Node inode generations;
+4. the binder validates that private proof and the live parent process
+   generation before any checkout/qualification/live-binding action;
+5. the binder verifies clean exact `main` and loads dormant candidate V4 from
+   Git;
+6. it executes exact V6R2 installed qualification from its Git object;
+7. it invokes the fixed installed credential-composition native V3 preentry
+   with `/dev/null` stdin;
+8. it validates the directly returned `voide2livecomp3_...` receipt and its
    content-addressed receipt ID;
-7. executes V6R2 installed qualification again;
-8. requires the before/after qualification records to be identical;
-9. revalidates clean exact `main`;
-10. emits one content-addressed dormant-candidate binding receipt.
+9. it executes V6R2 installed qualification again, requires identical
+   before/after qualification records, revalidates clean exact `main`, and
+   revalidates the outer native-parent proof before emitting the binding
+   receipt.
+
+A caller-set environment marker is insufficient. Direct worktree or arbitrary
+stdin JavaScript `--run` has no live authority and fails before the live
+binding sequence.
 
 No caller-supplied receipt path, stdin receipt, CLI receipt, or environment
 receipt is accepted.
@@ -117,7 +156,18 @@ child reads the systemd credential and performs one non-transaction signature.
 
 Therefore live binding is separately authorized.
 
-Hosted CI executes only syntax, self-test, inert plan, static/adversarial proof,
-and diff hygiene.
+Hosted CI executes only syntax, native-source compilation/self-test, binder
+self-test, inert plan, direct-invocation negatives, static/adversarial proof and
+diff hygiene. It does not place anything under `/opt`.
+
+The current binder source still consumes the historical V4 installed
+qualification generation. The separately versioned V4R repaired-upgrader
+qualification is a later composition dependency and is not silently imported
+or repinned by this first-entry repair.
+
+Even GREEN source CI leaves
+`production_host_evidence_authority=false`; an exact native candidate,
+acceptance lock/materializer, protected installation and installed qualification
+remain required before any live binder handoff.
 
 PROTECT THE CORE.
