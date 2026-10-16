@@ -41,6 +41,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     compiler_snapshot_builder_uid_direct_mutation_denied: true,
     compiler_source_post_revalidation_required: true,
     compiler_snapshot_post_revalidation_required: true,
+    compile_node_root_custody_required: true,
     build_input_private_snapshot_required: true,
     build_input_snapshot_content_addressed: true,
     build_input_snapshot_root_custody_required: true,
@@ -519,6 +520,8 @@ const COMPILER_SNAPSHOT_ID_PREFIX_V2 = "voidblrhntscsnap2_";
 const COMPILER_SNAPSHOT_PARENT_V2 = "/tmp";
 const SUDO_V2 = "/usr/bin/sudo";
 const CHOWN_V2 = "/usr/bin/chown";
+const CHMOD_V2 = "/usr/bin/chmod";
+const ENV_V2 = "/usr/bin/env";
 const RM_V2 = "/usr/bin/rm";
 
 const RUNTIME_OUTPUT_SNAPSHOT_SCHEMA_V2 =
@@ -855,6 +858,24 @@ function createPrivateRuntimeOutputRootV2() {
     ),
   );
   fs.chmodSync(outputRoot, 0o700);
+  const before = fs.lstatSync(outputRoot);
+  runPrivilegedSnapshotToolV2(
+    CHOWN_V2,
+    ["root:root", "--", outputRoot],
+    "runtime_output_prebuild_chown",
+  );
+  const after = fs.lstatSync(outputRoot);
+  if (
+    !after.isDirectory() ||
+    after.isSymbolicLink() ||
+    after.dev !== before.dev ||
+    after.ino !== before.ino ||
+    after.uid !== 0 ||
+    after.gid !== 0 ||
+    (after.mode & 0o7777) !== 0o700
+  ) {
+    fail("legacy_history_nimo_bundle_runtime_output_prebuild_custody_invalid");
+  }
   return outputRoot;
 }
 
@@ -863,16 +884,10 @@ function finalizeRuntimeOutputSnapshotV2(outputRoot) {
   if (inventory.files.length < 1) {
     fail("legacy_history_nimo_bundle_runtime_output_snapshot_empty");
   }
-  for (const file of inventory.files) {
-    fs.chmodSync(file, 0o444);
-  }
-  for (const directory of inventory.directories.reverse()) {
-    fs.chmodSync(directory, 0o555);
-  }
   runPrivilegedSnapshotToolV2(
-    CHOWN_V2,
-    ["-R", "root:root", "--", outputRoot],
-    "runtime_output_chown",
+    CHMOD_V2,
+    ["-R", "a-w,go+rX,u+rX", "--", outputRoot],
+    "runtime_output_chmod",
   );
   assertRuntimeOutputSnapshotNonwritableV2(outputRoot);
 }
@@ -1070,7 +1085,7 @@ function assertPrivilegedSnapshotToolV2(tool, label) {
   }
 }
 
-function runPrivilegedSnapshotToolV2(tool, args, label) {
+function runPrivilegedSnapshotToolV2(tool, args, label, timeout=30_000) {
   assertPrivilegedSnapshotToolV2(SUDO_V2, "sudo");
   assertPrivilegedSnapshotToolV2(tool, label);
   const result = spawnSync(
@@ -1081,7 +1096,7 @@ function runPrivilegedSnapshotToolV2(tool, args, label) {
       stdout: "pipe",
       stderr: "pipe",
       encoding: "utf8",
-      timeout: 30_000,
+      timeout,
       env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
     },
   );
@@ -1094,6 +1109,44 @@ function runPrivilegedSnapshotToolV2(tool, args, label) {
   ) {
     fail("legacy_history_nimo_bundle_snapshot_privileged_command_failed:" + label);
   }
+}
+
+
+function rootCustodiedCompileNodeV2() {
+  const resolved = fs.realpathSync(process.execPath);
+  const leaf = fs.lstatSync(resolved);
+  if (
+    !leaf.isFile() ||
+    leaf.isSymbolicLink() ||
+    leaf.nlink !== 1 ||
+    leaf.uid !== 0 ||
+    leaf.gid !== 0 ||
+    (leaf.mode & 0o022) !== 0 ||
+    (leaf.mode & 0o111) === 0 ||
+    (leaf.mode & 0o6000) !== 0
+  ) {
+    fail("legacy_history_nimo_bundle_compile_node_custody_invalid");
+  }
+  let cursor = path.dirname(resolved);
+  for (;;) {
+    const st = fs.lstatSync(cursor);
+    if (
+      !st.isDirectory() ||
+      st.isSymbolicLink() ||
+      st.uid !== 0 ||
+      st.gid !== 0 ||
+      (st.mode & 0o022) !== 0
+    ) {
+      fail("legacy_history_nimo_bundle_compile_node_ancestry_invalid");
+    }
+    if (cursor === "/") break;
+    const parent = path.dirname(cursor);
+    if (parent === cursor) {
+      fail("legacy_history_nimo_bundle_compile_node_ancestry_invalid");
+    }
+    cursor = parent;
+  }
+  return resolved;
 }
 
 function assertCompilerSnapshotNonwritableV2(snapshotRoot, packageSummary) {
@@ -1225,28 +1278,24 @@ function compileReviewedRuntimeWithBoundCompilerV2(
       buildInputSnapshot.root,
       BUILD_INPUT_DERIVED_TSCONFIG_V2,
     );
-    const result=spawnSync(process.execPath,[
-      tscEntry,
-      "-p",tsconfig,
-      "--outDir",path.join(outputRoot,"dist"),
-    ],{
-      cwd:buildInputSnapshot.root,
-      env:{...CANDIDATE_COMPILE_ENV_V2},
-      encoding:"utf8",
-      timeout:120_000,
-      maxBuffer:2*1024*1024,
-    });
-    if(result.error){
-      fail("legacy_history_nimo_bundle_candidate_compile_spawn_failed");
-    }
-    if(
-      result.status!==0 ||
-      result.signal!==null ||
-      result.stdout!=="" ||
-      result.stderr!==""
-    ){
-      fail("legacy_history_nimo_bundle_candidate_compile_failed_or_output");
-    }
+    const compileNode=rootCustodiedCompileNodeV2();
+    runPrivilegedSnapshotToolV2(
+      ENV_V2,
+      [
+        "-i",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "TZ=UTC",
+        "NODE_DISABLE_COMPILE_CACHE=1",
+        compileNode,
+        tscEntry,
+        "-p",tsconfig,
+        "--outDir",path.join(outputRoot,"dist"),
+      ],
+      "runtime_output_compile",
+      120_000,
+    );
 
     finalizeRuntimeOutputSnapshotV2(outputRoot);
 
@@ -1393,7 +1442,8 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     build_recipe: {
       dependency_install: "npm ci --ignore-scripts --no-audit --no-fund",
       compile: "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <candidate-dist>",
-      compile_node_executable_source: "process.execPath",
+      compile_node_executable_source: "root_custodied_process.execPath_realpath",
+      compile_node_root_custody_required: true,
       compile_environment: CANDIDATE_COMPILE_ENV_V2,
       candidate_owned_rebuild_required: true,
       compiler_pre_post_identity_required: true,
@@ -1668,6 +1718,7 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
       "build_input_snapshot_required",
       "build_input_snapshot_root_custody_required",
       "candidate_owned_rebuild_required","compile",
+      "compile_node_root_custody_required",
       "runtime_output_snapshot_builder_uid_direct_mutation_denied_required",
       "runtime_output_snapshot_observed_before_cleanup_required",
       "runtime_output_snapshot_required",
@@ -1689,7 +1740,9 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
       "npm ci --ignore-scripts --no-audit --no-fund" ||
     body.build_recipe.compile !==
       "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <root-custodied-runtime-output-snapshot>/dist" ||
-    body.build_recipe.compile_node_executable_source !== "process.execPath" ||
+    body.build_recipe.compile_node_executable_source !==
+      "root_custodied_process.execPath_realpath" ||
+    body.build_recipe.compile_node_root_custody_required !== true ||
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
       body.build_recipe.compile_environment,
     ) !== canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
