@@ -259,6 +259,95 @@ def executable_key_wallet_authority_violations(
             return True
         return False
 
+    forbidden_builtin_calls = {
+        "__import__",
+        "compile",
+        "eval",
+        "exec",
+        "open",
+    }
+    forbidden_os_call_names = {
+        "execl",
+        "execle",
+        "execlp",
+        "execlpe",
+        "execv",
+        "execve",
+        "execvp",
+        "execvpe",
+        "fork",
+        "forkpty",
+        "popen",
+        "posixspawn",
+        "posixspawnp",
+        "spawnl",
+        "spawnle",
+        "spawnlp",
+        "spawnlpe",
+        "spawnv",
+        "spawnve",
+        "spawnvp",
+        "spawnvpe",
+        "system",
+    }
+
+    def safe_reviewed_getattr_call(node: ast.Call) -> bool:
+        return (
+            isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+            and len(node.args) == 3
+            and not node.keywords
+            and isinstance(node.args[0], ast.Name)
+            and node.args[0].id == "libc"
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value == "renameat2"
+            and isinstance(node.args[2], ast.Constant)
+            and node.args[2].value is None
+        )
+
+    def safe_reviewed_cdll_call(node: ast.Call) -> bool:
+        chain = dotted_name(node.func)
+        return (
+            chain == "ctypes.CDLL"
+            and len(node.args) == 1
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value is None
+            and len(node.keywords) == 1
+            and node.keywords[0].arg == "use_errno"
+            and isinstance(node.keywords[0].value, ast.Constant)
+            and node.keywords[0].value.value is True
+        )
+
+    def high_risk_call_violation(node: ast.Call) -> str | None:
+        chain = dotted_name(node.func)
+        if isinstance(node.func, ast.Name):
+            if node.func.id in forbidden_builtin_calls:
+                return "forbidden_builtin_call:" + node.func.id
+            if node.func.id == "getattr":
+                if not safe_reviewed_getattr_call(node):
+                    return "unreviewed_getattr_call"
+                return None
+        if not chain:
+            return None
+        folded_parts = [
+            normalized_identifier(part)
+            for part in chain.casefold().split(".")
+            if part
+        ]
+        terminal = folded_parts[-1] if folded_parts else ""
+        if chain == "ctypes.CDLL":
+            if not safe_reviewed_cdll_call(node):
+                return "unreviewed_ctypes_cdll_call"
+            return None
+        if folded_parts and folded_parts[0] == "os":
+            if terminal in forbidden_os_call_names:
+                return "forbidden_os_process_call:" + chain
+        if terminal == "open" and chain != "os.open":
+            return "unreviewed_file_open_call:" + chain
+        if folded_parts and folded_parts[0] == "libc" and chain != "libc.renameat2":
+            return "unreviewed_libc_call:" + chain
+        return None
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -289,6 +378,9 @@ def executable_key_wallet_authority_violations(
                 violations.append("attribute:" + chain)
         elif isinstance(node, ast.Call):
             chain = dotted_name(node.func)
+            high_risk = high_risk_call_violation(node)
+            if high_risk is not None:
+                violations.append(high_risk)
             if chain and call_path_is_sensitive(chain):
                 violations.append("call:" + chain)
             elif isinstance(node.func, ast.Name) and identifier_is_sensitive(
@@ -335,6 +427,13 @@ for unsafe_authority_source in (
         "key = ed25519.Ed25519PrivateKey.generate()\n"
         "key.sign(b'payload')"
     ),
+    'import os\nos.system("/usr/bin/openssl pkeyutl -sign -inkey /run/secret/key")',
+    'import os\nos.posix_spawn("/usr/bin/true", ["/usr/bin/true"], {})',
+    'open("/run/credentials/key", "rb").read()',
+    '__import__("subprocess").run(["/usr/bin/true"])',
+    'import os\ngetattr(os, "system")("/usr/bin/true")',
+    'import ctypes\nctypes.CDLL("/tmp/unreviewed.so")',
+    'eval("1+1")',
 ):
     assert executable_key_wallet_authority_violations(
         unsafe_authority_source
@@ -566,6 +665,8 @@ print("ast_key_wallet_authority_guard=true")
 print("ast_key_wallet_adversaries_exercised=true")
 print("closed_import_allowlist_guard=true")
 print("nacl_bindings_signing_adversary_exercised=true")
+print("high_risk_call_guard=true")
+print("process_dynamic_authority_adversaries_exercised=true")
 print("ast_signing_key_authority_guard=true")
 print("ast_generic_sign_call_adversary_exercised=true")
 print("query_execution=false")
