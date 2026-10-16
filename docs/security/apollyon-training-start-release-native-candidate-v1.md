@@ -34,20 +34,19 @@ executes a trainer/model process and never reports release authority.
 
 The candidate accepts release input only from inherited FD 3.
 
-Before opening any candidate-owned internal descriptor it requires the inherited
-FD set to be exactly:
+Before opening any candidate-owned internal descriptor it first proves that
+stdin, stdout, stderr, and FD 3 already exist. It then opens one retained procfs
+context and requires Linux `PROC_SUPER_MAGIC`, the `self` magic link to name
+the real `getpid()`, and stable retained proc/self/fd directory generations.
 
-- stdin;
-- stdout;
-- stderr;
-- FD 3.
+The exact inherited-FD census is then performed through that retained procfs
+directory. The only additional descriptors allowed are the candidate-owned
+retained procfs descriptors and the census duplicate itself.
 
-The temporary `/proc/self/fd` directory descriptor used by the census is the
-only census-local exception.
-
-FD 3 must be a read-only anonymous pipe endpoint. The candidate snapshots its
-kernel device/inode/mode tuple before the release frame and requires the same
-pipe generation afterward.
+FD 3 must be a read-only anonymous pipe endpoint. Its `pipe:[inode]` identity
+is read through the retained procfs FD directory and cross-bound to `fstat(3)`.
+The candidate snapshots the kernel device/inode/mode tuple before the release
+frame and requires the same pipe generation afterward.
 
 This is trainer-side evidence only. It does **not** prove which process owns the
 write endpoint.
@@ -96,9 +95,14 @@ The same process generation must report:
 - `CapBnd=0`;
 - `CapAmb=0`.
 
-The source revalidates those fields before and after frame consumption. Hosted
-self-test includes NNP=0, nonzero-capability, and supplementary-group
-adversaries.
+All status/stat observations are opened descriptor-relative beneath the retained
+procfs/self generation. The `stat` record's PID is required to equal
+`getpid()`, while direct `getresuid`, `getresgid`, `getgroups`, and
+`PR_GET_NO_NEW_PRIVS` checks cross-check the parsed kernel view.
+
+The source revalidates procfs generation and those security fields before and
+after frame consumption. Hosted self-test includes NNP=0, nonzero-capability,
+supplementary-group, and non-procfs-root adversaries.
 
 The caller-provided expected UID/GID values are **not** runtime authority by
 themselves. A later integration must bind them to the exact #3351 consumption
@@ -125,10 +129,12 @@ continuous-provenance mechanism.
 
 The candidate snapshots and revalidates:
 
-- its Linux process start-time ticks;
+- the retained procfs root/self/fd generation and procfs filesystem identity;
+- the procfs `self` PID binding to `getpid()`;
+- its Linux process start-time ticks from retained procfs/self;
 - a retained self pidfd, which must remain live through frame completion;
-- retained `/proc/self/exe` file generation;
-- FD 3 anonymous-pipe generation;
+- self executable file generation opened through retained procfs/self;
+- FD 3 anonymous-pipe generation observed through retained procfs/fd;
 - exact UID/GID/group/NNP/capability state.
 
 A future installed candidate still requires separate source/binary
@@ -167,6 +173,13 @@ The focused proof:
 - proves NNP=0, nonzero capabilities and supplementary groups are rejected;
 - proves the candidate can retain and revalidate a live self pidfd;
 - proves the no-exec seccomp barrier blocks exec;
+- executes the actual production `--run` entrypoint through a root-owned hosted
+  harness that drops to UID/GID 1000, clears supplementary groups and capability
+  state, sets NoNewPrivs, inherits exactly FD 3, sends the exact release frame,
+  and closes the writer for EOF;
+- requires that positive production path to exit 0 while still reporting
+  releaser-origin/writer-exclusivity/lineage/release/training authority false;
+- recompiles against a fake non-procfs root and requires pre-frame HOLD;
 - proves direct `--run` without exact inherited FD 3 cannot authorize release;
 - proves PR/main-push trigger closure includes the exact #3351 source/proof/
   workflow dependencies.
