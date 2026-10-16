@@ -25,13 +25,13 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs":
-    "fb92b4b3bd2a6594a2a90d7e607cae193452b92b",
+    "394b9dbaebbdbb561be6119f5be8b60d59fb367d",
   "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs":
-    "fab2b7699121b58010a5ed96ec50a47dd441726f",
+    "5d913eb08d79c76ed926d8b88be05b12f475abd5",
   "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c":
     "defd863de841a1f1460e10985d1990ba1a382f70",
   "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs":
-    "d9af4667a429a9e55f491676db48cdd5975b7e16",
+    "4cf08f60a604496ea7087167f0ef6a744182aad4",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
     "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
@@ -51,9 +51,9 @@ const result=qualifyApollyonDurableAttemptClaimNativePeerGuardIntegrationV2();
 assert.equal(result.status,"native_peer_guard_integration_source_contract_defined_unimplemented");
 assert.equal(result.target_host,"Xiphos");
 assert.equal(result.parent_handoff_contract_id,handoff.handoff_contract_id);
-assert.equal(result.parent_handoff_blob_sha1,"fab2b7699121b58010a5ed96ec50a47dd441726f");
+assert.equal(result.parent_handoff_blob_sha1,"5d913eb08d79c76ed926d8b88be05b12f475abd5");
 assert.equal(result.native_peer_guard_blob_sha1,"defd863de841a1f1460e10985d1990ba1a382f70");
-assert.equal(result.native_peer_guard_proof_blob_sha1,"d9af4667a429a9e55f491676db48cdd5975b7e16");
+assert.equal(result.native_peer_guard_proof_blob_sha1,"4cf08f60a604496ea7087167f0ef6a744182aad4");
 assert.match(result.integration_contract_id,/^apollyon_claim_peer_integration_v2:[0-9a-f]{64}$/u);
 
 for(const key of [
