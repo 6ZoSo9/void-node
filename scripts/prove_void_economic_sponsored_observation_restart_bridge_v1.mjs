@@ -26,7 +26,7 @@ import {
 const ROOT=process.cwd();
 const EXPECTED_BLOBS=Object.freeze({
   "tools/void-economic-sponsored-observation-restart-bridge-v1.mjs":
-    "51c0edf3d2a8aaef297392b9f2dc8c89ab48a8cb",
+    "eb330ba2b9ac0c7a1d4f34433dc285f25b00e236",
   "tools/void-economic-sponsored-host-observation-time-store-binding-v1.mjs":
     "7cfba597ddf9667021b662ce3e4ac8c0c3f1103b",
   "tools/void-economic-sponsored-host-trusted-clock-binding-v1.mjs":
@@ -235,8 +235,11 @@ assert.equal(result.durable_prior_head_verified,true);
 assert.equal(result.boot_relative_time_forward_verified,true);
 assert.equal(result.wall_time_non_regression_verified,true);
 assert.equal(result.cumulative_wall_monotonic_skew_verified,true);
+assert.equal(result.input_evidence_production_mode,false);
+assert.equal(result.input_evidence_test_mode,true);
 assert.equal(result.production_fixed_sources_observed,false);
-assert.equal(result.test_only_injected_dependencies,true);
+assert.equal(result.evidence_origin_custody_proven,false);
+assert.equal(result.live_store_inspection_origin_proven,false);
 assert.equal(result.cross_process_restart_continuity_proven,false);
 assert.equal(result.cross_boot_restart_continuity_proven,false);
 assert.equal(result.durable_time_store_mutation,false);
@@ -388,7 +391,7 @@ for(const [key,value] of Object.entries(
     "boot_relative_time_forward_required",
     "wall_time_non_regression_required",
     "cumulative_wall_monotonic_skew_bounded",
-    "production_cross_process_continuity_may_be_proven",
+    "caller_supplied_evidence_only",
   ]);
   assert.equal(value,trueKeys.has(key),key);
 }
@@ -403,6 +406,9 @@ console.log("changed_process_generation_required=true");
 console.log("boot_relative_time_forward_required=true");
 console.log("wall_time_non_regression_required=true");
 console.log("cumulative_wall_monotonic_skew_bounded=true");
+console.log("caller_supplied_evidence_only=true");
+console.log("evidence_origin_custody_proven=false");
+console.log("live_store_inspection_origin_proven=false");
 console.log("test_only_cross_process_restart_continuity_proven=false");
 console.log("cross_boot_restart_continuity_proven=false");
 console.log("durable_time_store_mutation=false");
