@@ -238,8 +238,19 @@ function revalidateBinderPreentry(proof,expectedHead){
     throw new Error("binder_preentry_parent_executable_mismatch");
   }
   const preentry=fs.lstatSync(FIXED_BINDER_PREENTRY,{bigint:true});
+  const parentActual=fs.statSync(
+    "/proc/"+String(process.ppid)+"/exe",
+    {bigint:true},
+  );
   const visibleBinder=fs.lstatSync(FIXED_BINDER_SOURCE,{bigint:true});
   const visibleNode=fs.lstatSync(fs.realpathSync(FIXED_NODE),{bigint:true});
+  const nodeActual=fs.statSync("/proc/self/exe",{bigint:true});
+  if(!sameFileIdentity(preentry,parentActual)){
+    throw new Error("binder_preentry_parent_running_generation_mismatch");
+  }
+  if(!sameFileIdentity(visibleNode,nodeActual)){
+    throw new Error("binder_preentry_node_running_generation_mismatch");
+  }
   const fdRaw=String(process.env[BINDER_FD_ENV]??"");
   if(!/^[0-9]{1,3}$/u.test(fdRaw)){
     throw new Error("binder_preentry_binder_fd_invalid");
