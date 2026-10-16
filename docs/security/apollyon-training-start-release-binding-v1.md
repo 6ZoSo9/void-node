@@ -6,9 +6,10 @@ Status: **pure source/test contract; no protected consumption-store observation,
 
 ## Purpose
 
-Accepted #3333 exact head `c6531d81104c4c7c0f5571c0602400cd313bd9ec`
+Accepted #3333 exact head `c19ae0fc8ecce89b9551f5475553b7222299a5ac`
 defines one authorization-wide create-once training-start consumption slot and
-one claim/trainer-specific consumption record. This successor freezes the exact
+one claim/trainer-specific consumption record, and revalidates the exact #3357
+unique authorization→claim winner before deriving that consumption record. This successor freezes the exact
 generation identity that a later kernel-bound release mechanism must revalidate
 before that consumed attempt may cross the training-start boundary.
 
@@ -32,6 +33,11 @@ The stable release policy requires all of the following before any future releas
 - the exact create-once consumption slot is already durable;
 - consumption file fsync and parent-directory fsync completed;
 - the final visible consumption record is reread and revalidated from protected storage;
+- the exact upstream `authorization_slot_id` and
+  `authorization_slot_record_id` are preserved in the release binding;
+- immediately before release, the protected #3357 authorization-slot winner is
+  reread/revalidated and must still name the exact durable claim carried by the
+  consumption record;
 - immediately before release, the same trainer generation plus UID/GID/supplementary groups, NoNewPrivileges and empty capability policy are revalidated;
 - the trainer cannot write, rename or unlink the consumption store and cannot self-release;
 - PID reuse, a second trainer generation, token replay and replacement-generation release are rejected;
@@ -40,8 +46,10 @@ The stable release policy requires all of the following before any future releas
 
 ## Exact release binding
 
-The binding carries the exact #3333:
+The binding carries the exact #3333 / #3357 lineage:
 
+- authorization-wide `authorization_slot_id`;
+- exact winning `authorization_slot_record_id`;
 - trainer-independent consumption slot ID;
 - trainer-specific consumption-record ID;
 - store policy/contract/generation;
@@ -56,10 +64,12 @@ The binding carries the exact #3333:
 A second blocked trainer for the same durable claim derives the same consumption
 slot but a different consumption record and therefore a different release
 binding. Under repaired #3333, a different valid terminal/claim record for the
-same authorization/custody authority also maps to that same protected start
-slot; if one record occupies it, the alternate claim cannot obtain a second
-training-start namespace. Release remains consumption-record/trainer-specific
-and cannot transfer to a replacement generation.
+same authorization maps to the same #3357 authorization slot but a different
+winner-record identity. The release binding preserves both IDs, so an alternate
+claim cannot masquerade as the same winning durable-claim lineage. Actual
+protected winner origin/revalidation is still a future runtime gate. Release
+remains consumption-record/trainer-specific and cannot transfer to a replacement
+generation.
 
 The binding validator closes both the top-level key set and the nested authority
 key set before canonical comparison; unknown/prototype-like authority fields
@@ -72,6 +82,8 @@ This contract validates only source-level shapes. It reports:
 ```text
 protected_consumption_record_origin_proven=false
 consumption_durability_revalidation_performed=false
+unique_authorization_claim_slot_protected_origin_proven=false
+unique_authorization_claim_slot_revalidation_performed=false
 live_trainer_generation_revalidation_performed=false
 training_identity_policy_revalidation_performed=false
 private_release_channel_origin_proven=false
@@ -102,3 +114,16 @@ host provenance.
 The later native/integration gates must implement and self-test the
 kernel-generation/private-channel primitive and then authenticate that evidence
 on the designated host before any release authority can be considered.
+
+
+## Current generation binding
+
+This repaired release-binding generation is stacked on #3333
+`c19ae0fc8ecce89b9551f5475553b7222299a5ac` and binds:
+- training-start consumption source Git blob
+  `4333df6c7918fe9efaada36cac765000eec7948f`;
+- authorization-slot source Git blob
+  `93582c324ca85aeff56eb61f82b32f1e4c18dfe9`.
+
+Both modules are included in focused PR/main-push trigger closure. Frozen prior
+release-binding generations remain historical evidence only.
