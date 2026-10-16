@@ -36,7 +36,7 @@ function sha256(value){return crypto.createHash("sha256").update(value).digest("
 
 const EXACT_BLOBS=Object.freeze({
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "5d61461742aa854dd144390a2fd2f669e5a827d3",
+    "f0ce236106aafc191ecda1210893466bef0fceaf",
   "ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py":
     "03ea7df9b7a548c73ec1c715d716391be5d5d223",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -88,6 +88,8 @@ assert.deepEqual(candidate.fixed_paths,{
 assert.equal(candidate.numeric_host_identities,null);
 assert.equal(candidate.host_plan_receipt_required_for_numeric_identity_binding,true);
 assert.equal(candidate.host_plan_receipt_consumed,false);
+assert.equal(candidate.caller_supplied_host_plan_sufficient,false);
+assert.equal(candidate.live_host_plan_reexecution_required_before_provisioning,true);
 assert.deepEqual(candidate.host_plan_receipt_requirements,{
   marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_HOST_PLAN_V2",
   version:2,
@@ -99,12 +101,20 @@ assert.deepEqual(candidate.host_plan_receipt_requirements,{
   fixed_names:candidate.fixed_identities,
   fixed_paths:candidate.fixed_paths,
   plan_id_pattern:"^apollyon_claim_store_host_plan_v2:[0-9a-f]{64}$",
+  plan_id_content_address_reverification_required:true,
+  caller_supplied_host_plan_sufficient:false,
+  live_host_plan_reexecution_required_before_provisioning:true,
+  machine_id_revalidation_required_before_provisioning:true,
+  local_identity_files_revalidation_required_before_provisioning:true,
+  trusted_parent_directories_revalidation_required_before_provisioning:true,
   selected_candidate_keys:[
     "claim_service_uid","claim_publisher_uid",
     "claim_service_gid","claim_publisher_gid","claim_ipc_gid",
   ],
   selected_candidate_values_positive_safe_integers_required:true,
   selected_candidate_values_pairwise_distinct_required:true,
+  selected_candidate_values_within_system_id_ranges_required:true,
+  selected_candidate_values_absent_from_current_local_identity_rows_required:true,
   source_generation_source_head:"5693e0e060dd567acbbf7a1e44ab641efded4a98",
   source_generation_parent_head:"fe7e1ad9b78a24b77a1657067e4d08f7c56a7731",
   source_generation_planner_blob_sha1:"03ea7df9b7a548c73ec1c715d716391be5d5d223",
@@ -260,6 +270,9 @@ for(const required of [
   'numeric_host_identities:null',
   'host_plan_receipt_required_for_numeric_identity_binding:true',
   'host_plan_receipt_requirements:hostPlanReceiptRequirements',
+  'plan_id_content_address_reverification_required:true',
+  'caller_supplied_host_plan_sufficient:false',
+  'live_host_plan_reexecution_required_before_provisioning:true',
   'source_generation_isolated_python_startup_proven_required:true',
   'candidate_slots_revalidation_required_before_provisioning:true',
   'service_implementation_present:false',
@@ -287,6 +300,9 @@ console.log("complete_store_policy_projected=true");
 console.log("service_and_publisher_least_authority_schemas_projected=true");
 console.log("host_plan_receipt_required_for_numeric_identity_binding=true");
 console.log("host_plan_receipt_exact_schema_requirements_bound=true");
+console.log("host_plan_receipt_content_address_reverification_required=true");
+console.log("caller_supplied_host_plan_sufficient=false");
+console.log("live_host_plan_reexecution_required_before_provisioning=true");
 console.log("host_plan_source_generation_requirements_bound=true");
 console.log("candidate_slots_revalidation_required_before_provisioning=true");
 console.log("numeric_host_identity_binding_performed=false");

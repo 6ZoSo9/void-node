@@ -36,7 +36,9 @@ and fixed future paths:
 - reviewed service root: `/opt/void-apollyon-attempt-claim-v2-reviewed-v1`
 - reviewed publisher root: `/opt/void-apollyon-attempt-claim-publisher-v2-reviewed-v1`
 
-Numeric UID/GID values remain deliberately unresolved. The candidate now also freezes the exact host-plan receipt boundary: marker/version/status, #3233 parent and policy, fixed names/paths, exact five selected-candidate keys, positive-safe-integer and pairwise-distinct requirements, #3265 source-generation head/planner/contract evidence, target-name/path absence, plan-only candidate status, recensus requirement, and every provisioning/store/claim/training flag that must still be false. A future implementation/install gate must validate that exact receipt and recensus local identity state immediately before create-only provisioning.
+Numeric UID/GID values remain deliberately unresolved. A caller-supplied JSON receipt is explicitly insufficient. The future provisioning gate must re-execute the exact reviewed #3265 planner on Xiphos, revalidate machine/local-identity/trusted-parent state, recompute the content-addressed plan ID, and compare the exact fresh result before binding numeric identities.
+
+The candidate freezes the exact host-plan receipt boundary: marker/version/status, #3233 parent and policy, fixed names/paths, exact five selected-candidate keys, positive-safe-integer, pairwise-distinct, system-range and current-local-identity-absence requirements, #3265 source-generation head/planner/contract evidence, target-name/path absence, plan-only candidate status, recensus requirement, and every provisioning/store/claim/training flag that must still be false. A future implementation/install gate must validate that exact receipt and recensus local identity state immediately before create-only provisioning.
 
 ## Complete policy projection
 
