@@ -69,6 +69,10 @@ const PACKAGE_TOOL="tools/void-reviewed-node-package-runtime-v1.mjs";
 const PACKAGE_TOOL_BLOB="6475c3f18ffe566cf5f448ca1de4795391a6efde";
 const PROVIDER_LOCK_PROOF="scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs";
 const PROVIDER_LOCK_PROOF_BLOB="39f660e23f5baa3f0a4f1e5b8b40c756c31da4cb";
+const PROVIDER_EVIDENCE=
+  "ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json";
+const PROVIDER_EVIDENCE_BLOB="b08c03912e0f66742f06f314bf5e1f5cad81f20f";
+const PROVIDER_ACCEPTED_HEAD="bc510343c5c418a75154bedcc445cbf1251dc037";
 const V7_DELTA_PROOF="scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs";
 const V7_DELTA_PROOF_BLOB="ed0aeaca4e5feaf306d7d5e5f308878d43c03b0e";
 const SAGA_SOURCE="tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs";
@@ -309,12 +313,76 @@ function packageIdentity(){
 }
 function providerIdentity(){
   pin(PROVIDER_LOCK_PROOF,PROVIDER_LOCK_PROOF_BLOB,256*1024);
-  const r=run(process.execPath,[path.join(ROOT,PROVIDER_LOCK_PROOF)]),v=JSON.parse(String(r.stdout||""));
-  assert.equal(v.marker,"VOID_BUY_VOID_DELIVERY_DEPENDENCY_PROVIDER_CLOSURE_POST2865_LOCK_V1");
-  assert.equal(v.candidate_json_sha256,"6c2bfe62b0d669bc9794a13eb24d357026ca8f9f7c055af1bcc0c0893c94247b");
-  assert.equal(v.provider_closure_sha256,"3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945");
-  assert.equal(v.provider_closure_semantic_sha256,"95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384");
-  assert.equal(v.provider_closure_identity_accepted,true);assert.equal(v.current_descendant_semantics_requalified,true);return v;
+  const evidenceBytes=pin(PROVIDER_EVIDENCE,PROVIDER_EVIDENCE_BLOB,256*1024);
+  assert.equal(
+    sha256(evidenceBytes),
+    "6c2bfe62b0d669bc9794a13eb24d357026ca8f9f7c055af1bcc0c0893c94247b",
+    "provider_candidate_json_sha256_drift",
+  );
+  const accepted=JSON.parse(evidenceBytes.toString("utf8"));
+  assert.equal(accepted.marker,"VOID_BUY_VOID_DELIVERY_DEPENDENCY_PROVIDER_CLOSURE_V1");
+  assert.equal(accepted.repository_head_sha,PROVIDER_ACCEPTED_HEAD);
+  assert.equal(
+    accepted.provider_closure_sha256,
+    "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945",
+  );
+  assert.equal(
+    accepted.package_json_git_blob_sha1,
+    git(["rev-parse","HEAD:package.json"]),
+    "provider_package_json_changed",
+  );
+  assert.equal(
+    accepted.package_lock_git_blob_sha1,
+    git(["rev-parse","HEAD:package-lock.json"]),
+    "provider_package_lock_changed",
+  );
+  git(["cat-file","-e",PROVIDER_ACCEPTED_HEAD+"^{commit}"]);
+
+  for(const relative of accepted.provider_source_paths){
+    const acceptedBlob=git(["rev-parse",PROVIDER_ACCEPTED_HEAD+":"+relative]);
+    const currentBlob=git(["rev-parse","HEAD:"+relative]);
+    assert.equal(currentBlob,acceptedBlob,"provider_source_changed:"+relative);
+    assert.equal(gitBlob(read(relative,4*1024*1024)),currentBlob,
+      "provider_source_worktree_changed:"+relative);
+  }
+
+  const artifactRows=[
+    ...accepted.provider_runtime_artifacts,
+    accepted.server_runtime_identity,
+    accepted.delivery_consumer_identity,
+    accepted.delivery_adapter_identity,
+  ];
+  const seen=new Set();
+  for(const row of artifactRows){
+    if(seen.has(row.path))continue;
+    seen.add(row.path);
+    const bytes=read(row.path,4*1024*1024);
+    assert.equal(bytes.length,row.bytes,"provider_artifact_bytes_changed:"+row.path);
+    assert.equal(sha256(bytes),row.sha256,"provider_artifact_sha256_changed:"+row.path);
+    assert.equal(gitBlob(bytes),row.git_blob_sha1,"provider_artifact_blob_changed:"+row.path);
+  }
+
+  const semantic=structuredClone(accepted);
+  delete semantic.repository_head_sha;
+  delete semantic.repository_tree_sha;
+  delete semantic.provider_closure_sha256;
+  const semanticSha=sha256(Buffer.from(canonical(semantic),"utf8"));
+  assert.equal(
+    semanticSha,
+    "95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384",
+    "provider_semantic_identity_changed",
+  );
+  return Object.freeze({
+    candidate_json_sha256:
+      "6c2bfe62b0d669bc9794a13eb24d357026ca8f9f7c055af1bcc0c0893c94247b",
+    provider_closure_sha256:accepted.provider_closure_sha256,
+    provider_closure_semantic_sha256:semanticSha,
+    provider_closure_identity_accepted:true,
+    historical_lock_proof_reexecuted:false,
+    current_content_semantics_requalified:true,
+    provider_source_path_count:accepted.provider_source_paths.length,
+    provider_artifact_identity_count:seen.size,
+  });
 }
 function deltaIdentity(){
   pin(V7_DELTA_PROOF,V7_DELTA_PROOF_BLOB,128*1024);
@@ -511,9 +579,12 @@ function derive(){
       packages_aggregate_sha256:pkg.packages_aggregate_sha256,profile_canonical_sha256:pkg.profile_canonical_sha256,
       root_packages:pkg.root_packages,profile_identity_accepted:true},
     dependency_provider:{lock_proof_path:PROVIDER_LOCK_PROOF,lock_proof_git_blob_sha1:PROVIDER_LOCK_PROOF_BLOB,
+      evidence_path:PROVIDER_EVIDENCE,evidence_git_blob_sha1:PROVIDER_EVIDENCE_BLOB,
       candidate_json_sha256:provider.candidate_json_sha256,provider_closure_sha256:provider.provider_closure_sha256,
       provider_closure_semantic_sha256:provider.provider_closure_semantic_sha256,provider_closure_identity_accepted:true,
-      current_descendant_semantics_requalified:true},
+      historical_lock_proof_reexecuted:false,current_content_semantics_requalified:true,
+      provider_source_path_count:provider.provider_source_path_count,
+      provider_artifact_identity_count:provider.provider_artifact_identity_count},
     v7_executable_delta:{proof_path:V7_DELTA_PROOF,proof_git_blob_sha1:V7_DELTA_PROOF_BLOB,module_count:6,
       candidate_generation_sha256:"5c5637207d5970d2ca793cf431726ff8d86db370b3e69e9ff1e5caa25d9b5224",
       source_inventory_sha256:"ce0d9d52226f09cd0ad10d9a6f04520e68587ced228932b0aa61bd323a59ee8d",
