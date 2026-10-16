@@ -110,7 +110,12 @@ Each derivation must:
 - keep every live/install/economic authority false.
 
 The compare job requires all three complete candidate JSON files to be
-byte-identical.
+byte-identical. Structural verification is independent of the candidate ID:
+even after recomputing a valid content address, the verifier rejects runtime
+kind relabeling, malformed/non-`node:` builtin sets, compiler-file identity
+drift, planned-handler layout drift, and authority promotion. Tracked runtime
+paths must remain tracked-source records with their parent Git blobs; generated
+`dist/` paths must remain compiled records with no fake tracked blob.
 
 The candidate ID is content-addressed as:
 
