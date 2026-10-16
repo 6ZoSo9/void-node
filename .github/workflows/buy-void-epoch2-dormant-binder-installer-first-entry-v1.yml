@@ -1,0 +1,123 @@
+name: Buy VOID Epoch-2 dormant binder installer first entry v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c)" = \
+            2eba1ee452d39001bbb9180b3bb0f101539c6fcb
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py)" = \
+            36319734ccb05901b1b9dfdbea674d1ccd51619d
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md)" = \
+            aa6d34c05b5f9f8a074d5e50cfe5b1336f0f3d59
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
+            37f8b9269e91ac37c65a527e5e3f87b6e5b10213
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove privileged first entry
+        run: |
+          set -euo pipefail
+          sudo -n true
+          out="$RUNNER_TEMP/dormant-binder-installer-first-entry-v1.log"
+          python3 -I -B \
+            scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py \
+            | tee "$out"
+
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V1_PROOF_GREEN' \
+            'static_native_first_instruction=true' \
+            'generation_macros_required_no_defaults=true' \
+            'stale_candidate_lock_promoted=false' \
+            'caller_stdin_python_rejected_before_child=true' \
+            'wrong_confirmation_rejected_before_child=true' \
+            'installer_source_generation_bound_before_python=true' \
+            'native_candidate_generation_bound_before_python=true' \
+            'python_generation_bound_before_payload=true' \
+            'retained_installer_descriptor_execution=true' \
+            'post_child_generation_revalidation=true' \
+            'native_candidate_descriptor_passed_to_installer=true' \
+            'expected_plan_id_forwarded_for_apply=true' \
+            'mid_child_native_path_substitution_consumes_retained_fd=true' \
+            'abnormal_apply_receipt_conservative=true' \
+            'ld_preload_dynamic_control_executes=true' \
+            'ld_preload_cannot_reach_static_preentry_or_python_child=true' \
+            'pythonpath_dynamic_control_executes=true' \
+            'caller_python_environment_cannot_reach_child=true' \
+            'protected_install_authorized=false' \
+            'precision_apply_performed=false' \
+            'credential_content_access=false' \
+            'signing=false' \
+            'transaction=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'wc_void_market_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Diff hygiene
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              BASE="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              BASE="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              BASE="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
