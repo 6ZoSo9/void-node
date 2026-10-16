@@ -211,13 +211,24 @@ jobs:
 
       - name: Diff hygiene
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
-          if [ -z "\${BASE:-}" ]; then
-            BASE="$(git rev-parse "$HEAD^1")"
-          fi
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              BASE="$PR_BASE"
+              ;;
+            workflow_dispatch)
+              BASE="$(git rev-parse "$HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
           git merge-base --is-ancestor "$BASE" "$HEAD"
           git diff --check "$BASE" "$HEAD"
