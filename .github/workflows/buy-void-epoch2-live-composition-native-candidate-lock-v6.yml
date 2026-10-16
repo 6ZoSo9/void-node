@@ -68,7 +68,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6.json)" = \
             87d80770ce6c519ed18b2a5b7c2f653126acb3f9
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v6.py)" = \
-            fa50685fff9f03c98b6a3365df71c40d0a0e87d2
+            4fd69d585e0b533e12c987767fc34af6179eda9e
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-candidate-lock-v6.md)" = \
             af543b66caf87591f59ae34aecfeeefd1f425927
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6.py)" = \
