@@ -249,8 +249,11 @@ static bool same_identity(const struct stat *a, const struct stat *b) {
            a->st_gid == b->st_gid &&
            a->st_mode == b->st_mode &&
            a->st_nlink == b->st_nlink &&
-           a->st_size == b->st_size &&
-           a->st_mtim.tv_sec == b->st_mtim.tv_sec &&
+           a->st_size == b->st_size;
+}
+
+static bool same_generation_times(const struct stat *a, const struct stat *b) {
+    return a->st_mtim.tv_sec == b->st_mtim.tv_sec &&
            a->st_mtim.tv_nsec == b->st_mtim.tv_nsec &&
            a->st_ctim.tv_sec == b->st_ctim.tv_sec &&
            a->st_ctim.tv_nsec == b->st_ctim.tv_nsec;
@@ -333,7 +336,9 @@ static void revalidate_retained_regular(
     if (fstat(file->fd, &opened) != 0 ||
         lstat(file->path, &visible) != 0 ||
         !same_identity(&file->opened, &opened) ||
+        !same_generation_times(&file->opened, &opened) ||
         !same_identity(&opened, &visible) ||
+        !same_generation_times(&opened, &visible) ||
         !safe_regular_metadata(&opened, executable)) hold(reason);
 }
 
@@ -385,7 +390,9 @@ static void revalidate_retained_python(
         fstat(python->fd, &opened) != 0 ||
         lstat(python->canonical, &visible) != 0 ||
         !same_identity(&python->opened, &opened) ||
-        !same_identity(&opened, &visible)) hold(reason);
+        !same_generation_times(&python->opened, &opened) ||
+        !same_identity(&opened, &visible) ||
+        !same_generation_times(&opened, &visible)) hold(reason);
 }
 
 static void sha256_fd_hex(int fd, char out[65]) {
@@ -584,6 +591,7 @@ static int self_test(void) {
     puts("qualifier_source_sha256=" VOID_E2_OPERATOR_QUALIFIER_SHA256);
     puts("python_generation_policy_bound=true");
     puts("source_descriptors_retained=true");
+    puts("unselected_retained_descriptors_closed_in_child=true");
     puts("python_descriptor_fexecve=true");
     puts("child_environment_closed=true");
     puts("post_child_generation_revalidation=true");
@@ -669,6 +677,13 @@ int main(int argc, char **argv) {
         if (dup2(devnull, STDIN_FILENO) < 0) _exit(126);
         close(devnull);
 
+        close(self.fd);
+        close(policy_file.fd);
+        if (selected == &installer) {
+            close(qualifier.fd);
+        } else {
+            close(installer.fd);
+        }
         clear_cloexec_or_exit(selected->fd);
 
         char source_fd_path[64];
