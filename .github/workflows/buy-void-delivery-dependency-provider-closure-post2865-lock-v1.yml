@@ -15,6 +15,9 @@ on:
       - "scripts/prove_buy_void_enforcement_post2865_lock_v1.mjs"
       - "scripts/prove_buy_void_enforcement_post2865_v7_historical_refusal_v2.mjs"
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v5.yml"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "docs/architecture/buy-void-enforcement-post2865-lock-v1.md"
       - "docs/architecture/buy-void-enforcement-post2865-candidate-v1.md"
@@ -39,6 +42,9 @@ on:
       - "scripts/prove_buy_void_enforcement_post2865_lock_v1.mjs"
       - "scripts/prove_buy_void_enforcement_post2865_v7_historical_refusal_v2.mjs"
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v5.yml"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "docs/architecture/buy-void-enforcement-post2865-lock-v1.md"
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
@@ -137,28 +143,83 @@ jobs:
           console.log("VOID_BUY_VOID_PROVIDER_CLOSURE_POST2865_LOCK_NODE_GREEN");
           NODE
 
-      - name: Verify provider closure on current protected integration
+      - name: Requalify provider closure through current V3 candidate
         if: steps.enforcement-generation.outputs.mode == 'v7'
         run: |
           set -euo pipefail
-          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"
+          candidate="$RUNNER_TEMP/provider-v3-candidate-${{ matrix.node }}.json"
           receipt="$RUNNER_TEMP/provider-current-integration-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --self-test
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --receipt > "$receipt"
-          node --input-type=module - "$receipt" <<'NODE'
+
+          node --check scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs             --derive > "$candidate"
+
+          node --input-type=module - "$candidate" "$receipt" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
-          const v=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(v.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V1");
-          assert.equal(v.provider_source_identity_preserved,true);
-          assert.equal(v.provider_built_artifact_identity_preserved,true);
-          assert.equal(v.protected_path_identity_preserved,true);
-          assert.equal(v.current_built_census_identity_matches_frozen_v4,true);
-          assert.equal(v.current_generation_integration_verified,true);
-          assert.equal(v.production_source_finality_authority_ready,false);
-          assert.equal(v.public_presale_activation,false);
-          assert.equal(v.funds_movement,false);
+          const candidate=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          const provider=candidate.dependency_provider;
+
+          assert.equal(
+            candidate.marker,
+            "VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V3",
+          );
+          assert.equal(candidate.current_enforcement_tracked_source_inventory_count,49);
+          assert.equal(candidate.current_enforcement_tracked_source_inventory_verified,true);
+          assert.equal(
+            candidate.protected_census_current_revalidation
+              ?.source_generation_successor_evidence_bound,
+            true,
+          );
+          assert.equal(provider.provider_closure_identity_accepted,true);
+          assert.equal(provider.historical_lock_proof_reexecuted,false);
+          assert.equal(provider.current_content_semantics_requalified,true);
+          assert.equal(
+            provider.provider_closure_sha256,
+            "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945",
+          );
+          assert.equal(
+            provider.provider_closure_semantic_sha256,
+            "95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384",
+          );
+          assert.equal(candidate.production_source_finality_authority_ready,false);
+          assert.equal(candidate.public_presale_activation,false);
+          assert.equal(candidate.funds_movement,false);
+
+          const receipt={
+            marker:"VOID_BUY_VOID_PROVIDER_CURRENT_V3_REQUALIFICATION_V1",
+            version:1,
+            candidate_enforcement_set_sha256:
+              candidate.candidate_enforcement_set_sha256,
+            protected_census_id:
+              candidate.protected_census_evidence.census_id,
+            protected_path_count:
+              candidate.current_enforcement_tracked_source_inventory_count,
+            protected_generation_delta_count:
+              candidate.protected_census_current_revalidation
+                .protected_generation_delta_count,
+            provider_candidate_json_sha256:provider.candidate_json_sha256,
+            provider_closure_sha256:provider.provider_closure_sha256,
+            provider_closure_semantic_sha256:
+              provider.provider_closure_semantic_sha256,
+            provider_closure_identity_accepted:true,
+            historical_lock_proof_reexecuted:false,
+            current_content_semantics_requalified:true,
+            provider_source_path_count:provider.provider_source_path_count,
+            provider_artifact_identity_count:
+              provider.provider_artifact_identity_count,
+            current_generation_integration_verified:true,
+            candidate_enforcement_identity_accepted:false,
+            production_source_finality_authority_ready:false,
+            public_presale_activation:false,
+            funds_movement:false,
+          };
+          fs.writeFileSync(
+            process.argv[3],
+            JSON.stringify(receipt,null,2)+"\n",
+            "utf8",
+          );
           NODE
+          rm -f "$candidate"
 
       - name: Derive audited whole-enforcement candidate
         if: steps.enforcement-generation.outputs.mode == 'historical'
@@ -215,14 +276,23 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const v=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(v.provider_source_identity_preserved,true);
-          assert.equal(v.frozen_lock_identity_preserved,true);
-          assert.equal(v.frozen_candidate_rederived_on_current_head,false);
+          assert.equal(
+            v.marker,
+            "VOID_BUY_VOID_PROVIDER_CURRENT_V3_REQUALIFICATION_V1",
+          );
+          assert.equal(v.protected_path_count,49);
+          assert.equal(v.protected_generation_delta_count,2);
+          assert.equal(v.provider_closure_identity_accepted,true);
+          assert.equal(v.historical_lock_proof_reexecuted,false);
+          assert.equal(v.current_content_semantics_requalified,true);
           assert.equal(v.current_generation_integration_verified,true);
+          assert.equal(v.candidate_enforcement_identity_accepted,false);
+          assert.equal(v.production_source_finality_authority_ready,false);
           assert.equal(v.public_presale_activation,false);
           assert.equal(v.funds_movement,false);
           console.log("frozen_post2865_evidence_preserved=true");
           console.log("historical_provider_proof_reexecution_on_restack=false");
+          console.log("provider_current_content_semantics_requalified=true");
           NODE
 
       - name: Diff hygiene
@@ -274,14 +344,20 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const v=JSON.parse(fs.readFileSync("receipts/provider-current-integration-22.json","utf8"));
-          assert.equal(v.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V1");
-          assert.equal(v.provider_source_identity_preserved,true);
-          assert.equal(v.provider_built_artifact_identity_preserved,true);
-          assert.equal(v.protected_path_identity_preserved,true);
+          assert.equal(
+            v.marker,
+            "VOID_BUY_VOID_PROVIDER_CURRENT_V3_REQUALIFICATION_V1",
+          );
+          assert.equal(v.protected_path_count,49);
+          assert.equal(v.protected_generation_delta_count,2);
+          assert.equal(v.provider_closure_identity_accepted,true);
+          assert.equal(v.historical_lock_proof_reexecuted,false);
+          assert.equal(v.current_content_semantics_requalified,true);
           assert.equal(v.current_generation_integration_verified,true);
+          assert.equal(v.candidate_enforcement_identity_accepted,false);
           assert.equal(v.production_source_finality_authority_ready,false);
           assert.equal(v.funds_movement,false);
-          console.log("VOID_BUY_VOID_PROVIDER_CURRENT_INTEGRATION_CROSS_NODE_GREEN");
+          console.log("VOID_BUY_VOID_PROVIDER_CURRENT_V3_REQUALIFICATION_CROSS_NODE_GREEN");
           NODE
           else
             for node in 22 24 26; do
