@@ -22,28 +22,38 @@ entry.
 
 Candidate derivation requires #3353 source head:
 
-`b890fa44e204b0f0304685744d5b3fe9174b31e7`
+`e602fa5b4b6961e9c24d4bbdb60a6d006a2783b2`
 
 with canonical main parent:
 
-`1b844cac7b5671a5436287871ff1520db82aefe9`.
+`b9d44332fc3119ec7a534829502efcff364b1b00`.
 
 Bound inherited blobs:
 
 - native preentry:
-  `b6946d5b9067771369879f0d026bec7d51e428e1`;
+  `4fdf3f627f407335b9d50800fbbc913d1edae523`;
 - JavaScript binder:
   `9c29eb4716077e459b9154f39d0f30cf2e56729f`;
 - binding proof:
-  `4340aba3a74040e6d7756874512665c4425bf3c3`;
+  `4671d37fcdb43c2bee9d3de16402df0cd25257bb`;
 - binding operator contract:
-  `bcd357f4b5d605dfedb04482f36f47b9a72ce7ca`;
+  `cd90bafa39682284a6d9e87daebfe5966adac8d6`;
 - focused source workflow:
-  `537964f3216f4d7fa15689b4d48cf2821282cb40`.
+  `2742145ab88d721747f978927a6eb64a7c5f805f`.
 
 The binder must also remain exactly 39,391 bytes with SHA-256:
 
 `afa31537a93faee0936e7a4bd384598dd150687da7c24276327f0a16f56d1a5e`.
+
+
+## Monotonic failure-truth generation
+
+This candidate is derived only from the #3358 native repair. After binder-source
+release begins, parent-side HOLD receipts no longer claim credential/private-key/
+signing state is false; they report `unproven_after_binder_source_release`.
+The exact self-test transcript includes
+`failure_truth_boundary_test_modes=true`, and the candidate verifier requires
+the pre/post-source HOLD modes in the bound C source.
 
 ## Hosted derivation
 
