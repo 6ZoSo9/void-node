@@ -6,6 +6,7 @@ on:
       - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
@@ -26,6 +27,7 @@ on:
       - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
@@ -67,29 +69,34 @@ jobs:
           set -euo pipefail
           npm run typecheck
           npm run build
-      - name: Verify frozen V4 census against current protected integration
+      - name: Preserve frozen V4 census proof on exact V3 successor
         run: |
           set -euo pipefail
-          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"
+          echo "HISTORICAL_V4_CENSUS_CURRENT_V3_PRESERVATION_V1"
           out="$RUNNER_TEMP/final-v7-v2-census-v4-node-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --self-test
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --receipt > "$out"
+          node scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs             --receipt > "$out"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
-          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v1");
-          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V1");
-          assert.equal(c.protected_path_count,49);
-          assert.equal(c.protected_path_identity_preserved,true);
-          assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
-          assert.equal(c.frozen_v4_census_proof_preserved,true);
-          assert.equal(c.nonprotected_economic_drift_count,3);
-          assert.equal(c.frozen_candidate_rederived_on_current_head,false);
-          assert.equal(c.production_source_finality_authority_ready,false);
-          assert.equal(c.public_presale_activation,false);
-          assert.equal(c.funds_movement,false);
+          const r=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(r.schema,
+            "void_buy_void_enforcement_v3_historical_predecessor_preservation_v1");
+          assert.equal(r.marker,
+            "VOID_BUY_VOID_ENFORCEMENT_V3_HISTORICAL_PREDECESSOR_PRESERVATION_V1");
+          assert.equal(r.current_generation,"protected_v7_v2_v3");
+          assert.equal(r.v4_census_proof_frozen,true);
+          assert.equal(r.v5_census_successor_bound,true);
+          assert.equal(r.v3_candidate_bound,true);
+          assert.equal(r.v3_lock_bound,true);
+          assert.equal(r.historical_predecessor_rederivation_required,false);
+          assert.equal(r.production_source_finality_authority_ready,false);
+          assert.equal(r.public_presale_activation,false);
+          assert.equal(r.funds_movement,false);
           NODE
+          echo "frozen_v4_census_rederived_on_v3=false"
+          echo "current_v3_successor_verified=true"
+          echo "public_presale_activation=false"
+          echo "funds_movement=false"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -108,24 +115,36 @@ jobs:
           pattern: final-v7-v2-census-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: census
-      - name: Require exact Node 22/24/26 protected-integration equality
+      - name: Require exact Node 22/24/26 V3 preservation equality
         run: |
           set -euo pipefail
-          for node in 22 24 26; do test -s "census/final-v7-v2-census-v4-node-$node.json"; done
-          cmp census/final-v7-v2-census-v4-node-22.json census/final-v7-v2-census-v4-node-24.json
-          cmp census/final-v7-v2-census-v4-node-22.json census/final-v7-v2-census-v4-node-26.json
+          for node in 22 24 26; do
+            test -s "census/final-v7-v2-census-v4-node-$node.json"
+          done
+          cmp census/final-v7-v2-census-v4-node-22.json               census/final-v7-v2-census-v4-node-24.json
+          cmp census/final-v7-v2-census-v4-node-22.json               census/final-v7-v2-census-v4-node-26.json
           sha256sum census/final-v7-v2-census-v4-node-22.json
           node --input-type=module - <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
-          const c=JSON.parse(fs.readFileSync("census/final-v7-v2-census-v4-node-22.json","utf8"));
-          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V1");
-          assert.equal(c.protected_path_count,49);
-          assert.equal(c.protected_path_identity_preserved,true);
-          assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
-          console.log("VOID_BUY_VOID_FROZEN_V4_CURRENT_INTEGRATION_CROSS_NODE_GREEN");
-          console.log("protected_path_count="+c.protected_path_count);
-          console.log("nonprotected_economic_drift_count="+c.nonprotected_economic_drift_count);
-          console.log("frozen_v4_census_proof_preserved="+c.frozen_v4_census_proof_preserved);
+          const r=JSON.parse(
+            fs.readFileSync(
+              "census/final-v7-v2-census-v4-node-22.json",
+              "utf8",
+            ),
+          );
+          assert.equal(r.marker,
+            "VOID_BUY_VOID_ENFORCEMENT_V3_HISTORICAL_PREDECESSOR_PRESERVATION_V1");
+          assert.equal(r.v4_census_proof_frozen,true);
+          assert.equal(r.v5_census_successor_bound,true);
+          assert.equal(r.v3_candidate_bound,true);
+          assert.equal(r.v3_lock_bound,true);
+          assert.equal(r.historical_predecessor_rederivation_required,false);
+          assert.equal(r.public_presale_activation,false);
+          assert.equal(r.funds_movement,false);
+          console.log("VOID_BUY_VOID_FROZEN_V4_V3_PRESERVATION_CROSS_NODE_GREEN");
+          console.log("frozen_v4_census_proof_preserved=true");
+          console.log("current_v3_successor_verified=true");
+          console.log("historical_predecessor_rederivation_required=false");
           console.log("funds_movement=false");
           NODE
