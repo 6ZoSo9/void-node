@@ -20,12 +20,12 @@ WORKFLOW = (
     "buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml"
 )
 
-TARGET_BLOB = "2eba1ee452d39001bbb9180b3bb0f101539c6fcb"
+TARGET_BLOB = "5f1195d0c0a328be4334ad5b7f6e32b150776cab"
 PRODUCTION_INSTALLER = (
     ROOT / "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
 )
-PRODUCTION_INSTALLER_BLOB = "37f8b9269e91ac37c65a527e5e3f87b6e5b10213"
+PRODUCTION_INSTALLER_BLOB = "4d71a41415d8a8252eab6dc96ee9b31ffa6dbe65"
 MARKER = "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V1"
 POLICY_SCHEMA = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_POLICY_V1"
@@ -165,9 +165,13 @@ assert git_blob(production_installer_raw) == PRODUCTION_INSTALLER_BLOB
 for required in (
     "FIRST_ENTRY_INSTALLER_FD_ENV",
     "FIRST_ENTRY_NATIVE_FD_ENV",
+    "FIRST_ENTRY_PROOF_FD_ENV",
+    "FIRST_ENTRY_PROOF_SCHEMA",
     "authenticated_first_entry_fd_contract_required_for_apply=true",
+    "authenticated_first_entry_parent_proof_required=true",
     "_read_exact_candidate_inherited",
-    "_require_apply_context(native)",
+    "_validate_first_entry_parent",
+    "_require_apply_context(native, expected_head)",
 ):
     assert required in production_installer_source, required
 
@@ -181,8 +185,13 @@ for required in (
     "dormant_binder_installer_first_entry_stdin_python_source_forbidden",
     "fexecve(python.fd, next_argv, envp)",
     "native_candidate_descriptor_passed_to_installer=true",
+    "private_parent_proof_fd_passed_to_installer=true",
+    "parent_pid_start_executable_generation_bound=true",
+    "running_python_generation_bound=true",
     "expected_plan_id_forwarded_for_apply=true",
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_NATIVE_FD=%d",
+    "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROOF_FD=%d",
+    "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_PARENT_PROOF_V1",
     '"--expected-plan-id"',
     '"/proc/self/fd/%d"',
     '"PATH=/usr/bin:/bin"',
@@ -257,7 +266,6 @@ with tempfile.TemporaryDirectory(
         parser.add_argument("--confirm", default="")
         args = parser.parse_args()
 
-        marker.write_text("invoked\\n", encoding="utf-8")
         assert os.environ[
             "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY"
         ] == "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V1"
@@ -267,9 +275,74 @@ with tempfile.TemporaryDirectory(
         native_fd = int(os.environ[
             "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_NATIVE_FD"
         ])
+        proof_fd = int(os.environ[
+            "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROOF_FD"
+        ])
+        assert len({{installer_fd, native_fd, proof_fd}}) == 3
+        proof_raw = bytearray()
+        while True:
+            chunk = os.read(proof_fd, 4096)
+            if not chunk:
+                break
+            proof_raw.extend(chunk)
+        os.close(proof_fd)
+        proof_lines = bytes(proof_raw).decode("ascii").splitlines()
+        expected_keys = [
+            "schema",
+            "parent_pid",
+            "parent_start_ticks",
+            "launcher_dev",
+            "launcher_ino",
+            "installer_dev",
+            "installer_ino",
+            "native_dev",
+            "native_ino",
+            "python_dev",
+            "python_ino",
+            "installer_fd",
+            "native_fd",
+            "operation",
+            "expected_head",
+        ]
+        assert [line.split("=", 1)[0] for line in proof_lines] == expected_keys
+        proof = dict(line.split("=", 1) for line in proof_lines)
+        assert proof["schema"] == (
+            "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_PARENT_PROOF_V1"
+        )
+        parent_pid = int(proof["parent_pid"])
+        assert parent_pid == os.getppid()
+        stat_text = pathlib.Path(f"/proc/{{parent_pid}}/stat").read_text(
+            encoding="ascii"
+        )
+        right = stat_text.rfind(")")
+        fields = stat_text[right + 2:].split()
+        assert proof["parent_start_ticks"] == fields[19]
+        parent_exe = os.stat(f"/proc/{{parent_pid}}/exe")
+        python_exe = os.stat("/proc/self/exe")
+        installer_st = os.fstat(installer_fd)
+        native_st = os.fstat(native_fd)
+        assert (int(proof["launcher_dev"]), int(proof["launcher_ino"])) == (
+            parent_exe.st_dev, parent_exe.st_ino
+        )
+        assert (int(proof["installer_dev"]), int(proof["installer_ino"])) == (
+            installer_st.st_dev, installer_st.st_ino
+        )
+        assert (int(proof["native_dev"]), int(proof["native_ino"])) == (
+            native_st.st_dev, native_st.st_ino
+        )
+        assert (int(proof["python_dev"]), int(proof["python_ino"])) == (
+            python_exe.st_dev, python_exe.st_ino
+        )
+        assert int(proof["installer_fd"]) == installer_fd
+        assert int(proof["native_fd"]) == native_fd
         assert sys.argv[0] == f"/proc/self/fd/{{installer_fd}}"
         assert args.native == f"/proc/self/fd/{{native_fd}}"
         assert args.expected_head == {EXPECTED_HEAD!r}
+        assert proof["expected_head"] == {EXPECTED_HEAD!r}
+        assert proof["operation"] == (
+            "installer_plan" if args.plan else "installer_apply"
+        )
+        marker.write_text("invoked\\n", encoding="utf-8")
 
         time.sleep(0.35)
         os.lseek(native_fd, 0, os.SEEK_SET)
@@ -312,6 +385,9 @@ with tempfile.TemporaryDirectory(
         "expected_head_compile_bound=true",
         "apply_confirmation_compile_bound=true",
         "python_generation_root_policy_bound=true",
+        "private_parent_proof_fd_passed_to_installer=true",
+        "parent_pid_start_executable_generation_bound=true",
+        "running_python_generation_bound=true",
         "stale_candidate_lock_promoted=false",
         "protected_install_authorized=false",
     ):
@@ -366,6 +442,9 @@ with tempfile.TemporaryDirectory(
         assert MARKER + "_GREEN" in plan.stdout
         assert "operation=installer_plan" in plan.stdout
         assert "privileged_first_entry_authenticated=true" in plan.stdout
+        assert "private_parent_proof_fd_consumed_by_installer=true" in plan.stdout
+        assert "parent_pid_start_executable_generation_bound=true" in plan.stdout
+        assert "running_python_generation_bound=true" in plan.stdout
         assert "installer_apply_performed=false" in plan.stdout
 
         apply = sudo([
@@ -603,6 +682,9 @@ for event,tail in (
 
 print("VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V1_PROOF_GREEN")
 print("static_native_first_instruction=true")
+print("private_parent_proof_pipe_exercised=true")
+print("parent_pid_start_executable_generation_bound=true")
+print("running_python_generation_bound=true")
 print("generation_macros_required_no_defaults=true")
 print("stale_candidate_lock_promoted=false")
 print("caller_stdin_python_rejected_before_child=true")
