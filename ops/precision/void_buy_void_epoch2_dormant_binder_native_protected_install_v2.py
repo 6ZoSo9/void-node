@@ -128,6 +128,38 @@ def _same_file_identity(a: os.stat_result, b: os.stat_result) -> bool:
     )
 
 
+def _require_visible_directory_matches_fd(
+    parent_fd: int,
+    name: str,
+    retained_fd: int,
+) -> os.stat_result:
+    try:
+        visible_before = os.stat(
+            name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        opened = os.fstat(retained_fd)
+        visible_after = os.stat(
+            name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+    except OSError as exc:
+        raise InstallError("retained_directory_binding_unavailable:" + name) from exc
+    if (
+        not stat.S_ISDIR(opened.st_mode)
+        or stat.S_ISLNK(opened.st_mode)
+        or opened.st_uid != 0
+        or opened.st_gid != 0
+        or stat.S_IMODE(opened.st_mode) != 0o755
+        or not _same_file_identity(visible_before, opened)
+        or not _same_file_identity(opened, visible_after)
+    ):
+        raise InstallError("retained_directory_binding_mismatch:" + name)
+    return opened
+
+
 def _normalized_absolute(path: pathlib.Path) -> pathlib.Path:
     raw = str(path)
     if not path.is_absolute() or os.path.normpath(raw) != raw:
@@ -471,33 +503,54 @@ def _installed_file_ok(
         raise InstallError("installed_file_sha256_mismatch:" + name)
 
 
-def _verify_install_root(root: pathlib.Path = INSTALL_ROOT) -> None:
-    _trusted_root_directory(root, exact_mode=0o755)
+def _verify_pair_fd(root_fd: int) -> None:
+    opened = os.fstat(root_fd)
+    if (
+        not stat.S_ISDIR(opened.st_mode)
+        or stat.S_ISLNK(opened.st_mode)
+        or opened.st_uid != 0
+        or opened.st_gid != 0
+        or stat.S_IMODE(opened.st_mode) != 0o755
+    ):
+        raise InstallError("installed_root_fd_metadata_invalid")
     try:
-        entries = sorted(os.listdir(root))
+        entries = sorted(os.listdir(root_fd))
     except OSError as exc:
         raise InstallError("installed_root_list_failed") from exc
     if entries != sorted((NATIVE_NAME, BINDER_NAME)):
         raise InstallError("installed_root_entries_invalid")
+    _installed_file_ok(
+        root_fd,
+        NATIVE_NAME,
+        expected_bytes=NATIVE_BYTES,
+        expected_sha256=NATIVE_SHA256,
+        expected_mode=0o555,
+    )
+    _installed_file_ok(
+        root_fd,
+        BINDER_NAME,
+        expected_bytes=BINDER_BYTES,
+        expected_sha256=BINDER_SHA256,
+        expected_mode=0o444,
+    )
+
+
+def _verify_install_root(root: pathlib.Path = INSTALL_ROOT) -> None:
+    _trusted_root_directory(root, exact_mode=0o755)
     root_fd = os.open(
         root,
         os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
     )
     try:
-        _installed_file_ok(
-            root_fd,
-            NATIVE_NAME,
-            expected_bytes=NATIVE_BYTES,
-            expected_sha256=NATIVE_SHA256,
-            expected_mode=0o555,
-        )
-        _installed_file_ok(
-            root_fd,
-            BINDER_NAME,
-            expected_bytes=BINDER_BYTES,
-            expected_sha256=BINDER_SHA256,
-            expected_mode=0o444,
-        )
+        visible_before = root.lstat()
+        opened = os.fstat(root_fd)
+        visible_after = root.lstat()
+        if (
+            not _same_file_identity(visible_before, opened)
+            or not _same_file_identity(opened, visible_after)
+        ):
+            raise InstallError("installed_root_rebound")
+        _verify_pair_fd(root_fd)
     finally:
         os.close(root_fd)
 
@@ -580,25 +633,30 @@ def _create_file(
     )
 
 
-def _cleanup_stage(opt_fd: int) -> bool:
-    if not _exists(STAGE_ROOT):
-        return True
+def _cleanup_retained_stage(opt_fd: int, stage_fd: int) -> bool:
     try:
-        _trusted_root_directory(STAGE_ROOT, exact_mode=0o755)
-        entries = sorted(os.listdir(STAGE_ROOT))
-        if any(name not in (NATIVE_NAME, BINDER_NAME) for name in entries):
-            return False
-        stage_fd = os.open(
-            STAGE_NAME,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-            dir_fd=opt_fd,
+        _require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)
+        _verify_pair_fd(stage_fd)
+        _installed_file_ok(
+            stage_fd,
+            NATIVE_NAME,
+            expected_bytes=NATIVE_BYTES,
+            expected_sha256=NATIVE_SHA256,
+            expected_mode=0o555,
         )
-        try:
-            for name in entries:
-                os.unlink(name, dir_fd=stage_fd)
-            os.fsync(stage_fd)
-        finally:
-            os.close(stage_fd)
+        os.unlink(NATIVE_NAME, dir_fd=stage_fd)
+        _installed_file_ok(
+            stage_fd,
+            BINDER_NAME,
+            expected_bytes=BINDER_BYTES,
+            expected_sha256=BINDER_SHA256,
+            expected_mode=0o444,
+        )
+        os.unlink(BINDER_NAME, dir_fd=stage_fd)
+        os.fsync(stage_fd)
+        _require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)
+        if list(os.listdir(stage_fd)):
+            return False
         os.rmdir(STAGE_NAME, dir_fd=opt_fd)
         os.fsync(opt_fd)
         return True
@@ -827,6 +885,9 @@ def source_plan() -> None:
     print("superseded_pre_3363_locks_install_authority=false")
     print("operation_bound_plan_id_required=true")
     print("prepublication_revalidation_required=true")
+    print("retained_stage_directory_generation_required=true")
+    print("generation_bound_stage_cleanup_required=true")
+    print("post_publication_visible_generation_binding_required=true")
     print("post_publication_rollback=false")
     print("target_root=" + str(INSTALL_ROOT))
     print("staging_root=" + str(STAGE_ROOT))
@@ -866,6 +927,9 @@ def plan(native: pathlib.Path, expected_head: str) -> None:
     print("rename_noreplace_required=true")
     print("operation_bound_plan_id_required=true")
     print("prepublication_revalidation_required=true")
+    print("retained_stage_directory_generation_required=true")
+    print("generation_bound_stage_cleanup_required=true")
+    print("post_publication_visible_generation_binding_required=true")
     print("post_publication_rollback=false")
     print("filesystem_write=false")
     print("native_execution=false")
@@ -944,6 +1008,7 @@ def apply(
         INSTALL_PARENT,
         os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
     )
+    stage_fd: int | None = None
     stage_created = False
     published = False
     try:
@@ -956,45 +1021,58 @@ def apply(
             os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
             dir_fd=opt_fd,
         )
-        try:
-            os.fchown(stage_fd, 0, 0)
-            os.fchmod(stage_fd, 0o755)
-            _create_file(
-                stage_fd,
-                NATIVE_NAME,
-                native_raw,
-                expected_bytes=NATIVE_BYTES,
-                expected_sha256=NATIVE_SHA256,
-                mode=0o555,
-            )
-            _create_file(
-                stage_fd,
-                BINDER_NAME,
-                binder_raw,
-                expected_bytes=BINDER_BYTES,
-                expected_sha256=BINDER_SHA256,
-                mode=0o444,
-            )
-            os.fsync(stage_fd)
-        finally:
-            os.close(stage_fd)
+        os.fchown(stage_fd, 0, 0)
+        os.fchmod(stage_fd, 0o755)
+        _create_file(
+            stage_fd,
+            NATIVE_NAME,
+            native_raw,
+            expected_bytes=NATIVE_BYTES,
+            expected_sha256=NATIVE_SHA256,
+            mode=0o555,
+        )
+        _create_file(
+            stage_fd,
+            BINDER_NAME,
+            binder_raw,
+            expected_bytes=BINDER_BYTES,
+            expected_sha256=BINDER_SHA256,
+            mode=0o444,
+        )
+        os.fsync(stage_fd)
 
-        _verify_install_root(STAGE_ROOT)
+        _require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)
+        _verify_pair_fd(stage_fd)
         _revalidate_before_publication(
             native,
             expected_head,
             native_raw,
             binder_raw,
         )
+        _require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)
+        _verify_pair_fd(stage_fd)
         _renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)
         published = True
         stage_created = False
+        _require_visible_directory_matches_fd(opt_fd, INSTALL_NAME, stage_fd)
+        _verify_pair_fd(stage_fd)
+        os.close(stage_fd)
+        stage_fd = None
         _post_publication_checks(opt_fd)
     except BaseException as exc:
         if stage_created and not published:
-            cleanup_green = _cleanup_stage(opt_fd)
-            print("automatic_stage_cleanup_attempted=true")
+            cleanup_green = False
+            attempted = stage_fd is not None
+            if stage_fd is not None:
+                cleanup_green = _cleanup_retained_stage(opt_fd, stage_fd)
+            print("automatic_stage_cleanup_attempted=" + str(attempted).lower())
             print("automatic_stage_cleanup_green=" + str(cleanup_green).lower())
+        if stage_fd is not None:
+            try:
+                os.close(stage_fd)
+                stage_fd = None
+            except OSError:
+                pass
         if published:
             if isinstance(exc, PublishedInstallError):
                 post_failure = exc
