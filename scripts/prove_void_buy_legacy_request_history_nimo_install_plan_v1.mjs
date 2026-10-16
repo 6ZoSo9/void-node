@@ -139,6 +139,7 @@ const exactAuthorizedKeyOptions=
   classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1({
     restrict:true,
     command_option:independentlyEncodedCommandOption,
+    options:["restrict",independentlyEncodedCommandOption],
   });
 assert.equal(exactAuthorizedKeyOptions.ok,true);
 assert.equal(exactAuthorizedKeyOptions.authorized_keys_mutation_authorized,false);
@@ -146,17 +147,27 @@ assert.equal(exactAuthorizedKeyOptions.authorized_keys_mutation_authorized,false
 for(const [label,value,reason] of [
   [
     "missing_command",
-    {restrict:true},
+    {
+      restrict:true,
+      options:["restrict",independentlyEncodedCommandOption],
+    },
     "legacy_history_nimo_authorized_key_options_shape_invalid",
   ],
   [
     "missing_restrict",
-    {command_option:independentlyEncodedCommandOption},
+    {
+      command_option:independentlyEncodedCommandOption,
+      options:["restrict",independentlyEncodedCommandOption],
+    },
     "legacy_history_nimo_authorized_key_options_shape_invalid",
   ],
   [
     "restrict_false",
-    {restrict:false,command_option:independentlyEncodedCommandOption},
+    {
+      restrict:false,
+      command_option:independentlyEncodedCommandOption,
+      options:["restrict",independentlyEncodedCommandOption],
+    },
     "legacy_history_nimo_authorized_key_restrict_required",
   ],
   [
@@ -165,6 +176,10 @@ for(const [label,value,reason] of [
       restrict:true,
       command_option:
         'command="'+VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1+'"',
+      options:[
+        "restrict",
+        'command="'+VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1+'"',
+      ],
     },
     "legacy_history_nimo_authorized_key_command_option_mismatch",
   ],
@@ -173,8 +188,72 @@ for(const [label,value,reason] of [
     {
       restrict:true,
       command_option:'command="/usr/bin/false"',
+      options:["restrict",'command="/usr/bin/false"'],
     },
     "legacy_history_nimo_authorized_key_command_option_mismatch",
+  ],
+  [
+    "pty_reenabled",
+    {
+      restrict:true,
+      command_option:independentlyEncodedCommandOption,
+      options:["restrict","pty",independentlyEncodedCommandOption],
+    },
+    "legacy_history_nimo_authorized_key_exact_option_set_required",
+  ],
+  [
+    "port_forwarding_reenabled",
+    {
+      restrict:true,
+      command_option:independentlyEncodedCommandOption,
+      options:["restrict","port-forwarding",independentlyEncodedCommandOption],
+    },
+    "legacy_history_nimo_authorized_key_exact_option_set_required",
+  ],
+  [
+    "user_rc_reenabled",
+    {
+      restrict:true,
+      command_option:independentlyEncodedCommandOption,
+      options:["restrict","user-rc",independentlyEncodedCommandOption],
+    },
+    "legacy_history_nimo_authorized_key_exact_option_set_required",
+  ],
+  [
+    "x11_forwarding_reenabled",
+    {
+      restrict:true,
+      command_option:independentlyEncodedCommandOption,
+      options:["restrict","X11-forwarding",independentlyEncodedCommandOption],
+    },
+    "legacy_history_nimo_authorized_key_exact_option_set_required",
+  ],
+  [
+    "reordered_options",
+    {
+      restrict:true,
+      command_option:independentlyEncodedCommandOption,
+      options:[independentlyEncodedCommandOption,"restrict"],
+    },
+    "legacy_history_nimo_authorized_key_exact_option_set_required",
+  ],
+  [
+    "duplicate_restrict",
+    {
+      restrict:true,
+      command_option:independentlyEncodedCommandOption,
+      options:["restrict","restrict",independentlyEncodedCommandOption],
+    },
+    "legacy_history_nimo_authorized_key_exact_option_set_required",
+  ],
+  [
+    "third_option_forbidden",
+    {
+      restrict:true,
+      command_option:independentlyEncodedCommandOption,
+      options:["restrict",independentlyEncodedCommandOption,"no-pty"],
+    },
+    "legacy_history_nimo_authorized_key_exact_option_set_required",
   ],
 ]){
   const held=classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1(value);
@@ -185,6 +264,16 @@ for(const [label,value,reason] of [
   assert.equal(held.authorized_keys_mutation_authorized,false,label);
 }
 
+assert.equal(plan.authorized_key.options_exact_order_required,true);
+assert.equal(plan.authorized_key.additional_options_forbidden,true);
+assert.deepEqual(
+  plan.authorized_key.exact_options,
+  ["restrict",independentlyEncodedCommandOption],
+);
+assert.equal(
+  plan.authorized_key.exact_option_prefix,
+  "restrict,"+independentlyEncodedCommandOption,
+);
 assert.equal(plan.authorized_key.dedicated_ed25519_client_key_required,true);
 assert.equal(plan.authorized_key.public_key_blob_selected,false);
 assert.equal(plan.authorized_key.public_key_fingerprint_selected,false);
@@ -209,6 +298,7 @@ for(const [key,value] of Object.entries(VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTAL
     "fixed_installation_layout_selected",
     "exact_forced_command_selected",
     "authorized_key_exact_forced_command_option_required",
+    "authorized_key_exact_option_set_required",
     "materialized_authorized_key_command_binding_required",
     "dedicated_client_public_key_required",
     "additive_authorized_keys_successor_required",
@@ -238,6 +328,7 @@ for(const line of [
   "source_only_installation_plan=true",
   "runtime_bundle_candidate_accepted=false",
   "authorized_key_exact_forced_command_option_required=true",
+  "authorized_key_exact_option_set_required=true",
   "materialized_authorized_key_command_binding_required=true",
   "authorized_keys_additive_successor_required=true",
   "live_nimo_installed=false",
@@ -287,9 +378,11 @@ console.log("reviewed_source_roots="+String(observed.length));
 console.log("runtime_bundle_candidate_accepted=false");
 console.log("committed_base_to_head_diff_hygiene_bound=true");
 console.log("authorized_key_exact_forced_command_option_required=true");
+console.log("authorized_key_exact_option_set_required=true");
 console.log("materialized_authorized_key_command_binding_required=true");
 console.log("restrict_only_materialized_entry_sufficient=false");
 console.log("authorized_key_option_adversaries_rejected=true");
+console.log("authorized_key_capability_reenable_options_rejected=true");
 console.log("authorized_keys_additive_successor_required=true");
 console.log("private_key_access=false");
 console.log("live_nimo_installed=false");
