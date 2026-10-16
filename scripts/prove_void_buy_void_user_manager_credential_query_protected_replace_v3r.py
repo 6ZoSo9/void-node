@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 import pathlib
 import subprocess
+import types
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = (
@@ -14,7 +15,7 @@ LOCK = "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json"
 V2_LOCK = "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
 
 EXPECTED = {
-    SOURCE: "573fd2785910eae62568a4add0be4d176886b28e",
+    SOURCE: "98f8b9fda89e33c50e19008268d97655aad54e6d",
     LOCK: "c4870f3178aebc9a0bb6557562f663b8480cfefa",
     V2_LOCK: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
 }
@@ -144,6 +145,7 @@ for needle in (
     "filesystem_mutation_possible=true",
     "filesystem_mutation_performed=false",
     "protected_root_opened=false",
+    "sys.stdout.flush()",
     'emit_operation_authority("apply")',
     'emit_operation_authority("rollback")',
     "pre_mutation_authority_boundary=true",
@@ -197,6 +199,7 @@ for line in (
     "pre_mutation_authority_boundary=true",
     "apply_authority_boundary_pre_mutation=true",
     "rollback_authority_boundary_pre_mutation=true",
+    "pre_mutation_authority_flush_required=true",
     "query_execution=false",
     "credential_contents_read=false",
 ):
@@ -244,6 +247,36 @@ rollback_emit_at = source.index('emit_operation_authority("rollback")', apply_ca
 rollback_call_at = source.index("rollback(args.confirm)", rollback_emit_at)
 assert apply_emit_at < apply_call_at
 assert rollback_emit_at < rollback_call_at
+authority_fn_at = source.index("def emit_operation_authority(mode: str) -> None:")
+authority_flush_at = source.index("sys.stdout.flush()", authority_fn_at)
+source_plan_at = source.index("def source_plan() -> None:", authority_flush_at)
+assert authority_fn_at < authority_flush_at < source_plan_at
+
+module = types.ModuleType("v3r_authority_flush_probe")
+module.__file__ = str(ROOT / SOURCE)
+module.__package__ = ""
+exec(compile(source, str(ROOT / SOURCE), "exec", dont_inherit=True), module.__dict__)
+
+class FlushProbe:
+    def __init__(self) -> None:
+        self.parts: list[str] = []
+        self.flush_count = 0
+    def write(self, text: str) -> int:
+        self.parts.append(text)
+        return len(text)
+    def flush(self) -> None:
+        self.flush_count += 1
+
+probe = FlushProbe()
+module.sys = types.SimpleNamespace(stdout=probe)
+module.emit_operation_authority("apply")
+assert probe.flush_count == 1
+probe_lines = "".join(probe.parts).splitlines()
+assert probe_lines[0] == "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R"
+assert probe_lines[1] == "mode=apply"
+assert probe_lines[2] == "authority_boundary=PRE_MUTATION"
+assert "filesystem_mutation_performed=false" in probe_lines
+assert "protected_root_opened=false" in probe_lines
 
 for mode_name, argv, expected_reason in (
     (
@@ -296,7 +329,7 @@ for mode_name, argv, expected_reason in (
     assert "reason=" + expected_reason in lines
 
 print("VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R_PROOF_GREEN")
-print("source_blob=573fd2785910eae62568a4add0be4d176886b28e")
+print("source_blob=98f8b9fda89e33c50e19008268d97655aad54e6d")
 print("accepted_lock_blob=c4870f3178aebc9a0bb6557562f663b8480cfefa")
 print("accepted_lock_id=voidbuyumqcredelflock3r_8b064214e22ce54ac193b426f38b9d6a7ea4cee07b38b68c8d1eeb6c51de6f34")
 print("installed_predecessor_lock_id=voidbuyumqcredelflock2_c05afb1a6fbd44a00d4f220652e87ee099e0456992a17a6ae7b60bda9229cf54")
@@ -320,6 +353,8 @@ print("visible_install_root_generation_revalidation=true")
 print("pre_mutation_authority_boundary=true")
 print("apply_authority_boundary_pre_mutation=true")
 print("rollback_authority_boundary_pre_mutation=true")
+print("pre_mutation_authority_flush_required=true")
+print("authority_flush_behavior_exercised=true")
 print("query_execution=false")
 print("credential_contents_read=false")
 print("service_mutation=false")
