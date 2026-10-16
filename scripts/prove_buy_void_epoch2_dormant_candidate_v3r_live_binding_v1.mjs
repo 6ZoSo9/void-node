@@ -9,10 +9,10 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const BINDER=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs";
-const BINDER_BLOB="52fd7dbe2cd3807508fcc9621a0dd2e6aa7859fd";
+const BINDER_BLOB="e6cea43d019e226e88b1c11613b989beaf5e490e";
 const CANDIDATE=
-  "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json";
-const CANDIDATE_BLOB="6a0159e516d30ca8a4b9af4dcace79a4fcddfbb1";
+  "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json";
+const CANDIDATE_BLOB="04061934a537a1d91213cdd1f9110b46faca4cc7";
 const QUALIFIER=
   "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py";
 const QUALIFIER_BLOB="767e088d1383a8cecf4d5daa7bf6779f368db56e";
@@ -59,7 +59,7 @@ for(const required of [
   "voide2candbind3r1_",
   "stdinIgnore:true",
   "arbitrary_live_receipt_input_accepted=false",
-  "candidate_v2_signer_control_preserved=true",
+  "candidate_v3_signer_control_preserved=true",
   "systemd_credential_identity_promoted_only_from_native_live_receipt=true",
   "active_signing_capability_promoted_only_from_native_live_receipt=true",
   "customer_safe_to_pay=false",
@@ -111,7 +111,7 @@ assert.equal(self.stderr,"");
 const selfLines=new Set(self.stdout.split("\n").filter(Boolean));
 for(const line of [
   "VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V1_SELF_TEST_GREEN",
-  "candidate_v2_signer_control_preserved=true",
+  "candidate_v3_signer_control_preserved=true",
   "v6r2_installed_qualification_required=true",
   "fixed_native_v3_live_composition_required=true",
   "arbitrary_live_receipt_input_accepted=false",
@@ -140,7 +140,7 @@ for(const line of [
   "mode=plan",
   "git_object_stdin_required_for_live=true",
   "root_required_for_run=true",
-  "exact_dormant_candidate_v2_git_object_required=true",
+  "exact_dormant_candidate_v3_git_object_required=true",
   "v6r2_installed_qualification_before_after_required=true",
   "fixed_native_v3_live_composition_required=true",
   "arbitrary_live_receipt_input_accepted=false",
@@ -174,8 +174,8 @@ assert.match(direct.stderr,/binder_git_object_stdin_required/u);
 
 console.log("VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V1_PROOF_GREEN");
 console.log("binder_git_object_entry_required=true");
-console.log("candidate_v2_git_object_bound=true");
-console.log("candidate_v2_signer_control_preserved=true");
+console.log("candidate_v3_git_object_bound=true");
+console.log("candidate_v3_signer_control_preserved=true");
 console.log("v6r2_qualifier_git_object_bound=true");
 console.log("v6r2_qualification_before_after_required=true");
 console.log("fixed_native_v3_live_composition_required=true");
