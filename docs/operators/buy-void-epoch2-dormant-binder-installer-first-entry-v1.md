@@ -113,11 +113,21 @@ to be exactly `/dev/null`. Caller-supplied Python stdin is therefore rejected
 before source admission or child creation.
 
 The Python child is entered with `fexecve()` on the retained Python
-descriptor. The installer and native candidate are both referenced only by retained
-`/proc/self/fd/<fd>` descriptors. The child environment is constructed from
-scratch and contains only fixed PATH/HOME/locale/timezone, the first-entry
-marker, and the two inherited FD numbers. The installer independently requires
-that exact marker/FD contract for privileged apply.
+descriptor. The installer and native candidate are both referenced only by
+retained `/proc/self/fd/<fd>` descriptors.
+
+Before fork, the native launcher also creates a private one-shot pipe. Its exact
+proof record binds the launcher PID/start ticks, launcher device/inode, retained
+installer/native/Python device/inode identities, exact operation, exact expected
+head, and inherited installer/native FD numbers. The child environment is
+constructed from scratch and contains only fixed PATH/HOME/locale/timezone, the
+first-entry marker, the installer/native FD numbers, and the private proof-read
+FD number.
+
+The installer must consume that one-shot proof and cross-check it against its
+real `getppid()`, `/proc/<ppid>/stat`, `/proc/<ppid>/exe`, its executing
+script FD, retained native FD, and `/proc/self/exe`. Marker + FD-number state
+alone is not privileged provenance.
 
 Caller-controlled `LD_PRELOAD`, `LD_LIBRARY_PATH`, `LD_AUDIT`,
 `PYTHONPATH`, `PYTHONHOME`, `PYTHONSTARTUP`, `PYTHONINSPECT`,
@@ -137,11 +147,16 @@ Before fork the parent retains exact descriptors for:
 Installer source and native candidate are checked against the build-time
 SHA-256/byte identities before Python is started.
 
-After the child exits, before parent GREEN, the parent revalidates all retained
-and visible generations. A pathname replacement during child execution cannot change either the
-retained installer bytes the child executes or the retained native-candidate
-bytes the installer consumes. Any visible installer/native generation drift
-still prevents the parent from emitting a trusted first-entry GREEN receipt.
+The installer revalidates the live native-parent PID/start/executable and
+running Python generation immediately before its first protected staging
+mutation and again immediately before `RENAME_NOREPLACE`. After the child
+exits, before parent GREEN, the native parent revalidates all retained and
+visible generations.
+
+A pathname replacement during child execution cannot change either the retained
+installer bytes the child executes or the retained native-candidate bytes the
+installer consumes. Any visible installer/native/launcher generation drift or
+loss of the parent process generation prevents authority from advancing.
 
 If a parent-side failure occurs after an apply child was created, the receipt
 does not claim `installer_apply_performed=false`; it reports the conservative
@@ -160,6 +175,10 @@ The hosted proof:
   `NEEDED`;
 - installs a disposable root-owned fixture outside production paths;
 - proves plan and synthetic apply can reach only the retained installer;
+- dynamically consumes the private parent-proof pipe and verifies parent PID,
+  start ticks, executable device/inode, retained installer/native identities,
+  running Python identity, operation and expected head before the fixture marks
+  itself invoked;
 - supplies arbitrary caller stdin Python and requires pre-fork HOLD;
 - supplies a wrong confirmation and requires pre-fork HOLD;
 - substitutes installer bytes and requires HOLD before Python;
