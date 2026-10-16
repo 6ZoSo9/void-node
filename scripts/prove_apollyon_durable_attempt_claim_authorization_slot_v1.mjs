@@ -38,7 +38,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "a4f66adcfff5179e5aee162a389e297fc0081700",
+    "fea46735592aed3d0cac9a16ae82a81e67da79a7",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -303,7 +303,12 @@ assert.equal(
   "atomic_authorization_claim_slot_source_contract_defined_unimplemented",
 );
 assert.equal(contract.store_policy_id,ACCEPTED_STORE_POLICY_ID);
+assert.equal(contract.claim_state_root,"/var/lib/void-apollyon-attempt-claim-v2");
+assert.equal(contract.claim_service_user,"voidapollyonclaim");
+assert.equal(contract.claim_publisher_user,"voidapollyonclaimpub");
 assert.equal(contract.protected_authorization_slot_store_proven,false);
+assert.equal(contract.same_protected_claim_root_binding_performed,false);
+assert.equal(contract.claim_service_only_slot_writer_proven,false);
 assert.equal(contract.claim_record_semantic_revalidation_performed,false);
 assert.equal(contract.terminal_receipt_revalidation_performed,false);
 assert.equal(contract.publish_request_revalidation_performed,false);
@@ -331,6 +336,19 @@ for(const [key,expected] of Object.entries({
   authorization_slot_claim_record_independent_required:true,
   authorization_slot_publish_request_independent_required:true,
   protected_namespace_create_once_by_authorization_slot_required:true,
+  authorization_slot_namespace_same_protected_claim_root_required:true,
+  authorization_slot_claim_service_only_writer_required:true,
+  authorization_slot_publisher_write_rename_unlink_denied_required:true,
+  authorization_slot_training_write_rename_unlink_denied_required:true,
+  authorization_slot_custody_write_rename_unlink_denied_required:true,
+  authorization_slot_private_pending_publication_required:true,
+  authorization_slot_final_not_written_directly_required:true,
+  authorization_slot_create_only_atomic_publication_required:true,
+  authorization_slot_crash_state_classification_required:true,
+  authorization_slot_and_claim_same_generation_serialization_required:true,
+  store_migration_excluded_during_slot_claim_transaction_required:true,
+  exact_claim_revalidation_repeated_after_slot_durable_before_claim_publication_required:true,
+  current_store_generation_revalidated_after_slot_durable_before_claim_publication_required:true,
   exact_claim_record_semantic_revalidation_before_slot_reservation_required:true,
   exact_terminal_receipt_revalidation_before_slot_reservation_required:true,
   exact_publish_request_revalidation_before_slot_reservation_required:true,
@@ -345,6 +363,8 @@ for(const [key,expected] of Object.entries({
   migration_authorization_slot_set_count_required:true,
   migration_authorization_slot_set_sha256_required:true,
   migration_authorization_slot_drop_or_rewrite_rejected_required:true,
+  migration_unresolved_slot_without_exact_durable_claim_forbidden_required:true,
+  migration_authorization_slot_claim_set_cross_binding_required:true,
   migration_parent_store_continuity_receipt_revalidation_required:true,
   training_start_consumption_must_revalidate_unique_authorization_claim_required:true,
 })){
@@ -356,6 +376,8 @@ for(const [key,expected] of Object.entries({
 for(const [key,expected] of Object.entries({
   source_only_contract:true,
   protected_authorization_slot_store_proven:false,
+  same_protected_claim_root_binding_performed:false,
+  claim_service_only_slot_writer_proven:false,
   protected_claim_record_origin_proven:false,
   claim_record_semantic_revalidation_performed:false,
   terminal_receipt_revalidation_performed:false,
@@ -390,6 +412,10 @@ for(const required of [
   "authorization_slot_terminal_independent_required:true",
   "authorization_slot_store_generation_independent_required:true",
   "protected_namespace_create_once_by_authorization_slot_required:true",
+  "authorization_slot_namespace_same_protected_claim_root_required:true",
+  "authorization_slot_private_pending_publication_required:true",
+  "authorization_slot_and_claim_same_generation_serialization_required:true",
+  "migration_unresolved_slot_without_exact_durable_claim_forbidden_required:true",
   "exact_claim_record_semantic_revalidation_before_slot_reservation_required:true",
   "exact_terminal_receipt_revalidation_before_slot_reservation_required:true",
   "exact_publish_request_revalidation_before_slot_reservation_required:true",
@@ -412,6 +438,9 @@ console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_V1_PROOF_GRE
 console.log("same_authorization_different_claim_same_slot=true");
 console.log("different_claim_in_occupied_slot_rejected=true");
 console.log("authorization_slot_store_generation_independent=true");
+console.log("same_protected_claim_root_binding_required=true");
+console.log("authorization_slot_private_pending_publication_required=true");
+console.log("slot_claim_same_generation_serialization_required=true");
 console.log("claim_record_semantic_revalidation_performed=false");
 console.log("terminal_receipt_revalidation_performed=false");
 console.log("publish_request_revalidation_performed=false");
