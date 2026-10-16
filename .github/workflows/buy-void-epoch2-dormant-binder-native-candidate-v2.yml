@@ -55,6 +55,8 @@ jobs:
           python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py \
             --self-test | tee "$RUNNER_TEMP/v2-self-test.log"
           grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_CANDIDATE_V2_SELF_TEST_GREEN' "$RUNNER_TEMP/v2-self-test.log"
+          grep -Fx 'merged_v1_helper_executed_from_verified_bytes=true' "$RUNNER_TEMP/v2-self-test.log"
+          grep -Fx 'merged_v1_helper_mutable_path_import=false' "$RUNNER_TEMP/v2-self-test.log"
           grep -Fx 'sealed_source_snapshot=true' "$RUNNER_TEMP/v2-self-test.log"
           grep -Fx 'checkout_path_is_not_build_authority=true' "$RUNNER_TEMP/v2-self-test.log"
           grep -Fx 'toolchain_root_custody_verified=true' "$RUNNER_TEMP/v2-self-test.log"
@@ -88,6 +90,7 @@ jobs:
           python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py \
             --derive-dir "$out" | tee "$RUNNER_TEMP/derive-v2.log"
           grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_CANDIDATE_V2_DERIVE_GREEN' "$RUNNER_TEMP/derive-v2.log"
+          grep -Fx 'merged_v1_helper_executed_from_verified_bytes=true' "$RUNNER_TEMP/derive-v2.log"
           grep -Fx 'sealed_source_snapshot=true' "$RUNNER_TEMP/derive-v2.log"
           grep -Fx 'checkout_path_is_not_build_authority=true' "$RUNNER_TEMP/derive-v2.log"
           grep -Fx 'toolchain_root_custody_verified=true' "$RUNNER_TEMP/derive-v2.log"
@@ -136,6 +139,7 @@ jobs:
           grep -Fx 'three_run_binary_bytes_identical=true' "$out"
           grep -Fx 'comparison_rederived_report=true' "$out"
           grep -Fx 'comparison_rederived_elf=true' "$out"
+          grep -Fx 'merged_v1_helper_executed_from_verified_bytes=true' "$out"
           grep -Fx 'sealed_source_snapshot=true' "$out"
           grep -Fx 'toolchain_revalidated_after_build=true' "$out"
           grep -Fx 'candidate_accepted=false' "$out"
