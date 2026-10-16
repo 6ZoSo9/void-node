@@ -34,7 +34,7 @@ QUALIFIER_REL = (
 SEALED_REL = "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
 
 EXPECTED_BLOBS = {
-    INSTALLER_REL: "3f70620941a8ab2e5824c43b13b6aa03e20dac99",
+    INSTALLER_REL: "22d29da0eabd979ded8b1527220cfaf625a89704",
     LOCK_REL: "57f965a944031eac90d69b4104b0f8f2473e66cc",
     NATIVE_REL: "4aa091e7835b32aa5c4e7b8e4059651c69a64eb3",
     RUNNER_REL: "92e8c8696ea7e2bb81b6ef089db8baa657188935",
@@ -130,7 +130,7 @@ assert installer.index("accepted_lock()") < installer.index("verify_repository(e
 assert installer.index("node_bytes, node_sha = node_identity()") < installer.index(
     "policy = policy_bytes(expected_head, node_bytes, node_sha)"
 )
-assert installer.index("write_stage_file(") < installer.index("renameat2")
+assert installer.index("write_stage_file(") < installer.index("published = True")
 assert "os.unlink(INSTALL_NAME" not in installer
 assert "os.rmdir(INSTALL_NAME" not in installer
 
