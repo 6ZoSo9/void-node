@@ -91,7 +91,11 @@ The future implementation must publish create-once **by the
 authorization-wide, trainer-independent slot ID** in a protected namespace that
 the training identity cannot mutate.
 The full consumption-record ID is evidence stored inside that slot; it is not
-the namespace key. Persisted records must carry the exact accepted #3233 store-policy ID; a merely well-formed alternate policy ID is invalid.
+the namespace key. Persisted records must carry the exact accepted #3233
+store-policy ID; a merely well-formed alternate policy ID is invalid. Persisted
+record validation independently rederives both the #3357 authorization-slot ID
+and the full authorization-slot-record ID from the stored authorization/claim
+binding fields before accepting the downstream consumption record.
 
 The source exports an exact persisted-record validator and a deterministic recovery classifier. Recovery is bound to the exact expected slot ID. Caller-supplied absence => `unconsumed_shape`, but `create_once_publication_authorized=false` until a future protected-store implementation performs the observation itself. Exact matching caller-supplied record => `already_consumed_shape`, never reusable admission. A different valid trainer or claim record in the same authorization-wide slot, a record from another slot, or a malformed existing record fails closed.
 
