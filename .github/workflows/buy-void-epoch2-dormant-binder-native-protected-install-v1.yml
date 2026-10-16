@@ -54,9 +54,9 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v1.py)" = \
-            2ec6e0160a79d8a9de0641d22eb5b1018ca6a081
+            3a986ca82651c777300bd1cceaf5ef2b24562b1f
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v1.py)" = \
-            8fa70e07cd5a44588a54e99669f30aa36e1b1d5e
+            c63cc21107f8b1373e405b0b1ff3c0aa2dd211aa
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.json)" = \
             9e9661ded53116e2c3312108294a2675b6a6f900
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" = \
