@@ -166,6 +166,31 @@ assert.equal(
   candidate.compiler_snapshot.snapshot_identity_revalidated_after_build,
   true,
 );
+assert.match(
+  candidate.runtime_output_snapshot.snapshot_id,
+  /^voidblrhnoutsnap2_[0-9a-f]{64}$/u,
+);
+assert.equal(candidate.runtime_output_snapshot.fixed_parent, "/tmp");
+assert.equal(
+  candidate.runtime_output_snapshot.fixed_parent_root_owned_sticky_required,
+  true,
+);
+assert.equal(candidate.runtime_output_snapshot.root_owned_snapshot_required, true);
+assert.equal(candidate.runtime_output_snapshot.directory_mode, "0555");
+assert.equal(candidate.runtime_output_snapshot.file_mode, "0444");
+assert.equal(
+  candidate.runtime_output_snapshot.builder_uid_direct_mutation_denied,
+  true,
+);
+assert.equal(candidate.runtime_output_snapshot.observed_before_cleanup, true);
+assert.equal(candidate.runtime_output_snapshot.compiled_files.length, 9);
+assert.deepEqual(
+  candidate.runtime_output_snapshot.compiled_files.map((record)=>record.path),
+  candidate.runtime_files
+    .filter((record)=>record.runtime_kind==="compiled_typescript")
+    .map((record)=>record.path)
+    .sort(),
+);
 
 {
   const fixture = fs.mkdtempSync(
@@ -299,6 +324,8 @@ assert.equal(
       types: Object.freeze([]),
     });
     let observedBuildInputSnapshotRoot = null;
+    let observedRuntimeOutputSnapshotRoot = null;
+    let protectedEmittedBytes = null;
     const compiled =
       testOnlyCompileReviewedRuntimeWithBoundCompilerV2(fixture, {
         after_snapshot_before_build({
@@ -369,15 +396,67 @@ assert.equal(
             include:["src/**/*.ts"],
           })+"\n","utf8");
         },
-        after_build_before_revalidation() {
-          assert.equal(fs.existsSync(path.join(fixture, "dist/probe.js")),true);
-          const emitted=fs.readFileSync(path.join(fixture,"dist/probe.js"),"utf8");
+        after_build_before_revalidation({
+          runtime_output_snapshot_root,
+        }) {
+          observedRuntimeOutputSnapshotRoot = runtime_output_snapshot_root;
+          const outputRootStat=fs.lstatSync(runtime_output_snapshot_root);
+          assert.equal(outputRootStat.uid,0);
+          assert.equal(outputRootStat.gid,0);
+          assert.equal(outputRootStat.mode&0o7777,0o555);
+          const emittedPath=path.join(
+            runtime_output_snapshot_root,
+            "dist/probe.js",
+          );
+          const emittedStat=fs.lstatSync(emittedPath);
+          assert.equal(emittedStat.uid,0);
+          assert.equal(emittedStat.gid,0);
+          assert.equal(emittedStat.mode&0o7777,0o444);
+          protectedEmittedBytes=fs.readFileSync(emittedPath);
+          const emitted=protectedEmittedBytes.toString("utf8");
           assert.match(emitted,/green/u);
           assert.doesNotMatch(emitted,/red/u);
+          for(const mutate of [
+            ()=>fs.chmodSync(emittedPath,0o600),
+            ()=>fs.appendFileSync(emittedPath,"\n// forbidden output substitution\n"),
+            ()=>fs.unlinkSync(emittedPath),
+          ]){
+            assert.throws(
+              mutate,
+              (error)=>
+                error?.code==="EACCES"||
+                error?.code==="EPERM"||
+                error?.code==="EROFS",
+            );
+          }
+          fs.mkdirSync(path.join(fixture,"dist"),{recursive:true});
+          fs.writeFileSync(
+            path.join(fixture,"dist/probe.js"),
+            'export const compilerSnapshotProbe = "red-checkout-output";\n',
+            "utf8",
+          );
           fs.writeFileSync(binTarget, binOriginal);
           fs.writeFileSync(probePath, probeOriginal);
           fs.writeFileSync(configPath, configOriginal);
         },
+        runtime_closure_fn({compiled_root}) {
+          const relative="dist/probe.js";
+          const bytes=fs.readFileSync(path.join(compiled_root,relative));
+          return Object.freeze({
+            files:Object.freeze([
+              Object.freeze({
+                path:relative,
+                bytes:bytes.length,
+                sha256:crypto.createHash("sha256").update(bytes).digest("hex"),
+                tracked_source_git_blob_sha1:null,
+                imports:Object.freeze([]),
+                runtime_kind:"compiled_typescript",
+              }),
+            ]),
+            external_node_builtins:Object.freeze([]),
+          });
+        },
+        expected_compiled_runtime_files:["dist/probe.js"],
       }, fixtureBuildInputProfile);
 
     assert.ok(observedSnapshotRoot);
@@ -392,8 +471,24 @@ assert.equal(
       candidate.compiler,
     );
     assert.match(compiled.build_input_snapshot.snapshot_id,/^voidblrhnbsnap2_[0-9a-f]{64}$/u);
+    assert.match(
+      compiled.runtime_output_snapshot.snapshot_id,
+      /^voidblrhnoutsnap2_[0-9a-f]{64}$/u,
+    );
+    assert.ok(protectedEmittedBytes);
+    assert.equal(compiled.runtime.files.length,1);
+    assert.equal(compiled.runtime.files[0].path,"dist/probe.js");
+    assert.equal(
+      compiled.runtime.files[0].sha256,
+      crypto.createHash("sha256").update(protectedEmittedBytes).digest("hex"),
+    );
+    assert.match(
+      fs.readFileSync(path.join(fixture,"dist/probe.js"),"utf8"),
+      /red-checkout-output/u,
+    );
     assert.equal(fs.existsSync(observedSnapshotRoot), false);
     assert.equal(fs.existsSync(observedBuildInputSnapshotRoot), false);
+    assert.equal(fs.existsSync(observedRuntimeOutputSnapshotRoot), false);
   } finally {
     if (binOriginal && fs.existsSync(binTarget)) {
       fs.writeFileSync(binTarget, binOriginal);
@@ -408,7 +503,7 @@ assert.equal(
 );
 assert.equal(
   candidate.build_recipe.compile,
-  "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <candidate-dist>",
+  "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <root-custodied-runtime-output-snapshot>/dist",
 );
 assert.equal(
   candidate.build_recipe.compile_node_executable_source,
@@ -436,6 +531,19 @@ assert.equal(candidate.build_recipe.build_input_snapshot_required, true);
 assert.equal(candidate.build_recipe.build_input_snapshot_root_custody_required, true);
 assert.equal(candidate.build_recipe.build_input_snapshot_builder_uid_direct_mutation_denied_required, true);
 assert.equal(candidate.build_recipe.build_input_snapshot_post_revalidation_required, true);
+assert.equal(candidate.build_recipe.runtime_output_snapshot_required,true);
+assert.equal(
+  candidate.build_recipe.runtime_output_snapshot_root_custody_required,
+  true,
+);
+assert.equal(
+  candidate.build_recipe.runtime_output_snapshot_builder_uid_direct_mutation_denied_required,
+  true,
+);
+assert.equal(
+  candidate.build_recipe.runtime_output_snapshot_observed_before_cleanup_required,
+  true,
+);
 assert.match(candidate.build_input_snapshot.snapshot_id,/^voidblrhnbsnap2_[0-9a-f]{64}$/u);
 assert.equal(candidate.build_input_snapshot.project_files.length,18);
 assert.equal(candidate.build_input_snapshot.compile_files.length,15);
@@ -541,6 +649,10 @@ for (const [key, expected] of Object.entries({
   build_input_source_generation_bound: true,
   build_input_tsconfig_generation_bound: true,
   build_input_type_packages_bound: true,
+  runtime_output_private_snapshot_required: true,
+  runtime_output_snapshot_root_custody_required: true,
+  runtime_output_snapshot_builder_uid_direct_mutation_denied: true,
+  runtime_output_snapshot_observed_before_cleanup: true,
   candidate_owned_rebuild_required: true,
   three_node_byte_equality_required: true,
   candidate_report_filesystem_write: true,
@@ -774,6 +886,11 @@ console.log("build_input_snapshot_builder_uid_direct_mutation_denied=true");
 console.log("build_input_snapshot_post_revalidated=true");
 console.log("build_input_source_aba_isolated=true");
 console.log("build_input_tsconfig_aba_isolated=true");
+console.log("runtime_output_snapshot_bound=true");
+console.log("runtime_output_snapshot_root_custody=true");
+console.log("runtime_output_snapshot_builder_uid_direct_mutation_denied=true");
+console.log("runtime_output_post_compile_substitution_rejected=true");
+console.log("runtime_output_checkout_substitution_isolated=true");
 console.log("compiler_closed_environment=true");
 console.log("typescript_cli_entry_fixture_tamper_rejected=true");
 console.log("typescript_cli_loader_fixture_tamper_rejected=true");
