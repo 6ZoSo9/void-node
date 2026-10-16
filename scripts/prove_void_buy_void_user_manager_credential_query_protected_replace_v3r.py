@@ -162,14 +162,117 @@ for needle in (
 ):
     assert needle in source, needle
 
+def executable_key_wallet_authority_violations(
+    source_text: str,
+) -> list[str]:
+    tree = ast.parse(source_text)
+    violations: list[str] = []
+
+    def dotted_name(node: ast.AST) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            parent = dotted_name(node.value)
+            return (parent + "." if parent else "") + node.attr
+        return ""
+
+    def identifier_is_sensitive(value: str) -> bool:
+        folded = value.casefold()
+        compact = folded.replace("_", "").replace("-", "")
+        return (
+            "privatekey" in compact
+            or "wallet" in compact
+            or "signer" in compact
+            or folded in {"account", "eth_account", "web3"}
+        )
+
+    def call_path_is_sensitive(value: str) -> bool:
+        folded = value.casefold()
+        parts = [part for part in folded.split(".") if part]
+        compact_parts = [
+            part.replace("_", "").replace("-", "") for part in parts
+        ]
+        if any(
+            "privatekey" in part
+            or "wallet" in part
+            or "signer" in part
+            for part in compact_parts
+        ):
+            return True
+        if "account" in compact_parts and any(
+            part in {"fromkey", "sign", "signtransaction", "signhash"}
+            for part in compact_parts
+        ):
+            return True
+        return False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                module = alias.name.casefold()
+                if (
+                    module == "eth_account"
+                    or module.startswith("eth_account.")
+                    or module == "web3"
+                    or module.startswith("web3.")
+                    or "wallet" in module
+                ):
+                    violations.append("import:" + alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            module = (node.module or "").casefold()
+            if (
+                module == "eth_account"
+                or module.startswith("eth_account.")
+                or module == "web3"
+                or module.startswith("web3.")
+                or "wallet" in module
+            ):
+                violations.append("import_from:" + (node.module or ""))
+            for alias in node.names:
+                if identifier_is_sensitive(alias.name):
+                    violations.append("import_name:" + alias.name)
+        elif isinstance(node, ast.Name):
+            if identifier_is_sensitive(node.id):
+                violations.append("name:" + node.id)
+        elif isinstance(node, ast.Attribute):
+            chain = dotted_name(node)
+            if identifier_is_sensitive(node.attr) or call_path_is_sensitive(chain):
+                violations.append("attribute:" + chain)
+        elif isinstance(node, ast.Call):
+            chain = dotted_name(node.func)
+            if chain and call_path_is_sensitive(chain):
+                violations.append("call:" + chain)
+
+    return sorted(set(violations))
+
+
+assert executable_key_wallet_authority_violations(source) == []
+for safe_authority_literal in (
+    'print("private_key_access=false")',
+    'print("wallet_or_signer_access=false")',
+):
+    assert executable_key_wallet_authority_violations(
+        safe_authority_literal
+    ) == []
+
+for unsafe_authority_source in (
+    "private_key = object()",
+    "wallet.sign(b'payload')",
+    "wallet.sign_transaction({})",
+    "import eth_account",
+    "from eth_account import Account\nAccount.from_key(b'key')",
+    "import web3",
+):
+    assert executable_key_wallet_authority_violations(
+        unsafe_authority_source
+    ), unsafe_authority_source
+
+
 for forbidden in (
     "systemctl",
     "service restart",
     "eth_sendRawTransaction",
     "eth_sendTransaction",
-    "signTransaction(",
-    "Wallet(",
-    "from eth_account",
     "ATOMIC_EXCHANGE_ACCEPTED_CREDENTIAL_QUERY_V1_TO_V2",
     "ATOMIC_EXCHANGE_ROLLBACK_CREDENTIAL_QUERY_V2_TO_V1",
 ):
@@ -386,6 +489,8 @@ print("rollback_authority_boundary_pre_mutation=true")
 print("pre_mutation_authority_flush_required=true")
 print("authority_flush_behavior_exercised=true")
 print("authority_flush_complete_summary_exercised=true")
+print("ast_key_wallet_authority_guard=true")
+print("ast_key_wallet_adversaries_exercised=true")
 print("query_execution=false")
 print("credential_contents_read=false")
 print("service_mutation=false")
