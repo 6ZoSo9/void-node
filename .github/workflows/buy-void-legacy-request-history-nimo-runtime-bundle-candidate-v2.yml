@@ -1,0 +1,219 @@
+name: VOID Buy legacy-history Nimo runtime bundle candidate v2
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v2.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_candidate_v2.mjs"
+      - "docs/operators/buy-void-legacy-request-history-nimo-runtime-bundle-candidate-v2.md"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-runtime-bundle-candidate-v2.yml"
+      - "tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs"
+      - "tools/void-buy-legacy-request-history-nimo-forced-command-v1.mjs"
+      - "tools/void-buy-legacy-request-history-nimo-transport-envelope-v1.mjs"
+      - "tools/void-buy-legacy-request-history-external-witness-v1.mjs"
+      - "tools/void-buy-legacy-request-history-sovereign-authorization-v1.mjs"
+      - "tools/void-buy-legacy-request-history-disposition-v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/security/void_sovereign_emergency_control_v1.ts"
+      - "src/security/void_alignment_layer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v2.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_candidate_v2.mjs"
+      - "docs/operators/buy-void-legacy-request-history-nimo-runtime-bundle-candidate-v2.md"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-runtime-bundle-candidate-v2.yml"
+      - "tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs"
+      - "tools/void-buy-legacy-request-history-nimo-forced-command-v1.mjs"
+      - "tools/void-buy-legacy-request-history-nimo-transport-envelope-v1.mjs"
+      - "tools/void-buy-legacy-request-history-external-witness-v1.mjs"
+      - "tools/void-buy-legacy-request-history-sovereign-authorization-v1.mjs"
+      - "tools/void-buy-legacy-request-history-disposition-v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/security/void_sovereign_emergency_control_v1.ts"
+      - "src/security/void_alignment_layer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: legacy-history-nimo-runtime-bundle-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    name: legacy-history Nimo bundle / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact parent generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor             a89523ac7f6e6d013a86054e998fcb51f051ec51             "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs)" =             3d41834140eaaca46fb9f5a771278bed49384c65
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked compiler
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Compile exact reviewed source
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+
+      - name: Prove exact runtime closure
+        run: |
+          set -euo pipefail
+          node --check             tools/void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v2.mjs
+          node --check             scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_candidate_v2.mjs
+          proof="$RUNNER_TEMP/legacy-history-nimo-bundle-proof-${{ matrix.node }}.txt"
+          node             scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_candidate_v2.mjs             | tee "$proof"
+          grep -Fx             'VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_CANDIDATE_V2_PROOF_GREEN'             "$proof"
+          grep -Fx 'runtime_file_count=14' "$proof"
+          grep -Fx 'compiled_runtime_file_count=9' "$proof"
+          grep -Fx 'tracked_runtime_source_file_count=5' "$proof"
+          grep -Fx 'parent_source_input_count=19' "$proof"
+          grep -Fx 'typescript_version=5.9.3' "$proof"
+          grep -Fx 'third_party_runtime_packages=0' "$proof"
+          grep -Fx 'rehashed_runtime_bytes_tamper_rejected=true' "$proof"
+          grep -Fx 'rehashed_compiler_bytes_tamper_rejected=true' "$proof"
+          grep -Fx 'runtime_bundle_candidate_accepted=false' "$proof"
+          grep -Fx 'live_nimo_installed=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Emit candidate
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/candidate-node${{ matrix.node }}.json"
+          output="$RUNNER_TEMP/legacy-history-nimo-bundle-emit-${{ matrix.node }}.txt"
+          node             tools/void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v2.mjs             --emit "$candidate" | tee "$output"
+          grep -Fx             'VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_CANDIDATE_V2_GREEN'             "$output"
+          grep -Fx 'runtime_file_count=14' "$output"
+          grep -Fx 'compiled_runtime_file_count=9' "$output"
+          grep -Fx 'tracked_runtime_source_file_count=5' "$output"
+          grep -Fx 'parent_source_input_count=19' "$output"
+          grep -Fx 'third_party_runtime_packages=0' "$output"
+          grep -Fx 'node_modules_runtime_files=0' "$output"
+          grep -Fx 'runtime_bundle_candidate_accepted=false' "$output"
+          grep -Fx 'protected_runtime_install_authorized=false' "$output"
+          grep -Fx 'live_nimo_installed=false' "$output"
+          grep -Fx 'funds_movement=false' "$output"
+
+      - name: Upload candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: legacy-history-nimo-bundle-${{ matrix.node }}
+          path: ${{ runner.temp }}/candidate-node${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: legacy-history Nimo bundle / compare Node 22-24-26
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22
+
+      - name: Rebuild exact reviewed source for independent verification
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+
+      - name: Download candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: legacy-history-nimo-bundle-*
+          path: ${{ runner.temp }}/candidates
+          merge-multiple: true
+
+      - name: Require byte-identical candidates
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/legacy-history-nimo-bundle-compare.txt"
+          node             tools/void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v2.mjs             --compare             "$RUNNER_TEMP/candidates/candidate-node22.json"             "$RUNNER_TEMP/candidates/candidate-node24.json"             "$RUNNER_TEMP/candidates/candidate-node26.json"             | tee "$output"
+          grep -Fx             'VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_CANDIDATE_V2_THREE_NODE_GREEN'             "$output"
+          grep -Fx 'runtime_bundle_candidate_accepted=false' "$output"
+          grep -Fx 'protected_runtime_install_authorized=false' "$output"
+          grep -Fx 'live_nimo_installed=false' "$output"
+          grep -Fx 'funds_movement=false' "$output"
+
+      - name: Committed diff hygiene
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          PUSH_BEFORE_SHA: ${{ github.event.before || '' }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          HEAD="$(git rev-parse HEAD)"
+          test "$HEAD" = "$EXPECTED_HEAD"
+          BASE="$PR_BASE_SHA"
+          if [ -z "$BASE" ]; then
+            BASE="$PUSH_BEFORE_SHA"
+          fi
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git cat-file -e "$BASE^{commit}"
+          DIFF_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$DIFF_BASE"
+          git cat-file -e "$DIFF_BASE^{commit}"
+          git merge-base --is-ancestor "$DIFF_BASE" "$HEAD"
+          git diff --check "$DIFF_BASE" "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
