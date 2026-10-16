@@ -40,7 +40,11 @@ jobs:
         run: |
           set -euo pipefail
           base="${PR_BASE:-}"
-          if [ -z "$base" ]; then
+          parent_line="$(git rev-list --parents -n 1 "$EXPECTED_HEAD")"
+          parent_count="$(awk '{print NF-1}' <<<"$parent_line")"
+          if [ "$parent_count" -gt 1 ]; then
+            base="$(git rev-parse "$EXPECTED_HEAD^1")"
+          elif [ -z "$base" ]; then
             base="$(git rev-parse "$EXPECTED_HEAD^1")"
           fi
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
