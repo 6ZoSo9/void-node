@@ -401,7 +401,13 @@ def prepare_candidates(output_dir: Path) -> None:
             0o400,
         )
         try:
-            os.write(fd, runner_raw)
+            view = memoryview(runner_raw)
+            offset = 0
+            while offset < len(view):
+                wrote = os.write(fd, view[offset:])
+                if wrote <= 0:
+                    raise InstallError("prepared_runner_short_write")
+                offset += wrote
             os.fsync(fd)
         finally:
             os.close(fd)
@@ -409,6 +415,14 @@ def prepare_candidates(output_dir: Path) -> None:
         assert_exact_candidate(native, expected_bytes=NATIVE_BYTES, expected_sha256=NATIVE_SHA256)
         assert_exact_candidate(runner, expected_bytes=RUNNER_BYTES, expected_sha256=RUNNER_SHA256)
         rename_noreplace(stage, output_dir)
+        parent_fd = os.open(
+            parent,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        )
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
     except BaseException:
         shutil.rmtree(stage, ignore_errors=True)
         raise
