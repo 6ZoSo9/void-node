@@ -17,7 +17,7 @@ INSTALLER_REL = (
     "void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
 )
 
-TARGET_BLOB = "54b3222e7d4b6ed3f8ce76ff5434c222ef1508e5"
+TARGET_BLOB = "c1ea5912984c552f7b929d60b93d1948c42b8e1c"
 INSTALLER_BLOB = "f3d6b1559be7490303cf36338c4bfa38fdaa390a"
 
 
@@ -214,7 +214,7 @@ for line in (
     "wc_void_market_activation=false",
     "funds_movement=false",
     "production_host_evidence_authority=false",
-    "next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_BINDER_INSTALLED_READ_ONLY_QUALIFICATION_V2",
+    "next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_BINDER_INSTALLED_READ_ONLY_QUALIFICATION_V2R",
 ):
     assert line in plan_lines, line
 
