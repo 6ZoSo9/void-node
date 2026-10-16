@@ -25,8 +25,14 @@ The accepted #3276 service-source candidate fixes the claim state root at:
 
 `/var/lib/void-apollyon-attempt-claim-v2`
 
-This contract re-derives #3276 and requires its exact accepted store policy and
-fixed root. The request also binds the exact accepted #3377 writer blob.
+This contract additionally freezes the future one-time consumption namespace to:
+
+`/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1`
+
+No caller-selected descendant is accepted. A future installer/host qualifier must
+prove that exact directory exists with the ownership and 0700 policy required by
+#3377 before its retained FD can be used. This contract re-derives #3276 and
+requires its exact accepted store policy and binds the exact #3377 writer blob.
 
 ## Revalidation identities
 
@@ -53,8 +59,9 @@ request.
 Immediately before invoking #3377, a future protected-store revalidator must
 prove, from the fixed protected store rather than caller assertions:
 
-1. the directory capability originates from the fixed reviewed claim state
-   root/generation;
+1. the directory capability is exactly the fixed
+   `training-start-consumption-v1` directory under the reviewed claim state
+   root and originates from the bound store generation;
 2. the current store generation is still the exact requested generation;
 3. the protected #3357 authorization winner is reread and still exactly the
    requested winner;

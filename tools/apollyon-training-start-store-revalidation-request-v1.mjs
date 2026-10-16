@@ -21,7 +21,9 @@ export const VOID_APOLLYON_TRAINING_START_STORE_REVALIDATION_REQUEST_AUTHORITY_V
     accepted_store_service_candidate_required:true,
     accepted_protected_writer_required:true,
     fixed_claim_state_root_bound:true,
+    fixed_training_start_consumption_directory_bound:true,
     caller_supplied_store_path_supported:false,
+    caller_supplied_consumption_directory_supported:false,
     protected_store_origin_required:true,
     protected_store_origin_proven:false,
     current_store_generation_revalidation_required:true,
@@ -33,6 +35,8 @@ export const VOID_APOLLYON_TRAINING_START_STORE_REVALIDATION_REQUEST_AUTHORITY_V
     consumption_slot_classification_required:true,
     consumption_slot_classification_performed:false,
     writer_directory_capability_from_fixed_root_required:true,
+    writer_directory_capability_exact_path_required:true,
+    writer_directory_capability_exact_path_proven:false,
     writer_directory_capability_origin_proven:false,
     same_store_generation_through_writer_required:true,
     protected_writer_invocation_required:true,
@@ -64,6 +68,8 @@ export const PARENT_CONSUMPTION_CONTRACT_BLOB_SHA1 =
   "4333df6c7918fe9efaada36cac765000eec7948f";
 export const FIXED_CLAIM_STATE_ROOT =
   "/var/lib/void-apollyon-attempt-claim-v2";
+export const FIXED_TRAINING_START_CONSUMPTION_DIRECTORY =
+  "/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1";
 
 function fail(code){throw new Error(code);}
 function canonical(value){return canonicalApollyonClaimContractJsonV1(value);}
@@ -122,6 +128,8 @@ export function qualifyApollyonTrainingStartStoreRevalidationRequestV1(input){
     store_service_candidate_id:candidate.candidate_id,
 
     fixed_claim_state_root:FIXED_CLAIM_STATE_ROOT,
+    fixed_training_start_consumption_directory:
+      FIXED_TRAINING_START_CONSUMPTION_DIRECTORY,
     store_policy_id:record.store_policy_id,
     store_contract_id:record.store_contract_id,
     store_generation_id:record.store_generation_id,

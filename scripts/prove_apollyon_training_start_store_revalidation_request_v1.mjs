@@ -39,7 +39,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-    "59ee8b051fe48127fdb5ead0f29ddc2ecff8da61",
+    "7b3de8573a07cf6eed6d75fb9a94cc43a3707dcd",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
     "a08927b7b16884a9bf0c28328047afdab49649ea",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
@@ -186,6 +186,8 @@ const result=qualifyApollyonTrainingStartStoreRevalidationRequestV1({
 for(const [key,expected] of [
   ["target_host","Xiphos"],
   ["fixed_claim_state_root","/var/lib/void-apollyon-attempt-claim-v2"],
+  ["fixed_training_start_consumption_directory",
+    "/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1"],
   ["store_policy_id",record.store_policy_id],
   ["store_contract_id",record.store_contract_id],
   ["store_generation_id",record.store_generation_id],
@@ -306,7 +308,9 @@ for(const [key,expected] of Object.entries({
   accepted_store_service_candidate_required:true,
   accepted_protected_writer_required:true,
   fixed_claim_state_root_bound:true,
+  fixed_training_start_consumption_directory_bound:true,
   caller_supplied_store_path_supported:false,
+  caller_supplied_consumption_directory_supported:false,
   protected_store_origin_required:true,
   protected_store_origin_proven:false,
   current_store_generation_revalidation_required:true,
@@ -318,6 +322,8 @@ for(const [key,expected] of Object.entries({
   consumption_slot_classification_required:true,
   consumption_slot_classification_performed:false,
   writer_directory_capability_from_fixed_root_required:true,
+  writer_directory_capability_exact_path_required:true,
+  writer_directory_capability_exact_path_proven:false,
   writer_directory_capability_origin_proven:false,
   same_store_generation_through_writer_required:true,
   protected_writer_invocation_required:true,
@@ -354,6 +360,7 @@ const source=fs.readFileSync(
 for(const required of [
   "structuredClone(value)",
   '"/var/lib/void-apollyon-attempt-claim-v2"',
+  '"/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1"',
   '"a08927b7b16884a9bf0c28328047afdab49649ea"',
   '"d67ef39c4cd034844fb0862e180de46ed4cd0c88"',
   "protected_store_origin_proven:false",
@@ -424,6 +431,7 @@ console.log(
   "VOID_APOLLYON_TRAINING_START_STORE_REVALIDATION_REQUEST_V1_PROOF_GREEN"
 );
 console.log("fixed_claim_state_root_bound=true");
+console.log("fixed_training_start_consumption_directory_bound=true");
 console.log("authorization_winner_identity_bound=true");
 console.log("current_store_generation_identity_bound=true");
 console.log("durable_claim_identity_bound=true");
