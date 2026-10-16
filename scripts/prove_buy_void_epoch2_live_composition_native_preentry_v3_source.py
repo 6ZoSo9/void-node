@@ -18,7 +18,7 @@ RUNNER = (
     "void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
 )
 
-SOURCE_BLOB = "0932bc09f53b8bd4b470c4fe9b39e132b9222bac"
+SOURCE_BLOB = "5021727f1def1ec11f870d735cab65acc1701a5e"
 RUNNER_BLOB = "baab733e43c030d24f8d4abd1644f3c4ae55c3b2"
 
 
@@ -53,13 +53,18 @@ for required in (
     "emit_parent_proof(",
     "fexecve(node_fd, next_argv, envp);",
     "waitpid(child, &status, 0)",
+    "static bool child_process_created = false;",
     "static bool child_proof_released = false;",
+    "child_process_created = true;",
     "child_proof_released = true;",
+    '"child_process_created=%s\\n"',
     '"child_proof_released=%s\\n"',
+    '"root_javascript_started_state="',
     '"credential_content_access_state="',
     '"private_key_access_state="',
     '"signing_state=unknown_or_partial_if_child_released\\n"',
     '"--self-test-hold-preproof"',
+    '"--self-test-hold-postfork-preproof"',
     '"--self-test-hold-postproof"',
     "runner_descriptor_retained=true",
     "node_descriptor_fexecve=true",
@@ -157,6 +162,7 @@ with tempfile.TemporaryDirectory(prefix="void-e2-native-v3-source-proof-") as td
     assert pre_hold.stdout == ""
     pre_lines = set(pre_hold.stderr.splitlines())
     for line in (
+        "child_process_created=false",
         "child_proof_released=false",
         "root_javascript_started=false",
         "credential_content_access=false",
@@ -173,6 +179,38 @@ with tempfile.TemporaryDirectory(prefix="void-e2-native-v3-source-proof-") as td
         for line in pre_lines
     )
 
+    postfork_hold = subprocess.run(
+        [str(binary), "--self-test-hold-postfork-preproof"],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+    )
+    assert postfork_hold.returncode == 2
+    assert postfork_hold.stdout == ""
+    postfork_lines = set(postfork_hold.stderr.splitlines())
+    for line in (
+        "child_process_created=true",
+        "child_proof_released=false",
+        "root_javascript_started_state=unknown_or_started_if_child_created",
+        "credential_content_access=false",
+        "private_key_access=false",
+        "signing=false",
+        "transaction=false",
+        "public_presale_activation=false",
+        "wc_void_market_activation=false",
+        "funds_movement=false",
+    ):
+        assert line in postfork_lines, line
+    assert "root_javascript_started=false" not in postfork_lines
+    assert not any(
+        line.startswith("credential_content_access_state=")
+        for line in postfork_lines
+    )
+
     post_hold = subprocess.run(
         [str(binary), "--self-test-hold-postproof"],
         cwd=ROOT,
@@ -187,8 +225,9 @@ with tempfile.TemporaryDirectory(prefix="void-e2-native-v3-source-proof-") as td
     assert post_hold.stdout == ""
     post_lines = set(post_hold.stderr.splitlines())
     for line in (
+        "child_process_created=true",
         "child_proof_released=true",
-        "root_javascript_started_state=unknown_or_started_if_child_released",
+        "root_javascript_started_state=unknown_or_started_if_child_created",
         "credential_content_access_state=unknown_or_partial_if_child_released",
         "private_key_access_state=unknown_or_partial_if_child_released",
         "signing_state=unknown_or_partial_if_child_released",
@@ -206,8 +245,11 @@ with tempfile.TemporaryDirectory(prefix="void-e2-native-v3-source-proof-") as td
     ):
         assert false_line not in post_lines, false_line
 
-    release_at = source.index("emit_parent_proof(")
-    release_at = source.index("emit_parent_proof(", release_at + 1)
+    fork_at = source.index("pid_t child = fork();")
+    parent_created_at = source.index(
+        "child_process_created = true;", fork_at
+    )
+    release_at = source.index("emit_parent_proof(", parent_created_at)
     release_flag_at = source.index(
         "child_proof_released = true;", release_at
     )
@@ -215,7 +257,10 @@ with tempfile.TemporaryDirectory(prefix="void-e2-native-v3-source-proof-") as td
     abnormal_at = source.index(
         'hold("native_preentry_child_not_cleanly_exited")', wait_at
     )
-    assert release_at < release_flag_at < wait_at < abnormal_at
+    assert (
+        fork_at < parent_created_at < release_at <
+        release_flag_at < wait_at < abnormal_at
+    )
 
     lines = set(self_test.stdout.splitlines())
     for line in (
@@ -257,6 +302,8 @@ print("runner_digest_policy_binding_preserved=true")
 print("node_digest_policy_binding_preserved=true")
 print("native_parent_retained_for_child_lifetime=true")
 print("preproof_hold_access_false=true")
+print("postfork_preproof_root_javascript_indeterminate=true")
+print("postfork_preproof_sensitive_access_false=true")
 print("postproof_hold_access_indeterminate=true")
 print("postproof_root_javascript_state_truthful=true")
 print("abnormal_child_receipt_truthful=true")
