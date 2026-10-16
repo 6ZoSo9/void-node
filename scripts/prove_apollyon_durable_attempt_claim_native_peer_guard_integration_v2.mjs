@@ -32,6 +32,12 @@ for(const [relative,expected] of Object.entries({
     "97639e6d2bc2f67281a4d7b3af5bfa2b59c5df51",
   "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs":
     "866c9dcac8f85de936ee537617ddf9b2904439f9",
+  "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
+    "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
+  "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
+    "981935515e08634be96446e58922c16be56d33ad",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
+    "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
 })){
   assert.equal(
     gitBlob(fs.readFileSync(path.join(ROOT,relative))),
@@ -222,6 +228,27 @@ for(const [key,expected] of Object.entries({
     expected,key,
   );
 }
+
+
+const workflowSource=fs.readFileSync(
+  path.join(ROOT,".github/workflows/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.yml"),
+  "utf8",
+);
+for(const dependency of [
+  "tools/apollyon-live-source-session-terminal-receipt-v2.mjs",
+  "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
+]){
+  assert.equal(
+    workflowSource.split(dependency).length-1,
+    2,
+    "focused workflow PR/push trigger parity missing for "+dependency,
+  );
+}
+assert.equal(workflowSource.includes("pull_request:"),true);
+assert.equal(workflowSource.includes("push:"),true);
+assert.equal(workflowSource.includes("workflow_dispatch:"),true);
+assert.equal(workflowSource.includes("PUSH_BEFORE: ${{ github.event.before }}"),true);
 
 const contractSource=fs.readFileSync(
   path.join(ROOT,"tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs"),

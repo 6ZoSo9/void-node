@@ -11,6 +11,9 @@ on:
       - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
       - "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c"
       - "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs"
   push:
@@ -24,6 +27,9 @@ on:
       - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
       - "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c"
       - "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs"
   workflow_dispatch:
