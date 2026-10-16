@@ -479,8 +479,11 @@ assert.deepEqual(
 }
 {
   const bad=input();
-  bad.authorization_slot_record.authorization_slot_record_id=
-    "apollyon_attempt_claim_auth_slot_record_v1:"+"0".repeat(64);
+  bad.authorization_slot_record={
+    ...bad.authorization_slot_record,
+    authorization_slot_record_id:
+      "apollyon_attempt_claim_auth_slot_record_v1:"+"0".repeat(64),
+  };
   assert.throws(
     ()=>qualifyApollyonTrainingStartConsumptionContractV1(bad),
     /auth_slot_v1_record_invalid/u,
