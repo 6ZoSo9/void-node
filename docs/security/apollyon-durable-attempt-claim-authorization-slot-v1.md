@@ -34,7 +34,7 @@ A different authorization maps to a different slot.
 
 ## Slot record
 
-The winning slot record binds the stable slot to the exact claim candidate:
+The winning slot record binds the stable slot to the exact claim candidate. This shape helper is **not** claim admission authority: before a future writer reserves the slot it must separately revalidate the exact claim-record semantics, terminal receipt/protected origin, exact request envelope and current store generation. Those revalidations remain unperformed in this source-only contract.
 
 - store policy;
 - authorization ID;
@@ -76,6 +76,9 @@ This source contract reports:
 ```text
 protected_authorization_slot_store_proven=false
 protected_claim_record_origin_proven=false
+claim_record_semantic_revalidation_performed=false
+terminal_receipt_revalidation_performed=false
+publish_request_revalidation_performed=false
 store_generation_revalidation_performed=false
 authorization_slot_publication_performed=false
 durable_attempt_claim_performed=false

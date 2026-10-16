@@ -36,7 +36,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "aca6d0d0b39ebff45ef1ddced502f9685535deac",
+    "08749ec3db211f8490de2ea1af819748176b9d6a",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -216,6 +216,9 @@ assert.equal(
 );
 assert.equal(contract.store_policy_id,ACCEPTED_STORE_POLICY_ID);
 assert.equal(contract.protected_authorization_slot_store_proven,false);
+assert.equal(contract.claim_record_semantic_revalidation_performed,false);
+assert.equal(contract.terminal_receipt_revalidation_performed,false);
+assert.equal(contract.publish_request_revalidation_performed,false);
 assert.equal(contract.authorization_slot_publication_performed,false);
 assert.equal(contract.durable_attempt_claim_performed,false);
 assert.equal(contract.attempt_claim_authorized,false);
@@ -240,6 +243,9 @@ for(const [key,expected] of Object.entries({
   authorization_slot_claim_record_independent_required:true,
   authorization_slot_publish_request_independent_required:true,
   protected_namespace_create_once_by_authorization_slot_required:true,
+  exact_claim_record_semantic_revalidation_before_slot_reservation_required:true,
+  exact_terminal_receipt_revalidation_before_slot_reservation_required:true,
+  exact_publish_request_revalidation_before_slot_reservation_required:true,
   authorization_slot_reservation_precedes_claim_success_required:true,
   exact_same_claim_slot_recovery_required:true,
   different_claim_in_occupied_slot_rejected_required:true,
@@ -257,6 +263,9 @@ for(const [key,expected] of Object.entries({
   source_only_contract:true,
   protected_authorization_slot_store_proven:false,
   protected_claim_record_origin_proven:false,
+  claim_record_semantic_revalidation_performed:false,
+  terminal_receipt_revalidation_performed:false,
+  publish_request_revalidation_performed:false,
   store_generation_revalidation_performed:false,
   authorization_slot_publication_performed:false,
   durable_attempt_claim_performed:false,
@@ -285,6 +294,9 @@ for(const required of [
   "authorization_slot_terminal_independent_required:true",
   "authorization_slot_store_generation_independent_required:true",
   "protected_namespace_create_once_by_authorization_slot_required:true",
+  "exact_claim_record_semantic_revalidation_before_slot_reservation_required:true",
+  "exact_terminal_receipt_revalidation_before_slot_reservation_required:true",
+  "exact_publish_request_revalidation_before_slot_reservation_required:true",
   "concurrent_same_authorization_different_terminal_at_most_one_success_required:true",
   "training_start_consumption_must_revalidate_unique_authorization_claim_required:true",
   'next_gate:"apollyon_durable_attempt_claim_store_service_source_implementation_v2"',
@@ -304,6 +316,9 @@ console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_V1_PROOF_GRE
 console.log("same_authorization_different_claim_same_slot=true");
 console.log("different_claim_in_occupied_slot_rejected=true");
 console.log("authorization_slot_store_generation_independent=true");
+console.log("claim_record_semantic_revalidation_performed=false");
+console.log("terminal_receipt_revalidation_performed=false");
+console.log("publish_request_revalidation_performed=false");
 console.log("migration_preserves_authorization_slots_required=true");
 console.log("authorization_slot_publication_performed=false");
 console.log("durable_attempt_claim_performed=false");
