@@ -31,12 +31,18 @@ INSTALLER_SOURCE = (
     ROOT
     / "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
 )
+PROTECTED_INSTALLER = (
+    ROOT
+    / "ops/precision/"
+    "void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+)
 
 MATERIALIZER_BLOB = "50e8e7ba06740af830cc3c9df34d0ef7739a7e67"
 LOCK_BLOB = "f8ff6fbb855aecafc329cd60622cf3af782745a3"
 CANDIDATE_BLOB = "1d15fccf256571c382a09d99c8545d5b24ad2077"
 LAUNCHER_SOURCE_BLOB = "5f1195d0c0a328be4334ad5b7f6e32b150776cab"
 INSTALLER_SOURCE_BLOB = "f3d6b1559be7490303cf36338c4bfa38fdaa390a"
+PROTECTED_INSTALLER_BLOB = "383b84e71b371de65579e4113469e86a59b807ab"
 
 LOCK_ID = (
     "voidbuye2dormantfirstentrylock1_"
@@ -93,12 +99,27 @@ lock_raw = direct(LOCK, 128 * 1024)
 candidate_raw = direct(CANDIDATE, 2 * 1024 * 1024)
 launcher_raw = direct(LAUNCHER_SOURCE, 2 * 1024 * 1024)
 installer_raw = direct(INSTALLER_SOURCE, 2 * 1024 * 1024)
+protected_installer_raw = direct(PROTECTED_INSTALLER, 2 * 1024 * 1024)
 
 assert git_blob(materializer_raw) == MATERIALIZER_BLOB
 assert git_blob(lock_raw) == LOCK_BLOB
 assert git_blob(candidate_raw) == CANDIDATE_BLOB
 assert git_blob(launcher_raw) == LAUNCHER_SOURCE_BLOB
 assert git_blob(installer_raw) == INSTALLER_SOURCE_BLOB
+assert git_blob(protected_installer_raw) == PROTECTED_INSTALLER_BLOB
+
+consumer_source = protected_installer_raw.decode("utf-8", "strict")
+for required in (
+    "LAUNCHER_BYTES = 731_072",
+    '"4fbf67bff503cead931b59e4364d66ccf2f2d6c0ee40182b6f9498cf96e8f51a"',
+    "launcher_raw = _read_exact_candidate(",
+    "expected_bytes=LAUNCHER_BYTES",
+    "expected_sha256=LAUNCHER_SHA256",
+    '"--launcher"',
+    "launcher_candidate_verified=true",
+    "launcher_execution_authorized=false",
+):
+    assert required in consumer_source, required
 
 lock = json.loads(lock_raw.decode("utf-8", "strict"))
 assert lock["lock_id"] == LOCK_ID
@@ -283,6 +304,7 @@ print("accepted_first_entry_lock_bound=true")
 print("candidate_tool_blob_bound=true")
 print("launcher_source_blob_bound=true")
 print("installer_source_blob_bound=true")
+print("protected_installer_consumer_bound=true")
 print("candidate_rederived_at_locked_merge=true")
 print("two_materializations_byte_identical=true")
 print("accepted_binary_bytes=" + str(EXPECTED_BYTES))
