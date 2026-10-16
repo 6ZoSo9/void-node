@@ -90,10 +90,10 @@ Authentication is bidirectional. The server validates the publisher before readi
 
 ## Store-generation history continuity
 
-Store replacement never resets replay history. Every generation has an exact content-addressed store-generation record, and every migration has an exact content-addressed continuity receipt binding:
+Store replacement never resets replay history. A non-genesis migration must advance to a different store-generation ID and a different retained root identity; re-labeling a replacement as the existing generation is a HOLD. Every generation has an exact content-addressed store-generation record, and every migration has an exact content-addressed continuity receipt binding:
 
-- predecessor generation-record ID plus old generation -> new generation;
-- old and new root identities;
+- predecessor generation-record ID plus **distinct** old generation -> new generation IDs;
+- distinct old and new root identities;
 - complete prior claim count;
 - deterministic SHA-256 over the complete prior claim set sorted by claim_record_id;
 - fixed claim-set ordering;

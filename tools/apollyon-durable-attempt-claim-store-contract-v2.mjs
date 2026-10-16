@@ -273,7 +273,9 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     migration_continuity_receipt_exact_schema_required:true,
     migration_continuity_receipt_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2,
     migration_old_new_generation_cross_binding_required:true,
+    migration_old_new_generation_distinct_required:true,
     migration_old_new_root_identity_cross_binding_required:true,
+    migration_old_new_root_identity_distinct_required:true,
     migration_continuity_binds_predecessor_generation_record_id_required:true,
     migration_complete_prior_claim_count_required:true,
     migration_complete_prior_claim_set_sha256_required:true,
@@ -964,7 +966,9 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
       !STORE_GENERATION_ID.test(receipt.old_store_generation_id)||
       !HASH64.test(receipt.old_root_identity_sha256)||
       !STORE_GENERATION_RECORD_ID.test(receipt.predecessor_generation_record_id)||
-      snapshot.predecessor_generation_record===null
+      snapshot.predecessor_generation_record===null||
+      receipt.old_store_generation_id===receipt.new_store_generation_id||
+      receipt.old_root_identity_sha256===receipt.new_root_identity_sha256
     ){
       fail("apollyon_claim_store_continuity_v2_migration_invalid");
     }

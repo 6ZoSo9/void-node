@@ -47,7 +47,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "9ffc1f58bd7b3c36148fac8af985a801e3f373e2",
+    "4bf474b8f282972b4dca4ab79eaf44260ce3ba54",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -888,6 +888,32 @@ function continuityReceipt(overrides={}){
   );
 }
 {
+  const sameGeneration=continuityReceipt({
+    new_store_generation_id:OLD_GENERATION_ID,
+  });
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
+      continuity_receipt:sameGeneration,
+      predecessor_generation_record:predecessor,
+      prior_claim_records:PRIOR_RECORDS,
+    }),
+    /migration_invalid/u,
+  );
+}
+{
+  const sameRoot=continuityReceipt({
+    new_root_identity_sha256:OLD_ROOT_SHA,
+  });
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
+      continuity_receipt:sameRoot,
+      predecessor_generation_record:predecessor,
+      prior_claim_records:PRIOR_RECORDS,
+    }),
+    /migration_invalid/u,
+  );
+}
+{
   const nonBoolean=continuityReceipt({genesis:0});
   assert.throws(
     ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
@@ -989,6 +1015,8 @@ for(const required of [
   'store_generation_record_content_addressed_id_required:true',
   'migration_continuity_receipt_exact_schema_required:true',
   'migration_continuity_binds_predecessor_generation_record_id_required:true',
+  'migration_old_new_generation_distinct_required:true',
+  'migration_old_new_root_identity_distinct_required:true',
   'migration_authorization_ids_unique_across_complete_history_required:true',
   'claim_request_method:"publish_claim_v2"',
   'claim_store_generation_identity_required:true',
@@ -1051,6 +1079,8 @@ console.log("claim_client_server_authentication_required=true");
 console.log("store_generation_record_content_addressed_id_required=true");
 console.log("migration_continuity_receipt_exact_schema_required=true");
 console.log("migration_continuity_binds_predecessor_generation_record_id_required=true");
+console.log("migration_old_new_generation_distinct_required=true");
+console.log("migration_old_new_root_identity_distinct_required=true");
 console.log("migration_authorization_ids_unique_across_complete_history_required=true");
 console.log("claim_store_generation_identity_required=true");
 console.log("same_path_replacement_must_be_new_generation_required=true");
