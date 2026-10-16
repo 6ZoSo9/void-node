@@ -28,7 +28,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
     "981935515e08634be96446e58922c16be56d33ad",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "4c662db61322ed3d9751a1e00804ef44faa0057d",
+    "f6dba9068d010f57d02f90dd9890c1a11a4b2848",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -207,6 +207,40 @@ assert.throws(
   /runner_receipt_invalid/u,
 );
 
+{
+  const r=receipt();
+  const goodBinding=r.binding;
+  const expectedReceipt={...r,binding:goodBinding};
+  const badBinding={
+    ...goodBinding,
+    state_root_identity_sha256:"0".repeat(64),
+  };
+  let bindingReads=0;
+  Object.defineProperty(r,"binding",{
+    enumerable:true,
+    configurable:true,
+    get(){
+      bindingReads+=1;
+      return bindingReads===1?goodBinding:badBinding;
+    },
+  });
+  const terminal=finalizeApollyonLiveSourceSessionTerminalReceiptV2({
+    runner_receipt:r,
+  });
+  assert.equal(bindingReads,1);
+  assert.equal(
+    terminal.state_root_identity_sha256,
+    goodBinding.state_root_identity_sha256,
+  );
+  assert.equal(
+    terminal.terminal_runner_receipt_sha256,
+    sha256(Buffer.from(
+      canonicalApollyonClaimContractJsonV1(expectedReceipt),
+      "utf8",
+    )),
+  );
+}
+
 for(const [key,expected] of Object.entries({
   source_only_finalizer:true,
   exact_terminal_runner_receipt_required:true,
@@ -246,7 +280,8 @@ for(const required of [
   'current_host_revalidation_required:true',
   'revalidation_identity_hashes_carried:true',
   'terminal_runner_receipt_digest_carried:true',
-  'const {receipt,binding}=validateRunnerReceipt(input.runner_receipt);',
+  'snapshot=structuredClone(input);',
+  'const {receipt,binding}=validateRunnerReceipt(snapshot.runner_receipt);',
   'canonical(receipt)',
   'protected_runner_origin_required:true',
   'protected_runner_origin_proven:false',
@@ -257,6 +292,7 @@ for(const forbidden of [
   "createPrivateKey","crypto.sign(","attempt_claimed:true",
   "training_execution_performed:true","candidate_weight_mutation_performed:true",
   "canonical(input.runner_receipt)",
+  "validateRunnerReceipt(input.runner_receipt)",
 ])assert.equal(source.includes(forbidden),false,forbidden);
 
 console.log("VOID_APOLLYON_LIVE_SOURCE_SESSION_TERMINAL_RECEIPT_V2_PROOF_GREEN");
@@ -269,6 +305,8 @@ console.log("training_generation_absent_after=true");
 console.log("current_host_revalidation_required=true");
 console.log("revalidation_identity_hashes_carried=true");
 console.log("terminal_runner_receipt_digest_carried=true");
+console.log("single_plain_input_snapshot_required=true");
+console.log("accessor_snapshot_drift_rejected=true");
 console.log("protected_runner_origin_required=true");
 console.log("protected_runner_origin_proven=false");
 console.log("live_host_observation_performed=false");
