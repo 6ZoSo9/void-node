@@ -533,6 +533,8 @@ assert.equal(candidate.build_recipe.compiler_source_post_revalidation_required, 
 assert.equal(candidate.build_recipe.compiler_snapshot_post_revalidation_required, true);
 assert.equal(candidate.build_recipe.build_input_snapshot_required, true);
 assert.equal(candidate.build_recipe.build_input_snapshot_root_custody_required, true);
+assert.equal(candidate.build_recipe.build_input_snapshot_privileged_creation_required, true);
+assert.equal(candidate.build_recipe.build_input_snapshot_privileged_population_required, true);
 assert.equal(candidate.build_recipe.build_input_snapshot_builder_uid_direct_mutation_denied_required, true);
 assert.equal(candidate.build_recipe.build_input_snapshot_post_revalidation_required, true);
 assert.equal(candidate.build_recipe.runtime_output_snapshot_required,true);
@@ -895,6 +897,21 @@ function rehashRuntimeOutputSnapshot(value) {
   );
 }
 
+for (const field of [
+  "build_input_snapshot_privileged_creation_required",
+  "build_input_snapshot_privileged_population_required",
+]) {
+  const weakened = structuredClone(candidate);
+  weakened.build_recipe[field] = false;
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
+        rehashCandidate(weakened),
+      ),
+    /legacy_history_nimo_bundle_build_recipe_invalid/u,
+  );
+}
+
 const canonical = canonicalLegacyHistoryNimoRuntimeBundleJsonV1(candidate);
 assert.equal(
   canonical,
@@ -928,6 +945,9 @@ console.log("compiler_snapshot_post_revalidated=true");
 console.log("compiler_aba_checkout_mutation_isolated=true");
 console.log("build_input_snapshot_bound=true");
 console.log("build_input_snapshot_root_custody=true");
+console.log("build_input_snapshot_privileged_creation_required=true");
+console.log("build_input_snapshot_privileged_population_required=true");
+console.log("build_input_recipe_privileged_flag_tamper_rejected=true");
 console.log("build_input_snapshot_builder_uid_direct_mutation_denied=true");
 console.log("build_input_snapshot_post_revalidated=true");
 console.log("build_input_source_aba_isolated=true");
