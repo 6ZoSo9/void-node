@@ -30,12 +30,29 @@ It:
 6. requires protected state
    `EPOCH2_LIVE_COMPOSITION_PROTECTED_INSTALL_GREEN`;
 7. snapshots root/native/runner/policy plus host tool/check-out generations;
-8. executes only the installed native binary's inert `--self-test`;
-9. repeats the full installed/host snapshot;
-10. executes the same inert self-test a second time;
-11. repeats the full snapshot again;
-12. requires all three snapshots and both complete self-test transcripts to be
+8. opens the installed native with `O_RDONLY|O_NOFOLLOW`, requires the
+   retained descriptor generation/hash to equal the accepted snapshot, and
+   executes only that retained FD through Linux `/proc/self/fd/<fd>` while
+   inheriting exactly that descriptor;
+9. revalidates the retained descriptor and visible native generation after the
+   child exits;
+10. repeats the full installed/host snapshot;
+11. repeats the same descriptor-bound inert self-test independently;
+12. repeats the full snapshot again;
+13. requires all three snapshots and both complete self-test transcripts to be
     identical.
+
+## Executed-generation binding
+
+The self-test is no longer reopened by its visible pathname after verification.
+Each run retains one exact native file descriptor, hashes that descriptor,
+executes through `/proc/self/fd/<fd>` with `pass_fds`, and then requires both
+the retained FD and visible pathname to remain the exact accepted generation.
+
+The focused proof swaps the visible pathname after descriptor retention and
+before exec. Qualification must HOLD on visible-generation drift; a pathname
+swap cannot be hidden by restoring a compatible self-test transcript between
+the surrounding snapshots.
 
 ## No live composition
 
