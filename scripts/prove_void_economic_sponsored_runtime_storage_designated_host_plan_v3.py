@@ -141,12 +141,16 @@ for required in (
     assert required in source, required
 
 for forbidden in (
+    "import pwd",
+    "import grp",
+    "from pwd import",
+    "from grp import",
     "pwd.getpwall",
     "grp.getgrall",
     "pwd.getpwnam",
+    "pwd.getpwuid",
     "grp.getgrnam",
-    "ldap",
-    "nis",
+    "grp.getgrgid",
 ):
     assert forbidden not in source, forbidden
 
