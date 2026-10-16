@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2,
@@ -93,6 +96,85 @@ assert.deepEqual(
   testOnlyLegacyHistoryNimoCompilerIdentityV2(),
   candidate.compiler,
 );
+
+{
+  const fixture = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-legacy-history-nimo-tsc-v2-"),
+  );
+  const compilerPaths = [
+    "package-lock.json",
+    "node_modules/typescript/package.json",
+    ...candidate.compiler.compiler_files.map((record) => record.path),
+  ];
+  try {
+    for (const relative of compilerPaths) {
+      const source = path.resolve(relative);
+      const target = path.join(fixture, relative);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(source, target);
+    }
+
+    assert.deepEqual(
+      testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
+      candidate.compiler,
+    );
+
+    const binTsc = path.join(
+      fixture,
+      "node_modules/typescript/bin/tsc",
+    );
+    const binOriginal = fs.readFileSync(binTsc, "utf8");
+    fs.writeFileSync(binTsc, binOriginal + "\n// v2-cli-byte-tamper\n", "utf8");
+    assert.notDeepEqual(
+      testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
+      candidate.compiler,
+      "CLI entry byte tamper must change compiler identity",
+    );
+    fs.writeFileSync(binTsc, binOriginal, "utf8");
+
+    const badBin = binOriginal.replace(
+      "../lib/tsc.js",
+      "../lib/not-tsc.js",
+    );
+    assert.notEqual(badBin, binOriginal);
+    fs.writeFileSync(binTsc, badBin, "utf8");
+    assert.throws(
+      () => testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
+      /legacy_history_nimo_bundle_typescript_bin_loader_edge_invalid/u,
+    );
+    fs.writeFileSync(binTsc, binOriginal, "utf8");
+
+    const libTsc = path.join(
+      fixture,
+      "node_modules/typescript/lib/tsc.js",
+    );
+    const loaderOriginal = fs.readFileSync(libTsc, "utf8");
+    fs.writeFileSync(
+      libTsc,
+      loaderOriginal + "\n// v2-loader-byte-tamper\n",
+      "utf8",
+    );
+    assert.notDeepEqual(
+      testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
+      candidate.compiler,
+      "CLI loader byte tamper must change compiler identity",
+    );
+    fs.writeFileSync(libTsc, loaderOriginal, "utf8");
+
+    const badLoader = loaderOriginal.replace(
+      "./_tsc.js",
+      "./not-_tsc.js",
+    );
+    assert.notEqual(badLoader, loaderOriginal);
+    fs.writeFileSync(libTsc, badLoader, "utf8");
+    assert.throws(
+      () => testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
+      /legacy_history_nimo_bundle_typescript_cli_loader_edge_invalid/u,
+    );
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+}
 assert.equal(
   candidate.build_recipe.dependency_install,
   "npm ci --ignore-scripts --no-audit --no-fund",
@@ -363,6 +445,9 @@ console.log("compiler_file_count=4");
 console.log("typescript_cli_entry_bound=true");
 console.log("typescript_cli_loader_bound=true");
 console.log("compiler_cli_edges_exact=true");
+console.log("typescript_cli_entry_fixture_tamper_rejected=true");
+console.log("typescript_cli_loader_fixture_tamper_rejected=true");
+console.log("typescript_cli_edge_fixture_tamper_rejected=true");
 console.log("third_party_runtime_packages=0");
 console.log("node_modules_runtime_files=0");
 console.log("rehashed_runtime_bytes_tamper_rejected=true");
