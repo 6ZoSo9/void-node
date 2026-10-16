@@ -49,11 +49,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
-            701aac2289c262ccf36c59e327056c6f5e33759a
+            fd7a06490ccf6fb14831d8b0372a892e2764c9dc
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
-            fe1a8cbfff3eebc79302297691c73a97dc554705
+            938ae777b1a441a77314778eb4ea750596615b8c
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-protected-install-v5.md)" = \
-            ea9597b2b74decb2b127957f1278581dc71b3b99
+            16e86a2ed5f9f68450149238faf40d86c85721fd
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json)" = \
             bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" = \
@@ -104,6 +104,9 @@ jobs:
             "post_predecessor_retention_rollback_exercised=true"
             "green_rollback_publication_receipt_truthful=true"
             "post_exchange_oserror_receipt_truthful=true"
+            "post_rollback_plan_binding_revalidation=true"
+            "node_drift_after_rollback_final_state_unverified=true"
+            "checkout_drift_after_rollback_final_state_unverified=true"
             "rollback_cleanup_ambiguity_exercised=true"
             "rollback_cleanup_publication_receipt_truthful=true"
             "rollback_failure_receipt_exercised=true"
