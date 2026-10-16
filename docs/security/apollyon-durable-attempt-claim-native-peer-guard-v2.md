@@ -47,7 +47,7 @@ It proves:
 7. a 65-byte response is rejected;
 8. EOF after only 63 bytes is rejected;
 9. an extra byte sent after a delay following a valid 64-byte prefix is rejected; and
-10. after an explicit synchronization proves the child has already sent the full 64-byte prefix, keeping the write half open without timely EOF is rejected.
+10. after an explicit synchronization proves the child has already sent the full 64-byte prefix, the child keeps its write half open until the parent observes the EOF deadline and terminates it; the missing EOF is therefore deterministically rejected rather than depending on a fixed sleep.
 
 The candidate has no live mode. Any invocation other than `--self-test`
 returns HOLD.

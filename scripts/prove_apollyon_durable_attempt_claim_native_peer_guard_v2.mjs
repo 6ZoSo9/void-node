@@ -50,6 +50,7 @@ for(const required of [
   "self_test_framing_no_eof",
   "pipe2(sync_pipe, O_CLOEXEC)",
   "pidfd_alive(pidfd) == 0 || errno != ESRCH",
+  "for (;;) pause();",
   "self_test_peer_and_exec_drift",
   'execl("/bin/sleep"',
   "source_candidate_self_test_only",
@@ -123,6 +124,7 @@ try{
     "response_delayed_extra_rejected=true",
     "response_no_eof_timeout_rejected=true",
     "response_exact_prefix_before_no_eof_timeout_proven=true",
+    "response_no_eof_peer_held_open_until_timeout_proven=true",
     "read_half_ack_after_peer_eof_proven=true",
     "cross_uid_host_qualification_performed=false",
     "host_installation=false",
@@ -182,6 +184,7 @@ console.log("stream_half_close_eof_self_test=true");
 console.log("short_eof_self_test=true");
 console.log("delayed_extra_self_test=true");
 console.log("exact_prefix_before_no_eof_timeout_self_test=true");
+console.log("no_eof_peer_held_open_until_timeout_self_test=true");
 console.log("live_mode=false");
 console.log("claim_store_mutation=false");
 console.log("durable_attempt_claim=false");

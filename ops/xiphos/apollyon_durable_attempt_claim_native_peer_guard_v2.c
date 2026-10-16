@@ -475,10 +475,7 @@ static int self_test_framing_no_eof(void) {
     } while (written < 0 && errno == EINTR);
     close(sync_pipe[1]);
     if (written != 1) _exit(11);
-    struct timespec delay = {.tv_sec = 0, .tv_nsec = 400000000L};
-    nanosleep(&delay, NULL);
-    close(pair[1]);
-    _exit(0);
+    for (;;) pause();
   }
 
   close(pair[1]);
@@ -638,6 +635,7 @@ static int self_test(void) {
   printf("response_delayed_extra_rejected=true\n");
   printf("response_no_eof_timeout_rejected=true\n");
   printf("response_exact_prefix_before_no_eof_timeout_proven=true\n");
+  printf("response_no_eof_peer_held_open_until_timeout_proven=true\n");
   printf("read_half_ack_after_peer_eof_proven=true\n");
   printf("cross_uid_host_qualification_performed=false\n");
   printf("host_installation=false\n");
