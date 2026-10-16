@@ -33,7 +33,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          materializer_head=75c3a88c573f51fa2c807367fa8ff71bd2e29094
+          materializer_head=07c3da420dc10219f8efdc98d35996fdc4b8a417
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$materializer_head" "$EXPECTED_HEAD"
 
