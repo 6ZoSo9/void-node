@@ -28,7 +28,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
     "981935515e08634be96446e58922c16be56d33ad",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "ed2b5e9c580b01a733356d4e182ec51b8fe78418",
+    "9173ad73ade6f57856de1a87b1923702595491f2",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -139,6 +139,16 @@ assert.equal(result.training_service_exact_dormant_after,true);
 assert.equal(result.training_generation_absent_after,true);
 assert.equal(result.inner_live_binding_alone_sufficient_for_executor,false);
 assert.equal(result.current_host_revalidation_required,true);
+assert.equal(result.revalidation_identity_hashes_carried,true);
+assert.equal(result.terminal_runner_receipt_digest_carried,true);
+assert.equal(result.state_root_identity_sha256,result.live_binding_id ? "e".repeat(64) : "");
+assert.equal(result.consumed_directory_identity_sha256,"f".repeat(64));
+assert.equal(result.socket_identity_sha256,"1".repeat(64));
+assert.equal(result.service_process_identity_sha256,"2".repeat(64));
+assert.equal(result.loader_environment_clean,true);
+assert.equal(result.live_service_source_identity_proven,true);
+assert.equal(result.same_live_custody_session_binding_proven,true);
+assert.match(result.terminal_runner_receipt_sha256,/^[0-9a-f]{64}$/u);
 assert.equal(result.protected_runner_origin_required,true);
 assert.equal(result.protected_runner_origin_proven,false);
 assert.equal(result.live_host_observation_performed,false);
@@ -226,6 +236,8 @@ for(const required of [
   'status:"live_source_session_terminal_shutdown_qualified_unclaimed"',
   'inner_live_binding_alone_sufficient_for_executor:false',
   'current_host_revalidation_required:true',
+  'revalidation_identity_hashes_carried:true',
+  'terminal_runner_receipt_digest_carried:true',
   'protected_runner_origin_required:true',
   'protected_runner_origin_proven:false',
   'next_gate:"durable_candidate_training_attempt_claim_executor_v2"',
@@ -243,6 +255,8 @@ console.log("terminal_shutdown_proven=true");
 console.log("training_service_exact_dormant_after=true");
 console.log("training_generation_absent_after=true");
 console.log("current_host_revalidation_required=true");
+console.log("revalidation_identity_hashes_carried=true");
+console.log("terminal_runner_receipt_digest_carried=true");
 console.log("protected_runner_origin_required=true");
 console.log("protected_runner_origin_proven=false");
 console.log("live_host_observation_performed=false");

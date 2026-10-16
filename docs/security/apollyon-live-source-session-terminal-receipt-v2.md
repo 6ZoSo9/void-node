@@ -32,6 +32,8 @@ training_service_exact_dormant_after=true
 training_generation_absent_after=true
 inner_live_binding_alone_sufficient_for_executor=false
 current_host_revalidation_required=true
+revalidation_identity_hashes_carried=true
+terminal_runner_receipt_digest_carried=true
 protected_runner_origin_required=true
 protected_runner_origin_proven=false
 live_host_observation_performed=false
@@ -46,7 +48,7 @@ The next source gate remains durable_candidate_training_attempt_claim_executor_v
 
 ## Current-host requirement
 
-This source finalizer qualifies the exact terminal receipt shape; it does not itself observe Xiphos or authenticate the caller as the protected installed runner. Accordingly protected_runner_origin_required remains true while protected_runner_origin_proven remains false. The terminal receipt is also not a perpetual host lease. A future durable executor must obtain the receipt through the reviewed protected-runner boundary and revalidate the required current host state immediately before its durable mutation and must fail closed if a new training generation or non-dormant unit state is present.
+This source finalizer qualifies the exact terminal receipt shape; it does not itself observe Xiphos or authenticate the caller as the protected installed runner. Accordingly protected_runner_origin_required remains true while protected_runner_origin_proven remains false. The terminal receipt is also not a perpetual host lease. The terminal result carries the reviewed binding's state-root, consumed-directory, socket and custody-service process identity hashes, plus a SHA-256 of the exact terminal runner receipt. A future durable executor must obtain the receipt through the reviewed protected-runner boundary and revalidate those expected identities and the required current host state immediately before its durable mutation and must fail closed if a new training generation or non-dormant unit state is present.
 
 No future executor may treat the enclosed inner live binding, by itself, as sufficient authority.
 
