@@ -245,8 +245,8 @@ with tempfile.TemporaryDirectory(
         import sys
         import time
 
-        marker = pathlib.Path({str("{str(invocation_marker)}")!r})
-        abnormal = pathlib.Path({str("{str(abnormal_control)}")!r})
+        marker = pathlib.Path({str(invocation_marker)!r})
+        abnormal = pathlib.Path({str(abnormal_control)!r})
         parser = argparse.ArgumentParser()
         mode = parser.add_mutually_exclusive_group(required=True)
         mode.add_argument("--plan", action="store_true")
