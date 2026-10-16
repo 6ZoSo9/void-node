@@ -20,7 +20,8 @@ This gate closes that wire-level ambiguity before
 
 The closure declares and the proof re-hashes these exact dependencies:
 
-- #3276 candidate blob `bbd02403695eecca3f07fd54e382b44b0d9b14e7`;
+- #3276 accepted repaired candidate head `68cbfbdd7a025e7a69403c9d072b0cbf70ceed0e`;
+- #3276 candidate blob `d67ef39c4cd034844fb0862e180de46ed4cd0c88`;
 - #3233 store-contract blob `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
 - V1 canonicalizer blob `f97fafb0148527ae3a954e2752faef8c7fc9e88e`.
 
@@ -92,7 +93,10 @@ This gate validates protocol shape only. It does not prove:
 - claim authorization;
 - training authorization.
 
-All such boundaries remain required by #3233/#3265/#3276.
+All such boundaries remain required by #3233/#3265/#3276. The repaired
+parent lineage additionally requires the fresh live-process credential and host
+PID/user-namespace evidence now bound by #3276; this envelope does not attempt
+to duplicate or weaken those host checks.
 
 ## Authority
 

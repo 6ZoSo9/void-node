@@ -22,8 +22,8 @@ the claim service, publisher, root revalidator, store writer, systemd unit or
 host installation.
 
 It is stacked on #3291 exact head
-`0c0ec29d06eb4ca16780cec3ba57244d35dc8577` and its proof pins the accepted
-handoff source blob `fab2b7699121b58010a5ed96ec50a47dd441726f` plus the
+`562139b1582bd6b926ac0c8ce67f06c30c2f23d0` and its proof pins the accepted
+handoff source blob `5d913eb08d79c76ed926d8b88be05b12f475abd5` plus the
 reviewed native kernel peer reference
 `d8b30ac499c3bb8a5d223dbc6be687dd175be611`.
 

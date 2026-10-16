@@ -14,8 +14,8 @@ It does not implement the claim service, publisher, systemd unit, AF_UNIX listen
 
 - accepted store-contract head: `fe7e1ad9b78a24b77a1657067e4d08f7c56a7731`
 - accepted store-contract blob: `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`
-- accepted host-plan head: `5693e0e060dd567acbbf7a1e44ab641efded4a98`
-- accepted planner blob: `03ea7df9b7a548c73ec1c715d716391be5d5d223`
+- accepted host-plan head: `db2ca3c90b0dc58eccc82b55b5b0fadcf82f6705`
+- accepted planner blob: `69db13fffaf1678da03b90f0fa14fd60c3c5c98c`
 - stable store policy:
   `apollyon_claim_store_policy_v2:e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137`
 
@@ -38,7 +38,32 @@ and fixed future paths:
 
 Numeric UID/GID values remain deliberately unresolved. A caller-supplied JSON receipt is explicitly insufficient. The future provisioning gate must re-execute the exact reviewed #3265 planner on Xiphos, revalidate machine/local-identity/trusted-parent state, recompute the content-addressed plan ID, and compare the exact fresh result before binding numeric identities.
 
-The candidate freezes the exact host-plan receipt boundary: marker/version/status, #3233 parent and policy, fixed names/paths, exact five selected-candidate keys, positive-safe-integer, pairwise-distinct, system-range and current-local-identity-absence requirements, #3265 source-generation head/planner/contract evidence, target-name/path absence, plan-only candidate status, recensus requirement, and every provisioning/store/claim/training flag that must still be false. A future implementation/install gate must validate that exact receipt and recensus local identity state immediately before create-only provisioning.
+The candidate freezes the exact host-plan receipt boundary: marker/version/status,
+#3233 parent and policy, fixed names/paths, exact five selected-candidate keys,
+positive-safe-integer, pairwise-distinct, system-range and current-local-identity
+absence requirements, #3265 source-generation head/planner/contract evidence,
+target-name/path absence, plan-only candidate status, and every
+provisioning/store/claim/training flag that must still be false.
+
+The repaired #3265 host-plan boundary is now explicit in this candidate too.
+Any later numeric-identity binding must require a fresh host-plan receipt proving:
+
+- selected candidate values are absent from current live-process credentials;
+- read-only root process-census authority is established under the reviewed
+  host PID namespace **and** reviewed host user namespace;
+- planner and PID 1 match both namespace leases;
+- procfs is authoritative/no-hidepid;
+- all four UID slots, all four GID slots and supplementary groups were consumed;
+- initial and final live-process censuses were performed;
+- selected candidates remain clear in the final live-process census;
+- the full live-process census is repeated immediately before provisioning;
+- the host user-namespace lease is repeated immediately before provisioning;
+- `candidate_slots_provisioning_ready=false` remains mandatory at this source
+  gate.
+
+A future implementation/install gate must validate that exact receipt and repeat
+both the local-identity and authoritative live-process/namespace censuses
+immediately before create-only provisioning.
 
 ## Complete policy projection
 
