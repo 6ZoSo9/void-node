@@ -1,0 +1,94 @@
+name: Buy VOID Epoch-2 dormant binder native materializer v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-materializer-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-materializer-v1.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          parent=206d3d61e5051704e9fd0c47068bcfe56a15c85f
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-native-materializer-v1.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-native-materializer-v1.md' \
+            'scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$parent" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py)" = c2bd803216daa4616adbf580c203400e57c316c3
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py)" = 28780ca169c71b97397e0fbbc65de89e904c9e1e
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-native-materializer-v1.md)" = c1bec010254406616deed2d6ddf2db08a665f078
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = 5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py)" = f97cb8aff642f2f3e138fe8e087eece22223b934
+          git diff --check "$parent" "$EXPECTED_HEAD"
+
+      - name: Static proof and self-test
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py | tee "$RUNNER_TEMP/proof.log"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_MATERIALIZER_V1_PROOF_GREEN' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'accepted_native_identity_required=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'create_only_output_required=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'destructive_output_cleanup_absent=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/proof.log"
+
+      - name: Two independent local materializations
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/a" "$RUNNER_TEMP/b"
+
+          python3 -I -B scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py \
+            --derive "$RUNNER_TEMP/a/native-preentry-v2" | tee "$RUNNER_TEMP/a.log"
+          python3 -I -B scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py \
+            --derive "$RUNNER_TEMP/b/native-preentry-v2" | tee "$RUNNER_TEMP/b.log"
+
+          cmp "$RUNNER_TEMP/a/native-preentry-v2" "$RUNNER_TEMP/b/native-preentry-v2"
+
+          for f in "$RUNNER_TEMP/a/native-preentry-v2" "$RUNNER_TEMP/b/native-preentry-v2"; do
+            test "$(stat -c %a "$f")" = 555
+            test "$(stat -c %s "$f")" = 726976
+            test "$(sha256sum "$f" | awk '{print $1}')" = ca078f3a81191847d5b0b75de99e4d8f7e389fd051afdb76338f28e157ae5a7c
+            readelf -h "$f" >/dev/null
+            ! readelf -l "$f" | grep -q 'INTERP'
+            ! readelf -d "$f" 2>/dev/null | grep -q '(NEEDED)'
+          done
+
+          grep -Fx 'candidate_report_sha256=f21445a333a2c05d132692c29aa929a1de727d6f6f35ce2edac600a7cccfa4a2' "$RUNNER_TEMP/a.log"
+          grep -Fx 'candidate_report_git_blob=4ba13c0b8a471d36c7644754e27ec0b8c07481ca' "$RUNNER_TEMP/a.log"
+          grep -Fx 'candidate_id=voidbuye2dormantbindercand2_8ee7517895544b58b4b383f0bd1b63b671a2b354656d28016eeae2b47185a20d' "$RUNNER_TEMP/a.log"
+          grep -Fx 'native_binary_sha256=ca078f3a81191847d5b0b75de99e4d8f7e389fd051afdb76338f28e157ae5a7c' "$RUNNER_TEMP/a.log"
+          grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/a.log"
+          grep -Fx 'native_or_binder_live_execution_authorized=false' "$RUNNER_TEMP/a.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/a.log"
+
+      - run: git diff --check
