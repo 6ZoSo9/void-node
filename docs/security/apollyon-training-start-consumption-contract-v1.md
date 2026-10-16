@@ -47,6 +47,7 @@ This source contract validates only that evidence shape. Protected source origin
 
 The deterministic candidate record binds:
 
+- a trainer-independent one-attempt consumption slot ID;
 - store policy, admission contract and store generation;
 - terminal receipt;
 - authorization ID;
@@ -59,11 +60,20 @@ The deterministic candidate record binds:
 
 The record has a content-addressed `apollyon_training_start_consumption_v1:<sha256>` identity.
 
+The separate `apollyon_training_start_slot_v1:<sha256>` identity is derived
+only from the exact one-attempt claim/store/authorization authority. It
+deliberately excludes trainer generation, PID/start ticks, UID/GID and trainer
+source identity. Two different blocked trainer generations for the same durable
+claim therefore derive different record IDs but the **same slot ID**.
+
 ## Replay and crash rule
 
-The future implementation must publish the record create-once in a protected namespace that the training identity cannot mutate. Persisted records must carry the exact accepted #3233 store-policy ID; a merely well-formed alternate policy ID is invalid.
+The future implementation must publish create-once **by the trainer-independent
+slot ID** in a protected namespace that the training identity cannot mutate.
+The full consumption-record ID is evidence stored inside that slot; it is not
+the namespace key. Persisted records must carry the exact accepted #3233 store-policy ID; a merely well-formed alternate policy ID is invalid.
 
-The source exports an exact persisted-record validator and a deterministic recovery classifier. Caller-supplied absence => `unconsumed_shape`, but `create_once_publication_authorized=false` until a future protected-store implementation performs the observation itself. Exact matching caller-supplied record => `already_consumed_shape`, never reusable admission. A different or malformed existing record is a fail-closed collision.\n\nAn exact pre-existing consumption is **already consumed**, not reusable training admission. A lost acknowledgement, repeated durable-claim success response, service restart, or client retry may not admit another trainer generation.
+The source exports an exact persisted-record validator and a deterministic recovery classifier. Recovery is bound to the exact expected slot ID. Caller-supplied absence => `unconsumed_shape`, but `create_once_publication_authorized=false` until a future protected-store implementation performs the observation itself. Exact matching caller-supplied record => `already_consumed_shape`, never reusable admission. A different valid trainer record in the same slot, a record from another slot, or a malformed existing record fails closed.\n\nAn exact pre-existing consumption is **already consumed**, not reusable training admission. A lost acknowledgement, repeated durable-claim success response, service restart, or client retry may not admit another trainer generation.
 
 Immediately before the later release, the implementation must revalidate the same bound trainer generation and its reviewed training-identity policy. If the protected record becomes durable but that generation disappears, drifts, or never crosses its later release gate, the attempt remains spent. Safety takes precedence over automatic retry; a fresh attempt requires fresh authorization through the reviewed claim chain.
 
@@ -77,6 +87,8 @@ protected_claim_record_reread_performed=false
 current_store_generation_revalidation_performed=false
 pretraining_generation_source_origin_proven=false
 training_start_consumption_performed=false
+trainer_independent_consumption_slot_qualified=true
+protected_namespace_keyed_by_consumption_slot_required=true
 existing_exact_consumption_reusable_admission=false
 automatic_retry_authorized=false
 protected_consumption_store_proven=false

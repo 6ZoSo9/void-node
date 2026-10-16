@@ -27,6 +27,8 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_AUTHORITY_V1 =
     exact_inert_pretraining_generation_required:true,
     pretraining_generation_source_origin_proven:false,
     training_start_consumption_create_once_required:true,
+    trainer_independent_consumption_slot_required:true,
+    protected_namespace_keyed_by_consumption_slot_required:true,
     training_start_consumption_performed:false,
     existing_exact_consumption_reusable_admission:false,
     lost_ack_second_start_forbidden:true,
@@ -71,6 +73,7 @@ const AUTH_ID=/^apollyon_authz_v1:[0-9a-f]{64}$/u;
 const CUSTODY_GENERATION_ID=/^apollyon_custody_generation_v1:[0-9a-f]{64}$/u;
 const CLAIM_RECORD_ID=/^apollyon_attempt_claim_record_v2:[0-9a-f]{64}$/u;
 const TRAINER_GENERATION_ID=/^apollyon_pretraining_generation_v1:[0-9a-f]{64}$/u;
+const CONSUMPTION_SLOT_ID=/^apollyon_training_start_slot_v1:[0-9a-f]{64}$/u;
 
 const TRAINER_GENERATION_KEYS=Object.freeze([
   "admission_blocked",
@@ -111,6 +114,7 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1 =
     "trainer_source_identity_sha256",
     "trainer_uid",
     "training_start_consumption_id",
+    "training_start_consumption_slot_id",
     "version",
   ]);
 
@@ -132,6 +136,26 @@ function clonePlain(value,code){
   const proto=Object.getPrototypeOf(copy);
   if(proto!==Object.prototype&&proto!==null)fail(code);
   return copy;
+}
+function trainingStartConsumptionSlotId(value){
+  const material={
+    marker:"VOID_APOLLYON_TRAINING_START_CONSUMPTION_SLOT_V1",
+    version:1,
+    store_policy_id:value.store_policy_id,
+    store_contract_id:value.store_contract_id,
+    store_generation_id:value.store_generation_id,
+    terminal_receipt_id:value.terminal_receipt_id,
+    authorization_id:value.authorization_id,
+    custody_generation_id:value.custody_generation_id,
+    custody_record_sha256:value.custody_record_sha256,
+    claim_record_id:value.claim_record_id,
+    claim_record_sha256:value.claim_record_sha256,
+    publish_request_sha256:value.publish_request_sha256,
+    attempt_limit:value.attempt_limit,
+    automatic_retry_authorized:value.automatic_retry_authorized,
+  };
+  return "apollyon_training_start_slot_v1:"+
+    sha256(Buffer.from(canonical(material),"utf8"));
 }
 
 export function validateApollyonPretrainingAdmissionGenerationV1(input){
@@ -200,11 +224,16 @@ export function validateApollyonTrainingStartConsumptionRecordV1(input){
     !HASH64.test(value.trainer_source_identity_sha256)||
     value.attempt_limit!==1||
     value.automatic_retry_authorized!==false||
+    !CONSUMPTION_SLOT_ID.test(value.training_start_consumption_slot_id)||
     !/^apollyon_training_start_consumption_v1:[0-9a-f]{64}$/u.test(
       value.training_start_consumption_id
     )
   ){
     fail("apollyon_training_start_v1_consumption_record_invalid");
+  }
+  const expectedSlot=trainingStartConsumptionSlotId(value);
+  if(value.training_start_consumption_slot_id!==expectedSlot){
+    fail("apollyon_training_start_v1_consumption_slot_id_invalid");
   }
   const material=structuredClone(value);
   delete material.training_start_consumption_id;
@@ -219,12 +248,23 @@ export function validateApollyonTrainingStartConsumptionRecordV1(input){
 export function classifyApollyonTrainingStartConsumptionRecoveryV1(input){
   const snapshot=clonePlain(input,"apollyon_training_start_v1_recovery_input_invalid");
   exactOwnKeys(
-    snapshot,["expected_consumption_record","observed_consumption_record"],
+    snapshot,[
+      "expected_consumption_record",
+      "observed_consumption_record",
+      "training_start_consumption_slot_id",
+    ],
     "apollyon_training_start_v1_recovery_input_invalid",
   );
+  if(!CONSUMPTION_SLOT_ID.test(snapshot.training_start_consumption_slot_id)){
+    fail("apollyon_training_start_v1_recovery_slot_invalid");
+  }
   const expected=validateApollyonTrainingStartConsumptionRecordV1(
     snapshot.expected_consumption_record
   );
+  if(expected.training_start_consumption_slot_id!==
+     snapshot.training_start_consumption_slot_id){
+    fail("apollyon_training_start_v1_expected_consumption_slot_mismatch");
+  }
   if(snapshot.observed_consumption_record===null){
     return Object.freeze({
       status:"unconsumed_shape",
@@ -239,6 +279,10 @@ export function classifyApollyonTrainingStartConsumptionRecoveryV1(input){
   const observed=validateApollyonTrainingStartConsumptionRecordV1(
     snapshot.observed_consumption_record
   );
+  if(observed.training_start_consumption_slot_id!==
+     snapshot.training_start_consumption_slot_id){
+    fail("apollyon_training_start_v1_observed_consumption_slot_mismatch");
+  }
   if(canonical(observed)!==canonical(expected)){
     fail("apollyon_training_start_v1_existing_consumption_collision");
   }
@@ -297,6 +341,22 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
   }
 
   const claimRecordSha256=sha256(Buffer.from(canonical(claim)+"\n","utf8"));
+  const slotAuthority={
+    store_policy_id:claim.store_policy_id,
+    store_contract_id:claim.store_contract_id,
+    store_generation_id:claim.store_generation_id,
+    terminal_receipt_id:claim.terminal_receipt_id,
+    authorization_id:claim.authorization_id,
+    custody_generation_id:claim.custody_generation_id,
+    custody_record_sha256:claim.custody_record_sha256,
+    claim_record_id:claim.claim_record_id,
+    claim_record_sha256:claimRecordSha256,
+    publish_request_sha256:snapshot.publish_request_sha256,
+    attempt_limit:1,
+    automatic_retry_authorized:false,
+  };
+  const training_start_consumption_slot_id=
+    trainingStartConsumptionSlotId(slotAuthority);
   const consumptionMaterial={
     marker:"VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_V1",
     version:1,
@@ -311,6 +371,7 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     claim_record_id:claim.claim_record_id,
     claim_record_sha256:claimRecordSha256,
     publish_request_sha256:snapshot.publish_request_sha256,
+    training_start_consumption_slot_id,
     trainer_generation_id:trainer.trainer_generation_id,
     trainer_boot_id_sha256:trainer.boot_id_sha256,
     trainer_pid:trainer.pid,
@@ -351,6 +412,7 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     store_generation_id:claim.store_generation_id,
     terminal_receipt_id:claim.terminal_receipt_id,
     trainer_generation_id:trainer.trainer_generation_id,
+    training_start_consumption_slot_id,
     consumption_record,
     durable_claim_success_shape_qualified:true,
     durable_claim_success_origin_proven:false,
@@ -363,6 +425,8 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     pretraining_generation_source_origin_proven:false,
     trainer_generation_must_remain_blocked_until_durable_consumption:true,
     training_start_consumption_create_once_required:true,
+    trainer_independent_consumption_slot_qualified:true,
+    protected_namespace_keyed_by_consumption_slot_required:true,
     training_start_consumption_performed:false,
     existing_exact_consumption_reusable_admission:false,
     lost_ack_second_start_forbidden:true,

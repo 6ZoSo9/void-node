@@ -31,7 +31,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "b75b617f62087b780e8d189ae9378323aef01e21",
+    "f4b5c984cc67de470df1af949723eeaefba0393f",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -141,6 +141,8 @@ assert.equal(result.pretraining_generation_shape_qualified,true);
 assert.equal(result.pretraining_generation_source_origin_proven,false);
 assert.equal(result.trainer_generation_must_remain_blocked_until_durable_consumption,true);
 assert.equal(result.training_start_consumption_create_once_required,true);
+assert.equal(result.trainer_independent_consumption_slot_qualified,true);
+assert.equal(result.protected_namespace_keyed_by_consumption_slot_required,true);
 assert.equal(result.training_start_consumption_performed,false);
 assert.equal(result.existing_exact_consumption_reusable_admission,false);
 assert.equal(result.lost_ack_second_start_forbidden,true);
@@ -168,6 +170,11 @@ assert.equal(record.claim_record_id,good.claim_record.claim_record_id);
 assert.equal(record.authorization_id,good.claim_record.authorization_id);
 assert.equal(record.custody_generation_id,good.claim_record.custody_generation_id);
 assert.equal(record.store_generation_id,good.claim_record.store_generation_id);
+assert.equal(record.training_start_consumption_slot_id,result.training_start_consumption_slot_id);
+assert.match(
+  record.training_start_consumption_slot_id,
+  /^apollyon_training_start_slot_v1:[0-9a-f]{64}$/u,
+);
 assert.equal(record.trainer_generation_id,good.trainer_generation.trainer_generation_id);
 assert.equal(record.attempt_limit,1);
 assert.equal(record.automatic_retry_authorized,false);
@@ -181,6 +188,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   classifyApollyonTrainingStartConsumptionRecoveryV1({
+    training_start_consumption_slot_id:record.training_start_consumption_slot_id,
     expected_consumption_record:record,
     observed_consumption_record:null,
   }),
@@ -196,6 +204,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   classifyApollyonTrainingStartConsumptionRecoveryV1({
+    training_start_consumption_slot_id:record.training_start_consumption_slot_id,
     expected_consumption_record:record,
     observed_consumption_record:structuredClone(record),
   }),
@@ -218,10 +227,48 @@ assert.deepEqual(
     sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(material),"utf8"));
   assert.throws(
     ()=>classifyApollyonTrainingStartConsumptionRecoveryV1({
+      training_start_consumption_slot_id:record.training_start_consumption_slot_id,
       expected_consumption_record:record,
       observed_consumption_record:bad,
     }),
     /existing_consumption_collision/u,
+  );
+}
+{
+  const second=input();
+  second.trainer_generation.pid=4343;
+  second.trainer_generation.process_start_time_ticks="123457";
+  const trainerMaterial=structuredClone(second.trainer_generation);
+  delete trainerMaterial.trainer_generation_id;
+  second.trainer_generation.trainer_generation_id=
+    "apollyon_pretraining_generation_v1:"+
+    sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(trainerMaterial),"utf8"));
+  const secondResult=qualifyApollyonTrainingStartConsumptionContractV1(second);
+  assert.equal(secondResult.training_start_consumption_slot_id,result.training_start_consumption_slot_id);
+  assert.notEqual(
+    secondResult.consumption_record.training_start_consumption_id,
+    record.training_start_consumption_id,
+  );
+  assert.throws(
+    ()=>classifyApollyonTrainingStartConsumptionRecoveryV1({
+      training_start_consumption_slot_id:record.training_start_consumption_slot_id,
+      expected_consumption_record:secondResult.consumption_record,
+      observed_consumption_record:record,
+    }),
+    /existing_consumption_collision/u,
+  );
+}
+{
+  const bad=structuredClone(record);
+  bad.training_start_consumption_slot_id=
+    "apollyon_training_start_slot_v1:"+"0".repeat(64);
+  const material=structuredClone(bad);
+  delete material.training_start_consumption_id;
+  bad.training_start_consumption_id="apollyon_training_start_consumption_v1:"+
+    sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(material),"utf8"));
+  assert.throws(
+    ()=>validateApollyonTrainingStartConsumptionRecordV1(bad),
+    /consumption_slot_id_invalid/u,
   );
 }
 {
@@ -315,6 +362,8 @@ for(const [key,expected] of Object.entries({
   exact_inert_pretraining_generation_required:true,
   pretraining_generation_source_origin_proven:false,
   training_start_consumption_create_once_required:true,
+  trainer_independent_consumption_slot_required:true,
+  protected_namespace_keyed_by_consumption_slot_required:true,
   training_start_consumption_performed:false,
   existing_exact_consumption_reusable_admission:false,
   lost_ack_second_start_forbidden:true,
@@ -346,6 +395,8 @@ for(const required of [
   "existing_exact_consumption_reusable_admission:false",
   "existing_consumption_collision",
   "lost_ack_second_start_forbidden:true",
+  "trainer_independent_consumption_slot_qualified:true",
+  "protected_namespace_keyed_by_consumption_slot_required:true",
   "trainer_generation_must_remain_blocked_until_durable_consumption:true",
   'next_gate:"apollyon_training_start_consumption_implementation_v1"',
 ])assert.equal(source.includes(required),true,required);
@@ -360,6 +411,9 @@ console.log("VOID_APOLLYON_TRAINING_START_CONSUMPTION_V1_PROOF_GREEN");
 console.log("durable_claim_success_is_bearer_training_authority=false");
 console.log("exact_inert_pretraining_generation_required=true");
 console.log("training_start_consumption_create_once_required=true");
+console.log("trainer_independent_consumption_slot_required=true");
+console.log("protected_namespace_keyed_by_consumption_slot_required=true");
+console.log("two_trainer_same_slot_collision_closed=true");
 console.log("existing_exact_consumption_reusable_admission=false");
 console.log("recovery_unconsumed_vs_already_consumed_closed=true");
 console.log("recovery_classifier_protected_origin_proven=false");
