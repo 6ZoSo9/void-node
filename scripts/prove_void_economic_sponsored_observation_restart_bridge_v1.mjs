@@ -26,7 +26,7 @@ import {
 const ROOT=process.cwd();
 const EXPECTED_BLOBS=Object.freeze({
   "tools/void-economic-sponsored-observation-restart-bridge-v1.mjs":
-    "22b39efc4f5a29713813eb357ae2c241ac2bd45d",
+    "51c0edf3d2a8aaef297392b9f2dc8c89ab48a8cb",
   "tools/void-economic-sponsored-host-observation-time-store-binding-v1.mjs":
     "7cfba597ddf9667021b662ce3e4ac8c0c3f1103b",
   "tools/void-economic-sponsored-host-trusted-clock-binding-v1.mjs":
@@ -319,6 +319,36 @@ assert.throws(
 );
 
 {
+  let nestedReads=0;
+  const nestedSample={
+    boot_id:currentBinding.observation_sample.boot_id,
+    process_start_ticks:currentBinding.observation_sample.process_start_ticks,
+    wall_time_ms:currentBinding.observation_sample.wall_time_ms,
+  };
+  Object.defineProperty(nestedSample,"monotonic_ns",{
+    enumerable:true,
+    get(){
+      nestedReads+=1;
+      return currentBinding.observation_sample.monotonic_ns;
+    },
+  });
+  const nestedAccessorBinding={
+    ...currentBinding,
+    observation_sample:nestedSample,
+  };
+  assert.throws(
+    ()=>qualifyVoidEconomicSponsoredObservationRestartBridgeV1(input({
+      priorBinding,
+      currentBinding:nestedAccessorBinding,
+      receipt,
+      composition,
+    })),
+    /sponsored_restart_bridge_current_host_binding_invalid/u,
+  );
+  assert.equal(nestedReads,0);
+}
+
+{
   const bad={};
   let reads=0;
   Object.defineProperty(bad,"prior_durable_receipt",{
@@ -367,6 +397,7 @@ console.log("VOID_ECONOMIC_SPONSORED_OBSERVATION_RESTART_BRIDGE_V1_PROOF_GREEN")
 console.log("prior_durable_head_independently_inspected=true");
 console.log("prior_composition_receipt_bound=true");
 console.log("prior_host_binding_bound=true");
+console.log("nested_host_sample_accessor_rejected_without_read=true");
 console.log("same_boot_restart_required=true");
 console.log("changed_process_generation_required=true");
 console.log("boot_relative_time_forward_required=true");
