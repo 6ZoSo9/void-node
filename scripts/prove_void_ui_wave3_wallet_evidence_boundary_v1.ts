@@ -1744,4 +1744,3 @@ console.log(`wave3_manifest_sha256=${sha256File(wave3ManifestPath)}`);
 console.log(`wave4_manifest_sha256=${sha256File(wave4ManifestPath)}`);
 console.log("manifest_refresh_required=true");
 console.log("authority_added=false");
-

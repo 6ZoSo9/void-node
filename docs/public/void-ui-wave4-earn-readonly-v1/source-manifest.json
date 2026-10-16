@@ -67,8 +67,8 @@
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest would create an unstable self-reference.",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "053c332d77fd2179046ab0c0638e5915e58cf331455134c8f8e1ccfd3e2e6340",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "1065fffd998c2bb46c28dbb9ef40e8c999dfa1444a3b66394971eb20358b2b02",
-    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "555bc1bf03d16b4a3aabdb18d690b4630331f8e0263b67874df1bceefb71a32a",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "9548e8e5b85de7fa44530b1071d4116f9a601d46e768fb00cb3e647da8ab7889",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "75e3b11ec5b6813f7e78420270ef932e321432559e2294241b995fd5a0daea7e",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5d490dff4febff19d58ea2ab1e856219e0cd38d7eca14b81dacd658116020886",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
@@ -77,7 +77,7 @@
     "public/void-app-wave1-v1/assets/js/earn-live.js": "1ec51efe296a1d1a9817eb8e9e0cd7b022ebaceb9de9fff2ae00280fba0f13a2",
     "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
     "public/void-app-wave1-v1/index.html": "d629ab00117ad6534651d66789887de2d9a0d101b7bb4b7d29eb0816acc37743",
-    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "f2af91b8d27ac25137e0d68c50375aaf0d650851eeef2473e9e5c8f4b5dbc5b5",
+    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "c8e3d604f0dd0edeb09af14a94635a4f1d5b5d39fd846ce40228922635464ad4",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "c3280ee022e07dbb8a9c8fa35156563358a786477b9c3e28a0ecc3b1706813d1"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
@@ -123,4 +123,3 @@
   "home_stale_evidence_clear_refresh_date": "2026-10-15",
   "wallet_loopback_peer_coherence_refresh_date": "2026-10-16"
 }
-
