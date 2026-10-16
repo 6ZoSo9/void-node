@@ -19,6 +19,7 @@ import {
 } from "../tools/apollyon-training-start-consumption-contract-v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const WORKFLOW=path.join(ROOT,".github/workflows/apollyon-training-start-consumption-contract-v1.yml");
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
 function gitBlob(bytes){
   return crypto.createHash("sha1")
@@ -35,6 +36,28 @@ for(const [relative,expected] of Object.entries({
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
+
+const workflow=fs.readFileSync(WORKFLOW,"utf8");
+const expectedTriggerPaths=[
+  "tools/apollyon-training-start-consumption-contract-v1.mjs",
+  "scripts/prove_apollyon_training_start_consumption_contract_v1.mjs",
+  "docs/security/apollyon-training-start-consumption-contract-v1.md",
+  ".github/workflows/apollyon-training-start-consumption-contract-v1.yml",
+  "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs",
+  "tools/apollyon-live-source-session-terminal-receipt-v2.mjs",
+  "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
+];
+const triggerPaths=[...workflow.matchAll(/^      - "([^"]+)"$/gmu)].map(m=>m[1]);
+assert.equal(triggerPaths.length,expectedTriggerPaths.length*2,"unexpected trigger path count");
+assert.deepEqual([...new Set(triggerPaths)].sort(),[...expectedTriggerPaths].sort(),"trigger closure mismatch");
+for(const dependency of expectedTriggerPaths){
+  assert.equal(triggerPaths.filter(value=>value===dependency).length,2,"PR/push trigger parity missing for "+dependency);
+}
+assert.equal(workflow.includes("pull_request:"),true);
+assert.equal(workflow.includes("push:"),true);
+assert.equal(workflow.includes("PUSH_BEFORE:"),true);
+assert.equal(workflow.includes("github.event.before"),true);
 
 const policy=qualifyApollyonDurableAttemptClaimStorePolicyV2();
 assert.equal(
@@ -422,4 +445,5 @@ console.log("lost_ack_second_start_forbidden=true");
 console.log("training_start_consumption_performed=false");
 console.log("bound_trainer_generation_revalidation_required_before_release=true");
 console.log("bound_trainer_generation_loss_after_consumption_forfeits_attempt=true");
+console.log("transitive_workflow_trigger_closure=true");
 console.log("training_execution=false");

@@ -8,6 +8,8 @@ on:
       - "docs/security/apollyon-training-start-consumption-contract-v1.md"
       - ".github/workflows/apollyon-training-start-consumption-contract-v1.yml"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
       - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
   push:
     branches: [main]
@@ -17,6 +19,8 @@ on:
       - "docs/security/apollyon-training-start-consumption-contract-v1.md"
       - ".github/workflows/apollyon-training-start-consumption-contract-v1.yml"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
       - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
   workflow_dispatch:
 
