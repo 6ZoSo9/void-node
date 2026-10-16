@@ -127,8 +127,8 @@ function compareText(a,b){ return a<b?-1:a>b?1:0; }
 
 function exactSnapshot(value,keys,reason){
   if(
-    value===null || typeof value!=="object" || Array.isArray(value) ||
-    utilTypes.isProxy(value)
+    value===null || typeof value!=="object" || utilTypes.isProxy(value) ||
+    Array.isArray(value)
   ) fail(reason);
   const proto=Object.getPrototypeOf(value);
   if(proto!==Object.prototype && proto!==null) fail(reason);
