@@ -109,6 +109,7 @@ jobs:
             'prior_durable_head_independently_inspected=true' \
             'prior_composition_receipt_bound=true' \
             'prior_host_binding_bound=true' \
+            'nested_host_sample_accessor_rejected_without_read=true' \
             'same_boot_restart_required=true' \
             'changed_process_generation_required=true' \
             'boot_relative_time_forward_required=true' \
