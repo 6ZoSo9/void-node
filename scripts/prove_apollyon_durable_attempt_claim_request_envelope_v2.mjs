@@ -28,7 +28,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
-    "d29d434e8e7aaa0b707ed617ce054cd41a5f264f",
+    "498dec49189d1ceeda2702cf608d423a6fd1450b",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -99,8 +99,10 @@ assert.equal(validated.claim_record.claim_record_id,positive.claim_record.claim_
 
 const bytes=serializeApollyonDurableAttemptClaimPublishRequestV2(positive);
 assert.deepEqual(bytes,canonicalBytes(validated));
-const parsed=parseApollyonDurableAttemptClaimPublishRequestBytesV2(bytes);
+const parseInput=Buffer.from(bytes);
+const parsed=parseApollyonDurableAttemptClaimPublishRequestBytesV2(parseInput);
 assert.deepEqual(parsed.request,validated);
+assert.equal(Object.isFrozen(parsed),true);
 assert.equal(Object.isFrozen(parsed.request),true);
 assert.equal(Object.isFrozen(parsed.request.claim_record),true);
 assert.throws(
@@ -110,7 +112,29 @@ assert.throws(
 );
 assert.equal(parsed.request.claim_record.store_contract_id,STORE_CONTRACT_ID);
 assert.equal(parsed.publish_request_sha256,sha256(bytes));
-assert.deepEqual(parsed.canonical_request_bytes,bytes);
+assert.equal(typeof parsed.canonical_request_utf8_lf,"string");
+assert.equal(parsed.canonical_request_utf8_lf,bytes.toString("utf8"));
+assert.equal(
+  sha256(Buffer.from(parsed.canonical_request_utf8_lf,"utf8")),
+  parsed.publish_request_sha256,
+);
+assert.throws(
+  ()=>{parsed.canonical_request_utf8_lf="tampered\n";},
+  TypeError,
+);
+parseInput[0]^=0xff;
+assert.equal(parsed.canonical_request_utf8_lf,bytes.toString("utf8"));
+assert.equal(
+  sha256(Buffer.from(parsed.canonical_request_utf8_lf,"utf8")),
+  parsed.publish_request_sha256,
+);
+const reconstructed=Buffer.from(parsed.canonical_request_utf8_lf,"utf8");
+reconstructed[0]^=0xff;
+assert.notEqual(sha256(reconstructed),parsed.publish_request_sha256);
+assert.equal(
+  sha256(Buffer.from(parsed.canonical_request_utf8_lf,"utf8")),
+  parsed.publish_request_sha256,
+);
 
 for(const [label,mutate,pattern] of [
   ["marker",x=>{x.marker="VOID_APOLLYON_OTHER";},/envelope_invalid/u],
@@ -252,6 +276,7 @@ for(const forbidden of [
   "training_execution_authorized:true","training_execution:true",
   "candidate_weight_mutation:true","filesystem_write:true",
   "service_action:true","funds_movement:true",
+  "canonical_request_bytes:",
 ])assert.equal(source.includes(forbidden),false,forbidden);
 
 console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_ENVELOPE_V2_PROOF_GREEN");

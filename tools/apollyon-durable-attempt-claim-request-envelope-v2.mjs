@@ -205,13 +205,14 @@ export function parseApollyonDurableAttemptClaimPublishRequestBytesV2(input){
   try{raw=JSON.parse(text.slice(0,-1));}
   catch{fail("apollyon_claim_request_v2_json_invalid");}
   const normalized=validateApollyonDurableAttemptClaimPublishRequestV2(raw);
-  const canonicalBytes=Buffer.from(canonical(normalized)+"\n","utf8");
+  const canonicalText=canonical(normalized)+"\n";
+  const canonicalBytes=Buffer.from(canonicalText,"utf8");
   if(!bytes.equals(canonicalBytes)){
     fail("apollyon_claim_request_v2_noncanonical");
   }
   return Object.freeze({
     request:normalized,
     publish_request_sha256:sha256(bytes),
-    canonical_request_bytes:Buffer.from(bytes),
+    canonical_request_utf8_lf:canonicalText,
   });
 }

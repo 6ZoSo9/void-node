@@ -69,6 +69,12 @@ The one accepted request byte representation is:
 `publish_request_sha256` is the lowercase 64-hex SHA-256 digest of those exact
 framed bytes, including the final LF.
 
+The parser exposes this validated evidence as immutable
+`canonical_request_utf8_lf` text rather than a mutable `Buffer`.
+A downstream consumer that needs bytes must encode that string as UTF-8; mutating
+such a reconstructed buffer cannot alter the parser's retained evidence or
+`publish_request_sha256`.
+
 This mirrors the reviewed Apollyon AF_UNIX custody protocol and removes
 implementation-dependent whitespace/framing choices.
 
