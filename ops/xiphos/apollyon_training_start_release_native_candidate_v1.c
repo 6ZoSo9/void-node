@@ -100,6 +100,7 @@ typedef enum {
     FRAME_EXTRA = 2,
     FRAME_TIMEOUT = 3,
     FRAME_IO = 4,
+    FRAME_MISMATCH = 5,
 } frame_result_v1;
 
 static void hold(const char *reason) {
@@ -303,7 +304,7 @@ static frame_result_v1 read_frame_then_eof(
         if (got == 0) return FRAME_SHORT;
         offset += (size_t)got;
     }
-    if (memcmp(observed, expected, sizeof(observed)) != 0) return FRAME_IO;
+    if (memcmp(observed, expected, sizeof(observed)) != 0) return FRAME_MISMATCH;
 
     for (;;) {
         int wait = remaining_ms(deadline);
@@ -832,6 +833,13 @@ static int selftest_frames(void) {
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     unsigned char frame[64];
     if(!expected_frame(binding,frame)) return 10;
+    static const unsigned char expected_binding_sha256[32] = {
+        0x01,0xe5,0xd5,0xce,0xea,0x22,0xcc,0x51,
+        0x74,0x07,0xe4,0xf3,0x03,0x81,0x6b,0x6d,
+        0xd4,0x0d,0xca,0xf7,0x02,0x85,0xa9,0xaa,
+        0x90,0x74,0x2d,0xc6,0x81,0xe4,0x13,0x55
+    };
+    if(memcmp(frame+32U,expected_binding_sha256,32U)!=0) return 33;
 
     int p[2];
     if(pipe2(p,O_CLOEXEC)!=0) return 11;
@@ -960,6 +968,7 @@ static int self_test(void) {
     puts("release_fd_read_only_pipe_required=true");
     puts("release_fd_anonymous_pipe_identity_required=true");
     puts("exact_64_byte_frame_then_eof_required=true");
+    puts("release_binding_sha256_known_vector=true");
     puts("short_frame_rejected=true");
     puts("extra_frame_rejected=true");
     puts("missing_eof_rejected=true");
@@ -1089,7 +1098,8 @@ static void run_gate(
         if(fr==FRAME_SHORT) hold("release_native_frame_short");
         if(fr==FRAME_EXTRA) hold("release_native_frame_extra");
         if(fr==FRAME_TIMEOUT) hold("release_native_frame_or_eof_timeout");
-        hold("release_native_frame_io_or_digest_mismatch");
+        if(fr==FRAME_MISMATCH) hold("release_native_frame_digest_mismatch");
+        hold("release_native_frame_io_failed");
     }
 
     if(!revalidate_proc_context(&proc)) {
