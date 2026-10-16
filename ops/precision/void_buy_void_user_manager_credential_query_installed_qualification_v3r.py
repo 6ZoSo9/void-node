@@ -562,6 +562,15 @@ def _require_security_composition(
         raise QualificationError("v6_security_authority_invalid")
 
 
+def _collect_v6_security(v6: Any) -> dict[str, Any]:
+    try:
+        return v6.collect()
+    except v6.QualificationError as exc:
+        raise QualificationError(
+            "v6_security_qualification_hold:" + str(exc)
+        ) from exc
+
+
 def collect() -> dict[str, Any]:
     if os.geteuid() != 0:
         raise QualificationError("root_required_for_live_query")
@@ -572,7 +581,7 @@ def collect() -> dict[str, Any]:
     first, first_sha = run_credential_query(replacement)
     middle_before_security = installed_generation_snapshot(replacement)
 
-    security = v6.collect()
+    security = _collect_v6_security(v6)
 
     middle_after_security = installed_generation_snapshot(replacement)
     second, second_sha = run_credential_query(replacement)
