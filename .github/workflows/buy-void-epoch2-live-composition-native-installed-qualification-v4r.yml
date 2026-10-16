@@ -38,7 +38,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          installer_head=ae5cdeee625d05d28ba2130c032e745b09142ead
+          installer_head=2065b3e5dab9d2add6c1ef29926b02f458499d43
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$installer_head" "$EXPECTED_HEAD"
 
