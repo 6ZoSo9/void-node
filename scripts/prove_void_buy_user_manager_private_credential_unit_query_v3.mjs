@@ -11,7 +11,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="ops/precision/void_buy_void_user_manager_private_credential_unit_query_v3.c";
 const V2="ops/precision/void_buy_void_user_manager_private_credential_unit_query_v2.c";
 const PEER="ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c";
-const SOURCE_BLOB="e131d5c4c09ed1036fadf89f6d7e1c64c2ea5917";
+const SOURCE_BLOB="fb2ecf7e3fbf4797d53f78369c13e84b792eead4";
 const V2_BLOB="39b292a6353cc36bcc07a5425ff2c736372a7c83";
 const PEER_BLOB="d8b30ac499c3bb8a5d223dbc6be687dd175be611";
 
@@ -52,6 +52,7 @@ for(const required of [
   'complete_loadcredential_set_fingerprint=true',
   'same_length_set_substitution_changes_fingerprint=true',
   'unrelated_credential_paths_emitted=false',
+  'transcript_non_disclosure_executable=true',
   'credential_contents_read=false',
 ]){
   assert.ok(source.includes(required),required);
@@ -124,6 +125,7 @@ try{
     "complete_loadcredential_set_fingerprint=true",
     "same_length_set_substitution_changes_fingerprint=true",
     "unrelated_credential_paths_emitted=false",
+    "transcript_non_disclosure_executable=true",
     "credential_contents_read=false",
     "binary_acceptance=false",
     "live_query_authorized=false",
@@ -147,6 +149,7 @@ console.log("complete_dropin_set_sha256_emitted=true");
 console.log("complete_loadcredential_set_sha256_emitted=true");
 console.log("same_length_set_substitution_detectable=true");
 console.log("unrelated_credential_paths_emitted=false");
+console.log("transcript_non_disclosure_executable=true");
 console.log("credential_contents_read=false");
 console.log("binary_acceptance=false");
 console.log("protected_install_authorized=false");
