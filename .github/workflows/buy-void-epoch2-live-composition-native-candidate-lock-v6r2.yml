@@ -13,7 +13,8 @@ on:
       - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
       - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
       - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
-      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"\n      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
   push:
     branches: [main]
     paths:
@@ -27,7 +28,8 @@ on:
       - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
       - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
       - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
-      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"\n      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
   workflow_dispatch:
 
 permissions:
@@ -50,9 +52,11 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          candidate_head=26a06fe84f93ba48107809a9bd14263c34fa961e\n          lock_base=01dfaa59faa3e9779c6f4fd4cce4a470002954db
+          candidate_head=26a06fe84f93ba48107809a9bd14263c34fa961e
+          lock_base=01dfaa59faa3e9779c6f4fd4cce4a470002954db
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git merge-base --is-ancestor "$candidate_head" "$lock_base"\n          git merge-base --is-ancestor "$lock_base" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$candidate_head" "$lock_base"
+          git merge-base --is-ancestor "$lock_base" "$EXPECTED_HEAD"
 
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
@@ -120,7 +124,7 @@ jobs:
             grep -Fx "$marker" "$out"
           done
 
-      - name: Rederive and verify exact V6 acceptance lock
+      - name: Rederive and verify exact V6R2 acceptance lock
         run: |
           set -euo pipefail
           proof=scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v6r2.py
