@@ -822,6 +822,93 @@ static int same_process_identity(
       a->start_ticks == b->start_ticks;
 }
 
+static int emit_credential_transcript(
+    FILE *out,
+    uid_t uid,
+    const char *unit,
+    const struct proc_identity *manager,
+    const struct unit_observation *unit_observed,
+    const struct proc_identity *service,
+    const struct credential_observation *credential) {
+  if (!out || !unit || !manager || !unit_observed || !service || !credential)
+    return -1;
+
+  char dropin_set_sha256[65];
+  char load_credential_set_sha256[65];
+  credential_sha256_hex(
+      (const unsigned char *)credential->dropins.canonical_paths,
+      credential->dropins.canonical_bytes,
+      dropin_set_sha256);
+  credential_sha256_hex(
+      (const unsigned char *)credential->canonical_load_credentials,
+      credential->load_credential_canonical_bytes,
+      load_credential_set_sha256);
+
+  if (fprintf(out, "%s_GREEN\n", MARKER) < 0 ||
+      fprintf(out, "runtime_uid=%lu\n", (unsigned long)uid) < 0 ||
+      fprintf(out, "unit=%s\n", unit) < 0 ||
+      fprintf(out, "manager_pid=%ld\n", (long)manager->pid) < 0 ||
+      fprintf(
+          out, "manager_start_ticks=%llu\n",
+          manager->start_ticks) < 0 ||
+      fprintf(out, "private_socket_peer_authenticated=true\n") < 0 ||
+      fprintf(out, "same_retained_private_connection=true\n") < 0 ||
+      fprintf(out, "public_user_bus_used=false\n") < 0 ||
+      fprintf(out, "LoadState=%s\n", unit_observed->load_state) < 0 ||
+      fprintf(out, "ActiveState=%s\n", unit_observed->active_state) < 0 ||
+      fprintf(out, "SubState=%s\n", unit_observed->sub_state) < 0 ||
+      fprintf(out, "MainPID=%u\n", unit_observed->main_pid) < 0 ||
+      fprintf(
+          out, "service_start_ticks=%llu\n",
+          service->start_ticks) < 0 ||
+      fprintf(out, "NeedDaemonReload=no\n") < 0 ||
+      fprintf(out, "FragmentPath=%s\n", credential->fragment_path) < 0 ||
+      fprintf(out, "DropInPathCount=%zu\n", credential->dropins.count) < 0 ||
+      fprintf(
+          out, "CredentialDropInMatchCount=%zu\n",
+          credential->dropins.credential_match_count) < 0 ||
+      fprintf(
+          out, "DropInPathsCanonicalBytes=%zu\n",
+          credential->dropins.canonical_bytes) < 0 ||
+      fprintf(out, "DropInPathsSetSha256=%s\n", dropin_set_sha256) < 0 ||
+      fprintf(
+          out, "DropInPath=%s\n",
+          credential->dropins.credential_dropin_path) < 0 ||
+      fprintf(
+          out, "LoadCredentialCount=%zu\n",
+          credential->load_credential_count) < 0 ||
+      fprintf(
+          out, "LoadCredentialTargetMatchCount=%zu\n",
+          credential->load_credential_match_count) < 0 ||
+      fprintf(
+          out, "LoadCredentialCanonicalBytes=%zu\n",
+          credential->load_credential_canonical_bytes) < 0 ||
+      fprintf(
+          out, "LoadCredentialSetSha256=%s\n",
+          load_credential_set_sha256) < 0 ||
+      fprintf(out, "LoadCredentialId=%s\n", E2_CREDENTIAL_ID) < 0 ||
+      fprintf(
+          out, "LoadCredentialSource=%s\n",
+          credential->credential_source) < 0 ||
+      fprintf(out, "credential_contents_read=false\n") < 0 ||
+      fprintf(out, "service_pidfd_retained=true\n") < 0 ||
+      fprintf(out, "manager_pidfd_retained=true\n") < 0 ||
+      fprintf(out, "manager_generation_reverified=true\n") < 0 ||
+      fprintf(out, "service_generation_reverified=true\n") < 0 ||
+      fprintf(
+          out, "credential_properties_requeried_same_connection=true\n") < 0 ||
+      fprintf(out, "host_mutation=false\n") < 0 ||
+      fprintf(out, "service_mutation=false\n") < 0 ||
+      fprintf(out, "payment_acceptance=false\n") < 0 ||
+      fprintf(out, "public_presale_activation=false\n") < 0 ||
+      fprintf(out, "funds_movement=false\n") < 0)
+    return -1;
+
+  memset(dropin_set_sha256, 0, sizeof(dropin_set_sha256));
+  memset(load_credential_set_sha256, 0, sizeof(load_credential_set_sha256));
+  return 0;
+}
+
 static int live_credential_query(uid_t uid, const char *unit) {
   if (geteuid() != 0) credential_die("root_required");
   if (!unit || strcmp(unit, "void-node-live.service") != 0)
@@ -968,63 +1055,20 @@ static int live_credential_query(uid_t uid, const char *unit) {
     credential_die("authenticated_generation_revalidation_failed");
   }
 
-  printf("%s_GREEN\n", MARKER);
-  printf("runtime_uid=%lu\n", (unsigned long)uid);
-  printf("unit=%s\n", unit);
-  printf("manager_pid=%ld\n", (long)manager_before.pid);
-  printf("manager_start_ticks=%llu\n", manager_before.start_ticks);
-  printf("private_socket_peer_authenticated=true\n");
-  printf("same_retained_private_connection=true\n");
-  printf("public_user_bus_used=false\n");
-  printf("LoadState=%s\n", unit_before.load_state);
-  printf("ActiveState=%s\n", unit_before.active_state);
-  printf("SubState=%s\n", unit_before.sub_state);
-  printf("MainPID=%u\n", unit_before.main_pid);
-  printf("service_start_ticks=%llu\n", service_before.start_ticks);
-  printf("NeedDaemonReload=no\n");
-  printf("FragmentPath=%s\n", credential_before.fragment_path);
-  printf("DropInPathCount=%zu\n", credential_before.dropins.count);
-  printf(
-      "CredentialDropInMatchCount=%zu\n",
-      credential_before.dropins.credential_match_count);
-  printf(
-      "DropInPathsCanonicalBytes=%zu\n",
-      credential_before.dropins.canonical_bytes);
-  char dropin_set_sha256[65];
-  credential_sha256_hex(
-      (const unsigned char *)credential_before.dropins.canonical_paths,
-      credential_before.dropins.canonical_bytes,
-      dropin_set_sha256);
-  printf("DropInPathsSetSha256=%s\n", dropin_set_sha256);
-  printf(
-      "DropInPath=%s\n",
-      credential_before.dropins.credential_dropin_path);
-  printf("LoadCredentialCount=%zu\n", credential_before.load_credential_count);
-  printf(
-      "LoadCredentialTargetMatchCount=%zu\n",
-      credential_before.load_credential_match_count);
-  printf(
-      "LoadCredentialCanonicalBytes=%zu\n",
-      credential_before.load_credential_canonical_bytes);
-  char load_credential_set_sha256[65];
-  credential_sha256_hex(
-      (const unsigned char *)credential_before.canonical_load_credentials,
-      credential_before.load_credential_canonical_bytes,
-      load_credential_set_sha256);
-  printf("LoadCredentialSetSha256=%s\n", load_credential_set_sha256);
-  printf("LoadCredentialId=%s\n", E2_CREDENTIAL_ID);
-  printf("LoadCredentialSource=%s\n", credential_before.credential_source);
-  printf("credential_contents_read=false\n");
-  printf("service_pidfd_retained=true\n");
-  printf("manager_pidfd_retained=true\n");
-  printf("manager_generation_reverified=true\n");
-  printf("service_generation_reverified=true\n");
-  printf("credential_properties_requeried_same_connection=true\n");
-  printf("host_mutation=false\n");
-  printf("service_mutation=false\n");
-  printf("payment_acceptance=false\n");
-  printf("public_presale_activation=false\n");
-  printf("funds_movement=false\n");
+  if (emit_credential_transcript(
+          stdout,
+          uid,
+          unit,
+          &manager_before,
+          &unit_before,
+          &service_before,
+          &credential_before) != 0) {
+    close(service_pidfd);
+    api.bus_unref(bus);
+    unload_sd_api(&api);
+    close(manager_pidfd);
+    credential_die("transcript_write_failed");
+  }
 
   close(service_pidfd);
   api.bus_unref(bus);
@@ -1187,6 +1231,110 @@ static int self_test_credential_query(void) {
           E2_DROPIN_BASENAME) != 0 ||
       same_credential_observation(&a, &changed)) return 1;
 
+  struct unit_observation transcript_unit;
+  struct proc_identity transcript_manager;
+  struct proc_identity transcript_service;
+  memset(&transcript_unit, 0, sizeof(transcript_unit));
+  memset(&transcript_manager, 0, sizeof(transcript_manager));
+  memset(&transcript_service, 0, sizeof(transcript_service));
+  if (copy_string(
+          transcript_unit.load_state,
+          sizeof(transcript_unit.load_state),
+          "loaded") != 0 ||
+      copy_string(
+          transcript_unit.active_state,
+          sizeof(transcript_unit.active_state),
+          "active") != 0 ||
+      copy_string(
+          transcript_unit.sub_state,
+          sizeof(transcript_unit.sub_state),
+          "running") != 0) return 1;
+  transcript_unit.main_pid = 4053759U;
+  transcript_manager.pid = 2693;
+  transcript_manager.start_ticks = 1409ULL;
+  transcript_service.start_ticks = 20191741ULL;
+
+  char *captured = NULL;
+  size_t captured_bytes = 0;
+  FILE *mem = open_memstream(&captured, &captured_bytes);
+  if (!mem) return 1;
+  if (emit_credential_transcript(
+          mem,
+          (uid_t)1000,
+          "void-node-live.service",
+          &transcript_manager,
+          &transcript_unit,
+          &transcript_service,
+          &a) != 0 ||
+      fflush(mem) != 0 ||
+      fclose(mem) != 0) {
+    if (mem) fclose(mem);
+    free(captured);
+    return 1;
+  }
+
+  const char *unrelated_dropin =
+      "/home/zoso/.config/systemd/user/void-node-live.service.d/"
+      "98-buy-void-allocation-custody-runtime-hardening-v2.conf";
+  const char *unrelated_credential_source =
+      "/home/zoso/.local/share/void-native/credential";
+  char expected_dropin_hash[65];
+  char expected_load_hash[65];
+  char expected_line[256];
+  credential_sha256_hex(
+      (const unsigned char *)a.dropins.canonical_paths,
+      a.dropins.canonical_bytes,
+      expected_dropin_hash);
+  credential_sha256_hex(
+      (const unsigned char *)a.canonical_load_credentials,
+      a.load_credential_canonical_bytes,
+      expected_load_hash);
+
+  int expected_dropin_line = snprintf(
+      expected_line,
+      sizeof(expected_line),
+      "DropInPathsSetSha256=%s\n",
+      expected_dropin_hash);
+  if (expected_dropin_line <= 0 ||
+      (size_t)expected_dropin_line >= sizeof(expected_line) ||
+      !captured ||
+      captured_bytes == 0 ||
+      strstr(captured, expected_line) == NULL ||
+      strstr(captured, unrelated_dropin) != NULL ||
+      strstr(captured, unrelated_credential_source) != NULL ||
+      strstr(captured, a.dropins.canonical_paths) != NULL ||
+      strstr(captured, a.canonical_load_credentials) != NULL ||
+      strstr(captured, "DropInPath=/home/zoso/.config/systemd/user/"
+              "void-node-live.service.d/" E2_DROPIN_BASENAME "\n") == NULL ||
+      strstr(captured, "LoadCredentialSource=/home/zoso/.local/share/"
+              "void-epoch2/credential\n") == NULL) {
+    memset(expected_dropin_hash, 0, sizeof(expected_dropin_hash));
+    memset(expected_load_hash, 0, sizeof(expected_load_hash));
+    memset(expected_line, 0, sizeof(expected_line));
+    free(captured);
+    return 1;
+  }
+
+  int expected_load_line = snprintf(
+      expected_line,
+      sizeof(expected_line),
+      "LoadCredentialSetSha256=%s\n",
+      expected_load_hash);
+  if (expected_load_line <= 0 ||
+      (size_t)expected_load_line >= sizeof(expected_line) ||
+      strstr(captured, expected_line) == NULL) {
+    memset(expected_dropin_hash, 0, sizeof(expected_dropin_hash));
+    memset(expected_load_hash, 0, sizeof(expected_load_hash));
+    memset(expected_line, 0, sizeof(expected_line));
+    free(captured);
+    return 1;
+  }
+  memset(expected_dropin_hash, 0, sizeof(expected_dropin_hash));
+  memset(expected_load_hash, 0, sizeof(expected_load_hash));
+  memset(expected_line, 0, sizeof(expected_line));
+  memset(captured, 0, captured_bytes);
+  free(captured);
+
   b.need_daemon_reload = 1;
   if (same_credential_observation(&a, &b)) return 1;
 
@@ -1215,6 +1363,7 @@ static int self_test_credential_query(void) {
   printf("complete_loadcredential_set_fingerprint=true\n");
   printf("same_length_set_substitution_changes_fingerprint=true\n");
   printf("unrelated_credential_paths_emitted=false\n");
+  printf("transcript_non_disclosure_executable=true\n");
   printf("security_transcript_composed=false\n");
   printf("credential_query_preexec_execution_path_proven=false\n");
   printf("credential_contents_read=false\n");
