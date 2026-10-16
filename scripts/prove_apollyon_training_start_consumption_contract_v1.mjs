@@ -13,7 +13,9 @@ import {
 import {
   VOID_APOLLYON_TRAINING_START_CONSUMPTION_AUTHORITY_V1,
   VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1,
-  classifyApollyonTrainingStartConsumptionRecoveryV1,\n  qualifyApollyonTrainingStartConsumptionContractV1,\n  validateApollyonTrainingStartConsumptionRecordV1,
+  classifyApollyonTrainingStartConsumptionRecoveryV1,
+  qualifyApollyonTrainingStartConsumptionContractV1,
+  validateApollyonTrainingStartConsumptionRecordV1,
 } from "../tools/apollyon-training-start-consumption-contract-v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
@@ -315,7 +317,8 @@ const source=fs.readFileSync(
   "utf8",
 );
 for(const required of [
-  "existing_exact_consumption_reusable_admission:false",\n  "existing_consumption_collision",
+  "existing_exact_consumption_reusable_admission:false",
+  "existing_consumption_collision",
   "lost_ack_second_start_forbidden:true",
   "trainer_generation_must_remain_blocked_until_durable_consumption:true",
   'next_gate:"apollyon_training_start_consumption_implementation_v1"',
@@ -331,7 +334,8 @@ console.log("VOID_APOLLYON_TRAINING_START_CONSUMPTION_V1_PROOF_GREEN");
 console.log("durable_claim_success_is_bearer_training_authority=false");
 console.log("exact_inert_pretraining_generation_required=true");
 console.log("training_start_consumption_create_once_required=true");
-console.log("existing_exact_consumption_reusable_admission=false");\nconsole.log("recovery_unconsumed_vs_already_consumed_closed=true");
+console.log("existing_exact_consumption_reusable_admission=false");
+console.log("recovery_unconsumed_vs_already_consumed_closed=true");
 console.log("lost_ack_second_start_forbidden=true");
 console.log("training_start_consumption_performed=false");
 console.log("training_execution=false");
