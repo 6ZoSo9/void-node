@@ -54,23 +54,36 @@ The native source itself does not read credentials, sign, call RPC, construct a 
 The native parent now distinguishes failures before and after the private parent
 proof is successfully released to the Node child.
 
-Before proof release, the child cannot authenticate the native parent and enter
-the reviewed sensitive composition. Parent HOLD output may therefore state:
+Two boundaries are tracked independently.
 
+Before the fork succeeds, no Node child exists. Parent HOLD output may state:
+
+- `child_process_created=false`;
 - `child_proof_released=false`;
 - `root_javascript_started=false`;
 - `credential_content_access=false`;
 - `private_key_access=false`;
 - `signing=false`.
 
+Immediately after a successful parent-side fork return, the parent sets
+`child_process_created=true`. The child can already `fexecve()` Node and begin
+the runner while it waits for/authenticates the parent proof. Therefore any
+parent HOLD from that point reports:
+
+- `root_javascript_started_state=unknown_or_started_if_child_created`.
+
+Credential/private-key/signing work remains false until proof release because
+the runner's sensitive sequence is gated behind successful
+`requireNativePreentry()` proof authentication.
+
 Immediately after the complete parent proof record is written successfully, the
 parent sets `child_proof_released=true`. From that point the child may have
-entered root JavaScript, V3R credential qualification, and the sealed
-non-transaction signing probe. If the parent later cannot prove a clean child
-exit—for example because the child terminates by signal—it must not manufacture
-false negative access claims. Its parent-generated HOLD instead reports:
+entered V3R credential qualification and the sealed non-transaction signing
+probe. If the parent later cannot prove a clean child exit—for example because
+the child terminates by signal—it must not manufacture false negative sensitive
+access claims. Its parent-generated HOLD instead reports:
 
-- `root_javascript_started_state=unknown_or_started_if_child_released`;
+- `root_javascript_started_state=unknown_or_started_if_child_created`;
 - `credential_content_access_state=unknown_or_partial_if_child_released`;
 - `private_key_access_state=unknown_or_partial_if_child_released`;
 - `signing_state=unknown_or_partial_if_child_released`.
@@ -80,8 +93,9 @@ and funds movement false for this generation. Ordinary nonzero child exit is
 propagated unchanged so the child's own more precise HOLD receipt is not
 overwritten.
 
-The source proof executes inert pre-proof and post-proof HOLD modes to bind both
-receipt shapes without reading credentials or invoking the live composition.
+The source proof executes inert pre-fork, post-fork/pre-proof, and post-proof
+HOLD modes to bind all three receipt shapes without reading credentials or
+invoking the live composition.
 
 ## Deliberate stop
 
