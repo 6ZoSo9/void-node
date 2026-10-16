@@ -26,7 +26,7 @@ BINDER_REL = (
 )
 
 EXPECTED_BLOBS = {
-    INSTALLER_REL: "37f8b9269e91ac37c65a527e5e3f87b6e5b10213",
+    INSTALLER_REL: "4d71a41415d8a8252eab6dc96ee9b31ffa6dbe65",
     LOCK_REL: "5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1",
     NATIVE_SOURCE_REL: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     BINDER_REL: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
@@ -106,6 +106,57 @@ assert (
     is False
 )
 
+# A caller-created proof dictionary is not authority. Without the fixed installed
+# launcher as the real parent generation, validation must fail closed before any
+# apply mutation path can be reached.
+installer_fd = os.open(ROOT / INSTALLER_REL, os.O_RDONLY | os.O_CLOEXEC)
+native_fd = os.open(ROOT / NATIVE_SOURCE_REL, os.O_RDONLY | os.O_CLOEXEC)
+try:
+    parent_pid = os.getppid()
+    parent_stat = pathlib.Path(f"/proc/{parent_pid}/stat").read_text(
+        encoding="ascii"
+    )
+    right = parent_stat.rfind(")")
+    parent_start = parent_stat[right + 2:].split()[19]
+    parent_exe = os.stat(f"/proc/{parent_pid}/exe")
+    python_exe = os.stat("/proc/self/exe")
+    installer_st = os.fstat(installer_fd)
+    native_st = os.fstat(native_fd)
+    forged = {
+        "schema": module.FIRST_ENTRY_PROOF_SCHEMA,
+        "parent_pid": str(parent_pid),
+        "parent_start_ticks": parent_start,
+        "launcher_dev": str(parent_exe.st_dev),
+        "launcher_ino": str(parent_exe.st_ino),
+        "installer_dev": str(installer_st.st_dev),
+        "installer_ino": str(installer_st.st_ino),
+        "native_dev": str(native_st.st_dev),
+        "native_ino": str(native_st.st_ino),
+        "python_dev": str(python_exe.st_dev),
+        "python_ino": str(python_exe.st_ino),
+        "installer_fd": str(installer_fd),
+        "native_fd": str(native_fd),
+        "operation": "installer_apply",
+        "expected_head": head,
+    }
+    try:
+        module._validate_first_entry_parent(
+            forged,
+            installer_fd,
+            native_fd,
+            operation="installer_apply",
+            expected_head=head,
+        )
+    except module.InstallError as exc:
+        assert str(exc).startswith(
+            "authenticated_first_entry_"
+        ), str(exc)
+    else:
+        raise AssertionError("forged_direct_parent_was_accepted")
+finally:
+    os.close(native_fd)
+    os.close(installer_fd)
+
 for token in (
     '"voidbuye2dormantbinderlock3_"',
     '"a206b43c158746ac2b685f770efe573f014ec672f2c9e8cf0759c2cf7ac1f23a"',
@@ -123,7 +174,14 @@ for token in (
     'raise InstallError("authenticated_first_entry_required")',
     '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_INSTALLER_FD"',
     '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_NATIVE_FD"',
+    '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROOF_FD"',
+    '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_PARENT_PROOF_V1"',
+    'FIRST_ENTRY_LAUNCHER = pathlib.Path(',
     '"authenticated_first_entry_fd_contract_required_for_apply=true"',
+    '"authenticated_first_entry_parent_proof_required=true"',
+    '"authenticated_first_entry_parent_revalidation_before_mutation_required=true"',
+    '"authenticated_first_entry_parent_revalidation_before_publication_required=true"',
+    '"running_python_generation_binding_required=true"',
     'if os.geteuid() == 0:',
     '"--clear-groups"',
     'elif os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:',
@@ -136,6 +194,10 @@ for token in (
     "rename_noreplace_required=true",
     "operation_bound_plan_id_required=true",
     "authenticated_first_entry_fd_contract_required_for_apply=true",
+    "authenticated_first_entry_parent_proof_required=true",
+    "authenticated_first_entry_parent_revalidation_before_mutation_required=true",
+    "authenticated_first_entry_parent_revalidation_before_publication_required=true",
+    "running_python_generation_binding_required=true",
     "prepublication_revalidation_required=true",
     "post_publication_rollback=false",
     "expected_plan_id_mismatch",
@@ -194,7 +256,7 @@ assert revalidate_source is not None
 
 confirm_at = apply_source.index("if confirm != CONFIRM_TOKEN")
 plan_shape_at = apply_source.index("not expected_plan_id.startswith(PLAN_PREFIX)")
-entry_at = apply_source.index("_require_apply_context(native)")
+entry_at = apply_source.index("_require_apply_context(native, expected_head)")
 root_at = apply_source.index('if os.geteuid() != 0:')
 collect_at = apply_source.index("result = _collect_plan(native, expected_head)")
 plan_match_at = apply_source.index('result["plan_id"] != expected_plan_id')
@@ -214,6 +276,12 @@ assert "read_exact_candidate(native) != native_raw" in revalidate_source
 assert "current_binder = _git_object(" in revalidate_source
 assert "current_binder != binder_raw" in revalidate_source
 
+first_parent_revalidation = apply_source.index(
+    '_first_entry_fd_context(\n            native,\n            operation="installer_apply",\n            expected_head=expected_head,\n        )'
+)
+first_mutation = apply_source.index("os.mkdir(STAGE_NAME, 0o755, dir_fd=opt_fd)")
+assert first_parent_revalidation < first_mutation
+
 stage_bind_before = apply_source.index(
     "_require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)"
 )
@@ -227,6 +295,12 @@ stage_verify_after = apply_source.index("_verify_pair_fd(stage_fd)", stage_bind_
 publish = apply_source.index(
     "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)"
 )
+second_parent_revalidation = apply_source.rindex(
+    '_first_entry_fd_context(\n            native,\n            operation="installer_apply",\n            expected_head=expected_head,\n        )',
+    0,
+    publish,
+)
+assert stage_verify_after < second_parent_revalidation < publish
 published_flag = apply_source.index("published = True", publish)
 post_checks = apply_source.index("_post_publication_checks(opt_fd)", published_flag)
 assert (
@@ -416,6 +490,11 @@ print("exact_native_candidate_bound=true")
 print("exact_binder_git_object_bound=true")
 print("distinct_fixed_install_root=true")
 print("authenticated_first_entry_fd_contract_required_for_apply=true")
+print("authenticated_first_entry_parent_proof_required=true")
+print("forged_direct_parent_rejected=true")
+print("parent_revalidated_before_first_mutation=true")
+print("parent_revalidated_before_publication=true")
+print("running_python_generation_binding_required=true")
 print("create_only=true")
 print("atomic_root_publication_required=true")
 print("rename_noreplace_required=true")
