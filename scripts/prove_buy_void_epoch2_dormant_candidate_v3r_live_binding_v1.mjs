@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const BINDER=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs";
-const BINDER_BLOB="af31dcd6f381c04c77aeef2a20d2846c0446807a";
+const BINDER_BLOB="eba8675de998af42ff9022997ed20063ba1257d0";
 const CANDIDATE=
   "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json";
 const CANDIDATE_BLOB="e569c9211e01f14c7c00dd1c5041d4dfb0817609";
@@ -24,7 +24,7 @@ const NATIVE_SOURCE=
 const NATIVE_SOURCE_BLOB="5021727f1def1ec11f870d735cab65acc1701a5e";
 const BINDER_PREENTRY=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v1.c";
-const BINDER_PREENTRY_BLOB="4c955b50fb6cb4e584c2abac3ac091bb620572e0";
+const BINDER_PREENTRY_BLOB="849b2a0a8c56816db3a1c30daec349c0aa03d55f";
 
 function gitBlob(bytes){
   return crypto.createHash("sha1")
@@ -64,6 +64,8 @@ for(const required of [
   "binder_native_parent_marker_required",
   "binder_preentry_parent_executable_mismatch",
   "binder_preentry_parent_child_generation_mismatch",
+  "binder_preentry_parent_running_generation_mismatch",
+  "binder_preentry_node_running_generation_mismatch",
   "binder_preentry_binder_generation_invalid",
   "native_binder_first_entry_required_for_live=true",
   "private_binder_parent_proof_required_for_live=true",
@@ -86,14 +88,15 @@ for(const required of [
 const nativeSource=fs.readFileSync(path.join(ROOT,BINDER_PREENTRY),"utf8");
 for(const required of [
   "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V1",
-  'BINDER_GIT_BLOB "af31dcd6f381c04c77aeef2a20d2846c0446807a"',
-  "#define BINDER_BYTES 38974U",
+  'BINDER_GIT_BLOB "eba8675de998af42ff9022997ed20063ba1257d0"',
+  "#define BINDER_BYTES 39391U",
   "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V1",
   "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V1_BINDER_FD=",
   "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V1_PROOF_FD=",
   "binder_preentry_caller_stdin_forbidden",
   "binder_preentry_binder_identity_mismatch",
   "binder_preentry_node_digest_mismatch",
+  "binder_preentry_self_running_generation_mismatch",
   "require_devnull_stdin();",
   "fexecve(node_fd,next_argv,envp);",
   "stream_fd(binder_fd,source_pipe[1])",
