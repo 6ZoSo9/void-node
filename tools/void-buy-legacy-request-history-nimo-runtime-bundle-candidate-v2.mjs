@@ -37,6 +37,8 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     compiler_snapshot_content_addressed: true,
     compiler_package_snapshot_bound: true,
     compiler_snapshot_nonwritable_during_build: true,
+    compiler_snapshot_root_custody_required: true,
+    compiler_snapshot_builder_uid_direct_mutation_denied: true,
     compiler_source_post_revalidation_required: true,
     compiler_snapshot_post_revalidation_required: true,
     candidate_owned_rebuild_required: true,
@@ -483,6 +485,10 @@ const CANDIDATE_COMPILE_ENV_V2 = Object.freeze({
 const COMPILER_SNAPSHOT_SCHEMA_V2 =
   "void_buy_void_legacy_history_nimo_compiler_snapshot_v2";
 const COMPILER_SNAPSHOT_ID_PREFIX_V2 = "voidblrhntscsnap2_";
+const COMPILER_SNAPSHOT_PARENT_V2 = "/tmp";
+const SUDO_V2 = "/usr/bin/sudo";
+const CHOWN_V2 = "/usr/bin/chown";
+const RM_V2 = "/usr/bin/rm";
 
 function typescriptPackageLockIntegrityV2(root) {
   const lock = JSON.parse(readRegular(root, "package-lock.json").toString("utf8"));
@@ -580,10 +586,15 @@ function compilerSnapshotRecordV2(compiler, packageSummary) {
     package_file_count: packageSummary.package_file_count,
     package_total_bytes: packageSummary.package_total_bytes,
     package_tree_sha256: packageSummary.package_tree_sha256,
-    private_parent_mode: "0500",
-    directory_mode: "0500",
-    file_mode: "0400",
+    fixed_parent: COMPILER_SNAPSHOT_PARENT_V2,
+    fixed_parent_root_owned_sticky_required: true,
+    private_parent_mode: "0555",
+    directory_mode: "0555",
+    file_mode: "0444",
+    custody_uid: 0,
+    custody_gid: 0,
     nonwritable_during_build: true,
+    builder_uid_direct_mutation_denied: true,
     source_compiler_identity_revalidated_after_build: true,
     snapshot_identity_revalidated_after_build: true,
   };
@@ -646,11 +657,70 @@ function compilerSnapshotDirectoriesV2(snapshotRoot) {
   return directories;
 }
 
+function assertFixedSnapshotParentV2() {
+  const st = fs.lstatSync(COMPILER_SNAPSHOT_PARENT_V2);
+  if (
+    !st.isDirectory() ||
+    st.isSymbolicLink() ||
+    st.uid !== 0 ||
+    (st.mode & 0o1000) === 0 ||
+    (st.mode & 0o002) === 0
+  ) {
+    fail("legacy_history_nimo_bundle_compiler_snapshot_parent_invalid");
+  }
+}
+
+function assertPrivilegedSnapshotToolV2(tool, label) {
+  const st = fs.lstatSync(tool);
+  if (
+    !st.isFile() ||
+    st.isSymbolicLink() ||
+    st.uid !== 0 ||
+    (st.mode & 0o022) !== 0 ||
+    (st.mode & 0o111) === 0
+  ) {
+    fail("legacy_history_nimo_bundle_snapshot_privileged_tool_invalid:" + label);
+  }
+}
+
+function runPrivilegedSnapshotToolV2(tool, args, label) {
+  assertPrivilegedSnapshotToolV2(SUDO_V2, "sudo");
+  assertPrivilegedSnapshotToolV2(tool, label);
+  const result = spawnSync(
+    SUDO_V2,
+    ["-n", tool, ...args],
+    {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      encoding: "utf8",
+      timeout: 30_000,
+      env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
+    },
+  );
+  if (
+    result.error ||
+    result.status !== 0 ||
+    result.signal !== null ||
+    result.stdout !== "" ||
+    result.stderr !== ""
+  ) {
+    fail("legacy_history_nimo_bundle_snapshot_privileged_command_failed:" + label);
+  }
+}
+
 function assertCompilerSnapshotNonwritableV2(snapshotRoot, packageSummary) {
+  assertFixedSnapshotParentV2();
   for (const directory of compilerSnapshotDirectoriesV2(snapshotRoot)) {
     const st = fs.lstatSync(directory);
-    if (!st.isDirectory() || st.isSymbolicLink() || (st.mode & 0o222) !== 0) {
-      fail("legacy_history_nimo_bundle_compiler_snapshot_directory_writable");
+    if (
+      !st.isDirectory() ||
+      st.isSymbolicLink() ||
+      st.uid !== 0 ||
+      st.gid !== 0 ||
+      (st.mode & 0o7777) !== 0o555
+    ) {
+      fail("legacy_history_nimo_bundle_compiler_snapshot_directory_custody_invalid");
     }
   }
   for (const record of packageSummary.files) {
@@ -659,22 +729,25 @@ function assertCompilerSnapshotNonwritableV2(snapshotRoot, packageSummary) {
       !st.isFile() ||
       st.isSymbolicLink() ||
       st.nlink !== 1 ||
-      (st.mode & 0o222) !== 0
+      st.uid !== 0 ||
+      st.gid !== 0 ||
+      (st.mode & 0o7777) !== 0o444
     ) {
-      fail("legacy_history_nimo_bundle_compiler_snapshot_file_writable");
+      fail("legacy_history_nimo_bundle_compiler_snapshot_file_custody_invalid");
     }
   }
 }
 
 function cleanupCompilerSnapshotV2(snapshotRoot) {
-  for (const directory of compilerSnapshotDirectoriesV2(snapshotRoot).reverse()) {
-    try {
-      fs.chmodSync(directory, 0o700);
-    } catch (_error) {
-      continue;
-    }
+  if (!fs.existsSync(snapshotRoot)) return;
+  runPrivilegedSnapshotToolV2(
+    RM_V2,
+    ["-rf", "--", snapshotRoot],
+    "rm",
+  );
+  if (fs.existsSync(snapshotRoot)) {
+    fail("legacy_history_nimo_bundle_compiler_snapshot_cleanup_failed");
   }
-  fs.rmSync(snapshotRoot, { recursive: true, force: true });
 }
 
 function createPrivateCompilerSnapshotV2(
@@ -682,24 +755,30 @@ function createPrivateCompilerSnapshotV2(
   compiler,
   packageSummary,
 ) {
+  assertFixedSnapshotParentV2();
   const snapshotRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), "void-nimo-tsc-snapshot-v2-"),
+    path.join(COMPILER_SNAPSHOT_PARENT_V2, "void-nimo-tsc-snapshot-v2-"),
   );
   try {
-    fs.chmodSync(snapshotRoot, 0o700);
+    fs.chmodSync(snapshotRoot, 0o755);
     for (const record of packageSummary.files) {
       const bytes = readRegular(sourceRoot, record.path, 32 * 1024 * 1024);
       if (bytes.length !== record.bytes || sha256(bytes) !== record.sha256) {
         fail("legacy_history_nimo_bundle_compiler_snapshot_source_drift");
       }
       const target = path.join(snapshotRoot, record.path);
-      fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-      fs.writeFileSync(target, bytes, { flag: "wx", mode: 0o400 });
-      fs.chmodSync(target, 0o400);
+      fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o755 });
+      fs.writeFileSync(target, bytes, { flag: "wx", mode: 0o444 });
+      fs.chmodSync(target, 0o444);
     }
     for (const directory of compilerSnapshotDirectoriesV2(snapshotRoot).reverse()) {
-      fs.chmodSync(directory, 0o500);
+      fs.chmodSync(directory, 0o555);
     }
+    runPrivilegedSnapshotToolV2(
+      CHOWN_V2,
+      ["-R", "root:root", "--", snapshotRoot],
+      "chown",
+    );
     assertCompilerSnapshotNonwritableV2(snapshotRoot, packageSummary);
     const observedCompiler = snapshotCompilerIdentityV2(snapshotRoot);
     const observedPackage = snapshotPackageSummaryV2(
