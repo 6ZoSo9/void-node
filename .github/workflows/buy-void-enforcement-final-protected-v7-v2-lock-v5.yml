@@ -169,7 +169,7 @@ jobs:
             ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
             --plan \
             --receipt-path "$receipt" \
-            --expected-head "$head" \
+            --expected-commit "$head" \
             --expected-tree "$tree" \
             --accepted-enforcement-lock-path \
               ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json \
