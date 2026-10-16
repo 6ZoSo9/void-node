@@ -169,6 +169,13 @@ jobs:
         with:
           node-version: 22
 
+      - name: Rebuild exact reviewed source for independent verification
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+
       - name: Download candidates
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
