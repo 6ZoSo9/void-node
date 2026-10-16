@@ -17,7 +17,7 @@ PARENT_SOURCE_REL = "tools/apollyon-training-start-release-binding-v1.mjs"
 PARENT_PROOF_REL = "scripts/prove_apollyon_training_start_release_binding_v1.mjs"
 PARENT_WORKFLOW_REL = ".github/workflows/apollyon-training-start-release-binding-v1.yml"
 
-SOURCE_BLOB = "797025a44e084a7d19af5f949d41a4c759fb161b"
+SOURCE_BLOB = "accb5bc2810e51e54f17baf5e179cf848d75b381"
 PARENT_SOURCE_BLOB = "b8d7229369e7d74e515955e726e0268bbdf6e513"
 PARENT_PROOF_BLOB = "7a67f25c40d52574cc4a7bd25604e9ff79367487"
 PARENT_WORKFLOW_BLOB = "c577da33e31b2c32d8a01e42105c7ced8cab0b4f"
@@ -215,6 +215,7 @@ with tempfile.TemporaryDirectory(
         "parent_release_binding_blob_bound=true",
         "fixed_release_fd=3",
         "release_fd_read_only_pipe_required=true",
+        "release_fd_anonymous_pipe_identity_required=true",
         "exact_64_byte_frame_then_eof_required=true",
         "short_frame_rejected=true",
         "extra_frame_rejected=true",
@@ -279,6 +280,7 @@ print("candidate_reproducible_bytes=true")
 print("candidate_three_build_equality=true")
 print("candidate_sha256=" + candidate_sha256)
 print("release_fd3_exact_allowlist_bound=true")
+print("release_fd_anonymous_pipe_identity_bound=true")
 print("release_frame_short_extra_timeout_adversaries=true")
 print("held_duplicate_writer_timeout_adversary=true")
 print("trainer_nnp_capability_adversaries=true")
