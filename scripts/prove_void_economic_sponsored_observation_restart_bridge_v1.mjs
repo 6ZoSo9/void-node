@@ -26,7 +26,7 @@ import {
 const ROOT=process.cwd();
 const EXPECTED_BLOBS=Object.freeze({
   "tools/void-economic-sponsored-observation-restart-bridge-v1.mjs":
-    "7fa61fa523ff84122cfbfcefc6da010f0907839c",
+    "22b39efc4f5a29713813eb357ae2c241ac2bd45d",
   "tools/void-economic-sponsored-host-observation-time-store-binding-v1.mjs":
     "7cfba597ddf9667021b662ce3e4ac8c0c3f1103b",
   "tools/void-economic-sponsored-host-trusted-clock-binding-v1.mjs":
