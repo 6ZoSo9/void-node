@@ -26,7 +26,7 @@ BINDER_REL = (
 )
 
 EXPECTED_BLOBS = {
-    INSTALLER_REL: "a2720335448788912e62df5a000e9e38087942eb",
+    INSTALLER_REL: "37f8b9269e91ac37c65a527e5e3f87b6e5b10213",
     LOCK_REL: "5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1",
     NATIVE_SOURCE_REL: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     BINDER_REL: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
@@ -120,7 +120,10 @@ for token in (
     'BINDER_NAME = "void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"',
     'READY_STATE = "DORMANT_BINDER_ROOT_ABSENT_READY_FOR_CREATE_ONLY"',
     'GREEN_STATE = "DORMANT_BINDER_NATIVE_PAIR_GREEN"',
-    'raise InstallError("installer_git_object_stdin_required")',
+    'raise InstallError("authenticated_first_entry_required")',
+    '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_INSTALLER_FD"',
+    '"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_NATIVE_FD"',
+    '"authenticated_first_entry_fd_contract_required_for_apply=true"',
     'if os.geteuid() == 0:',
     '"--clear-groups"',
     'elif os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:',
@@ -132,6 +135,7 @@ for token in (
     "atomic_root_publication_required=true",
     "rename_noreplace_required=true",
     "operation_bound_plan_id_required=true",
+    "authenticated_first_entry_fd_contract_required_for_apply=true",
     "prepublication_revalidation_required=true",
     "post_publication_rollback=false",
     "expected_plan_id_mismatch",
@@ -190,11 +194,11 @@ assert revalidate_source is not None
 
 confirm_at = apply_source.index("if confirm != CONFIRM_TOKEN")
 plan_shape_at = apply_source.index("not expected_plan_id.startswith(PLAN_PREFIX)")
-stdin_at = apply_source.index("_require_apply_context()")
+entry_at = apply_source.index("_require_apply_context(native)")
 root_at = apply_source.index('if os.geteuid() != 0:')
 collect_at = apply_source.index("result = _collect_plan(native, expected_head)")
 plan_match_at = apply_source.index('result["plan_id"] != expected_plan_id')
-assert confirm_at < plan_shape_at < stdin_at < root_at < collect_at < plan_match_at
+assert confirm_at < plan_shape_at < entry_at < root_at < collect_at < plan_match_at
 
 checkout_at = collect_source.index("_verify_checkout(expected_head)")
 lock_at = collect_source.index("accepted_lock(expected_head)")
@@ -373,7 +377,7 @@ direct_apply = subprocess.run(
 )
 assert direct_apply.returncode == 2
 direct_lines = set(direct_apply.stdout.splitlines())
-assert "reason=installer_git_object_stdin_required" in direct_lines
+assert "reason=authenticated_first_entry_required" in direct_lines
 assert "protected_install_performed=false" in direct_lines
 assert "publication=false" in direct_lines
 
@@ -385,7 +389,7 @@ print("superseded_pre_3363_locks_install_authority=false")
 print("exact_native_candidate_bound=true")
 print("exact_binder_git_object_bound=true")
 print("distinct_fixed_install_root=true")
-print("root_git_object_stdin_required_for_apply=true")
+print("authenticated_first_entry_fd_contract_required_for_apply=true")
 print("create_only=true")
 print("atomic_root_publication_required=true")
 print("rename_noreplace_required=true")
