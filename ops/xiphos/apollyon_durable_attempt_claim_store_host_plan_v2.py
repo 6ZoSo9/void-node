@@ -1,6 +1,23 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
+
+def _require_isolated_python_startup()->None:
+    flags=sys.flags
+    if (
+        flags.isolated!=1 or flags.ignore_environment!=1 or
+        flags.no_user_site!=1 or flags.dont_write_bytecode!=1 or
+        getattr(flags,"safe_path",0)!=1
+    ):
+        sys.stderr.write("HOLD=python_runtime_not_isolated\n")
+        sys.stderr.write(
+            "read_only=true\nfilesystem_write=false\nnetwork_access=false\n"
+        )
+        raise SystemExit(2)
+
+_require_isolated_python_startup()
+
 import argparse
 import hashlib
 import json
@@ -10,7 +27,6 @@ import re
 import socket
 import stat
 import subprocess
-import sys
 from typing import Any
 
 MARKER="VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_HOST_PLAN_V2"
@@ -96,6 +112,7 @@ AUTHORITY={
     "filesystem_read":True,
     "local_git_metadata_read":True,
     "source_generation_authentication_required":True,
+    "isolated_python_startup_required":True,
     "reviewed_source_head_external_lease_required":True,
     "filesystem_write":False,
     "account_mutation":False,
@@ -370,6 +387,7 @@ def verify_source_generation(expected_source_head:str)->dict[str,Any]:
         "git_network_access_performed":False,
         "reviewed_source_head_external_lease_required":True,
         "source_generation_authenticated":True,
+        "isolated_python_startup_proven":True,
     }
 
 def revalidate_source_generation(expected_source_head:str,expected:dict[str,Any])->None:
@@ -869,6 +887,7 @@ def self_test()->None:
     assert AUTHORITY["filesystem_write"] is False
     assert AUTHORITY["local_git_metadata_read"] is True
     assert AUTHORITY["source_generation_authentication_required"] is True
+    assert AUTHORITY["isolated_python_startup_required"] is True
     assert AUTHORITY["reviewed_source_head_external_lease_required"] is True
     assert AUTHORITY["service_action"] is False
     assert AUTHORITY["durable_attempt_claim"] is False
@@ -885,6 +904,7 @@ def self_test()->None:
     print("candidate_slot_revalidation_required=true")
     print("stable_store_policy_id_bound=true")
     print("source_generation_authentication_required=true")
+    print("isolated_python_startup_required=true")
     print("reviewed_source_head_external_lease_required=true")
     print("host_installation_performed=false")
     print("durable_attempt_claim=false")

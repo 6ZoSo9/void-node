@@ -16,7 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
-EXPECTED_PLANNER_BLOB_SHA1="59bf7038ae785fa0ba19db0e02fed7bb519f84ca"
+EXPECTED_PLANNER_BLOB_SHA1="03ea7df9b7a548c73ec1c715d716391be5d5d223"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -36,6 +36,12 @@ assert git_blob(CONTRACT.read_bytes())=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bb
 assert git_blob(CANONICALIZER.read_bytes())=="f97fafb0148527ae3a954e2752faef8c7fc9e88e"
 assert git_blob(TERMINAL_RECEIPT.read_bytes())=="e27f0ebb968f4611bfc069670325c3f5e6df1c65"
 assert git_blob(SESSION_BINDING.read_bytes())=="981935515e08634be96446e58922c16be56d33ad"
+assert source.index("import sys")<source.index("_require_isolated_python_startup()")<source.index("import argparse")
+assert 'flags.isolated!=1' in source
+assert 'flags.ignore_environment!=1' in source
+assert 'flags.no_user_site!=1' in source
+assert 'flags.dont_write_bytecode!=1' in source
+assert 'getattr(flags,"safe_path",0)!=1' in source
 assert 'PARENT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"' in source
 assert 'PARENT_CONTRACT_BLOB_SHA1="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"' in source
 assert '"e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"' in source
@@ -206,6 +212,7 @@ assert source_generation["parent_head_ancestor"] is True
 assert source_generation["planner_git_blob_sha1"]==EXPECTED_PLANNER_BLOB_SHA1
 assert source_generation["parent_contract_git_blob_sha1"]=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
 assert source_generation["source_generation_authenticated"] is True
+assert source_generation["isolated_python_startup_proven"] is True
 assert source_generation["reviewed_source_head_external_lease_required"] is True
 assert source_generation["fixed_git_retained_ancestry_protected"] is True
 assert source_generation["git_replace_objects_disabled"] is True
@@ -376,6 +383,14 @@ except module.Hold as exc:
 else:
     raise AssertionError("exhausted candidate range must HOLD")
 
+nonisolated=subprocess.run(
+    ["python3","-B",str(PLAN),"--self-test"],
+    cwd=ROOT,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+    text=True,check=False,timeout=20,
+)
+assert nonisolated.returncode==2
+assert "HOLD=python_runtime_not_isolated" in nonisolated.stderr
+
 r=subprocess.run(
     ["python3","-I","-B",str(PLAN),"--self-test"],
     cwd=ROOT,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
@@ -395,6 +410,7 @@ for line in (
     "candidate_slot_revalidation_required=true",
     "stable_store_policy_id_bound=true",
     "source_generation_authentication_required=true",
+    "isolated_python_startup_required=true",
     "reviewed_source_head_external_lease_required=true",
     "host_installation_performed=false",
     "durable_attempt_claim=false",
@@ -432,6 +448,8 @@ print("candidate_slot_revalidation_required=true")
 print("store_policy_id_rederived_from_parent_contract=true")
 print("store_policy_esm_dependency_closure_exact=true")
 print("store_policy_import_trigger_symmetry=true")
+print("isolated_python_startup_required=true")
+print("nonisolated_python_invocation_rejected=true")
 print("live_source_head_and_blob_authenticated=true")
 print("wrong_source_head_rejected=true")
 print("substituted_planner_rejected=true")

@@ -85,6 +85,8 @@ identity.
 
 ## Host and source-generation binding
 
+Authoritative planner execution requires `python3 -I -B`. The script checks Python isolated/safe-path, ignored-environment, no-user-site and no-bytecode-write flags immediately after importing built-in `sys`, before importing any module that could resolve through a mutable script/search path. A non-isolated invocation HOLDs before planner imports or host census.
+
 A future `--run` requires hostname `Xiphos`, the exact #3233 parent head, and an explicit reviewed planner source-head lease supplied by the operator/reviewer. The lease is not trusted by string comparison alone.
 
 Before any READY plan can be emitted, the planner uses fixed `/usr/bin/git` with a sanitized local-only environment and requires:
