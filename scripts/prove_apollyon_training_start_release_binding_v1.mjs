@@ -18,9 +18,11 @@ import {
   RELEASE_FRAME_BYTES_V1,
   RELEASE_FRAME_DOMAIN_SHA256_HEX_V1,
   VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_KEYS_V1,
+  VOID_APOLLYON_TRAINING_START_RELEASE_CHANNEL_ORIGIN_SHAPE_KEYS_V1,
   VOID_APOLLYON_TRAINING_START_RELEASE_REQUIREMENTS_V1,
   apollyonTrainingStartReleaseFrameV1,
   qualifyApollyonTrainingStartReleaseBindingV1,
+  qualifyApollyonTrainingStartReleaseChannelOriginShapeV1,
   qualifyApollyonTrainingStartReleasePolicyV1,
   validateApollyonTrainingStartReleaseBindingV1,
 } from "../tools/apollyon-training-start-release-binding-v1.mjs";
@@ -38,9 +40,9 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-release-binding-v1.mjs":
-    "1bcaee522a2e710fc4d347837252122974223ae3",
+    "3a7ba50c37df16a22087d3a0c8c763772534c8ba",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "f4b5c984cc67de470df1af949723eeaefba0393f",
+    "af983452d8807db34b446fc64dff5266e9bc5953",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
     "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
@@ -239,6 +241,12 @@ assert.equal(binding1.consumption_durability_revalidation_performed,false);
 assert.equal(binding1.live_trainer_generation_revalidation_performed,false);
 assert.equal(binding1.training_identity_policy_revalidation_performed,false);
 assert.equal(binding1.private_release_channel_origin_proven,false);
+assert.equal(binding1.releaser_generation_revalidation_required,true);
+assert.equal(binding1.releaser_generation_revalidation_performed,false);
+assert.equal(binding1.trainer_releaser_lineage_required,true);
+assert.equal(binding1.trainer_releaser_lineage_proven,false);
+assert.equal(binding1.release_writer_exclusivity_required,true);
+assert.equal(binding1.release_writer_exclusivity_proven,false);
 assert.equal(binding1.release_not_transferable_to_replacement_generation,true);
 assert.equal(binding1.bound_generation_loss_forfeits_attempt,true);
 assert.equal(binding1.trainer_release_performed,false);
@@ -271,6 +279,96 @@ assert.equal(
   frame1.subarray(32).toString("hex"),
   sha256(Buffer.from(binding1.release_binding_id,"utf8")),
 );
+
+function channelShape(overrides={}){
+  return {
+    release_binding:binding1,
+    correct_release_frame_sha256:sha256(frame1),
+    releaser_generation:{
+      marker:"VOID_APOLLYON_TRAINING_START_RELEASER_GENERATION_V1",
+      version:1,
+      pid:31337,
+      process_start_time_ticks:"998877",
+      uid:0,
+      gid:0,
+      supplementary_gids:[],
+      source_identity_sha256:"a".repeat(64),
+      pidfd_retained:true,
+    },
+    trainer_observed_ppid:31337,
+    trainer_inherits_release_read_end_only:true,
+    trainer_release_write_end_absent:true,
+    release_write_end_exclusive_to_releaser:true,
+    unrelated_duplicate_writer_fds_absent:true,
+    releaser_live_through_frame_completion:true,
+    ...overrides,
+  };
+}
+const originShape=qualifyApollyonTrainingStartReleaseChannelOriginShapeV1(
+  channelShape(),
+);
+assert.equal(
+  originShape.status,
+  "release_channel_origin_shape_qualified_not_authenticated",
+);
+assert.equal(originShape.release_binding_id,binding1.release_binding_id);
+assert.equal(originShape.correct_release_frame_shape_qualified,true);
+assert.equal(originShape.releaser_generation_shape_qualified,true);
+assert.equal(originShape.trainer_direct_parent_releaser_lineage_shape_qualified,true);
+assert.equal(originShape.trainer_read_end_only_shape_qualified,true);
+assert.equal(originShape.release_write_end_exclusivity_shape_qualified,true);
+assert.equal(originShape.private_release_channel_origin_proven,false);
+assert.equal(originShape.trainer_release_authorized,false);
+assert.equal(originShape.trainer_release_performed,false);
+assert.equal(originShape.training_execution_authorized,false);
+assert.equal(originShape.training_execution_performed,false);
+assert.deepEqual(
+  Object.keys(channelShape()).sort(),
+  [...VOID_APOLLYON_TRAINING_START_RELEASE_CHANNEL_ORIGIN_SHAPE_KEYS_V1].sort(),
+);
+
+// Correct deterministic frame bytes are not enough without reviewed writer shape.
+assert.throws(
+  ()=>qualifyApollyonTrainingStartReleaseChannelOriginShapeV1({
+    release_binding:binding1,
+    correct_release_frame_sha256:sha256(frame1),
+  }),
+  /channel_origin_shape_invalid/u,
+);
+assert.throws(
+  ()=>qualifyApollyonTrainingStartReleaseChannelOriginShapeV1(
+    channelShape({trainer_observed_ppid:31338}),
+  ),
+  /channel_origin_shape_invalid/u,
+);
+assert.throws(
+  ()=>qualifyApollyonTrainingStartReleaseChannelOriginShapeV1(
+    channelShape({release_write_end_exclusive_to_releaser:false}),
+  ),
+  /channel_origin_shape_invalid/u,
+);
+assert.throws(
+  ()=>qualifyApollyonTrainingStartReleaseChannelOriginShapeV1(
+    channelShape({unrelated_duplicate_writer_fds_absent:false}),
+  ),
+  /channel_origin_shape_invalid/u,
+);
+{
+  const bad=channelShape();
+  bad.releaser_generation.source_identity_sha256="not-reviewed";
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartReleaseChannelOriginShapeV1(bad),
+    /releaser_generation_invalid|channel_origin_shape_invalid/u,
+  );
+}
+{
+  const bad=channelShape();
+  bad.releaser_generation.supplementary_gids=[7,7];
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartReleaseChannelOriginShapeV1(bad),
+    /channel_origin_shape_invalid/u,
+  );
+}
 
 const record2=consumptionFor(trainer({
   pid:5252,
@@ -339,6 +437,18 @@ for(const [key,expected] of Object.entries({
   process_start_ticks_required:true,
   reviewed_executable_source_identity_required:true,
   private_inherited_release_channel_required:true,
+  reviewed_releaser_generation_required:true,
+  releaser_pidfd_retained_required:true,
+  releaser_start_ticks_bound_required:true,
+  releaser_source_identity_exact_required:true,
+  releaser_uid_gid_groups_identity_required:true,
+  releaser_live_through_authorized_frame_completion_required:true,
+  trainer_direct_parent_releaser_lineage_required:true,
+  trainer_inherits_release_read_end_only_required:true,
+  trainer_release_write_end_absent_required:true,
+  release_write_end_exclusive_to_reviewed_releaser_required:true,
+  unrelated_duplicate_release_writer_fds_rejected_required:true,
+  correct_frame_from_unreviewed_writer_is_authority:false,
   release_channel_reconstructible_from_pid_path_or_token_forbidden:true,
   caller_supplied_pid_signal_or_token_release_forbidden:true,
   generic_filesystem_flag_release_forbidden:true,
@@ -383,6 +493,12 @@ for(const [key,expected] of Object.entries({
   training_identity_policy_revalidation_performed:false,
   private_release_channel_required:true,
   private_release_channel_origin_proven:false,
+  releaser_generation_revalidation_required:true,
+  releaser_generation_revalidation_performed:false,
+  trainer_releaser_lineage_required:true,
+  trainer_releaser_lineage_proven:false,
+  release_writer_exclusivity_required:true,
+  release_writer_exclusivity_proven:false,
   trainer_release_performed:false,
   training_execution_authorized:false,
   training_execution_performed:false,
@@ -422,6 +538,11 @@ console.log("same_slot_different_trainer_release_binding_distinct=true");
 console.log("release_not_transferable_to_replacement_generation=true");
 console.log("release_frame_bytes=64");
 console.log("release_frame_non_bearer=true");
+console.log("reviewed_releaser_generation_required=true");
+console.log("trainer_releaser_lineage_required=true");
+console.log("exclusive_reviewed_release_writer_required=true");
+console.log("correct_frame_from_unreviewed_writer_insufficient=true");
+console.log("release_channel_origin_shape_is_not_authority=true");
 console.log("protected_consumption_record_origin_proven=false");
 console.log("live_trainer_generation_revalidation_performed=false");
 console.log("private_release_channel_origin_proven=false");
