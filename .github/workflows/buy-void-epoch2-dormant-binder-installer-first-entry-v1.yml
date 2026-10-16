@@ -5,7 +5,6 @@ on:
     paths:
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
       - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py"
       - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md"
       - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml"
@@ -42,13 +41,13 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c)" = \
-            2eba1ee452d39001bbb9180b3bb0f101539c6fcb
+            5f1195d0c0a328be4334ad5b7f6e32b150776cab
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py)" = \
-            29ce969a157e131d04267893d9909cb38872e6e8
+            be6d4ae9b3ac7dd14d66accc8fca776747f75b24
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md)" = \
-            aa6d34c05b5f9f8a074d5e50cfe5b1336f0f3d59
+            767573be85fe5419e0c6e489932baa491bc65826
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
-            37f8b9269e91ac37c65a527e5e3f87b6e5b10213
+            4d71a41415d8a8252eab6dc96ee9b31ffa6dbe65
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Prove privileged first entry
@@ -73,6 +72,9 @@ jobs:
             'retained_installer_descriptor_execution=true' \
             'post_child_generation_revalidation=true' \
             'native_candidate_descriptor_passed_to_installer=true' \
+            'private_parent_proof_pipe_exercised=true' \
+            'parent_pid_start_executable_generation_bound=true' \
+            'running_python_generation_bound=true' \
             'expected_plan_id_forwarded_for_apply=true' \
             'mid_child_native_path_substitution_consumes_retained_fd=true' \
             'abnormal_apply_receipt_conservative=true' \
