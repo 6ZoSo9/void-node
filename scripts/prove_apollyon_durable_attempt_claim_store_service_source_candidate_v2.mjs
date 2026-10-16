@@ -36,9 +36,9 @@ function sha256(value){return crypto.createHash("sha256").update(value).digest("
 
 const EXACT_BLOBS=Object.freeze({
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
+    "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py":
-    "03ea7df9b7a548c73ec1c715d716391be5d5d223",
+    "69db13fffaf1678da03b90f0fa14fd60c3c5c98c",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
     "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
@@ -67,8 +67,8 @@ assert.equal(candidate.status,"claim_store_service_source_boundary_defined_unimp
 assert.equal(candidate.target_host,"Xiphos");
 assert.equal(candidate.parent_store_contract_head,"fe7e1ad9b78a24b77a1657067e4d08f7c56a7731");
 assert.equal(candidate.parent_store_contract_blob_sha1,"6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe");
-assert.equal(candidate.parent_host_plan_head,"5693e0e060dd567acbbf7a1e44ab641efded4a98");
-assert.equal(candidate.parent_host_planner_blob_sha1,"03ea7df9b7a548c73ec1c715d716391be5d5d223");
+assert.equal(candidate.parent_host_plan_head,"db2ca3c90b0dc58eccc82b55b5b0fadcf82f6705");
+assert.equal(candidate.parent_host_planner_blob_sha1,"69db13fffaf1678da03b90f0fa14fd60c3c5c98c");
 assert.equal(candidate.store_policy_id,policy.store_policy_id);
 assert.deepEqual(candidate.fixed_identities,{
   claim_service_user:"voidapollyonclaim",
@@ -116,9 +116,25 @@ assert.deepEqual(candidate.host_plan_receipt_requirements,{
   selected_candidate_values_pairwise_distinct_required:true,
   selected_candidate_values_within_system_id_ranges_required:true,
   selected_candidate_values_absent_from_current_local_identity_rows_required:true,
-  source_generation_source_head:"5693e0e060dd567acbbf7a1e44ab641efded4a98",
+  selected_candidate_values_absent_from_live_process_credentials_required:true,
+  live_process_identity_authority_required:true,
+  live_process_identity_authority_profile:
+    "reviewed_root_host_pid_user_namespace_procfs_v2",
+  root_execution_verified_required:true,
+  host_pid_namespace_external_lease_required:true,
+  host_user_namespace_external_lease_required:true,
+  pid1_namespace_matches_self_required:true,
+  pid1_user_namespace_matches_self_required:true,
+  procfs_hidepid_absent_required:true,
+  complete_process_visibility_required:true,
+  all_four_uid_slots_consumed_required:true,
+  all_four_gid_slots_consumed_required:true,
+  supplementary_groups_consumed_required:true,
+  initial_and_final_process_census_required:true,
+  candidate_slots_clear_in_final_process_census_required:true,
+  source_generation_source_head:"db2ca3c90b0dc58eccc82b55b5b0fadcf82f6705",
   source_generation_parent_head:"fe7e1ad9b78a24b77a1657067e4d08f7c56a7731",
-  source_generation_planner_blob_sha1:"03ea7df9b7a548c73ec1c715d716391be5d5d223",
+  source_generation_planner_blob_sha1:"69db13fffaf1678da03b90f0fa14fd60c3c5c98c",
   source_generation_parent_contract_blob_sha1:"6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
   source_generation_authenticated_required:true,
   source_generation_isolated_python_startup_proven_required:true,
@@ -128,6 +144,9 @@ assert.deepEqual(candidate.host_plan_receipt_requirements,{
   candidate_slots_selected_in_plan_required:true,
   candidate_slots_globally_distinct_required:true,
   candidate_slots_revalidation_required_before_provisioning:true,
+  candidate_slots_live_process_recensus_required_before_provisioning:true,
+  candidate_slots_host_user_namespace_recensus_required_before_provisioning:true,
+  candidate_slots_provisioning_ready_required:false,
   claim_identity_provisioned_required:false,
   publisher_identity_provisioned_required:false,
   claim_ipc_group_provisioned_required:false,
@@ -230,6 +249,10 @@ for(const [key,expected] of Object.entries({
   host_plan_receipt_content_address_reverification_required:true,
   caller_supplied_host_plan_sufficient:false,
   live_host_plan_reexecution_required_before_provisioning:true,
+  live_process_credential_exclusion_required:true,
+  host_pid_namespace_external_lease_required:true,
+  host_user_namespace_external_lease_required:true,
+  host_root_user_namespace_binding_required:true,
   numeric_host_identity_binding_performed:false,
   service_implementation_present:false,
   publisher_implementation_present:false,
@@ -272,16 +295,22 @@ const source=fs.readFileSync(
 for(const required of [
   'PARENT_STORE_CONTRACT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"',
   'PARENT_STORE_CONTRACT_BLOB_SHA1="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"',
-  'PARENT_HOST_PLAN_HEAD="5693e0e060dd567acbbf7a1e44ab641efded4a98"',
-  'PARENT_HOST_PLANNER_BLOB_SHA1="03ea7df9b7a548c73ec1c715d716391be5d5d223"',
+  'PARENT_HOST_PLAN_HEAD="db2ca3c90b0dc58eccc82b55b5b0fadcf82f6705"',
+  'PARENT_HOST_PLANNER_BLOB_SHA1="69db13fffaf1678da03b90f0fa14fd60c3c5c98c"',
   'numeric_host_identities:null',
   'host_plan_receipt_required_for_numeric_identity_binding:true',
   'host_plan_receipt_requirements:hostPlanReceiptRequirements',
   'plan_id_content_address_reverification_required:true',
   'caller_supplied_host_plan_sufficient:false',
   'live_host_plan_reexecution_required_before_provisioning:true',
+  'live_process_identity_authority_required:true',
+  'host_pid_namespace_external_lease_required:true',
+  'host_user_namespace_external_lease_required:true',
+  'host_root_user_namespace_binding_required:true',
   'source_generation_isolated_python_startup_proven_required:true',
   'candidate_slots_revalidation_required_before_provisioning:true',
+  'candidate_slots_live_process_recensus_required_before_provisioning:true',
+  'candidate_slots_host_user_namespace_recensus_required_before_provisioning:true',
   'service_implementation_present:false',
   'publisher_implementation_present:false',
 ]){
@@ -311,7 +340,12 @@ console.log("host_plan_receipt_content_address_reverification_required=true");
 console.log("caller_supplied_host_plan_sufficient=false");
 console.log("live_host_plan_reexecution_required_before_provisioning=true");
 console.log("host_plan_source_generation_requirements_bound=true");
+console.log("live_process_credential_exclusion_required=true");
+console.log("host_pid_namespace_external_lease_required=true");
+console.log("host_user_namespace_external_lease_required=true");
+console.log("host_root_user_namespace_binding_required=true");
 console.log("candidate_slots_revalidation_required_before_provisioning=true");
+console.log("candidate_slots_live_process_recensus_required_before_provisioning=true");
 console.log("numeric_host_identity_binding_performed=false");
 console.log("service_implementation_present=false");
 console.log("publisher_implementation_present=false");
