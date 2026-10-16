@@ -214,26 +214,116 @@ def _installed_snapshot(installer: Any, expected_head: str) -> dict[str, Any]:
     }
 
 
-def _run_native_self_test(installer: Any) -> tuple[str, str]:
+def _native_stat_matches_snapshot(
+    observed: os.stat_result,
+    expected: dict[str, Any],
+) -> bool:
+    return (
+        observed.st_dev == expected["dev"]
+        and observed.st_ino == expected["ino"]
+        and observed.st_uid == expected["uid"]
+        and observed.st_gid == expected["gid"]
+        and format(stat.S_IMODE(observed.st_mode), "04o") == expected["mode"]
+        and observed.st_nlink == expected["nlink"]
+        and observed.st_size == expected["bytes"]
+        and observed.st_mtime_ns == expected["mtime_ns"]
+        and observed.st_ctime_ns == expected["ctime_ns"]
+    )
+
+
+def _run_native_self_test(
+    installer: Any,
+    expected_native: dict[str, Any],
+) -> tuple[str, str]:
     if os.geteuid() != 0:
         raise QualificationError("root_required_for_installed_qualification")
+
     try:
-        completed = subprocess.run(
-            [str(installer.NATIVE_TARGET), "--self-test"],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="strict",
-            env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
-            cwd="/",
-            timeout=SELF_TEST_TIMEOUT_SECONDS,
-            check=False,
-            close_fds=True,
+        visible_before = installer.NATIVE_TARGET.lstat()
+    except OSError as exc:
+        raise QualificationError("native_self_test_target_unavailable") from exc
+    if not _native_stat_matches_snapshot(visible_before, expected_native):
+        raise QualificationError("native_self_test_target_generation_mismatch")
+
+    try:
+        native_fd = os.open(
+            installer.NATIVE_TARGET,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
-    except (OSError, subprocess.SubprocessError, UnicodeError) as exc:
-        raise QualificationError("native_self_test_execution_failed") from exc
+    except OSError as exc:
+        raise QualificationError("native_self_test_open_failed") from exc
+
+    try:
+        opened_before = os.fstat(native_fd)
+        if (
+            not _same_stat(visible_before, opened_before)
+            or not _native_stat_matches_snapshot(opened_before, expected_native)
+        ):
+            raise QualificationError("native_self_test_target_rebound")
+
+        digest = hashlib.sha256()
+        remaining = installer.NATIVE_BYTES
+        while remaining:
+            chunk = os.read(native_fd, min(1024 * 1024, remaining))
+            if not chunk:
+                raise QualificationError("native_self_test_target_short_read")
+            digest.update(chunk)
+            remaining -= len(chunk)
+        if os.read(native_fd, 1):
+            raise QualificationError("native_self_test_target_grew")
+        if digest.hexdigest() != installer.NATIVE_SHA256:
+            raise QualificationError("native_self_test_target_sha256_mismatch")
+
+        opened_after_hash = os.fstat(native_fd)
+        visible_after_hash = installer.NATIVE_TARGET.lstat()
+        if (
+            not _same_stat(opened_before, opened_after_hash)
+            or not _same_stat(opened_after_hash, visible_after_hash)
+            or not _native_stat_matches_snapshot(
+                opened_after_hash,
+                expected_native,
+            )
+        ):
+            raise QualificationError("native_self_test_target_changed_before_exec")
+
+        exec_path = "/proc/self/fd/" + str(native_fd)
+        try:
+            completed = subprocess.run(
+                [exec_path, "--self-test"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="strict",
+                env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+                cwd="/",
+                timeout=SELF_TEST_TIMEOUT_SECONDS,
+                check=False,
+                close_fds=True,
+                pass_fds=(native_fd,),
+            )
+        except (OSError, subprocess.SubprocessError, UnicodeError) as exc:
+            raise QualificationError("native_self_test_execution_failed") from exc
+
+        opened_after_exec = os.fstat(native_fd)
+        try:
+            visible_after_exec = installer.NATIVE_TARGET.lstat()
+        except OSError as exc:
+            raise QualificationError(
+                "native_self_test_target_unavailable_after_exec"
+            ) from exc
+        if (
+            not _same_stat(opened_before, opened_after_exec)
+            or not _same_stat(opened_after_exec, visible_after_exec)
+            or not _native_stat_matches_snapshot(
+                opened_after_exec,
+                expected_native,
+            )
+        ):
+            raise QualificationError("native_self_test_target_changed_during_exec")
+    finally:
+        os.close(native_fd)
 
     if completed.returncode != 0:
         raise QualificationError(
@@ -274,9 +364,15 @@ def collect(expected_head: str) -> dict[str, Any]:
     installer = _load_installer()
 
     before = _installed_snapshot(installer, expected_head)
-    first_output, first_sha = _run_native_self_test(installer)
+    first_output, first_sha = _run_native_self_test(
+        installer,
+        before["native"],
+    )
     middle = _installed_snapshot(installer, expected_head)
-    second_output, second_sha = _run_native_self_test(installer)
+    second_output, second_sha = _run_native_self_test(
+        installer,
+        middle["native"],
+    )
     after = _installed_snapshot(installer, expected_head)
 
     if before != middle or middle != after:
@@ -352,6 +448,7 @@ def plan() -> None:
     print("node_generation_binding_required=true")
     print("checkout_generation_binding_required=true")
     print("double_native_self_test_required=true")
+    print("native_self_test_verified_fd_execution_required=true")
     print("native_self_test_execution=false")
     print("runner_execution=false")
     print("live_composition_execution=false")
