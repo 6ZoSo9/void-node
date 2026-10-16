@@ -96,6 +96,16 @@ V3 retains V2's accepted derivation logic for:
 The historical V2 enforcement lock remains immutable predecessor evidence. V3
 does not repin or modify it.
 
+V3's direct runtime/build-source ancestry check is intentionally anchored at
+reviewed range-era base
+`ccb1bd973a60875ecebf570905e6d8fc1c15ae3c`, not the historical V2 branch
+parent. The old parent is no longer a valid current-generation ancestry
+boundary. This does not substitute a new economic closure: the V5 census and
+V3's independent inventory derivation must still reproduce the frozen accepted
+28 economic artifact/source hashes exactly, while Git proves zero
+`src/economic` / package / build-config drift from the reviewed current base
+through the V3 head.
+
 ## Hosted qualification
 
 Node 22, 24 and 26 each install the exact lockfile dependencies, typecheck/build
