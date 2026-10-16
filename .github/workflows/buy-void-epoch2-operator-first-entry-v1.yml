@@ -1,0 +1,134 @@
+name: Buy VOID Epoch-2 operator first entry v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_operator_first_entry_v1.c"
+      - "scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py"
+      - "docs/operators/buy-void-epoch2-operator-first-entry-v1.md"
+      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_operator_first_entry_v1.c"
+      - "scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py"
+      - "docs/operators/buy-void-epoch2-operator-first-entry-v1.md"
+      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: protected operator first entry
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source and parent generations
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+          parent_head=0cae7b813da6ad11ac5ab8d360b47447045e5df6
+          git merge-base --is-ancestor "$parent_head" "$EXPECTED_HEAD"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v2.py)" =             c565c2f2327586e58100aaad4954602b85e7ebdb
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py)" =             4d652457c1f28d8306e6b7556b9674641473cef6
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v2.py)" =             e8807d1acb8c7a81d52bf5b8f32b56c3446e28b5
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py)" =             6d7953e96da27dc47b17c29e6b34b7a9a5c7d66d
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            test -n "$PR_BASE"
+            git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
+            expected="$RUNNER_TEMP/expected-scope.txt"
+            actual="$RUNNER_TEMP/actual-scope.txt"
+            printf '%s\n'               '.github/workflows/buy-void-epoch2-operator-first-entry-v1.yml'               'docs/operators/buy-void-epoch2-operator-first-entry-v1.md'               'ops/precision/void_buy_void_epoch2_operator_first_entry_v1.c'               'scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py'               | sort > "$expected"
+            git diff --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
+            diff -u "$expected" "$actual"
+            git diff --check "$PR_BASE" "$EXPECTED_HEAD"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            test -n "$PUSH_BEFORE"
+            test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+            git merge-base --is-ancestor "$PUSH_BEFORE" "$EXPECTED_HEAD"
+            git diff --check "$PUSH_BEFORE" "$EXPECTED_HEAD"
+          else
+            git diff --check "$EXPECTED_HEAD^1" "$EXPECTED_HEAD"
+          fi
+
+      - name: Syntax and static compiler availability
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -B - <<'PY'
+          from pathlib import Path
+          compile(
+              Path("scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py").read_text("utf-8"),
+              "scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py",
+              "exec",
+              dont_inherit=True,
+          )
+          print("VOID_BUY_VOID_EPOCH2_OPERATOR_FIRST_ENTRY_V1_PYTHON_SYNTAX_GREEN")
+          PY
+          /usr/bin/cc --version
+          /usr/bin/readelf --version
+          sudo -n true
+
+      - name: Prove protected native first entry
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/e2-operator-first-entry-v1.txt"
+          /usr/bin/python3 -I -B             scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py             | tee "$proof"
+
+          for marker in             'VOID_BUY_VOID_EPOCH2_OPERATOR_FIRST_ENTRY_V1_PROOF_GREEN'             'production_static_no_pt_interp=true'             'fixed_operation_allowlist_proven=true'             'caller_selected_paths_rejected=true'             'wrong_apply_confirmation_rejected_before_child=true'             'installer_source_identity_bound=true'             'qualifier_source_identity_bound=true'             'python_generation_policy_bound=true'             'protected_source_path_substitution_rejected=true'             'python_path_substitution_rejected=true'             'retained_source_exec_survives_path_swap_but_parent_green_rejected=true'             'ld_preload_dynamic_control_executes=true'             'ld_preload_cannot_reach_static_preentry_or_python_child=true'             'pythonpath_dynamic_control_executes=true'             'caller_python_environment_cannot_reach_child=true'             'final_parent_green_requires_post_child_revalidation=true'             'prefork_operation_receipts_strict_false=true'             'postfork_apply_receipt_conservative=true'             'postfork_qualifier_receipt_conservative=true'             'abnormal_child_receipt_conservative=true'             'live_host_installation=false'             'installer_apply_performed=false'             'installed_qualifier_run_performed=false'             'credential_content_access=false'             'signing=false'             'transaction=false'             'payment_acceptance=false'             'public_presale_activation=false'             'wc_void_market_activation=false'             'funds_movement=false'
+          do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Re-prove accepted installer v2
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -B             scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py             | tee "$RUNNER_TEMP/parent-installer-v2.txt"
+          grep -Fx             'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_PROTECTED_INSTALL_V2_PROOF_GREEN'             "$RUNNER_TEMP/parent-installer-v2.txt"
+
+      - name: Re-prove accepted installed qualifier v2
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -B             scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py             | tee "$RUNNER_TEMP/parent-qualification-v2.txt"
+          grep -Fx             'VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V2_PROOF_GREEN'             "$RUNNER_TEMP/parent-qualification-v2.txt"
+
+      - name: Final repository hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

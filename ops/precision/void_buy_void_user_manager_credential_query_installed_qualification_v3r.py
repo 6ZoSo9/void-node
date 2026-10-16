@@ -18,7 +18,7 @@ REPLACEMENT_SOURCE = (
     "void_buy_void_user_manager_credential_query_protected_replace_v3r.py"
 )
 REPLACEMENT_SOURCE_GIT_BLOB_SHA1 = (
-    "df103c1439dd054d98132c3beee226f3d8222314"
+    "98f8b9fda89e33c50e19008268d97655aad54e6d"
 )
 
 V6_QUALIFIER_SOURCE = (
