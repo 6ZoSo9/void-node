@@ -203,9 +203,9 @@ def accepted_lock() -> dict[str, Any]:
         raise InstallError("accepted_lock_shape_invalid")
 
     required = {
-        "schema": "void_buy_void_epoch2_live_composition_native_candidate_lock_v5",
-        "marker": "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_LOCK_V5",
-        "version": 5,
+        "schema": "void_buy_void_epoch2_live_composition_native_candidate_lock_v6",
+        "marker": "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_LOCK_V6",
+        "version": 6,
         "repository": "6ZoSo9/void-node",
         "candidate_accepted": True,
         "native_binary_identity_accepted": True,
@@ -222,7 +222,7 @@ def accepted_lock() -> dict[str, Any]:
         "treasury_liquidity_action_authorized": False,
         "funds_movement_authorized": False,
         "production_host_evidence_authority": False,
-        "next_gate": "void_buy_void_epoch2_live_composition_native_protected_install_v3",
+        "next_gate": "void_buy_void_epoch2_live_composition_native_protected_install_v4",
         "lock_id": LOCK_ID,
     }
     for key, expected in required.items():
@@ -242,13 +242,13 @@ def accepted_lock() -> dict[str, Any]:
         "runner_sha256": RUNNER_SHA256,
         "runner_bytes": RUNNER_BYTES,
         "candidate_script_git_blob_sha1":
-            "bc1b7575e8a77d98b81252da39b6e2d3c10760d9",
+            "696eacfd72ba31ae4b00a1ddf98e91b0cabb5134",
         "candidate_workflow_git_blob_sha1":
-            "9a2999cf36c3665109632762317b1aa094baf921",
+            "c4651ce5b75baa752682ce82daac6229a030c3c6",
         "source_proof_git_blob_sha1":
-            "3918e59fa7393824f2c98d129dfbead3d3867d99",
+            "b48972c0f930f5a33754a390bd2289853fc93c93",
         "source_workflow_git_blob_sha1":
-            "43e791da6b7513bf945731f888f0590fc99c7773",
+            "428bd68439ab5b7251632107839346d6b18fc769",
         "toolchain_closure_bound": True,
         "static_no_interp": True,
         "hostile_ld_preload_blocked": True,
