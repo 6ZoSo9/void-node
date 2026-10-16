@@ -19,9 +19,45 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_KEYS_V2 =
     "version",
   ]);
 
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_LEAST_AUTHORITY_KEYS_V2 =
+  Object.freeze([
+    "cap_ambient",
+    "cap_bounding",
+    "cap_effective",
+    "cap_inheritable",
+    "cap_permitted",
+    "claim_gid",
+    "claim_uid",
+    "custody_gid",
+    "custody_uid",
+    "interactive_operator_gid",
+    "interactive_operator_uid",
+    "no_new_privileges",
+    "public_runtime_gid",
+    "public_runtime_uid",
+    "training_gid",
+    "training_uid",
+  ]);
+
 export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
   Object.freeze({
     dedicated_claim_service_identity_required:true,
+    claim_service_non_root_uid_required:true,
+    claim_service_non_root_gid_required:true,
+    claim_service_numeric_uid_distinct_from_training_required:true,
+    claim_service_numeric_uid_distinct_from_custody_required:true,
+    claim_service_numeric_uid_distinct_from_public_runtime_required:true,
+    claim_service_numeric_uid_distinct_from_interactive_operator_required:true,
+    claim_service_numeric_gid_distinct_from_training_required:true,
+    claim_service_numeric_gid_distinct_from_custody_required:true,
+    claim_service_numeric_gid_distinct_from_public_runtime_required:true,
+    claim_service_numeric_gid_distinct_from_interactive_operator_required:true,
+    claim_service_no_new_privileges_required:true,
+    claim_service_inheritable_capabilities_empty_required:true,
+    claim_service_permitted_capabilities_empty_required:true,
+    claim_service_effective_capabilities_empty_required:true,
+    claim_service_bounding_capabilities_empty_required:true,
+    claim_service_ambient_capabilities_empty_required:true,
     claim_identity_distinct_from_training_required:true,
     claim_identity_distinct_from_custody_required:true,
     claim_identity_distinct_from_public_runtime_required:true,
@@ -93,6 +129,9 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     claim_service_source_identity_revalidation_immediately_before_publication_required:true,
     claim_service_supplementary_groups_revalidation_immediately_before_publication_required:true,
     claim_service_effective_policy_revalidation_immediately_before_publication_required:true,
+    claim_service_numeric_identity_revalidation_immediately_before_publication_required:true,
+    claim_service_no_new_privileges_revalidation_immediately_before_publication_required:true,
+    claim_service_capability_sets_revalidation_immediately_before_publication_required:true,
     claim_store_generation_revalidation_immediately_before_publication_required:true,
     claim_store_root_identity_revalidation_immediately_before_publication_required:true,
     claim_write_authority_revalidation_immediately_before_publication_required:true,
@@ -192,6 +231,77 @@ function requireFalse(value,keys,code){
 }
 function requireTrue(value,keys,code){
   for(const key of keys)if(value[key]!==true)fail(code);
+}
+
+export function qualifyApollyonDurableAttemptClaimServiceLeastAuthorityV2(input){
+  let value;
+  try{
+    value=structuredClone(input);
+  }catch{
+    fail("apollyon_claim_service_least_authority_v2_input_invalid");
+  }
+  exactKeys(
+    value,
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_LEAST_AUTHORITY_KEYS_V2,
+    "apollyon_claim_service_least_authority_v2_input_invalid",
+  );
+  for(const key of [
+    "claim_uid","claim_gid","training_uid","training_gid",
+    "custody_uid","custody_gid","public_runtime_uid","public_runtime_gid",
+    "interactive_operator_uid","interactive_operator_gid",
+  ]){
+    if(!Number.isSafeInteger(value[key])||value[key]<0||value[key]>65533){
+      fail("apollyon_claim_service_least_authority_v2_numeric_identity_invalid");
+    }
+  }
+  if(value.claim_uid===0){
+    fail("apollyon_claim_service_least_authority_v2_root_uid_forbidden");
+  }
+  if(value.claim_gid===0){
+    fail("apollyon_claim_service_least_authority_v2_root_gid_forbidden");
+  }
+  for(const [label,observed] of [
+    ["training_uid",value.training_uid],
+    ["custody_uid",value.custody_uid],
+    ["public_runtime_uid",value.public_runtime_uid],
+    ["interactive_operator_uid",value.interactive_operator_uid],
+  ]){
+    if(value.claim_uid===observed){
+      fail("apollyon_claim_service_least_authority_v2_uid_collision:"+label);
+    }
+  }
+  for(const [label,observed] of [
+    ["training_gid",value.training_gid],
+    ["custody_gid",value.custody_gid],
+    ["public_runtime_gid",value.public_runtime_gid],
+    ["interactive_operator_gid",value.interactive_operator_gid],
+  ]){
+    if(value.claim_gid===observed){
+      fail("apollyon_claim_service_least_authority_v2_gid_collision:"+label);
+    }
+  }
+  if(value.no_new_privileges!==true){
+    fail("apollyon_claim_service_least_authority_v2_no_new_privileges_required");
+  }
+  for(const key of [
+    "cap_inheritable","cap_permitted","cap_effective","cap_bounding","cap_ambient",
+  ]){
+    if(value[key]!=="0000000000000000"){
+      fail("apollyon_claim_service_least_authority_v2_capabilities_not_empty:"+key);
+    }
+  }
+  return Object.freeze({
+    qualified:true,
+    claim_uid:value.claim_uid,
+    claim_gid:value.claim_gid,
+    non_root_identity:true,
+    numeric_identity_separation_verified:true,
+    no_new_privileges:true,
+    all_capability_sets_empty:true,
+    host_installation_performed:false,
+    durable_attempt_claim_performed:false,
+    training_execution_performed:false,
+  });
 }
 
 const TERMINAL_KEYS=[
