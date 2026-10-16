@@ -16,7 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
-EXPECTED_PLANNER_BLOB_SHA1="39fd60908aa713b1eaa3d5d2a71c20b8ae10cd7a"
+EXPECTED_PLANNER_BLOB_SHA1="d5f19c20572a552a060d1c68086bcb38fa09b419"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -139,6 +139,8 @@ assert '"GIT_CONFIG_NOSYSTEM":"1"' in source
 assert '"GIT_CONFIG_GLOBAL":"/dev/null"' in source
 assert '"GIT_TERMINAL_PROMPT":"0"' in source
 assert '"GIT_NO_REPLACE_OBJECTS":"1"' in source
+assert '"GIT_NO_LAZY_FETCH":"1"' in source
+assert 'run_git(["cat-file","-t",commit])' in source
 
 spec=importlib.util.spec_from_file_location("claim_store_host_plan_v2",PLAN)
 assert spec is not None and spec.loader is not None
@@ -187,6 +189,7 @@ git_env={
     "GIT_TERMINAL_PROMPT":"0",
     "GIT_OPTIONAL_LOCKS":"0",
     "GIT_NO_REPLACE_OBJECTS":"1",
+    "GIT_NO_LAZY_FETCH":"1",
 }
 head_run=subprocess.run(
     ["/usr/bin/git","-C",str(ROOT),"rev-parse","HEAD"],
@@ -205,6 +208,8 @@ assert source_generation["parent_contract_git_blob_sha1"]=="6e3e5a80b3f481f98ace
 assert source_generation["source_generation_authenticated"] is True
 assert source_generation["reviewed_source_head_external_lease_required"] is True
 assert source_generation["git_replace_objects_disabled"] is True
+assert source_generation["git_lazy_fetch_disabled"] is True
+assert source_generation["raw_commit_object_types_verified"] is True
 assert source_generation["raw_commit_ancestry_verified"] is True
 assert source_generation["git_network_access_performed"] is False
 
@@ -289,6 +294,46 @@ with tempfile.TemporaryDirectory(prefix="apollyon-git-replace-adversary-") as td
             assert str(exc)=="source_parent_not_ancestor",str(exc)
         else:
             raise AssertionError("Git graft must not manufacture reviewed parent ancestry")
+
+        tree_sha=fixture_git(fixture,"rev-parse",fixture_reviewed+"^{tree}")
+        fake_blob_payload=(
+            "tree "+tree_sha+"\n"
+            "parent "+fixture_parent+"\n"
+            "author VOID CI <void-ci@example.invalid> 0 +0000\n"
+            "committer VOID CI <void-ci@example.invalid> 0 +0000\n"
+            "\n"
+            "blob masquerading as commit\n"
+        )
+        fake_blob=subprocess.run(
+            ["/usr/bin/git","-C",str(fixture),"hash-object","-w","--stdin"],
+            input=fake_blob_payload,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            text=True,check=False,timeout=10,env=git_env,
+        )
+        assert fake_blob.returncode==0,fake_blob.stderr
+        fake_blob_sha=fake_blob.stdout.strip()
+        assert len(fake_blob_sha)==40
+
+        malformed_commit_payload=(
+            "tree "+tree_sha+"\n"
+            "parent "+fake_blob_sha+"\n"
+            "author VOID CI <void-ci@example.invalid> 1 +0000\n"
+            "committer VOID CI <void-ci@example.invalid> 1 +0000\n"
+            "\n"
+            "malformed parent type\n"
+        )
+        malformed_commit=subprocess.run(
+            ["/usr/bin/git","-C",str(fixture),"hash-object","-t","commit","-w","--stdin"],
+            input=malformed_commit_payload,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            text=True,check=False,timeout=10,env=git_env,
+        )
+        assert malformed_commit.returncode==0,malformed_commit.stderr
+        malformed_commit_sha=malformed_commit.stdout.strip()
+        try:
+            module.raw_commit_ancestry_contains(malformed_commit_sha,fixture_parent)
+        except module.Hold as exc:
+            assert str(exc)=="source_git_commit_object_type_invalid",str(exc)
+        else:
+            raise AssertionError("non-commit parent object must HOLD during ancestry walk")
     finally:
         module.SOURCE_ROOT=saved_root
         module.SOURCE_PATH=saved_path
@@ -369,8 +414,11 @@ print("live_source_head_and_blob_authenticated=true")
 print("wrong_source_head_rejected=true")
 print("substituted_planner_rejected=true")
 print("git_replace_objects_disabled=true")
+print("git_lazy_fetch_disabled=true")
+print("git_commit_object_types_verified=true")
 print("git_replace_substitution_adversary_rejected=true")
 print("git_graft_ancestry_adversary_rejected=true")
+print("noncommit_parent_object_rejected=true")
 print("raw_commit_ancestry_verified=true")
 print("reviewed_source_head_external_lease_required=true")
 print("stable_store_policy_id="+EXPECTED_STORE_POLICY_ID)

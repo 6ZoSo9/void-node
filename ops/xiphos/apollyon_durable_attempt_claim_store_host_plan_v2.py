@@ -87,6 +87,7 @@ GIT_ENV={
     "GIT_TERMINAL_PROMPT":"0",
     "GIT_OPTIONAL_LOCKS":"0",
     "GIT_NO_REPLACE_OBJECTS":"1",
+    "GIT_NO_LAZY_FETCH":"1",
 }
 
 AUTHORITY={
@@ -261,6 +262,9 @@ def tracked_blob_at_head(head:str,relative:Path)->str:
 def raw_commit_parents(commit:str)->list[str]:
     if not GIT40_RE.fullmatch(commit):
         hold("source_git_commit_invalid")
+    object_type=run_git(["cat-file","-t",commit]).stdout.strip()
+    if object_type!="commit":
+        hold("source_git_commit_object_type_invalid")
     result=run_git(["cat-file","-p",commit])
     parents:list[str]=[]
     tree_seen=False
@@ -347,6 +351,8 @@ def verify_source_generation(expected_source_head:str)->dict[str,Any]:
         "fixed_git_binary":os.fspath(GIT_BIN),
         "git_environment_sanitized":True,
         "git_replace_objects_disabled":True,
+        "git_lazy_fetch_disabled":True,
+        "raw_commit_object_types_verified":True,
         "raw_commit_ancestry_verified":True,
         "git_network_access_performed":False,
         "reviewed_source_head_external_lease_required":True,
