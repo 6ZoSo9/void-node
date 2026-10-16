@@ -6,6 +6,16 @@ on:
       - "ops/precision/void_buy_void_epoch2_operator_first_entry_v1.c"
       - "scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py"
       - "docs/operators/buy-void-epoch2-operator-first-entry-v1.md"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json"
+      - "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
       - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
   push:
     branches: [main]
@@ -13,6 +23,16 @@ on:
       - "ops/precision/void_buy_void_epoch2_operator_first_entry_v1.c"
       - "scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py"
       - "docs/operators/buy-void-epoch2-operator-first-entry-v1.md"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json"
+      - "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
       - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
   workflow_dispatch:
 
@@ -32,6 +52,109 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Prove trigger/pin parity
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from collections import Counter
+          from pathlib import Path
+          import re
+
+          workflow = Path(".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml")
+          text = workflow.read_text(encoding="utf-8")
+          trigger_text = text.split("\npermissions:", 1)[0]
+
+          trigger_paths = re.findall(
+              r'(?m)^\s{6}- "([^"]+)"\s*        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+          # Historical V1 operator-entry source/proof/docs remain byte-frozen.
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_operator_first_entry_v1.c)" =             386c0be54e3c63408d91a30752ab8faf2ae12553
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py)" =             6da2229606e3751e5384259a3fc82d850b9f177b
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-operator-first-entry-v1.md)" =             7933450064579ae585fedfda3cca02ea826751a3
+
+          # Its accepted V4/V2 input generation remains historical evidence.
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v2.py)" =             c565c2f2327586e58100aaad4954602b85e7ebdb
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py)" =             4d652457c1f28d8306e6b7556b9674641473cef6
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v2.py)" =             e8807d1acb8c7a81d52bf5b8f32b56c3446e28b5
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py)" =             6d7953e96da27dc47b17c29e6b34b7a9a5c7d66d
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json)" =             34340b5a8d13b7496bf5cafcf9d2937cb777d45c
+
+          # Current-positive lineage is the repaired V3R/V3 runner generation.
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py)" =             74c69fe8a95ed5f361a39971618f43f7c768c865
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs)" =             499df9b94b5b89354837570da0c7e47ec280025d
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py)" =             b48972c0f930f5a33754a390bd2289853fc93c93
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml)" =             428bd68439ab5b7251632107839346d6b18fc769
+          test "$(git rev-parse HEAD:scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs)" =             14cbe81e27d04fee77cbe75225ce308bf8561a7b
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            test -n "$PR_BASE"
+            git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
+            git diff --check "$PR_BASE" "$EXPECTED_HEAD"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            test -n "$PUSH_BEFORE"
+            test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+            git merge-base --is-ancestor "$PUSH_BEFORE" "$EXPECTED_HEAD"
+            git diff --check "$PUSH_BEFORE" "$EXPECTED_HEAD"
+          else
+            git diff --check "$EXPECTED_HEAD^1" "$EXPECTED_HEAD"
+          fi
+
+          echo VOID_BUY_VOID_EPOCH2_OPERATOR_FIRST_ENTRY_V1_HISTORICAL_PRESERVED
+          echo historical_operator_entry_current_positive=false
+          echo v4_v2_generation_historical=true
+          echo repaired_v3r_v3_successor_bound=true
+          echo protected_install_authorized=false
+          echo live_execution_authorized=false
+          echo credential_content_access=false
+          echo signing=false
+          echo transaction=false
+          echo payment_acceptance=false
+          echo public_presale_activation=false
+          echo wc_void_market_activation=false
+          echo funds_movement=false
+
+      - run: git diff --check
+,
+              trigger_text,
+          )
+          counts = Counter(trigger_paths)
+
+          pinned_paths = set(re.findall(
+              r"git rev-parse HEAD:([A-Za-z0-9_./-]+)",
+              text,
+          ))
+          required = pinned_paths | {workflow.as_posix()}
+
+          if set(counts) != required:
+              missing = sorted(required - set(counts))
+              extra = sorted(set(counts) - required)
+              raise SystemExit(
+                  "trigger_pin_path_set_mismatch:"
+                  f"missing={missing}:extra={extra}"
+              )
+
+          wrong_counts = {
+              path: count for path, count in sorted(counts.items())
+              if count != 2
+          }
+          if wrong_counts:
+              raise SystemExit(
+                  "trigger_pin_path_count_mismatch:"
+                  + repr(wrong_counts)
+              )
+
+          print("operator_first_entry_trigger_pin_parity=true")
+          print("operator_first_entry_trigger_path_count=" + str(len(required)))
+          PY
 
       - name: Preserve exact historical V1 evidence and exact V3 successor
         env:
