@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
       - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
       - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml"
@@ -15,6 +16,7 @@ on:
     branches: [main]
     paths:
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
       - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
       - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml"
@@ -53,11 +55,19 @@ jobs:
 
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
-          printf '%s\n'             '.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml'             'docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md'             'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs'             'scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs'             | sort > "$expected"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c' \
+            'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs' \
+            'scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs' \
+            | sort > "$expected"
           git diff --name-only "$qualifier_parent" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "42c29e30637367fa9541b24db38d6421af6409d9"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" = \
+            "322e3cbac9986205a946319d216c7a5de164f117"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "3116f9867d1bad145639dda157ffc7d398a3234a"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md)" =             "85d35b6fdafa49f673dc5178bf0f233ed3789d9b"
 
@@ -86,7 +96,11 @@ jobs:
             tee "$out"
           markers=(
             "VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V2_PROOF_GREEN"
-            "binder_git_object_entry_required=true"
+            "native_binder_first_entry_required=true"
+            "native_binder_preentry_source_bound=true"
+            "binder_exact_sha256_bound=true"
+            "private_binder_parent_proof_required=true"
+            "arbitrary_stdin_live_binding_rejected=true"
             "candidate_v4_git_object_bound=true"
             "candidate_v4_signer_control_preserved=true"
             "v6r2_qualifier_git_object_bound=true"
