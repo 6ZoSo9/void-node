@@ -19,7 +19,7 @@ INSTALLER = (
     "void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
 )
 
-TARGET_BLOB = "94fd2344fe2a4cfb66c9976ca1541d52c27ec17d"
+TARGET_BLOB = "37ab46ca5b77a642d84ad18c61388c30f4d63881"
 INSTALLER_BLOB = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
 
 
