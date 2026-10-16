@@ -57,11 +57,14 @@ Future reviewed installed paths are fixed under:
 `/opt/void-buy-void-epoch2-dormant-v3r-binding-v1`.
 
 The native candidate binds the exact reviewed binder Git object
-`af31dcd6f381c04c77aeef2a20d2846c0446807a`, exact binder bytes
-(38974) and SHA-256
-`284ff126360ae4fe7e7704477aac3bff39e7c1418a95fec018f9550f06a9ff03`.
+`eba8675de998af42ff9022997ed20063ba1257d0`, exact binder bytes
+(39391) and SHA-256
+`3f0def494218f85b131d923d80d15e9a2830e5b774c1721b6eae824b8ce12165`.
 It also verifies the fixed Node executable against the already protected V3
-policy before Node evaluates the binder.
+policy before Node evaluates the binder. The native process binds its actual
+running `/proc/self/exe` inode to the fixed installed preentry path, and the
+binder revalidates both the running parent executable inode and its own running
+Node inode against the parent proof and fixed visible paths.
 
 This PR defines the native source only. It does not install, materialize or
 accept a native binder-preentry binary.
