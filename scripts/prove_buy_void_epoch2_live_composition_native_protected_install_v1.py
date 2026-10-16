@@ -14,8 +14,10 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 INSTALLER=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py"
 LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v3.json"
+MATERIALIZER=ROOT/"scripts/materialize_buy_void_epoch2_live_composition_native_v3.py"
 INSTALLER_BLOB="6546c0045d5e5c523cf1aac7bba899b5797f2afb"
 LOCK_BLOB="57f965a944031eac90d69b4104b0f8f2473e66cc"
+MATERIALIZER_BLOB="be564645b31bd49cf1ed08f663eff4bba53cdf99"
 LOCK_ID="voidbuye2nativecandlock3_024c9e3818a40616fc8b198f605721bf76ed43d6d4f186bf02a202d46860a659"
 EXPECTED_NATIVE_SHA256="78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589"
 EXPECTED_NATIVE_BYTES=726976
@@ -49,8 +51,10 @@ def direct(path:Path)->bytes:
 
 installer_raw=direct(INSTALLER)
 lock_raw=direct(LOCK)
+materializer_raw=direct(MATERIALIZER)
 assert git_blob(installer_raw)==INSTALLER_BLOB
 assert git_blob(lock_raw)==LOCK_BLOB
+assert git_blob(materializer_raw)==MATERIALIZER_BLOB
 source=installer_raw.decode("utf-8")
 ast.parse(source)
 
@@ -253,6 +257,22 @@ with tempfile.TemporaryDirectory(prefix="void-e2-native-install-proof-") as td:
     finally:
         os.close(parent_fd)
 
+    materialized=root/"accepted-native-v3"
+    materializer=subprocess.run(
+        [
+            "/usr/bin/python3","-I","-B",str(MATERIALIZER),
+            "--derive",str(materialized),
+        ],
+        cwd=ROOT,stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,
+        check=False,timeout=120,
+    )
+    assert materializer.returncode==0,materializer.stderr
+    assert "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_V3_MATERIALIZER_V1_DERIVE_GREEN" in materializer.stdout.splitlines()
+    accepted_native=module.native_candidate(materialized)
+    assert len(accepted_native)==EXPECTED_NATIVE_BYTES
+    assert hashlib.sha256(accepted_native).hexdigest()==EXPECTED_NATIVE_SHA256
+
 python="/usr/bin/python3"
 self_test=subprocess.run(
     [python,"-I","-B",str(INSTALLER),"--self-test"],
@@ -333,6 +353,8 @@ if os.geteuid()!=0:
 print("VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_PROTECTED_INSTALL_V1_PROOF_GREEN")
 print("accepted_v3_lock_blob_bound=true")
 print("installer_blob_bound=true")
+print("materializer_blob_bound=true")
+print("accepted_native_binary_materialized=true")
 print("native_candidate_tamper_rejected=true")
 print("native_candidate_symlink_rejected=true")
 print("rename_noreplace_exercised=true")
