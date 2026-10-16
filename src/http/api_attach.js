@@ -23,16 +23,29 @@ var PORT = Number(process.env.ATTACH_PORT || 4310);
 var DATA_DIR = process.env.DATA_DIR || "data";
 exports.ATTACH_BLOCK_RANGE_MAX_SPAN = 250;
 exports.ATTACH_BLOCK_RANGE_ERROR_CODE_V1 = "VOID_BLOCK_RANGE_INVALID_V1";
+function normalizeAttachBlockRangeBoundV1(raw, fallback) {
+    if (raw === undefined)
+        return fallback;
+    if (typeof raw === "number") {
+        return Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
+    }
+    if (typeof raw !== "string" ||
+        !/^(?:0|[1-9][0-9]*)$/u.test(raw)) {
+        return null;
+    }
+    var value = Number(raw);
+    return Number.isSafeInteger(value) ? value : null;
+}
 function attachBlockRangeErrorV1(fromRaw, toRaw, head) {
-    var from = Number(fromRaw !== null && fromRaw !== void 0 ? fromRaw : 0);
-    var to = Number(toRaw !== null && toRaw !== void 0 ? toRaw : head);
+    var from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
+    var to = normalizeAttachBlockRangeBoundV1(toRaw, head);
     var validHead = Number.isSafeInteger(head) && head >= -1;
-    var validFrom = Number.isSafeInteger(from) && from >= 0;
-    var validTo = Number.isSafeInteger(to) && to >= from;
-    var boundedTo = validHead ? Math.min(to, head) : Number.NaN;
+    var validFrom = from !== null;
+    var boundedTo = validHead && to !== null ? Math.min(to, head) : Number.NaN;
     var reason = validHead &&
-        validFrom &&
-        validTo &&
+        from !== null &&
+        to !== null &&
+        to >= from &&
         boundedTo >= from &&
         boundedTo - from >= exports.ATTACH_BLOCK_RANGE_MAX_SPAN
         ? "range_span_exceeds_limit"
@@ -42,8 +55,6 @@ function attachBlockRangeErrorV1(fromRaw, toRaw, head) {
         Number.MAX_SAFE_INTEGER - (exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1)
         ? recoveryFrom + exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1
         : recoveryFrom;
-    // Preserve the parser's intentional empty-range sentinel when the
-    // current head is below the requested recovery start (including head=-1).
     var recoveryTo = validHead
         ? Math.min(head, recoveryCeiling)
         : recoveryCeiling;
@@ -58,13 +69,12 @@ function attachBlockRangeErrorV1(fromRaw, toRaw, head) {
     };
 }
 function parseAttachBlockRange(fromRaw, toRaw, head) {
-    var from = Number(fromRaw !== null && fromRaw !== void 0 ? fromRaw : 0);
-    var to = Number(toRaw !== null && toRaw !== void 0 ? toRaw : head);
+    var from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
+    var to = normalizeAttachBlockRangeBoundV1(toRaw, head);
     if (!Number.isSafeInteger(head) ||
         head < -1 ||
-        !Number.isSafeInteger(from) ||
-        !Number.isSafeInteger(to) ||
-        from < 0 ||
+        from === null ||
+        to === null ||
         to < from) {
         return null;
     }

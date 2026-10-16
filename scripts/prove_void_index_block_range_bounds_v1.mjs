@@ -71,7 +71,18 @@ assert.deepEqual(parseAttachBlockRange("9", "999999", 5), {
   from: 9,
   to: 5,
 });
+assert.deepEqual(parseAttachBlockRange(10, 259, 1000), {
+  from: 10,
+  to: 259,
+});
+
 for (const [name, from, to, head] of [
+  ["empty_from", "", "1", 7],
+  ["whitespace_to", "0", " ", 7],
+  ["leading_zero_from", "01", "1", 7],
+  ["repeated_from", ["0", "1"], "1", 7],
+  ["single_array_to", "0", ["1"], 7],
+  ["object_from", { value: "0" }, "1", 7],
   ["fractional_from", "0.5", "1", 7],
   ["fractional_to", "0", "1.5", 7],
   ["unsafe_to", "0", String(Number.MAX_SAFE_INTEGER + 1), 7],
@@ -86,6 +97,21 @@ for (const [name, from, to, head] of [
   );
 }
 
+
+for (const [name, from, to, head] of [
+  ["empty_from", "", "1", 7],
+  ["whitespace_to", "0", " ", 7],
+  ["leading_zero_from", "01", "1", 7],
+  ["repeated_from", ["0", "1"], "1", 7],
+  ["single_array_to", "0", ["1"], 7],
+  ["object_from", { value: "0" }, "1", 7],
+]) {
+  assert.equal(
+    attachBlockRangeErrorV1(from, to, head).reason,
+    "invalid_bounds",
+    `${name} error classification must fail closed`,
+  );
+}
 
 assert.equal(ATTACH_BLOCK_RANGE_ERROR_CODE_V1, "VOID_BLOCK_RANGE_INVALID_V1");
 assert.deepEqual(

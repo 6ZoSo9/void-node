@@ -30,21 +30,40 @@ export type AttachBlockRangeErrorV1 = {
   aliases: { from: ["from", "start"]; to: ["to", "end"] };
 };
 
+function normalizeAttachBlockRangeBoundV1(
+  raw: unknown,
+  fallback: number,
+): number | null {
+  if (raw === undefined) return fallback;
+  if (typeof raw === "number") {
+    return Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
+  }
+  if (
+    typeof raw !== "string" ||
+    !/^(?:0|[1-9][0-9]*)$/u.test(raw)
+  ) {
+    return null;
+  }
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
 export function attachBlockRangeErrorV1(
   fromRaw: unknown,
   toRaw: unknown,
   head: number,
 ): AttachBlockRangeErrorV1 {
-  const from = Number(fromRaw ?? 0);
-  const to = Number(toRaw ?? head);
+  const from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
+  const to = normalizeAttachBlockRangeBoundV1(toRaw, head);
   const validHead = Number.isSafeInteger(head) && head >= -1;
-  const validFrom = Number.isSafeInteger(from) && from >= 0;
-  const validTo = Number.isSafeInteger(to) && to >= from;
-  const boundedTo = validHead ? Math.min(to, head) : Number.NaN;
+  const validFrom = from !== null;
+  const boundedTo =
+    validHead && to !== null ? Math.min(to, head) : Number.NaN;
   const reason =
     validHead &&
-    validFrom &&
-    validTo &&
+    from !== null &&
+    to !== null &&
+    to >= from &&
     boundedTo >= from &&
     boundedTo - from >= ATTACH_BLOCK_RANGE_MAX_SPAN
       ? "range_span_exceeds_limit"
@@ -56,8 +75,6 @@ export function attachBlockRangeErrorV1(
     Number.MAX_SAFE_INTEGER - (ATTACH_BLOCK_RANGE_MAX_SPAN - 1)
       ? recoveryFrom + ATTACH_BLOCK_RANGE_MAX_SPAN - 1
       : recoveryFrom;
-  // Preserve the parser's intentional empty-range sentinel when the
-  // current head is below the requested recovery start (including head=-1).
   const recoveryTo = validHead
     ? Math.min(head, recoveryCeiling)
     : recoveryCeiling;
@@ -78,14 +95,13 @@ export function parseAttachBlockRange(
   toRaw: unknown,
   head: number,
 ): { from: number; to: number } | null {
-  const from = Number(fromRaw ?? 0);
-  const to = Number(toRaw ?? head);
+  const from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
+  const to = normalizeAttachBlockRangeBoundV1(toRaw, head);
   if (
     !Number.isSafeInteger(head) ||
     head < -1 ||
-    !Number.isSafeInteger(from) ||
-    !Number.isSafeInteger(to) ||
-    from < 0 ||
+    from === null ||
+    to === null ||
     to < from
   ) {
     return null;
