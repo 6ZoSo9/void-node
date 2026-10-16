@@ -553,6 +553,22 @@ static bool release_fd_snapshot(struct stat *out) {
     int flags=fcntl(RELEASE_FD,F_GETFL);
     if(flags<0 || (flags&O_ACCMODE)!=O_RDONLY) return false;
     if(fstat(RELEASE_FD,out)!=0 || !S_ISFIFO(out->st_mode)) return false;
+
+    char link[128];
+    ssize_t n=readlink("/proc/self/fd/3",link,sizeof(link)-1U);
+    if(n<=0 || (size_t)n>=sizeof(link)-1U) return false;
+    link[n]='\0';
+    const char *prefix="pipe:[";
+    size_t prefix_len=strlen(prefix);
+    if(strncmp(link,prefix,prefix_len)!=0 || link[n-1]!=']') return false;
+    link[n-1]='\0';
+    const char *digits=link+prefix_len;
+    if(*digits=='\0') return false;
+    errno=0;
+    char *end=NULL;
+    unsigned long long ino=strtoull(digits,&end,10);
+    if(errno!=0 || end==digits || *end!='\0' || ino==0ULL) return false;
+    if((uintmax_t)ino!=(uintmax_t)out->st_ino) return false;
     return true;
 }
 
@@ -739,6 +755,7 @@ static int self_test(void) {
     puts("parent_release_binding_blob_bound=true");
     puts("fixed_release_fd=3");
     puts("release_fd_read_only_pipe_required=true");
+    puts("release_fd_anonymous_pipe_identity_required=true");
     puts("exact_64_byte_frame_then_eof_required=true");
     puts("short_frame_rejected=true");
     puts("extra_frame_rejected=true");
@@ -866,6 +883,7 @@ static void run_gate(
     printf("release_pipe_dev=%ju\n",(uintmax_t)pipe_after.st_dev);
     printf("release_pipe_ino=%ju\n",(uintmax_t)pipe_after.st_ino);
     printf("release_pipe_generation_stable=true\n");
+    printf("release_pipe_anonymous_identity_verified=true\n");
     printf("trainer_process_start_ticks=%llu\n",start_after);
     printf("trainer_process_generation_stable=true\n");
     printf("trainer_security_policy_revalidated=true\n");
