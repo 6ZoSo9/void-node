@@ -10,6 +10,7 @@
 #include <poll.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -666,7 +667,14 @@ static int selftest_frames(void) {
         struct timespec ts={.tv_sec=0,.tv_nsec=20*1000*1000};
         nanosleep(&ts,NULL);
         unsigned char x=0x01;
-        (void)write(p[1],&x,1);
+        ssize_t wrote;
+        do {
+            wrote=write(p[1],&x,1);
+        } while(wrote<0&&errno==EINTR);
+        if(wrote!=1){
+            close(p[1]);
+            _exit(1);
+        }
         close(p[1]);
         _exit(0);
     }
