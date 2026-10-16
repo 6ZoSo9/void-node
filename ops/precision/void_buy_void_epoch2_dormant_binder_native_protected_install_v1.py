@@ -189,13 +189,7 @@ def _git_env() -> dict[str, str]:
 
 def _git(args: list[str]) -> bytes:
     _trusted_executable(FIXED_GIT)
-    _trusted_executable(FIXED_SETPRIV)
-    command = [
-        str(FIXED_SETPRIV),
-        "--no-new-privs",
-        "--reuid=" + str(RUNTIME_UID),
-        "--regid=" + str(RUNTIME_GID),
-        "--clear-groups",
+    git_argv = [
         str(FIXED_GIT),
         "-C",
         str(FIXED_CHECKOUT),
@@ -205,6 +199,20 @@ def _git(args: list[str]) -> bytes:
         "core.hooksPath=/dev/null",
         *args,
     ]
+    if os.geteuid() == 0:
+        _trusted_executable(FIXED_SETPRIV)
+        command = [
+            str(FIXED_SETPRIV),
+            "--no-new-privs",
+            "--reuid=" + str(RUNTIME_UID),
+            "--regid=" + str(RUNTIME_GID),
+            "--clear-groups",
+            *git_argv,
+        ]
+    elif os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:
+        command = git_argv
+    else:
+        raise InstallError("git_query_identity_invalid")
     try:
         cp = subprocess.run(
             command,
