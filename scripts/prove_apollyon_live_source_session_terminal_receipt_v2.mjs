@@ -27,6 +27,8 @@ for(const [relative,expected] of Object.entries({
     "8c2c92055ab05c074653cee971e095934b5cb85c",
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
     "981935515e08634be96446e58922c16be56d33ad",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
+    "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
     "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
 })){
@@ -297,6 +299,7 @@ for(const required of [
   "pull_request:",
   "push:\n    branches: [main]",
   "workflow_dispatch:",
+  '"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"',
   "push)",
   'BASE="$(git rev-parse "$HEAD^")"',
 ]){

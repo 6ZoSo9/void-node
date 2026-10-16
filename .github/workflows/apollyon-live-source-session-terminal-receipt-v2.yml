@@ -9,6 +9,7 @@ on:
       - ".github/workflows/apollyon-live-source-session-terminal-receipt-v2.yml"
       - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
       - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
   push:
     branches: [main]
     paths:
@@ -18,6 +19,7 @@ on:
       - ".github/workflows/apollyon-live-source-session-terminal-receipt-v2.yml"
       - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
       - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
   workflow_dispatch:
 
 permissions:
