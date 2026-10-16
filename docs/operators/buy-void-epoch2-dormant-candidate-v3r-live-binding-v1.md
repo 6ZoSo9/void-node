@@ -7,23 +7,23 @@ Status: **source/test/CI only**. Live execution remains separately authorized.
 
 ## Purpose
 
-Dormant candidate V3 already contains accepted public signer-control evidence for
-the immutable Epoch-2 fulfiller, but deliberately keeps installed credential
+Dormant candidate V4 already contains accepted public signer-control evidence
+for the immutable Epoch-2 fulfiller, but deliberately keeps installed credential
 identity and runtime-source binding false.
 
-This successor defines the live evidence binding operation for the accepted V3R
-credential/V3 live-composition generation.
+This successor defines the live evidence binding operation for the accepted
+V3R credential/V3 live-composition generation.
 
 It does not accept a caller-provided live receipt.
 
 ## Exact source inputs
 
-Dormant candidate V3:
+Dormant candidate V4:
 
 - path:
-  `ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json`;
+  `ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json`;
 - Git blob:
-  `04061934a537a1d91213cdd1f9110b46faca4cc7`;
+  `e569c9211e01f14c7c00dd1c5041d4dfb0817609`;
 - signer-control proof remains true;
 - systemd credential identity remains false before this gate;
 - runtime/apply enable flags remain `0`.
@@ -50,7 +50,7 @@ A future separately authorized root run:
 
 1. requires this binder from its exact Git object on stdin;
 2. verifies clean exact `main`;
-3. loads exact dormant candidate V3 from Git;
+3. loads exact dormant candidate V4 from Git;
 4. executes exact V6R2 installed qualification from its Git object;
 5. invokes the fixed installed native V3 preentry with `/dev/null` stdin;
 6. validates the directly returned `voide2livecomp3_...` receipt and its
@@ -65,7 +65,7 @@ receipt is accepted.
 
 ## Facts promoted by a GREEN future receipt
 
-Dormant candidate V3 already proves:
+Dormant candidate V4 already proves:
 
 - `signer_offchain_control_proven=true`.
 
@@ -86,9 +86,17 @@ receipt.
 
 Exactly three gates remain after a GREEN binding receipt:
 
-1. zero-fee envelope + exact chain receipt, or separately proven per-payment native-gas funding for any nonzero-fee path;
+1. `qualify_live_exact_chain_receipt_and_either_zero_fee_envelope_or_per_payment_native_gas_funding`;
 2. current Chain-2050 one-payment/one-fulfillment canary;
 3. coupled presale + WC/VOID Sovereign activation.
+
+The exact chain receipt is mandatory in **both** fee branches. After that,
+fee admissibility is either:
+
+- a reviewed live zero-fee envelope; or
+- separately reviewed payment-specific native-gas funding/reservation.
+
+A standing fulfiller native balance is not funding authority.
 
 The result still says:
 
@@ -113,16 +121,3 @@ Hosted CI executes only syntax, self-test, inert plan, static/adversarial proof,
 and diff hygiene.
 
 PROTECT THE CORE.
-
-## Fee-funding truth preserved from dormant candidate V3
-
-This binder must not restore the predecessor V2 wording that could be read as
-allowing a nonzero-fee path from a standing fulfiller native balance.
-
-The first remaining gate is exactly:
-
-`qualify_live_zero_fee_envelope_and_exact_chain_receipt_or_prove_per_payment_native_gas_funding`.
-
-A zero-fee path may advance on exact zero-fee/receipt evidence. Any nonzero fee
-path still requires a separately reviewed payment-specific native-gas funding or
-reservation proof. A standing wallet balance is not funding authority.
