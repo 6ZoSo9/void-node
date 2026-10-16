@@ -391,10 +391,34 @@ def root_fixture() -> None:
         os.fsync(dir_fd)
 
         assert module._base_state_at(dir_fd) == module.PRIVATE_PENDING_STATE
-        assert module._cleanup_private_pending(dir_fd) is True
-        assert module._base_state_at(dir_fd) == module.READY_STATE
         os.close(dir_fd)
         os.close(parent_fd)
+
+        # Exercise the real apply/rollback state machines from the recoverable
+        # private-pending crash state. Only the accepted-lock lookup is replaced
+        # because the fixture intentionally uses tiny synthetic V1/V2 bytes.
+        module.accepted_lock = lambda: {"candidate_accepted": True}
+        candidate = fixture / "candidate-v2"
+        write_root_file(candidate, v2, 0o555)
+
+        module.apply(candidate, module.CONFIRM_APPLY)
+        assert module._base_state() == module.GREEN_STATE
+        assert (install_root / module.QUERY_NAME).read_bytes() == v2
+        assert (
+            install_root / module.V1_PREDECESSOR_NAME
+        ).read_bytes() == v1
+        assert not module._private_pending_names_at(
+            os.open(
+                install_root,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            )
+        )
+
+        module.rollback(module.CONFIRM_ROLLBACK)
+        assert module._base_state() == module.READY_STATE
+        assert (install_root / module.QUERY_NAME).read_bytes() == v1
+        assert not (install_root / module.V1_PREDECESSOR_NAME).exists()
+        assert (install_root / module.PREEXEC_NAME).read_bytes() == preexec
 
     print("VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V2_ROOT_FIXTURE_GREEN")
     print("private_stage_publication_behavior_exercised=true")
@@ -403,6 +427,10 @@ def root_fixture() -> None:
     print("visible_install_root_replacement_rejected=true")
     print("private_pending_state_behavior_exercised=true")
     print("private_pending_cleanup_behavior_exercised=true")
+    print("private_pending_apply_resume_exercised=true")
+    print("forward_apply_behavior_exercised=true")
+    print("rollback_behavior_exercised=true")
+    print("v1_predecessor_chain_behavior_exercised=true")
     print("host_opt_mutation=false")
     print("query_execution=false")
     print("credential_contents_read=false")
