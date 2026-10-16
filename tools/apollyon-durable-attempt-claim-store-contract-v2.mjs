@@ -120,6 +120,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2
     "status",
     "store_contract_id",
     "store_generation_id",
+    "store_generation_record_id",
     "version",
   ]);
 
@@ -134,6 +135,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2 =
     "new_store_generation_id",
     "old_root_identity_sha256",
     "old_store_generation_id",
+    "predecessor_generation_record_id",
     "prior_claim_count",
     "prior_claim_set_sha256",
     "status",
@@ -265,10 +267,12 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     prior_claim_history_continuity_required_for_store_migration:true,
     store_generation_record_exact_schema_required:true,
     store_generation_record_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,
+    store_generation_record_content_addressed_id_required:true,
     migration_continuity_receipt_exact_schema_required:true,
     migration_continuity_receipt_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2,
     migration_old_new_generation_cross_binding_required:true,
     migration_old_new_root_identity_cross_binding_required:true,
+    migration_continuity_binds_predecessor_generation_record_id_required:true,
     migration_complete_prior_claim_count_required:true,
     migration_complete_prior_claim_set_sha256_required:true,
     migration_claim_set_order:"claim_record_id_lexicographic",
@@ -473,6 +477,7 @@ const STORE_CONTRACT_ID=/^apollyon_claim_store_contract_v2:[0-9a-f]{64}$/u;
 const STORE_GENERATION_ID=/^apollyon_claim_store_generation_v2:[0-9a-f]{64}$/u;
 const CLAIM_RECORD_ID=/^apollyon_attempt_claim_record_v2:[0-9a-f]{64}$/u;
 const CONTINUITY_RECEIPT_ID=/^apollyon_claim_store_continuity_v2:[0-9a-f]{64}$/u;
+const STORE_GENERATION_RECORD_ID=/^apollyon_claim_store_generation_record_v2:[0-9a-f]{64}$/u;
 
 function fail(code){throw new Error(code);}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
@@ -807,7 +812,8 @@ function validateApollyonDurableAttemptClaimStoreGenerationRecordV2(value){
     typeof value.genesis!=="boolean"||
     !Number.isSafeInteger(value.claim_history_count)||value.claim_history_count<0||
     !HASH64.test(value.claim_history_sha256)||
-    !CONTINUITY_RECEIPT_ID.test(value.continuity_receipt_id)
+    !CONTINUITY_RECEIPT_ID.test(value.continuity_receipt_id)||
+    !STORE_GENERATION_RECORD_ID.test(value.store_generation_record_id)
   ){
     fail("apollyon_claim_store_generation_record_v2_invalid");
   }
@@ -817,6 +823,13 @@ function validateApollyonDurableAttemptClaimStoreGenerationRecordV2(value){
     }
   }else if(!STORE_GENERATION_ID.test(value.predecessor_store_generation_id)){
     fail("apollyon_claim_store_generation_record_v2_invalid");
+  }
+  const material=structuredClone(value);
+  delete material.store_generation_record_id;
+  const expected="apollyon_claim_store_generation_record_v2:"+
+    sha256(Buffer.from(canonical(material),"utf8"));
+  if(value.store_generation_record_id!==expected){
+    fail("apollyon_claim_store_generation_record_v2_id_invalid");
   }
   return Object.freeze(structuredClone(value));
 }
@@ -869,6 +882,7 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
     if(
       receipt.old_store_generation_id!==null||
       receipt.old_root_identity_sha256!==null||
+      receipt.predecessor_generation_record_id!==null||
       sorted.length!==0||
       snapshot.predecessor_generation_record!==null
     ){
@@ -878,6 +892,7 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
     if(
       !STORE_GENERATION_ID.test(receipt.old_store_generation_id)||
       !HASH64.test(receipt.old_root_identity_sha256)||
+      !STORE_GENERATION_RECORD_ID.test(receipt.predecessor_generation_record_id)||
       snapshot.predecessor_generation_record===null
     ){
       fail("apollyon_claim_store_continuity_v2_migration_invalid");
@@ -888,6 +903,7 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
     if(
       predecessor.store_contract_id!==receipt.store_contract_id||
       predecessor.store_generation_id!==receipt.old_store_generation_id||
+      predecessor.store_generation_record_id!==receipt.predecessor_generation_record_id||
       predecessor.root_identity_sha256!==receipt.old_root_identity_sha256||
       predecessor.claim_history_count!==sorted.length||
       predecessor.claim_history_sha256!==historySha

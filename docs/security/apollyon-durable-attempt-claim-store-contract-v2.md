@@ -90,16 +90,16 @@ Authentication is bidirectional. The server validates the publisher before readi
 
 ## Store-generation history continuity
 
-Store replacement never resets replay history. Every generation has an exact store-generation record, and every migration has an exact content-addressed continuity receipt binding:
+Store replacement never resets replay history. Every generation has an exact content-addressed store-generation record, and every migration has an exact content-addressed continuity receipt binding:
 
-- old generation -> new generation;
+- predecessor generation-record ID plus old generation -> new generation;
 - old and new root identities;
 - complete prior claim count;
 - deterministic SHA-256 over the complete prior claim set sorted by claim_record_id;
 - fixed claim-set ordering;
 - fresh authorization identity.
 
-Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check. The predecessor generation record must commit the same complete count and history digest; missing, extra, duplicate or mutated claims fail closed. The new generation must commit the continuity receipt, and fresh Sovereign authorization must bind the new generation plus prior-history digest.
+Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check. The predecessor generation record has its own content-derived ID and must commit the same complete count and history digest; the migration receipt binds that exact predecessor-record ID; missing, extra, duplicate or mutated claims fail closed. The new generation must commit the continuity receipt, and fresh Sovereign authorization must bind the new generation plus prior-history digest.
 
 Genesis is a separate exact zero-history shape with no predecessor. A migration cannot masquerade as genesis, including by presenting a forged zero-count history. Migration is accepted only after the new generation and retained history are durably published and reread.
 
