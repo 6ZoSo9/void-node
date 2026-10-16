@@ -775,6 +775,7 @@ def emit_operation_authority(mode: str) -> None:
     print("treasury_liquidity_action=false")
     print("funds_movement=false")
     print("production_host_evidence_authority=false")
+    sys.stdout.flush()
 
 
 def source_plan() -> None:
@@ -1407,6 +1408,7 @@ def main() -> int:
         print("pre_mutation_authority_boundary=true")
         print("apply_authority_boundary_pre_mutation=true")
         print("rollback_authority_boundary_pre_mutation=true")
+        print("pre_mutation_authority_flush_required=true")
         print("query_execution=false")
         print("credential_contents_read=false")
         return 0
