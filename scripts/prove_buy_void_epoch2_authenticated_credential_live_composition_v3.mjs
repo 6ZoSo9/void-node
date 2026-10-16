@@ -9,10 +9,10 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const RUNNER=
   "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs";
-const RUNNER_BLOB="baab733e43c030d24f8d4abd1644f3c4ae55c3b2";
+const RUNNER_BLOB="cbeba318c54daf0f32c0a11a7070aea3692b8f48";
 const QUALIFIER=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py";
-const QUALIFIER_BLOB="70b74ff2f09f5aef86eec39b8f643d8f2ebb63f5";
+const QUALIFIER_BLOB="74c69fe8a95ed5f361a39971618f43f7c768c865";
 const SEALED="scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs";
 const SEALED_BLOB="14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 
@@ -44,7 +44,12 @@ for(const required of [
   "DERIVE_AND_ACCEPT_EPOCH2_LIVE_COMPOSITION_V3_NATIVE_PREENTRY",
   "BIND_V3R_AUTHENTICATED_EPOCH2_CREDENTIAL_EVIDENCE_IN_DORMANT_CANDIDATE_SUCCESSOR",
   "void_buy_void_user_manager_credential_query_installed_qualification_v3r.py",
-  "70b74ff2f09f5aef86eec39b8f643d8f2ebb63f5",
+  "74c69fe8a95ed5f361a39971618f43f7c768c865",
+  "parseQualificationHoldStdout",
+  "credential_qualification_hold:",
+  "qualification_hold_contract_invalid",
+  "nested_qualification_hold_reason_preserved=true",
+  "unexpected_qualification_exit_not_reclassified_as_hold=true",
   "voidbuyumqcredelflock3r_8b064214e22ce54ac193b426f38b9d6a7ea4cee07b38b68c8d1eeb6c51de6f34",
   "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_INSTALLED_QUALIFICATION_V3R",
   "BIND_V3R_AUTHENTICATED_CREDENTIAL_METADATA_IN_EPOCH2_LIVE_COMPOSITION_SUCCESSOR",
@@ -181,6 +186,8 @@ for(const line of [
   "pre_native_auth_failure_receipt_false=true",
   "post_native_auth_failure_receipt_true=true",
   "truthful_hold_lifecycle_stage=true",
+  "nested_qualification_hold_reason_preserved=true",
+  "unexpected_qualification_exit_not_reclassified_as_hold=true",
   "runner_parent_credential_content_access=false",
   "sealed_child_credential_content_access=true",
   "nontransaction_signature_only=true",
@@ -241,6 +248,8 @@ console.log("v3_native_preentry_install_authorized=false");
 console.log("live_execution_authorized=false");
 console.log("future_native_parent_proof_required=true");
 console.log("truthful_hold_lifecycle_stage=true");
+console.log("nested_qualification_hold_reason_preserved=true");
+console.log("unexpected_qualification_exit_not_reclassified_as_hold=true");
 console.log("pre_native_auth_failure_receipt_false=true");
 console.log("post_native_auth_failure_receipt_true=true");
 console.log("runner_parent_credential_content_access=false");
