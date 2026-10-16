@@ -48,6 +48,8 @@ install authority and no V1 apply is authorized by this source lane.
 
 ## Create-only publication
 
+The installer first creates a content-addressed read-only plan. Future apply must supply the exact `plan_id`, binding expected head, accepted V3 lock, candidate bytes, binder Git object, protected state and non-authority contract.
+
 The installer:
 1. requires explicit confirmation
    `INSTALL_ACCEPTED_EPOCH2_DORMANT_BINDER_V3_CREATE_ONLY`;
@@ -58,10 +60,12 @@ The installer:
 6. validates accepted V3 lock from the exact expected Git head;
 7. verifies the external native candidate by exact bytes/SHA-256;
 8. obtains binder bytes from the exact expected Git object;
-9. creates a private staging root;
-10. writes and verifies exact root-owned files;
-11. publishes only with `renameat2(RENAME_NOREPLACE)`;
-12. fsyncs the parent and verifies final state.
+9. requires the exact operation-bound plan ID before host mutation;
+10. creates a private staging root;
+11. writes and verifies exact root-owned files;
+12. immediately before publication revalidates clean expected checkout, accepted V3 lock, external native candidate and binder Git-object bytes;
+13. publishes exactly once with `renameat2(RENAME_NOREPLACE)`;
+14. fsyncs the parent and verifies final state.
 
 No overwrite/exchange/final-root unlink path exists.
 
@@ -73,6 +77,10 @@ After publication begins, parent-fsync, final-readback, or close failures are
 reported as published-needs-inspection. The installer never reports
 `protected_install_performed=false` after the final root may already exist.
 
+There is deliberately **no post-publication rollback**. Once the final root has
+been published, the installer does not rename or remove it automatically; an
+ambiguous post-publication failure requires inspection.
+
 ## Hosted proof
 
 The focused proof:
@@ -80,6 +88,9 @@ The focused proof:
 - executes the actual V3 lock parser in a CI fixture;
 - requires verified-helper execution evidence;
 - runs installer self-test and inert source-plan;
+- proves content-addressed plan-ID determinism and plan-ID validation before host access;
+- proves candidate/binder/checkout revalidation immediately before publication;
+- proves exactly one final-root publish call and no post-publication rollback;
 - proves missing confirmation fails before host/candidate access;
 - proves direct mutable-worktree apply is rejected;
 - verifies create-only publication structure and non-authority markers.
