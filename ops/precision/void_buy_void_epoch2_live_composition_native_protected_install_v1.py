@@ -42,6 +42,10 @@ NATIVE_TARGET = INSTALL_ROOT / NATIVE_NAME
 RUNNER_TARGET = INSTALL_ROOT / RUNNER_NAME
 POLICY_TARGET = INSTALL_ROOT / POLICY_NAME
 FIXED_NODE = pathlib.Path("/usr/bin/node")
+FIXED_GIT = pathlib.Path("/usr/bin/git")
+FIXED_SETPRIV = pathlib.Path("/usr/bin/setpriv")
+RUNTIME_UID = 1000
+RUNTIME_GID = 1000
 
 NATIVE_BYTES = 726_976
 NATIVE_SHA256 = "78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589"
@@ -403,9 +407,25 @@ def node_snapshot() -> dict[str, Any]:
 
 
 def _run_git(args: list[str]) -> str:
+    if os.geteuid() == 0:
+        command = [
+            str(FIXED_SETPRIV),
+            "--no-new-privs",
+            "--reuid=" + str(RUNTIME_UID),
+            "--regid=" + str(RUNTIME_GID),
+            "--clear-groups",
+            str(FIXED_GIT),
+            "-C",
+            str(FIXED_CHECKOUT),
+            *args,
+        ]
+    elif os.geteuid() == RUNTIME_UID:
+        command = [str(FIXED_GIT), "-C", str(FIXED_CHECKOUT), *args]
+    else:
+        raise InstallError("checkout_query_uid_invalid")
     try:
         completed = subprocess.run(
-            ["/usr/bin/git", "-C", str(FIXED_CHECKOUT), *args],
+            command,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -605,6 +625,16 @@ def collect_plan(
     accepted_lock()
     inspect_candidates(native, runner)
     checkout = checkout_snapshot(expected_head)
+    git_tool = _file_snapshot(
+        FIXED_GIT,
+        maximum_bytes=64 * 1024 * 1024,
+        executable=True,
+    )
+    setpriv_tool = _file_snapshot(
+        FIXED_SETPRIV,
+        maximum_bytes=64 * 1024 * 1024,
+        executable=True,
+    )
     node = node_snapshot()
     policy = build_policy(expected_head, node)
     state = protected_state(policy)
@@ -619,6 +649,8 @@ def collect_plan(
         "runner_sha256": RUNNER_SHA256,
         "runner_bytes": RUNNER_BYTES,
         "node": node,
+        "git_tool": git_tool,
+        "setpriv_tool": setpriv_tool,
         "checkout": checkout,
         "policy_sha256": sha256(policy),
         "policy_bytes": len(policy),
@@ -691,6 +723,8 @@ def plan(
     print("protected_state=" + str(body["protected_state"]))
     print("native_candidate_verified=true")
     print("runner_candidate_verified=true")
+    print("git_sha256=" + str(body["git_tool"]["sha256"]))
+    print("setpriv_sha256=" + str(body["setpriv_tool"]["sha256"]))
     print("node_sha256=" + str(body["node"]["sha256"]))
     print("node_bytes=" + str(body["node"]["bytes"]))
     print("node_dev=" + str(body["node"]["dev"]))
@@ -1002,6 +1036,18 @@ def apply(
             os.close(stage_fd)
 
         # Bind dynamic host/source facts again immediately before publication.
+        if _file_snapshot(
+            FIXED_GIT,
+            maximum_bytes=64 * 1024 * 1024,
+            executable=True,
+        ) != body["git_tool"]:
+            raise InstallError("git_generation_changed_before_publication")
+        if _file_snapshot(
+            FIXED_SETPRIV,
+            maximum_bytes=64 * 1024 * 1024,
+            executable=True,
+        ) != body["setpriv_tool"]:
+            raise InstallError("setpriv_generation_changed_before_publication")
         if node_snapshot() != body["node"]:
             raise InstallError("node_generation_changed_before_publication")
         if checkout_snapshot(expected_head) != body["checkout"]:
