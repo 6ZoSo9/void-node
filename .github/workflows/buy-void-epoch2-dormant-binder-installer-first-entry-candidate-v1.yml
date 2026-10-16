@@ -98,7 +98,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py)" = \
-            a545656acb8652c88c8ba4873a1127da056d7b93
+            36dc19b789f793a4e22e19d00ea0abf905db2a6e
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v1.md)" = \
             34d161aeb851982e52d026f4e96026a6f50d02e1
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c)" = \
@@ -140,6 +140,7 @@ jobs:
             'root_protected_compiler_and_strip_required=true' \
             'two_builds_required=true' \
             'three_hosted_derivations_required=true' \
+            'semantic_report_validation_fail_closed=true' \
             'candidate_accepted=false' \
             'precision_install_authorized=false' \
             'native_or_binder_live_execution_authorized=false' \
@@ -176,6 +177,10 @@ jobs:
             'accepted_native_rederived=true' \
             'two_launcher_builds_byte_identical=true' \
             'static_no_interp=true' \
+            'semantic_report_validation_fail_closed=true' \
+            'readdressed_source_binding_rejected=true' \
+            'readdressed_confirmation_binding_rejected=true' \
+            'readdressed_toolchain_binding_rejected=true' \
             'candidate_accepted=false' \
             'precision_install_authorized=false' \
             'funds_movement=false'
@@ -224,6 +229,7 @@ jobs:
             'comparison_rederived_report=true' \
             'comparison_rederived_launcher_elf=true' \
             'accepted_native_rederived=true' \
+            'semantic_report_validation_fail_closed=true' \
             'candidate_accepted=false' \
             'precision_install_authorized=false' \
             'funds_movement=false'
