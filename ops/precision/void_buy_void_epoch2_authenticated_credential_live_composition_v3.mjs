@@ -24,7 +24,7 @@ const QUALIFIER_REL=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py";
 const SEALED_REL=
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs";
-const QUALIFIER_BLOB="70b74ff2f09f5aef86eec39b8f643d8f2ebb63f5";
+const QUALIFIER_BLOB="74c69fe8a95ed5f361a39971618f43f7c768c865";
 const SEALED_BLOB="14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
   "probeBuyVoidEpoch2InstalledCredentialSigningCapabilitySealedV2";
@@ -528,6 +528,72 @@ function validateQualification(q){
   }
 }
 
+const QUALIFICATION_HOLD_KEYS=Object.freeze([
+  "status","reason","query_execution_state","credential_contents_read",
+  "host_mutation","filesystem_write","service_mutation","systemd_mutation",
+  "payment_acceptance","public_presale_activation","wc_void_market_activation",
+  "transaction","funds_movement","production_host_evidence_authority",
+]);
+
+export function parseQualificationHoldStdout(stdout){
+  if(typeof stdout!=="string"||stdout.length<1||
+     Buffer.byteLength(stdout,"utf8")>MAX_OUTPUT||stdout.includes("\0")){
+    throw new Error("qualification_hold_output_invalid");
+  }
+  const lines=stdout.split("\n");
+  if(lines.at(-1)==="")lines.pop();
+  if(lines.length!==1+QUALIFICATION_HOLD_KEYS.length||
+     lines.shift()!==QUALIFIER_MARKER){
+    throw new Error("qualification_hold_shape_invalid");
+  }
+  const out={};
+  const allowed=new Set(QUALIFICATION_HOLD_KEYS);
+  for(const line of lines){
+    const at=line.indexOf("=");
+    if(at<=0)throw new Error("qualification_hold_shape_invalid");
+    const key=line.slice(0,at);
+    const value=line.slice(at+1);
+    if(!allowed.has(key)||Object.hasOwn(out,key)){
+      throw new Error("qualification_hold_shape_invalid");
+    }
+    out[key]=value;
+  }
+  if(!exactKeys(out,QUALIFICATION_HOLD_KEYS)||
+     out.status!=="HOLD"||
+     out.query_execution_state!=="unknown_or_partial"||
+     out.credential_contents_read!=="false"||
+     out.host_mutation!=="false"||
+     out.filesystem_write!=="false"||
+     out.service_mutation!=="false"||
+     out.systemd_mutation!=="false"||
+     out.payment_acceptance!=="false"||
+     out.public_presale_activation!=="false"||
+     out.wc_void_market_activation!=="false"||
+     out.transaction!=="false"||
+     out.funds_movement!=="false"||
+     out.production_host_evidence_authority!=="false"){
+    throw new Error("qualification_hold_contract_invalid");
+  }
+  const reason=safeReason(out.reason);
+  if(reason==="unknown"){
+    throw new Error("qualification_hold_reason_invalid");
+  }
+  return Object.freeze({...out,reason});
+}
+
+export function qualificationProcessFailure(result){
+  const status=result?.status;
+  if(status===2&&result?.stderr===""){
+    try{
+      const hold=parseQualificationHoldStdout(String(result?.stdout??""));
+      return new Error("credential_qualification_hold:"+hold.reason);
+    }catch{
+      // Malformed output is not a reviewed qualification HOLD.
+    }
+  }
+  return new Error("credential_qualification_failed:"+String(status));
+}
+
 function pythonBootstrap(source){
   const absolute=path.join(ROOT,QUALIFIER_REL);
   const encoded=source.toString("base64");
@@ -551,7 +617,7 @@ function runQualification(expectedHead){
       input:bootstrap,
       timeout:60_000,
     });
-    if(r.status!==0)throw new Error("credential_qualification_failed:"+String(r.status));
+    if(r.status!==0)throw qualificationProcessFailure(r);
     if(r.stderr!=="")throw new Error("credential_qualification_unexpected_stderr");
     const parsed=parseQualificationStdout(r.stdout);
     validateQualification(parsed);
@@ -905,6 +971,57 @@ function selfTest(){
   }
 
 
+  const nestedHoldText=[
+    QUALIFIER_MARKER,
+    "status=HOLD",
+    "reason=v6_security_qualification_hold:protected_v6_generation_not_green",
+    "query_execution_state=unknown_or_partial",
+    "credential_contents_read=false",
+    "host_mutation=false",
+    "filesystem_write=false",
+    "service_mutation=false",
+    "systemd_mutation=false",
+    "payment_acceptance=false",
+    "public_presale_activation=false",
+    "wc_void_market_activation=false",
+    "transaction=false",
+    "funds_movement=false",
+    "production_host_evidence_authority=false",
+    "",
+  ].join("\n");
+  const nestedHold=parseQualificationHoldStdout(nestedHoldText);
+  if(nestedHold.reason!==
+     "v6_security_qualification_hold:protected_v6_generation_not_green"){
+    throw new Error("qualification_hold_reason_self_test_failed");
+  }
+  const mappedHold=qualificationProcessFailure({
+    status:2,stderr:"",stdout:nestedHoldText,
+  });
+  if(mappedHold.message!==
+     "credential_qualification_hold:"+
+     "v6_security_qualification_hold:protected_v6_generation_not_green"){
+    throw new Error("qualification_hold_process_mapping_failed");
+  }
+  let malformedHoldRejected=false;
+  const forgedHoldText=
+    nestedHoldText.replace("transaction=false","transaction=true");
+  try{
+    parseQualificationHoldStdout(forgedHoldText);
+  }catch{malformedHoldRejected=true;}
+  if(!malformedHoldRejected){
+    throw new Error("qualification_hold_authority_adversary_accepted");
+  }
+  if(qualificationProcessFailure({
+       status:2,stderr:"",stdout:forgedHoldText,
+     }).message!=="credential_qualification_failed:2"){
+    throw new Error("forged_qualification_hold_reclassified");
+  }
+  if(qualificationProcessFailure({
+       status:1,stderr:"Traceback: synthetic",stdout:"",
+     }).message!=="credential_qualification_failed:1"){
+    throw new Error("unexpected_qualification_exit_reclassified");
+  }
+
   let checkoutCount=0;
   const stableSequence=runSensitiveSequence({
     expectedHead:"d".repeat(40),
@@ -992,6 +1109,9 @@ function selfTest(){
   console.log("pre_native_auth_failure_receipt_false=true");
   console.log("post_native_auth_failure_receipt_true=true");
   console.log("truthful_hold_lifecycle_stage=true");
+  console.log("nested_qualification_hold_reason_preserved=true");
+  console.log("qualification_process_exit_mapping_proven=true");
+  console.log("unexpected_qualification_exit_not_reclassified_as_hold=true");
   console.log("runner_parent_credential_content_access=false");
   console.log("sealed_child_credential_content_access=true");
   console.log("nontransaction_signature_only=true");

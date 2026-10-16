@@ -20,7 +20,7 @@ REPLACEMENT = (
 V6 = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
 LOCK = ROOT / "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json"
 
-TARGET_BLOB = "70b74ff2f09f5aef86eec39b8f643d8f2ebb63f5"
+TARGET_BLOB = "74c69fe8a95ed5f361a39971618f43f7c768c865"
 REPLACEMENT_BLOB = "98f8b9fda89e33c50e19008268d97655aad54e6d"
 V6_BLOB = "83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc"
 LOCK_BLOB = "c4870f3178aebc9a0bb6557562f663b8480cfefa"
@@ -152,6 +152,42 @@ except module.QualificationError:
 else:
     raise AssertionError("mismatched V6 generation accepted")
 
+
+class FakeV6Hold:
+    class QualificationError(RuntimeError):
+        pass
+
+    @staticmethod
+    def collect():
+        raise FakeV6Hold.QualificationError("protected_v6_generation_not_green")
+
+
+try:
+    module._collect_v6_security(FakeV6Hold)
+except module.QualificationError as exc:
+    assert str(exc) == (
+        "v6_security_qualification_hold:protected_v6_generation_not_green"
+    )
+else:
+    raise AssertionError("nested V6 QualificationError escaped V3R HOLD mapping")
+
+
+class FakeV6Bug:
+    class QualificationError(RuntimeError):
+        pass
+
+    @staticmethod
+    def collect():
+        raise ValueError("unexpected_v6_bug")
+
+
+try:
+    module._collect_v6_security(FakeV6Bug)
+except ValueError as exc:
+    assert str(exc) == "unexpected_v6_bug"
+else:
+    raise AssertionError("unexpected V6 bug was incorrectly masked as HOLD")
+
 env = {
     "PATH": "/usr/bin:/bin",
     "HOME": "/tmp",
@@ -224,6 +260,8 @@ print("complete_credential_set_hash_stability_required=true")
 print("exactly_one_epoch2_credential_required=true")
 print("unrelated_credentials_allowed=true")
 print("v6_security_generation_composition_required=true")
+print("nested_v6_hold_reason_propagation=true")
+print("unexpected_v6_bug_not_masked=true")
 print("credential_contents_read=false")
 print("host_mutation=false")
 print("payment_acceptance=false")
