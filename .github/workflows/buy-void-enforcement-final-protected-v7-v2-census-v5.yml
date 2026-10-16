@@ -1,0 +1,147 @@
+name: VOID Buy VOID final protected V7/V2 census v5
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v5.yml"
+      - ".github/workflows/canonical-producer-source-custody-v1.yml"
+      - ".github/workflows/canonical-producer-legacy-self-http-observers-v1.yml"
+      - ".github/workflows/void-live-agent-jsonl-runtime-wedge-v1.yml"
+      - ".github/workflows/void-public-checkpoint-seal-first-startup-v1.yml"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-census-v5.md"
+      - "ops/**"
+      - "runtime/**"
+      - "scripts/**"
+      - "src/**"
+      - "tools/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact economic generation
+        run: |
+          set -euo pipefail
+          npm run typecheck -- --pretty false
+          npm run build
+      - name: Derive protected V5 census
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/final-protected-v7-v2-census-v5-node-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs > "$out"
+          node --input-type=module - "$out" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CENSUS_V5");
+          assert.equal(c.version,5);
+          assert.equal(c.economic_artifact_count,28);
+          assert.equal(c.economic_source_file_count,28);
+          assert.equal(c.economic_and_build_source_drift_count,0);
+          assert.equal(c.protected_tracked_source_count,49);
+          assert.equal(c.protected_generation_delta_count,2);
+          assert.equal(c.protected_generation_delta_exact,true);
+          assert.equal(c.unchanged_protected_path_count,47);
+          assert.deepEqual(c.protected_generation_delta.map(x=>x.path),[
+            "ops/run-void-node-live-v1.sh","src/index.ts",
+          ]);
+          assert.equal(c.source_generation_successor_evidence_bound,true);
+          assert.equal(c.frozen_candidate_rederived,false);
+          assert.equal(c.frozen_lock_rewritten,false);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          NODE
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: protected-v7-v2-census-v5-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/final-protected-v7-v2-census-v5-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: protected-v7-v2-census-v5-${{ github.event.pull_request.head.sha }}-node-*
+          merge-multiple: true
+          path: census
+      - name: Require exact Node 22/24/26 census equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "census/final-protected-v7-v2-census-v5-node-$node.json"
+          done
+          cmp census/final-protected-v7-v2-census-v5-node-22.json census/final-protected-v7-v2-census-v5-node-24.json
+          cmp census/final-protected-v7-v2-census-v5-node-22.json census/final-protected-v7-v2-census-v5-node-26.json
+          census_json_sha256="$(sha256sum census/final-protected-v7-v2-census-v5-node-22.json | awk '{print $1}')"
+          printf 'census_json_sha256=%s\n' "$census_json_sha256"
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync(
+            "census/final-protected-v7-v2-census-v5-node-22.json","utf8"));
+          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CENSUS_V5");
+          assert.equal(c.protected_generation_delta_count,2);
+          assert.equal(c.unchanged_protected_path_count,47);
+          assert.equal(c.economic_and_build_source_drift_count,0);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.funds_movement,false);
+          console.log("VOID_BUY_VOID_PROTECTED_V7_V2_CENSUS_V5_CROSS_NODE_GREEN");
+          console.log("census_id="+c.census_id);
+          console.log("repository_head_sha="+c.repository_head_sha);
+          console.log("repository_tree_sha="+c.repository_tree_sha);
+          console.log("protected_inventory_sha256="+c.protected_tracked_source_inventory_canonical_sha256);
+          console.log("economic_artifact_inventory_sha256="+c.economic_artifact_inventory_sha256);
+          console.log("economic_source_inventory_sha256="+c.economic_source_inventory_sha256);
+          console.log("canonical_economic_artifact_inventory_sha256="+c.canonical_economic_artifact_inventory_sha256);
+          console.log("canonical_economic_source_inventory_sha256="+c.canonical_economic_source_inventory_sha256);
+          console.log("protected_generation_delta_count=2");
+          console.log("unchanged_protected_path_count=47");
+          console.log("funds_movement=false");
+          NODE
