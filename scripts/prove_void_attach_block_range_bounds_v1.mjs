@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import {
+  ATTACH_BLOCK_RANGE_ERROR_CODE_V1,
   ATTACH_BLOCK_RANGE_MAX_SPAN,
+  attachBlockRangeErrorV1,
   parseAttachBlockRange,
 } from "../src/http/api_attach.ts";
 
@@ -84,4 +86,48 @@ for (const [name, from, to, head] of [
   );
 }
 
+
+assert.equal(ATTACH_BLOCK_RANGE_ERROR_CODE_V1, "VOID_BLOCK_RANGE_INVALID_V1");
+assert.deepEqual(
+  attachBlockRangeErrorV1(undefined, undefined, 1000),
+  {
+    ok: false,
+    error: "bad range",
+    code: "VOID_BLOCK_RANGE_INVALID_V1",
+    reason: "range_span_exceeds_limit",
+    max_heights: 250,
+    recovery: { from: 0, to: 249 },
+    aliases: { from: ["from", "start"], to: ["to", "end"] },
+  },
+);
+assert.deepEqual(
+  attachBlockRangeErrorV1("10", "260", 1000),
+  {
+    ok: false,
+    error: "bad range",
+    code: "VOID_BLOCK_RANGE_INVALID_V1",
+    reason: "range_span_exceeds_limit",
+    max_heights: 250,
+    recovery: { from: 10, to: 259 },
+    aliases: { from: ["from", "start"], to: ["to", "end"] },
+  },
+);
+assert.equal(attachBlockRangeErrorV1("2", "1", 1000).reason, "invalid_bounds");
+assert.deepEqual(
+  attachBlockRangeErrorV1(undefined, undefined, -1).recovery,
+  { from: 0, to: -1 },
+  "empty-store recovery must preserve the no-data sentinel",
+);
+assert.deepEqual(
+  attachBlockRangeErrorV1("1001", "invalid", 1000).recovery,
+  { from: 1001, to: 1000 },
+  "beyond-head invalid recovery must remain an empty range",
+);
+
+for (const source of [tsSource, jsSource]) {
+  assert.match(source, /VOID_BLOCK_RANGE_INVALID_V1/);
+  assert.match(source, /max_heights/);
+  assert.match(source, /range_span_exceeds_limit/);
+  assert.match(source, /attachBlockRangeErrorV1/);
+}
 console.log("void_attach_block_range_bounds_v1=PASS");
