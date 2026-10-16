@@ -1242,7 +1242,7 @@ try {
 
 /**
  * Exercise the ACTUAL mounted Wave 3 Wallet HTTP adapter, not a handwritten
- * snapshot, with malformed and wrong-account HTTP-200 upstream bodies.
+ * snapshot, with malformed, wrong-account, and missing-account HTTP-200 upstream bodies.
  * This mock HTTP app and its three fixed sources are fully in-process.
  */
 const oldMountedWalletApp = (globalThis as any).__void_http_app;
@@ -1365,12 +1365,20 @@ try {
     return snapshot;
   };
 
-  const variants: Array<{
-    source: (typeof sourceKeys)[number];
-    route: string;
-    wrongField: string;
-    wrongValue: string;
-  }> = [
+  type MountedWalletAdversary =
+    | {
+        source: (typeof sourceKeys)[number];
+        route: string;
+        wrongField: string;
+        wrongValue: string;
+      }
+    | {
+        source: (typeof sourceKeys)[number];
+        route: string;
+        wrongField: string;
+        deleteField: true;
+      };
+  const variants: MountedWalletAdversary[] = [
     {
       source: "wallet_status",
       route: "/__void/participant/wallet/status",
@@ -1407,11 +1415,35 @@ try {
       wrongField: "account",
       wrongValue: "account-B",
     },
+    {
+      source: "wallet_status",
+      route: "/__void/participant/wallet/status",
+      wrongField: "account",
+      deleteField: true,
+    },
+    {
+      source: "ledger_wc",
+      route: "/wc/balance",
+      wrongField: "account",
+      deleteField: true,
+    },
+    {
+      source: "production_wc",
+      route: "/wc/production/balance",
+      wrongField: "account",
+      deleteField: true,
+    },
   ];
   for (const variant of variants) {
     upstreamBodies.clear();
     for (const [key, value] of validUpstream()) upstreamBodies.set(key, value);
-    upstreamBodies.get(variant.route)![variant.wrongField] = variant.wrongValue;
+    const upstreamBody = upstreamBodies.get(variant.route)!;
+    if ("deleteField" in variant) {
+      assert.equal(variant.deleteField, true);
+      delete upstreamBody[variant.wrongField];
+    } else {
+      upstreamBody[variant.wrongField] = variant.wrongValue;
+    }
 
     // Actual HTTP adapter must preserve transport HTTP 200 but reject exactly
     // one malformed semantic source. No synthetic snapshot toggles are used.
@@ -1574,6 +1606,7 @@ console.log("browser_available_evidence_source_bound=true");
 console.log("browser_native_gas_wallet_bound=true");
 console.log("browser_wallet_source_unavailable_truthful=true");
 console.log("wallet_actual_adapter_http200_invalid_body_isolated=true");
+console.log("wallet_actual_adapter_missing_account_rejected=true");
 console.log("wallet_actual_adapter_http200_valid_recovery=true");
 console.log("browser_wallet_stale_evidence_cleared=true");
 console.log("browser_wallet_invalid_input_supersedes_active_request=true");
