@@ -38,7 +38,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "8bfa572b098176962e05241badf801211f8162c5",
+    "a4f66adcfff5179e5aee162a389e297fc0081700",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":

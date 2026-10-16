@@ -331,7 +331,7 @@ function validatedSortedAuthorizationSlotRecordsV1(input){
   const records=input.map(
     record=>validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1(record)
   );
-  records.sort((a,b)=>a.authorization_slot_id.localeCompare(b.authorization_slot_id));
+  records.sort((a,b)=>a.authorization_slot_id===b.authorization_slot_id?0:(a.authorization_slot_id<b.authorization_slot_id?-1:1));
   for(let i=1;i<records.length;i++){
     if(records[i-1].authorization_slot_id===records[i].authorization_slot_id||
        records[i-1].authorization_id===records[i].authorization_id){
