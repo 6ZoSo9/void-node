@@ -1,0 +1,131 @@
+# Apollyon durable attempt-claim privileged revalidation handoff v2
+
+Marker: `VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REVALIDATION_HANDOFF_V2`
+
+Status: **pure source/test contract; no implementation or host action**.
+
+## Purpose
+
+Accepted #3285 closes the durable claim request marker/version/framing contract,
+but the least-authority publisher and claim service still cannot independently
+perform every privileged current-host, terminal-receipt and custody revalidation
+required by #3233.
+
+This gate closes the provenance design gap **without adding an attestation
+object, bearer token, or field to the accepted six-key publish request**.
+
+## Exact source dependencies
+
+The contract pins:
+
+- #3285 request-envelope blob
+  `498dec49189d1ceeda2702cf608d423a6fd1450b`;
+- #3276 service-candidate blob
+  `bbd02403695eecca3f07fd54e382b44b0d9b14e7`;
+- #3233 store-contract blob
+  `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
+- reviewed native kernel peer-generation reference
+  `d8b30ac499c3bb8a5d223dbc6be687dd175be611`.
+
+The last item is a **reference pattern only**, not host authority.
+
+## Two connection roles, one fixed claim socket
+
+The future service keeps the existing
+`/run/void-apollyon-attempt-claim-v2/claim.sock` namespace.
+
+It distinguishes two kernel-authenticated connection roles:
+
+1. **privileged revalidator control**
+   - exact root UID/GID and a fixed, later-reviewed revalidator source generation;
+   - performs no claim publication and carries no claim request body;
+   - remains live through the request and success-ack window;
+2. **publisher request**
+   - exact planned `voidapollyonclaimpub` UID/GID + claim IPC group only;
+   - is the only connection allowed to carry the accepted six-key claim request.
+
+Root is never implicitly authorized to publish a claim.
+
+Both roles require `SO_PEERCRED`, retained pidfds, process start-time identity
+and exact source-generation binding. The publisher must be a direct child of
+the exact retained root revalidator generation.
+
+These are future runtime requirements. This source contract performs none of
+them.
+
+## Initial privileged phase
+
+Before the provenance connection is established, the future fixed root
+revalidator must validate the exact #3285 request and repeat the privileged
+checks needed by the accepted chain:
+
+- exact terminal receipt and protected-runner origin;
+- current training service exact dormancy and prior generation absence;
+- current live custody service/session identities;
+- exact custody consumed record;
+- authorization ID, custody generation and custody-record digest;
+- terminal receipt ID and runner-receipt digest;
+- request/source/tree/corpus/adapter/operator cross-bindings.
+
+The revalidator then establishes the provenance connection and directly spawns
+the fixed non-root publisher.
+
+The request bytes reach the claim service only from that publisher role; the
+root control connection never becomes a claim request.
+
+## Fresh pre-publication challenge
+
+A one-time initial revalidation is not sufficient because host state may drift
+while the publisher request is being parsed.
+
+After the service has parsed the publisher request but **before any protected
+store mutation**, the service must:
+
+1. generate a fresh bounded 32-byte challenge;
+2. send it on the retained, kernel-authenticated root revalidator connection;
+3. require the same revalidator generation to rerun the complete privileged
+   checks;
+4. require an exact response binding both the challenge and the parsed
+   `publish_request_sha256`;
+5. retain and recheck root/publisher pidfd liveness and process generations.
+
+This response is live channel evidence. It is not a transferable credential.
+
+Timeout, disconnect, generation drift, challenge mismatch, request-digest
+mismatch, or failed privileged revalidation must prevent store mutation.
+
+If provenance is lost after a mutation may have occurred, the service must not
+return a false success; the existing protected-store recovery/indeterminate
+rules remain authoritative.
+
+## Host qualification still required
+
+This contract does **not** prove that Xiphos currently permits every required
+cross-UID process/source observation. A later exact implementation and
+designated-host qualification must prove the concrete kernel mechanism before
+installation or live use.
+
+In particular, the future gate must prove:
+
+- root revalidator source identity;
+- publisher source identity;
+- `SO_PEERCRED`;
+- pidfd creation/liveness;
+- direct PPid lineage;
+- cross-UID generation/source checks;
+- challenge ordering and liveness;
+- fail-closed behavior around store mutation and success acknowledgment.
+
+## Authority
+
+This gate performs no filesystem read/write, account/group/systemd mutation,
+service/socket/network action, protected-store write, durable claim, training,
+credential/private-key access, signing, wallet, transaction, or funds movement.
+
+All runtime proof fields remain false.
+
+Next gate after source/CI acceptance:
+
+`apollyon_durable_attempt_claim_store_service_source_implementation_v2`
+
+Keep Draft. PROTECT THE CORE.

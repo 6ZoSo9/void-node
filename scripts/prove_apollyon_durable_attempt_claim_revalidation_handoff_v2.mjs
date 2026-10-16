@@ -1,0 +1,214 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+import {
+  PARENT_REQUEST_ENVELOPE_BLOB_SHA1,
+  PARENT_SERVICE_CANDIDATE_BLOB_SHA1,
+  PARENT_STORE_CONTRACT_BLOB_SHA1,
+  REVIEWED_KERNEL_PEER_PATTERN_BLOB_SHA1,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REVALIDATION_HANDOFF_AUTHORITY_V2,
+  canonicalApollyonDurableAttemptClaimRevalidationHandoffV2,
+  qualifyApollyonDurableAttemptClaimRevalidationHandoffV2,
+} from "../tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+function gitBlob(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+bytes.length+"\0","ascii"))
+    .update(bytes).digest("hex");
+}
+for(const [relative,expected] of Object.entries({
+  "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
+    "498dec49189d1ceeda2702cf608d423a6fd1450b",
+  "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
+    "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
+  "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
+    "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
+  "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c":
+    "d8b30ac499c3bb8a5d223dbc6be687dd175be611",
+})){
+  assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
+}
+assert.equal(
+  PARENT_REQUEST_ENVELOPE_BLOB_SHA1,
+  "498dec49189d1ceeda2702cf608d423a6fd1450b",
+);
+assert.equal(
+  PARENT_SERVICE_CANDIDATE_BLOB_SHA1,
+  "bbd02403695eecca3f07fd54e382b44b0d9b14e7",
+);
+assert.equal(
+  PARENT_STORE_CONTRACT_BLOB_SHA1,
+  "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
+);
+assert.equal(
+  REVIEWED_KERNEL_PEER_PATTERN_BLOB_SHA1,
+  "d8b30ac499c3bb8a5d223dbc6be687dd175be611",
+);
+
+const result=qualifyApollyonDurableAttemptClaimRevalidationHandoffV2();
+assert.equal(
+  result.status,
+  "privileged_revalidation_handoff_source_contract_defined_unimplemented",
+);
+assert.equal(result.target_host,"Xiphos");
+assert.equal(
+  result.store_policy_id,
+  "apollyon_claim_store_policy_v2:e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137",
+);
+assert.deepEqual(result.fixed_identities,{
+  claim_service_user:"voidapollyonclaim",
+  claim_service_group:"voidapollyonclaim",
+  claim_publisher_user:"voidapollyonclaimpub",
+  claim_publisher_group:"voidapollyonclaimpub",
+  claim_ipc_group:"voidapollyonclaimipc",
+});
+assert.equal(
+  result.fixed_paths.claim_socket,
+  "/run/void-apollyon-attempt-claim-v2/claim.sock",
+);
+assert.equal(result.request_protocol.exact_six_key_request_preserved,true);
+assert.equal(result.request_protocol.request_schema_additional_provenance_fields_forbidden,true);
+assert.equal(result.request_protocol.bearer_attestation_or_token_forbidden,true);
+assert.deepEqual(result.provenance_connections.connection_roles,[
+  "privileged_revalidator_control","publisher_request",
+]);
+assert.equal(result.provenance_connections.privileged_revalidator_control_carries_claim_body,false);
+assert.equal(result.provenance_connections.privileged_revalidator_control_can_publish_claim,false);
+assert.equal(result.provenance_connections.publisher_request_is_only_claim_body_role,true);
+assert.equal(result.provenance_connections.claim_service_so_peercred_before_any_request_body_required,true);
+assert.equal(result.provenance_connections.root_not_implicitly_authorized_to_publish,true);
+assert.equal(result.parent_child_lineage.revalidator_must_spawn_publisher_directly,true);
+assert.equal(result.parent_child_lineage.publisher_ppid_must_equal_authenticated_revalidator_pid,true);
+assert.equal(result.parent_child_lineage.revalidator_must_remain_live_through_success_ack,true);
+assert.equal(result.privileged_revalidation.initial_privileged_revalidation_before_control_connect_required,true);
+assert.equal(result.privileged_revalidation.serialized_privileged_attestation_or_bearer_token_forbidden,true);
+assert.equal(result.fresh_prepublication_challenge.challenge_after_publisher_request_parse_required,true);
+assert.equal(result.fresh_prepublication_challenge.challenge_before_any_store_mutation_required,true);
+assert.equal(result.fresh_prepublication_challenge.challenge_bytes,32);
+assert.equal(result.fresh_prepublication_challenge.challenge_timeout_ms,5000);
+assert.equal(result.fresh_prepublication_challenge.revalidator_reruns_all_privileged_checks_after_challenge_required,true);
+assert.equal(result.fresh_prepublication_challenge.response_binds_publish_request_sha256_required,true);
+assert.equal(result.mutation_and_ack_boundary.provenance_loss_after_mutation_must_not_return_success_required,true);
+assert.equal(result.future_host_qualification.this_source_contract_is_not_host_proof,true);
+assert.equal(result.implementation_present,false);
+assert.equal(result.host_qualification_performed,false);
+assert.equal(result.kernel_peer_authentication_performed,false);
+assert.equal(result.pidfd_generation_revalidation_performed,false);
+assert.equal(result.privileged_revalidation_performed,false);
+assert.equal(result.challenge_exchange_performed,false);
+assert.equal(result.claim_store_mutation_performed,false);
+assert.equal(result.durable_attempt_claim_performed,false);
+assert.equal(result.attempt_claim_authorized,false);
+assert.equal(result.attempt_claimed,false);
+assert.equal(result.training_execution_authorized,false);
+assert.equal(result.training_execution_performed,false);
+assert.equal(result.candidate_weight_mutation_performed,false);
+assert.equal(
+  result.next_gate,
+  "apollyon_durable_attempt_claim_store_service_source_implementation_v2",
+);
+assert.match(
+  result.handoff_contract_id,
+  /^apollyon_claim_revalidation_handoff_v2:[0-9a-f]{64}$/u,
+);
+const material=structuredClone(result);
+delete material.handoff_contract_id;
+const expectedId="apollyon_claim_revalidation_handoff_v2:"+
+  crypto.createHash("sha256").update(Buffer.from(
+    canonicalApollyonDurableAttemptClaimRevalidationHandoffV2(material),
+    "utf8",
+  )).digest("hex");
+assert.equal(result.handoff_contract_id,expectedId);
+assert.equal(Object.isFrozen(result),true);
+assert.equal(Object.isFrozen(result.provenance_connections),true);
+assert.equal(Object.isFrozen(result.fresh_prepublication_challenge),true);
+assert.throws(
+  ()=>{result.provenance_connections.root_not_implicitly_authorized_to_publish=false;},
+  TypeError,
+);
+
+for(const [key,expected] of Object.entries({
+  source_only_contract:true,
+  exact_parent_request_envelope_required:true,
+  exact_parent_service_candidate_required:true,
+  exact_parent_store_contract_required:true,
+  reviewed_kernel_peer_pattern_reference_only:true,
+  request_schema_unchanged:true,
+  bearer_token_or_attestation_added:false,
+  privileged_revalidator_implementation_present:false,
+  publisher_implementation_present:false,
+  service_implementation_present:false,
+  kernel_peer_authentication_performed:false,
+  pidfd_generation_revalidation_performed:false,
+  privileged_current_host_revalidation_performed:false,
+  terminal_receipt_revalidation_performed:false,
+  custody_record_revalidation_performed:false,
+  protected_runner_origin_proven:false,
+  host_installation:false,
+  filesystem_read:false,
+  filesystem_write:false,
+  account_mutation:false,
+  group_mutation:false,
+  systemd_mutation:false,
+  service_action:false,
+  socket_action:false,
+  network_access:false,
+  durable_attempt_claim:false,
+  attempt_claim_authorized:false,
+  attempt_claimed:false,
+  training_execution_authorized:false,
+  training_execution:false,
+  candidate_weight_mutation:false,
+  credential_access:false,
+  private_key_access:false,
+  signing:false,
+  wallet_access:false,
+  transaction:false,
+  funds_movement:false,
+})){
+  assert.equal(
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REVALIDATION_HANDOFF_AUTHORITY_V2[key],
+    expected,key,
+  );
+}
+
+const sourceText=fs.readFileSync(
+  path.join(ROOT,"tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs"),
+  "utf8",
+);
+for(const required of [
+  "claim_service_so_peercred_before_any_request_body_required:true",
+  "publisher_ppid_must_equal_authenticated_revalidator_pid:true",
+  "revalidator_pidfd_retained_required:true",
+  "publisher_pidfd_retained_required:true",
+  "challenge_after_publisher_request_parse_required:true",
+  "revalidator_reruns_all_privileged_checks_after_challenge_required:true",
+  "response_binds_publish_request_sha256_required:true",
+  "serialized_privileged_attestation_or_bearer_token_forbidden:true",
+  "provenance_loss_after_mutation_must_not_return_success_required:true",
+])assert.equal(sourceText.includes(required),true,required);
+for(const forbidden of [
+  'from "node:fs"','from "node:net"','from "node:child_process"',
+  "writeFile","appendFile","mkdir","spawn(","fork(","connect(","listen(",
+  "systemctl","createPrivateKey","crypto.sign(","attempt_claimed:true",
+  "training_execution_authorized:true","training_execution:true",
+  "candidate_weight_mutation:true","filesystem_write:true","service_action:true",
+  "socket_action:true","funds_movement:true",
+])assert.equal(sourceText.includes(forbidden),false,forbidden);
+
+console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REVALIDATION_HANDOFF_V2_PROOF_GREEN");
+console.log("request_schema_unchanged=true");
+console.log("bearer_token_or_attestation_added=false");
+console.log("root_control_claim_body=false");
+console.log("root_publish_authority=false");
+console.log("publisher_direct_child_of_revalidator_required=true");
+console.log("kernel_so_peercred_pidfd_generation_required=true");
+console.log("fresh_prepublication_challenge_required=true");
+console.log("post_challenge_privileged_revalidation_required=true");
+console.log("host_qualification_performed=false");
+console.log("durable_attempt_claim_performed=false");
+console.log("training_execution=false");
