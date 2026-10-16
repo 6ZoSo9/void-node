@@ -765,7 +765,11 @@ function createPrivateBuildInputSnapshotV2(sourceRoot,profile){
 }
 
 
-function runtimeOutputSnapshotRecordV2(runtime) {
+function runtimeOutputSnapshotRecordV2(
+  runtime,
+  expectedCompiledFiles = EXPECTED_COMPILED_RUNTIME_FILES,
+) {
+  const expectedCompiledSet = new Set(expectedCompiledFiles);
   const compiledFiles = runtime.files
     .filter((record) => record.runtime_kind === "compiled_typescript")
     .map((record) => Object.freeze({
@@ -775,9 +779,9 @@ function runtimeOutputSnapshotRecordV2(runtime) {
     }))
     .sort((left, right) => left.path.localeCompare(right.path));
   if (
-    compiledFiles.length !== EXPECTED_COMPILED_RUNTIME_FILES.size ||
+    compiledFiles.length !== expectedCompiledSet.size ||
     compiledFiles.some(
-      (record) => !EXPECTED_COMPILED_RUNTIME_FILES.has(record.path),
+      (record) => !expectedCompiledSet.has(record.path),
     )
   ) {
     fail("legacy_history_nimo_bundle_runtime_output_snapshot_file_set_invalid");
@@ -1303,8 +1307,21 @@ function compileReviewedRuntimeWithBoundCompilerV2(
       fail("legacy_history_nimo_bundle_compiler_generation_changed_during_build");
     }
 
-    const runtime=runtimeClosure(absoluteRoot,outputRoot);
-    const runtimeOutputSnapshot=runtimeOutputSnapshotRecordV2(runtime);
+    const runtime =
+      typeof testHooks?.runtime_closure_fn === "function"
+        ? testHooks.runtime_closure_fn({
+            source_root:absoluteRoot,
+            compiled_root:outputRoot,
+          })
+        : runtimeClosure(absoluteRoot,outputRoot);
+    const expectedCompiledFiles =
+      Array.isArray(testHooks?.expected_compiled_runtime_files)
+        ? testHooks.expected_compiled_runtime_files
+        : [...EXPECTED_COMPILED_RUNTIME_FILES];
+    const runtimeOutputSnapshot=runtimeOutputSnapshotRecordV2(
+      runtime,
+      expectedCompiledFiles,
+    );
     assertRuntimeOutputSnapshotNonwritableV2(outputRoot);
 
     return Object.freeze({
