@@ -28,7 +28,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
     "981935515e08634be96446e58922c16be56d33ad",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "f6dba9068d010f57d02f90dd9890c1a11a4b2848",
+    "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -202,6 +202,26 @@ for(const mutate of [
     /binding_invalid|binding_id_invalid/u,
   );
 }
+{
+  const r=receipt();
+  const badAuthority={...r.binding.authority};
+  Object.defineProperty(badAuthority,"__proto__",{
+    enumerable:true,
+    configurable:true,
+    writable:true,
+    value:{polluted:true},
+  });
+  assert.equal(Object.hasOwn(badAuthority,"__proto__"),true);
+  assert.equal(
+    Object.hasOwn(structuredClone(badAuthority),"__proto__"),
+    true,
+  );
+  r.binding={...r.binding,authority:badAuthority};
+  assert.throws(
+    ()=>finalizeApollyonLiveSourceSessionTerminalReceiptV2({runner_receipt:r}),
+    /binding_authority_invalid/u,
+  );
+}
 assert.throws(
   ()=>finalizeApollyonLiveSourceSessionTerminalReceiptV2({runner_receipt:{binding:binding()}}),
   /runner_receipt_invalid/u,
@@ -282,6 +302,8 @@ for(const required of [
   'terminal_runner_receipt_digest_carried:true',
   'snapshot=structuredClone(input);',
   'const {receipt,binding}=validateRunnerReceipt(snapshot.runner_receipt);',
+  'exactKeys(\n    value.authority,',
+  'Object.keys(VOID_APOLLYON_LIVE_CUSTODY_SERVICE_SOURCE_SESSION_BINDING_AUTHORITY_V2)',
   'canonical(receipt)',
   'protected_runner_origin_required:true',
   'protected_runner_origin_proven:false',
@@ -307,6 +329,8 @@ console.log("revalidation_identity_hashes_carried=true");
 console.log("terminal_runner_receipt_digest_carried=true");
 console.log("single_plain_input_snapshot_required=true");
 console.log("accessor_snapshot_drift_rejected=true");
+console.log("binding_authority_exact_keys_required=true");
+console.log("binding_authority_proto_extra_rejected=true");
 console.log("protected_runner_origin_required=true");
 console.log("protected_runner_origin_proven=false");
 console.log("live_host_observation_performed=false");
