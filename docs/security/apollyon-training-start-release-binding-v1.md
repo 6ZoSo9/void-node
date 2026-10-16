@@ -18,7 +18,8 @@ The stable release policy requires all of the following before any future releas
 - a retained pidfd (or equivalently strong kernel generation handle);
 - exact process start ticks and reviewed executable/source identity;
 - a private inherited release channel that cannot be reconstructed from PID, pathname, filesystem flag or caller-supplied token;
-- exact release framing;
+- exact release framing: 64 raw bytes, consisting of the fixed 32-byte SHA-256 domain `c201c621cc904c2e9c0c2527322debc326736b7f5e2c731a1032d2f1d3cb2b16` followed by 32-byte SHA-256 of the exact UTF-8 `release_binding_id`; the receiver must read exactly 64 bytes and then observe EOF;
+- those 64 bytes are not bearer authority: they qualify only on the private inherited release channel bound to the reviewed trainer/releaser generations;
 - EOF before authorization and releaser crash before authorization fail closed;
 - the exact create-once consumption slot is already durable;
 - consumption file fsync and parent-directory fsync completed;

@@ -15,8 +15,11 @@ import {
 } from "../tools/apollyon-training-start-consumption-contract-v1.mjs";
 import {
   VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_AUTHORITY_V1,
+  RELEASE_FRAME_BYTES_V1,
+  RELEASE_FRAME_DOMAIN_SHA256_HEX_V1,
   VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_KEYS_V1,
   VOID_APOLLYON_TRAINING_START_RELEASE_REQUIREMENTS_V1,
+  apollyonTrainingStartReleaseFrameV1,
   qualifyApollyonTrainingStartReleaseBindingV1,
   qualifyApollyonTrainingStartReleasePolicyV1,
   validateApollyonTrainingStartReleaseBindingV1,
@@ -35,7 +38,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-release-binding-v1.mjs":
-    "35e89b68846f559ab3ec536236cac79b88dd8124",
+    "1bcaee522a2e710fc4d347837252122974223ae3",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "f4b5c984cc67de470df1af949723eeaefba0393f",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -257,6 +260,18 @@ assert.deepEqual(
   binding1,
 );
 
+const frame1=apollyonTrainingStartReleaseFrameV1(binding1);
+assert.equal(frame1.length,RELEASE_FRAME_BYTES_V1);
+assert.equal(RELEASE_FRAME_BYTES_V1,64);
+assert.equal(
+  frame1.subarray(0,32).toString("hex"),
+  RELEASE_FRAME_DOMAIN_SHA256_HEX_V1,
+);
+assert.equal(
+  frame1.subarray(32).toString("hex"),
+  sha256(Buffer.from(binding1.release_binding_id,"utf8")),
+);
+
 const record2=consumptionFor(trainer({
   pid:5252,
   process_start_time_ticks:"223456",
@@ -276,6 +291,9 @@ const binding2=qualifyApollyonTrainingStartReleaseBindingV1({
 assert.notEqual(binding2.trainer_generation_id,binding1.trainer_generation_id);
 assert.notEqual(binding2.release_binding_id,binding1.release_binding_id);
 assert.equal(binding2.release_not_transferable_to_replacement_generation,true);
+const frame2=apollyonTrainingStartReleaseFrameV1(binding2);
+assert.notDeepEqual(frame2,frame1);
+assert.equal(frame2.length,64);
 
 {
   const bad=structuredClone(binding1);
@@ -325,6 +343,12 @@ for(const [key,expected] of Object.entries({
   caller_supplied_pid_signal_or_token_release_forbidden:true,
   generic_filesystem_flag_release_forbidden:true,
   exact_release_frame_required:true,
+  release_frame_bytes:64,
+  release_frame_domain_sha256_hex:
+    "c201c621cc904c2e9c0c2527322debc326736b7f5e2c731a1032d2f1d3cb2b16",
+  release_frame_binding_component_sha256_of_release_binding_id_utf8_required:true,
+  release_frame_exact_read_then_eof_required:true,
+  release_frame_bytes_are_not_bearer_authority:true,
   release_channel_eof_before_authorization_fail_closed:true,
   releaser_crash_before_authorization_fail_closed:true,
   exact_consumption_slot_durable_before_release_required:true,
@@ -396,6 +420,8 @@ console.log("VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_V1_PROOF_GREEN");
 console.log("release_binding_content_addressed=true");
 console.log("same_slot_different_trainer_release_binding_distinct=true");
 console.log("release_not_transferable_to_replacement_generation=true");
+console.log("release_frame_bytes=64");
+console.log("release_frame_non_bearer=true");
 console.log("protected_consumption_record_origin_proven=false");
 console.log("live_trainer_generation_revalidation_performed=false");
 console.log("private_release_channel_origin_proven=false");

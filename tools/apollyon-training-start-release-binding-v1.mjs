@@ -14,6 +14,9 @@ export const PARENT_TRAINING_START_CONTRACT_BLOB_SHA1 =
   "f4b5c984cc67de470df1af949723eeaefba0393f";
 export const CANONICALIZER_V1_BLOB_SHA1 =
   "f97fafb0148527ae3a954e2752faef8c7fc9e88e";
+export const RELEASE_FRAME_BYTES_V1 = 64;
+export const RELEASE_FRAME_DOMAIN_SHA256_HEX_V1 =
+  "c201c621cc904c2e9c0c2527322debc326736b7f5e2c731a1032d2f1d3cb2b16";
 
 export const VOID_APOLLYON_TRAINING_START_RELEASE_REQUIREMENTS_V1 =
   Object.freeze({
@@ -27,6 +30,11 @@ export const VOID_APOLLYON_TRAINING_START_RELEASE_REQUIREMENTS_V1 =
     caller_supplied_pid_signal_or_token_release_forbidden:true,
     generic_filesystem_flag_release_forbidden:true,
     exact_release_frame_required:true,
+    release_frame_bytes:RELEASE_FRAME_BYTES_V1,
+    release_frame_domain_sha256_hex:RELEASE_FRAME_DOMAIN_SHA256_HEX_V1,
+    release_frame_binding_component_sha256_of_release_binding_id_utf8_required:true,
+    release_frame_exact_read_then_eof_required:true,
+    release_frame_bytes_are_not_bearer_authority:true,
     release_channel_eof_before_authorization_fail_closed:true,
     releaser_crash_before_authorization_fail_closed:true,
     exact_consumption_slot_durable_before_release_required:true,
@@ -248,6 +256,19 @@ export function qualifyApollyonTrainingStartReleaseBindingV1(input){
       sha256(Buffer.from(canonical(material),"utf8")),
     authority:VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_AUTHORITY_V1,
   });
+}
+
+export function apollyonTrainingStartReleaseFrameV1(input){
+  const binding=validateApollyonTrainingStartReleaseBindingV1(input);
+  const domain=Buffer.from(RELEASE_FRAME_DOMAIN_SHA256_HEX_V1,"hex");
+  const bound=crypto.createHash("sha256")
+    .update(Buffer.from(binding.release_binding_id,"utf8"))
+    .digest();
+  const frame=Buffer.concat([domain,bound]);
+  if(frame.length!==RELEASE_FRAME_BYTES_V1){
+    fail("apollyon_training_start_release_v1_frame_invalid");
+  }
+  return frame;
 }
 
 export function validateApollyonTrainingStartReleaseBindingV1(input){
