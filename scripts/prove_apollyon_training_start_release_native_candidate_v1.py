@@ -315,6 +315,11 @@ HARNESS_SOURCE = textwrap.dedent(
         if (child == 0) {
             close(p[1]);
             if (close_except_candidate(candidate_fd) != 0) _exit(20);
+            int release_flags = fcntl(3, F_GETFD);
+            if (
+                release_flags < 0 ||
+                fcntl(3, F_SETFD, release_flags & ~FD_CLOEXEC) != 0
+            ) _exit(29);
 
             for (int cap = 0; cap < 64; ++cap) {
                 errno = 0;
@@ -590,6 +595,7 @@ print("trainer_pidfd_retained_and_revalidated=true")
 print("procfs_super_magic_and_self_generation_bound=true")
 print("fake_proc_root_adversary_rejected=true")
 print("actual_run_gate_positive_harness=true")
+print("actual_run_gate_fd3_inherited_across_exec=true")
 print("actual_run_gate_exact_fd3_frame_eof=true")
 print("post_first_entry_noexec_barrier_proven=true")
 print("release_pipe_identity_observed_but_writer_origin_unproven=true")
