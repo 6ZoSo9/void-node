@@ -608,11 +608,23 @@ assert len([event for event in fsync_events if event[0] == "rename"]) == 2
 ambiguous_exc, ambiguous_events, ambiguous_lines = run_synthetic_apply_case(
     "rollback_cleanup_ambiguous"
 )
-assert isinstance(ambiguous_exc, module.InstallError)
-assert str(ambiguous_exc) == "synthetic_after_first_exchange"
+assert isinstance(ambiguous_exc, module.PublishedInstallError)
+assert str(ambiguous_exc) == "atomic_upgrade_rollback_failed"
+ambiguous_receipt = module._failure_receipt(ambiguous_exc)
+assert ambiguous_receipt["protected_upgrade_performed"] == "true"
+assert ambiguous_receipt["publication"] == "true"
+assert ambiguous_receipt["publication_state"] == "published_needs_inspection"
+assert ambiguous_receipt["final_state_verified"] == "false"
+assert ambiguous_receipt["publication_failure_phase"] == "atomic_upgrade_rollback"
 assert "automatic_rollback_attempted=true" in ambiguous_lines
 assert "automatic_rollback_green=false" in ambiguous_lines
 assert ("cleanup_stage", False) in ambiguous_events
+assert [
+    event for event in ambiguous_events if event[0] == "rename"
+] == [
+    ("rename", module.STAGE_NAME, module.INSTALL_NAME, module.RENAME_EXCHANGE),
+    ("rename", module.STAGE_NAME, module.INSTALL_NAME, module.RENAME_EXCHANGE),
+]
 
 rollback_exc, rollback_events, rollback_lines = run_synthetic_apply_case(
     "rollback_failure"
@@ -663,6 +675,7 @@ print("production_apply_state_machine_synthetic_exercised=true")
 print("post_first_exchange_rollback_exercised=true")
 print("post_predecessor_retention_rollback_exercised=true")
 print("rollback_cleanup_ambiguity_exercised=true")
+print("rollback_cleanup_publication_receipt_truthful=true")
 print("rollback_failure_receipt_exercised=true")
 print("post_exchange_fsync_failure_exercised=true")
 print("success_close_receipt_truthful=true")
