@@ -22,6 +22,8 @@ export const VOID_APOLLYON_LIVE_SOURCE_SESSION_TERMINAL_RECEIPT_AUTHORITY_V2 =
     exact_training_service_dormancy_required:true,
     training_generation_absence_required:true,
     current_host_revalidation_required:true,
+    revalidation_identity_hashes_carried:true,
+    terminal_runner_receipt_digest_carried:true,
     durable_claim_executor_required:true,
     durable_attempt_claim_performed:false,
     attempt_claim_authorized:false,

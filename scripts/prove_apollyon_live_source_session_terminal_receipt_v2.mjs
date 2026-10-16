@@ -28,7 +28,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
     "981935515e08634be96446e58922c16be56d33ad",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "9173ad73ade6f57856de1a87b1923702595491f2",
+    "6d099ec389a286d622e5b05a580486285bc85c64",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -130,8 +130,9 @@ function receipt(){
   };
 }
 
+const terminalInput=receipt();
 const result=finalizeApollyonLiveSourceSessionTerminalReceiptV2({
-  runner_receipt:receipt(),
+  runner_receipt:terminalInput,
 });
 assert.equal(result.status,"live_source_session_terminal_shutdown_qualified_unclaimed");
 assert.equal(result.terminal_shutdown_proven,true);
@@ -141,14 +142,17 @@ assert.equal(result.inner_live_binding_alone_sufficient_for_executor,false);
 assert.equal(result.current_host_revalidation_required,true);
 assert.equal(result.revalidation_identity_hashes_carried,true);
 assert.equal(result.terminal_runner_receipt_digest_carried,true);
-assert.equal(result.state_root_identity_sha256,result.live_binding_id ? "e".repeat(64) : "");
+assert.equal(result.state_root_identity_sha256,"e".repeat(64));
 assert.equal(result.consumed_directory_identity_sha256,"f".repeat(64));
 assert.equal(result.socket_identity_sha256,"1".repeat(64));
 assert.equal(result.service_process_identity_sha256,"2".repeat(64));
 assert.equal(result.loader_environment_clean,true);
 assert.equal(result.live_service_source_identity_proven,true);
 assert.equal(result.same_live_custody_session_binding_proven,true);
-assert.match(result.terminal_runner_receipt_sha256,/^[0-9a-f]{64}$/u);
+assert.equal(
+  result.terminal_runner_receipt_sha256,
+  sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(terminalInput),"utf8")),
+);
 assert.equal(result.protected_runner_origin_required,true);
 assert.equal(result.protected_runner_origin_proven,false);
 assert.equal(result.live_host_observation_performed,false);
