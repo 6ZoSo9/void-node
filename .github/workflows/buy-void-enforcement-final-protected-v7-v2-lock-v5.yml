@@ -1,0 +1,245 @@
+name: VOID Buy VOID final protected V7/V2 enforcement lock v5
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7-v2-lock-v5.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v5.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v5.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7-v2-lock-v5.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v5.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v5.yml"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V5 lock generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              base="a884c8b69d19523e99da02899ff5fa8ab18e7100"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          if [ "$EVENT_NAME" = pull_request ]; then
+            expected="$RUNNER_TEMP/expected-scope.txt"
+            actual="$RUNNER_TEMP/actual-scope.txt"
+            printf '%s\n' \
+              '.github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v5.yml' \
+              'docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v5.md' \
+              'ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json' \
+              'ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json' \
+              'scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v5.mjs' \
+              | sort > "$expected"
+            git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+            diff -u "$expected" "$actual"
+          fi
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json)" = \
+            dd849928bc945478a1a8fcf687f374cfca59f4e4
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = \
+            61a9d85d285f9c9d249adf401580822c44c6dac6
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v5.mjs)" = \
+            0eb543df528f0639566a222af453835365063756
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v5.md)" = \
+            789e1b6fde6c3c98a9fb13ca633fa98dbfd5a443
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs)" = \
+            80f076711b9c955c494cc70effafc3737b9c9c57
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = \
+            92054f19fed9e8c243eb23321dbcf53fc9227a99
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = \
+            72dec8920c1a7177d353400c33b71c2de2562aba
+
+          node --check scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v5.mjs
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  prove:
+    name: prove V5 lock / Node ${{ matrix.node }}
+    needs: source-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Rebuild full V5 and prove exact acceptance lock
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v5.mjs"
+          self="$RUNNER_TEMP/lock-v5-proof.log"
+          derived="$RUNNER_TEMP/lock-v5-node-${{ matrix.node }}.json"
+
+          node "$proof" --self-test | tee "$self"
+          for marker in \
+            'VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V5_GREEN' \
+            'full_candidate_json_sha256=c712aaeeb6ca4b1d7547542f6542c9e58c37291e73662bf4822f9df7a55af50b' \
+            'full_candidate_git_blob_sha1=b625034452da860b3b6419dd317e642edaa35991' \
+            'candidate_projection_git_blob_sha1=dd849928bc945478a1a8fcf687f374cfca59f4e4' \
+            'candidate_enforcement_set_sha256=1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf' \
+            'protected_census_id=voidbefv7c7_1a85dcb768ab6d5348024cec816d82b7f3ac5cc53e738ec2169e78d4021a73a8' \
+            'accepted_v3_predecessor_preserved=true' \
+            'projection_exact_full_candidate_inventory=true' \
+            'full_candidate_independently_rederived=true' \
+            'complete_executable_closure_verified=true' \
+            'current_enforcement_tracked_source_inventory_verified=true' \
+            'candidate_enforcement_identity_accepted=true' \
+            'deployed_artifact_generation_verified=false' \
+            'runtime_mount_authority=false' \
+            'production_source_finality_authority_ready=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$self"
+          done
+
+          node "$proof" --derive > "$derived"
+          cmp "$derived" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove deployment-receipt planner consumes lock V5 without mutation
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          git switch -C main "$head"
+
+          receipt="$RUNNER_TEMP/void-buy-source-finality-v7-deployment-receipt-v1.json"
+          out="$RUNNER_TEMP/deployment-receipt-plan-v5.log"
+          npx --no-install tsx \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --plan \
+            --receipt-path "$receipt" \
+            --expected-head "$head" \
+            --expected-tree "$tree" \
+            --accepted-enforcement-lock-path \
+              ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json \
+            | tee "$out"
+
+          for marker in \
+            'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1' \
+            'mode=--plan' \
+            'source_mutation=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'wallet_access=false' \
+            'signing=false' \
+            'transaction_broadcast=false' \
+            'chain2050_mutation=false' \
+            'presale_activation=false' \
+            'funds_movement=false' \
+            'accepted_enforcement_set_sha256=1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf' \
+            'filesystem_mutation=false' \
+            'status=PLAN_GREEN'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          test ! -e "$receipt"
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: protected-v7-v2-lock-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/lock-v5-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: protected-v7-v2-lock-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/locks
+
+      - name: Require Node 22/24/26 lock byte identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "$RUNNER_TEMP/locks/lock-v5-node-$node.json"
+          done
+          cmp "$RUNNER_TEMP/locks/lock-v5-node-22.json" "$RUNNER_TEMP/locks/lock-v5-node-24.json"
+          cmp "$RUNNER_TEMP/locks/lock-v5-node-22.json" "$RUNNER_TEMP/locks/lock-v5-node-26.json"
+          node --input-type=module - "$RUNNER_TEMP/locks/lock-v5-node-22.json" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const l=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(l.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V5");
+          assert.equal(
+            l.candidate_evidence?.candidate_enforcement_set_sha256,
+            "1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf",
+          );
+          assert.equal(l.complete_executable_closure_verified,true);
+          assert.equal(l.current_enforcement_tracked_source_inventory_verified,true);
+          assert.equal(l.candidate_enforcement_identity_accepted,true);
+          assert.equal(l.deployed_artifact_generation_verified,false);
+          assert.equal(l.runtime_mount_authority,false);
+          assert.equal(l.production_source_finality_authority_ready,false);
+          assert.equal(l.public_presale_activation,false);
+          assert.equal(l.funds_movement,false);
+          console.log("VOID_BUY_VOID_PROTECTED_V7_V2_LOCK_V5_CROSS_NODE_GREEN");
+          NODE
