@@ -261,12 +261,15 @@ exec(compile(source, str(ROOT / SOURCE), "exec", dont_inherit=True), module.__di
 class FlushProbe:
     def __init__(self) -> None:
         self.parts: list[str] = []
+        self.events: list[tuple[str, str]] = []
         self.flush_count = 0
     def write(self, text: str) -> int:
         self.parts.append(text)
+        self.events.append(("write", text))
         return len(text)
     def flush(self) -> None:
         self.flush_count += 1
+        self.events.append(("flush", "".join(self.parts)))
 
 probe = FlushProbe()
 saved_stdout = sys.stdout
@@ -277,11 +280,33 @@ finally:
     sys.stdout = saved_stdout
 assert probe.flush_count == 1
 probe_lines = "".join(probe.parts).splitlines()
+flush_events = [event for event in probe.events if event[0] == "flush"]
+assert len(flush_events) == 1
+flushed_lines = flush_events[0][1].splitlines()
+assert flushed_lines == probe_lines
+assert probe.events[-1][0] == "flush"
 assert probe_lines[0] == "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R"
 assert probe_lines[1] == "mode=apply"
 assert probe_lines[2] == "authority_boundary=PRE_MUTATION"
-assert "filesystem_mutation_performed=false" in probe_lines
-assert "protected_root_opened=false" in probe_lines
+for flushed_required in (
+    "filesystem_mutation_possible=true",
+    "filesystem_mutation_performed=false",
+    "protected_root_opened=false",
+    "query_execution=false",
+    "credential_contents_read=false",
+    "service_mutation=false",
+    "systemd_mutation=false",
+    "private_key_access=false",
+    "wallet_or_signer_access=false",
+    "transaction=false",
+    "payment_acceptance=false",
+    "public_presale_activation=false",
+    "wc_void_market_activation=false",
+    "treasury_liquidity_action=false",
+    "funds_movement=false",
+    "production_host_evidence_authority=false",
+):
+    assert flushed_required in flushed_lines
 
 for mode_name, argv, expected_reason in (
     (
@@ -360,6 +385,7 @@ print("apply_authority_boundary_pre_mutation=true")
 print("rollback_authority_boundary_pre_mutation=true")
 print("pre_mutation_authority_flush_required=true")
 print("authority_flush_behavior_exercised=true")
+print("authority_flush_complete_summary_exercised=true")
 print("query_execution=false")
 print("credential_contents_read=false")
 print("service_mutation=false")
