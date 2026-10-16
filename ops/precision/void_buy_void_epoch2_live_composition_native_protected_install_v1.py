@@ -836,6 +836,9 @@ def _post_publication_checks(
     opt_fd: int,
     *,
     expected_policy: bytes,
+    expected_node: dict[str, Any] | None = None,
+    expected_checkout: dict[str, str] | None = None,
+    expected_head: str | None = None,
     _fsync_fn: Callable[[int], None] = os.fsync,
     _verify_fn: Callable[[bytes], None] | None = None,
 ) -> None:
@@ -852,6 +855,14 @@ def _post_publication_checks(
         ) from exc
     try:
         verify_fn(expected_policy)
+        if expected_node is not None and node_snapshot() != expected_node:
+            raise InstallError("post_publication_node_generation_changed")
+        if (
+            expected_checkout is not None
+            and expected_head is not None
+            and checkout_snapshot(expected_head) != expected_checkout
+        ):
+            raise InstallError("post_publication_checkout_generation_changed")
     except BaseException as exc:
         raise _published_failure(
             "post_publication_final_verification_failed",
@@ -995,7 +1006,6 @@ def apply(
             raise InstallError("node_generation_changed_before_publication")
         if checkout_snapshot(expected_head) != body["checkout"]:
             raise InstallError("checkout_generation_changed_before_publication")
-        _verify_install_root.__wrapped__ if False else None
         _trusted_root_directory(STAGE_ROOT, exact_mode=0o755)
 
         stage_fd = os.open(
@@ -1030,7 +1040,13 @@ def apply(
         _renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)
         published = True
         stage_created = False
-        _post_publication_checks(opt_fd, expected_policy=policy)
+        _post_publication_checks(
+            opt_fd,
+            expected_policy=policy,
+            expected_node=body["node"],
+            expected_checkout=body["checkout"],
+            expected_head=expected_head,
+        )
     except BaseException as exc:
         if stage_created and not published:
             cleanup_green = _cleanup_stage(opt_fd)
