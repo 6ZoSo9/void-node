@@ -156,7 +156,7 @@ function candidateBytes(){
     run("/usr/bin/git",["--no-replace-objects","-C",ROOT,
       "worktree","add","--detach",wt,CANDIDATE_HEAD],{timeout:30000});
     attached=true;
-    run("/bin/cp",["-al",path.join(ROOT,"node_modules"),path.join(wt,"node_modules")],
+    run("/bin/cp",["-a",path.join(ROOT,"node_modules"),path.join(wt,"node_modules")],
       {cwd:wt,timeout:120000});
     run("/bin/cp",["-a",path.join(ROOT,"dist"),path.join(wt,"dist")],
       {cwd:wt,timeout:120000});
