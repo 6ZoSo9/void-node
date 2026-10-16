@@ -50,9 +50,11 @@ executes through `/proc/self/fd/<fd>` with `pass_fds`, and then requires both
 the retained FD and visible pathname to remain the exact accepted generation.
 
 The focused proof swaps the visible pathname after descriptor retention and
-before exec. Qualification must HOLD on visible-generation drift; a pathname
-swap cannot be hidden by restoring a compatible self-test transcript between
-the surrounding snapshots.
+before exec. The retained original ELF and the replacement ELF write distinct
+sentinels; the proof requires the retained-original sentinel and requires the
+replacement sentinel to remain absent. Qualification must then HOLD on retained
+and/or visible generation drift. A pathname swap therefore cannot redirect the
+self-test to a different executable or hide behind a compatible transcript.
 
 ## No live composition
 
