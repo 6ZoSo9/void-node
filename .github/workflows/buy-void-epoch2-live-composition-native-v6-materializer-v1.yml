@@ -157,8 +157,8 @@ jobs:
               after.st_mtime_ns, after.st_ctime_ns
           )
           assert hashlib.sha256(raw).hexdigest()==(
-              "f6a75184dcc63989328c351fc93e140e"
-              "6dac103f682f5c58c9f76bccd359a889"
+              "7d67e3490b7066c089418eb1da941257"
+              "0a39db2b422cdc1c62afb2482bf2bd94"
           )
 
           fd=os.open(
