@@ -753,6 +753,31 @@ def _base_state() -> str:
         os.close(parent_fd)
 
 
+def emit_operation_authority(mode: str) -> None:
+    if mode not in ("apply", "rollback"):
+        raise ReplaceError("operation_authority_mode_invalid")
+    print(MARKER)
+    print("mode=" + mode)
+    print("authority_boundary=PRE_MUTATION")
+    print("filesystem_mutation_possible=true")
+    print("filesystem_mutation_performed=false")
+    print("protected_root_opened=false")
+    print("query_execution=false")
+    print("credential_contents_read=false")
+    print("service_mutation=false")
+    print("systemd_mutation=false")
+    print("private_key_access=false")
+    print("wallet_or_signer_access=false")
+    print("transaction=false")
+    print("payment_acceptance=false")
+    print("public_presale_activation=false")
+    print("wc_void_market_activation=false")
+    print("treasury_liquidity_action=false")
+    print("funds_movement=false")
+    print("production_host_evidence_authority=false")
+    sys.stdout.flush()
+
+
 def source_plan() -> None:
     accepted_lock()
     print(MARKER)
@@ -1380,6 +1405,10 @@ def main() -> int:
         print("descriptor_bound_state_inspection=true")
         print("private_stage_published_only_after_complete=true")
         print("visible_install_root_generation_revalidation=true")
+        print("pre_mutation_authority_boundary=true")
+        print("apply_authority_boundary_pre_mutation=true")
+        print("rollback_authority_boundary_pre_mutation=true")
+        print("pre_mutation_authority_flush_required=true")
         print("query_execution=false")
         print("credential_contents_read=false")
         return 0
@@ -1390,10 +1419,12 @@ def main() -> int:
         plan(args.query)
         return 0
     if args.apply:
+        emit_operation_authority("apply")
         if args.query is None:
             raise ReplaceError("query_candidate_required")
         apply(args.query, args.confirm)
         return 0
+    emit_operation_authority("rollback")
     rollback(args.confirm)
     return 0
 

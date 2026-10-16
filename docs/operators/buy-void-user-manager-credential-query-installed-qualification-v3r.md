@@ -17,7 +17,7 @@ authority.
 
 It consumes exact reviewed generations:
 - V3R replacement source blob
-  `df103c1439dd054d98132c3beee226f3d8222314`;
+  `98f8b9fda89e33c50e19008268d97655aad54e6d` (post-merge PRE_MUTATION authority/flush repair);
 - V3R lock
   `voidbuyumqcredelflock3r_8b064214e22ce54ac193b426f38b9d6a7ea4cee07b38b68c8d1eeb6c51de6f34`;
 - V6 security qualifier source blob
