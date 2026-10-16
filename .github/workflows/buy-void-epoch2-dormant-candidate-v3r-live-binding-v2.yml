@@ -67,8 +67,8 @@ jobs:
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "9c29eb4716077e459b9154f39d0f30cf2e56729f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" = \
-            "09f3dd60393c289f7bfee83bea290dc58f37ce54"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "0346c193456fd188e9f23f058cba82877a985c1d"
+            "b6946d5b9067771369879f0d026bec7d51e428e1"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "4340aba3a74040e6d7756874512665c4425bf3c3"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md)" =             "bcd357f4b5d605dfedb04482f36f47b9a72ce7ca"
 
           test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json)" =             "e569c9211e01f14c7c00dd1c5041d4dfb0817609"
