@@ -11,7 +11,7 @@ SOURCE = "ops/precision/void_buy_void_user_manager_credential_query_protected_re
 LOCK = "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
 
 EXPECTED = {
-    SOURCE: "eada2192ced41f6290fdf4e6974823bb179c4f74",
+    SOURCE: "f7357202b4401d76a056462c646099c5fc82d62c",
     LOCK: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
 }
 
@@ -87,10 +87,19 @@ for needle in (
     "ATOMIC_EXCHANGE_ROLLBACK_CREDENTIAL_QUERY_V2_TO_V1",
     "RENAME_EXCHANGE",
     "RENAME_NOREPLACE",
+    "STAGED_STATE",
+    "EXCHANGED_STATE",
+    "ROLLBACK_PENDING_STATE",
+    "_open_locked_install_root",
+    "replacement_operation_in_progress",
     "_unlink_owned_name",
     "created_stage_identity",
     "foreign_stage_cleanup_rejected=true",
     "current_invocation_stage_inode_bound=true",
+    "operation_directory_lock_required=true",
+    "crash_state_classifier_complete=true",
+    "apply_crash_resume_supported=true",
+    "rollback_crash_resume_supported=true",
     "v1_predecessor_retained=true",
     "query_execution=false",
     "credential_contents_read=false",
@@ -118,6 +127,10 @@ for line in (
     "automatic_failure_rollback=true",
     "foreign_stage_cleanup_rejected=true",
     "current_invocation_stage_inode_bound=true",
+    "operation_directory_lock_required=true",
+    "crash_state_classifier_complete=true",
+    "apply_crash_resume_supported=true",
+    "rollback_crash_resume_supported=true",
     "query_execution=false",
     "credential_contents_read=false",
 ):
@@ -134,6 +147,10 @@ for line in (
     "preexec_replacement=false",
     "v1_predecessor_preserved_after_success=true",
     "query_atomic_exchange_required=true",
+    "operation_directory_lock_required=true",
+    "crash_state_classification_required=true",
+    "apply_crash_resume_supported=true",
+    "rollback_crash_resume_supported=true",
     "query_execution=false",
     "credential_contents_read=false",
     "service_mutation=false",
@@ -144,7 +161,7 @@ for line in (
     assert line in source_plan.splitlines(), line
 
 print("VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V2_PROOF_GREEN")
-print("source_blob=eada2192ced41f6290fdf4e6974823bb179c4f74")
+print("source_blob=f7357202b4401d76a056462c646099c5fc82d62c")
 print("accepted_lock_blob=b73415ce8fc95ff2d49cbde97a15d701ad5b7937")
 print("accepted_lock_id=voidbuyumqcredelflock2_c05afb1a6fbd44a00d4f220652e87ee099e0456992a17a6ae7b60bda9229cf54")
 print("preexec_replacement=false")
@@ -153,6 +170,10 @@ print("query_atomic_exchange_required=true")
 print("automatic_failure_rollback=true")
 print("foreign_stage_cleanup_rejected=true")
 print("current_invocation_stage_inode_bound=true")
+print("operation_directory_lock_required=true")
+print("crash_state_classifier_complete=true")
+print("apply_crash_resume_supported=true")
+print("rollback_crash_resume_supported=true")
 print("query_execution=false")
 print("credential_contents_read=false")
 print("service_mutation=false")
