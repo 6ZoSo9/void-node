@@ -28,6 +28,25 @@ const CANDIDATE_BLOB="e569c9211e01f14c7c00dd1c5041d4dfb0817609";
 const FIXED_NATIVE=
   "/opt/void-buy-void-epoch2-live-composition-v3/"+
   "void_buy_void_epoch2_live_composition_native_preentry_v3";
+const BINDER_PREENTRY_ROOT=
+  "/opt/void-buy-void-epoch2-dormant-v3r-binding-v1";
+const FIXED_BINDER_PREENTRY=
+  BINDER_PREENTRY_ROOT+
+  "/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v1";
+const FIXED_BINDER_SOURCE=
+  BINDER_PREENTRY_ROOT+
+  "/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs";
+const BINDER_PREENTRY_MARKER=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V1";
+const BINDER_PREENTRY_ENV=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V1";
+const BINDER_FD_ENV=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V1_BINDER_FD";
+const BINDER_PROOF_FD_ENV=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V1_PROOF_FD";
+const BINDER_PROOF_SCHEMA=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V1";
+const FIXED_NODE="/usr/bin/node";
 const NATIVE_CONFIRM=
   "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V3";
 
@@ -140,6 +159,145 @@ function assertTrustedExecutable(file){
     throw new Error("trusted_executable_invalid:"+path.basename(file));
   }
 }
+function sameFileIdentity(left,right){
+  return left.dev===right.dev&&left.ino===right.ino&&
+    left.uid===right.uid&&left.gid===right.gid&&
+    left.mode===right.mode&&left.nlink===right.nlink&&
+    left.size===right.size;
+}
+function readProcStartTicks(pid){
+  if(!Number.isSafeInteger(pid)||pid<=1){
+    throw new Error("binder_preentry_process_pid_invalid");
+  }
+  const raw=fs.readFileSync("/proc/"+String(pid)+"/stat","utf8");
+  const right=raw.lastIndexOf(")");
+  if(right<0||raw[right+1]!==" "){
+    throw new Error("binder_preentry_process_stat_invalid");
+  }
+  const fields=raw.slice(right+2).trim().split(/\s+/u);
+  const value=fields[19];
+  if(!/^[1-9][0-9]*$/u.test(String(value||""))){
+    throw new Error("binder_preentry_process_start_ticks_invalid");
+  }
+  return String(value);
+}
+function parseBinderParentProof(fd){
+  let raw;
+  try{raw=fs.readFileSync(fd,{encoding:"utf8"});}
+  finally{try{fs.closeSync(fd);}catch(closeError){void closeError;}}
+  if(Buffer.byteLength(raw,"utf8")<2||Buffer.byteLength(raw,"utf8")>2048){
+    throw new Error("binder_preentry_parent_proof_size_invalid");
+  }
+  let proof;
+  try{proof=JSON.parse(raw);}
+  catch{throw new Error("binder_preentry_parent_proof_json_invalid");}
+  if(!proof||typeof proof!=="object"||Array.isArray(proof)){
+    throw new Error("binder_preentry_parent_proof_object_invalid");
+  }
+  const keys=Object.keys(proof).sort();
+  const expected=[
+    "schema","parent_pid","parent_start_ticks","child_pid","child_start_ticks",
+    "preentry_dev","preentry_ino","binder_dev","binder_ino",
+    "node_dev","node_ino","expected_head",
+  ].sort();
+  if(JSON.stringify(keys)!==JSON.stringify(expected)){
+    throw new Error("binder_preentry_parent_proof_schema_invalid");
+  }
+  if(proof.schema!==BINDER_PROOF_SCHEMA||
+     !Number.isSafeInteger(proof.parent_pid)||proof.parent_pid<=1||
+     !Number.isSafeInteger(proof.child_pid)||proof.child_pid<=1||
+     !SHA40.test(String(proof.expected_head||""))){
+    throw new Error("binder_preentry_parent_proof_identity_invalid");
+  }
+  for(const key of [
+    "parent_start_ticks","child_start_ticks",
+    "preentry_dev","preentry_ino","binder_dev","binder_ino",
+    "node_dev","node_ino",
+  ]){
+    if(!/^[1-9][0-9]*$/u.test(String(proof[key]||""))){
+      throw new Error("binder_preentry_parent_proof_field_invalid:"+key);
+    }
+  }
+  return Object.freeze(proof);
+}
+function revalidateBinderPreentry(proof,expectedHead){
+  if(proof.expected_head!==expectedHead){
+    throw new Error("binder_preentry_expected_head_proof_mismatch");
+  }
+  if(process.pid!==proof.child_pid||process.ppid!==proof.parent_pid){
+    throw new Error("binder_preentry_parent_child_pid_mismatch");
+  }
+  if(readProcStartTicks(process.pid)!==proof.child_start_ticks||
+     readProcStartTicks(process.ppid)!==proof.parent_start_ticks){
+    throw new Error("binder_preentry_parent_child_generation_mismatch");
+  }
+  let parentExe;
+  try{parentExe=fs.realpathSync.native("/proc/"+String(process.ppid)+"/exe");}
+  catch{throw new Error("binder_preentry_parent_executable_unavailable");}
+  if(parentExe!==FIXED_BINDER_PREENTRY){
+    throw new Error("binder_preentry_parent_executable_mismatch");
+  }
+  const preentry=fs.lstatSync(FIXED_BINDER_PREENTRY,{bigint:true});
+  const visibleBinder=fs.lstatSync(FIXED_BINDER_SOURCE,{bigint:true});
+  const visibleNode=fs.lstatSync(fs.realpathSync(FIXED_NODE),{bigint:true});
+  const fdRaw=String(process.env[BINDER_FD_ENV]??"");
+  if(!/^[0-9]{1,3}$/u.test(fdRaw)){
+    throw new Error("binder_preentry_binder_fd_invalid");
+  }
+  const binderFd=Number(fdRaw);
+  if(!Number.isSafeInteger(binderFd)||binderFd<3){
+    throw new Error("binder_preentry_binder_fd_invalid");
+  }
+  const retainedBinder=fs.fstatSync(binderFd,{bigint:true});
+  const pairs=[
+    ["preentry_dev",preentry.dev],["preentry_ino",preentry.ino],
+    ["binder_dev",retainedBinder.dev],["binder_ino",retainedBinder.ino],
+    ["node_dev",visibleNode.dev],["node_ino",visibleNode.ino],
+  ];
+  for(const [key,value] of pairs){
+    if(String(value)!==proof[key]){
+      throw new Error("binder_preentry_installed_generation_mismatch:"+key);
+    }
+  }
+  if(!retainedBinder.isFile()||visibleBinder.isSymbolicLink()||
+     !visibleBinder.isFile()||retainedBinder.uid!==0n||
+     (retainedBinder.mode&0o022n)!==0n||
+     !sameFileIdentity(retainedBinder,visibleBinder)){
+    throw new Error("binder_preentry_binder_generation_invalid");
+  }
+  if(fs.realpathSync(process.execPath)!==fs.realpathSync(FIXED_NODE)){
+    throw new Error("binder_preentry_node_executable_mismatch");
+  }
+  return true;
+}
+function requireBinderPreentry(expectedHead){
+  if(process.argv[1]!=="-"){
+    throw new Error("binder_native_stdin_entry_required");
+  }
+  if(process.env[BINDER_PREENTRY_ENV]!==BINDER_PREENTRY_MARKER){
+    throw new Error("binder_native_parent_marker_required");
+  }
+  for(const name of [
+    "NODE_OPTIONS","NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH","LD_AUDIT",
+    "PYTHONPATH","PYTHONHOME",
+  ]){
+    if(Object.hasOwn(process.env,name)){
+      throw new Error("binder_preentry_loader_environment_not_clean:"+name);
+    }
+  }
+  const proofRaw=String(process.env[BINDER_PROOF_FD_ENV]??"");
+  if(!/^[0-9]{1,3}$/u.test(proofRaw)){
+    throw new Error("binder_preentry_proof_fd_invalid");
+  }
+  const proofFd=Number(proofRaw);
+  if(!Number.isSafeInteger(proofFd)||proofFd<3){
+    throw new Error("binder_preentry_proof_fd_invalid");
+  }
+  const proof=parseBinderParentProof(proofFd);
+  revalidateBinderPreentry(proof,expectedHead);
+  return proof;
+}
+
 function runAsRuntimeUser(command,args,options={}){
   return run(SETPRIV,[
     "--no-new-privs",
@@ -533,11 +691,16 @@ function buildBindingReceipt(expectedHead,candidate,qualification,child){
 function plan(){
   console.log(MARKER);
   console.log("mode=plan");
-  console.log("git_object_stdin_required_for_live=true");
+  console.log("native_binder_first_entry_required_for_live=true");
+  console.log("private_binder_parent_proof_required_for_live=true");
+  console.log("caller_stdin_alone_authority=false");
   console.log("root_required_for_run=true");
   console.log("exact_dormant_candidate_v4_git_object_required=true");
   console.log("v6r2_installed_qualification_before_after_required=true");
   console.log("fixed_native_v3_live_composition_required=true");
+  console.log("native_binder_first_entry_required_for_live=true");
+  console.log("private_binder_parent_proof_required_for_live=true");
+  console.log("caller_stdin_alone_authority=false");
   console.log("arbitrary_live_receipt_input_accepted=false");
   console.log("signer_control_predecessor_evidence_required=true");
   console.log("credential_content_access=false");
@@ -699,7 +862,7 @@ function live(expectedHead,confirm){
   if(typeof process.geteuid!=="function"||process.geteuid()!==0){
     throw new Error("root_required_for_live_binding");
   }
-  if(process.argv[1]!=="-")throw new Error("binder_git_object_stdin_required");
+  const binderProof=requireBinderPreentry(expectedHead);
   assertTrustedExecutable(GIT);
   assertTrustedExecutable(PYTHON);
   assertTrustedExecutable(SETPRIV);
@@ -714,6 +877,7 @@ function live(expectedHead,confirm){
     throw new Error("installed_qualification_changed_across_live_composition");
   }
   requireExactCheckout(expectedHead);
+  revalidateBinderPreentry(binderProof,expectedHead);
   const receipt=buildBindingReceipt(expectedHead,candidate,before,child);
   console.log(JSON.stringify(receipt,null,2));
 }
@@ -752,6 +916,10 @@ const directFileExecution=process.argv[1]&&process.argv[1]!=="-"&&
 if(process.argv[1]==="-"){
   try{main();}catch(error){printHold(error);process.exitCode=2;}
 }else if(directFileExecution){
-  printHold(new Error("binder_git_object_stdin_required"));
-  process.exitCode=2;
+  if(process.argv.slice(2).includes("--run")){
+    printHold(new Error("binder_native_first_entry_required"));
+    process.exitCode=2;
+  }else{
+    try{main();}catch(error){printHold(error);process.exitCode=2;}
+  }
 }
