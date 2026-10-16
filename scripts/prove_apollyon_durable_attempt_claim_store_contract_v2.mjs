@@ -202,9 +202,9 @@ assert.deepEqual(
   [
     "authorization_id","claim_record_id","claim_record_sha256","custody_generation_id",
     "durability_proven","final_visible_record_revalidated","marker","outcome",
-    "next_gate","publish_request_sha256","status","store_contract_id","store_generation_id",
+    "publish_request_sha256","status","store_contract_id","store_generation_id",
     "store_policy_id","terminal_receipt_id","training_start_admission","training_start_consumption_performed",
-    "training_start_consumption_required","version",
+    "training_start_consumption_required","next_gate","version",
   ],
 );
 assert.deepEqual(

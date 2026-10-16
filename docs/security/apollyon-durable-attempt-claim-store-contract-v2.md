@@ -33,7 +33,7 @@ A host-qualified successor must prove the static boundary below, and the future 
 - a dedicated claim IPC group has an exact reviewed membership set that excludes training, custody, and public-runtime identities;
 - every publish request is admitted from kernel peer credentials against the exact reviewed caller UID/GID and caller process generation/source identity; caller-supplied identity is never trusted and root has no implicit bypass;
 - unauthorized peers are rejected before request-body reads;
-- the only write method is `publish_claim_v2`, with exact request keys `claim_record`, `marker`, `method`, `store_contract_id`, `version`, canonical encoding, no unknown keys, one request per connection, maximum request/response size 65,536 bytes, 5,000 ms request deadline, and at most 16 concurrent connections.
+- the only write method is `publish_claim_v2`, with exact request keys `claim_record`, `marker`, `method`, `store_contract_id`, `store_policy_id`, `version`, canonical encoding, no unknown keys, one request per connection, maximum request/response size 65,536 bytes, 5,000 ms request deadline, and at most 16 concurrent connections.
 
 This source contract does not choose the future literal account name, UID/GID, socket path, or state-root path. It does define a pure least-authority classifier for a later chosen numeric identity/policy: claim UID/GID must be non-root and collision-free against the four protected identities, `NoNewPrivileges` must be true, and every Linux capability mask must be exactly zero. Hosted proof rejects root, collision, and capability-bearing fixtures without observing or changing Xiphos.
 
