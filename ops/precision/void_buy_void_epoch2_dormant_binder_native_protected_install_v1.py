@@ -690,6 +690,8 @@ def _failure_receipt(exc: InstallError) -> dict[str, str]:
 def _require_apply_context() -> None:
     if sys.flags.isolated != 1:
         raise InstallError("python_isolated_mode_required")
+    if sys.argv[0] != "-":
+        raise InstallError("installer_git_object_stdin_required")
     present = [name for name in FORBIDDEN_APPLY_ENV if name in os.environ]
     if present:
         raise InstallError("forbidden_apply_environment:" + ",".join(present))
@@ -774,9 +776,9 @@ def apply(
 ) -> None:
     if confirm != CONFIRM_TOKEN:
         raise InstallError("explicit_create_only_confirmation_required")
+    _require_apply_context()
     if os.geteuid() != 0:
         raise InstallError("root_required_for_apply")
-    _require_apply_context()
 
     _verify_checkout(expected_head)
     accepted_lock(expected_head)
