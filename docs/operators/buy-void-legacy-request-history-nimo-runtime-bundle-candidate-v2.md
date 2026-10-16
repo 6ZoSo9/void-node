@@ -61,6 +61,32 @@ For the two loader files, every syntactic `require(` call must be a static
 string literal. Their complete ordered static require-specifier lists must equal
 those three reviewed edges exactly. Dynamic or additional loader targets HOLD.
 
+## Candidate-owned compiler execution
+
+The candidate builder does not trust a workflow build followed by a later
+compiler hash as one atomic provenance statement.
+
+For every V2 candidate creation it:
+
+1. derives the exact four-file TypeScript compiler identity and loader graph;
+2. removes only the generated `dist/` build output;
+3. invokes the current Node process executable with the exact
+   `node_modules/typescript/bin/tsc -p tsconfig.build.json` entry under the
+   closed environment:
+   `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, `TZ=UTC`,
+   `NODE_DISABLE_COMPILE_CACHE=1`;
+4. re-derives the complete compiler identity after the build and requires exact
+   canonical equality with the pre-build identity;
+5. only then derives the 14-file runtime closure from the newly built output.
+
+Therefore the compiler identity in the candidate brackets the actual build that
+produced the runtime bytes. A compiler entry/loader/body generation change
+during compilation HOLDs rather than becoming an accepted post-build hash.
+
+The candidate builder truthfully declares its generated-build filesystem
+mutation; that authority is confined to source/test candidate construction and
+does not grant protected Nimo installation.
+
 ## Candidate verification
 
 Candidate self-consistency is not authority.
@@ -80,8 +106,9 @@ The V2 candidate ID is content-addressed as `voidblrhnrb2_<sha256>`.
 
 ## Hosted qualification
 
-Node 22, 24 and 26 each perform the locked dependency install and exact
-TypeScript build, then run the V2 proof and emit a full candidate.
+Node 22, 24 and 26 each perform the locked dependency install and an
+external build smoke check, then the V2 proof/candidate path independently
+performs its own compiler-bracketed rebuild before deriving runtime bytes.
 
 The workflow requires byte-identical candidate JSON across all three Node
 majors. A separate V2 lock is required after exact hosted evidence and review.
