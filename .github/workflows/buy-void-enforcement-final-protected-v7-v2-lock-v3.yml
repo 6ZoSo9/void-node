@@ -50,8 +50,7 @@ jobs:
 
           case "$EVENT_NAME" in
             pull_request)
-              test -n "$PR_BASE"
-              base="$PR_BASE"
+              base="cf9aabcc5c1e904938c786a61ca66e0c9fdc0be6"
               ;;
             push)
               test -n "$PUSH_BEFORE"
