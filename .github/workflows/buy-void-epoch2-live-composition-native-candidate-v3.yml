@@ -34,6 +34,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          # Bind implementation ancestry independently from proof-generation ancestry.
+          git merge-base --is-ancestor \
+            b5a00bb7b2bb9fad046993971b7ead887feb0260 \
+            "$EXPECTED_HEAD"
           git merge-base --is-ancestor \
             aab42057ff5da0cd1319acc465d1e297c5814436 \
             "$EXPECTED_HEAD"
