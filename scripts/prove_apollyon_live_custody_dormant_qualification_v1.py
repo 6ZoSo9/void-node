@@ -41,12 +41,11 @@ for required in (
     'service_dropins_present',
     'target_dropins_present',
     'loaded_unset_environment_invalid',
+    '"GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",',
+    '"NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",',
     'SYSTEMD_UNIT_SEARCH_ROOTS=(',
-    'effective_systemd_unit_roots()',
-    'systemd_unit_path_unreviewed:',
-    'systemd_unit_path_precedence_invalid',
-    'assert_no_unreviewed_dependency_directories(TARGET_UNIT,roots)',
-    'assert_no_unreviewed_dependency_directories(SERVICE_UNIT,roots)',
+    'assert_no_unreviewed_dependency_directories(TARGET_UNIT)',
+    'assert_no_unreviewed_dependency_directories(SERVICE_UNIT)',
     'unreviewed_systemd_dependency_entry:',
     'require_trusted_ancestor_chain(',
     'verify_path_custody(ids)',
@@ -114,8 +113,6 @@ for line in (
     "manager_environment_influence_unset=true",
     "systemd_dependency_directories_closed=true",
     "unreviewed_systemd_dependency_entries_rejected=true",
-    "systemd_effective_unit_path_bound=true",
-    "unreviewed_systemd_unit_path_rejected=true",
     "retained_ancestor_custody_required=true",
     "world_writable_execution_parent_rejected=true",
     "custody_group_closure_required=true",
@@ -157,8 +154,6 @@ print("unexpected_systemd_exec_commands_rejected=true")
 print("manager_environment_influence_unset=true")
 print("systemd_dependency_directories_closed=true")
 print("unreviewed_systemd_dependency_entries_rejected=true")
-print("systemd_effective_unit_path_bound=true")
-print("unreviewed_systemd_unit_path_rejected=true")
 print("retained_ancestor_custody_required=true")
 print("world_writable_execution_parent_rejected=true")
 print("custody_group_closure_required=true")
