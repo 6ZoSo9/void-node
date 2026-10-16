@@ -7,7 +7,7 @@ Status: **source/test/CI only**. Live execution remains separately authorized.
 
 ## Purpose
 
-Dormant candidate V2 already contains accepted public signer-control evidence for
+Dormant candidate V3 already contains accepted public signer-control evidence for
 the immutable Epoch-2 fulfiller, but deliberately keeps installed credential
 identity and runtime-source binding false.
 
@@ -18,12 +18,12 @@ It does not accept a caller-provided live receipt.
 
 ## Exact source inputs
 
-Dormant candidate V2:
+Dormant candidate V3:
 
 - path:
-  `ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json`;
+  `ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json`;
 - Git blob:
-  `6a0159e516d30ca8a4b9af4dcace79a4fcddfbb1`;
+  `04061934a537a1d91213cdd1f9110b46faca4cc7`;
 - signer-control proof remains true;
 - systemd credential identity remains false before this gate;
 - runtime/apply enable flags remain `0`.
@@ -50,7 +50,7 @@ A future separately authorized root run:
 
 1. requires this binder from its exact Git object on stdin;
 2. verifies clean exact `main`;
-3. loads exact dormant candidate V2 from Git;
+3. loads exact dormant candidate V3 from Git;
 4. executes exact V6R2 installed qualification from its Git object;
 5. invokes the fixed installed native V3 preentry with `/dev/null` stdin;
 6. validates the directly returned `voide2livecomp3_...` receipt and its
@@ -65,7 +65,7 @@ receipt is accepted.
 
 ## Facts promoted by a GREEN future receipt
 
-Dormant candidate V2 already proves:
+Dormant candidate V3 already proves:
 
 - `signer_offchain_control_proven=true`.
 
@@ -86,7 +86,7 @@ receipt.
 
 Exactly three gates remain after a GREEN binding receipt:
 
-1. live fee-envelope + exact chain receipt qualification;
+1. zero-fee envelope + exact chain receipt, or separately proven per-payment native-gas funding for any nonzero-fee path;
 2. current Chain-2050 one-payment/one-fulfillment canary;
 3. coupled presale + WC/VOID Sovereign activation.
 
@@ -113,3 +113,16 @@ Hosted CI executes only syntax, self-test, inert plan, static/adversarial proof,
 and diff hygiene.
 
 PROTECT THE CORE.
+
+## Fee-funding truth preserved from dormant candidate V3
+
+This binder must not restore the predecessor V2 wording that could be read as
+allowing a nonzero-fee path from a standing fulfiller native balance.
+
+The first remaining gate is exactly:
+
+`qualify_live_zero_fee_envelope_and_exact_chain_receipt_or_prove_per_payment_native_gas_funding`.
+
+A zero-fee path may advance on exact zero-fee/receipt evidence. Any nonzero fee
+path still requires a separately reviewed payment-specific native-gas funding or
+reservation proof. A standing wallet balance is not funding authority.
