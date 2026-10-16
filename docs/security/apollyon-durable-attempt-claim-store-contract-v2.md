@@ -17,6 +17,8 @@ This contract therefore defines the requirements for a future independently prot
 A host-qualified successor must prove the static boundary below, and the future executor must re-establish the complete boundary immediately before every claim publication:
 
 - a dedicated claim-service identity distinct from training, custody, the public runtime, and the interactive non-root operator, with a closed supplementary-group set and exactly the reviewed claim-service process admitted under that UID;
+- the selected claim UID and GID are both non-root numeric identities and the claim UID/GID are separately distinct from the selected training, custody, public-runtime, and interactive-operator UID/GID values;
+- the claim service runs with `NoNewPrivileges=true` and exact empty Linux inheritable, permitted, effective, bounding, and ambient capability sets; UID 0/GID 0 and capability-bearing identities are never qualifying claim-service shapes;
 - a versioned, fixed claim identity and claim-state root before installation;
 - protected root mode `0700` and final immutable claim record mode `0600`;
 - a create-once store-generation identity; replacing the same pathname is a new generation, blocks claim publication until separately requalified, cannot reuse an old terminal receipt or authorization/custody generation, and requires fresh Sovereign rebootstrap; migration is allowed only with verified continuity of prior claim history, otherwise replacement is a permanent HOLD;
@@ -26,14 +28,14 @@ A host-qualified successor must prove the static boundary below, and the future 
 - the claim-service identity cannot write training or custody state;
 - training and custody cannot control the claim service, and the claim service cannot control training or custody services;
 - the reviewed claim service exposes no delete/overwrite API;
-- immediately before publication, revalidate claim-UID process exclusivity, exact service source identity, supplementary groups, effective sandbox/policy, store generation/root identity, write authority, and all service-control denials;
+- immediately before publication, revalidate claim-UID process exclusivity, exact service source identity, selected numeric UID/GID separation, supplementary groups, `NoNewPrivileges`, all five empty capability sets, effective sandbox/policy, store generation/root identity, write authority, and all service-control denials;
 - the claim service is AF_UNIX-only and has no external network, private-key, signing, wallet, transaction, or funds authority;
 - a dedicated claim IPC group has an exact reviewed membership set that excludes training, custody, and public-runtime identities;
 - every publish request is admitted from kernel peer credentials against the exact reviewed caller UID/GID and caller process generation/source identity; caller-supplied identity is never trusted and root has no implicit bypass;
 - unauthorized peers are rejected before request-body reads;
 - the only write method is `publish_claim_v2`, with exact request keys `claim_record`, `marker`, `method`, `store_contract_id`, `version`, canonical encoding, no unknown keys, one request per connection, maximum request/response size 65,536 bytes, 5,000 ms request deadline, and at most 16 concurrent connections.
 
-This source contract does not choose the future literal account name, UID/GID, socket path, or state-root path.
+This source contract does not choose the future literal account name, UID/GID, socket path, or state-root path. It does define a pure least-authority classifier for a later chosen numeric identity/policy: claim UID/GID must be non-root and collision-free against the four protected identities, `NoNewPrivileges` must be true, and every Linux capability mask must be exactly zero. Hosted proof rejects root, collision, and capability-bearing fixtures without observing or changing Xiphos.
 
 ## Required future revalidation
 
