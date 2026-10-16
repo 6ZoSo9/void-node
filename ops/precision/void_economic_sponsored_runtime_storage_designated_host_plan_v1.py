@@ -2,12 +2,10 @@
 from __future__ import annotations
 
 import argparse
-import grp
 import hashlib
 import json
 import os
 import pathlib
-import pwd
 import re
 import socket
 import stat
@@ -47,6 +45,9 @@ RESERVATION_ROOT = PARENT_ROOT / "reservation"
 REPLAY_ROOT = PARENT_ROOT / "replay"
 
 LOGIN_DEFS = pathlib.Path("/etc/login.defs")
+NSSWITCH = pathlib.Path("/etc/nsswitch.conf")
+PASSWD_FILE = pathlib.Path("/etc/passwd")
+GROUP_FILE = pathlib.Path("/etc/group")
 MACHINE_ID = pathlib.Path("/etc/machine-id")
 GIT = "/usr/bin/git"
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
@@ -373,34 +374,174 @@ def _login_defs() -> tuple[dict[str, int], str]:
     return parse_login_defs(text), sha256(raw)
 
 
-def _named_identity_state() -> dict[str, Any]:
-    try:
-        user = pwd.getpwnam(SERVICE_USER)
-    except KeyError:
-        user = None
-    try:
-        group = grp.getgrnam(SERVICE_GROUP)
-    except KeyError:
-        group = None
+def parse_nsswitch_files_only(text: str) -> dict[str, tuple[str, ...]]:
+    found: dict[str, tuple[str, ...]] = {}
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if ":" not in line:
+            continue
+        database, raw_services = line.split(":", 1)
+        database = database.strip()
+        if database not in ("passwd", "group"):
+            continue
+        if database in found:
+            raise PlanError("nsswitch_duplicate_database:" + database)
+        services = tuple(raw_services.split())
+        if services != ("files",):
+            raise PlanError("nsswitch_not_files_only:" + database)
+        found[database] = services
+    if set(found) != {"passwd", "group"}:
+        raise PlanError("nsswitch_identity_databases_missing")
+    return found
 
-    if user is None and group is None:
-        return {
-            "user_exists": False,
-            "group_exists": False,
-            "existing_uid": None,
-            "existing_gid": None,
-        }
+
+def _parse_local_id(value: str, label: str) -> int:
+    if not value.isascii() or not value.isdigit():
+        raise PlanError(label + "_id_invalid")
+    parsed = int(value)
+    if parsed < 0 or parsed > 4294967294:
+        raise PlanError(label + "_id_out_of_range")
+    return parsed
+
+
+def parse_passwd_file(text: str) -> list[dict[str, Any]]:
+    if not text.endswith("\n"):
+        raise PlanError("passwd_final_newline_missing")
+    rows: list[dict[str, Any]] = []
+    names: set[str] = set()
+    for raw in text.splitlines():
+        if not raw:
+            raise PlanError("passwd_empty_record")
+        parts = raw.split(":")
+        if len(parts) != 7:
+            raise PlanError("passwd_record_shape_invalid")
+        name = parts[0]
+        if (
+            not name
+            or any(ord(ch) < 0x21 or ord(ch) == 0x7F for ch in name)
+            or name in names
+        ):
+            raise PlanError("passwd_name_invalid_or_duplicate")
+        names.add(name)
+        rows.append({
+            "name": name,
+            "uid": _parse_local_id(parts[2], "passwd_uid"),
+            "gid": _parse_local_id(parts[3], "passwd_gid"),
+            "home": parts[5],
+            "shell": parts[6],
+        })
+    if not rows:
+        raise PlanError("passwd_empty")
+    return rows
+
+
+def parse_group_file(text: str) -> list[dict[str, Any]]:
+    if not text.endswith("\n"):
+        raise PlanError("group_final_newline_missing")
+    rows: list[dict[str, Any]] = []
+    names: set[str] = set()
+    for raw in text.splitlines():
+        if not raw:
+            raise PlanError("group_empty_record")
+        parts = raw.split(":")
+        if len(parts) != 4:
+            raise PlanError("group_record_shape_invalid")
+        name = parts[0]
+        if (
+            not name
+            or any(ord(ch) < 0x21 or ord(ch) == 0x7F for ch in name)
+            or name in names
+        ):
+            raise PlanError("group_name_invalid_or_duplicate")
+        names.add(name)
+        members = tuple(item for item in parts[3].split(",") if item)
+        rows.append({
+            "name": name,
+            "gid": _parse_local_id(parts[2], "group_gid"),
+            "members": members,
+        })
+    if not rows:
+        raise PlanError("group_empty")
+    return rows
+
+
+def _local_identity_authority() -> dict[str, Any]:
+    nss_raw, _ = _read_regular_direct(
+        NSSWITCH,
+        max_bytes=MAX_SMALL_FILE_BYTES,
+        require_root_owned=True,
+        require_nonwritable=True,
+    )
+    passwd_raw, _ = _read_regular_direct(
+        PASSWD_FILE,
+        max_bytes=MAX_SMALL_FILE_BYTES,
+        require_root_owned=True,
+        require_nonwritable=True,
+    )
+    group_raw, _ = _read_regular_direct(
+        GROUP_FILE,
+        max_bytes=MAX_SMALL_FILE_BYTES,
+        require_root_owned=True,
+        require_nonwritable=True,
+    )
+    try:
+        nss_text = nss_raw.decode("utf-8", "strict")
+        passwd_text = passwd_raw.decode("utf-8", "strict")
+        group_text = group_raw.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        raise PlanError("local_identity_file_encoding_invalid") from exc
+    profile = parse_nsswitch_files_only(nss_text)
+    passwd_rows = parse_passwd_file(passwd_text)
+    group_rows = parse_group_file(group_text)
     return {
-        "user_exists": user is not None,
-        "group_exists": group is not None,
-        "existing_uid": None if user is None else user.pw_uid,
-        "existing_gid": None if group is None else group.gr_gid,
+        "profile": {
+            "passwd": list(profile["passwd"]),
+            "group": list(profile["group"]),
+        },
+        "nsswitch_sha256": sha256(nss_raw),
+        "passwd_sha256": sha256(passwd_raw),
+        "group_sha256": sha256(group_raw),
+        "passwd_rows": passwd_rows,
+        "group_rows": group_rows,
     }
 
 
-def _used_id_fingerprints() -> tuple[set[int], set[int], str, str]:
-    used_uids = {row.pw_uid for row in pwd.getpwall()}
-    used_gids = {row.gr_gid for row in grp.getgrall()}
+def _named_identity_state(
+    passwd_rows: list[dict[str, Any]],
+    group_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    users = [row for row in passwd_rows if row["name"] == SERVICE_USER]
+    groups = [row for row in group_rows if row["name"] == SERVICE_GROUP]
+    if len(users) > 1 or len(groups) > 1:
+        raise PlanError("selected_account_or_group_ambiguous")
+    return {
+        "user_exists": len(users) == 1,
+        "group_exists": len(groups) == 1,
+        "existing_uid": None if not users else users[0]["uid"],
+        "existing_gid": None if not groups else groups[0]["gid"],
+    }
+
+
+def _operator_identity(passwd_rows: list[dict[str, Any]]) -> None:
+    named = [row for row in passwd_rows if row["name"] == EXPECTED_OPERATOR]
+    by_uid = [row for row in passwd_rows if row["uid"] == EXPECTED_OPERATOR_UID]
+    if (
+        len(named) != 1
+        or named[0]["uid"] != EXPECTED_OPERATOR_UID
+        or len(by_uid) != 1
+        or by_uid[0]["name"] != EXPECTED_OPERATOR
+    ):
+        raise PlanError("wrong_operator_identity")
+
+
+def _used_id_fingerprints(
+    passwd_rows: list[dict[str, Any]],
+    group_rows: list[dict[str, Any]],
+) -> tuple[set[int], set[int], str, str]:
+    used_uids = {int(row["uid"]) for row in passwd_rows}
+    used_gids = {int(row["gid"]) for row in group_rows}
     uid_wire = ",".join(str(x) for x in sorted(used_uids)).encode("ascii")
     gid_wire = ",".join(str(x) for x in sorted(used_gids)).encode("ascii")
     return used_uids, used_gids, sha256(uid_wire), sha256(gid_wire)
@@ -499,11 +640,13 @@ def _plan_body(expected_head: str) -> dict[str, Any]:
 
     if socket.gethostname() != EXPECTED_HOSTNAME:
         raise PlanError("wrong_host")
-    operator = pwd.getpwuid(os.getuid())
-    if operator.pw_name != EXPECTED_OPERATOR or os.getuid() != EXPECTED_OPERATOR_UID:
-        raise PlanError("wrong_operator_identity")
-    if os.geteuid() != EXPECTED_OPERATOR_UID:
-        raise PlanError("unexpected_effective_uid")
+    if os.getuid() != EXPECTED_OPERATOR_UID or os.geteuid() != EXPECTED_OPERATOR_UID:
+        raise PlanError("unexpected_operator_uid")
+
+    identity_authority = _local_identity_authority()
+    passwd_rows = identity_authority["passwd_rows"]
+    group_rows = identity_authority["group_rows"]
+    _operator_identity(passwd_rows)
 
     machine_hash = _machine_id_sha256()
     if machine_hash != EXPECTED_MACHINE_ID_SHA256:
@@ -520,25 +663,20 @@ def _plan_body(expected_head: str) -> dict[str, Any]:
         _directory_snapshot(pathlib.Path("/etc/systemd/system")),
     ]
 
-    identity = _named_identity_state()
+    identity = _named_identity_state(passwd_rows, group_rows)
     if identity["user_exists"] or identity["group_exists"]:
         raise PlanError("selected_account_or_group_already_exists")
 
     bounds, login_defs_sha = _login_defs()
-    used_uids, used_gids, uid_fingerprint, gid_fingerprint = _used_id_fingerprints()
+    used_uids, used_gids, uid_fingerprint, gid_fingerprint = _used_id_fingerprints(
+        passwd_rows,
+        group_rows,
+    )
     candidate = choose_shared_system_id(used_uids, used_gids, bounds)
-    try:
-        pwd.getpwuid(candidate)
-    except KeyError:
-        pass
-    else:
-        raise PlanError("candidate_uid_resolves_through_nss")
-    try:
-        grp.getgrgid(candidate)
-    except KeyError:
-        pass
-    else:
-        raise PlanError("candidate_gid_resolves_through_nss")
+    if candidate in used_uids:
+        raise PlanError("candidate_uid_collision_in_bound_passwd")
+    if candidate in used_gids:
+        raise PlanError("candidate_gid_collision_in_bound_group")
 
     unit_collisions = _unit_collision_paths()
     if unit_collisions:
@@ -568,6 +706,14 @@ def _plan_body(expected_head: str) -> dict[str, Any]:
         "service_group": SERVICE_GROUP,
         "unit_install_path": str(UNIT_INSTALL_PATH),
         "named_identity_state": identity,
+        "identity_authority": {
+            "profile": identity_authority["profile"],
+            "nsswitch_sha256": identity_authority["nsswitch_sha256"],
+            "passwd_sha256": identity_authority["passwd_sha256"],
+            "group_sha256": identity_authority["group_sha256"],
+        },
+        "identity_authority_files_only_verified": True,
+        "local_identity_databases_descriptor_bound": True,
         "login_defs_sha256": login_defs_sha,
         "system_id_bounds": bounds,
         "used_uid_set_sha256": uid_fingerprint,
@@ -633,6 +779,38 @@ SYS_UID_MAX 999
 SYS_GID_MIN 100
 SYS_GID_MAX 999
 """
+    assert parse_nsswitch_files_only(
+        "passwd: files\ngroup: files\nhosts: files dns\n"
+    ) == {"passwd": ("files",), "group": ("files",)}
+    for remote_profile in (
+        "passwd: files sss\ngroup: files\n",
+        "passwd: files\ngroup: files ldap\n",
+        "passwd: files systemd\ngroup: files\n",
+        "passwd: compat\ngroup: files\n",
+        "passwd: files [NOTFOUND=return]\ngroup: files\n",
+    ):
+        try:
+            parse_nsswitch_files_only(remote_profile)
+        except PlanError:
+            pass
+        else:
+            raise AssertionError("non-files identity authority accepted")
+    passwd_rows = parse_passwd_file(
+        "root:x:0:0:root:/root:/bin/bash\n"
+        "zoso:x:1000:1000::/home/zoso:/bin/bash\n"
+    )
+    group_rows = parse_group_file(
+        "root:x:0:\n"
+        "zoso:x:1000:zoso\n"
+    )
+    _operator_identity(passwd_rows)
+    assert _named_identity_state(passwd_rows, group_rows) == {
+        "user_exists": False,
+        "group_exists": False,
+        "existing_uid": None,
+        "existing_gid": None,
+    }
+
     bounds = parse_login_defs(text)
     assert bounds == {
         "SYS_UID_MIN": 100,
@@ -671,6 +849,9 @@ SYS_GID_MAX 999
     print("login_defs_bounds_parser=true")
     print("highest_free_shared_system_id_deterministic=true")
     print("numeric_identity_host_derived=true")
+    print("local_identity_authority_files_only=true")
+    print("local_identity_databases_descriptor_bound=true")
+    print("remote_nss_profiles_rejected=true")
     print("plan_content_addressed=true")
     print("host_mutation=false")
     print("filesystem_mutation=false")
@@ -685,6 +866,8 @@ def source_plan() -> None:
     print("source_only=true")
     print("host_read=false")
     print("host_mutation=false")
+    print("local_identity_authority_files_only_required=true")
+    print("remote_nss_profiles_authorized=false")
     print("selection_id=" + selection["selection_id"])
     print("expected_hostname=" + EXPECTED_HOSTNAME)
     print("service_unit=" + SERVICE_UNIT)
@@ -756,6 +939,8 @@ def main() -> int:
         "selected_storage_paths_absent_verified",
         "trusted_parent_ancestry_verified",
         "candidate_runtime_uid_gid_free_verified",
+        "identity_authority_files_only_verified",
+        "local_identity_databases_descriptor_bound",
         "production_service_identity_selected",
         "production_account_names_selected",
         "production_root_paths_selected",
