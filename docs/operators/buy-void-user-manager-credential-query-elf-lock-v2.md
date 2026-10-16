@@ -61,6 +61,28 @@ exact candidate metadata, rebuilds and strips both binaries using the hosted
 compiler/strip identities, executes the V2 self-test, and deterministically
 rederives this lock.
 
+## Hosted hostile-loader isolation
+
+The fixed-path hostile-loader adversary is proof infrastructure, not a host
+installation. The hosted workflow therefore does not normalize or rewrite the
+runner's pre-existing `/opt`.
+
+Before privileged proof setup it requires host `/opt` to be a direct
+directory and records its device, inode, UID, GID, and mode. The actual
+`/opt/void-buy-void-user-manager-credential-query-v1` fixture is created only
+inside a root private mount namespace after mount propagation is made private
+and a fresh root-owned mode-0755 tmpfs is mounted at namespace-local `/opt`.
+
+The direct poisoned V2 query and the static-preexec hostile-loader test execute
+inside that namespace against the accepted binary hashes. When the namespace
+exits, the workflow requires the host `/opt` device/inode/UID/GID/mode tuple
+to equal the read-only preflight and requires the fixed fixture path to remain
+absent from the host namespace.
+
+There is no host `chmod`/chown, no bind/replacement of host `/opt`, and no
+best-effort restoration path whose success is needed to preserve runner
+ancestry.
+
 ## Authority
 
 This lock accepts binary identity only:
