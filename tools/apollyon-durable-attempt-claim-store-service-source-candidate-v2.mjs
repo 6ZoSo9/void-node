@@ -112,6 +112,50 @@ export function qualifyApollyonDurableAttemptClaimStoreServiceSourceCandidateV2(
   if(policy.store_policy_id!==EXPECTED_STORE_POLICY_ID){
     fail("apollyon_claim_service_candidate_store_policy_mismatch");
   }
+  const hostPlanReceiptRequirements=deepFreeze({
+    marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_HOST_PLAN_V2",
+    version:2,
+    status:"xiphos_claim_store_preinstall_plan_ready",
+    target_host:"Xiphos",
+    parent_head:PARENT_STORE_CONTRACT_HEAD,
+    parent_contract_blob_sha1:PARENT_STORE_CONTRACT_BLOB_SHA1,
+    store_policy_id:EXPECTED_STORE_POLICY_ID,
+    fixed_names:FIXED_IDENTITIES,
+    fixed_paths:FIXED_PATHS,
+    plan_id_pattern:"^apollyon_claim_store_host_plan_v2:[0-9a-f]{64}$",
+    selected_candidate_keys:Object.freeze([
+      "claim_service_uid","claim_publisher_uid",
+      "claim_service_gid","claim_publisher_gid","claim_ipc_gid",
+    ]),
+    selected_candidate_values_positive_safe_integers_required:true,
+    selected_candidate_values_pairwise_distinct_required:true,
+    source_generation_source_head:PARENT_HOST_PLAN_HEAD,
+    source_generation_parent_head:PARENT_STORE_CONTRACT_HEAD,
+    source_generation_planner_blob_sha1:PARENT_HOST_PLANNER_BLOB_SHA1,
+    source_generation_parent_contract_blob_sha1:PARENT_STORE_CONTRACT_BLOB_SHA1,
+    source_generation_authenticated_required:true,
+    source_generation_isolated_python_startup_proven_required:true,
+    reviewed_source_head_external_lease_required:true,
+    target_names_absent_required:true,
+    target_paths_absent_required:true,
+    candidate_slots_selected_in_plan_required:true,
+    candidate_slots_globally_distinct_required:true,
+    candidate_slots_revalidation_required_before_provisioning:true,
+    claim_identity_provisioned_required:false,
+    publisher_identity_provisioned_required:false,
+    claim_ipc_group_provisioned_required:false,
+    claim_root_created_required:false,
+    claim_socket_parent_created_required:false,
+    claim_service_source_installed_required:false,
+    claim_publisher_source_installed_required:false,
+    claim_service_unit_installed_required:false,
+    claim_service_started_required:false,
+    protected_claim_store_proven_required:false,
+    durable_attempt_claim_performed_required:false,
+    training_execution_performed_required:false,
+    next_gate:"apollyon_durable_attempt_claim_store_service_source_candidate_v2",
+  });
+
   const requirements=deepFreeze({
     dangerous_environment_names:cloned(
       VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_DANGEROUS_ENVIRONMENT_NAMES_V2
@@ -158,6 +202,7 @@ export function qualifyApollyonDurableAttemptClaimStoreServiceSourceCandidateV2(
     numeric_host_identities:null,
     host_plan_receipt_required_for_numeric_identity_binding:true,
     host_plan_receipt_consumed:false,
+    host_plan_receipt_requirements:hostPlanReceiptRequirements,
     service_role:"dedicated_nonroot_claim_store_service",
     publisher_role:"distinct_nonroot_request_publisher_without_claim_root_write",
     training_start_admission_role:"separate_one_time_consumption_gate_after_durable_claim",

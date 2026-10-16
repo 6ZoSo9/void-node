@@ -36,7 +36,7 @@ and fixed future paths:
 - reviewed service root: `/opt/void-apollyon-attempt-claim-v2-reviewed-v1`
 - reviewed publisher root: `/opt/void-apollyon-attempt-claim-publisher-v2-reviewed-v1`
 
-Numeric UID/GID values remain deliberately unresolved. A future implementation/install gate must consume an exact fresh #3265 host-plan receipt and recensus local identity state immediately before create-only provisioning.
+Numeric UID/GID values remain deliberately unresolved. The candidate now also freezes the exact host-plan receipt boundary: marker/version/status, #3233 parent and policy, fixed names/paths, exact five selected-candidate keys, positive-safe-integer and pairwise-distinct requirements, #3265 source-generation head/planner/contract evidence, target-name/path absence, plan-only candidate status, recensus requirement, and every provisioning/store/claim/training flag that must still be false. A future implementation/install gate must validate that exact receipt and recensus local identity state immediately before create-only provisioning.
 
 ## Complete policy projection
 

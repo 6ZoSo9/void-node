@@ -36,7 +36,7 @@ function sha256(value){return crypto.createHash("sha256").update(value).digest("
 
 const EXACT_BLOBS=Object.freeze({
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "5a399fd9bec0ed1014b917043771cb8ba1287cba",
+    "5d61461742aa854dd144390a2fd2f669e5a827d3",
   "ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py":
     "03ea7df9b7a548c73ec1c715d716391be5d5d223",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -88,6 +88,49 @@ assert.deepEqual(candidate.fixed_paths,{
 assert.equal(candidate.numeric_host_identities,null);
 assert.equal(candidate.host_plan_receipt_required_for_numeric_identity_binding,true);
 assert.equal(candidate.host_plan_receipt_consumed,false);
+assert.deepEqual(candidate.host_plan_receipt_requirements,{
+  marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_HOST_PLAN_V2",
+  version:2,
+  status:"xiphos_claim_store_preinstall_plan_ready",
+  target_host:"Xiphos",
+  parent_head:"fe7e1ad9b78a24b77a1657067e4d08f7c56a7731",
+  parent_contract_blob_sha1:"6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
+  store_policy_id:"apollyon_claim_store_policy_v2:e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137",
+  fixed_names:candidate.fixed_identities,
+  fixed_paths:candidate.fixed_paths,
+  plan_id_pattern:"^apollyon_claim_store_host_plan_v2:[0-9a-f]{64}$",
+  selected_candidate_keys:[
+    "claim_service_uid","claim_publisher_uid",
+    "claim_service_gid","claim_publisher_gid","claim_ipc_gid",
+  ],
+  selected_candidate_values_positive_safe_integers_required:true,
+  selected_candidate_values_pairwise_distinct_required:true,
+  source_generation_source_head:"5693e0e060dd567acbbf7a1e44ab641efded4a98",
+  source_generation_parent_head:"fe7e1ad9b78a24b77a1657067e4d08f7c56a7731",
+  source_generation_planner_blob_sha1:"03ea7df9b7a548c73ec1c715d716391be5d5d223",
+  source_generation_parent_contract_blob_sha1:"6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
+  source_generation_authenticated_required:true,
+  source_generation_isolated_python_startup_proven_required:true,
+  reviewed_source_head_external_lease_required:true,
+  target_names_absent_required:true,
+  target_paths_absent_required:true,
+  candidate_slots_selected_in_plan_required:true,
+  candidate_slots_globally_distinct_required:true,
+  candidate_slots_revalidation_required_before_provisioning:true,
+  claim_identity_provisioned_required:false,
+  publisher_identity_provisioned_required:false,
+  claim_ipc_group_provisioned_required:false,
+  claim_root_created_required:false,
+  claim_socket_parent_created_required:false,
+  claim_service_source_installed_required:false,
+  claim_publisher_source_installed_required:false,
+  claim_service_unit_installed_required:false,
+  claim_service_started_required:false,
+  protected_claim_store_proven_required:false,
+  durable_attempt_claim_performed_required:false,
+  training_execution_performed_required:false,
+  next_gate:"apollyon_durable_attempt_claim_store_service_source_candidate_v2",
+});
 assert.equal(candidate.service_implementation_present,false);
 assert.equal(candidate.publisher_implementation_present,false);
 assert.equal(candidate.host_installation_performed,false);
@@ -154,6 +197,7 @@ for(const value of [
   candidate,
   candidate.fixed_identities,
   candidate.fixed_paths,
+  candidate.host_plan_receipt_requirements,
   candidate.requirements,
   candidate.requirements.service_systemd,
   candidate.requirements.socket,
@@ -215,6 +259,9 @@ for(const required of [
   'PARENT_HOST_PLANNER_BLOB_SHA1="03ea7df9b7a548c73ec1c715d716391be5d5d223"',
   'numeric_host_identities:null',
   'host_plan_receipt_required_for_numeric_identity_binding:true',
+  'host_plan_receipt_requirements:hostPlanReceiptRequirements',
+  'source_generation_isolated_python_startup_proven_required:true',
+  'candidate_slots_revalidation_required_before_provisioning:true',
   'service_implementation_present:false',
   'publisher_implementation_present:false',
 ]){
@@ -239,6 +286,9 @@ console.log("complete_socket_policy_projected=true");
 console.log("complete_store_policy_projected=true");
 console.log("service_and_publisher_least_authority_schemas_projected=true");
 console.log("host_plan_receipt_required_for_numeric_identity_binding=true");
+console.log("host_plan_receipt_exact_schema_requirements_bound=true");
+console.log("host_plan_source_generation_requirements_bound=true");
+console.log("candidate_slots_revalidation_required_before_provisioning=true");
 console.log("numeric_host_identity_binding_performed=false");
 console.log("service_implementation_present=false");
 console.log("publisher_implementation_present=false");
