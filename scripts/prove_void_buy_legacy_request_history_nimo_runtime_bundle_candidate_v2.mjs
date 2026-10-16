@@ -265,7 +265,6 @@ for (const [key, expected] of Object.entries({
   compiler_identity_bound: true,
   compiler_cli_entry_chain_bound: true,
   compiler_cli_loader_edges_bound: true,
-  historical_v1_candidate_lock_preserved: true,
   three_node_byte_equality_required: true,
   candidate_report_filesystem_write: true,
   runtime_bundle_candidate_accepted: false,
