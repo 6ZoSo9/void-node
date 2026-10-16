@@ -18,7 +18,7 @@ PARENT_SOURCE_REL = "tools/apollyon-training-start-release-binding-v1.mjs"
 PARENT_PROOF_REL = "scripts/prove_apollyon_training_start_release_binding_v1.mjs"
 PARENT_WORKFLOW_REL = ".github/workflows/apollyon-training-start-release-binding-v1.yml"
 
-SOURCE_BLOB = "66a20e42e6d73552c70253cd066af9d45af83749"
+SOURCE_BLOB = "c46e31a733a983b1de0d7347f65f4ababa70bbcc"
 PARENT_SOURCE_BLOB = "b8d7229369e7d74e515955e726e0268bbdf6e513"
 PARENT_PROOF_BLOB = "7a67f25c40d52574cc4a7bd25604e9ff79367487"
 PARENT_WORKFLOW_BLOB = "c577da33e31b2c32d8a01e42105c7ced8cab0b4f"
@@ -446,6 +446,7 @@ with tempfile.TemporaryDirectory(
         "release_fd_read_only_pipe_required=true",
         "release_fd_anonymous_pipe_identity_required=true",
         "exact_64_byte_frame_then_eof_required=true",
+        "release_binding_sha256_known_vector=true",
         "short_frame_rejected=true",
         "extra_frame_rejected=true",
         "missing_eof_rejected=true",
