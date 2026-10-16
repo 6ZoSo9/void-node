@@ -20,8 +20,8 @@ REPLACEMENT = (
 V6 = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
 LOCK = ROOT / "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json"
 
-TARGET_BLOB = "1f582ab69d31a7f80518fe5c366c2d5036b02c3d"
-REPLACEMENT_BLOB = "df103c1439dd054d98132c3beee226f3d8222314"
+TARGET_BLOB = "70b74ff2f09f5aef86eec39b8f643d8f2ebb63f5"
+REPLACEMENT_BLOB = "98f8b9fda89e33c50e19008268d97655aad54e6d"
 V6_BLOB = "83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc"
 LOCK_BLOB = "c4870f3178aebc9a0bb6557562f663b8480cfefa"
 
