@@ -14,6 +14,20 @@ on:
       - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
       - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
       - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v5.json"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v5.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-lock-v5.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-lock-v5.yml"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v5.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v5.yml"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
   workflow_dispatch:
 
 permissions:
