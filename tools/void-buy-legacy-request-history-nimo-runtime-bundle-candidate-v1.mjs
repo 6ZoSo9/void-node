@@ -669,6 +669,29 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
   ) {
     fail("legacy_history_nimo_bundle_build_recipe_invalid");
   }
+
+  // Candidate self-consistency is not sufficient authority. Recompute the
+  // actual package-free runtime graph and compiler identity from this checkout
+  // and require the candidate to match those observed bytes exactly.
+  const observedRuntime = runtimeClosure(root);
+  if (
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body.runtime_files) !==
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(observedRuntime.files) ||
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body.external_node_builtins) !==
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
+        observedRuntime.external_node_builtins,
+      )
+  ) {
+    fail("legacy_history_nimo_bundle_runtime_bytes_identity_invalid");
+  }
+
+  const observedCompiler = compilerIdentity(root);
+  if (
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body.compiler) !==
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(observedCompiler)
+  ) {
+    fail("legacy_history_nimo_bundle_compiler_bytes_identity_invalid");
+  }
   if (
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body.authority) !==
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
