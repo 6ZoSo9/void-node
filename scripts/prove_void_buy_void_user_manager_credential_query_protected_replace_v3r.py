@@ -176,31 +176,65 @@ def executable_key_wallet_authority_violations(
             return (parent + "." if parent else "") + node.attr
         return ""
 
+    signing_call_names = {
+        "sign",
+        "signhash",
+        "signmessage",
+        "signtransaction",
+    }
+    signing_constructor_names = {
+        "privatekey",
+        "signingkey",
+    }
+    sensitive_import_prefixes = (
+        "cryptography.hazmat.primitives.asymmetric",
+        "ecdsa",
+        "eth_account",
+        "eth_keys",
+        "nacl.signing",
+        "web3",
+    )
+
+    def normalized_identifier(value: str) -> str:
+        return value.casefold().replace("_", "").replace("-", "")
+
     def identifier_is_sensitive(value: str) -> bool:
         folded = value.casefold()
-        compact = folded.replace("_", "").replace("-", "")
+        compact = normalized_identifier(value)
         return (
             "privatekey" in compact
+            or "signingkey" in compact
             or "wallet" in compact
             or "signer" in compact
+            or compact in signing_constructor_names
             or folded in {"account", "eth_account", "web3"}
         )
+
+    def import_path_is_sensitive(value: str) -> bool:
+        folded = value.casefold()
+        return any(
+            folded == prefix or folded.startswith(prefix + ".")
+            for prefix in sensitive_import_prefixes
+        ) or "wallet" in folded
 
     def call_path_is_sensitive(value: str) -> bool:
         folded = value.casefold()
         parts = [part for part in folded.split(".") if part]
-        compact_parts = [
-            part.replace("_", "").replace("-", "") for part in parts
-        ]
+        compact_parts = [normalized_identifier(part) for part in parts]
         if any(
             "privatekey" in part
+            or "signingkey" in part
             or "wallet" in part
             or "signer" in part
             for part in compact_parts
         ):
             return True
+        if any(part in signing_constructor_names for part in compact_parts):
+            return True
+        if compact_parts and compact_parts[-1] in signing_call_names:
+            return True
         if "account" in compact_parts and any(
-            part in {"fromkey", "sign", "signtransaction", "signhash"}
+            part in {"fromkey", *signing_call_names}
             for part in compact_parts
         ):
             return True
@@ -209,25 +243,12 @@ def executable_key_wallet_authority_violations(
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                module = alias.name.casefold()
-                if (
-                    module == "eth_account"
-                    or module.startswith("eth_account.")
-                    or module == "web3"
-                    or module.startswith("web3.")
-                    or "wallet" in module
-                ):
+                if import_path_is_sensitive(alias.name):
                     violations.append("import:" + alias.name)
         elif isinstance(node, ast.ImportFrom):
-            module = (node.module or "").casefold()
-            if (
-                module == "eth_account"
-                or module.startswith("eth_account.")
-                or module == "web3"
-                or module.startswith("web3.")
-                or "wallet" in module
-            ):
-                violations.append("import_from:" + (node.module or ""))
+            module = node.module or ""
+            if import_path_is_sensitive(module):
+                violations.append("import_from:" + module)
             for alias in node.names:
                 if identifier_is_sensitive(alias.name):
                     violations.append("import_name:" + alias.name)
@@ -242,6 +263,10 @@ def executable_key_wallet_authority_violations(
             chain = dotted_name(node.func)
             if chain and call_path_is_sensitive(chain):
                 violations.append("call:" + chain)
+            elif isinstance(node.func, ast.Name) and identifier_is_sensitive(
+                node.func.id
+            ):
+                violations.append("call_name:" + node.func.id)
 
     return sorted(set(violations))
 
@@ -262,6 +287,17 @@ for unsafe_authority_source in (
     "import eth_account",
     "from eth_account import Account\nAccount.from_key(b'key')",
     "import web3",
+    (
+        "from nacl.signing import SigningKey\n"
+        "key = SigningKey(b'0' * 32)\n"
+        "key.sign(b'payload')"
+    ),
+    "class K:\n    def sign(self, value): return value\nkey = K()\nkey.sign(b'x')",
+    (
+        "from cryptography.hazmat.primitives.asymmetric import ed25519\n"
+        "key = ed25519.Ed25519PrivateKey.generate()\n"
+        "key.sign(b'payload')"
+    ),
 ):
     assert executable_key_wallet_authority_violations(
         unsafe_authority_source
@@ -491,6 +527,8 @@ print("authority_flush_behavior_exercised=true")
 print("authority_flush_complete_summary_exercised=true")
 print("ast_key_wallet_authority_guard=true")
 print("ast_key_wallet_adversaries_exercised=true")
+print("ast_signing_key_authority_guard=true")
+print("ast_generic_sign_call_adversary_exercised=true")
 print("query_execution=false")
 print("credential_contents_read=false")
 print("service_mutation=false")
