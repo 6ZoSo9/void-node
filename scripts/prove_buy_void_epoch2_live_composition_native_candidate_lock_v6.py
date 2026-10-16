@@ -171,7 +171,7 @@ def verify_candidate(value:dict)->None:
     if value.get("version")!=6:
         raise AssertionError("candidate_version_invalid")
     if value.get("candidate_id")!=EXPECTED_CANDIDATE_ID:
-        raise AssertionError("candidate_id_invalid")
+        raise AssertionError("candidate_id_invalid:"+repr(value.get("candidate_id")))
     if value.get("status")!="candidate_only_unaccepted":
         raise AssertionError("candidate_status_invalid")
 
