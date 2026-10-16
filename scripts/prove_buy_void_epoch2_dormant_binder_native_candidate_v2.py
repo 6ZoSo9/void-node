@@ -53,7 +53,7 @@ def sha256(data: bytes) -> str:
 
 def git_blob_sha1(data: bytes) -> str:
     h = hashlib.sha1()
-    h.update(f"blob {len(data)}\\0".encode("ascii"))
+    h.update(f"blob {len(data)}\0".encode("ascii"))
     h.update(data)
     return h.hexdigest()
 
