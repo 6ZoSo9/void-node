@@ -7,7 +7,7 @@ on:
       - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs"
       - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v1.md"
       - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v1.yml"
-      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json"
       - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py"
       - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
       - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
@@ -18,7 +18,7 @@ on:
       - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs"
       - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v1.md"
       - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v1.yml"
-      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json"
       - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py"
       - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
       - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
@@ -46,11 +46,11 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs)" = \
-            52fd7dbe2cd3807508fcc9621a0dd2e6aa7859fd
+            e6cea43d019e226e88b1c11613b989beaf5e490e
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs)" = \
-            7e36dee0084a633a38b81377231b46e85977a103
-          test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json)" = \
-            6a0159e516d30ca8a4b9af4dcace79a4fcddfbb1
+            17628f3063d542fc9a7b0b90a87bc28cb7b198d3
+          test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json)" = \
+            04061934a537a1d91213cdd1f9110b46faca4cc7
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py)" = \
             767e088d1383a8cecf4d5daa7bf6779f368db56e
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs)" = \
@@ -78,8 +78,8 @@ jobs:
           markers=(
             "VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V1_PROOF_GREEN"
             "binder_git_object_entry_required=true"
-            "candidate_v2_git_object_bound=true"
-            "candidate_v2_signer_control_preserved=true"
+            "candidate_v3_git_object_bound=true"
+            "candidate_v3_signer_control_preserved=true"
             "v6r2_qualifier_git_object_bound=true"
             "v6r2_qualification_before_after_required=true"
             "fixed_native_v3_live_composition_required=true"
