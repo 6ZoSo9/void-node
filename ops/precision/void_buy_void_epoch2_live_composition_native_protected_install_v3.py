@@ -492,6 +492,52 @@ def checkout_snapshot(expected_head: str) -> dict[str, str]:
     }
 
 
+def checkout_snapshot_with_tools(
+    expected_head: str,
+    *,
+    expected_git: dict[str, Any] | None = None,
+    expected_setpriv: dict[str, Any] | None = None,
+    _snapshot_fn: Callable[..., dict[str, Any]] = _file_snapshot,
+    _checkout_fn: Callable[[str], dict[str, str]] = checkout_snapshot,
+) -> dict[str, Any]:
+    git_before = _snapshot_fn(
+        FIXED_GIT,
+        maximum_bytes=64 * 1024 * 1024,
+        executable=True,
+    )
+    setpriv_before = _snapshot_fn(
+        FIXED_SETPRIV,
+        maximum_bytes=64 * 1024 * 1024,
+        executable=True,
+    )
+    if expected_git is not None and git_before != expected_git:
+        raise InstallError("git_generation_changed_before_checkout")
+    if expected_setpriv is not None and setpriv_before != expected_setpriv:
+        raise InstallError("setpriv_generation_changed_before_checkout")
+
+    checkout = _checkout_fn(expected_head)
+
+    git_after = _snapshot_fn(
+        FIXED_GIT,
+        maximum_bytes=64 * 1024 * 1024,
+        executable=True,
+    )
+    setpriv_after = _snapshot_fn(
+        FIXED_SETPRIV,
+        maximum_bytes=64 * 1024 * 1024,
+        executable=True,
+    )
+    if git_after != git_before:
+        raise InstallError("git_generation_changed_during_checkout")
+    if setpriv_after != setpriv_before:
+        raise InstallError("setpriv_generation_changed_during_checkout")
+    return {
+        "checkout": checkout,
+        "git_tool": git_before,
+        "setpriv_tool": setpriv_before,
+    }
+
+
 def build_policy(expected_head: str, node: dict[str, Any]) -> bytes:
     return (
         "schema=" + POLICY_SCHEMA + "\n"
@@ -633,17 +679,10 @@ def collect_plan(
 ) -> dict[str, Any]:
     accepted_lock()
     inspect_candidates(native, runner)
-    checkout = checkout_snapshot(expected_head)
-    git_tool = _file_snapshot(
-        FIXED_GIT,
-        maximum_bytes=64 * 1024 * 1024,
-        executable=True,
-    )
-    setpriv_tool = _file_snapshot(
-        FIXED_SETPRIV,
-        maximum_bytes=64 * 1024 * 1024,
-        executable=True,
-    )
+    checkout_bound = checkout_snapshot_with_tools(expected_head)
+    checkout = checkout_bound["checkout"]
+    git_tool = checkout_bound["git_tool"]
+    setpriv_tool = checkout_bound["setpriv_tool"]
     node = node_snapshot()
     policy = build_policy(expected_head, node)
     state = protected_state(policy)
@@ -731,6 +770,7 @@ def source_plan() -> None:
     print("node_generation_bound_at_plan_apply=true")
     print("expected_main_head_bound_at_plan_apply=true")
     print("truthful_post_publication_failure_receipt_required=true")
+    print("checkout_tool_generation_bracket_required=true")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
     print("credential_access_authorized=false")
@@ -911,6 +951,8 @@ def _post_publication_checks(
     expected_node: dict[str, Any] | None = None,
     expected_checkout: dict[str, str] | None = None,
     expected_head: str | None = None,
+    expected_git: dict[str, Any] | None = None,
+    expected_setpriv: dict[str, Any] | None = None,
     _fsync_fn: Callable[[int], None] = os.fsync,
     _verify_fn: Callable[[bytes], None] | None = None,
 ) -> None:
@@ -929,12 +971,14 @@ def _post_publication_checks(
         verify_fn(expected_policy)
         if expected_node is not None and node_snapshot() != expected_node:
             raise InstallError("post_publication_node_generation_changed")
-        if (
-            expected_checkout is not None
-            and expected_head is not None
-            and checkout_snapshot(expected_head) != expected_checkout
-        ):
-            raise InstallError("post_publication_checkout_generation_changed")
+        if expected_checkout is not None and expected_head is not None:
+            checkout_bound = checkout_snapshot_with_tools(
+                expected_head,
+                expected_git=expected_git,
+                expected_setpriv=expected_setpriv,
+            )
+            if checkout_bound["checkout"] != expected_checkout:
+                raise InstallError("post_publication_checkout_generation_changed")
     except BaseException as exc:
         raise _published_failure(
             "post_publication_final_verification_failed",
@@ -1075,21 +1119,14 @@ def apply(
             os.close(stage_fd)
 
         # Bind dynamic host/source facts again immediately before publication.
-        if _file_snapshot(
-            FIXED_GIT,
-            maximum_bytes=64 * 1024 * 1024,
-            executable=True,
-        ) != body["git_tool"]:
-            raise InstallError("git_generation_changed_before_publication")
-        if _file_snapshot(
-            FIXED_SETPRIV,
-            maximum_bytes=64 * 1024 * 1024,
-            executable=True,
-        ) != body["setpriv_tool"]:
-            raise InstallError("setpriv_generation_changed_before_publication")
+        checkout_bound = checkout_snapshot_with_tools(
+            expected_head,
+            expected_git=body["git_tool"],
+            expected_setpriv=body["setpriv_tool"],
+        )
         if node_snapshot() != body["node"]:
             raise InstallError("node_generation_changed_before_publication")
-        if checkout_snapshot(expected_head) != body["checkout"]:
+        if checkout_bound["checkout"] != body["checkout"]:
             raise InstallError("checkout_generation_changed_before_publication")
         _trusted_root_directory(STAGE_ROOT, exact_mode=0o755)
 
@@ -1131,6 +1168,8 @@ def apply(
             expected_node=body["node"],
             expected_checkout=body["checkout"],
             expected_head=expected_head,
+            expected_git=body["git_tool"],
+            expected_setpriv=body["setpriv_tool"],
         )
     except BaseException as exc:
         if stage_created and not published:
@@ -1240,6 +1279,62 @@ def self_test() -> None:
     libc = ctypes.CDLL(None)
     assert getattr(libc, "renameat2", None) is not None
 
+    stable_git = {"tool": "git", "generation": "a"}
+    stable_setpriv = {"tool": "setpriv", "generation": "a"}
+    changed_git = {"tool": "git", "generation": "b"}
+    changed_setpriv = {"tool": "setpriv", "generation": "b"}
+
+    def injected_checkout(_head: str) -> dict[str, str]:
+        return {"head": _head}
+
+    git_drift_sequence = iter(
+        (stable_git, stable_setpriv, changed_git, stable_setpriv)
+    )
+
+    def injected_git_drift_snapshot(
+        _path: pathlib.Path,
+        *,
+        maximum_bytes: int,
+        executable: bool,
+    ) -> dict[str, Any]:
+        assert maximum_bytes > 0 and executable is True
+        return next(git_drift_sequence)
+
+    try:
+        checkout_snapshot_with_tools(
+            "c" * 40,
+            _snapshot_fn=injected_git_drift_snapshot,
+            _checkout_fn=injected_checkout,
+        )
+    except InstallError as exc:
+        assert str(exc) == "git_generation_changed_during_checkout"
+    else:
+        raise AssertionError("git_tool_drift_during_checkout_not_rejected")
+
+    setpriv_drift_sequence = iter(
+        (stable_git, stable_setpriv, stable_git, changed_setpriv)
+    )
+
+    def injected_setpriv_drift_snapshot(
+        _path: pathlib.Path,
+        *,
+        maximum_bytes: int,
+        executable: bool,
+    ) -> dict[str, Any]:
+        assert maximum_bytes > 0 and executable is True
+        return next(setpriv_drift_sequence)
+
+    try:
+        checkout_snapshot_with_tools(
+            "d" * 40,
+            _snapshot_fn=injected_setpriv_drift_snapshot,
+            _checkout_fn=injected_checkout,
+        )
+    except InstallError as exc:
+        assert str(exc) == "setpriv_generation_changed_during_checkout"
+    else:
+        raise AssertionError("setpriv_tool_drift_during_checkout_not_rejected")
+
     def injected_fsync(_fd: int) -> None:
         raise OSError(5, "injected")
 
@@ -1282,6 +1377,9 @@ def main() -> int:
         print("node_generation_bound_at_plan_apply=true")
         print("expected_main_head_bound_at_plan_apply=true")
         print("truthful_post_publication_failure_receipt=true")
+        print("checkout_tool_generation_bracketed=true")
+        print("git_tool_drift_during_checkout_rejected=true")
+        print("setpriv_tool_drift_during_checkout_rejected=true")
         print("pre_mutation_authority_boundary=true")
         print("pre_mutation_authority_flush_required=true")
         return 0
