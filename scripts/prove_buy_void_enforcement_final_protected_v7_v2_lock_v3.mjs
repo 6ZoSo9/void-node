@@ -156,8 +156,10 @@ function candidateBytes(){
     run("/usr/bin/git",["--no-replace-objects","-C",ROOT,
       "worktree","add","--detach",wt,CANDIDATE_HEAD],{timeout:30000});
     attached=true;
-    fs.symlinkSync(path.join(ROOT,"node_modules"),path.join(wt,"node_modules"),"dir");
-    fs.symlinkSync(path.join(ROOT,"dist"),path.join(wt,"dist"),"dir");
+    run("/bin/cp",["-al",path.join(ROOT,"node_modules"),path.join(wt,"node_modules")],
+      {cwd:wt,timeout:120000});
+    run("/bin/cp",["-al",path.join(ROOT,"dist"),path.join(wt,"dist")],
+      {cwd:wt,timeout:120000});
     const result=run(process.execPath,[path.join(wt,CANDIDATE_PROOF),"--derive"],
       {cwd:wt,timeout:300000});
     const bytes=Buffer.from(result.stdout||Buffer.alloc(0));
