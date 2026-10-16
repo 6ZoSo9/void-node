@@ -1384,6 +1384,11 @@ try {
       socket: { remoteAddress: "203.0.113.8" },
       connection: { remoteAddress: "203.0.113.8" },
     },
+    {
+      ip: "localhost",
+      socket: { remoteAddress: "127.0.0.1" },
+      connection: { remoteAddress: "127.0.0.1" },
+    },
   ];
   for (const identity of mixedPeerIdentities) {
     for (const handler of [walletHandler!, walletStatusHandler!]) {
@@ -1621,6 +1626,11 @@ for (const marker of [
 ]) {
   assert.ok(adapterSource.includes(marker), `missing Wallet adapter boundary: ${marker}`);
 }
+assert.equal(
+  adapterSource.includes('value === "localhost"'),
+  false,
+  "Wallet peer identity boundary must reject hostname aliases",
+);
 const accountParserStart = adapterSource.indexOf(
   "export function walletAccountIdV1(raw: unknown): string | null",
 );
@@ -1706,6 +1716,7 @@ console.log("wallet_actual_adapter_missing_account_rejected=true");
 console.log("wallet_actual_adapter_http200_valid_recovery=true");
 console.log("wallet_loopback_requires_peer_identity_coherence=true");
 console.log("wallet_loopback_mixed_remote_identity_rejected=true");
+console.log("wallet_loopback_hostname_identity_rejected=true");
 console.log("wallet_status_loopback_mixed_remote_identity_rejected=true");
 console.log("wallet_ipv4_ipv6_loopback_preserved=true");
 console.log("browser_wallet_stale_evidence_cleared=true");
@@ -1733,3 +1744,4 @@ console.log(`wave3_manifest_sha256=${sha256File(wave3ManifestPath)}`);
 console.log(`wave4_manifest_sha256=${sha256File(wave4ManifestPath)}`);
 console.log("manifest_refresh_required=true");
 console.log("authority_added=false");
+
