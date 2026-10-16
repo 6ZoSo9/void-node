@@ -31,7 +31,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "e73d8beecadcb91deca28e2efae10927d93ff12f",
+    "4309a6de97b1db04b45ff00283b58afe7205059c",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -139,6 +139,8 @@ for(const [key,expected] of Object.entries({
   dedicated_claim_service_identity_required:true,
   claim_identity_distinct_from_training_required:true,
   claim_identity_distinct_from_custody_required:true,
+  claim_identity_distinct_from_public_runtime_required:true,
+  claim_identity_distinct_from_interactive_operator_required:true,
   claim_identity_supplementary_groups_closed_required:true,
   claim_uid_only_reviewed_service_required:true,
   claim_service_source_identity_required:true,
@@ -153,6 +155,9 @@ for(const [key,expected] of Object.entries({
   claim_store_generation_identity_required:true,
   claim_store_generation_create_once_required:true,
   same_path_replacement_must_be_new_generation_required:true,
+  authorization_binding_to_claim_store_generation_required:true,
+  old_terminal_receipt_reuse_across_store_generation_forbidden:true,
+  new_store_generation_requires_fresh_authorization_required:true,
   protected_root_mode:"0700",
   immutable_claim_record_mode:"0600",
   final_claim_record_link_count:1,
@@ -178,6 +183,15 @@ for(const [key,expected] of Object.entries({
   exact_v2_custody_generation_revalidation_required:true,
   create_only_no_overwrite_claim_publication_required:true,
   canonical_claim_record_required:true,
+  claim_record_bind_store_generation_id_required:true,
+  claim_record_bind_terminal_receipt_id_required:true,
+  claim_record_bind_terminal_runner_receipt_sha256_required:true,
+  claim_record_bind_authorization_id_required:true,
+  claim_record_bind_custody_generation_id_required:true,
+  claim_record_bind_custody_record_sha256_required:true,
+  claim_record_bind_request_source_corpus_adapter_required:true,
+  claim_record_bind_operator_public_key_fingerprint_required:true,
+  claim_record_bind_attempt_limit_required:true,
   claim_file_fsync_before_publication_required:true,
   claim_directory_fsync_after_publication_required:true,
   crash_recovery_exact_state_classification_required:true,
@@ -290,6 +304,10 @@ for(const required of [
   'claim_uid_only_reviewed_service_required:true',
   'claim_store_generation_identity_required:true',
   'same_path_replacement_must_be_new_generation_required:true',
+  'authorization_binding_to_claim_store_generation_required:true',
+  'old_terminal_receipt_reuse_across_store_generation_forbidden:true',
+  'claim_record_bind_terminal_receipt_id_required:true',
+  'claim_record_bind_store_generation_id_required:true',
   'broker_execution_ledger_reuse_allowed:false',
   'historical_v1_consumption_store_sufficient:false',
   'next_gate:"apollyon_durable_attempt_claim_store_host_qualification_v2"',
@@ -311,6 +329,10 @@ console.log("dedicated_claim_service_identity_required=true");
 console.log("claim_uid_only_reviewed_service_required=true");
 console.log("claim_store_generation_identity_required=true");
 console.log("same_path_replacement_must_be_new_generation_required=true");
+console.log("authorization_binding_to_claim_store_generation_required=true");
+console.log("old_terminal_receipt_reuse_across_store_generation_forbidden=true");
+console.log("claim_record_bind_terminal_receipt_id_required=true");
+console.log("claim_record_bind_store_generation_id_required=true");
 console.log("claim_identity_bound=false");
 console.log("claim_root_bound=false");
 console.log("protected_claim_store_proven=false");

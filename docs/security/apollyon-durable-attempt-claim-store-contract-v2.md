@@ -16,10 +16,10 @@ This contract therefore defines the requirements for a future independently prot
 
 A host-qualified successor must prove:
 
-- a dedicated claim-service identity distinct from training and custody, with a closed supplementary-group set and exactly the reviewed claim-service process admitted under that UID;
+- a dedicated claim-service identity distinct from training, custody, the public runtime, and the interactive non-root operator, with a closed supplementary-group set and exactly the reviewed claim-service process admitted under that UID;
 - a versioned, fixed claim identity and claim-state root before installation;
 - protected root mode `0700` and final immutable claim record mode `0600`;
-- a create-once store-generation identity; replacing the same pathname is a new generation and cannot inherit replay authority;
+- a create-once store-generation identity; replacing the same pathname is a new generation, cannot inherit replay authority, cannot reuse an old terminal receipt, and requires fresh authorization;
 - root-owned/non-writable retained ancestors;
 - no non-claim unprivileged identity may write the claim namespace;
 - training UID and custody UID cannot write the claim namespace;
@@ -47,7 +47,8 @@ A stale source receipt is never a perpetual host lease.
 
 The claim store must use a create-only/no-overwrite canonical claim record with:
 
-- exactly one claim per admitted authorization/custody generation;
+- exactly one claim per admitted authorization/custody/store generation;
+- the canonical claim record binds the store generation, terminal receipt ID and runner-receipt digest, authorization ID, custody generation and record SHA-256, request/source/corpus/adapter identities, operator fingerprint, and attempt limit;
 - `attempt_limit=1`;
 - `automatic_retry_authorized=false`;
 - final claim record link count 1;
