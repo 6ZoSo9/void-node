@@ -84,6 +84,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_
     "cap_inheritable",
     "cap_permitted",
     "claim_gid",
+    "claim_ipc_gid",
     "claim_root_rename_unlink_denied",
     "claim_root_write_denied",
     "claim_service_control_denied",
@@ -102,6 +103,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_
     "publisher_source_identity_reviewed",
     "publisher_uid",
     "signing_denied",
+    "supplementary_gids",
     "training_gid",
     "training_service_control_denied",
     "training_uid",
@@ -584,7 +586,7 @@ export function qualifyApollyonDurableAttemptClaimPublisherLeastAuthorityV2(inpu
     "apollyon_claim_publisher_least_authority_v2_input_invalid",
   );
   for(const key of [
-    "publisher_uid","publisher_gid","claim_uid","claim_gid",
+    "publisher_uid","publisher_gid","claim_uid","claim_gid","claim_ipc_gid",
     "training_uid","training_gid","custody_uid","custody_gid",
     "public_runtime_uid","public_runtime_gid",
     "interactive_operator_uid","interactive_operator_gid",
@@ -593,8 +595,16 @@ export function qualifyApollyonDurableAttemptClaimPublisherLeastAuthorityV2(inpu
       fail("apollyon_claim_publisher_least_authority_v2_numeric_identity_invalid");
     }
   }
-  if(value.publisher_uid===0||value.publisher_gid===0){
+  if(value.publisher_uid===0||value.publisher_gid===0||value.claim_ipc_gid===0){
     fail("apollyon_claim_publisher_least_authority_v2_root_identity_forbidden");
+  }
+  if(
+    !Array.isArray(value.supplementary_gids)||
+    value.supplementary_gids.length!==1||
+    value.supplementary_gids[0]!==value.claim_ipc_gid||
+    !Number.isSafeInteger(value.claim_ipc_gid)||value.claim_ipc_gid<1||value.claim_ipc_gid>65533
+  ){
+    fail("apollyon_claim_publisher_least_authority_v2_supplementary_groups_invalid");
   }
   for(const [label,observed] of [
     ["claim_uid",value.claim_uid],["training_uid",value.training_uid],
@@ -612,6 +622,9 @@ export function qualifyApollyonDurableAttemptClaimPublisherLeastAuthorityV2(inpu
   ]){
     if(value.publisher_gid===observed){
       fail("apollyon_claim_publisher_least_authority_v2_gid_collision:"+label);
+    }
+    if(value.claim_ipc_gid===observed||value.claim_ipc_gid===value.publisher_gid){
+      fail("apollyon_claim_publisher_least_authority_v2_claim_ipc_gid_collision:"+label);
     }
   }
   if(value.no_new_privileges!==true){
@@ -924,6 +937,7 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
     !STORE_CONTRACT_ID.test(receipt.store_contract_id)||
     !STORE_GENERATION_ID.test(receipt.new_store_generation_id)||
     !HASH64.test(receipt.new_root_identity_sha256)||
+    typeof receipt.genesis!=="boolean"||
     receipt.claim_set_order!=="claim_record_id_lexicographic"||
     receipt.prior_claim_count!==sorted.length||
     receipt.prior_claim_set_sha256!==historySha||
@@ -931,6 +945,9 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
     !CONTINUITY_RECEIPT_ID.test(receipt.continuity_receipt_id)
   ){
     fail("apollyon_claim_store_continuity_v2_receipt_invalid");
+  }
+  if(sorted.some(record=>record.authorization_id===receipt.fresh_authorization_id)){
+    fail("apollyon_claim_store_continuity_v2_fresh_authorization_reused");
   }
   if(receipt.genesis){
     if(

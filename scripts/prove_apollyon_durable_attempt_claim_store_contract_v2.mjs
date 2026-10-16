@@ -47,7 +47,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "877b00b8e674c4bca8d8320466e9619d590f5542",
+    "9ffc1f58bd7b3c36148fac8af985a801e3f373e2",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -538,13 +538,13 @@ assert.deepEqual(
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_V2,
   [
     "cap_ambient","cap_bounding","cap_effective","cap_inheritable","cap_permitted",
-    "claim_gid","claim_root_rename_unlink_denied","claim_root_write_denied",
+    "claim_gid","claim_ipc_gid","claim_root_rename_unlink_denied","claim_root_write_denied",
     "claim_service_control_denied","claim_uid","custody_gid",
     "custody_service_control_denied","custody_uid","interactive_operator_gid",
     "interactive_operator_uid","no_new_privileges","private_key_access_denied",
     "public_runtime_gid","public_runtime_uid","publisher_gid",
     "publisher_process_exclusive","publisher_source_identity_reviewed","publisher_uid",
-    "signing_denied","training_gid","training_service_control_denied","training_uid",
+    "signing_denied","supplementary_gids","training_gid","training_service_control_denied","training_uid",
     "wallet_access_denied",
   ],
 );
@@ -552,7 +552,7 @@ assert.deepEqual(
 function publisherAuthority(overrides={}){
   return {
     publisher_uid:993,publisher_gid:980,
-    claim_uid:994,claim_gid:981,
+    claim_uid:994,claim_gid:981,claim_ipc_gid:979,
     training_uid:995,training_gid:982,
     custody_uid:996,custody_gid:983,
     public_runtime_uid:997,public_runtime_gid:984,
@@ -571,6 +571,7 @@ function publisherAuthority(overrides={}){
     private_key_access_denied:true,
     wallet_access_denied:true,
     signing_denied:true,
+    supplementary_gids:[979],
     publisher_process_exclusive:true,
     publisher_source_identity_reviewed:true,
     ...overrides,
@@ -591,6 +592,9 @@ for(const [label,overrides,pattern] of [
   ["root_gid",{publisher_gid:0},/root_identity_forbidden/u],
   ["claim_uid_collision",{publisher_uid:994},/uid_collision:claim_uid/u],
   ["operator_uid_collision",{publisher_uid:1000},/uid_collision:interactive_operator_uid/u],
+  ["supplementary_extra",{supplementary_gids:[979,978]},/supplementary_groups_invalid/u],
+  ["supplementary_wrong",{supplementary_gids:[978]},/supplementary_groups_invalid/u],
+  ["claim_ipc_collision",{claim_ipc_gid:982,supplementary_gids:[982]},/claim_ipc_gid_collision/u],
   ["cap_admin",{cap_effective:"0000000000200000"},/capabilities_not_empty:cap_effective/u],
   ["direct_write",{claim_root_write_denied:false},/denial_or_identity_unproven:claim_root_write_denied/u],
   ["rename_unlink",{claim_root_rename_unlink_denied:false},/denial_or_identity_unproven:claim_root_rename_unlink_denied/u],
@@ -871,6 +875,30 @@ function continuityReceipt(overrides={}){
   );
 }
 {
+  const reused=continuityReceipt({
+    fresh_authorization_id:PRIOR_RECORDS[0].authorization_id,
+  });
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
+      continuity_receipt:reused,
+      predecessor_generation_record:predecessor,
+      prior_claim_records:PRIOR_RECORDS,
+    }),
+    /fresh_authorization_reused/u,
+  );
+}
+{
+  const nonBoolean=continuityReceipt({genesis:0});
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
+      continuity_receipt:nonBoolean,
+      predecessor_generation_record:predecessor,
+      prior_claim_records:PRIOR_RECORDS,
+    }),
+    /receipt_invalid/u,
+  );
+}
+{
   const mutated={...PRIOR_RECORDS[0],request_sha256:"9".repeat(64)};
   assert.throws(
     ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
@@ -1014,6 +1042,9 @@ console.log("claim_failure_response_exact_schema_required=true");
 console.log("claim_publish_request_sha256_canonical_exact_request_required=true");
 console.log("claim_success_ack_after_durable_revalidation_required=true");
 console.log("dedicated_claim_publisher_identity_required=true");
+console.log("claim_publisher_supplementary_groups_closed_required=true");
+console.log("migration_fresh_authorization_reuse_rejected=true");
+console.log("migration_genesis_boolean_required=true");
 console.log("claim_service_systemd_sandbox_exact_required=true");
 console.log("claim_socket_namespace_exact_required=true");
 console.log("claim_client_server_authentication_required=true");

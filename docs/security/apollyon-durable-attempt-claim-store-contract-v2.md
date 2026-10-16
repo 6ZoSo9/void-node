@@ -66,7 +66,7 @@ An indeterminate file/directory durability outcome is never success. Failure res
 
 ## Least-authority claim publisher
 
-The AF_UNIX publisher/client is a distinct protected identity, not the interactive operator, claim service, training identity, custody identity, or public runtime. The selected publisher UID/GID must be non-root, have closed supplementary groups, only the reviewed claim IPC membership, NoNewPrivileges, and empty inheritable/permitted/effective/bounding/ambient capabilities.
+The AF_UNIX publisher/client is a distinct protected identity, not the interactive operator, claim service, training identity, custody identity, or public runtime. The selected publisher UID/GID must be non-root, have the complete supplementary-group vector exactly equal to the reviewed claim IPC group and no other group, NoNewPrivileges, and empty inheritable/permitted/effective/bounding/ambient capabilities.
 
 The publisher must have no direct write/rename/unlink authority over the claim root, no control over claim/training/custody services, no private-key/wallet/signing authority, and exactly the reviewed process/source generation. Any privileged read-only host/session revalidation is a separate evidence-producing gate; its receipt may be handed to the non-root publisher, but root itself is not the publisher.
 
@@ -97,11 +97,11 @@ Store replacement never resets replay history. Every generation has an exact con
 - complete prior claim count;
 - deterministic SHA-256 over the complete prior claim set sorted by claim_record_id;
 - fixed claim-set ordering;
-- fresh authorization identity.
+- fresh authorization identity that is not equal to any authorization ID already present in the retained claim history.
 
 Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check. The predecessor generation record has its own content-derived ID and must commit the same complete count and history digest; the migration receipt binds that exact predecessor-record ID; missing, extra, duplicate or mutated claims fail closed. Authorization IDs must also be unique across the complete retained history so a different record ID cannot hide cross-generation authorization replay. The new generation must commit the continuity receipt, and fresh Sovereign authorization must bind the new generation plus prior-history digest.
 
-Genesis is a separate exact zero-history shape with no predecessor. A migration cannot masquerade as genesis, including by presenting a forged zero-count history. Migration is accepted only after the new generation and retained history are durably published and reread.
+`genesis` is an exact boolean discriminator. Genesis is a separate exact zero-history shape with no predecessor. A migration cannot masquerade as genesis, including by presenting a forged zero-count history. Migration is accepted only after the new generation and retained history are durably published and reread.
 
 ## Required future revalidation
 
