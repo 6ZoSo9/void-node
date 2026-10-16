@@ -12,6 +12,7 @@ import {
 } from "../tools/apollyon-live-source-session-terminal-receipt-v2.mjs";
 import {
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_DANGEROUS_ENVIRONMENT_NAMES_V2,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_FAILURE_RESPONSE_KEYS_V2,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_V2,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RECORD_KEYS_V2,
@@ -47,7 +48,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "4bf474b8f282972b4dca4ab79eaf44260ce3ba54",
+    "81a289b5c7e33cf335f8e7b9266e9f0abecc9808",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -466,7 +467,8 @@ assert.deepEqual(
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_LEAST_AUTHORITY_KEYS_V2,
   [
     "cap_ambient","cap_bounding","cap_effective","cap_inheritable","cap_permitted",
-    "claim_gid","claim_uid","custody_gid","custody_uid",
+    "claim_gid","claim_ipc_gid","claim_uid","dangerous_environment_names_present",
+    "loader_environment_clean","supplementary_gids","custody_gid","custody_uid",
     "interactive_operator_gid","interactive_operator_uid","no_new_privileges",
     "public_runtime_gid","public_runtime_uid","training_gid","training_uid",
   ],
@@ -476,6 +478,10 @@ function leastAuthority(overrides={}){
   return {
     claim_uid:994,
     claim_gid:981,
+    claim_ipc_gid:979,
+    supplementary_gids:[979],
+    loader_environment_clean:true,
+    dangerous_environment_names_present:[],
     training_uid:995,
     training_gid:982,
     custody_uid:996,
@@ -485,6 +491,8 @@ function leastAuthority(overrides={}){
     interactive_operator_uid:1000,
     interactive_operator_gid:1000,
     no_new_privileges:true,
+    loader_environment_clean:true,
+    dangerous_environment_names_present:[],
     cap_inheritable:"0000000000000000",
     cap_permitted:"0000000000000000",
     cap_effective:"0000000000000000",
@@ -502,6 +510,9 @@ function leastAuthority(overrides={}){
   assert.equal(qualified.numeric_identity_separation_verified,true);
   assert.equal(qualified.no_new_privileges,true);
   assert.equal(qualified.all_capability_sets_empty,true);
+  assert.equal(qualified.supplementary_groups_closed,true);
+  assert.equal(qualified.claim_ipc_membership_exact,true);
+  assert.equal(qualified.loader_environment_clean,true);
   assert.equal(qualified.host_installation_performed,false);
   assert.equal(qualified.durable_attempt_claim_performed,false);
   assert.equal(qualified.training_execution_performed,false);
@@ -509,6 +520,13 @@ function leastAuthority(overrides={}){
 for(const [label,overrides,pattern] of [
   ["root_uid",{claim_uid:0},/root_uid_forbidden/u],
   ["root_gid",{claim_gid:0},/root_gid_forbidden/u],
+  ["root_ipc_gid",{claim_ipc_gid:0,supplementary_gids:[0]},/root_ipc_gid_forbidden/u],
+  ["supplementary_extra",{supplementary_gids:[979,978]},/supplementary_groups_invalid/u],
+  ["supplementary_wrong",{supplementary_gids:[978]},/supplementary_groups_invalid/u],
+  ["supplementary_missing",{supplementary_gids:[]},/supplementary_groups_invalid/u],
+  ["claim_ipc_primary_collision",{claim_ipc_gid:981,supplementary_gids:[981]},/supplementary_groups_invalid/u],
+  ["loader_dirty",{loader_environment_clean:false},/loader_environment_invalid/u],
+  ["dangerous_env",{dangerous_environment_names_present:["LD_PRELOAD"]},/loader_environment_invalid/u],
   ["training_uid_collision",{claim_uid:995},/uid_collision:training_uid/u],
   ["custody_uid_collision",{claim_uid:996},/uid_collision:custody_uid/u],
   ["public_runtime_uid_collision",{claim_uid:997},/uid_collision:public_runtime_uid/u],
@@ -538,7 +556,8 @@ assert.deepEqual(
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_V2,
   [
     "cap_ambient","cap_bounding","cap_effective","cap_inheritable","cap_permitted",
-    "claim_gid","claim_ipc_gid","claim_root_rename_unlink_denied","claim_root_write_denied",
+    "claim_gid","claim_ipc_gid","dangerous_environment_names_present","loader_environment_clean",
+    "claim_root_rename_unlink_denied","claim_root_write_denied",
     "claim_service_control_denied","claim_uid","custody_gid",
     "custody_service_control_denied","custody_uid","interactive_operator_gid",
     "interactive_operator_uid","no_new_privileges","private_key_access_denied",
@@ -583,6 +602,7 @@ function publisherAuthority(overrides={}){
   );
   assert.equal(q.qualified,true);
   assert.equal(q.non_root_identity,true);
+  assert.equal(q.loader_environment_clean,true);
   assert.equal(q.direct_claim_store_mutation_denied,true);
   assert.equal(q.broad_privileged_authority_denied,true);
   assert.equal(q.durable_attempt_claim_performed,false);
@@ -595,6 +615,8 @@ for(const [label,overrides,pattern] of [
   ["supplementary_extra",{supplementary_gids:[979,978]},/supplementary_groups_invalid/u],
   ["supplementary_wrong",{supplementary_gids:[978]},/supplementary_groups_invalid/u],
   ["claim_ipc_collision",{claim_ipc_gid:982,supplementary_gids:[982]},/claim_ipc_gid_collision/u],
+  ["loader_dirty",{loader_environment_clean:false},/loader_environment_invalid/u],
+  ["dangerous_env",{dangerous_environment_names_present:["NODE_OPTIONS"]},/loader_environment_invalid/u],
   ["cap_admin",{cap_effective:"0000000000200000"},/capabilities_not_empty:cap_effective/u],
   ["direct_write",{claim_root_write_denied:false},/denial_or_identity_unproven:claim_root_write_denied/u],
   ["rename_unlink",{claim_root_rename_unlink_denied:false},/denial_or_identity_unproven:claim_root_rename_unlink_denied/u],
@@ -649,6 +671,19 @@ function claimRecord(overrides={}){
   assert.equal(q.claim_record_id,record.claim_record_id);
 }
 {
+  const wrongStore="apollyon_claim_store_contract_v2:"+"0".repeat(64);
+  const record=claimRecord({store_contract_id:wrongStore});
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimRecordShapeV2({
+      claim_record:record,
+      store_contract_id:wrongStore,
+      store_generation_id:STORE_GENERATION_ID,
+      terminal_receipt:t,
+    }),
+    /store_contract_derivation_invalid/u,
+  );
+}
+{
   const record=claimRecord();
   record.training_execution_authorized=true;
   assert.throws(
@@ -684,6 +719,7 @@ function claimRecord(overrides={}){
     version:2,
     status:"durable_claim_success_v2",
     outcome:"created_durable",
+    next_gate:"apollyon_training_start_consumption_v1",
     store_contract_id:record.store_contract_id,
     store_generation_id:record.store_generation_id,
     terminal_receipt_id:record.terminal_receipt_id,
@@ -696,7 +732,9 @@ function claimRecord(overrides={}){
     publish_request_sha256:publishRequestSha,
     durability_proven:true,
     final_visible_record_revalidated:true,
-    training_start_admission:true,
+    training_start_admission:false,
+    training_start_consumption_required:true,
+    training_start_consumption_performed:false,
   };
   const q=qualifyApollyonDurableAttemptClaimSuccessResponseShapeV2({
     claim_record:record,
@@ -704,11 +742,19 @@ function claimRecord(overrides={}){
     success_response:response,
   });
   assert.equal(q.outcome,"created_durable");
+  assert.equal(q.training_start_admission,false);
+  assert.equal(q.training_start_consumption_required,true);
+  assert.equal(q.training_start_consumption_performed,false);
+  assert.equal(q.next_gate,"apollyon_training_start_consumption_v1");
   for(const mutate of [
     x=>{x.durability_proven=false;},
     x=>{x.final_visible_record_revalidated=false;},
     x=>{x.claim_record_sha256="0".repeat(64);},
     x=>{x.store_generation_id="apollyon_claim_store_generation_v2:"+"0".repeat(64);},
+    x=>{x.training_start_admission=true;},
+    x=>{x.training_start_consumption_required=false;},
+    x=>{x.training_start_consumption_performed=true;},
+    x=>{x.next_gate="durable_candidate_training_attempt_claim_executor_v2";},
     x=>{x.unknown_authority=true;},
   ]){
     const bad={...response};mutate(bad);
@@ -975,6 +1021,11 @@ for(const required of [
   assert.equal(WORKFLOW.includes(required),true,"workflow parity: "+required);
 }
 
+assert.deepEqual(
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_DANGEROUS_ENVIRONMENT_NAMES_V2,
+  ["GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH","OPENSSL_CONF"],
+);
+
 const source=fs.readFileSync(
   path.join(ROOT,"tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"),
   "utf8",
@@ -994,6 +1045,19 @@ for(const required of [
   'claim_service_effective_capabilities_empty_required:true',
   'claim_service_bounding_capabilities_empty_required:true',
   'claim_service_ambient_capabilities_empty_required:true',
+  'claim_service_loader_environment_clean_required:true',
+  'claim_service_unset_environment_exact_required:true',
+  'claim_publisher_loader_environment_clean_required:true',
+  'socket_publication_create_only_no_overwrite_required:true',
+  'socket_existing_path_liveness_classification_required:true',
+  'socket_live_listener_unlink_forbidden_required:true',
+  'socket_changed_generation_cleanup_rejected_required:true',
+  'socket_two_cycle_restart_qualification_required:true',
+  'socket_crash_stale_recovery_qualification_required:true',
+  'claim_success_is_not_training_start_admission_required:true',
+  'separate_one_time_training_start_consumption_required:true',
+  'training_start_consumption_create_once_required:true',
+  'replayed_claim_success_after_start_consumption_rejected_required:true',
   'claim_service_numeric_identity_revalidation_immediately_before_publication_required:true',
   'claim_service_no_new_privileges_revalidation_immediately_before_publication_required:true',
   'claim_service_capability_sets_revalidation_immediately_before_publication_required:true',
@@ -1057,6 +1121,9 @@ console.log("dedicated_claim_service_identity_required=true");
 console.log("claim_service_non_root_uid_gid_required=true");
 console.log("claim_service_no_new_privileges_required=true");
 console.log("claim_service_all_capability_sets_empty_required=true");
+console.log("claim_service_supplementary_groups_closed_required=true");
+console.log("claim_service_loader_environment_clean_required=true");
+console.log("claim_publisher_loader_environment_clean_required=true");
 console.log("claim_service_numeric_identity_separation_required=true");
 console.log("claim_service_least_authority_adversaries_rejected=true");
 console.log("claim_uid_only_reviewed_service_required=true");
@@ -1069,6 +1136,9 @@ console.log("claim_success_response_exact_schema_required=true");
 console.log("claim_failure_response_exact_schema_required=true");
 console.log("claim_publish_request_sha256_canonical_exact_request_required=true");
 console.log("claim_success_ack_after_durable_revalidation_required=true");
+console.log("claim_success_is_not_training_start_admission_required=true");
+console.log("separate_one_time_training_start_consumption_required=true");
+console.log("claim_socket_restart_lifecycle_required=true");
 console.log("dedicated_claim_publisher_identity_required=true");
 console.log("claim_publisher_supplementary_groups_closed_required=true");
 console.log("migration_fresh_authorization_reuse_rejected=true");

@@ -68,7 +68,7 @@ An indeterminate file/directory durability outcome is never success. Failure res
 
 The AF_UNIX publisher/client is a distinct protected identity, not the interactive operator, claim service, training identity, custody identity, or public runtime. The selected publisher UID/GID must be non-root, have the complete supplementary-group vector exactly equal to the reviewed claim IPC group and no other group, NoNewPrivileges, and empty inheritable/permitted/effective/bounding/ambient capabilities.
 
-The publisher must have no direct write/rename/unlink authority over the claim root, no control over claim/training/custody services, no private-key/wallet/signing authority, and exactly the reviewed process/source generation. Any privileged read-only host/session revalidation is a separate evidence-producing gate; its receipt may be handed to the non-root publisher, but root itself is not the publisher.
+The publisher must have no direct write/rename/unlink authority over the claim root, no control over claim/training/custody services, no private-key/wallet/signing authority, and exactly the reviewed process/source generation. Its loader/runtime environment must be explicitly clean of the reviewed dangerous set `GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF`; a dirty or unproven environment is a HOLD. Any privileged read-only host/session revalidation is a separate evidence-producing gate; its receipt may be handed to the non-root publisher, but root itself is not the publisher.
 
 ## Exact claim-service sandbox and AF_UNIX server authentication
 
@@ -76,6 +76,7 @@ The future claim service must be qualified against an exact loaded systemd polic
 
 - exact FragmentPath, no drop-ins, NeedDaemonReload=no and complete reviewed Exec arrays;
 - exact claim User/Group and claim-IPC-only supplementary groups;
+- exact effective `UnsetEnvironment=GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF`, with no unreviewed Environment/EnvironmentFile/PassEnvironment influence;
 - UMask=0077;
 - PrivateTmp and PrivateDevices;
 - ProtectSystem=strict and protected home/kernel tunables/modules/logs/control-groups;
@@ -85,6 +86,8 @@ The future claim service must be qualified against an exact loaded systemd polic
 - exactly the reviewed writable target roles claim_state_root and claim_socket_parent, with no extra writable home/system/project paths and read-only temporary filesystems.
 
 The socket path and socket-parent path must be versioned/fixed before installation. The parent is direct/symlink-free, retained-ancestor protected, claim-service:claim-IPC owned mode 0750, and unauthorized rename/unlink is denied. The final AF_UNIX socket is claim-service:claim-IPC mode 0660 with an exact reviewed link count.
+
+Socket lifecycle is restart-safe as well as request-safe: publication is create-only/no-overwrite; an existing fixed pathname must be classified as a live reviewed listener or an exact stale reviewed socket before cleanup; live/changed/ambiguous generations are never unlinked; exact owner/group/mode/inode/link-count and claim-UID process exclusivity are rebound immediately before cleanup; cleanup ownership/argv is reviewed; and two-cycle restart plus crash/stale recovery are separately qualified.
 
 Authentication is bidirectional. The server validates the publisher before reading the body; the publisher/client authenticates the server before sending the body and again before accepting the response. Server UID/GID/PID, PID start ticks, executable/source generation and socket inode must remain stable across the request/response. Path replacement, peer PID reuse, wrong executable/source, or server restart mid-request is a HOLD.
 
@@ -121,7 +124,7 @@ A stale source receipt is never a perpetual host lease.
 The claim store must use a create-only/no-overwrite canonical claim record with:
 
 - exactly one claim per admitted authorization/custody/store generation;
-- the canonical claim record binds the store generation, terminal receipt ID and runner-receipt digest, authorization ID, custody generation and record SHA-256, and the literal identity fields `request_sha256`, `canonical_main`, `canonical_tree`, `corpus_sha256`, `parent_adapter_sha256`, `operator_public_key_raw_sha256`, plus the attempt limit;
+- the canonical claim record binds the exact terminal-derived `store_contract_id` (re-derived from the supplied terminal receipt rather than trusted from the caller), the store generation, terminal receipt ID and runner-receipt digest, authorization ID, custody generation and record SHA-256, and the literal identity fields `request_sha256`, `canonical_main`, `canonical_tree`, `corpus_sha256`, `parent_adapter_sha256`, `operator_public_key_raw_sha256`, plus the attempt limit;
 - `attempt_limit=1`;
 - `automatic_retry_authorized=false`;
 - final claim record link count 1;
@@ -131,7 +134,7 @@ The claim store must use a create-only/no-overwrite canonical claim record with:
 - duplicate claim rejection within the current generation **and** cross-generation authorization replay rejection;
 - durable claim publication completed before any trainer may start.
 
-A successful store write must not itself start training.
+A successful store write must not itself start training and is **not** a reusable bearer capability for training start. Durable success reports `training_start_admission=false`, `training_start_consumption_required=true`, `training_start_consumption_performed=false`, and next gate `apollyon_training_start_consumption_v1`. That later protected one-time consumption boundary must create-once bind the claim record, authorization/custody/store generation and exact trainer process generation; recovery must distinguish an unconsumed claim from an already-consumed start so a lost ACK or replayed durable-claim success cannot admit a second trainer start.
 
 ## Deliberate non-authority
 

@@ -10,6 +10,12 @@ import {
 export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTRACT_V2 =
   "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTRACT_V2";
 
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_DANGEROUS_ENVIRONMENT_NAMES_V2 =
+  Object.freeze([
+    "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+    "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
+  ]);
+
 export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_KEYS_V2 =
   Object.freeze([
     "claim_record",
@@ -58,6 +64,9 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SUCCESS_RESPONSE_KEYS_V2 =
     "store_generation_id",
     "terminal_receipt_id",
     "training_start_admission",
+    "training_start_consumption_performed",
+    "training_start_consumption_required",
+    "next_gate",
     "version",
   ]);
 
@@ -85,6 +94,8 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_
     "cap_permitted",
     "claim_gid",
     "claim_ipc_gid",
+    "dangerous_environment_names_present",
+    "loader_environment_clean",
     "claim_root_rename_unlink_denied",
     "claim_root_write_denied",
     "claim_service_control_denied",
@@ -153,6 +164,11 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_SYSTEMD_REQUIREMENTS_V2
     need_daemon_reload_no_required:true,
     exact_user_group_required:true,
     exact_supplementary_groups_claim_ipc_only_required:true,
+    unset_environment_exact:
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_DANGEROUS_ENVIRONMENT_NAMES_V2,
+    environment_directives_empty_required:true,
+    environment_files_empty_required:true,
+    pass_environment_empty_required:true,
     umask:"0077",
     private_tmp_required:true,
     private_devices_required:true,
@@ -194,6 +210,15 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SOCKET_REQUIREMENTS_V2 =
     socket_mode:"0660",
     socket_link_count_exact_before_install_required:true,
     socket_exact_owner_group_mode_link_count_required:true,
+    socket_publication_create_only_no_overwrite_required:true,
+    socket_existing_path_liveness_classification_required:true,
+    socket_live_listener_unlink_forbidden_required:true,
+    socket_stale_cleanup_exact_identity_metadata_required:true,
+    socket_changed_generation_cleanup_rejected_required:true,
+    socket_claim_uid_process_exclusivity_before_cleanup_required:true,
+    socket_cleanup_owner_exact_reviewed_required:true,
+    socket_two_cycle_restart_qualification_required:true,
+    socket_crash_stale_recovery_qualification_required:true,
     client_server_peer_credentials_required:true,
     client_exact_server_uid_gid_pid_required:true,
     client_server_pid_start_ticks_required:true,
@@ -212,7 +237,11 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_LEAST_AUTHORITY_KEYS_V2
     "cap_inheritable",
     "cap_permitted",
     "claim_gid",
+    "claim_ipc_gid",
     "claim_uid",
+    "dangerous_environment_names_present",
+    "loader_environment_clean",
+    "supplementary_gids",
     "custody_gid",
     "custody_uid",
     "interactive_operator_gid",
@@ -243,6 +272,8 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     claim_service_effective_capabilities_empty_required:true,
     claim_service_bounding_capabilities_empty_required:true,
     claim_service_ambient_capabilities_empty_required:true,
+    claim_service_loader_environment_clean_required:true,
+    claim_service_unset_environment_exact_required:true,
     claim_identity_distinct_from_training_required:true,
     claim_identity_distinct_from_custody_required:true,
     claim_identity_distinct_from_public_runtime_required:true,
@@ -308,6 +339,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     claim_publisher_non_root_uid_gid_required:true,
     claim_publisher_no_new_privileges_required:true,
     claim_publisher_all_capability_sets_empty_required:true,
+    claim_publisher_loader_environment_clean_required:true,
     claim_publisher_numeric_identity_separation_required:true,
     claim_publisher_supplementary_groups_closed_required:true,
     claim_publisher_claim_ipc_membership_exact_required:true,
@@ -359,7 +391,12 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     indeterminate_publication_must_not_return_success_required:true,
     exact_existing_record_recovery_distinct_from_new_create_required:true,
     different_existing_claim_is_duplicate_rejection_required:true,
-    trainer_accepts_only_exact_durable_success_response_required:true,
+    claim_success_is_not_training_start_admission_required:true,
+    separate_one_time_training_start_consumption_required:true,
+    training_start_consumption_create_once_required:true,
+    training_start_consumption_binds_claim_record_authorization_custody_store_generation_and_trainer_generation_required:true,
+    training_start_recovery_distinguishes_unconsumed_vs_consumed_required:true,
+    replayed_claim_success_after_start_consumption_rejected_required:true,
     socket_close_or_generic_ok_never_training_admission_required:true,
     claim_service_max_concurrent_connections:16,
     claim_service_socket_backlog_bound_required:true,
@@ -516,7 +553,7 @@ export function qualifyApollyonDurableAttemptClaimServiceLeastAuthorityV2(input)
     "apollyon_claim_service_least_authority_v2_input_invalid",
   );
   for(const key of [
-    "claim_uid","claim_gid","training_uid","training_gid",
+    "claim_uid","claim_gid","claim_ipc_gid","training_uid","training_gid",
     "custody_uid","custody_gid","public_runtime_uid","public_runtime_gid",
     "interactive_operator_uid","interactive_operator_gid",
   ]){
@@ -529,6 +566,17 @@ export function qualifyApollyonDurableAttemptClaimServiceLeastAuthorityV2(input)
   }
   if(value.claim_gid===0){
     fail("apollyon_claim_service_least_authority_v2_root_gid_forbidden");
+  }
+  if(value.claim_ipc_gid===0){
+    fail("apollyon_claim_service_least_authority_v2_root_ipc_gid_forbidden");
+  }
+  if(
+    !Array.isArray(value.supplementary_gids)||
+    value.supplementary_gids.length!==1||
+    value.supplementary_gids[0]!==value.claim_ipc_gid||
+    value.claim_ipc_gid===value.claim_gid
+  ){
+    fail("apollyon_claim_service_least_authority_v2_supplementary_groups_invalid");
   }
   for(const [label,observed] of [
     ["training_uid",value.training_uid],
@@ -549,6 +597,16 @@ export function qualifyApollyonDurableAttemptClaimServiceLeastAuthorityV2(input)
     if(value.claim_gid===observed){
       fail("apollyon_claim_service_least_authority_v2_gid_collision:"+label);
     }
+    if(value.claim_ipc_gid===observed){
+      fail("apollyon_claim_service_least_authority_v2_claim_ipc_gid_collision:"+label);
+    }
+  }
+  if(
+    value.loader_environment_clean!==true||
+    !Array.isArray(value.dangerous_environment_names_present)||
+    value.dangerous_environment_names_present.length!==0
+  ){
+    fail("apollyon_claim_service_least_authority_v2_loader_environment_invalid");
   }
   if(value.no_new_privileges!==true){
     fail("apollyon_claim_service_least_authority_v2_no_new_privileges_required");
@@ -568,6 +626,9 @@ export function qualifyApollyonDurableAttemptClaimServiceLeastAuthorityV2(input)
     numeric_identity_separation_verified:true,
     no_new_privileges:true,
     all_capability_sets_empty:true,
+    supplementary_groups_closed:true,
+    claim_ipc_membership_exact:true,
+    loader_environment_clean:true,
     host_installation_performed:false,
     durable_attempt_claim_performed:false,
     training_execution_performed:false,
@@ -629,6 +690,13 @@ export function qualifyApollyonDurableAttemptClaimPublisherLeastAuthorityV2(inpu
       fail("apollyon_claim_publisher_least_authority_v2_claim_ipc_gid_collision:"+label);
     }
   }
+  if(
+    value.loader_environment_clean!==true||
+    !Array.isArray(value.dangerous_environment_names_present)||
+    value.dangerous_environment_names_present.length!==0
+  ){
+    fail("apollyon_claim_publisher_least_authority_v2_loader_environment_invalid");
+  }
   if(value.no_new_privileges!==true){
     fail("apollyon_claim_publisher_least_authority_v2_no_new_privileges_required");
   }
@@ -657,6 +725,7 @@ export function qualifyApollyonDurableAttemptClaimPublisherLeastAuthorityV2(inpu
     numeric_identity_separation_verified:true,
     no_new_privileges:true,
     all_capability_sets_empty:true,
+    loader_environment_clean:true,
     direct_claim_store_mutation_denied:true,
     broad_privileged_authority_denied:true,
     host_installation_performed:false,
@@ -741,6 +810,13 @@ export function qualifyApollyonDurableAttemptClaimRecordShapeV2(input){
     fail("apollyon_claim_record_v2_input_invalid");
   }
   const terminal=validateTerminalReceipt(snapshot.terminal_receipt);
+  const derivedStoreContract=
+    qualifyApollyonDurableAttemptClaimStoreContractV2({
+      terminal_receipt:snapshot.terminal_receipt,
+    }).store_contract_id;
+  if(snapshot.store_contract_id!==derivedStoreContract){
+    fail("apollyon_claim_record_v2_store_contract_derivation_invalid");
+  }
   const record=validateApollyonDurableAttemptClaimRecordShapeOnlyV2(
     snapshot.claim_record,
   );
@@ -806,7 +882,10 @@ export function qualifyApollyonDurableAttemptClaimSuccessResponseShapeV2(input){
     value.publish_request_sha256!==snapshot.publish_request_sha256||
     value.durability_proven!==true||
     value.final_visible_record_revalidated!==true||
-    value.training_start_admission!==true
+    value.training_start_admission!==false||
+    value.training_start_consumption_required!==true||
+    value.training_start_consumption_performed!==false||
+    value.next_gate!=="apollyon_training_start_consumption_v1"
   ){
     fail("apollyon_claim_success_response_v2_schema_invalid");
   }
