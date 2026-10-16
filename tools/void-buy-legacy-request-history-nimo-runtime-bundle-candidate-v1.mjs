@@ -504,7 +504,11 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
     body.protected_runtime_install_authorized !== false ||
     body.live_nimo_installed !== false ||
     body.authorized_keys_mutation_authorized !== false ||
+    body.public_key_selected !== false ||
     body.external_transport_authenticated !== false ||
+    body.runtime_layout !== "repository_relative_package_free_v1" ||
+    body.next_gate !==
+      "void_buy_void_legacy_history_nimo_runtime_bundle_lock_v1" ||
     body.witness_read_performed !== false ||
     body.witness_append_performed !== false ||
     body.sovereign_signing !== false ||
@@ -522,6 +526,13 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(expectedParent)
   ) {
     fail("legacy_history_nimo_bundle_parent_plan_identity_invalid");
+  }
+  const parentPlan = planVoidBuyVoidLegacyHistoryNimoInstallV1();
+  if (
+    body.planned_handler_root !== parentPlan.fixed_layout.handler_root ||
+    body.planned_handler_path !== parentPlan.fixed_layout.handler_path
+  ) {
+    fail("legacy_history_nimo_bundle_planned_layout_invalid");
   }
 
   const expectedSourceInputs = verifyParentSourceRoots(root);
@@ -557,13 +568,39 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
     ) {
       fail("legacy_history_nimo_bundle_runtime_record_invalid");
     }
+    const shouldBeCompiled = EXPECTED_COMPILED_RUNTIME_FILES.has(record.path);
+    if (
+      shouldBeCompiled !== (record.runtime_kind === "compiled_typescript")
+    ) {
+      fail("legacy_history_nimo_bundle_runtime_kind_invalid:" + record.path);
+    }
+    const expectedTracked = parentSourceRootMap().get(record.path) || null;
     if (record.runtime_kind === "tracked_source") {
-      const expected = parentSourceRootMap().get(record.path);
-      if (!expected || record.tracked_source_git_blob_sha1 !== expected) {
+      if (
+        !expectedTracked ||
+        record.tracked_source_git_blob_sha1 !== expectedTracked
+      ) {
         fail("legacy_history_nimo_bundle_runtime_source_pin_invalid");
       }
     } else if (record.tracked_source_git_blob_sha1 !== null) {
       fail("legacy_history_nimo_bundle_compiled_source_pin_invalid");
+    }
+    const imports = record.imports;
+    const sortedImports = [...imports].sort();
+    if (
+      new Set(imports).size !== imports.length ||
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(imports) !==
+        canonicalLegacyHistoryNimoRuntimeBundleJsonV1(sortedImports) ||
+      imports.some(
+        (value) =>
+          typeof value !== "string" ||
+          (!value.startsWith("node:") &&
+            !VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_EXPECTED_FILES_V1.includes(
+              value,
+            )),
+      )
+    ) {
+      fail("legacy_history_nimo_bundle_runtime_import_record_invalid:" + record.path);
     }
   }
 
@@ -576,13 +613,52 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
     fail("legacy_history_nimo_bundle_package_free_invalid");
   }
   if (
+    !Array.isArray(body.external_node_builtins) ||
+    body.external_node_builtins.length < 1 ||
+    new Set(body.external_node_builtins).size !==
+      body.external_node_builtins.length ||
+    body.external_node_builtins.some(
+      (value) => typeof value !== "string" || !value.startsWith("node:"),
+    ) ||
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
+      body.external_node_builtins,
+    ) !==
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
+        [...body.external_node_builtins].sort(),
+      )
+  ) {
+    fail("legacy_history_nimo_bundle_node_builtin_set_invalid");
+  }
+  if (
     body.compiler?.typescript_version !== EXPECTED_TYPESCRIPT_VERSION ||
     !Array.isArray(body.compiler?.compiler_files) ||
     body.compiler.compiler_files.length !== 2
   ) {
     fail("legacy_history_nimo_bundle_compiler_identity_invalid");
   }
+  const expectedCompilerPaths = [
+    "node_modules/typescript/lib/_tsc.js",
+    "node_modules/typescript/lib/typescript.js",
+  ].sort();
+  const observedCompilerPaths = body.compiler.compiler_files
+    .map((record) => record?.path)
+    .sort();
   if (
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(observedCompilerPaths) !==
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(expectedCompilerPaths) ||
+    body.compiler.compiler_files.some(
+      (record) =>
+        !record ||
+        !Number.isSafeInteger(record.bytes) ||
+        record.bytes < 1 ||
+        !/^[0-9a-f]{64}$/u.test(record.sha256),
+    )
+  ) {
+    fail("legacy_history_nimo_bundle_compiler_file_identity_invalid");
+  }
+  if (
+    body.build_recipe?.dependency_install !==
+      "npm ci --ignore-scripts --no-audit --no-fund" ||
     body.build_recipe?.compile !==
       "node node_modules/typescript/bin/tsc -p tsconfig.build.json" ||
     body.build_recipe?.source_maps_expected !== false ||
