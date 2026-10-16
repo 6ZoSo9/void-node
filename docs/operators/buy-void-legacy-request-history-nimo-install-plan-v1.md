@@ -120,6 +120,13 @@ node tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs --plan
 Mutation-shaped modes such as `--apply`, `--install`, `--run` and
 `--write-authorized-keys` fail closed.
 
+Hosted validation also binds committed diff hygiene. Pull-request runs use the
+exact event base SHA, require it to be an ancestor of the exact checked-out
+head, and run `git diff --check <base> <head>`. Push/manual runs use the
+event's prior commit when present and otherwise the exact first parent. The
+clean-worktree assertion remains a separate check, so working-tree cleanliness
+cannot substitute for checking the committed plan/proof/doc/workflow delta.
+
 ## Authority
 
 This lane grants no Nimo/SSH/filesystem/service/systemd/sshd mutation, no
