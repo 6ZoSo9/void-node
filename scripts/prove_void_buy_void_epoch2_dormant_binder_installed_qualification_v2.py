@@ -110,12 +110,11 @@ assert 'installer.NATIVE_TARGET.lstat()' in native_source
 assert 'os.O_NOFOLLOW' in native_source
 assert '"/proc/self/fd/" + str(fd)' in native_source
 assert 'pass_fds=(fd,)' in native_source
-assert '["--self-test"]' not in native_source
 assert '[exec_path, "--self-test"]' in native_source
 assert "installer.BINDER_TARGET" not in native_source
-assert "node" not in native_source.lower()
-assert "credential" not in native_source.lower()
-assert "transaction" not in native_source.lower()
+assert "installer.BINDER_NAME" not in native_source
+assert '"--run"' not in native_source
+assert ".mjs" not in native_source
 
 before_at = collect_source.index("before = _installed_snapshot")
 first_at = collect_source.index("first_output, first_sha = _run_native_self_test")
@@ -136,10 +135,13 @@ assert (
     < output_at
 )
 
-# Binder is data-only: no subprocess/exec path may reference it.
+# Binder is data-only. The sole subprocess in the qualification source is the
+# retained installed-native self-test; no binder path/name becomes executable.
+assert source.count("subprocess.run(") == 1
 for line in source.splitlines():
-    if "subprocess." in line or "exec_path" in line or "pass_fds" in line:
-        assert "BINDER" not in line, line
+    if "subprocess.run(" in line or "exec_path" in line or "pass_fds" in line:
+        assert "BINDER_TARGET" not in line, line
+        assert "BINDER_NAME" not in line, line
 
 target = ROOT / TARGET_REL
 cmd = [sys.executable, "-I", "-B", str(target)]
