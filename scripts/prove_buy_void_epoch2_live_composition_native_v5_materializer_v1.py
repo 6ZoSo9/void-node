@@ -16,7 +16,7 @@ CANDIDATE=ROOT/"scripts/prove_buy_void_epoch2_live_composition_native_candidate_
 SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
 RUNNER=ROOT/"ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
 
-MATERIALIZER_BLOB="0acca90aca2c19fe0194ba15f99d30a3e6407432"
+MATERIALIZER_BLOB="02e349dd911db5603a4062c4fdf3192165de0764"
 LOCK_BLOB="db59358bab68a0fa33d0840bd9afe967dd809e61"
 CANDIDATE_BLOB="bc1b7575e8a77d98b81252da39b6e2d3c10760d9"
 SOURCE_BLOB="5021727f1def1ec11f870d735cab65acc1701a5e"
