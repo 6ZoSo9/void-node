@@ -16,8 +16,10 @@ The writer accepts only:
 1. one exact #3333 persisted training-start consumption record; and
 2. one already-open caller-retained directory file descriptor.
 
-It accepts no store pathname, final filename, service name, socket, UID/GID
-selection, trainer-release token, or arbitrary bytes.
+The caller selects the already-open directory capability by FD; this gate does
+not prove that capability came from the protected Xiphos store. It accepts no
+store pathname string, final filename, service name, socket, UID/GID selection,
+trainer-release token, or arbitrary bytes.
 
 ## Directory boundary
 
@@ -50,7 +52,9 @@ The final leaf is derived only from the exact authorization-wide
 training-start-consumption-v1-<64 lowercase hex>.json
 ```
 
-The caller cannot choose or override the leaf.
+The caller chooses the directory capability, but cannot choose or override the
+child leaf. Read/write scope is exactly that one derived child beneath the
+supplied directory FD.
 
 ## Create-once publication
 

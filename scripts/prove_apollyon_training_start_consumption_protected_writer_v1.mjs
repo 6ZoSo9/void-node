@@ -39,7 +39,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-    "581a59cd04033c1d4cbac2bffe5e7ab3b029d530",
+    "2c215dd28adeab825b3d2c7f0cca5765585a2dc2",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "4333df6c7918fe9efaada36cac765000eec7948f",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
@@ -305,6 +305,28 @@ assert.equal(leaf1.includes(record1.authorization_id),false);
 }
 
 {
+  const root=newRoot();
+  const fd=openRoot(root);
+  try{
+    const final=path.join(root,leaf1);
+    const out=fs.openSync(final,"wx",0o600);
+    try{fs.ftruncateSync(out,64*1024+1);}
+    finally{fs.closeSync(out);}
+    assert.throws(
+      ()=>publishApollyonTrainingStartConsumptionProtectedV1({
+        directory_fd:fd,
+        consumption_record:record1,
+      }),
+      /existing_record_size_invalid/u,
+    );
+    assert.equal(fs.lstatSync(final).size,64*1024+1);
+  }finally{
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
   const parent=newRoot();
   const root=path.join(parent,"store");
   fs.mkdirSync(root,{mode:0o700});
@@ -432,8 +454,12 @@ for(const [key,expected] of Object.entries({
   linux_required:true,
   caller_retained_directory_fd_required:true,
   owned_directory_fd_duplication_required:true,
-  caller_supplied_store_path_supported:false,
+  caller_selected_directory_capability:true,
+  caller_supplied_store_path_string_supported:false,
   derived_slot_leaf_only:true,
+  arbitrary_leaf_name_supported:false,
+  read_scope_one_derived_child_of_supplied_directory:true,
+  write_scope_one_derived_child_of_supplied_directory:true,
   exact_parent_consumption_record_required:true,
   protected_consumption_store_origin_proven:false,
   unique_authorization_claim_slot_protected_origin_proven:false,
@@ -451,8 +477,6 @@ for(const [key,expected] of Object.entries({
   crash_partial_final_fail_closed:true,
   automatic_retry_authorized:false,
   one_derived_slot_filesystem_mutation_may_occur:true,
-  arbitrary_path_read:false,
-  arbitrary_path_write:false,
   directory_creation:false,
   service_action:false,
   socket_action:false,
@@ -564,6 +588,7 @@ console.log(
 );
 console.log("caller_retained_directory_fd_required=true");
 console.log("owned_directory_fd_duplication_required=true");
+console.log("caller_selected_directory_capability=true");
 console.log("derived_slot_leaf_only=true");
 console.log("create_once_o_excl_nofollow=true");
 console.log("created_file_descriptor_retained_through_final_reread=true");
@@ -574,6 +599,7 @@ console.log("different_same_slot_collision_rejected=true");
 console.log("symlink_existing_slot_rejected=true");
 console.log("hardlink_existing_slot_rejected=true");
 console.log("partial_existing_slot_fail_closed=true");
+console.log("oversized_existing_slot_rejected_before_read=true");
 console.log("caller_selected_leaf_supported=false");
 console.log("protected_consumption_store_origin_proven=false");
 console.log("unique_authorization_claim_slot_revalidation_performed=false");
