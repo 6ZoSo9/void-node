@@ -76,6 +76,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
           PUSH_BEFORE: ${{ github.event.before }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -84,8 +85,8 @@ jobs:
 
           case "$EVENT_NAME" in
             pull_request)
-              test -n "$PR_BASE"
-              base="$PR_BASE"
+              test -n "$PR_BASE_REF"
+              base="$(git rev-parse "refs/remotes/origin/$PR_BASE_REF")"
               ;;
             push)
               test -n "$PUSH_BEFORE"
