@@ -117,6 +117,9 @@ typedef struct {
     char canonical[PATH_MAX];
 } retained_python_v1;
 
+static operation_v1 receipt_operation = OP_NONE;
+static bool receipt_child_created = false;
+
 static uint32_t rotr32(uint32_t x, uint32_t n) {
     return (x >> n) | (x << (32U - n));
 }
@@ -198,8 +201,27 @@ static void sha256_final(sha256_ctx *c, unsigned char out[32]) {
 static void hold(const char *reason) {
     fprintf(stderr, "%s_HOLD reason=%s\n", MARKER, reason);
     fprintf(stderr, "privileged_first_entry_authenticated=false\n");
-    fprintf(stderr, "installer_apply_performed=false\n");
-    fprintf(stderr, "installed_qualifier_run_performed=false\n");
+    fprintf(
+        stderr,
+        "child_process_created=%s\n",
+        receipt_child_created ? "true" : "false"
+    );
+    if (receipt_child_created && receipt_operation == OP_INSTALLER_APPLY) {
+        fprintf(
+            stderr,
+            "installer_apply_state=unknown_or_partial_if_child_created\n"
+        );
+    } else {
+        fprintf(stderr, "installer_apply_performed=false\n");
+    }
+    if (receipt_child_created && receipt_operation == OP_QUALIFIER_RUN) {
+        fprintf(
+            stderr,
+            "installed_qualifier_run_state=unknown_or_partial_if_child_created\n"
+        );
+    } else {
+        fprintf(stderr, "installed_qualifier_run_performed=false\n");
+    }
     fprintf(stderr, "credential_content_access=false\n");
     fprintf(stderr, "private_key_access=false\n");
     fprintf(stderr, "signing=false\n");
@@ -595,6 +617,8 @@ static int self_test(void) {
     puts("python_descriptor_fexecve=true");
     puts("child_environment_closed=true");
     puts("post_child_generation_revalidation=true");
+    puts("prefork_operation_receipts_strict_false=true");
+    puts("postfork_selected_operation_receipt_conservative=true");
     puts("installer_apply_performed=false");
     puts("installed_qualifier_run_performed=false");
     puts("credential_content_access=false");
@@ -612,6 +636,7 @@ int main(int argc, char **argv) {
     if (geteuid() != 0) hold("operator_first_entry_root_required");
 
     request_v1 request = parse_request(argc, argv);
+    receipt_operation = request.operation;
 
     retained_file_v1 self = open_retained_regular(
         FIXED_SELF, true, "operator_first_entry_self_custody_invalid"
@@ -673,6 +698,7 @@ int main(int argc, char **argv) {
 
     pid_t child = fork();
     if (child < 0) hold("operator_first_entry_fork_failed");
+    receipt_child_created = true;
     if (child == 0) {
         if (dup2(devnull, STDIN_FILENO) < 0) _exit(126);
         close(devnull);
@@ -780,6 +806,7 @@ int main(int argc, char **argv) {
     printf("source_generation_authenticated=true\n");
     printf("loader_python_environment_sanitized=true\n");
     printf("child_exit_success=true\n");
+    printf("child_process_created=true\n");
     printf("installer_apply_performed_by_preentry=false\n");
     printf("installed_qualifier_run_performed_by_preentry=false\n");
     printf("credential_content_access=false\n");
