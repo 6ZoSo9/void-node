@@ -50,9 +50,9 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_native_candidate_v1.c)" = \
-            66a20e42e6d73552c70253cd066af9d45af83749
+            c46e31a733a983b1de0d7347f65f4ababa70bbcc
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_native_candidate_v1.py)" = \
-            0db600fd67f8b3d0b026c5ce64943da134b16034
+            ef5d9e61944ad536162838514d9727d6c98d11d6
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-native-candidate-v1.md)" = \
             bdf445a15bb85e5a2425ff445bb5b1a7f1b80b53
 
