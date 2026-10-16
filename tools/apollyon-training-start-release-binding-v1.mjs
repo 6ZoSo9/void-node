@@ -11,7 +11,7 @@ export const VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_V1 =
   "VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_V1";
 
 export const PARENT_TRAINING_START_CONTRACT_BLOB_SHA1 =
-  "f4b5c984cc67de470df1af949723eeaefba0393f";
+  "af983452d8807db34b446fc64dff5266e9bc5953";
 export const CANONICALIZER_V1_BLOB_SHA1 =
   "f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 export const RELEASE_FRAME_BYTES_V1 = 64;
@@ -26,6 +26,18 @@ export const VOID_APOLLYON_TRAINING_START_RELEASE_REQUIREMENTS_V1 =
     process_start_ticks_required:true,
     reviewed_executable_source_identity_required:true,
     private_inherited_release_channel_required:true,
+    reviewed_releaser_generation_required:true,
+    releaser_pidfd_retained_required:true,
+    releaser_start_ticks_bound_required:true,
+    releaser_source_identity_exact_required:true,
+    releaser_uid_gid_groups_identity_required:true,
+    releaser_live_through_authorized_frame_completion_required:true,
+    trainer_direct_parent_releaser_lineage_required:true,
+    trainer_inherits_release_read_end_only_required:true,
+    trainer_release_write_end_absent_required:true,
+    release_write_end_exclusive_to_reviewed_releaser_required:true,
+    unrelated_duplicate_release_writer_fds_rejected_required:true,
+    correct_frame_from_unreviewed_writer_is_authority:false,
     release_channel_reconstructible_from_pid_path_or_token_forbidden:true,
     caller_supplied_pid_signal_or_token_release_forbidden:true,
     generic_filesystem_flag_release_forbidden:true,
@@ -73,6 +85,12 @@ export const VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_KEYS_V1 =
     "next_gate",
     "parent_training_start_contract_blob_sha1",
     "private_release_channel_origin_proven",
+    "release_writer_exclusivity_proven",
+    "release_writer_exclusivity_required",
+    "releaser_generation_revalidation_performed",
+    "releaser_generation_revalidation_required",
+    "trainer_releaser_lineage_proven",
+    "trainer_releaser_lineage_required",
     "private_release_channel_required",
     "protected_consumption_record_origin_proven",
     "protected_consumption_record_origin_required",
@@ -118,6 +136,12 @@ export const VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_AUTHORITY_V1 =
     training_identity_policy_revalidation_performed:false,
     private_release_channel_required:true,
     private_release_channel_origin_proven:false,
+    releaser_generation_revalidation_required:true,
+    releaser_generation_revalidation_performed:false,
+    trainer_releaser_lineage_required:true,
+    trainer_releaser_lineage_proven:false,
+    release_writer_exclusivity_required:true,
+    release_writer_exclusivity_proven:false,
     trainer_release_performed:false,
     training_execution_authorized:false,
     training_execution_performed:false,
@@ -140,6 +164,30 @@ const RELEASE_BINDING_ID=
   /^apollyon_training_start_release_binding_v1:[0-9a-f]{64}$/u;
 const RELEASE_POLICY_ID=
   /^apollyon_training_start_release_policy_v1:[0-9a-f]{64}$/u;
+const HASH64=/^[0-9a-f]{64}$/u;
+const RELEASER_GENERATION_KEYS=Object.freeze([
+  "gid",
+  "marker",
+  "pid",
+  "pidfd_retained",
+  "process_start_time_ticks",
+  "source_identity_sha256",
+  "supplementary_gids",
+  "uid",
+  "version",
+]);
+export const VOID_APOLLYON_TRAINING_START_RELEASE_CHANNEL_ORIGIN_SHAPE_KEYS_V1 =
+  Object.freeze([
+    "correct_release_frame_sha256",
+    "release_binding",
+    "release_write_end_exclusive_to_releaser",
+    "releaser_generation",
+    "releaser_live_through_frame_completion",
+    "trainer_inherits_release_read_end_only",
+    "trainer_observed_ppid",
+    "trainer_release_write_end_absent",
+    "unrelated_duplicate_writer_fds_absent",
+  ]);
 
 function fail(code){throw new Error(code);}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
@@ -242,6 +290,12 @@ export function qualifyApollyonTrainingStartReleaseBindingV1(input){
     training_identity_policy_revalidation_performed:false,
     private_release_channel_required:true,
     private_release_channel_origin_proven:false,
+    releaser_generation_revalidation_required:true,
+    releaser_generation_revalidation_performed:false,
+    trainer_releaser_lineage_required:true,
+    trainer_releaser_lineage_proven:false,
+    release_writer_exclusivity_required:true,
+    release_writer_exclusivity_proven:false,
     release_not_transferable_to_replacement_generation:true,
     bound_generation_loss_forfeits_attempt:true,
     trainer_release_performed:false,
@@ -255,6 +309,80 @@ export function qualifyApollyonTrainingStartReleaseBindingV1(input){
     release_binding_id:"apollyon_training_start_release_binding_v1:"+
       sha256(Buffer.from(canonical(material),"utf8")),
     authority:VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_AUTHORITY_V1,
+  });
+}
+
+export function qualifyApollyonTrainingStartReleaseChannelOriginShapeV1(input){
+  const snapshot=clonePlain(
+    input,
+    "apollyon_training_start_release_v1_channel_origin_shape_invalid",
+  );
+  exactOwnKeys(
+    snapshot,
+    VOID_APOLLYON_TRAINING_START_RELEASE_CHANNEL_ORIGIN_SHAPE_KEYS_V1,
+    "apollyon_training_start_release_v1_channel_origin_shape_invalid",
+  );
+  const binding=validateApollyonTrainingStartReleaseBindingV1(
+    snapshot.release_binding,
+  );
+  if(!HASH64.test(snapshot.correct_release_frame_sha256)){
+    fail("apollyon_training_start_release_v1_channel_origin_frame_invalid");
+  }
+  const expectedFrame=apollyonTrainingStartReleaseFrameV1(binding);
+  if(
+    sha256(expectedFrame)!==snapshot.correct_release_frame_sha256
+  ){
+    fail("apollyon_training_start_release_v1_channel_origin_frame_invalid");
+  }
+
+  const releaser=clonePlain(
+    snapshot.releaser_generation,
+    "apollyon_training_start_release_v1_releaser_generation_invalid",
+  );
+  exactOwnKeys(
+    releaser,
+    RELEASER_GENERATION_KEYS,
+    "apollyon_training_start_release_v1_releaser_generation_invalid",
+  );
+  if(
+    releaser.marker!=="VOID_APOLLYON_TRAINING_START_RELEASER_GENERATION_V1"||
+    releaser.version!==1||
+    !Number.isSafeInteger(releaser.pid)||releaser.pid<=1||
+    typeof releaser.process_start_time_ticks!=="string"||
+    !/^[1-9][0-9]*$/u.test(releaser.process_start_time_ticks)||
+    !Number.isSafeInteger(releaser.uid)||releaser.uid<0||releaser.uid>65533||
+    !Number.isSafeInteger(releaser.gid)||releaser.gid<0||releaser.gid>65533||
+    !Array.isArray(releaser.supplementary_gids)||
+    releaser.supplementary_gids.length>64||
+    new Set(releaser.supplementary_gids).size!==releaser.supplementary_gids.length||
+    releaser.supplementary_gids.some(
+      gid=>!Number.isSafeInteger(gid)||gid<0||gid>65533
+    )||
+    !HASH64.test(releaser.source_identity_sha256)||
+    releaser.pidfd_retained!==true||
+    snapshot.trainer_observed_ppid!==releaser.pid||
+    snapshot.trainer_inherits_release_read_end_only!==true||
+    snapshot.trainer_release_write_end_absent!==true||
+    snapshot.release_write_end_exclusive_to_releaser!==true||
+    snapshot.unrelated_duplicate_writer_fds_absent!==true||
+    snapshot.releaser_live_through_frame_completion!==true
+  ){
+    fail("apollyon_training_start_release_v1_channel_origin_shape_invalid");
+  }
+
+  return Object.freeze({
+    status:"release_channel_origin_shape_qualified_not_authenticated",
+    release_binding_id:binding.release_binding_id,
+    correct_release_frame_shape_qualified:true,
+    releaser_generation_shape_qualified:true,
+    trainer_direct_parent_releaser_lineage_shape_qualified:true,
+    trainer_read_end_only_shape_qualified:true,
+    release_write_end_exclusivity_shape_qualified:true,
+    private_release_channel_origin_proven:false,
+    trainer_release_authorized:false,
+    trainer_release_performed:false,
+    training_execution_authorized:false,
+    training_execution_performed:false,
   });
 }
 
