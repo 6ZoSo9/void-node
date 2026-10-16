@@ -14,7 +14,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 INSTALLER=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py"
 LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v3.json"
-INSTALLER_BLOB="eea063dc6eddb6b5d1d8cd5812b7d5172cf6a2d9"
+INSTALLER_BLOB="832be9ec2fbffe519065ab5d65bec068a915da76"
 LOCK_BLOB="57f965a944031eac90d69b4104b0f8f2473e66cc"
 LOCK_ID="voidbuye2nativecandlock3_024c9e3818a40616fc8b198f605721bf76ed43d6d4f186bf02a202d46860a659"
 EXPECTED_NATIVE_SHA256="78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589"
@@ -197,6 +197,7 @@ for line in (
     "policy_expected_head_bound=true",
     "policy_runner_identity_bound=true",
     "policy_node_identity_bound=true",
+    "expected_head_dependency_generation_bound=true",
     "post_publication_failure_receipt_truthful=true",
     "create_only=true",
     "protected_install_authorized=false",
@@ -266,6 +267,7 @@ print("rename_noreplace_exercised=true")
 print("final_metadata_fsync_before_publication_bound=true")
 print("repository_node_parent_revalidated_before_publication=true")
 print("atomic_complete_root_publication_bound=true")
+print("expected_head_dependency_generation_bound=true")
 print("truthful_post_publication_receipt_bound=true")
 print("hosted_apply_execution=false")
 print("live_execution_authorized=false")
