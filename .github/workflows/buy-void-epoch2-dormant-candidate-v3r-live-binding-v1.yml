@@ -48,11 +48,13 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs)" = \
-            af31dcd6f381c04c77aeef2a20d2846c0446807a
+            eba8675de998af42ff9022997ed20063ba1257d0
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v1.c)" = \
-            4c955b50fb6cb4e584c2abac3ac091bb620572e0
+            849b2a0a8c56816db3a1c30daec349c0aa03d55f
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs)" = \
-            f5908673e88045d6b29d1cac116a9a2be59b97a6
+            5184906dcdc8b1e2c6c7330a154cb0d0458e6198
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v1.md)" = \
+            428e21aa18418c176a42ebdf8c2a87f9008325f1
           test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json)" = \
             e569c9211e01f14c7c00dd1c5041d4dfb0817609
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py)" = \
