@@ -49,7 +49,7 @@ A stale source receipt is never a perpetual host lease.
 The claim store must use a create-only/no-overwrite canonical claim record with:
 
 - exactly one claim per admitted authorization/custody/store generation;
-- the canonical claim record binds the store generation, terminal receipt ID and runner-receipt digest, authorization ID, custody generation and record SHA-256, request/source/corpus/adapter identities, operator fingerprint, and attempt limit;
+- the canonical claim record binds the store generation, terminal receipt ID and runner-receipt digest, authorization ID, custody generation and record SHA-256, and the literal identity fields `request_sha256`, `canonical_main`, `canonical_tree`, `corpus_sha256`, `parent_adapter_sha256`, `operator_public_key_raw_sha256`, plus the attempt limit;
 - `attempt_limit=1`;
 - `automatic_retry_authorized=false`;
 - final claim record link count 1;
