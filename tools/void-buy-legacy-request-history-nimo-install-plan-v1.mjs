@@ -10,6 +10,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_AUTHORITY_V1 =
     exact_reviewed_source_generation_bound: true,
     fixed_installation_layout_selected: true,
     exact_forced_command_selected: true,
+    authorized_key_exact_forced_command_option_required: true,
     dedicated_client_public_key_required: true,
     additive_authorized_keys_successor_required: true,
     existing_authorized_keys_generation_preservation_required: true,
@@ -65,6 +66,56 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_REVIEWED_SOURCE_ROOTS_V1 =
 
 export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1 =
   'test -z "$SSH_ORIGINAL_COMMAND" || exit 3; exec /usr/bin/env -i PATH=/usr/bin:/bin HOME=/var/lib/voidwitness LANG=C LC_ALL=C VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_V1=1 SSH_ORIGINAL_COMMAND="${SSH_ORIGINAL_COMMAND-}" /usr/bin/node /usr/local/libexec/void-legacy-history-witness-v1/void/void-buy-legacy-request-history-nimo-forced-command-v1.mjs --config=/etc/void/buy-void-legacy-history-external-witness-v1.json';
+
+function encodeAuthorizedKeyCommandOptionV1(command){
+  if(command!==VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1){
+    throw new Error("legacy_history_nimo_authorized_key_command_not_selected");
+  }
+  const escaped=command.replaceAll("\\","\\\\").replaceAll('"','\\"');
+  return 'command="'+escaped+'"';
+}
+
+export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1 =
+  encodeAuthorizedKeyCommandOptionV1(
+    VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1,
+  );
+
+export function classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1(input){
+  try{
+    if(!input||typeof input!=="object"||Array.isArray(input)||
+       Object.getPrototypeOf(input)!==Object.prototype){
+      throw new Error("legacy_history_nimo_authorized_key_options_shape_invalid");
+    }
+    const keys=Object.keys(input).sort();
+    const expected=["command_option","restrict"].sort();
+    if(keys.length!==expected.length||keys.some((key,index)=>key!==expected[index])){
+      throw new Error("legacy_history_nimo_authorized_key_options_shape_invalid");
+    }
+    if(input.restrict!==true){
+      throw new Error("legacy_history_nimo_authorized_key_restrict_required");
+    }
+    if(input.command_option!==VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1){
+      throw new Error("legacy_history_nimo_authorized_key_command_option_mismatch");
+    }
+    return Object.freeze({
+      ok:true,
+      status:"SOURCE_AUTHORIZED_KEY_OPTION_SHAPE_BOUND",
+      restrict:true,
+      command_option:VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
+      command_value:VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1,
+      exact_line_materialized:false,
+      authorized_keys_mutation_authorized:false,
+    });
+  }catch(error){
+    return Object.freeze({
+      ok:false,
+      status:"HOLD",
+      reason:error instanceof Error?error.message:String(error),
+      exact_line_materialized:false,
+      authorized_keys_mutation_authorized:false,
+    });
+  }
+}
 
 function canonical(value){
   if(value===null)return "null";
@@ -137,6 +188,12 @@ export function planVoidBuyVoidLegacyHistoryNimoInstallV1(){
       path:"/etc/ssh/authorized_keys/voidwitness",
       owner:"root:root",mode:"0444",
       restrict_option_required:true,
+      forced_command_option_required:true,
+      forced_command_option_exact_encoding_required:true,
+      forced_command_option_must_equal_selected_command:true,
+      forced_command_value:VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1,
+      forced_command_option:
+        VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
       dedicated_ed25519_client_key_required:true,
       transport_policy_client_public_key_sha256_required:true,
       public_key_blob_selected:false,
@@ -197,6 +254,12 @@ function main(){
     if(plan.status!=="HOLD_SOURCE_ONLY_INSTALLATION_PLAN"||
        plan.authority.live_nimo_installed!==false||
        plan.authorized_key.exact_line_materialized!==false||
+       plan.authorized_key.forced_command_option!==
+         VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1||
+       classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1({
+         restrict:true,
+         command_option:plan.authorized_key.forced_command_option,
+       }).ok!==true||
        plan.runtime_bundle.runtime_bundle_candidate_accepted!==false){
       throw new Error("legacy_history_nimo_install_plan_self_test_failed");
     }
@@ -204,6 +267,7 @@ function main(){
       VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_V1+"_SELF_TEST_GREEN\n"+
       "source_only_installation_plan=true\n"+
       "runtime_bundle_candidate_accepted=false\n"+
+      "authorized_key_exact_forced_command_option_required=true\n"+
       "authorized_keys_additive_successor_required=true\n"+
       "live_nimo_installed=false\n"+
       "funds_movement=false\n"
