@@ -62,11 +62,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v3.py)" = \
-            ff31ae5a9c3440e5cb63e17e8080ad7c99a19eae
+            2a565bd4dcbfd4b9c5d3aae61f198e218e2e61e1
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v3.py)" = \
-            6ca2de944743666aa42d266741bb4c3a8c9bc14a
+            3a083c9a4a86d538b18ccf9ef2932186bf604868
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-protected-install-v3.md)" = \
-            94e93d25408d4393c0162f4a81b8772323d73889
+            a57b69d826f3b49bcdbe6723f744466d96562288
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v5.json)" = \
             db59358bab68a0fa33d0840bd9afe967dd809e61
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" = \
@@ -111,6 +111,9 @@ jobs:
             "expected_plan_id_apply_binding=true"
             "create_only_atomic_publication=true"
             "truthful_post_publication_failure_receipt=true"
+            "checkout_tool_generation_bracketed=true"
+            "git_tool_drift_during_checkout_rejected=true"
+            "setpriv_tool_drift_during_checkout_rejected=true"
             "pre_mutation_authority_boundary=true"
             "pre_mutation_authority_flush_required=true"
             "wrong_confirmation_pre_mutation_hold_exercised=true"
@@ -155,6 +158,7 @@ jobs:
             "node_generation_bound_at_plan_apply=true"
             "expected_main_head_bound_at_plan_apply=true"
             "truthful_post_publication_failure_receipt_required=true"
+            "checkout_tool_generation_bracket_required=true"
             "protected_install_authorized=false"
             "live_execution_authorized=false"
             "credential_access_authorized=false"
