@@ -89,6 +89,7 @@ A future `--run` requires hostname `Xiphos`, the exact #3233 parent head, and an
 
 Before any READY plan can be emitted, the planner uses fixed `/usr/bin/git` with a sanitized local-only environment and requires:
 
+- fixed `/usr/bin/git` plus its retained directory ancestry to be direct, root-owned and non-group/world-writable;
 - the Git toplevel to be the planner's canonical repository root;
 - live `HEAD` to equal the supplied reviewed source head exactly;
 - accepted #3233 `fe7e1ad9b78a24b77a1657067e4d08f7c56a7731` to appear in the raw cryptographic commit-parent chain of that source head;

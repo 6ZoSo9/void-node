@@ -210,6 +210,18 @@ def require_tracked_source_file(
     return evidence
 
 def require_fixed_git_binary()->None:
+    directories=[*reversed(GIT_BIN.parent.parents),GIT_BIN.parent]
+    for directory in directories:
+        try:
+            parent=os.lstat(directory)
+        except OSError as exc:
+            raise Hold("source_git_binary_ancestor_unavailable") from exc
+        if (
+            not stat.S_ISDIR(parent.st_mode) or stat.S_ISLNK(parent.st_mode) or
+            parent.st_uid!=0 or stat.S_IMODE(parent.st_mode)&0o022 or
+            Path(os.path.realpath(directory))!=directory
+        ):
+            hold("source_git_binary_ancestor_untrusted")
     try:
         st=os.lstat(GIT_BIN)
     except OSError as exc:
@@ -349,6 +361,7 @@ def verify_source_generation(expected_source_head:str)->dict[str,Any]:
         "parent_contract_git_blob_sha1":contract_blob,
         "parent_contract_file":contract_evidence,
         "fixed_git_binary":os.fspath(GIT_BIN),
+        "fixed_git_retained_ancestry_protected":True,
         "git_environment_sanitized":True,
         "git_replace_objects_disabled":True,
         "git_lazy_fetch_disabled":True,

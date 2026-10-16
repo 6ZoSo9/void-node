@@ -16,7 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
-EXPECTED_PLANNER_BLOB_SHA1="d5f19c20572a552a060d1c68086bcb38fa09b419"
+EXPECTED_PLANNER_BLOB_SHA1="59bf7038ae785fa0ba19db0e02fed7bb519f84ca"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -207,6 +207,7 @@ assert source_generation["planner_git_blob_sha1"]==EXPECTED_PLANNER_BLOB_SHA1
 assert source_generation["parent_contract_git_blob_sha1"]=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
 assert source_generation["source_generation_authenticated"] is True
 assert source_generation["reviewed_source_head_external_lease_required"] is True
+assert source_generation["fixed_git_retained_ancestry_protected"] is True
 assert source_generation["git_replace_objects_disabled"] is True
 assert source_generation["git_lazy_fetch_disabled"] is True
 assert source_generation["raw_commit_object_types_verified"] is True
@@ -219,6 +220,27 @@ except module.Hold as exc:
     assert str(exc)=="source_head_mismatch"
 else:
     raise AssertionError("wrong reviewed source head must HOLD")
+
+with tempfile.TemporaryDirectory(prefix="apollyon-untrusted-git-parent-") as td:
+    root=Path(td)
+    fake_usr=root/"usr"
+    fake_bin=fake_usr/"bin"
+    fake_bin.mkdir(parents=True)
+    fake_git=fake_bin/"git"
+    fake_git.write_bytes(b"not-a-real-git\n")
+    fake_git.chmod(0o755)
+    fake_bin.chmod(0o777)
+    saved_git=module.GIT_BIN
+    try:
+        module.GIT_BIN=fake_git
+        try:
+            module.require_fixed_git_binary()
+        except module.Hold as exc:
+            assert str(exc)=="source_git_binary_ancestor_untrusted",str(exc)
+        else:
+            raise AssertionError("writable Git executable ancestry must HOLD")
+    finally:
+        module.GIT_BIN=saved_git
 
 with tempfile.TemporaryDirectory(prefix="apollyon-substituted-planner-") as td:
     substituted=Path(td)/"planner.py"
@@ -415,6 +437,8 @@ print("wrong_source_head_rejected=true")
 print("substituted_planner_rejected=true")
 print("git_replace_objects_disabled=true")
 print("git_lazy_fetch_disabled=true")
+print("fixed_git_retained_ancestry_protected=true")
+print("writable_git_ancestor_rejected=true")
 print("git_commit_object_types_verified=true")
 print("git_replace_substitution_adversary_rejected=true")
 print("git_graft_ancestry_adversary_rejected=true")
