@@ -15,7 +15,7 @@ import {
 const ROOT=process.cwd();
 const EXPECTED_BLOBS=Object.freeze({
   "tools/void-economic-sponsored-runtime-storage-topology-policy-v1.mjs":
-    "e5d4319ed20269d1300f80f593c9de343d4a9ea6",
+    "df6464ac119d88004a75613568c7a64fa01ca4de",
   "tools/void-economic-system-sponsored-observation-time-store-v1.mjs":
     "53f0bae06b3361088712eaf6ef6d17e5d9c676de",
   "tools/void-economic-system-sponsored-reservation-store-v1.mjs":
@@ -169,6 +169,10 @@ assert.equal(accepted.live_host_evidence_verified,false);
 assert.equal(accepted.time_store_root_stability_proven,false);
 assert.equal(accepted.reservation_store_root_stability_proven,false);
 assert.equal(accepted.execution_replay_store_root_stability_proven,false);
+assert.equal(accepted.time_store_rollback_resistance_proven,false);
+assert.equal(accepted.cross_process_restart_continuity_proven,false);
+assert.equal(accepted.cross_boot_restart_continuity_proven,false);
+assert.equal(accepted.execution_replay_atomic_consume_performed,false);
 assert.equal(accepted.storage_bootstrap,false);
 assert.equal(accepted.runtime_integration,false);
 assert.equal(accepted.funds_movement,false);
@@ -185,6 +189,10 @@ function expectHold(mutator,reason){
   assert.equal(result.time_store_root_stability_proven,false);
   assert.equal(result.reservation_store_root_stability_proven,false);
   assert.equal(result.execution_replay_store_root_stability_proven,false);
+  assert.equal(result.time_store_rollback_resistance_proven,false);
+  assert.equal(result.cross_process_restart_continuity_proven,false);
+  assert.equal(result.cross_boot_restart_continuity_proven,false);
+  assert.equal(result.execution_replay_atomic_consume_performed,false);
   assert.equal(result.runtime_integration,false);
   assert.equal(result.funds_movement,false);
 }
@@ -318,6 +326,10 @@ for(const [key,expected] of Object.entries({
   time_store_root_stability_proven:false,
   reservation_store_root_stability_proven:false,
   execution_replay_store_root_stability_proven:false,
+  time_store_rollback_resistance_proven:false,
+  cross_process_restart_continuity_proven:false,
+  cross_boot_restart_continuity_proven:false,
+  execution_replay_atomic_consume_performed:false,
   storage_bootstrap:false,
   service_installation:false,
   service_start:false,
@@ -352,5 +364,8 @@ console.log("historical_same_uid_home_replay_topology_accepted=false");
 console.log("production_service_identity_selected=false");
 console.log("production_root_paths_selected=false");
 console.log("live_host_evidence_verified=false");
+console.log("time_store_rollback_resistance_proven=false");
+console.log("cross_process_restart_continuity_proven=false");
+console.log("execution_replay_atomic_consume_performed=false");
 console.log("runtime_integration=false");
 console.log("funds_movement=false");
