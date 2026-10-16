@@ -33,9 +33,9 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          materializer_head=fc88873d1820028d41d61f9a1ddcae6333a42a44
+          repair_base=65b4515b78e467afb399b510037e8c64256e87a5
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git merge-base --is-ancestor "$materializer_head" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$repair_base" "$EXPECTED_HEAD"
 
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
@@ -45,15 +45,15 @@ jobs:
             'ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py' \
             'scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v5.py' \
             | sort > "$expected"
-          git diff --name-only "$materializer_head" "$EXPECTED_HEAD" -- | sort > "$actual"
+          git diff --name-only "$repair_base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
-            2f1a834e378c3ae8062140079c43beb16fad9d14
+            6072a77c7a239cd33a325af287c81229874c348c
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
-            18e5769544a20621d4605cd1b44b22f7504d65fc
+            7d72ec3e38aeebf0cf50194d81c8b8dd02a5a2d6
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-protected-install-v5.md)" = \
-            7f7cb3d568de653b89996dcbcf264cc8975bb4dc
+            a4a83bd59e4363e52c8710fb17aebf86b76a8d82
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json)" = \
             bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" = \
@@ -65,7 +65,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py)" = \
             74c69fe8a95ed5f361a39971618f43f7c768c865
 
-          git diff --check "$materializer_head" "$EXPECTED_HEAD"
+          git diff --check "$repair_base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Syntax check
@@ -99,11 +99,19 @@ jobs:
             "atomic_root_exchange_primitive_exercised=true"
             "predecessor_retention_required=true"
             "automatic_rollback_required=true"
+            "production_apply_state_machine_synthetic_exercised=true"
+            "post_first_exchange_rollback_exercised=true"
+            "post_predecessor_retention_rollback_exercised=true"
+            "rollback_cleanup_ambiguity_exercised=true"
+            "rollback_failure_receipt_exercised=true"
+            "post_exchange_fsync_failure_exercised=true"
+            "success_close_receipt_truthful=true"
             "runtime_user_git_checkout_binding=true"
             "expected_plan_id_apply_binding=true"
             "checkout_tool_generation_bracketed=true"
             "pre_mutation_authority_boundary=true"
             "pre_mutation_authority_flush_required=true"
+            "post_upgrade_close_receipt_truthful=true"
             "wrong_confirmation_pre_mutation_hold_exercised=true"
             "candidate_files_unopened_before_confirmation=true"
             "protected_root_unopened_before_confirmation=true"
