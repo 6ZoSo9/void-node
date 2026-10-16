@@ -31,6 +31,7 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_PROTECTED_WRITER_AUTHORITY
     current_store_generation_revalidation_performed:false,
     bounded_existing_slot_read:true,
     create_once_final_record_supported:true,
+    directory_policy_revalidated_immediately_before_create:true,
     created_file_descriptor_retained_through_final_reread:true,
     no_overwrite:true,
     no_final_unlink:true,
@@ -334,6 +335,7 @@ export function publishApollyonTrainingStartConsumptionProtectedV1(input){
     const existing=readExactFinal(owned.fd,record,owned.identity);
     if(existing.status==="already_consumed")return alreadyReceipt(record);
 
+    assertDirectoryFd(owned.fd,owned.identity);
     const leaf=apollyonTrainingStartConsumptionSlotLeafV1(record);
     const finalPath=path.join(directoryProcPath(owned.fd),leaf);
     const bytes=recordBytes(record);

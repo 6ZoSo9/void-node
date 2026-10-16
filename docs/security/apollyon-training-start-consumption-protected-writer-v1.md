@@ -60,16 +60,17 @@ supplied directory FD.
 
 If the slot is absent, publication is:
 
-1. open the derived final leaf with `O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC`;
-2. require the created regular file is owned by the effective UID, mode 0600
+1. revalidate the owned directory dev/inode/owner/group/mode and 0700 policy at the mutation boundary;
+2. open the derived final leaf with `O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC`;
+3. require the created regular file is owned by the effective UID, mode 0600
    and link count 1;
-3. write the exact canonical #3333 record bytes plus one LF;
-4. file `fsync`;
-5. retain the created file descriptor and exact inode generation;
-6. revalidate the owned directory and `fsync` the directory;
-7. reopen/reread the visible final leaf through the owned directory FD and
+4. write the exact canonical #3333 record bytes plus one LF;
+5. file `fsync`;
+6. retain the created file descriptor and exact inode generation;
+7. revalidate the owned directory and `fsync` the directory;
+8. reopen/reread the visible final leaf through the owned directory FD and
    revalidate canonical bytes plus #3333 record identity;
-8. prove the visible final pathname still names the exact created inode and the
+9. prove the visible final pathname still names the exact created inode and the
    retained created descriptor has not drifted.
 
 Only then may the source function return

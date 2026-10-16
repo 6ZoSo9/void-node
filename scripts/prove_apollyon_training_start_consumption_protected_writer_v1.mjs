@@ -39,7 +39,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-    "2c215dd28adeab825b3d2c7f0cca5765585a2dc2",
+    "a08927b7b16884a9bf0c28328047afdab49649ea",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "4333df6c7918fe9efaada36cac765000eec7948f",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
@@ -395,6 +395,44 @@ assert.equal(leaf1.includes(record1.authorization_id),false);
 {
   const root=newRoot();
   const fd=openRoot(root);
+  const originalLstat=fs.lstatSync;
+  let driftInjected=false;
+  fs.lstatSync=function(target,...args){
+    try{
+      return originalLstat.call(fs,target,...args);
+    }catch(error){
+      if(
+        !driftInjected&&
+        error?.code==="ENOENT"&&
+        String(target).endsWith("/"+leaf1)
+      ){
+        driftInjected=true;
+        fs.chmodSync(root,0o755);
+      }
+      throw error;
+    }
+  };
+  try{
+    assert.throws(
+      ()=>publishApollyonTrainingStartConsumptionProtectedV1({
+        directory_fd:fd,
+        consumption_record:record1,
+      }),
+      /directory_policy_invalid/u,
+    );
+    assert.equal(driftInjected,true);
+    assert.equal(fs.existsSync(path.join(root,leaf1)),false);
+  }finally{
+    fs.lstatSync=originalLstat;
+    fs.chmodSync(root,0o700);
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=newRoot();
+  const fd=openRoot(root);
   fs.closeSync(fd);
   try{
     assert.throws(
@@ -467,6 +505,7 @@ for(const [key,expected] of Object.entries({
   current_store_generation_revalidation_performed:false,
   bounded_existing_slot_read:true,
   create_once_final_record_supported:true,
+  directory_policy_revalidated_immediately_before_create:true,
   created_file_descriptor_retained_through_final_reread:true,
   no_overwrite:true,
   no_final_unlink:true,
@@ -591,6 +630,8 @@ console.log("owned_directory_fd_duplication_required=true");
 console.log("caller_selected_directory_capability=true");
 console.log("derived_slot_leaf_only=true");
 console.log("create_once_o_excl_nofollow=true");
+console.log("directory_policy_revalidated_immediately_before_create=true");
+console.log("post_absence_directory_mode_drift_rejected=true");
 console.log("created_file_descriptor_retained_through_final_reread=true");
 console.log("file_fsync_before_parent_fsync=true");
 console.log("final_exact_reread_required=true");
