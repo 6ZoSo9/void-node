@@ -36,7 +36,9 @@ The classifier accepts exactly five evidence objects:
 5. a read-only canonical durable-store inspection.
 
 Every object is exact-schema and accessor/Proxy inputs HOLD before evidence is
-read.
+read. Parent authority objects are validated as exact plain-data maps rather
+than JavaScript reference identities, so a canonical JSON round-trip preserves
+valid evidence shape across a process restart.
 
 ## Prior-head binding
 
@@ -137,6 +139,7 @@ The focused proof:
   host/store-composition source blobs;
 - creates the prior durable receipt with the canonical observation contract;
 - creates the prior composition with the real merged test-only composition API;
+- JSON round-trips the complete evidence tuple and requires the same bridge ID;
 - qualifies a same-boot changed-process restart;
 - requires deterministic content-addressed bridge identity;
 - rejects cross-boot evidence;
