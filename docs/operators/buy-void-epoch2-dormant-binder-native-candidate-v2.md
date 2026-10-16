@@ -18,6 +18,25 @@ a same-UID substitute/restore threat.
 V2 preserves merged V1 as historical evidence and introduces a new build-input
 authority rather than silently changing the meaning of the V1 report.
 
+## Verified merged-V1 helper execution
+
+The V2 proof also treats the merged V1 proof code as an acceptance-bearing helper.
+It reads that helper once, verifies its exact Git blob, decodes those already
+verified bytes, compiles them in memory, and executes that code object in an
+isolated module namespace.
+
+It does **not** call a pathname-based import loader after verification. The V2
+candidate report records:
+
+- the exact merged V1 helper Git blob;
+- helper byte count and SHA-256;
+- `executed_from_verified_bytes=true`;
+- `mutable_path_import=false`.
+
+Those fields participate in the content-addressed V2 candidate ID. A later
+same-UID replace/restore of the visible V1 helper pathname therefore cannot
+change the helper code used by the V2 derivation.
+
 ## Finalized source authority
 
 V2 reads the exact reviewed native source, verifies its merged Git-blob identity,
