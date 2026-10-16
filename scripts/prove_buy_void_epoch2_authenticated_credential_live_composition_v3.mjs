@@ -87,17 +87,21 @@ const validateAt=source.indexOf("function validateQualification(q){");
 const sequenceAt=source.indexOf("function runSensitiveSequence({");
 const liveAt=source.indexOf("function live(expectedHead,confirm){");
 assert.ok(validateAt>0&&sequenceAt>validateAt&&liveAt>sequenceAt);
+const openingCheckout=source.indexOf("checkoutFn(expectedHead);",sequenceAt);
+const beforeAt=source.indexOf("const before=qualificationFn(expectedHead);",sequenceAt);
+const sealedAt=source.indexOf("const sealedRecord=sealedFn(expectedHead);",sequenceAt);
+const afterAt=source.indexOf("const after=qualificationFn(expectedHead);",sequenceAt);
+const stableAt=source.indexOf("qualification_changed_across_sealed_probe",sequenceAt);
+const crossAt=source.indexOf("crossFn(sealedRecord,before);",sequenceAt);
+const closingCheckout=source.indexOf("checkoutFn(expectedHead);",crossAt);
 assert.ok(
-  source.indexOf("const before=qualificationFn(expectedHead);",sequenceAt) <
-  source.indexOf("const sealedRecord=sealedFn(expectedHead);",sequenceAt)
-);
-assert.ok(
-  source.indexOf("const sealedRecord=sealedFn(expectedHead);",sequenceAt) <
-  source.indexOf("const after=qualificationFn(expectedHead);",sequenceAt)
-);
-assert.ok(
-  source.indexOf("qualification_changed_across_sealed_probe",sequenceAt) <
-  source.indexOf("checkoutFn(expectedHead);",sequenceAt+100)
+  openingCheckout>sequenceAt&&
+  openingCheckout<beforeAt&&
+  beforeAt<sealedAt&&
+  sealedAt<afterAt&&
+  afterAt<stableAt&&
+  stableAt<crossAt&&
+  crossAt<closingCheckout
 );
 assert.ok(
   source.indexOf("const nativeProof=requireNativePreentry(expectedHead);",liveAt)>liveAt
