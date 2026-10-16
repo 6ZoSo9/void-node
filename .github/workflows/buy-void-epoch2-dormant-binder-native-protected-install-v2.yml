@@ -28,6 +28,7 @@ on:
       - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+  workflow_dispatch:
 
 permissions:
   contents: read
