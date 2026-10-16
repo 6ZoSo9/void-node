@@ -527,6 +527,18 @@ def _plan_body(expected_head: str) -> dict[str, Any]:
     bounds, login_defs_sha = _login_defs()
     used_uids, used_gids, uid_fingerprint, gid_fingerprint = _used_id_fingerprints()
     candidate = choose_shared_system_id(used_uids, used_gids, bounds)
+    try:
+        pwd.getpwuid(candidate)
+    except KeyError:
+        pass
+    else:
+        raise PlanError("candidate_uid_resolves_through_nss")
+    try:
+        grp.getgrgid(candidate)
+    except KeyError:
+        pass
+    else:
+        raise PlanError("candidate_gid_resolves_through_nss")
 
     unit_collisions = _unit_collision_paths()
     if unit_collisions:
@@ -570,11 +582,21 @@ def _plan_body(expected_head: str) -> dict[str, Any]:
         "time_root": str(TIME_ROOT),
         "reservation_root": str(RESERVATION_ROOT),
         "replay_root": str(REPLAY_ROOT),
+        "designated_host_identity_verified": True,
+        "host_plan_read_only": True,
+        "account_name_absence_verified": True,
+        "unit_name_absence_verified": True,
+        "selected_storage_paths_absent_verified": True,
+        "trusted_parent_ancestry_verified": True,
+        "candidate_runtime_uid_gid_free_verified": True,
         "production_service_identity_selected": True,
         "production_account_names_selected": True,
         "production_root_paths_selected": True,
-        "production_runtime_uid_gid_selected_in_plan": True,
+        "candidate_runtime_uid_gid_selected_in_plan": True,
+        "production_runtime_uid_gid_selected": False,
         "production_runtime_uid_gid_provisioned": False,
+        "runtime_account_creation_authorized": False,
+        "storage_provisioning_authorized": False,
         "live_host_evidence_verified": False,
         "storage_bootstrap": False,
         "service_installation": False,
@@ -673,6 +695,8 @@ def source_plan() -> None:
     print("reservation_root=" + str(RESERVATION_ROOT))
     print("replay_root=" + str(REPLAY_ROOT))
     print("production_runtime_uid_gid_selected=false")
+    print("runtime_account_creation_authorized=false")
+    print("storage_provisioning_authorized=false")
     print("live_host_evidence_verified=false")
     print("storage_bootstrap=false")
     print("service_installation=false")
@@ -725,11 +749,21 @@ def main() -> int:
         "time_root",
         "reservation_root",
         "replay_root",
+        "designated_host_identity_verified",
+        "host_plan_read_only",
+        "account_name_absence_verified",
+        "unit_name_absence_verified",
+        "selected_storage_paths_absent_verified",
+        "trusted_parent_ancestry_verified",
+        "candidate_runtime_uid_gid_free_verified",
         "production_service_identity_selected",
         "production_account_names_selected",
         "production_root_paths_selected",
-        "production_runtime_uid_gid_selected_in_plan",
+        "candidate_runtime_uid_gid_selected_in_plan",
+        "production_runtime_uid_gid_selected",
         "production_runtime_uid_gid_provisioned",
+        "runtime_account_creation_authorized",
+        "storage_provisioning_authorized",
         "live_host_evidence_verified",
         "storage_bootstrap",
         "service_installation",
@@ -773,6 +807,8 @@ if __name__ == "__main__":
         print("systemd_mutation=false")
         print("service_installation=false")
         print("service_start=false")
+        print("runtime_account_creation_authorized=false")
+        print("storage_provisioning_authorized=false")
         print("runtime_integration=false")
         print("gas_sponsorship_performed=false")
         print("transaction_submission=false")
