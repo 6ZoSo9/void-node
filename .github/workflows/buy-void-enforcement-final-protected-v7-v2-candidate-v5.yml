@@ -197,23 +197,24 @@ jobs:
         with:
           pattern: protected-v7-v2-candidate-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
-          path: candidate
+          path: ${{ runner.temp }}/candidate
 
       - name: Require Node 22/24/26 candidate byte identity
         run: |
           set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
           for node in 22 24 26; do
-            test -s "candidate/protected-v7-v2-candidate-v5-node-$node.json"
+            test -s "$RUNNER_TEMP/candidate/protected-v7-v2-candidate-v5-node-$node.json"
           done
-          cmp candidate/protected-v7-v2-candidate-v5-node-22.json candidate/protected-v7-v2-candidate-v5-node-24.json
-          cmp candidate/protected-v7-v2-candidate-v5-node-22.json candidate/protected-v7-v2-candidate-v5-node-26.json
+          cmp $RUNNER_TEMP/candidate/protected-v7-v2-candidate-v5-node-22.json $RUNNER_TEMP/candidate/protected-v7-v2-candidate-v5-node-24.json
+          cmp $RUNNER_TEMP/candidate/protected-v7-v2-candidate-v5-node-22.json $RUNNER_TEMP/candidate/protected-v7-v2-candidate-v5-node-26.json
           independent="$RUNNER_TEMP/independent-v5-candidate.json"
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs --derive > "$independent"
-          cmp candidate/protected-v7-v2-candidate-v5-node-22.json "$independent"
+          cmp $RUNNER_TEMP/candidate/protected-v7-v2-candidate-v5-node-22.json "$independent"
           node --input-type=module - <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
-          const c=JSON.parse(fs.readFileSync("candidate/protected-v7-v2-candidate-v5-node-22.json","utf8"));
+          const c=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/candidate/protected-v7-v2-candidate-v5-node-22.json","utf8"));
           assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V5");
           assert.match(c.candidate_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
           assert.equal(c.accepted_v3_predecessor.historical_identity_preserved,true);
