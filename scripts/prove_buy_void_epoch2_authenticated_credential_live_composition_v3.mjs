@@ -112,7 +112,7 @@ assert.ok(
 
 const env={PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"};
 
-const self=spawnSync("/usr/bin/node",[path.join(ROOT,RUNNER),"--self-test"],{
+const self=spawnSync(process.execPath,[path.join(ROOT,RUNNER),"--self-test"],{
   cwd:ROOT,
   encoding:"utf8",
   env,
@@ -142,7 +142,7 @@ for(const line of [
   assert.ok(selfLines.has(line),line);
 }
 
-const plan=spawnSync("/usr/bin/node",[path.join(ROOT,RUNNER),"--plan"],{
+const plan=spawnSync(process.execPath,[path.join(ROOT,RUNNER),"--plan"],{
   cwd:ROOT,
   encoding:"utf8",
   env,
