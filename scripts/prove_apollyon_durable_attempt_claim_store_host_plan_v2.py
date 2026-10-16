@@ -22,7 +22,7 @@ ast.parse(source)
 
 assert git_blob(CONTRACT.read_bytes())=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
 assert 'PARENT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"' in source
-assert 'PARENT_CONTRACT_BLOB_SHA1="4bf474b8f282972b4dca4ab79eaf44260ce3ba54"' in source
+assert 'PARENT_CONTRACT_BLOB_SHA1="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"' in source
 
 for required in (
     'TARGET_HOST="Xiphos"',
