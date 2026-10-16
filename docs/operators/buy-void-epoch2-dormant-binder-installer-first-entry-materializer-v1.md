@@ -14,7 +14,13 @@ artifact.
 
 This lane closes only that byte-handoff gap. It deterministically rederives the
 accepted static launcher at the exact canonical candidate merge and publishes
-one create-only mode-0555 artifact for a later protected installation gate.
+one create-only mode-0555 artifact for the protected installer now merged as
+#3391.
+
+Merged #3391 consumes an operator-supplied absolute `--launcher` file and
+independently requires exactly 731072 bytes plus the accepted launcher SHA-256.
+This materializer is the reviewed artifact source for that input; #3391 still
+independently verifies the bytes before a plan can become authoritative.
 
 It does **not** write under `/opt`, install the launcher on Precision, run the
 dormant-binder installer, execute the dormant binder, access credentials, sign,
@@ -107,8 +113,11 @@ destination after explicit operator inspection/removal.
 
 The focused proof:
 
-- binds the exact materializer, lock, candidate, launcher-source and protected-
-  installer source Git blobs;
+- binds the exact materializer, lock, candidate, launcher-source and authenticated
+  dormant-binder installer source Git blobs;
+- binds merged #3391 protected-installer source Git blob
+  `383b84e71b371de65579e4113469e86a59b807ab` and proves it consumes
+  `--launcher` through exact `LAUNCHER_BYTES` / `LAUNCHER_SHA256` validation;
 - runs the materializer inert self-test;
 - performs two independent materializations and requires byte identity;
 - requires exact accepted bytes and SHA-256;
@@ -150,8 +159,12 @@ No `/opt` write, service/systemd action, credential/key access, signing,
 transaction/RPC, payment acceptance, presale/WC activation, treasury/liquidity
 action, or funds movement occurs in this lane.
 
-Next gate after source/CI acceptance:
+The protected-installer **source gate is already merged as #3391**. This
+materializer does not authorize running it.
 
-`void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1`.
+Next operational evidence gate after source/CI acceptance is a separately
+authorized **read-only #3391 plan** on Precision using this exact launcher
+artifact plus the accepted dormant-binder native input. Any create-only apply
+remains a later, separately confirmed mutation gate.
 
 **PROTECT THE CORE.**
