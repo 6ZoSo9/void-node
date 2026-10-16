@@ -81,10 +81,10 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
           BASE="$PR_BASE"
-          if [ -z "$BASE" ] || printf '%s' "$BASE" | grep -Eq '^0+; then
+          if [ -z "$BASE" ] || printf '%s' "$BASE" | grep -Eq '^0+$'; then
             BASE="$PUSH_BEFORE"
           fi
-          if [ -z "$BASE" ] || printf '%s' "$BASE" | grep -Eq '^0+; then
+          if [ -z "$BASE" ] || printf '%s' "$BASE" | grep -Eq '^0+$'; then
             BASE="$(git rev-parse "$HEAD^1")"
           fi
           git cat-file -e "$BASE^{commit}"
