@@ -28,6 +28,7 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_AUTHORITY_V1 =
     pretraining_generation_source_origin_proven:false,
     training_start_consumption_create_once_required:true,
     trainer_independent_consumption_slot_required:true,
+    authorization_wide_consumption_slot_required:true,
     protected_namespace_keyed_by_consumption_slot_required:true,
     training_start_consumption_performed:false,
     existing_exact_consumption_reusable_admission:false,
@@ -141,16 +142,9 @@ function trainingStartConsumptionSlotId(value){
   const material={
     marker:"VOID_APOLLYON_TRAINING_START_CONSUMPTION_SLOT_V1",
     version:1,
-    store_policy_id:value.store_policy_id,
-    store_contract_id:value.store_contract_id,
-    store_generation_id:value.store_generation_id,
-    terminal_receipt_id:value.terminal_receipt_id,
     authorization_id:value.authorization_id,
     custody_generation_id:value.custody_generation_id,
     custody_record_sha256:value.custody_record_sha256,
-    claim_record_id:value.claim_record_id,
-    claim_record_sha256:value.claim_record_sha256,
-    publish_request_sha256:value.publish_request_sha256,
     attempt_limit:value.attempt_limit,
     automatic_retry_authorized:value.automatic_retry_authorized,
   };
@@ -342,16 +336,9 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
 
   const claimRecordSha256=sha256(Buffer.from(canonical(claim)+"\n","utf8"));
   const slotAuthority={
-    store_policy_id:claim.store_policy_id,
-    store_contract_id:claim.store_contract_id,
-    store_generation_id:claim.store_generation_id,
-    terminal_receipt_id:claim.terminal_receipt_id,
     authorization_id:claim.authorization_id,
     custody_generation_id:claim.custody_generation_id,
     custody_record_sha256:claim.custody_record_sha256,
-    claim_record_id:claim.claim_record_id,
-    claim_record_sha256:claimRecordSha256,
-    publish_request_sha256:snapshot.publish_request_sha256,
     attempt_limit:1,
     automatic_retry_authorized:false,
   };
@@ -426,6 +413,7 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     trainer_generation_must_remain_blocked_until_durable_consumption:true,
     training_start_consumption_create_once_required:true,
     trainer_independent_consumption_slot_qualified:true,
+    authorization_wide_consumption_slot_qualified:true,
     protected_namespace_keyed_by_consumption_slot_required:true,
     training_start_consumption_performed:false,
     existing_exact_consumption_reusable_admission:false,
