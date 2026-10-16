@@ -86,6 +86,7 @@ GIT_ENV={
     "GIT_CONFIG_GLOBAL":"/dev/null",
     "GIT_TERMINAL_PROMPT":"0",
     "GIT_OPTIONAL_LOCKS":"0",
+    "GIT_NO_REPLACE_OBJECTS":"1",
 }
 
 AUTHORITY={
@@ -256,6 +257,58 @@ def tracked_blob_at_head(head:str,relative:Path)->str:
         hold("source_git_tree_blob_invalid:"+rel)
     return blob
 
+
+def raw_commit_parents(commit:str)->list[str]:
+    if not GIT40_RE.fullmatch(commit):
+        hold("source_git_commit_invalid")
+    result=run_git(["cat-file","-p",commit])
+    parents:list[str]=[]
+    tree_seen=False
+    for line in result.stdout.splitlines():
+        if line=="":
+            break
+        if line.startswith("tree "):
+            if tree_seen or not GIT40_RE.fullmatch(line[5:]):
+                hold("source_git_commit_object_invalid")
+            tree_seen=True
+            continue
+        if line.startswith("parent "):
+            parent=line[7:]
+            if not GIT40_RE.fullmatch(parent):
+                hold("source_git_commit_object_invalid")
+            parents.append(parent)
+            continue
+        if line.startswith(("author ","committer ","encoding ","gpgsig ")):
+            continue
+        if line.startswith(" "):
+            continue
+        hold("source_git_commit_object_invalid")
+    if not tree_seen:
+        hold("source_git_commit_object_invalid")
+    return parents
+
+def raw_commit_ancestry_contains(
+    descendant:str,
+    ancestor:str,
+    *,
+    max_commits:int=4096,
+)->bool:
+    if not GIT40_RE.fullmatch(descendant) or not GIT40_RE.fullmatch(ancestor):
+        hold("source_git_commit_invalid")
+    pending=[descendant]
+    seen:set[str]=set()
+    while pending:
+        commit=pending.pop()
+        if commit in seen:
+            continue
+        seen.add(commit)
+        if len(seen)>max_commits:
+            hold("source_git_ancestry_limit_exceeded")
+        if commit==ancestor:
+            return True
+        pending.extend(raw_commit_parents(commit))
+    return False
+
 def verify_source_generation(expected_source_head:str)->dict[str,Any]:
     if not GIT40_RE.fullmatch(expected_source_head):
         hold("expected_source_head_invalid")
@@ -267,8 +320,7 @@ def verify_source_generation(expected_source_head:str)->dict[str,Any]:
     observed_head=run_git(["rev-parse","HEAD"]).stdout.strip()
     if not GIT40_RE.fullmatch(observed_head) or observed_head!=expected_source_head:
         hold("source_head_mismatch")
-    ancestor=run_git(["merge-base","--is-ancestor",PARENT_HEAD,observed_head],check=False)
-    if ancestor.returncode!=0:
+    if not raw_commit_ancestry_contains(observed_head,PARENT_HEAD):
         hold("source_parent_not_ancestor")
 
     planner_blob=tracked_blob_at_head(observed_head,PLANNER_REL)
@@ -294,6 +346,8 @@ def verify_source_generation(expected_source_head:str)->dict[str,Any]:
         "parent_contract_file":contract_evidence,
         "fixed_git_binary":os.fspath(GIT_BIN),
         "git_environment_sanitized":True,
+        "git_replace_objects_disabled":True,
+        "raw_commit_ancestry_verified":True,
         "git_network_access_performed":False,
         "reviewed_source_head_external_lease_required":True,
         "source_generation_authenticated":True,

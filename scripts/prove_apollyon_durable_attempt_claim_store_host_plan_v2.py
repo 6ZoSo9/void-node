@@ -16,7 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
-EXPECTED_PLANNER_BLOB_SHA1="be68fa349132645a998c06d4e0ec7f3f1cd65a28"
+EXPECTED_PLANNER_BLOB_SHA1="39fd60908aa713b1eaa3d5d2a71c20b8ae10cd7a"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -96,7 +96,8 @@ for required in (
     '"reviewed_source_head_external_lease_required":True',
     'GIT_BIN=Path("/usr/bin/git")',
     'run_git(["rev-parse","HEAD"])',
-    'run_git(["merge-base","--is-ancestor",PARENT_HEAD,observed_head],check=False)',
+    'raw_commit_ancestry_contains(observed_head,PARENT_HEAD)',
+    'run_git(["cat-file","-p",commit])',
     '"local_identity_authority":{',
     '"libc_nss_lookup_used":False',
     '"remote_nss_provider_allowed":False',
@@ -137,6 +138,7 @@ assert 'env=GIT_ENV' in source
 assert '"GIT_CONFIG_NOSYSTEM":"1"' in source
 assert '"GIT_CONFIG_GLOBAL":"/dev/null"' in source
 assert '"GIT_TERMINAL_PROMPT":"0"' in source
+assert '"GIT_NO_REPLACE_OBJECTS":"1"' in source
 
 spec=importlib.util.spec_from_file_location("claim_store_host_plan_v2",PLAN)
 assert spec is not None and spec.loader is not None
@@ -184,6 +186,7 @@ git_env={
     "GIT_CONFIG_GLOBAL":"/dev/null",
     "GIT_TERMINAL_PROMPT":"0",
     "GIT_OPTIONAL_LOCKS":"0",
+    "GIT_NO_REPLACE_OBJECTS":"1",
 }
 head_run=subprocess.run(
     ["/usr/bin/git","-C",str(ROOT),"rev-parse","HEAD"],
@@ -201,6 +204,8 @@ assert source_generation["planner_git_blob_sha1"]==EXPECTED_PLANNER_BLOB_SHA1
 assert source_generation["parent_contract_git_blob_sha1"]=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
 assert source_generation["source_generation_authenticated"] is True
 assert source_generation["reviewed_source_head_external_lease_required"] is True
+assert source_generation["git_replace_objects_disabled"] is True
+assert source_generation["raw_commit_ancestry_verified"] is True
 assert source_generation["git_network_access_performed"] is False
 
 try:
@@ -296,6 +301,8 @@ print("store_policy_import_trigger_symmetry=true")
 print("live_source_head_and_blob_authenticated=true")
 print("wrong_source_head_rejected=true")
 print("substituted_planner_rejected=true")
+print("git_replace_objects_disabled=true")
+print("raw_commit_ancestry_verified=true")
 print("reviewed_source_head_external_lease_required=true")
 print("stable_store_policy_id="+EXPECTED_STORE_POLICY_ID)
 print("persistent_filesystem_write=false")

@@ -91,7 +91,7 @@ Before any READY plan can be emitted, the planner uses fixed `/usr/bin/git` with
 
 - the Git toplevel to be the planner's canonical repository root;
 - live `HEAD` to equal the supplied reviewed source head exactly;
-- accepted #3233 `fe7e1ad9b78a24b77a1657067e4d08f7c56a7731` to be an ancestor of that source head;
+- accepted #3233 `fe7e1ad9b78a24b77a1657067e4d08f7c56a7731` to appear in the raw cryptographic commit-parent chain of that source head;
 - the planner path to be the canonical direct repository path;
 - the descriptor-stable working planner bytes to equal the exact blob tracked at that HEAD;
 - the descriptor-stable parent contract bytes to equal the exact blob tracked at that HEAD and accepted contract blob `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
@@ -99,7 +99,7 @@ Before any READY plan can be emitted, the planner uses fixed `/usr/bin/git` with
 
 The content-addressed plan carries the authenticated source head and planner/contract blob evidence. A wrong reviewed head or substituted working planner therefore HOLDs instead of producing READY.
 
-Git is used only for local read-only metadata/object lookup. The environment removes inherited Git configuration/prompt authority; no Git network access, fetch, checkout, ref mutation or repository write is permitted.
+Git is used only for local read-only metadata/object lookup. The environment removes inherited Git configuration/prompt authority and sets `GIT_NO_REPLACE_OBJECTS=1`. Parent ancestry is reconstructed from raw `git cat-file -p <commit>` parent fields rather than revision-walk metadata, so local replace refs or graft-style traversal changes cannot manufacture the accepted #3233 ancestry. No Git network access, fetch, checkout, ref mutation or repository write is permitted.
 
 The plan also records SHA-256 plus stable file identity for the current `/etc/machine-id`. All other host observations remain direct read-only filesystem observations; libc NSS lookup and remote NSS providers are not used.
 
