@@ -17,6 +17,10 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const PROTECTED_CENSUS_PARENT="d5ad8c401b67832919eeabd95f26bdae513e68fe";
 const PROTECTED_CENSUS_PROOF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs";
 const PROTECTED_CENSUS_PROOF_BLOB="e9783f70e2e25145897e0e594aacfd6d57f97bee";
+const PROTECTED_CENSUS_WORKFLOW=
+  ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v5.yml";
+const PROTECTED_CENSUS_WORKFLOW_BLOB=
+  "96583f38c1727e82bae23bb24c37e23959421db7";
 const HOSTED_PROTECTED_CENSUS=Object.freeze({
   workflow_run:38842795661,
   node22_artifact_id:12021975652,
@@ -44,6 +48,7 @@ const HOSTED_PROTECTED_CENSUS=Object.freeze({
 const CANDIDATE_WORKFLOW=".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v3.yml";
 const CANDIDATE_WORKFLOW_TRIGGER_DEPENDENCIES=Object.freeze([
   PROTECTED_CENSUS_PROOF,
+  PROTECTED_CENSUS_WORKFLOW,
   "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs",
   "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs",
   "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs",
@@ -366,6 +371,12 @@ function inspectCurrentEnforcementRow(relative){
 function currentEnforcementInventory(){
   git(["merge-base","--is-ancestor",PROTECTED_CENSUS_PARENT,"HEAD"]);
   pin(PROTECTED_CENSUS_PROOF,PROTECTED_CENSUS_PROOF_BLOB,256*1024);
+  pin(PROTECTED_CENSUS_WORKFLOW,PROTECTED_CENSUS_WORKFLOW_BLOB,128*1024);
+  assert.equal(
+    HOSTED_PROTECTED_CENSUS.census_workflow_git_blob_sha1,
+    PROTECTED_CENSUS_WORKFLOW_BLOB,
+    "protected_census_workflow_evidence_mismatch",
+  );
   const required=extractCurrentEnforcementPaths();
   const rows=required.map(inspectCurrentEnforcementRow);
   assert.equal(rows.length,49,"current_enforcement_inventory_count");
