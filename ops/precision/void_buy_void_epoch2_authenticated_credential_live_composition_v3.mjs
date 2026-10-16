@@ -850,9 +850,6 @@ function runSensitiveSequence({
 }
 
 function live(expectedHead,confirm){
-  if(process.env.VOID_BUY_VOID_EPOCH2_V3_NATIVE_ENTRY_ACCEPTED!=="1"){
-    throw new Error("v3_native_preentry_generation_not_yet_accepted");
-  }
   if(confirm!==CONFIRM)throw new Error("explicit_live_confirmation_required");
   if(typeof process.geteuid!=="function"||process.geteuid()!==0){
     throw new Error("root_required_for_live_composition");
