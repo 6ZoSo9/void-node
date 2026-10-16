@@ -23,7 +23,7 @@ BINDER_REL = (
 )
 
 EXPECTED_BLOBS = {
-    INSTALLER_REL: "2ec6e0160a79d8a9de0641d22eb5b1018ca6a081",
+    INSTALLER_REL: "3a986ca82651c777300bd1cceaf5ef2b24562b1f",
     LOCK_REL: "9e9661ded53116e2c3312108294a2675b6a6f900",
     NATIVE_SOURCE_REL: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     BINDER_REL: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
@@ -81,6 +81,10 @@ for token in (
     'READY_STATE = "DORMANT_BINDER_ROOT_ABSENT_READY_FOR_CREATE_ONLY"',
     'GREEN_STATE = "DORMANT_BINDER_NATIVE_PAIR_GREEN"',
     'raise InstallError("installer_git_object_stdin_required")',
+    'if os.geteuid() == 0:',
+    '"--clear-groups"',
+    'elif os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:',
+    'raise InstallError("git_query_identity_invalid")',
     "RENAME_NOREPLACE = 1",
     "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)",
     "expected_mode=0o555",
