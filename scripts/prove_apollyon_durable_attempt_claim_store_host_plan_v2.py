@@ -16,7 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
-EXPECTED_PLANNER_BLOB_SHA1="bc01d8dd841fa3420f612c97837f2b6ff1b3e02a"
+EXPECTED_PLANNER_BLOB_SHA1="69db13fffaf1678da03b90f0fa14fd60c3c5c98c"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -97,6 +97,7 @@ for required in (
     '"candidate_slots_globally_distinct":True',
     '"candidate_slots_revalidation_required_before_provisioning":True',
     '"candidate_slots_live_process_recensus_required_before_provisioning":True',
+    '"candidate_slots_host_user_namespace_recensus_required_before_provisioning":True',
     '"candidate_slots_provisioning_ready":False',
     '"live_process_identity_authority":{',
     '"all_four_uid_slots_consumed":True',
@@ -105,6 +106,9 @@ for required in (
     '"candidate_slots_clear_in_final_process_census":True',
     'hold("root_required_for_host_process_census")',
     'hold("host_pid_namespace_lease_mismatch")',
+    'hold("host_user_namespace_lease_mismatch")',
+    '"host_user_namespace_external_lease_required":True',
+    '"pid1_user_namespace_matches_self":True',
     'census_live_process_credentials(PROC_ROOT)',
     '"store_policy_id":PARENT_STORE_POLICY_ID',
     '"source_generation":source_generation',
@@ -302,6 +306,9 @@ for bad in (
     else:
         raise AssertionError("non-authoritative procfs view must HOLD")
 assert module.parse_dev_ino_lease("12:34")== (12,34)
+assert module.parse_dev_ino_lease(
+    "56:78","host_user_namespace_lease_invalid"
+)==(56,78)
 for bad in ("", "0:1", "1:0", "1", "a:b"):
     try:
         module.parse_dev_ino_lease(bad)
@@ -309,6 +316,65 @@ for bad in ("", "0:1", "1:0", "1", "a:b"):
         assert str(exc)=="host_pid_namespace_lease_invalid"
     else:
         raise AssertionError("invalid PID namespace lease must HOLD")
+    try:
+        module.parse_dev_ino_lease(
+            bad,"host_user_namespace_lease_invalid"
+        )
+    except module.Hold as exc:
+        assert str(exc)=="host_user_namespace_lease_invalid"
+    else:
+        raise AssertionError("invalid user namespace lease must HOLD")
+
+class FakeNamespaceStat:
+    def __init__(self,dev:int,ino:int)->None:
+        self.st_dev=dev
+        self.st_ino=ino
+
+assert module.verify_namespace_lease(
+    FakeNamespaceStat(12,34),
+    FakeNamespaceStat(12,34),
+    (12,34),
+    mismatch_code="synthetic_namespace_mismatch",
+    lease_code="synthetic_namespace_lease_mismatch",
+)==(12,34)
+try:
+    module.verify_namespace_lease(
+        FakeNamespaceStat(56,78),
+        FakeNamespaceStat(56,79),
+        (56,78),
+        mismatch_code="synthetic_user_namespace_mismatch",
+        lease_code="synthetic_user_namespace_lease_mismatch",
+    )
+except module.Hold as exc:
+    assert str(exc)=="synthetic_user_namespace_mismatch"
+else:
+    raise AssertionError("user namespace mismatch must HOLD")
+
+saved_geteuid=module.os.geteuid
+saved_stat=module.os.stat
+module.os.geteuid=lambda:0
+def namespace_mismatch_stat(path):
+    text=str(path)
+    if text.endswith("/self/ns/pid") or text.endswith("/1/ns/pid"):
+        return FakeNamespaceStat(12,34)
+    if text.endswith("/self/ns/user"):
+        return FakeNamespaceStat(56,78)
+    if text.endswith("/1/ns/user"):
+        return FakeNamespaceStat(56,79)
+    return saved_stat(path)
+module.os.stat=namespace_mismatch_stat
+try:
+    try:
+        module.require_authoritative_process_view("12:34","56:78")
+    except module.Hold as exc:
+        assert str(exc)=="not_in_pid1_user_namespace",str(exc)
+    else:
+        raise AssertionError(
+            "euid0 with host PID namespace but mismatched user namespace must HOLD"
+        )
+finally:
+    module.os.geteuid=saved_geteuid
+    module.os.stat=saved_stat
 
 
 git_env={
@@ -536,6 +602,8 @@ for line in (
     "candidate_slot_revalidation_required=true",
     "root_host_process_census_required=true",
     "host_pid_namespace_external_lease_required=true",
+    "host_user_namespace_external_lease_required=true",
+    "host_root_user_namespace_binding_required=true",
     "all_uid_gid_slots_and_supplementary_groups_consumed=true",
     "candidate_live_process_recensus_required_before_provisioning=true",
     "candidate_slots_provisioning_ready=false",
@@ -553,7 +621,8 @@ negative=subprocess.run(
     ["python3","-I","-B",str(PLAN),"--run","--expected-parent-head",
      "fe7e1ad9b78a24b77a1657067e4d08f7c56a7731",
      "--expected-source-head",CURRENT_HEAD,
-     "--expected-host-pid-namespace-dev-ino","1:1"],
+     "--expected-host-pid-namespace-dev-ino","1:1",
+     "--expected-host-user-namespace-dev-ino","1:1"],
     cwd=ROOT,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
     text=True,check=False,timeout=20,
 )
@@ -579,6 +648,9 @@ print("remote_nss_provider_rejected=true")
 print("candidate_slot_revalidation_required=true")
 print("root_host_process_census_required=true")
 print("host_pid_namespace_external_lease_required=true")
+print("host_user_namespace_external_lease_required=true")
+print("host_root_user_namespace_binding_required=true")
+print("euid0_user_namespace_mismatch_rejected=true")
 print("all_uid_gid_slots_and_supplementary_groups_consumed=true")
 print("malformed_unreadable_process_status_fails_closed=true")
 print("disappeared_pid_skipped=true")
