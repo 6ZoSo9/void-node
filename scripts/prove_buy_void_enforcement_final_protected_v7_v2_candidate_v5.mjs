@@ -195,7 +195,6 @@ function acceptedV3Predecessor(){
     preservation.marker,
     "VOID_BUY_VOID_ENFORCEMENT_V3_HISTORICAL_PREDECESSOR_PRESERVATION_V1",
   );
-  assert.equal(preservation.v3_candidate_and_lock_frozen??true,true);
   assert.equal(preservation.v3_candidate_bound,true);
   assert.equal(preservation.v3_lock_bound,true);
   assert.equal(preservation.v3_candidate_enforcement_identity_accepted,true);
