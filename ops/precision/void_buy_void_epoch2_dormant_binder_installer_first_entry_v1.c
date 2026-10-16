@@ -16,6 +16,7 @@
 
 #define MARKER "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V1"
 #define POLICY_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_POLICY_V1"
+#define PARENT_PROOF_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_PARENT_PROOF_V1"
 
 #ifndef VOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_ROOT
 #define VOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_ROOT "/opt/void-buy-void-epoch2-dormant-binder-installer-first-entry-v1"
@@ -564,6 +565,55 @@ static void clear_cloexec_or_exit(int fd) {
     if (flags < 0 || fcntl(fd, F_SETFD, flags & ~FD_CLOEXEC) != 0) _exit(126);
 }
 
+static bool write_all(int fd, const unsigned char *data, size_t length) {
+    size_t offset = 0;
+    while (offset < length) {
+        ssize_t wrote = write(fd, data + offset, length - offset);
+        if (wrote < 0) {
+            if (errno == EINTR) continue;
+            return false;
+        }
+        if (wrote == 0) return false;
+        offset += (size_t)wrote;
+    }
+    return true;
+}
+
+static bool read_process_start_ticks(pid_t pid, unsigned long long *out) {
+    char pathname[64];
+    int printed = snprintf(pathname, sizeof(pathname), "/proc/%ld/stat", (long)pid);
+    if (printed <= 0 || (size_t)printed >= sizeof(pathname)) return false;
+    int fd = open(pathname, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) return false;
+    char buffer[4096];
+    ssize_t count;
+    do {
+        count = read(fd, buffer, sizeof(buffer) - 1U);
+    } while (count < 0 && errno == EINTR);
+    close(fd);
+    if (count <= 0 || (size_t)count >= sizeof(buffer)) return false;
+    buffer[count] = '\0';
+    char *right = strrchr(buffer, ')');
+    if (right == NULL || right[1] != ' ') return false;
+    char *cursor = right + 2;
+    char *save = NULL;
+    unsigned field = 3U;
+    for (char *token = strtok_r(cursor, " ", &save);
+         token != NULL;
+         token = strtok_r(NULL, " ", &save), field++) {
+        if (field != 22U) continue;
+        errno = 0;
+        char *end = NULL;
+        unsigned long long value = strtoull(token, &end, 10);
+        if (errno != 0 || end == token || *end != '\0' || value == 0ULL) {
+            return false;
+        }
+        *out = value;
+        return true;
+    }
+    return false;
+}
+
 static int self_test(void) {
     static const unsigned char expected[32] = {
         0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,
@@ -598,6 +648,9 @@ static int self_test(void) {
     puts("installer_descriptor_retained=true");
     puts("native_candidate_descriptor_retained=true");
     puts("native_candidate_descriptor_passed_to_installer=true");
+    puts("private_parent_proof_fd_passed_to_installer=true");
+    puts("parent_pid_start_executable_generation_bound=true");
+    puts("running_python_generation_bound=true");
     puts("expected_plan_id_forwarded_for_apply=true");
     puts("python_descriptor_fexecve=true");
     puts("child_environment_closed=true");
@@ -674,6 +727,64 @@ int main(int argc, char **argv) {
     int devnull = open(FIXED_DEVNULL, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (devnull < 0) hold("dormant_binder_installer_first_entry_devnull_open_failed");
 
+    int proof_pipe[2];
+    if (pipe2(proof_pipe, O_CLOEXEC) != 0) {
+        hold("dormant_binder_installer_first_entry_parent_proof_pipe_failed");
+    }
+    unsigned long long parent_start_ticks = 0;
+    if (!read_process_start_ticks(getpid(), &parent_start_ticks)) {
+        close(proof_pipe[0]);
+        close(proof_pipe[1]);
+        hold("dormant_binder_installer_first_entry_parent_start_ticks_failed");
+    }
+    char parent_proof[2048];
+    int proof_n = snprintf(
+        parent_proof,
+        sizeof(parent_proof),
+        "schema=%s\n"
+        "parent_pid=%ld\n"
+        "parent_start_ticks=%llu\n"
+        "launcher_dev=%ju\n"
+        "launcher_ino=%ju\n"
+        "installer_dev=%ju\n"
+        "installer_ino=%ju\n"
+        "native_dev=%ju\n"
+        "native_ino=%ju\n"
+        "python_dev=%ju\n"
+        "python_ino=%ju\n"
+        "installer_fd=%d\n"
+        "native_fd=%d\n"
+        "operation=%s\n"
+        "expected_head=%s\n",
+        PARENT_PROOF_SCHEMA,
+        (long)getpid(),
+        parent_start_ticks,
+        (uintmax_t)self.opened.st_dev,
+        (uintmax_t)self.opened.st_ino,
+        (uintmax_t)installer.opened.st_dev,
+        (uintmax_t)installer.opened.st_ino,
+        (uintmax_t)native_input.opened.st_dev,
+        (uintmax_t)native_input.opened.st_ino,
+        (uintmax_t)python.opened.st_dev,
+        (uintmax_t)python.opened.st_ino,
+        installer.fd,
+        native_input.fd,
+        operation_name(request.operation),
+        EXPECTED_HEAD
+    );
+    if (
+        proof_n <= 0 || (size_t)proof_n >= sizeof(parent_proof) ||
+        !write_all(
+            proof_pipe[1],
+            (const unsigned char *)parent_proof,
+            (size_t)proof_n
+        ) ||
+        close(proof_pipe[1]) != 0
+    ) {
+        close(proof_pipe[0]);
+        hold("dormant_binder_installer_first_entry_parent_proof_write_failed");
+    }
+
     pid_t child = fork();
     if (child < 0) hold("dormant_binder_installer_first_entry_fork_failed");
     receipt_child_created = true;
@@ -684,6 +795,7 @@ int main(int argc, char **argv) {
         close(policy_file.fd);
         clear_cloexec_or_exit(installer.fd);
         clear_cloexec_or_exit(native_input.fd);
+        clear_cloexec_or_exit(proof_pipe[0]);
 
         char source_fd_path[64];
         int path_n = snprintf(
@@ -721,6 +833,15 @@ int main(int argc, char **argv) {
         );
         if (path_n <= 0 || (size_t)path_n >= sizeof(native_fd_env)) _exit(126);
 
+        char proof_fd_env[128];
+        path_n = snprintf(
+            proof_fd_env,
+            sizeof(proof_fd_env),
+            "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROOF_FD=%d",
+            proof_pipe[0]
+        );
+        if (path_n <= 0 || (size_t)path_n >= sizeof(proof_fd_env)) _exit(126);
+
         char *argv_plan[] = {
             (char *)FIXED_PYTHON, (char *)"-I", (char *)"-B", source_fd_path,
             (char *)"--plan",
@@ -746,6 +867,7 @@ int main(int argc, char **argv) {
             (char *)"VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY=VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V1",
             installer_fd_env,
             native_fd_env,
+            proof_fd_env,
             NULL
         };
         char **next_argv =
@@ -755,6 +877,7 @@ int main(int argc, char **argv) {
     }
 
     close(devnull);
+    close(proof_pipe[0]);
 
     int status = 0;
     pid_t waited;
@@ -801,6 +924,9 @@ int main(int argc, char **argv) {
     printf("installer_generation_authenticated=true\n");
     printf("native_candidate_generation_authenticated=true\n");
     printf("native_candidate_descriptor_consumed_by_installer=true\n");
+    printf("private_parent_proof_fd_consumed_by_installer=true\n");
+    printf("parent_pid_start_executable_generation_bound=true\n");
+    printf("running_python_generation_bound=true\n");
     printf("expected_plan_id_forwarded=%s\n", request.operation == OP_INSTALLER_APPLY ? "true" : "not_applicable");
     printf("expected_head_authenticated=true\n");
     printf("loader_python_environment_sanitized=true\n");
