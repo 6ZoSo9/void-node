@@ -105,6 +105,21 @@ assert.equal(result.parent_child_lineage.publisher_forwards_exact_revalidator_va
 assert.equal(result.parent_child_lineage.publisher_recanonicalization_or_request_reconstruction_forbidden,true);
 assert.equal(result.parent_child_lineage.publisher_ppid_must_equal_authenticated_revalidator_pid,true);
 assert.equal(result.parent_child_lineage.revalidator_must_remain_live_through_success_ack,true);
+assert.deepEqual(
+  result.privileged_revalidator_execution_boundary.dangerous_environment_names_exact,
+  ["GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD","NODE_OPTIONS","NODE_PATH","OPENSSL_CONF"],
+);
+assert.equal(result.privileged_revalidator_execution_boundary.dangerous_environment_exactly_unset_before_first_instruction_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.root_owned_non_group_world_writable_source_and_ancestry_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.interpreted_privileged_body_requires_reviewed_native_preentry_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.path_lookup_for_executable_authority_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.shell_dispatch_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.arbitrary_process_spawn_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.exact_publisher_child_spawn_only_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.publisher_child_count_exactly_one_per_session_required,true);
+assert.equal(result.privileged_revalidator_execution_boundary.persistent_host_mutation_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.account_group_systemd_service_mutation_forbidden,true);
+assert.equal(result.privileged_revalidator_execution_boundary.private_key_wallet_signing_authority_forbidden,true);
 assert.equal(result.privileged_revalidation.initial_privileged_revalidation_before_control_connect_required,true);
 assert.equal(result.privileged_revalidation.serialized_privileged_attestation_or_bearer_token_forbidden,true);
 assert.equal(result.fresh_prepublication_challenge.challenge_after_publisher_request_parse_required,true);
@@ -223,6 +238,9 @@ const sourceText=fs.readFileSync(
 );
 for(const required of [
   "claim_service_so_peercred_before_any_request_body_required:true",
+  "dangerous_environment_exactly_unset_before_first_instruction_required:true",
+  "interpreted_privileged_body_requires_reviewed_native_preentry_required:true",
+  "exact_publisher_child_spawn_only_required:true",
   "publisher_authenticates_claim_service_before_request_body_required:true",
   "publisher_ppid_must_equal_authenticated_revalidator_pid:true",
   "publisher_request_bytes_must_come_only_from_revalidator_required:true",

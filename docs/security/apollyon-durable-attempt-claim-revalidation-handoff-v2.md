@@ -58,6 +58,28 @@ authenticates the server boundary.
 These are future runtime requirements. This source contract performs none of
 them.
 
+## Root first-entry boundary
+
+The revalidator is privileged, so source identity is not enough if loader or
+runtime environment can execute unreviewed code first.
+
+A future implementation must bind a root-owned, symlink-free,
+non-group/world-writable source/entry generation and clear the exact accepted
+dangerous environment set before the first reviewed instruction:
+
+`GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF`
+
+If the privileged logic is interpreted, it requires a separately reviewed
+native pre-entry that binds the fixed interpreter/runtime and protected body.
+PATH/shell dispatch and arbitrary process spawning are forbidden. The only
+process creation authority in this boundary is exactly one reviewed publisher
+child for the current provenance session.
+
+The root revalidator has no persistent host/account/group/systemd/service
+mutation, private-key, signing, wallet, transaction or funds authority.
+A later implementation must provide a negative-authority proof and designated
+host first-entry qualification.
+
 ## Initial privileged phase
 
 Before the provenance connection is established, the future fixed root

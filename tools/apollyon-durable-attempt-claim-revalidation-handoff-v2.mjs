@@ -213,6 +213,28 @@ export function qualifyApollyonDurableAttemptClaimRevalidationHandoffV2(){
       both_process_generations_rechecked_before_store_mutation_required:true,
       both_process_generations_rechecked_before_success_ack_required:true,
     },
+    privileged_revalidator_execution_boundary:{
+      exact_source_generation_fixed_before_install_required:true,
+      root_owned_non_group_world_writable_source_and_ancestry_required:true,
+      symlink_free_direct_execution_ancestry_required:true,
+      exact_runtime_or_native_preentry_generation_required:true,
+      interpreted_privileged_body_requires_reviewed_native_preentry_required:true,
+      dangerous_environment_names_exact:structuredClone(
+        candidate.requirements.dangerous_environment_names
+      ),
+      dangerous_environment_exactly_unset_before_first_instruction_required:true,
+      environment_allowlist_fixed_before_install_required:true,
+      path_lookup_for_executable_authority_forbidden:true,
+      shell_dispatch_forbidden:true,
+      arbitrary_process_spawn_forbidden:true,
+      exact_publisher_child_spawn_only_required:true,
+      publisher_child_count_exactly_one_per_session_required:true,
+      persistent_host_mutation_forbidden:true,
+      account_group_systemd_service_mutation_forbidden:true,
+      private_key_wallet_signing_authority_forbidden:true,
+      implementation_negative_authority_proof_required:true,
+      installed_first_entry_host_qualification_required:true,
+    },
     privileged_revalidation:{
       exact_request_envelope_revalidation_before_publisher_spawn_required:true,
       exact_terminal_receipt_material_required:true,
