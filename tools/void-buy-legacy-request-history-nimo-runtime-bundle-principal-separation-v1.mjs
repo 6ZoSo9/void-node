@@ -120,6 +120,7 @@ export function qualifyVoidBuyLegacyRequestHistoryNimoRuntimeBundlePrincipalSepa
     runtime_output_descendants_nonwritable_after_custody_required:true,
     runtime_output_parent_fsync_after_custody_required:true,
     runtime_output_generation_revalidation_after_custody_required:true,
+    runtime_output_generation_revalidation_before_candidate_observation_required:true,
     candidate_observation_after_output_custody_required:true,
     three_node_byte_equality_required:true,
   };

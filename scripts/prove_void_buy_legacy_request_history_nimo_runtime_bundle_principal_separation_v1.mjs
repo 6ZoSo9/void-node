@@ -21,7 +21,7 @@ assert.equal(
     ROOT,
     "tools/void-buy-legacy-request-history-nimo-runtime-bundle-principal-separation-v1.mjs",
   ))),
-  "95d9cedc342ae305d7424b3d677a7cd9ab2eec83",
+  "4e653db85a92a46d6357fb2b42588c09d2113bae",
 );
 
 const policy=
