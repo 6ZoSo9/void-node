@@ -15,8 +15,15 @@ This contract defines the next boundary named by #3233: `apollyon_training_start
 The source finalizer accepts only:
 
 1. an exact V2 durable claim record;
-2. an exact V2 durable-success response cross-bound to that record and the exact publish-request SHA-256; and
-3. one content-addressed inert pre-training admission generation.
+2. an exact V2 durable-success response cross-bound to that record and the exact publish-request SHA-256;
+3. the exact #3357 authorization-slot record that binds that same durable claim candidate; and
+4. one content-addressed inert pre-training admission generation.
+
+The #3357 source dependency is pinned by exact Git blob
+`93582c324ca85aeff56eb61f82b32f1e4c18dfe9`. A merely well-formed slot
+record is not protected-origin proof: the future implementation must reread and
+revalidate the unique protected authorization-slot winner before it may publish
+a training-start consumption record.
 
 The durable-success shape must still report:
 
@@ -47,7 +54,9 @@ This source contract validates only that evidence shape. Protected source origin
 
 The deterministic candidate record binds:
 
-- a trainer-independent one-attempt consumption slot ID;
+- the exact upstream authorization-slot ID and authorization-slot-record ID;
+- a trainer-independent one-attempt consumption slot ID derived from that
+  upstream authorization-slot ID;
 - store policy, admission contract and store generation;
 - terminal receipt;
 - authorization ID;
@@ -61,16 +70,18 @@ The deterministic candidate record binds:
 The record has a content-addressed `apollyon_training_start_consumption_v1:<sha256>` identity.
 
 The separate `apollyon_training_start_slot_v1:<sha256>` identity is derived
-only from the exact one-attempt **authorization/custody authority**:
-authorization ID, custody generation, custody-record SHA-256, attempt limit and
-the reviewed no-retry bit. It deliberately excludes store generation, terminal
-receipt, claim-record identity/hash, publish-request identity and trainer
-generation/source identity.
+only from the exact upstream
+`apollyon_attempt_claim_auth_slot_v1:<sha256>` identity. #3357 already derives
+that authorization slot from authorization ID + attempt_limit=1 + no-retry,
+independent of policy/store generation, terminal/session, claim-record and
+publish-request identity. The training-start namespace therefore inherits the
+same authorization-wide uniqueness boundary without re-deriving a competing
+key locally.
 
 Therefore:
 - two different blocked trainer generations for one durable claim share one slot;
-- two different valid terminal/claim records for the same one-attempt
-  authorization and custody generation also share that same slot;
+- two different valid terminal/claim candidates for the same one-attempt
+  authorization also share that same slot;
 - the full consumption records still differ and the later one collides with an
   already occupied slot instead of obtaining a second start namespace.
 
@@ -96,6 +107,11 @@ The recovery classifier itself performs no protected-store read and proves no pr
 durable_claim_success_origin_proven=false
 protected_claim_record_reread_performed=false
 current_store_generation_revalidation_performed=false
+unique_authorization_claim_slot_shape_qualified=true
+unique_authorization_claim_slot_protected_origin_proven=false
+unique_authorization_claim_slot_revalidation_required=true
+unique_authorization_claim_slot_revalidation_performed=false
+training_start_slot_derived_from_authorization_slot=true
 pretraining_generation_source_origin_proven=false
 training_start_consumption_performed=false
 trainer_independent_consumption_slot_qualified=true
@@ -116,10 +132,12 @@ candidate_weight_mutation_performed=false
 
 It selects no UID/GID, pathname, service, socket, filesystem layout, release mechanism, model, trainer, key, signing, transaction, or funds authority.
 
-This start-slot repair prevents duplicate **training admission** even if two
-different valid claim records exist for one authorization. It does not by
-itself prove one-authorization/one-claim publication in the upstream protected
-claim writer; that atomic authorization→claim binding remains a separate
-implementation requirement.
+This generation now source-binds #3357's atomic authorization→claim slot and
+requires the supplied durable claim to match that exact slot record. It still
+does **not** prove that caller-supplied slot record came from the protected
+claim store or is the currently durable winner. The future implementation must
+reread/revalidate that protected winner and the exact durable claim under one
+reviewed store generation before start-consumption publication can become
+authoritative.
 
-The next gate is `apollyon_training_start_consumption_implementation_v1`, which must separately define and qualify the protected create-once store, the upstream atomic authorization→claim dependency, and the later exact-generation release boundary.
+The next gate is `apollyon_training_start_consumption_implementation_v1`, which must separately define and qualify the protected create-once consumption store, protected #3357 winner reread/revalidation, and the later exact-generation release boundary.
