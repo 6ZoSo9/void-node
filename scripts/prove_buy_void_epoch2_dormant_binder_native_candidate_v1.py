@@ -20,7 +20,7 @@ SOURCE_REL = (
     "void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
 )
 SOURCE = ROOT / SOURCE_REL
-SOURCE_BLOB = "b6946d5b9067771369879f0d026bec7d51e428e1"
+SOURCE_BLOB = "4fdf3f627f407335b9d50800fbbc913d1edae523"
 BINDER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
@@ -34,17 +34,17 @@ BINDER_SHA256 = (
 BINDING_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
 )
-BINDING_PROOF_BLOB = "4340aba3a74040e6d7756874512665c4425bf3c3"
+BINDING_PROOF_BLOB = "4671d37fcdb43c2bee9d3de16402df0cd25257bb"
 BINDING_DOC_REL = (
     "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md"
 )
-BINDING_DOC_BLOB = "bcd357f4b5d605dfedb04482f36f47b9a72ce7ca"
+BINDING_DOC_BLOB = "cd90bafa39682284a6d9e87daebfe5966adac8d6"
 BINDING_WORKFLOW_REL = (
     ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml"
 )
-BINDING_WORKFLOW_BLOB = "537964f3216f4d7fa15689b4d48cf2821282cb40"
-BINDING_GENERATION_HEAD = "b890fa44e204b0f0304685744d5b3fe9174b31e7"
-CANONICAL_MAIN_PARENT = "1b844cac7b5671a5436287871ff1520db82aefe9"
+BINDING_WORKFLOW_BLOB = "2742145ab88d721747f978927a6eb64a7c5f805f"
+BINDING_GENERATION_HEAD = "e602fa5b4b6961e9c24d4bbdb60a6d006a2783b2"
+CANONICAL_MAIN_PARENT = "b9d44332fc3119ec7a534829502efcff364b1b00"
 
 CC = Path("/usr/bin/cc")
 STRIP = Path("/usr/bin/strip")
@@ -83,6 +83,7 @@ EXPECTED_SELF_TEST = (
     "private_parent_proof_channel=true\n"
     "caller_stdin_javascript_forbidden=true\n"
     "loader_environment_sanitized=true\n"
+    "failure_truth_boundary_test_modes=true\n"
     "credential_content_access=false\n"
     "transaction=false\n"
     "public_presale_activation=false\n"
@@ -541,6 +542,10 @@ def source_identity() -> dict:
         "require_devnull_stdin();",
         "fexecve(node_fd,next_argv,envp);",
         "stream_fd(binder_fd,source_pipe[1])",
+        "binder_source_release_started",
+        "unproven_after_binder_source_release",
+        "--self-test-hold-pre-source",
+        "--self-test-hold-post-source",
     ):
         if required not in source_text:
             raise AssertionError("native source contract missing: " + required)
