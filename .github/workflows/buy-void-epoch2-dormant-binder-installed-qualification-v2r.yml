@@ -53,8 +53,8 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             f3d6b1559be7490303cf36338c4bfa38fdaa390a
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installed_qualification_v2r.py)" =             54b3222e7d4b6ed3f8ce76ff5434c222ef1508e5
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_dormant_binder_installed_qualification_v2r.py)" =             9686a7b8b01598b60c8d628a1098f7259dc2b361
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installed_qualification_v2r.py)" =             c1ea5912984c552f7b929d60b93d1948c42b8e1c
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_dormant_binder_installed_qualification_v2r.py)" =             4a201504ff7aa79c0ae7414496f4fa98c88946e4
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installed-qualification-v2r.md)" =             b65a6ec721c6884f11bf1a1e87b1b3330b8f5437
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
