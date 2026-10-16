@@ -24,7 +24,7 @@ const NATIVE_SOURCE=
 const NATIVE_SOURCE_BLOB="5021727f1def1ec11f870d735cab65acc1701a5e";
 const BINDER_PREENTRY=
   "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c";
-const BINDER_PREENTRY_BLOB="b6946d5b9067771369879f0d026bec7d51e428e1";
+const BINDER_PREENTRY_BLOB="4fdf3f627f407335b9d50800fbbc913d1edae523";
 
 function gitBlob(bytes){
   return crypto.createHash("sha1")
@@ -100,7 +100,20 @@ for(const required of [
   "require_devnull_stdin();",
   "fexecve(node_fd,next_argv,envp);",
   "stream_fd(binder_fd,source_pipe[1])",
+  "binder_source_release_started",
+  "unproven_after_binder_source_release",
+  "--self-test-hold-pre-source",
+  "--self-test-hold-post-source",
 ]) assert.ok(nativeSource.includes(required),required);
+
+const releaseStateIndex=nativeSource.indexOf("binder_source_release_started=true;");
+const firstSourceWriteIndex=nativeSource.indexOf("write_all(out_fd,b,(size_t)n)");
+assert.ok(releaseStateIndex>=0&&firstSourceWriteIndex>releaseStateIndex);
+assert.equal(
+  nativeSource.includes('fprintf(stderr,"credential_content_access=false\\n");'),
+  false,
+  "unconditional sensitive false claim must be removed",
+);
 
 for(const forbidden of [
   "--receipt",
@@ -252,11 +265,38 @@ try{
     "private_parent_proof_channel=true",
     "caller_stdin_javascript_forbidden=true",
     "loader_environment_sanitized=true",
+    "failure_truth_boundary_test_modes=true",
     "credential_content_access=false",
     "transaction=false",
     "public_presale_activation=false",
     "funds_movement=false",
   ]) assert.ok(nativeLines.has(line),line);
+
+  const preSourceHold=spawnSync(binary,["--self-test-hold-pre-source"],{
+    cwd:ROOT,encoding:"utf8",env,
+    timeout:30_000,maxBuffer:2*1024*1024,
+  });
+  assert.equal(preSourceHold.status,2,String(preSourceHold.stderr||preSourceHold.stdout));
+  assert.match(preSourceHold.stderr,/reason=self_test_pre_source/u);
+  assert.match(preSourceHold.stderr,/binder_source_release_started=false/u);
+  assert.match(preSourceHold.stderr,/credential_content_access=false/u);
+  assert.match(preSourceHold.stderr,/private_key_access=false/u);
+  assert.match(preSourceHold.stderr,/signing=false/u);
+  assert.equal(preSourceHold.stderr.includes("unproven_after_binder_source_release"),false);
+
+  const postSourceHold=spawnSync(binary,["--self-test-hold-post-source"],{
+    cwd:ROOT,encoding:"utf8",env,
+    timeout:30_000,maxBuffer:2*1024*1024,
+  });
+  assert.equal(postSourceHold.status,2,String(postSourceHold.stderr||postSourceHold.stdout));
+  assert.match(postSourceHold.stderr,/reason=self_test_post_source/u);
+  assert.match(postSourceHold.stderr,/binder_source_release_started=true/u);
+  assert.match(postSourceHold.stderr,/credential_content_access=unproven_after_binder_source_release/u);
+  assert.match(postSourceHold.stderr,/private_key_access=unproven_after_binder_source_release/u);
+  assert.match(postSourceHold.stderr,/signing=unproven_after_binder_source_release/u);
+  assert.equal(postSourceHold.stderr.includes("credential_content_access=false"),false);
+  assert.equal(postSourceHold.stderr.includes("private_key_access=false"),false);
+  assert.equal(postSourceHold.stderr.includes("signing=false"),false);
 }finally{
   fs.rmSync(buildRoot,{recursive:true,force:true});
 }
@@ -269,6 +309,9 @@ console.log("private_binder_parent_proof_required=true");
 console.log("arbitrary_stdin_live_binding_rejected=true");
 console.log("native_source_stream_required=true");
 console.log("native_node_policy_binding_required=true");
+console.log("pre_source_sensitive_authority_false=true");
+console.log("post_source_sensitive_authority_unproven=true");
+console.log("post_source_false_authority_claims_forbidden=true");
 console.log("candidate_v4_git_object_bound=true");
 console.log("candidate_v4_signer_control_preserved=true");
 console.log("v6r2_qualifier_git_object_bound=true");
