@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import stat
 import sys
 import tempfile
@@ -85,6 +86,10 @@ STAGED_STATE = "CREDENTIAL_QUERY_V2_STAGE_READY_WITH_V1"
 EXCHANGED_STATE = "CREDENTIAL_QUERY_V2_EXCHANGED_PENDING_PREDECESSOR"
 GREEN_STATE = "CREDENTIAL_QUERY_V2_GREEN_WITH_V1_PREDECESSOR"
 ROLLBACK_PENDING_STATE = "CREDENTIAL_QUERY_V1_ROLLBACK_PENDING_V2_CLEANUP"
+PRIVATE_PENDING_STATE = "CREDENTIAL_QUERY_V2_PRIVATE_PENDING_RECOVERY_REQUIRED"
+PRIVATE_PENDING_RE = re.compile(
+    r"^\." + re.escape(STAGING_NAME) + r"\.pending\.[0-9]+$"
+)
 
 
 class ReplaceError(RuntimeError):
@@ -395,19 +400,50 @@ def _write_all(fd: int, raw: bytes) -> None:
 def _create_exact_stage(
     dir_fd: int, raw: bytes
 ) -> tuple[int, int]:
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
-    fd = os.open(STAGING_NAME, flags, 0o500, dir_fd=dir_fd)
+    pending_name = (
+        "." + STAGING_NAME + ".pending." + str(os.getpid())
+    )
+    flags = (
+        os.O_RDWR | os.O_CREAT | os.O_EXCL
+        | os.O_CLOEXEC | os.O_NOFOLLOW
+    )
+    fd = os.open(pending_name, flags, 0o500, dir_fd=dir_fd)
     created_identity = _inode_identity(os.fstat(fd))
+    published = False
     try:
-        try:
-            _write_all(fd, raw)
-            os.fchmod(fd, 0o555)
-            os.fchown(fd, 0, 0)
-            os.fsync(fd)
-        finally:
-            os.close(fd)
+        _write_all(fd, raw)
+        os.fchmod(fd, 0o555)
+        os.fchown(fd, 0, 0)
+        os.fsync(fd)
+
+        staged = os.fstat(fd)
+        if (
+            not stat.S_ISREG(staged.st_mode)
+            or staged.st_nlink != 1
+            or staged.st_uid != 0
+            or staged.st_gid != 0
+            or stat.S_IMODE(staged.st_mode) != 0o555
+            or staged.st_size != len(raw)
+        ):
+            raise ReplaceError("private_stage_metadata_invalid")
+        os.lseek(fd, 0, os.SEEK_SET)
+        observed = b""
+        while len(observed) < len(raw):
+            chunk = os.read(fd, len(raw) - len(observed))
+            if not chunk:
+                break
+            observed += chunk
+        if observed != raw:
+            raise ReplaceError("private_stage_bytes_invalid")
+
+        _renameat2(
+            dir_fd, pending_name, STAGING_NAME, RENAME_NOREPLACE
+        )
+        published = True
+        os.fsync(dir_fd)
         _require_owned_path(
-            _fd_child_path(dir_fd, STAGING_NAME), created_identity
+            _fd_child_path(dir_fd, STAGING_NAME),
+            created_identity,
         )
         _file_digest(
             _fd_child_path(dir_fd, STAGING_NAME),
@@ -415,12 +451,15 @@ def _create_exact_stage(
             expected_sha256=V2_QUERY_SHA256,
         )
         return created_identity
-    except BaseException:
-        try:
-            _unlink_owned_name(dir_fd, STAGING_NAME, created_identity)
-        except BaseException:
-            pass
-        raise
+    finally:
+        os.close(fd)
+        if not published:
+            try:
+                _unlink_owned_name(
+                    dir_fd, pending_name, created_identity
+                )
+            except BaseException:
+                pass
 
 
 def _fd_child_path(dir_fd: int, name: str) -> pathlib.Path:
@@ -432,6 +471,37 @@ def _root_entries_at(dir_fd: int) -> list[str]:
         return sorted(os.listdir(dir_fd))
     except OSError as exc:
         raise ReplaceError("installed_root_list_failed") from exc
+
+
+def _private_pending_names_at(dir_fd: int) -> list[str]:
+    names = [
+        name for name in _root_entries_at(dir_fd)
+        if PRIVATE_PENDING_RE.fullmatch(name)
+    ]
+    if len(names) > 1:
+        raise ReplaceError("multiple_private_pending_files")
+    for name in names:
+        st = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_nlink != 1
+            or st.st_uid != 0
+            or st.st_size < 0
+            or st.st_size > V2_QUERY_BYTES
+            or stat.S_IMODE(st.st_mode) not in (0o500, 0o555)
+        ):
+            raise ReplaceError("private_pending_metadata_invalid")
+    return names
+
+
+def _cleanup_private_pending(dir_fd: int) -> bool:
+    names = _private_pending_names_at(dir_fd)
+    if not names:
+        return False
+    os.unlink(names[0], dir_fd=dir_fd)
+    os.fsync(dir_fd)
+    return True
 
 
 def _installed_kind_at(
@@ -492,6 +562,27 @@ def _classify_state(
 
 
 def _base_state_at(dir_fd: int) -> str:
+    entries = _root_entries_at(dir_fd)
+    pending = _private_pending_names_at(dir_fd)
+    if pending:
+        visible = sorted(
+            name for name in entries if name not in set(pending)
+        )
+        if visible != sorted((PREEXEC_NAME, QUERY_NAME)):
+            raise ReplaceError("private_pending_state_invalid")
+        _file_digest(
+            _fd_child_path(dir_fd, PREEXEC_NAME),
+            expected_bytes=PREEXEC_BYTES,
+            expected_sha256=PREEXEC_SHA256,
+        )
+        if _installed_kind_at(
+            dir_fd, QUERY_NAME, allow_absent=False
+        ) != "v1":
+            raise ReplaceError(
+                "private_pending_query_generation_invalid"
+            )
+        return PRIVATE_PENDING_STATE
+
     _file_digest(
         _fd_child_path(dir_fd, PREEXEC_NAME),
         expected_bytes=PREEXEC_BYTES,
@@ -503,7 +594,7 @@ def _base_state_at(dir_fd: int) -> str:
         _installed_kind_at(
             dir_fd, V1_PREDECESSOR_NAME, allow_absent=True
         ),
-        _root_entries_at(dir_fd),
+        entries,
     )
 
 
@@ -593,6 +684,7 @@ def source_plan() -> None:
     print("rollback_crash_resume_supported=true")
     print("stable_parent_operation_lock_required=true")
     print("descriptor_bound_state_inspection_required=true")
+    print("private_stage_publication_required=true")
     print("query_execution=false")
     print("credential_contents_read=false")
     print("service_mutation=false")
@@ -636,6 +728,9 @@ def plan(query: pathlib.Path | None) -> None:
     elif state == ROLLBACK_PENDING_STATE:
         print("already_replaced=false")
         print("next_action=SEPARATELY_AUTHORIZE_V2_TO_V1_ROLLBACK_RESUME")
+    elif state == PRIVATE_PENDING_STATE:
+        print("already_replaced=false")
+        print("next_action=SEPARATELY_AUTHORIZE_PRIVATE_STAGE_RECOVERY")
     else:
         print("already_replaced=false")
         print("next_action=SEPARATELY_AUTHORIZE_ATOMIC_V1_TO_V2_REPLACEMENT")
@@ -718,6 +813,10 @@ def apply(query: pathlib.Path, confirm: str) -> None:
     created_stage_identity: tuple[int, int] | None = None
     resumed_from = "none"
     try:
+        if _base_state_at(dir_fd) == PRIVATE_PENDING_STATE:
+            if not _cleanup_private_pending(dir_fd):
+                raise ReplaceError("private_pending_cleanup_failed")
+            resumed_from = PRIVATE_PENDING_STATE
         state = _base_state_at(dir_fd)
         if state == GREEN_STATE:
             print(MARKER)
@@ -831,12 +930,20 @@ def rollback(confirm: str) -> None:
     parent_fd, dir_fd = _open_protected_root(fcntl.LOCK_EX)
     resumed_from = "none"
     try:
+        if _base_state_at(dir_fd) == PRIVATE_PENDING_STATE:
+            if not _cleanup_private_pending(dir_fd):
+                raise ReplaceError("private_pending_cleanup_failed")
+            resumed_from = PRIVATE_PENDING_STATE
         state = _base_state_at(dir_fd)
         if state == READY_STATE:
             print(MARKER)
             print("mode=rollback")
             print("status=ALREADY_V1_READY")
-            print("crash_recovery_resumed=false")
+            print(
+                "crash_recovery_resumed="
+                + str(resumed_from != "none").lower()
+            )
+            print("crash_recovery_initial_state=" + resumed_from)
             print("query_execution=false")
             print("credential_contents_read=false")
             print("service_mutation=false")
@@ -1081,6 +1188,7 @@ def main() -> int:
         print("crash_transition_primitives_exercised=true")
         print("stable_parent_operation_lock=true")
         print("descriptor_bound_state_inspection=true")
+        print("private_stage_published_only_after_complete=true")
         print("query_execution=false")
         print("credential_contents_read=false")
         return 0
