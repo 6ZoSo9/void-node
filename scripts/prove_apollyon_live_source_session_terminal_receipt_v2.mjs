@@ -28,7 +28,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
     "981935515e08634be96446e58922c16be56d33ad",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "495274d6b4fe225852284be83ba375e89696e996",
+    "02839a2fa3bbd0668ed52c5cad74ae1d6a32283f",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -139,6 +139,9 @@ assert.equal(result.training_service_exact_dormant_after,true);
 assert.equal(result.training_generation_absent_after,true);
 assert.equal(result.inner_live_binding_alone_sufficient_for_executor,false);
 assert.equal(result.current_host_revalidation_required,true);
+assert.equal(result.protected_runner_origin_required,true);
+assert.equal(result.protected_runner_origin_proven,false);
+assert.equal(result.live_host_observation_performed,false);
 assert.equal(result.durable_attempt_claim_performed,false);
 assert.equal(result.attempt_claim_authorized,false);
 assert.equal(result.attempt_claimed,false);
@@ -156,6 +159,10 @@ for(const mutate of [
   x=>{x.training_process_start_time_ticks="123457";},
   x=>{x.durable_attempt_claim_performed=true;},
   x=>{x.training_execution_performed=true;},
+  x=>{x.training_service_enabled=true;},
+  x=>{x.candidate_weight_mutation_performed=true;},
+  x=>{x.custody_service_action_performed=true;},
+  x=>{x.funds_movement_performed=true;},
 ]){
   const r=receipt();mutate(r);
   assert.throws(
@@ -187,6 +194,9 @@ assert.throws(
 for(const [key,expected] of Object.entries({
   source_only_finalizer:true,
   exact_terminal_runner_receipt_required:true,
+  protected_runner_origin_required:true,
+  protected_runner_origin_proven:false,
+  live_host_observation_performed:false,
   inner_live_binding_alone_sufficient_for_executor:false,
   same_training_process_generation_cross_binding_required:true,
   exact_training_service_dormancy_required:true,
@@ -215,6 +225,8 @@ for(const required of [
   'status:"live_source_session_terminal_shutdown_qualified_unclaimed"',
   'inner_live_binding_alone_sufficient_for_executor:false',
   'current_host_revalidation_required:true',
+  'protected_runner_origin_required:true',
+  'protected_runner_origin_proven:false',
   'next_gate:"durable_candidate_training_attempt_claim_executor_v2"',
 ])assert.equal(source.includes(required),true,required);
 for(const forbidden of [
@@ -230,5 +242,8 @@ console.log("terminal_shutdown_proven=true");
 console.log("training_service_exact_dormant_after=true");
 console.log("training_generation_absent_after=true");
 console.log("current_host_revalidation_required=true");
+console.log("protected_runner_origin_required=true");
+console.log("protected_runner_origin_proven=false");
+console.log("live_host_observation_performed=false");
 console.log("durable_attempt_claim_performed=false");
 console.log("training_execution=false");

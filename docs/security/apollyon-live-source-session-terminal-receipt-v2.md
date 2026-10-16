@@ -32,6 +32,9 @@ training_service_exact_dormant_after=true
 training_generation_absent_after=true
 inner_live_binding_alone_sufficient_for_executor=false
 current_host_revalidation_required=true
+protected_runner_origin_required=true
+protected_runner_origin_proven=false
+live_host_observation_performed=false
 durable_attempt_claim_performed=false
 attempt_claim_authorized=false
 attempt_claimed=false
@@ -43,7 +46,7 @@ The next source gate remains durable_candidate_training_attempt_claim_executor_v
 
 ## Current-host requirement
 
-This terminal receipt proves the reviewed runner reached an exact dormant terminal state for the observed training generation. It is not a perpetual host lease. A future durable executor must revalidate the required current host state immediately before its durable mutation and must fail closed if a new training generation or non-dormant unit state is present.
+This source finalizer qualifies the exact terminal receipt shape; it does not itself observe Xiphos or authenticate the caller as the protected installed runner. Accordingly protected_runner_origin_required remains true while protected_runner_origin_proven remains false. The terminal receipt is also not a perpetual host lease. A future durable executor must obtain the receipt through the reviewed protected-runner boundary and revalidate the required current host state immediately before its durable mutation and must fail closed if a new training generation or non-dormant unit state is present.
 
 No future executor may treat the enclosed inner live binding, by itself, as sufficient authority.
 
