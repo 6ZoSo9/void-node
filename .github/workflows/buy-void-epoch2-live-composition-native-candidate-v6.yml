@@ -32,7 +32,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          source_parent=5deec4ea5126ef657e0ae0e4a212423f9438e0a2
+          source_parent=8aeabf286a99d2dc9d11a489c6052d4914198cf3
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$source_parent" "$EXPECTED_HEAD"
 
@@ -57,7 +57,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs)" = \
             14cbe81e27d04fee77cbe75225ce308bf8561a7b
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6.py)" = \
-            696eacfd72ba31ae4b00a1ddf98e91b0cabb5134
+            ac56de5e9da2eaa4b798339f74f6f4f39929a826
 
           git diff --check "$source_parent" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
