@@ -132,3 +132,24 @@ transaction, WC/VOID activation, treasury/liquidity action or funds movement is
 authorized.
 
 PROTECT THE CORE.
+
+## Provider-closure successor semantics
+
+The historical provider-closure lock proof is branch-scoped to its original
+candidate ancestry and is preserved as immutable evidence; V3 does not execute
+that historical proof on the range-generation branch.
+
+Instead V3 pins the accepted provider evidence JSON and lock-proof blob, then
+requalifies current content directly:
+- every accepted provider source path must have the same Git blob as the
+  accepted provider generation;
+- package.json and package-lock.json must retain the accepted blobs;
+- every accepted provider runtime artifact plus server/consumer/adapter
+  boundary artifact must match the accepted byte length, SHA-256 and Git-blob
+  identity after the current build;
+- the accepted provider semantic digest must rederive exactly.
+
+The V3 receipt therefore states
+`historical_lock_proof_reexecuted=false` and
+`current_content_semantics_requalified=true` rather than claiming ancestry
+that does not exist.
