@@ -161,6 +161,87 @@ export function validateApollyonPretrainingAdmissionGenerationV1(input){
   return Object.freeze(value);
 }
 
+export function validateApollyonTrainingStartConsumptionRecordV1(input){
+  const value=clonePlain(input,"apollyon_training_start_v1_consumption_record_invalid");
+  exactOwnKeys(
+    value,VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1,
+    "apollyon_training_start_v1_consumption_record_invalid",
+  );
+  if(
+    value.marker!=="VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_V1"||
+    value.version!==1||
+    value.status!=="training_start_consumption_record_v1"||
+    !STORE_POLICY_ID.test(value.store_policy_id)||
+    !STORE_CONTRACT_ID.test(value.store_contract_id)||
+    !STORE_GENERATION_ID.test(value.store_generation_id)||
+    !TERMINAL_ID.test(value.terminal_receipt_id)||
+    !AUTH_ID.test(value.authorization_id)||
+    !CUSTODY_GENERATION_ID.test(value.custody_generation_id)||
+    !HASH64.test(value.custody_record_sha256)||
+    !CLAIM_RECORD_ID.test(value.claim_record_id)||
+    !HASH64.test(value.claim_record_sha256)||
+    !HASH64.test(value.publish_request_sha256)||
+    !TRAINER_GENERATION_ID.test(value.trainer_generation_id)||
+    !HASH64.test(value.trainer_boot_id_sha256)||
+    !Number.isSafeInteger(value.trainer_pid)||value.trainer_pid<=1||
+    typeof value.trainer_process_start_time_ticks!=="string"||
+    !/^[1-9][0-9]*$/u.test(value.trainer_process_start_time_ticks)||
+    !Number.isSafeInteger(value.trainer_uid)||value.trainer_uid<=0||value.trainer_uid>65533||
+    !Number.isSafeInteger(value.trainer_gid)||value.trainer_gid<=0||value.trainer_gid>65533||
+    !HASH64.test(value.trainer_source_identity_sha256)||
+    value.attempt_limit!==1||
+    value.automatic_retry_authorized!==false||
+    !/^apollyon_training_start_consumption_v1:[0-9a-f]{64}$/u.test(
+      value.training_start_consumption_id
+    )
+  ){
+    fail("apollyon_training_start_v1_consumption_record_invalid");
+  }
+  const material=structuredClone(value);
+  delete material.training_start_consumption_id;
+  const expected="apollyon_training_start_consumption_v1:"+
+    sha256(Buffer.from(canonical(material),"utf8"));
+  if(value.training_start_consumption_id!==expected){
+    fail("apollyon_training_start_v1_consumption_record_id_invalid");
+  }
+  return Object.freeze(value);
+}
+
+export function classifyApollyonTrainingStartConsumptionRecoveryV1(input){
+  const snapshot=clonePlain(input,"apollyon_training_start_v1_recovery_input_invalid");
+  exactOwnKeys(
+    snapshot,["expected_consumption_record","observed_consumption_record"],
+    "apollyon_training_start_v1_recovery_input_invalid",
+  );
+  const expected=validateApollyonTrainingStartConsumptionRecordV1(
+    snapshot.expected_consumption_record
+  );
+  if(snapshot.observed_consumption_record===null){
+    return Object.freeze({
+      status:"unconsumed",
+      create_once_publication_eligible:true,
+      existing_exact_consumption:false,
+      training_start_admission:false,
+      automatic_retry_authorized:false,
+      protected_store_observation_performed:false,
+    });
+  }
+  const observed=validateApollyonTrainingStartConsumptionRecordV1(
+    snapshot.observed_consumption_record
+  );
+  if(canonical(observed)!==canonical(expected)){
+    fail("apollyon_training_start_v1_existing_consumption_collision");
+  }
+  return Object.freeze({
+    status:"already_consumed",
+    create_once_publication_eligible:false,
+    existing_exact_consumption:true,
+    training_start_admission:false,
+    automatic_retry_authorized:false,
+    protected_store_observation_performed:false,
+  });
+}
+
 export function qualifyApollyonTrainingStartConsumptionContractV1(input){
   const snapshot=clonePlain(input,"apollyon_training_start_v1_input_invalid");
   exactOwnKeys(
@@ -239,7 +320,7 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
   const training_start_consumption_id=
     "apollyon_training_start_consumption_v1:"+
     sha256(Buffer.from(canonical(consumptionMaterial),"utf8"));
-  const consumption_record=Object.freeze({
+  const consumption_record=validateApollyonTrainingStartConsumptionRecordV1({
     ...consumptionMaterial,
     training_start_consumption_id,
   });

@@ -13,7 +13,7 @@ import {
 import {
   VOID_APOLLYON_TRAINING_START_CONSUMPTION_AUTHORITY_V1,
   VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1,
-  qualifyApollyonTrainingStartConsumptionContractV1,
+  classifyApollyonTrainingStartConsumptionRecoveryV1,\n  qualifyApollyonTrainingStartConsumptionContractV1,\n  validateApollyonTrainingStartConsumptionRecordV1,
 } from "../tools/apollyon-training-start-consumption-contract-v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
@@ -29,7 +29,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "11a4bd79347699f6b0494bf6c58dd4dc048ef7c9",
+    "20aea004bc3929c8b70467b4c5818504574b66b6",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -168,6 +168,70 @@ assert.match(
   record.training_start_consumption_id,
   /^apollyon_training_start_consumption_v1:[0-9a-f]{64}$/u,
 );
+assert.deepEqual(
+  validateApollyonTrainingStartConsumptionRecordV1(record),
+  record,
+);
+assert.deepEqual(
+  classifyApollyonTrainingStartConsumptionRecoveryV1({
+    expected_consumption_record:record,
+    observed_consumption_record:null,
+  }),
+  {
+    status:"unconsumed",
+    create_once_publication_eligible:true,
+    existing_exact_consumption:false,
+    training_start_admission:false,
+    automatic_retry_authorized:false,
+    protected_store_observation_performed:false,
+  },
+);
+assert.deepEqual(
+  classifyApollyonTrainingStartConsumptionRecoveryV1({
+    expected_consumption_record:record,
+    observed_consumption_record:structuredClone(record),
+  }),
+  {
+    status:"already_consumed",
+    create_once_publication_eligible:false,
+    existing_exact_consumption:true,
+    training_start_admission:false,
+    automatic_retry_authorized:false,
+    protected_store_observation_performed:false,
+  },
+);
+{
+  const bad=structuredClone(record);
+  bad.trainer_pid+=1;
+  const material=structuredClone(bad);
+  delete material.training_start_consumption_id;
+  bad.training_start_consumption_id="apollyon_training_start_consumption_v1:"+
+    sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(material),"utf8"));
+  assert.throws(
+    ()=>classifyApollyonTrainingStartConsumptionRecoveryV1({
+      expected_consumption_record:record,
+      observed_consumption_record:bad,
+    }),
+    /existing_consumption_collision/u,
+  );
+}
+{
+  const bad=structuredClone(record);
+  bad.automatic_retry_authorized=true;
+  assert.throws(
+    ()=>validateApollyonTrainingStartConsumptionRecordV1(bad),
+    /consumption_record_invalid/u,
+  );
+}
+{
+  const bad=structuredClone(record);
+  bad.training_start_consumption_id=
+    "apollyon_training_start_consumption_v1:"+"0".repeat(64);
+  assert.throws(
+    ()=>validateApollyonTrainingStartConsumptionRecordV1(bad),
+    /consumption_record_id_invalid/u,
+  );
+}
 
 for(const mutate of [
   x=>{x.success_response.training_start_admission=true;},
@@ -251,7 +315,7 @@ const source=fs.readFileSync(
   "utf8",
 );
 for(const required of [
-  "existing_exact_consumption_reusable_admission:false",
+  "existing_exact_consumption_reusable_admission:false",\n  "existing_consumption_collision",
   "lost_ack_second_start_forbidden:true",
   "trainer_generation_must_remain_blocked_until_durable_consumption:true",
   'next_gate:"apollyon_training_start_consumption_implementation_v1"',
@@ -267,7 +331,7 @@ console.log("VOID_APOLLYON_TRAINING_START_CONSUMPTION_V1_PROOF_GREEN");
 console.log("durable_claim_success_is_bearer_training_authority=false");
 console.log("exact_inert_pretraining_generation_required=true");
 console.log("training_start_consumption_create_once_required=true");
-console.log("existing_exact_consumption_reusable_admission=false");
+console.log("existing_exact_consumption_reusable_admission=false");\nconsole.log("recovery_unconsumed_vs_already_consumed_closed=true");
 console.log("lost_ack_second_start_forbidden=true");
 console.log("training_start_consumption_performed=false");
 console.log("training_execution=false");
