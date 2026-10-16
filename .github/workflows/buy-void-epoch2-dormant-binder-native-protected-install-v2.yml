@@ -49,13 +49,22 @@ jobs:
 
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
-          printf '%s\n'             '.github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v2.yml'             'docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md'             'ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py'             'scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py'             | sort > "$expected"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md' \
+            'docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py' \
+            | sort > "$expected"
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" =             5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             a2720335448788912e62df5a000e9e38087942eb
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             09ea384d8aed4770c6ec1adaa4fb434855964fe1
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             37f8b9269e91ac37c65a527e5e3f87b6e5b10213
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             199bbf1022210c118e2448c8bd116e2e4bc15e78
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" =             4fdf3f627f407335b9d50800fbbc913d1edae523
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             9c29eb4716077e459b9154f39d0f30cf2e56729f
 
@@ -90,7 +99,7 @@ jobs:
             "exact_native_candidate_bound=true"
             "exact_binder_git_object_bound=true"
             "distinct_fixed_install_root=true"
-            "root_git_object_stdin_required_for_apply=true"
+            "authenticated_first_entry_fd_contract_required_for_apply=true"
             "create_only=true"
             "atomic_root_publication_required=true"
             "rename_noreplace_required=true"
