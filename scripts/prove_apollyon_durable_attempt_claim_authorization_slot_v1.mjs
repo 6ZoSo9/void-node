@@ -38,7 +38,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "fea46735592aed3d0cac9a16ae82a81e67da79a7",
+    "93582c324ca85aeff56eb61f82b32f1e4c18dfe9",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -110,7 +110,6 @@ const AUTH_A="apollyon_authz_v1:"+"1".repeat(64);
 const AUTH_B="apollyon_authz_v1:"+"2".repeat(64);
 function slotId(auth){
   return deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1({
-    store_policy_id:ACCEPTED_STORE_POLICY_ID,
     authorization_id:auth,
     attempt_limit:1,
     automatic_retry_authorized:false,
@@ -118,6 +117,17 @@ function slotId(auth){
 }
 assert.equal(slotId(AUTH_A),slotId(AUTH_A));
 assert.notEqual(slotId(AUTH_A),slotId(AUTH_B));
+
+assert.throws(
+  ()=>deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1({
+    store_policy_id:ACCEPTED_STORE_POLICY_ID,
+    authorization_id:AUTH_A,
+    attempt_limit:1,
+    automatic_retry_authorized:false,
+  }),
+  /id_input_invalid/u,
+);
+
 
 function record(overrides={}){
   return qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1({
@@ -196,10 +206,8 @@ assert.throws(
 for(const mutate of [
   x=>{x.attempt_limit=2;},
   x=>{x.automatic_retry_authorized=true;},
-  x=>{x.store_policy_id="apollyon_claim_store_policy_v2:"+"f".repeat(64);},
 ]){
   const input={
-    store_policy_id:ACCEPTED_STORE_POLICY_ID,
     authorization_id:AUTH_A,
     attempt_limit:1,
     automatic_retry_authorized:false,
@@ -330,6 +338,7 @@ assert.match(
 );
 
 for(const [key,expected] of Object.entries({
+  authorization_slot_store_policy_independent_required:true,
   authorization_slot_terminal_independent_required:true,
   authorization_slot_store_contract_independent_required:true,
   authorization_slot_store_generation_independent_required:true,
@@ -358,6 +367,7 @@ for(const [key,expected] of Object.entries({
   concurrent_same_authorization_different_terminal_at_most_one_success_required:true,
   migration_preserves_authorization_slots_required:true,
   authorization_slot_identity_stable_across_store_generation_migration_required:true,
+  authorization_slot_identity_stable_across_store_policy_upgrade_required:true,
   migration_authorization_slot_records_byte_identical_required:true,
   migration_authorization_slot_set_commitment_required:true,
   migration_authorization_slot_set_count_required:true,
@@ -409,6 +419,7 @@ const source=fs.readFileSync(
   "utf8",
 );
 for(const required of [
+  "authorization_slot_store_policy_independent_required:true",
   "authorization_slot_terminal_independent_required:true",
   "authorization_slot_store_generation_independent_required:true",
   "protected_namespace_create_once_by_authorization_slot_required:true",
@@ -437,6 +448,7 @@ for(const forbidden of [
 console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_V1_PROOF_GREEN");
 console.log("same_authorization_different_claim_same_slot=true");
 console.log("different_claim_in_occupied_slot_rejected=true");
+console.log("authorization_slot_store_policy_independent=true");
 console.log("authorization_slot_store_generation_independent=true");
 console.log("same_protected_claim_root_binding_required=true");
 console.log("authorization_slot_private_pending_publication_required=true");

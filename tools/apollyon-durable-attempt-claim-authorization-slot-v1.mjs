@@ -20,6 +20,7 @@ export const ACCEPTED_STORE_POLICY_ID =
 export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_REQUIREMENTS_V1 =
   Object.freeze({
     stable_store_policy_bound_required:true,
+    authorization_slot_store_policy_independent_required:true,
     authorization_slot_terminal_independent_required:true,
     authorization_slot_store_contract_independent_required:true,
     authorization_slot_store_generation_independent_required:true,
@@ -71,6 +72,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_REQUIREMENTS
     concurrent_same_authorization_different_terminal_at_most_one_success_required:true,
     migration_preserves_authorization_slots_required:true,
     authorization_slot_identity_stable_across_store_generation_migration_required:true,
+    authorization_slot_identity_stable_across_store_policy_upgrade_required:true,
     migration_authorization_slot_set_continuity_required:true,
     migration_authorization_slot_records_byte_identical_required:true,
     migration_authorization_slot_set_commitment_required:true,
@@ -179,25 +181,29 @@ function clonePlain(value,code){
   if(proto!==Object.prototype&&proto!==null)fail(code);
   return copy;
 }
-function validateStableAuthority(value){
-  if(value.store_policy_id!==ACCEPTED_STORE_POLICY_ID||
-     !AUTH_ID.test(value.authorization_id)||
+function validateOneAttemptAuthority(value){
+  if(!AUTH_ID.test(value.authorization_id)||
      value.attempt_limit!==1||
      value.automatic_retry_authorized!==false){
     fail("apollyon_claim_auth_slot_v1_authority_invalid");
   }
 }
+function validateStableAuthority(value){
+  if(value.store_policy_id!==ACCEPTED_STORE_POLICY_ID){
+    fail("apollyon_claim_auth_slot_v1_store_policy_invalid");
+  }
+  validateOneAttemptAuthority(value);
+}
 
 export function deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1(input){
   const value=clonePlain(input,"apollyon_claim_auth_slot_v1_id_input_invalid");
   exactOwnKeys(value,[
-    "attempt_limit","authorization_id","automatic_retry_authorized","store_policy_id",
+    "attempt_limit","authorization_id","automatic_retry_authorized",
   ],"apollyon_claim_auth_slot_v1_id_input_invalid");
-  validateStableAuthority(value);
+  validateOneAttemptAuthority(value);
   const material={
     marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_ID_V1",
     version:1,
-    store_policy_id:value.store_policy_id,
     authorization_id:value.authorization_id,
     attempt_limit:1,
     automatic_retry_authorized:false,
@@ -246,7 +252,6 @@ export function qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1(inpu
 
   const authorization_slot_id=
     deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1({
-      store_policy_id:value.store_policy_id,
       authorization_id:value.authorization_id,
       attempt_limit:1,
       automatic_retry_authorized:false,

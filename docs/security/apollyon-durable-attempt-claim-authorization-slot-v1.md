@@ -15,7 +15,6 @@ This contract adds the missing stable atomic namespace without changing the acce
 The authorization slot ID is content-addressed from exactly:
 
 - marker/version;
-- the stable accepted store-policy ID;
 - authorization ID;
 - `attempt_limit=1`;
 - `automatic_retry_authorized=false`.
@@ -28,7 +27,7 @@ It deliberately excludes:
 - claim-record ID/hash;
 - publish-request digest.
 
-Therefore the same one-attempt authorization always maps to the same slot across different terminal sessions and store-generation migrations.
+Therefore the same one-attempt authorization always maps to the same slot across different terminal sessions, store-generation migrations, and future store-policy upgrades. The current store-policy ID is still required and bound in the winning slot record and source contract, but it is deliberately not part of the replay-key derivation.
 
 A different authorization maps to a different slot.
 
@@ -69,7 +68,7 @@ A crash after slot reservation but before claim publication may only recover the
 
 Two valid terminal sessions for one authorization may produce different claim IDs, but both derive the same authorization slot. At most one can become the winning durable claim.
 
-Store migration must preserve the complete authorization-slot set and its bindings. The slot identity is stable across store-generation changes because it is bound to the persistent store policy, not a generation.
+Store migration must preserve the complete authorization-slot set and its bindings. The slot identity is stable across both store-generation changes and future store-policy upgrades because it is derived from the one-attempt authorization itself, not from store policy or generation.
 
 The source contract defines a deterministic slot-set commitment: validated slot records are sorted by authorization-slot ID, duplicate authorization slots are rejected, and the complete count plus SHA-256 of the canonical sorted records form a stable content-addressed set ID. A migration receipt must bind distinct old/new store generations, the parent #3233 store-continuity receipt ID, and the exact same slot-set count/hash/ID on both sides. Slot records are copied byte-for-byte; they retain the store generation in which their winning claim was originally bound. Dropping or rewriting any prior authorization slot fails closed. Protected old/new slot-set origin and parent continuity revalidation remain future host duties.
 
