@@ -176,11 +176,30 @@ def executable_key_wallet_authority_violations(
             return (parent + "." if parent else "") + node.attr
         return ""
 
+    allowed_imports = frozenset({
+        "argparse",
+        "ctypes",
+        "fcntl",
+        "hashlib",
+        "json",
+        "os",
+        "pathlib",
+        "re",
+        "stat",
+        "sys",
+        "tempfile",
+    })
+    allowed_from_imports = {
+        "__future__": frozenset({"annotations"}),
+        "typing": frozenset({"Any"}),
+    }
     signing_call_names = {
         "sign",
         "signhash",
         "signmessage",
         "signtransaction",
+        "crypto_sign",
+        "crypto_sign_detached",
     }
     signing_constructor_names = {
         "privatekey",
@@ -243,15 +262,24 @@ def executable_key_wallet_authority_violations(
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
+                if alias.name not in allowed_imports:
+                    violations.append("unreviewed_import:" + alias.name)
                 if import_path_is_sensitive(alias.name):
-                    violations.append("import:" + alias.name)
+                    violations.append("sensitive_import:" + alias.name)
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
-            if import_path_is_sensitive(module):
-                violations.append("import_from:" + module)
+            allowed_names = allowed_from_imports.get(module)
+            if allowed_names is None:
+                violations.append("unreviewed_import_from:" + module)
             for alias in node.names:
+                if allowed_names is None or alias.name not in allowed_names:
+                    violations.append(
+                        "unreviewed_import_name:" + module + ":" + alias.name
+                    )
                 if identifier_is_sensitive(alias.name):
-                    violations.append("import_name:" + alias.name)
+                    violations.append("sensitive_import_name:" + alias.name)
+            if import_path_is_sensitive(module):
+                violations.append("sensitive_import_from:" + module)
         elif isinstance(node, ast.Name):
             if identifier_is_sensitive(node.id):
                 violations.append("name:" + node.id)
@@ -291,6 +319,15 @@ for unsafe_authority_source in (
         "from nacl.signing import SigningKey\n"
         "key = SigningKey(b'0' * 32)\n"
         "key.sign(b'payload')"
+    ),
+    (
+        "import nacl.bindings\n"
+        "secret_key = b'0' * 64\n"
+        "nacl.bindings.crypto_sign(b'payload', secret_key)"
+    ),
+    (
+        "from nacl import bindings\n"
+        "bindings.crypto_sign(b'payload', b'0' * 64)"
     ),
     "class K:\n    def sign(self, value): return value\nkey = K()\nkey.sign(b'x')",
     (
@@ -527,6 +564,8 @@ print("authority_flush_behavior_exercised=true")
 print("authority_flush_complete_summary_exercised=true")
 print("ast_key_wallet_authority_guard=true")
 print("ast_key_wallet_adversaries_exercised=true")
+print("closed_import_allowlist_guard=true")
+print("nacl_bindings_signing_adversary_exercised=true")
 print("ast_signing_key_authority_guard=true")
 print("ast_generic_sign_call_adversary_exercised=true")
 print("query_execution=false")
