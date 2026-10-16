@@ -94,10 +94,17 @@ The existing exact confirmation token, root requirement, isolated Python
 context, accepted-lock verification, and protected-root state machine remain
 separate fail-closed gates.
 
-The focused proof executes both operation modes with deliberately wrong
-confirmation tokens and requires the pre-mutation authority summary to precede
-the resulting HOLD. It also binds source order so the authority emitter is
-called before the apply/rollback operation function.
+The complete summary is explicitly flushed to stdout before either protected
+operation is entered. A flush failure therefore aborts before candidate access
+or protected-root mutation rather than allowing the operation to continue with
+an unseen boundary.
+
+The focused proof executes the authority emitter against a flush-counting
+synthetic stdout and requires exactly one flush after the full summary. It also
+executes both operation modes with deliberately wrong confirmation tokens and
+requires the pre-mutation authority summary to precede the resulting HOLD.
+Source order separately binds the emitter and its flush before the
+apply/rollback operation function.
 
 ## Operation-bound confirmations
 
