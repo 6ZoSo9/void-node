@@ -5,6 +5,8 @@ import hashlib
 import pathlib
 import subprocess
 import sys
+import types
+import os
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -67,6 +69,41 @@ for relative, expected in EXPECTED_BLOBS.items():
 
 source = (ROOT / INSTALLER_REL).read_text("utf-8")
 compile(source, INSTALLER_REL, "exec", dont_inherit=True)
+
+module = types.ModuleType("void_e2_dormant_binder_install_v2_proof")
+module.__file__ = str(ROOT / INSTALLER_REL)
+module.__package__ = ""
+exec(compile(source, INSTALLER_REL, "exec", dont_inherit=True), module.__dict__)
+module.FIXED_CHECKOUT = ROOT
+module.RUNTIME_UID = os.geteuid()
+module.RUNTIME_GID = os.getegid()
+head = subprocess.run(
+    ["/usr/bin/git", "-C", str(ROOT), "rev-parse", "--verify", "HEAD"],
+    cwd=ROOT,
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=True,
+    timeout=30,
+).stdout.strip()
+accepted = module.accepted_lock(head)
+assert accepted["lock_id"] == LOCK_ID
+assert accepted["candidate_report"]["candidate_id"] == CANDIDATE_ID
+assert accepted["superseded_pre_3363_locks_install_authority"] is False
+assert accepted["candidate_report"]["verified_helper_execution_bound"] is True
+assert (
+    accepted["candidate_report"]["merged_v1_helper_execution"][
+        "executed_from_verified_bytes"
+    ]
+    is True
+)
+assert (
+    accepted["candidate_report"]["merged_v1_helper_execution"][
+        "mutable_path_import"
+    ]
+    is False
+)
 
 for token in (
     '"voidbuye2dormantbinderlock3_"',
@@ -270,6 +307,7 @@ assert "publication=false" in direct_lines
 print("VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PROTECTED_INSTALL_V2_PROOF_GREEN")
 print("accepted_dormant_binder_v3_lock_bound=true")
 print("post_3363_verified_helper_generation_bound=true")
+print("accepted_v3_lock_parser_exercised=true")
 print("superseded_pre_3363_locks_install_authority=false")
 print("exact_native_candidate_bound=true")
 print("exact_binder_git_object_bound=true")
