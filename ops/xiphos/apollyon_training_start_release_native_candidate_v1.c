@@ -691,9 +691,15 @@ static bool environment_clean(void) {
     return true;
 }
 
+static bool required_inherited_fds_present(void) {
+    return fcntl(0,F_GETFD)>=0 &&
+           fcntl(1,F_GETFD)>=0 &&
+           fcntl(2,F_GETFD)>=0 &&
+           fcntl(RELEASE_FD,F_GETFD)>=0;
+}
+
 static bool inherited_fd_set_exact(const proc_context_v1 *proc) {
-    if (fcntl(0,F_GETFD)<0 || fcntl(1,F_GETFD)<0 ||
-        fcntl(2,F_GETFD)<0 || fcntl(RELEASE_FD,F_GETFD)<0) return false;
+    if (!required_inherited_fds_present()) return false;
     int census_fd=fcntl(proc->fd_dir_fd,F_DUPFD_CLOEXEC,4);
     if(census_fd<0) return false;
     DIR *dir=fdopendir(census_fd);
@@ -934,6 +940,20 @@ static int self_test(void) {
     }
     if(close(self_pidfd)!=0) return 68;
 
+    proc_context_v1 proc;
+    if(!open_proc_context(&proc)) return 69;
+    if(!revalidate_proc_context(&proc)) {
+        close_proc_context(&proc);
+        return 70;
+    }
+    if(!close_proc_context(&proc)) return 71;
+
+    proc_context_v1 fake_proc;
+    if(open_proc_context_root("/",&fake_proc)) {
+        close_proc_context(&fake_proc);
+        return 72;
+    }
+
     puts(MARKER "_SELF_TEST_GREEN");
     puts("parent_release_binding_blob_bound=true");
     puts("fixed_release_fd=3");
@@ -950,6 +970,10 @@ static int self_test(void) {
     puts("no_new_privileges_required=true");
     puts("retained_self_pidfd_required=true");
     puts("retained_self_pidfd_liveness_revalidated=true");
+    puts("procfs_super_magic_required=true");
+    puts("procfs_self_pid_bound_to_getpid=true");
+    puts("procfs_self_generation_retained=true");
+    puts("fake_proc_root_rejected=true");
     puts("all_capability_sets_zero_required=true");
     puts("hostile_nnp_zero_rejected=true");
     puts("hostile_nonzero_capability_rejected=true");
@@ -981,18 +1005,32 @@ static void run_gate(
 ) {
     if(getuid()==0 || geteuid()==0) hold("release_native_root_forbidden");
     if(!environment_clean()) hold("release_native_environment_not_clean");
-    if(!inherited_fd_set_exact()) hold("release_native_inherited_fd_set_invalid");
+    if(!required_inherited_fds_present()) {
+        hold("release_native_inherited_fd_set_invalid");
+    }
+
+    proc_context_v1 proc;
+    if(!open_proc_context(&proc)) {
+        hold("release_native_procfs_context_invalid");
+    }
+    if(!inherited_fd_set_exact(&proc)) {
+        hold("release_native_inherited_fd_set_invalid");
+    }
 
     struct stat pipe_before;
-    if(!release_fd_snapshot(&pipe_before)) hold("release_native_fd3_not_read_only_pipe");
+    if(!release_fd_snapshot(&proc,&pipe_before)) {
+        hold("release_native_fd3_not_read_only_pipe");
+    }
 
     process_security_v1 sec_before;
-    if(!observe_security(expected_uid,expected_gid,&sec_before)) {
+    if(!observe_security(&proc,expected_uid,expected_gid,&sec_before)) {
         hold("release_native_security_policy_invalid");
     }
 
     unsigned long long start_before=0;
-    if(!read_start_ticks(&start_before)) hold("release_native_start_ticks_unavailable");
+    if(!read_start_ticks(&proc,&start_before)) {
+        hold("release_native_start_ticks_unavailable");
+    }
 
     int pidfd=open_self_pidfd();
     if(pidfd<0) hold("release_native_pidfd_open_failed");
@@ -1001,7 +1039,7 @@ static void run_gate(
         hold("release_native_pidfd_not_live_before_frame");
     }
 
-    int self_fd=open("/proc/self/exe",O_RDONLY|O_CLOEXEC);
+    int self_fd=openat(proc.self_fd,"exe",O_RDONLY|O_CLOEXEC);
     if(self_fd<0) {
         close(pidfd);
         hold("release_native_self_exe_open_failed");
@@ -1013,14 +1051,26 @@ static void run_gate(
         hold("release_native_self_exe_invalid");
     }
 
+    if(!revalidate_proc_context(&proc)) {
+        close(self_fd);
+        close(pidfd);
+        hold("release_native_procfs_generation_changed_before_frame");
+    }
+
     if(install_noexec_seccomp()!=0) {
         close(self_fd);
         close(pidfd);
         hold("release_native_noexec_barrier_failed");
     }
 
+    if(!revalidate_proc_context(&proc)) {
+        close(self_fd);
+        close(pidfd);
+        hold("release_native_procfs_generation_changed_after_seccomp");
+    }
+
     process_security_v1 sec_pre_frame;
-    if(!observe_security(expected_uid,expected_gid,&sec_pre_frame)) {
+    if(!observe_security(&proc,expected_uid,expected_gid,&sec_pre_frame)) {
         close(self_fd);
         close(pidfd);
         hold("release_native_security_revalidation_failed");
@@ -1042,8 +1092,14 @@ static void run_gate(
         hold("release_native_frame_io_or_digest_mismatch");
     }
 
+    if(!revalidate_proc_context(&proc)) {
+        close(self_fd);
+        close(pidfd);
+        hold("release_native_procfs_generation_changed_after_frame");
+    }
+
     process_security_v1 sec_after;
-    if(!observe_security(expected_uid,expected_gid,&sec_after)) {
+    if(!observe_security(&proc,expected_uid,expected_gid,&sec_after)) {
         close(self_fd);
         close(pidfd);
         hold("release_native_security_post_frame_revalidation_failed");
@@ -1056,7 +1112,7 @@ static void run_gate(
     }
 
     unsigned long long start_after=0;
-    if(!read_start_ticks(&start_after) || start_after!=start_before) {
+    if(!read_start_ticks(&proc,&start_after) || start_after!=start_before) {
         close(self_fd);
         close(pidfd);
         hold("release_native_process_generation_changed");
@@ -1068,7 +1124,7 @@ static void run_gate(
     }
 
     struct stat pipe_after;
-    if(!release_fd_snapshot(&pipe_after) ||
+    if(!release_fd_snapshot(&proc,&pipe_after) ||
        !same_pipe_generation(&pipe_before,&pipe_after)) {
         close(self_fd);
         close(pidfd);
@@ -1082,11 +1138,21 @@ static void run_gate(
         close(pidfd);
         hold("release_native_self_generation_changed");
     }
+
+    if(!revalidate_proc_context(&proc)) {
+        close(self_fd);
+        close(pidfd);
+        hold("release_native_procfs_generation_changed_at_completion");
+    }
+
     if(close(self_fd)!=0) {
         close(pidfd);
         hold("release_native_self_exe_close_failed");
     }
     if(close(pidfd)!=0) hold("release_native_pidfd_close_failed");
+    if(!close_proc_context(&proc)) {
+        hold("release_native_procfs_close_failed");
+    }
 
     printf("%s\n",MARKER);
     printf("mode=run\n");
@@ -1103,6 +1169,9 @@ static void run_gate(
     printf("trainer_pidfd_retained=true\n");
     printf("trainer_pidfd_liveness_revalidated=true\n");
     printf("trainer_security_policy_revalidated=true\n");
+    printf("procfs_provenance_verified=true\n");
+    printf("procfs_self_pid_bound_to_getpid=true\n");
+    printf("procfs_generation_revalidated=true\n");
     printf("post_first_entry_exec_forbidden=true\n");
     printf("private_release_channel_origin_proven=false\n");
     printf("release_writer_exclusivity_proven=false\n");
