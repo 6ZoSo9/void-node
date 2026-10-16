@@ -64,6 +64,15 @@ const CURRENT_WORKFLOW_TRANSITIONS=Object.freeze({
     Object.freeze({
       before:"4543abd100f1ae4d109be5e1fe2c4b8d88c28f07",
       after:"009ec6c08967f01307b072e9ecb949f2a76f4944",
+      required:
+        "node scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs",
+    }),
+  ".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml":
+    Object.freeze({
+      before:"d47cef864ababd8b9444bfb63df5dee356cf4c1c",
+      after:"e4133b0009a99a533c49d5d1f14ca3d17186d2bc",
+      required:
+        "node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs",
     }),
 });
 
@@ -150,10 +159,8 @@ function verifyBranchDelta(){
       "current_workflow_successor_blob_drift:"+relative);
     const source=readExact(relative,256*1024).toString("utf8");
     assert.ok(
-      source.includes(
-        "node scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs"
-      ),
-      "current_workflow_v5_census_dispatch_missing:"+relative,
+      source.includes(expected.required),
+      "current_workflow_successor_dispatch_missing:"+relative,
     );
     assert.equal(
       source.includes(
