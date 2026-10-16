@@ -325,6 +325,33 @@ int main(int argc, char **argv) {
   int drift_write_fd = -1;
   pid_t drift_child = spawn_child(&drift_write_fd);
   if (drift_child < 0) return 35;
+
+  struct apollyon_claim_process_identity_v2 drift_ready;
+  int drift_ready_observed = -1;
+  for (int i = 0; i < 200; ++i) {
+    if (
+      apollyon_claim_process_identity_observe_v2(
+        drift_child,
+        getpid(),
+        getuid(),
+        getgid(),
+        supplementary,
+        supplementary_count,
+        expected_exe,
+        CHILD_CMDLINE,
+        sizeof(CHILD_CMDLINE) - 1,
+        &drift_ready
+      ) == 0
+    ) {
+      drift_ready_observed = 0;
+      break;
+    }
+    struct timespec delay = {.tv_sec = 0, .tv_nsec = 5000000L};
+    nanosleep(&delay, NULL);
+  }
+  if (drift_ready_observed != 0) return 36;
+  apollyon_claim_process_identity_close_v2(&drift_ready);
+
   hook_mode = 1;
   hook_write_fd = drift_write_fd;
   hook_child = drift_child;
@@ -343,12 +370,12 @@ int main(int argc, char **argv) {
       sizeof(CHILD_CMDLINE) - 1,
       &bad
     ) == 0
-  ) return 36;
+  ) return 37;
   hook_mode = 0;
-  if (!hook_exec_observed) return 37;
+  if (!hook_exec_observed) return 38;
   close(drift_write_fd);
-  if (kill(drift_child, SIGTERM) != 0 && errno != ESRCH) return 38;
-  if (wait_any(drift_child) != 0) return 39;
+  if (kill(drift_child, SIGTERM) != 0 && errno != ESRCH) return 39;
+  if (wait_any(drift_child) != 0) return 40;
 
   close(expected_exe);
 
