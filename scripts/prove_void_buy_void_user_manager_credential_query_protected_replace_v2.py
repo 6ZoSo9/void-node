@@ -76,7 +76,8 @@ assert "subprocess" not in from_imports
 
 for needle in (
     "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V2",
-    "voidbuyumqcredelflock2_c05afb1a6fbd44a00d4f220652e87ee099e0456992a17a6ae7b60bda9229cf54",
+    "voidbuyumqcredelflock2_",
+    "c05afb1a6fbd44a00d4f220652e87ee099e0456992a17a6ae7b60bda9229cf54",
     "67e4017efffc7dd9f7bc44f31280244bf58dab3c6fb255f49fea6e5cec9b714c",
     "7b968a20f1507215477f43a59c5d82b9e9adca918ce5f2df566292d8380b4cb1",
     "af02d006176db1a16eee52625751736c63af3bd1b250b46f81f200359fb48718",
@@ -120,6 +121,7 @@ source_plan = run(
     "/usr/bin/python3", "-I", "-B", str(ROOT / SOURCE), "--source-plan"
 ).stdout
 for line in (
+    "accepted_lock_id=voidbuyumqcredelflock2_c05afb1a6fbd44a00d4f220652e87ee099e0456992a17a6ae7b60bda9229cf54",
     "source_only=true",
     "host_read=false",
     "host_write=false",
