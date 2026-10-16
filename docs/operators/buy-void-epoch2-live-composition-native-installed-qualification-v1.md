@@ -30,16 +30,16 @@ It:
 6. requires protected state
    `EPOCH2_LIVE_COMPOSITION_PROTECTED_INSTALL_GREEN`;
 7. snapshots root/native/runner/policy plus host tool/check-out generations;
-8. executes only the installed native binary's inert `--self-test`;
-9. repeats the full installed/host snapshot;
-10. executes the same inert self-test a second time;
-11. repeats the full snapshot again;
-12. requires all three snapshots and both complete self-test transcripts to be
-    identical.
+8. opens the exact installed native with `O_NOFOLLOW`, rebinds it to the verified snapshot, hashes that retained descriptor, and executes `/proc/self/fd/<fd> --self-test` with only that FD passed to the child;
+9. revalidates the retained inode and visible native pathname after execution;
+10. repeats the full installed/host snapshot;
+11. executes the same descriptor-bound inert self-test a second time;
+12. repeats the full snapshot again;
+13. requires all three snapshots and both complete self-test transcripts to be identical.
 
 ## No live composition
 
-The native `--self-test` exits before the native root/live path.
+The native `--self-test` exits before the native root/live path. The qualifier never executes the mutable pathname after verification: execution is bound to the already-open verified inode via `/proc/self/fd/<fd>` and any visible-path rebinding during the child run causes HOLD.
 
 The qualifier does not:
 - execute the V2 runner;
