@@ -60,7 +60,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: legacy-history-nimo-runtime-bundle-v1-${{ github.event.pull_request.number || github.ref }}
+  group: legacy-history-nimo-runtime-bundle-v2-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -118,9 +118,16 @@ jobs:
           grep -Fx 'tracked_runtime_source_file_count=5' "$proof"
           grep -Fx 'parent_source_input_count=19' "$proof"
           grep -Fx 'typescript_version=5.9.3' "$proof"
+          grep -Fx 'compiler_file_count=4' "$proof"
+          grep -Fx 'typescript_cli_entry_bound=true' "$proof"
+          grep -Fx 'typescript_cli_loader_bound=true' "$proof"
+          grep -Fx 'compiler_cli_edges_exact=true' "$proof"
           grep -Fx 'third_party_runtime_packages=0' "$proof"
           grep -Fx 'rehashed_runtime_bytes_tamper_rejected=true' "$proof"
           grep -Fx 'rehashed_compiler_bytes_tamper_rejected=true' "$proof"
+          grep -Fx 'rehashed_cli_entry_tamper_rejected=true' "$proof"
+          grep -Fx 'rehashed_cli_loader_tamper_rejected=true' "$proof"
+          grep -Fx 'rehashed_cli_edge_tamper_rejected=true' "$proof"
           grep -Fx 'runtime_bundle_candidate_accepted=false' "$proof"
           grep -Fx 'live_nimo_installed=false' "$proof"
           grep -Fx 'funds_movement=false' "$proof"
