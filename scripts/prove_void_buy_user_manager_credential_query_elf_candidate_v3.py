@@ -103,7 +103,21 @@ def capture(args:list[str])->bytes:
 
 def file_identity(path:Path,label:str)->dict:
     real=Path(os.path.realpath(os.path.abspath(os.fspath(path))))
-    data=read(real,label=label)
+    before=real.lstat()
+    if (
+        not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or
+        before.st_size<1 or before.st_size>MAX_FILE
+    ):
+        raise AssertionError(label+" metadata invalid")
+    data=real.read_bytes()
+    after=real.lstat()
+    if (
+        (before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns,before.st_ctime_ns)
+        !=
+        (after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+        or len(data)!=before.st_size
+    ):
+        raise AssertionError(label+" read drift")
     return {"path":os.fspath(real),"bytes":len(data),"sha256":sha256(data)}
 
 def resolve_program(name:str)->Path:
