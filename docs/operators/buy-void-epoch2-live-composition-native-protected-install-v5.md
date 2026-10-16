@@ -70,9 +70,13 @@ The upgrade executes neither native nor runner.
 Before exchange, failures clean only the V6R2 stage.
 
 After exchange, any failure triggers an automatic attempt to exchange the exact
-historical generation back into the live root and clean the V6R2 stage. If that
-rollback itself cannot be proven green, the receipt is conservative and
-requires inspection; it does not claim a clean state.
+historical generation back into the live root and clean the V6R2 stage. The
+implementation retains a monotonic `publication_occurred` fact from the first
+successful `RENAME_EXCHANGE`; exchanging the historical root back does not erase
+that audit boundary. If the rollback cannot be proven green — including the
+case where the historical live root is restored but cleanup of the staged V6R2
+generation is ambiguous — the terminal receipt remains publication-aware and
+requires inspection instead of regressing to generic `not_published`.
 
 The focused proof executes the real production apply state machine with
 synthetic/injected host primitives and no real `/opt` I/O. It requires:
@@ -80,7 +84,8 @@ synthetic/injected host primitives and no real `/opt` I/O. It requires:
 - failure immediately after the first root exchange with successful rollback;
 - failure after predecessor retention with successful rollback;
 - failure of the parent fsync immediately after exchange with rollback;
-- rollback-stage cleanup ambiguity;
+- rollback-stage cleanup ambiguity after the historical live root has been
+  exchanged back, requiring a publication-aware inspection receipt;
 - rollback rename failure with publication-aware HOLD; and
 - a retained-parent descriptor close failure after a fully verified success.
 
