@@ -5,7 +5,7 @@ import argparse
 import errno
 import fcntl
 import hashlib
-import importlib.util
+import types
 import json
 import os
 from pathlib import Path
@@ -78,24 +78,40 @@ def load_v1():
     data = bounded_regular(V1_PATH, 2 * 1024 * 1024, "merged v1 candidate proof")
     if git_blob_sha1(data) != V1_BLOB:
         raise AssertionError("merged V1 candidate proof blob drift")
-    spec = importlib.util.spec_from_file_location(
-        "void_buy_void_epoch2_dormant_binder_native_candidate_v1",
-        V1_PATH,
+    try:
+        source = data.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        raise AssertionError("merged V1 candidate proof UTF-8 invalid") from exc
+    module = types.ModuleType(
+        "void_buy_void_epoch2_dormant_binder_native_candidate_v1_verified"
     )
-    if spec is None or spec.loader is None:
-        raise AssertionError("V1 import spec unavailable")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module.__file__ = os.fspath(V1_PATH)
+    module.__package__ = None
+    code = compile(
+        source,
+        os.fspath(V1_PATH),
+        "exec",
+        dont_inherit=True,
+        optimize=0,
+    )
+    exec(code, module.__dict__)
     if (
         module.SOURCE_REL != SOURCE_REL
         or module.SOURCE_BLOB != SOURCE_BLOB
         or module.MARKER != "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_CANDIDATE_V1"
     ):
         raise AssertionError("merged V1 candidate proof contract drift")
-    return module
+    evidence = {
+        "git_blob_sha1": V1_BLOB,
+        "bytes": len(data),
+        "sha256": sha256(data),
+        "executed_from_verified_bytes": True,
+        "mutable_path_import": False,
+    }
+    return module, evidence
 
 
-V1 = load_v1()
+V1, V1_HELPER_EXECUTION = load_v1()
 
 
 def read_fd_exact(fd: int, maximum: int) -> bytes:
@@ -600,6 +616,7 @@ def derive() -> tuple[dict, bytes]:
         "marker": MARKER,
         "version": 2,
         "merged_v1_proof_git_blob_sha1": V1_BLOB,
+        "merged_v1_helper_execution": V1_HELPER_EXECUTION,
         "binding_generation": binding,
         **sources,
         "source_snapshot": {
@@ -693,6 +710,17 @@ def validate(report: dict) -> None:
         raise AssertionError("V2 candidate id content binding invalid")
     if report.get("merged_v1_proof_git_blob_sha1") != V1_BLOB:
         raise AssertionError("V2 merged V1 proof binding invalid")
+    helper = report.get("merged_v1_helper_execution")
+    if (
+        not isinstance(helper, dict)
+        or helper.get("git_blob_sha1") != V1_BLOB
+        or not isinstance(helper.get("bytes"), int)
+        or helper["bytes"] < 1
+        or HEX64.fullmatch(str(helper.get("sha256", ""))) is None
+        or helper.get("executed_from_verified_bytes") is not True
+        or helper.get("mutable_path_import") is not False
+    ):
+        raise AssertionError("V2 merged V1 helper execution invalid")
 
     native = report.get("native_source")
     if (
@@ -805,6 +833,7 @@ def derive_dir(output: Path) -> None:
     print("candidate_id=" + report["candidate_id"])
     print("native_binary_sha256=" + report["binary"]["sha256"])
     print("native_binary_bytes=" + str(report["binary"]["bytes"]))
+    print("merged_v1_helper_executed_from_verified_bytes=true")
     print("sealed_source_snapshot=true")
     print("checkout_path_is_not_build_authority=true")
     print("toolchain_root_custody_verified=true")
@@ -848,6 +877,7 @@ def compare_dir(root: Path) -> None:
     print("three_run_binary_bytes_identical=true")
     print("comparison_rederived_report=true")
     print("comparison_rederived_elf=true")
+    print("merged_v1_helper_executed_from_verified_bytes=true")
     print("sealed_source_snapshot=true")
     print("toolchain_revalidated_after_build=true")
     print("candidate_id=" + hosted["candidate_id"])
@@ -867,6 +897,9 @@ def self_test() -> None:
     validate_toolchain(toolchain)
     own = Path(__file__).read_text(encoding="utf-8")
     for required in (
+        'data.decode("utf-8", "strict")',
+        "exec(code, module.__dict__)",
+        '"mutable_path_import": False',
         "create_sealed_source_snapshot(source_data)",
         "preprocessed_identity_from_snapshot(source_fd)",
         "compile_one_from_snapshot(",
@@ -878,6 +911,8 @@ def self_test() -> None:
             raise AssertionError("V2 proof source invariant missing: " + required)
     print(MARKER + "_SELF_TEST_GREEN")
     print("merged_v1_evidence_preserved=true")
+    print("merged_v1_helper_executed_from_verified_bytes=true")
+    print("merged_v1_helper_mutable_path_import=false")
     print("sealed_source_snapshot=true")
     print("checkout_path_is_not_build_authority=true")
     print("toolchain_root_custody_verified=true")
