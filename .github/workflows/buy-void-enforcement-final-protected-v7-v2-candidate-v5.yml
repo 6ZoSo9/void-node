@@ -114,7 +114,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs)" = \
-            340094746d3a897334b3541a5fe9b6618791f367
+            80f076711b9c955c494cc70effafc3737b9c9c57
           test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v5.md)" = \
             ef7d1d3cee9f236d10e3bce67777f9260356c863
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v7.mjs)" = \
