@@ -71,15 +71,23 @@ static bool sha256_fd_matches(int fd,const unsigned char expected[32]){
 typedef struct{char expected_head[41];char node_sha256[65];size_t node_bytes;} policy_v1;
 static bool child_created=false;
 static bool proof_released=false;
+static bool binder_source_release_started=false;
 
 static void hold(const char*reason){
   fprintf(stderr,"%s_HOLD reason=%s\n",MARKER,reason);
   fprintf(stderr,"native_first_entry=true\n");
   fprintf(stderr,"child_process_created=%s\n",child_created?"true":"false");
   fprintf(stderr,"binder_parent_proof_released=%s\n",proof_released?"true":"false");
-  fprintf(stderr,"credential_content_access=false\n");
-  fprintf(stderr,"private_key_access=false\n");
-  fprintf(stderr,"signing=false\n");
+  fprintf(stderr,"binder_source_release_started=%s\n",binder_source_release_started?"true":"false");
+  if(binder_source_release_started){
+    fprintf(stderr,"credential_content_access=unknown_or_partial\n");
+    fprintf(stderr,"private_key_access=unknown_or_partial\n");
+    fprintf(stderr,"signing=unknown_or_partial\n");
+  }else{
+    fprintf(stderr,"credential_content_access=false\n");
+    fprintf(stderr,"private_key_access=false\n");
+    fprintf(stderr,"signing=false\n");
+  }
   fprintf(stderr,"transaction=false\n");
   fprintf(stderr,"payment_acceptance=false\n");
   fprintf(stderr,"public_presale_activation=false\n");
@@ -168,10 +176,16 @@ static void emit_proof(int fd,pid_t child,const char head[41],const struct stat*
 static int self_test(void){
   static const unsigned char abc_expected[32]={0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
   unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=39391U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
-  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
+  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("sensitive_receipt_release_boundary=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
 }
 int main(int argc,char**argv){
   if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
+  if(argc==2&&strcmp(argv[1],"--self-test-hold-pre-source")==0)
+    hold("binder_preentry_self_test_pre_source_hold");
+  if(argc==2&&strcmp(argv[1],"--self-test-hold-post-source")==0){
+    binder_source_release_started=true;
+    hold("binder_preentry_self_test_post_source_hold");
+  }
   if(geteuid()!=0)hold("binder_preentry_root_required");char requested_head[41];parse_args(argc,argv,requested_head);struct stat self_st=require_self_identity();require_devnull_stdin();
   policy_v1 policy=read_policy();if(strcmp(requested_head,policy.expected_head)!=0)hold("binder_preentry_expected_head_policy_mismatch");
   int binder_fd=open_trusted(FIXED_BINDER,false,"binder_preentry_binder_custody_invalid");struct stat binder_st;if(fstat(binder_fd,&binder_st)!=0||(uintmax_t)binder_st.st_size!=BINDER_BYTES||!sha256_fd_matches(binder_fd,BINDER_SHA256)){close(binder_fd);hold("binder_preentry_binder_identity_mismatch");}
@@ -192,6 +206,7 @@ int main(int argc,char**argv){
   child_created=true;close(source_pipe[0]);close(proof_pipe[0]);close(node_fd);
   unsigned long long child_ticks=0;if(!read_start_ticks(child,&child_ticks)){close(source_pipe[1]);close(proof_pipe[1]);close(binder_fd);(void)kill(child,SIGTERM);(void)waitpid(child,NULL,0);hold("binder_preentry_child_generation_unavailable");}
   emit_proof(proof_pipe[1],child,policy.expected_head,&self_st,&binder_st,&node_st,parent_ticks,child_ticks);proof_released=true;close(proof_pipe[1]);
+  binder_source_release_started=true;
   if(!stream_fd(binder_fd,source_pipe[1])){close(source_pipe[1]);close(binder_fd);(void)kill(child,SIGTERM);(void)waitpid(child,NULL,0);hold("binder_preentry_source_stream_failed");}
   close(source_pipe[1]);close(binder_fd);int status=0;pid_t waited;do{waited=waitpid(child,&status,0);}while(waited<0&&errno==EINTR);if(waited!=child)hold("binder_preentry_child_wait_failed");if(WIFEXITED(status))return WEXITSTATUS(status);hold("binder_preentry_child_not_cleanly_exited");
 }
