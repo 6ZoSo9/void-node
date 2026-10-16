@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
 import importlib.util
+import io
 from pathlib import Path
 import subprocess
 
@@ -107,6 +109,46 @@ rename_calls = [
     and node.func.id == "_renameat2"
 ]
 assert len(rename_calls) >= 4
+except_handlers = [
+    node for node in ast.walk(apply_defs[0])
+    if isinstance(node, ast.ExceptHandler)
+]
+assert len(except_handlers) >= 3
+apply_except_calls = {
+    node.func.id
+    for handler in except_handlers
+    for node in ast.walk(handler)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+}
+for required_call in (
+    "_classify_final_protected_state",
+    "_failure_receipt",
+    "_emit_failure_receipt",
+):
+    assert required_call in apply_except_calls, required_call
+
+phase_values = {
+    node.value.value
+    for node in ast.walk(apply_defs[0])
+    if isinstance(node, ast.Assign)
+    and any(
+        isinstance(target, ast.Name) and target.id == "failure_phase"
+        for target in node.targets
+    )
+    and isinstance(node.value, ast.Constant)
+    and isinstance(node.value.value, str)
+}
+for phase in (
+    "pre_exchange",
+    "stage_write",
+    "pre_exchange_revalidation",
+    "policy_exchanged",
+    "post_exchange_verification",
+    "backup_retained",
+    "post_backup_revalidation",
+):
+    assert phase in phase_values, phase
+
 assert 'print("filesystem_mutation_performed=false")' not in source
 assert 'print("filesystem_mutation_performed_at_pre_mutation_boundary=false")' in source
 
@@ -125,6 +167,19 @@ receipt = module._failure_receipt(
 )
 assert receipt["policy_publication_performed"] is True
 assert receipt["final_state_verified"] is True
+emitted = io.StringIO()
+with contextlib.redirect_stdout(emitted):
+    module._emit_failure_receipt(receipt)
+emitted_lines = emitted.getvalue().splitlines()
+assert "authority_boundary=FINAL_FAILURE_RECEIPT" in emitted_lines
+assert "policy_exchange_performed=true" in emitted_lines
+assert "policy_publication_performed=true" in emitted_lines
+assert "automatic_rollback_attempted=true" in emitted_lines
+assert "automatic_rollback_green=true" in emitted_lines
+assert "final_state_verified=true" in emitted_lines
+assert (
+    "filesystem_mutation_performed=false" not in emitted_lines
+)
 
 receipt = module._failure_receipt(
     failure_phase="backup_retained",
@@ -228,6 +283,8 @@ print("old_policy_retention_required=true")
 print("automatic_rollback_required=true")
 print("publication_aware_failure_receipt=true")
 print("post_exchange_failure_reports_publication=true")
+print("apply_exception_path_emits_final_failure_receipt=true")
+print("post_exchange_failure_transcript_monotonic=true")
 print("rollback_failure_final_state_uncertain=true")
 print("pre_mutation_authority_scoped=true")
 print("native_mutation_authorized=false")

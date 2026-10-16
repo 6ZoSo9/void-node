@@ -48,7 +48,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = \
             94fd2344fe2a4cfb66c9976ca1541d52c27ec17d
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = \
-            862779ec7a91ffe01eeabad4abdfae0be8c628d8
+            36a2ebeaa3f86184f11aab519b33ef4e06ceece1
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-policy-head-rebind-v1.md)" = \
             1790363c6a7229e9431f62749294db30fe60409c
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
@@ -88,6 +88,8 @@ jobs:
             'automatic_rollback_required=true' \
             'publication_aware_failure_receipt=true' \
             'post_exchange_failure_reports_publication=true' \
+            'apply_exception_path_emits_final_failure_receipt=true' \
+            'post_exchange_failure_transcript_monotonic=true' \
             'rollback_failure_final_state_uncertain=true' \
             'pre_mutation_authority_scoped=true' \
             'native_mutation_authorized=false' \
