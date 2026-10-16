@@ -50,6 +50,12 @@ The candidate independently inspects the current 49-path enforcement inventory
 and requires no protected path drift after exact #2872 head
 `6080389131c3cdb80fa9935b5ff80f4e40f09938`.
 
+Because the accepted #3242 repair is workflow-only, V3 also pins the repaired
+census workflow Git blob
+`96583f38c1727e82bae23bb24c37e23959421db7` and requires the hosted census
+evidence to name that same workflow generation. A child-side workflow drift
+therefore cannot inherit the accepted census receipt silently.
+
 This generation does **not** runtime-import the TypeScript deployment installer
 to obtain that list. The current source tree contains source-relative `.js`
 imports that are valid for the reviewed compiled/runtime path but are not
