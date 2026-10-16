@@ -32,7 +32,7 @@ QUALIFIER_SOURCE = (
     "void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
 )
 
-TARGET_BLOB = "701aac2289c262ccf36c59e327056c6f5e33759a"
+TARGET_BLOB = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
 LOCK_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 NATIVE_SOURCE_BLOB = "5021727f1def1ec11f870d735cab65acc1701a5e"
 RUNNER_SOURCE_BLOB = "499df9b94b5b89354837570da0c7e47ec280025d"
@@ -401,6 +401,8 @@ def run_synthetic_apply_case(case: str):
         "fsync": 0,
         "rename": 0,
         "install_verify": 0,
+        "node": 0,
+        "checkout": 0,
     }
 
     originals = {
@@ -457,14 +459,28 @@ def run_synthetic_apply_case(case: str):
     module._verify_root_generation = (
         lambda root, **_kwargs: events.append(("verify_stage", str(root)))
     )
-    module.checkout_snapshot_with_tools = (
-        lambda _head, **_kwargs: {
+    def synthetic_checkout(_head, **_kwargs):
+        counts["checkout"] += 1
+        if case == "checkout_binding_drift_after_exchange" and counts["checkout"] >= 2:
+            return {
+                "checkout": {"head": "9" * 40, "branch": "main"},
+                "git_tool": body["git_tool"],
+                "setpriv_tool": body["setpriv_tool"],
+            }
+        return {
             "checkout": body["checkout"],
             "git_tool": body["git_tool"],
             "setpriv_tool": body["setpriv_tool"],
         }
-    )
-    module.node_snapshot = lambda: body["node"]
+
+    def synthetic_node_snapshot():
+        counts["node"] += 1
+        if case == "node_binding_drift_after_exchange" and counts["node"] >= 2:
+            return {"sha256": "8" * 64, "bytes": 12345}
+        return body["node"]
+
+    module.checkout_snapshot_with_tools = synthetic_checkout
+    module.node_snapshot = synthetic_node_snapshot
     module._create_file = (
         lambda _fd, name, _raw, **_kwargs: events.append(("create_file", name))
     )
@@ -581,6 +597,7 @@ assert first_receipt["final_verification_completed"] == "false"
 assert first_receipt["rollback_attempted"] == "true"
 assert first_receipt["rollback_green"] == "true"
 assert first_receipt["rollback_final_state_verified"] == "true"
+assert "automatic_rollback_final_state_verified=true" in first_lines
 assert first_receipt["original_failure_class"] == "InstallError"
 assert "automatic_rollback_attempted=true" in first_lines
 assert "automatic_rollback_green=true" in first_lines
@@ -674,6 +691,38 @@ assert rollback_receipt["rollback_final_state_verified"] == "false"
 assert "automatic_rollback_green=false" in rollback_lines
 assert len([event for event in rollback_events if event[0] == "rename"]) == 2
 
+node_drift_exc, node_drift_events, node_drift_lines = run_synthetic_apply_case(
+    "node_binding_drift_after_exchange"
+)
+assert isinstance(node_drift_exc, module.PublishedInstallError)
+assert str(node_drift_exc) == "atomic_upgrade_rolled_back_after_failure"
+node_drift_receipt = module._failure_receipt(node_drift_exc)
+assert node_drift_receipt["publication_state"] == "published_rolled_back_green"
+assert node_drift_receipt["rollback_attempted"] == "true"
+assert node_drift_receipt["rollback_green"] == "true"
+assert node_drift_receipt["rollback_final_state_verified"] == "false"
+assert node_drift_receipt["final_state_verified"] == "false"
+assert node_drift_receipt["original_failure_class"] == "InstallError"
+assert "automatic_rollback_green=true" in node_drift_lines
+assert "automatic_rollback_final_state_verified=false" in node_drift_lines
+assert len([event for event in node_drift_events if event[0] == "rename"]) == 2
+
+checkout_drift_exc, checkout_drift_events, checkout_drift_lines = run_synthetic_apply_case(
+    "checkout_binding_drift_after_exchange"
+)
+assert isinstance(checkout_drift_exc, module.PublishedInstallError)
+assert str(checkout_drift_exc) == "atomic_upgrade_rolled_back_after_failure"
+checkout_drift_receipt = module._failure_receipt(checkout_drift_exc)
+assert checkout_drift_receipt["publication_state"] == "published_rolled_back_green"
+assert checkout_drift_receipt["rollback_attempted"] == "true"
+assert checkout_drift_receipt["rollback_green"] == "true"
+assert checkout_drift_receipt["rollback_final_state_verified"] == "false"
+assert checkout_drift_receipt["final_state_verified"] == "false"
+assert checkout_drift_receipt["original_failure_class"] == "InstallError"
+assert "automatic_rollback_green=true" in checkout_drift_lines
+assert "automatic_rollback_final_state_verified=false" in checkout_drift_lines
+assert len([event for event in checkout_drift_events if event[0] == "rename"]) == 2
+
 close_exc, close_events, _close_lines = run_synthetic_apply_case(
     "success_close_failure"
 )
@@ -714,6 +763,9 @@ print("post_first_exchange_rollback_exercised=true")
 print("post_predecessor_retention_rollback_exercised=true")
 print("green_rollback_publication_receipt_truthful=true")
 print("post_exchange_oserror_receipt_truthful=true")
+print("post_rollback_plan_binding_revalidation=true")
+print("node_drift_after_rollback_final_state_unverified=true")
+print("checkout_drift_after_rollback_final_state_unverified=true")
 print("rollback_cleanup_ambiguity_exercised=true")
 print("rollback_cleanup_publication_receipt_truthful=true")
 print("rollback_failure_receipt_exercised=true")
