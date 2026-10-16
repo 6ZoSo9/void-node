@@ -288,6 +288,21 @@ for(const [key,expected] of Object.entries({
   assert.equal(VOID_APOLLYON_LIVE_SOURCE_SESSION_TERMINAL_RECEIPT_AUTHORITY_V2[key],expected,key);
 }
 
+
+const WORKFLOW=fs.readFileSync(
+  path.join(ROOT,".github/workflows/apollyon-live-source-session-terminal-receipt-v2.yml"),
+  "utf8",
+);
+for(const required of [
+  "pull_request:",
+  "push:\n    branches: [main]",
+  "workflow_dispatch:",
+  "push)",
+  'BASE="$(git rev-parse "$HEAD^")"',
+]){
+  assert.equal(WORKFLOW.includes(required),true,"workflow parity: "+required);
+}
+
 const source=fs.readFileSync(
   path.join(ROOT,"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"),
   "utf8",
