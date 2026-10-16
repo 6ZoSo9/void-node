@@ -20,7 +20,7 @@ WORKFLOW = (
     "buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml"
 )
 
-TARGET_BLOB = "6ebd3d7f7f87250f5583a9a93d07cd46b20e0669"
+TARGET_BLOB = "9bfb57273255a0d6070874a5454f4f0ab1e6216e"
 MARKER = "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V1"
 POLICY_SCHEMA = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_POLICY_V1"
@@ -212,31 +212,111 @@ with tempfile.TemporaryDirectory(
     native_local = temp / "native-candidate"
     invocation_marker = temp / "invoked"
     abnormal_control = temp / "abnormal"
+    native_race_flag = temp / "native-race"
+    native_race_gate = temp / "native-race-go"
+    native_seen = temp / "native-seen"
 
     installer_text = textwrap.dedent(
         f"""\
         #!/usr/bin/env python3
         import argparse
+        import hashlib
         import os
         import pathlib
         import signal
+        import sys
         import time
 
         marker = pathlib.Path({str(invocation_marker)!r})
         abnormal = pathlib.Path({str(abnormal_control)!r})
+        native_race = pathlib.Path({str(native_race_flag)!r})
+        native_gate = pathlib.Path({str(native_race_gate)!r})
+        native_seen = pathlib.Path({str(native_seen)!r})
+        expected_parent = pathlib.Path(
+            {str(fixture_root / "bin/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1")!r}
+        )
+
+        def start_ticks(pid):
+            raw=pathlib.Path(f"/proc/{{pid}}/stat").read_text(encoding="ascii")
+            right=raw.rfind(")")
+            assert right>0
+            fields=raw[right+2:].split()
+            return fields[19]
+
+        def read_fd_all(fd):
+            os.lseek(fd,0,os.SEEK_SET)
+            chunks=[]
+            while True:
+                part=os.read(fd,65536)
+                if not part:
+                    break
+                chunks.append(part)
+            os.lseek(fd,0,os.SEEK_SET)
+            return b"".join(chunks)
+
+        def read_proof(fd):
+            text=read_fd_all(fd).decode("ascii")
+            pairs={{}}
+            for line in text.splitlines():
+                key,sep,value=line.partition("=")
+                assert sep=="=" and key and key not in pairs
+                pairs[key]=value
+            expected_keys={{
+                "schema","parent_pid","parent_start_ticks",
+                "launcher_dev","launcher_ino",
+                "installer_dev","installer_ino",
+                "native_dev","native_ino",
+                "python_dev","python_ino",
+                "native_fd","operation","expected_head",
+            }}
+            assert set(pairs)==expected_keys
+            assert pairs["schema"]=="VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_PARENT_PROOF_V1"
+            parent_pid=int(pairs["parent_pid"])
+            assert parent_pid==os.getppid()
+            assert pairs["parent_start_ticks"]==start_ticks(parent_pid)
+            parent_exe=os.stat(f"/proc/{{parent_pid}}/exe")
+            assert int(pairs["launcher_dev"])==parent_exe.st_dev
+            assert int(pairs["launcher_ino"])==parent_exe.st_ino
+            assert pathlib.Path(f"/proc/{{parent_pid}}/exe").resolve()==expected_parent
+            installer_st=os.stat(sys.argv[0])
+            assert int(pairs["installer_dev"])==installer_st.st_dev
+            assert int(pairs["installer_ino"])==installer_st.st_ino
+            python_st=os.stat("/proc/self/exe")
+            assert int(pairs["python_dev"])==python_st.st_dev
+            assert int(pairs["python_ino"])==python_st.st_ino
+            return pairs
+
         parser = argparse.ArgumentParser()
         mode = parser.add_mutually_exclusive_group(required=True)
         mode.add_argument("--plan", action="store_true")
         mode.add_argument("--apply", action="store_true")
-        parser.add_argument("--native", required=True)
+        parser.add_argument("--native-fd", type=int, required=True)
+        parser.add_argument("--first-entry-proof-fd", type=int, required=True)
         parser.add_argument("--expected-head", required=True)
         parser.add_argument("--confirm", default="")
         args = parser.parse_args()
+
+        proof=read_proof(args.first_entry_proof_fd)
+        assert int(proof["native_fd"])==args.native_fd
+        native_st=os.fstat(args.native_fd)
+        assert int(proof["native_dev"])==native_st.st_dev
+        assert int(proof["native_ino"])==native_st.st_ino
+        assert proof["expected_head"]==args.expected_head=={EXPECTED_HEAD!r}
+        assert proof["operation"]==("installer_plan" if args.plan else "installer_apply")
+
         marker.write_text("invoked\\n", encoding="utf-8")
-        assert pathlib.Path(args.native) == pathlib.Path(
-            {str(fixture_root / "input/void_buy_void_epoch2_dormant_binder_native_candidate_v2")!r}
+        if native_race.exists():
+            deadline=time.monotonic()+5.0
+            while not native_gate.exists():
+                assert time.monotonic()<deadline
+                time.sleep(0.01)
+
+        native_bytes=read_fd_all(args.native_fd)
+        native_seen.write_text(
+            hashlib.sha256(native_bytes).hexdigest()+"\\n",
+            encoding="ascii",
         )
-        assert args.expected_head == {EXPECTED_HEAD!r}
+        assert native_bytes==b"VOID_DORMANT_BINDER_SYNTHETIC_NATIVE_V2\\n"
         if args.plan:
             assert args.confirm == ""
             time.sleep(0.35)
@@ -272,6 +352,10 @@ with tempfile.TemporaryDirectory(
         "expected_head_compile_bound=true",
         "apply_confirmation_compile_bound=true",
         "python_generation_root_policy_bound=true",
+        "native_candidate_descriptor_inherited_by_child=true",
+        "private_parent_proof_fd_required=true",
+        "parent_kernel_generation_proof_required=true",
+        "direct_installer_apply_without_parent_proof_authorized=false",
         "stale_candidate_lock_promoted=false",
         "protected_install_authorized=false",
     ):
@@ -326,6 +410,11 @@ with tempfile.TemporaryDirectory(
         assert MARKER + "_GREEN" in plan.stdout
         assert "operation=installer_plan" in plan.stdout
         assert "privileged_first_entry_authenticated=true" in plan.stdout
+        assert "native_candidate_descriptor_inherited_by_child=true" in plan.stdout
+        assert "private_parent_proof_fd_consumed_by_child_contract=true" in plan.stdout
+        assert "parent_kernel_generation_proof_required=true" in plan.stdout
+        assert "direct_installer_apply_without_parent_proof_authorized=false" in plan.stdout
+        assert native_seen.read_text(encoding="ascii").strip() == sha256(native_raw)
         assert "installer_apply_performed=false" in plan.stdout
 
         apply = sudo([
@@ -376,6 +465,48 @@ with tempfile.TemporaryDirectory(
         assert bad_native.returncode == 2
         assert "native_input_identity_mismatch" in bad_native.stderr
         assert "child_process_created=false" in bad_native.stderr
+        install_file(native_local, native_remote, "0444")
+
+        # Mid-child native pathname replacement cannot change the bytes consumed
+        # by the synthetic installer because the child reads only the inherited
+        # pre-authenticated descriptor. Parent GREEN is still withheld because
+        # the visible generation drifted.
+        for marker_path in (invocation_marker, native_race_gate, native_seen):
+            if marker_path.exists():
+                marker_path.unlink()
+        native_race_flag.write_text("1\n", encoding="utf-8")
+        native_race = subprocess.Popen(
+            ["sudo", "-n", str(preentry), "--installer-plan"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+        )
+        wait_for(invocation_marker)
+        replacement_native = temp / "native-replacement"
+        replacement_native.write_bytes(native_raw + b"VISIBLE_SUBSTITUTION\n")
+        install_file(
+            replacement_native,
+            native_remote.with_suffix(".replacement"),
+            "0444",
+        )
+        sudo([
+            "/usr/bin/mv", "-f",
+            str(native_remote.with_suffix(".replacement")),
+            str(native_remote),
+        ])
+        native_race_gate.write_text("go\n", encoding="utf-8")
+        native_stdout, native_stderr = native_race.communicate(timeout=20)
+        native_race_flag.unlink()
+        native_race_gate.unlink()
+        assert native_race.returncode == 2
+        assert "FIXTURE_DORMANT_BINDER_INSTALLER_PLAN_GREEN" in native_stdout
+        assert MARKER + "_GREEN" not in native_stdout
+        assert "native_input_generation_changed" in native_stderr
+        assert "child_process_created=true" in native_stderr
+        assert native_seen.read_text(encoding="ascii").strip() == sha256(native_raw)
         install_file(native_local, native_remote, "0444")
 
         sudo(["/usr/bin/rm", str(python_link)])
@@ -525,6 +656,11 @@ print("installer_source_generation_bound_before_python=true")
 print("native_candidate_generation_bound_before_python=true")
 print("python_generation_bound_before_payload=true")
 print("retained_installer_descriptor_execution=true")
+print("retained_native_descriptor_consumed_by_child=true")
+print("private_parent_proof_fd_consumed=true")
+print("parent_kernel_generation_proof_required=true")
+print("direct_installer_apply_without_parent_proof_authorized=false")
+print("mid_child_native_path_substitution_cannot_change_child_bytes=true")
 print("post_child_generation_revalidation=true")
 print("abnormal_apply_receipt_conservative=true")
 print("ld_preload_dynamic_control_executes=true")
