@@ -1112,7 +1112,9 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
       predecessor.claim_history_sha256!==historySha||
       predecessor.generation_lineage_count!==sortedLineage.length||
       predecessor.generation_lineage_sha256!==lineageSha||
-      !priorLineageSet.has(predecessor.store_generation_id)
+      !priorLineageSet.has(predecessor.store_generation_id)||
+      (!predecessor.genesis&&
+        !priorLineageSet.has(predecessor.predecessor_store_generation_id))
     ){
       fail("apollyon_claim_store_continuity_v2_predecessor_mismatch");
     }

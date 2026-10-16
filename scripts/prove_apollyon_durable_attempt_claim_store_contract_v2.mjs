@@ -48,7 +48,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "ac05731055bf888f59469df1769a2ec650f40a98",
+    "aa2bc1a80b1400b43af89dae217b1d84a1660944",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -960,14 +960,31 @@ function continuityReceipt(overrides={}){
 }
 {
   const reusedNewLineage=[...PRIOR_GENERATION_IDS,NEW_GENERATION_ID].sort();
+  const reusedLineageSha=sha256(Buffer.from(
+    canonicalApollyonClaimContractJsonV1(reusedNewLineage),"utf8",
+  ));
+  const reusedPredMaterial={
+    ...predecessorMaterial,
+    generation_lineage_count:reusedNewLineage.length,
+    generation_lineage_sha256:reusedLineageSha,
+  };
+  const reusedPredecessor={
+    ...reusedPredMaterial,
+    store_generation_record_id:"apollyon_claim_store_generation_record_v2:"+
+      sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(reusedPredMaterial),"utf8")),
+  };
   assert.throws(
     ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
-      continuity_receipt:continuityReceipt(),
-      predecessor_generation_record:predecessor,
+      continuity_receipt:continuityReceipt({
+        predecessor_generation_record_id:reusedPredecessor.store_generation_record_id,
+        prior_generation_lineage_count:reusedNewLineage.length,
+        prior_generation_lineage_sha256:reusedLineageSha,
+      }),
+      predecessor_generation_record:reusedPredecessor,
       prior_claim_records:PRIOR_RECORDS,
       prior_generation_ids:reusedNewLineage,
     }),
-    /new_generation_lineage_invalid|predecessor_mismatch/u,
+    /new_generation_lineage_invalid/u,
   );
 }
 {
@@ -1084,6 +1101,14 @@ function continuityReceipt(overrides={}){
     prior_claim_count:0,
     prior_claim_set_sha256:sha256(Buffer.from(
       canonicalApollyonClaimContractJsonV1([]),"utf8",
+    )),
+    prior_generation_lineage_count:0,
+    prior_generation_lineage_sha256:sha256(Buffer.from(
+      canonicalApollyonClaimContractJsonV1([]),"utf8",
+    )),
+    new_generation_lineage_count:1,
+    new_generation_lineage_sha256:sha256(Buffer.from(
+      canonicalApollyonClaimContractJsonV1([NEW_GENERATION_ID]),"utf8",
     )),
   });
   assert.throws(
