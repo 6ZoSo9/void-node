@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 import pathlib
 import subprocess
+import sys
 import types
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -268,8 +269,12 @@ class FlushProbe:
         self.flush_count += 1
 
 probe = FlushProbe()
-module.sys = types.SimpleNamespace(stdout=probe)
-module.emit_operation_authority("apply")
+saved_stdout = sys.stdout
+try:
+    sys.stdout = probe
+    module.emit_operation_authority("apply")
+finally:
+    sys.stdout = saved_stdout
 assert probe.flush_count == 1
 probe_lines = "".join(probe.parts).splitlines()
 assert probe_lines[0] == "VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R"
