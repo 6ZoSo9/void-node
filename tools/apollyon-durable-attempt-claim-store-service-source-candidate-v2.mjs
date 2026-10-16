@@ -1,0 +1,180 @@
+#!/usr/bin/env node
+import crypto from "node:crypto";
+import {
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_DANGEROUS_ENVIRONMENT_NAMES_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RECORD_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SUCCESS_RESPONSE_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_FAILURE_RESPONSE_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_SYSTEMD_REQUIREMENTS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SOCKET_REQUIREMENTS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_LEAST_AUTHORITY_KEYS_V2,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2,
+  qualifyApollyonDurableAttemptClaimStorePolicyV2,
+} from "./apollyon-durable-attempt-claim-store-contract-v2.mjs";
+
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_CANDIDATE_V2 =
+  "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_CANDIDATE_V2";
+
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_CANDIDATE_AUTHORITY_V2 =
+  Object.freeze({
+    source_only_candidate:true,
+    exact_parent_store_policy_required:true,
+    exact_parent_host_plan_source_required:true,
+    fixed_identity_names_bound:true,
+    fixed_paths_bound:true,
+    host_plan_receipt_required_for_numeric_identity_binding:true,
+    numeric_host_identity_binding_performed:false,
+    service_implementation_present:false,
+    publisher_implementation_present:false,
+    service_unit_implementation_present:false,
+    socket_listener_implementation_present:false,
+    durable_store_writer_implementation_present:false,
+    training_start_consumer_implementation_present:false,
+    host_installation:false,
+    filesystem_read:false,
+    filesystem_write:false,
+    account_mutation:false,
+    group_mutation:false,
+    systemd_mutation:false,
+    service_action:false,
+    socket_action:false,
+    network_access:false,
+    credential_access:false,
+    private_key_access:false,
+    signing:false,
+    wallet_access:false,
+    transaction:false,
+    funds_movement:false,
+    durable_attempt_claim:false,
+    training_execution:false,
+    candidate_weight_mutation:false,
+  });
+
+const PARENT_STORE_CONTRACT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731";
+const PARENT_STORE_CONTRACT_BLOB_SHA1="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe";
+const PARENT_HOST_PLAN_HEAD="5693e0e060dd567acbbf7a1e44ab641efded4a98";
+const PARENT_HOST_PLANNER_BLOB_SHA1="03ea7df9b7a548c73ec1c715d716391be5d5d223";
+const EXPECTED_STORE_POLICY_ID=
+  "apollyon_claim_store_policy_v2:"+
+  "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137";
+
+const FIXED_IDENTITIES=Object.freeze({
+  claim_service_user:"voidapollyonclaim",
+  claim_service_group:"voidapollyonclaim",
+  claim_publisher_user:"voidapollyonclaimpub",
+  claim_publisher_group:"voidapollyonclaimpub",
+  claim_ipc_group:"voidapollyonclaimipc",
+});
+
+const FIXED_PATHS=Object.freeze({
+  claim_state_root:"/var/lib/void-apollyon-attempt-claim-v2",
+  claim_socket_parent:"/run/void-apollyon-attempt-claim-v2",
+  claim_socket:"/run/void-apollyon-attempt-claim-v2/claim.sock",
+  claim_service_unit:"/etc/systemd/system/void-apollyon-attempt-claim-v2.service",
+  claim_service_source_root:"/opt/void-apollyon-attempt-claim-v2-reviewed-v1",
+  claim_publisher_source_root:"/opt/void-apollyon-attempt-claim-publisher-v2-reviewed-v1",
+});
+
+function fail(code){throw new Error(code);}
+function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
+function canonicalize(value){
+  if(value===null||typeof value==="string"||typeof value==="boolean")return value;
+  if(typeof value==="number"){
+    if(!Number.isSafeInteger(value))fail("apollyon_claim_service_candidate_noncanonical_number");
+    return value;
+  }
+  if(Array.isArray(value))return value.map(canonicalize);
+  if(value&&typeof value==="object"){
+    const out={};
+    for(const key of Object.keys(value).sort())out[key]=canonicalize(value[key]);
+    return out;
+  }
+  fail("apollyon_claim_service_candidate_noncanonical_value");
+}
+export function canonicalApollyonClaimStoreServiceSourceCandidateV2(value){
+  return JSON.stringify(canonicalize(value));
+}
+function deepFreeze(value){
+  if(value&&typeof value==="object"&&!Object.isFrozen(value)){
+    for(const child of Object.values(value))deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+function cloned(value){return structuredClone(value);}
+
+export function qualifyApollyonDurableAttemptClaimStoreServiceSourceCandidateV2(){
+  const policy=qualifyApollyonDurableAttemptClaimStorePolicyV2();
+  if(policy.store_policy_id!==EXPECTED_STORE_POLICY_ID){
+    fail("apollyon_claim_service_candidate_store_policy_mismatch");
+  }
+  const requirements=deepFreeze({
+    dangerous_environment_names:cloned(
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_DANGEROUS_ENVIRONMENT_NAMES_V2
+    ),
+    service_systemd:cloned(
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_SYSTEMD_REQUIREMENTS_V2
+    ),
+    socket:cloned(VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SOCKET_REQUIREMENTS_V2),
+    store:cloned(VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2),
+    service_least_authority_keys:cloned(
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SERVICE_LEAST_AUTHORITY_KEYS_V2
+    ),
+    publisher_least_authority_keys:cloned(
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_LEAST_AUTHORITY_KEYS_V2
+    ),
+    request_keys:cloned(VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_REQUEST_KEYS_V2),
+    claim_record_keys:cloned(VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RECORD_KEYS_V2),
+    success_response_keys:cloned(
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SUCCESS_RESPONSE_KEYS_V2
+    ),
+    failure_response_keys:cloned(
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_FAILURE_RESPONSE_KEYS_V2
+    ),
+    store_generation_record_keys:cloned(
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2
+    ),
+    continuity_receipt_keys:cloned(
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_CONTINUITY_RECEIPT_KEYS_V2
+    ),
+  });
+
+  const material={
+    marker:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_CANDIDATE_V2,
+    version:2,
+    status:"claim_store_service_source_boundary_defined_unimplemented",
+    target_host:"Xiphos",
+    parent_store_contract_head:PARENT_STORE_CONTRACT_HEAD,
+    parent_store_contract_blob_sha1:PARENT_STORE_CONTRACT_BLOB_SHA1,
+    parent_host_plan_head:PARENT_HOST_PLAN_HEAD,
+    parent_host_planner_blob_sha1:PARENT_HOST_PLANNER_BLOB_SHA1,
+    store_policy_id:policy.store_policy_id,
+    fixed_identities:FIXED_IDENTITIES,
+    fixed_paths:FIXED_PATHS,
+    numeric_host_identities:null,
+    host_plan_receipt_required_for_numeric_identity_binding:true,
+    host_plan_receipt_consumed:false,
+    service_role:"dedicated_nonroot_claim_store_service",
+    publisher_role:"distinct_nonroot_request_publisher_without_claim_root_write",
+    training_start_admission_role:"separate_one_time_consumption_gate_after_durable_claim",
+    requirements,
+    service_implementation_present:false,
+    publisher_implementation_present:false,
+    host_installation_performed:false,
+    protected_store_qualification_performed:false,
+    durable_attempt_claim_performed:false,
+    training_start_consumption_performed:false,
+    training_execution_performed:false,
+    candidate_weight_mutation_performed:false,
+    next_gate:"apollyon_durable_attempt_claim_store_service_source_implementation_v2",
+    authority:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_CANDIDATE_AUTHORITY_V2,
+  };
+  const idMaterial=structuredClone(material);
+  const candidate_id="apollyon_claim_store_service_source_candidate_v2:"+
+    sha256(Buffer.from(canonicalApollyonClaimStoreServiceSourceCandidateV2(idMaterial),"utf8"));
+  return deepFreeze({...material,candidate_id});
+}
