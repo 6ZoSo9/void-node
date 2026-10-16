@@ -26,7 +26,7 @@ import {
 const ROOT=process.cwd();
 const EXPECTED_BLOBS=Object.freeze({
   "tools/void-economic-sponsored-observation-restart-bridge-v1.mjs":
-    "895cee87a47b1ad75f7b8fff864c9cbd4ab44adb",
+    "23acbc1759f25b3b8ac8be9f046534c81e16a7aa",
   "tools/void-economic-sponsored-host-observation-time-store-binding-v1.mjs":
     "7cfba597ddf9667021b662ce3e4ac8c0c3f1103b",
   "tools/void-economic-sponsored-host-trusted-clock-binding-v1.mjs":
@@ -260,6 +260,21 @@ assert.equal(
   result.restart_bridge_id,
 );
 
+{
+  const serialized=JSON.parse(JSON.stringify(input({
+    priorBinding,
+    currentBinding,
+    receipt,
+    composition,
+  })));
+  const roundTrip=
+    qualifyVoidEconomicSponsoredObservationRestartBridgeV1(serialized);
+  assert.equal(roundTrip.ok,true);
+  assert.equal(roundTrip.restart_bridge_id,result.restart_bridge_id);
+  assert.equal(roundTrip.evidence_origin_custody_proven,false);
+  assert.equal(roundTrip.cross_process_restart_continuity_proven,false);
+}
+
 assert.throws(
   ()=>qualifyVoidEconomicSponsoredObservationRestartBridgeV1(input({
     priorBinding,
@@ -412,6 +427,7 @@ for(const [key,value] of Object.entries(
 console.log("VOID_ECONOMIC_SPONSORED_OBSERVATION_RESTART_BRIDGE_V1_PROOF_GREEN");
 console.log("prior_durable_head_independently_inspected=true");
 console.log("prior_composition_receipt_bound=true");
+console.log("canonical_json_round_trip_evidence_accepted=true");
 console.log("prior_host_binding_bound=true");
 console.log("revoked_proxy_rejected_before_array_reflection=true");
 console.log("nested_host_sample_accessor_rejected_without_read=true");
