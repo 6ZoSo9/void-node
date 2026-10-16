@@ -136,4 +136,3 @@ escape as code defects.
 
 This repair changes error propagation only. It grants no query, credential,
 signing, transaction, service, presale/WC, treasury, or funds authority.
-
