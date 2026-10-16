@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 import {
@@ -366,17 +368,73 @@ for(const required of [
   "PR_BASE_SHA:",
   "PUSH_BEFORE_SHA:",
   'BASE="$(git rev-parse "$HEAD^1")"',
-  'git merge-base --is-ancestor "$BASE" "$HEAD"',
-  'git diff --check "$BASE" "$HEAD"',
+  'DIFF_BASE="$(git merge-base "$BASE" "$HEAD")"',
+  'git merge-base --is-ancestor "$DIFF_BASE" "$HEAD"',
+  'git diff --check "$DIFF_BASE" "$HEAD"',
   'test -z "$(git status --porcelain=v1 --untracked-files=all)"',
 ]){
   assert.equal(workflow.includes(required),true,"committed diff guard missing: "+required);
+}
+assert.equal(
+  workflow.includes('git merge-base --is-ancestor "$BASE" "$HEAD"'),
+  false,
+  "moving PR base tip must not be required as raw branch ancestor",
+);
+
+// Divergent-history regression: feature and main both advance from the same
+// common ancestor. The current main tip is intentionally not an ancestor of
+// the feature head, while the merge base remains the correct diff boundary.
+{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"void-nimo-merge-base-proof-"));
+  const git=(args)=>{
+    const r=spawnSync("/usr/bin/git",["-C",dir,...args],{
+      encoding:"utf8",
+      env:{PATH:"/usr/bin:/bin",HOME:dir,LANG:"C",LC_ALL:"C"},
+    });
+    assert.equal(r.status,0,r.stderr||r.stdout);
+    return r.stdout.trim();
+  };
+  try{
+    git(["init","-b","main"]);
+    git(["config","user.name","VOID proof"]);
+    git(["config","user.email","void-proof@example.invalid"]);
+    fs.writeFileSync(path.join(dir,"base.txt"),"base\n");
+    git(["add","base.txt"]);
+    git(["commit","-m","base"]);
+    const common=git(["rev-parse","HEAD"]);
+
+    git(["switch","-c","feature"]);
+    fs.writeFileSync(path.join(dir,"feature.txt"),"feature\n");
+    git(["add","feature.txt"]);
+    git(["commit","-m","feature"]);
+    const feature=git(["rev-parse","HEAD"]);
+
+    git(["switch","main"]);
+    fs.writeFileSync(path.join(dir,"main.txt"),"main\n");
+    git(["add","main.txt"]);
+    git(["commit","-m","main advance"]);
+    const movingBase=git(["rev-parse","HEAD"]);
+
+    const rawAncestor=spawnSync(
+      "/usr/bin/git",
+      ["-C",dir,"merge-base","--is-ancestor",movingBase,feature],
+      {encoding:"utf8",env:{PATH:"/usr/bin:/bin",HOME:dir,LANG:"C",LC_ALL:"C"}},
+    );
+    assert.notEqual(rawAncestor.status,0);
+
+    const diffBase=git(["merge-base",movingBase,feature]);
+    assert.equal(diffBase,common);
+    git(["diff","--check",diffBase,feature]);
+  }finally{
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
 }
 
 console.log("VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_V1_PROOF_GREEN");
 console.log("reviewed_source_roots="+String(observed.length));
 console.log("runtime_bundle_candidate_accepted=false");
-console.log("committed_base_to_head_diff_hygiene_bound=true");
+console.log("committed_merge_base_to_head_diff_hygiene_bound=true");
+console.log("divergent_pr_base_history_supported=true");
 console.log("authorized_key_exact_forced_command_option_required=true");
 console.log("authorized_key_exact_option_set_required=true");
 console.log("materialized_authorized_key_command_binding_required=true");
