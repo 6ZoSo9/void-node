@@ -219,6 +219,75 @@ function requireRuntimeSourceStable(){
       GIT_CONFIG_GLOBAL:"/dev/null",GIT_CONFIG_SYSTEM:"/dev/null",GIT_NO_REPLACE_OBJECTS:"1",GIT_OPTIONAL_LOCKS:"0"}});
   assert.equal(r.error,undefined,String(r.error||""));assert.equal(r.status,0,"runtime_or_build_source_changed_after_hosted_census");
 }
+function revalidateProtectedCensus(){
+  pin(PROTECTED_CENSUS_PROOF,PROTECTED_CENSUS_PROOF_BLOB,256*1024);
+  pin(PROTECTED_CENSUS_WORKFLOW,PROTECTED_CENSUS_WORKFLOW_BLOB,128*1024);
+  const r=run(process.execPath,[path.join(ROOT,PROTECTED_CENSUS_PROOF)],{timeout:240000});
+  assert.equal(String(r.stderr||""),"","protected_census_current_revalidation_stderr");
+  const v=JSON.parse(String(r.stdout||""));
+  assert.equal(v.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CENSUS_V5");
+  assert.equal(v.version,5);
+  assert.equal(v.range_parent,CURRENT_ENFORCEMENT_PARENT);
+  assert.equal(v.protected_tracked_source_count,49);
+  assert.equal(v.protected_generation_delta_count,2);
+  assert.equal(v.protected_generation_delta_exact,true);
+  assert.equal(v.unchanged_protected_path_count,47);
+  assert.equal(v.economic_and_build_source_drift_count,0);
+  assert.equal(v.source_generation_successor_evidence_bound,true);
+  assert.equal(v.frozen_candidate_rederived,false);
+  assert.equal(v.frozen_lock_rewritten,false);
+  assert.equal(
+    v.protected_tracked_source_inventory_canonical_sha256,
+    HOSTED_PROTECTED_CENSUS.protected_tracked_source_inventory_canonical_sha256,
+    "protected_census_current_inventory_mismatch",
+  );
+  assert.equal(
+    v.economic_artifact_inventory_sha256,
+    HOSTED_PROTECTED_CENSUS.economic_artifact_inventory_sha256,
+    "protected_census_current_economic_artifact_mismatch",
+  );
+  assert.equal(
+    v.economic_source_inventory_sha256,
+    HOSTED_PROTECTED_CENSUS.economic_source_inventory_sha256,
+    "protected_census_current_economic_source_mismatch",
+  );
+  assert.equal(
+    v.canonical_economic_artifact_inventory_sha256,
+    HOSTED_PROTECTED_CENSUS.canonical_economic_artifact_inventory_sha256,
+    "protected_census_current_canonical_artifact_mismatch",
+  );
+  assert.equal(
+    v.canonical_economic_source_inventory_sha256,
+    HOSTED_PROTECTED_CENSUS.canonical_economic_source_inventory_sha256,
+    "protected_census_current_canonical_source_mismatch",
+  );
+  for(const [key,expected] of [
+    ["candidate_enforcement_identity_accepted",false],
+    ["runtime_mount_authority",false],
+    ["production_source_finality_authority_ready",false],
+    ["public_presale_activation",false],
+    ["funds_movement",false],
+  ]){
+    assert.equal(v[key],expected,"protected_census_authority_overclaim:"+key);
+  }
+  return Object.freeze({
+    census_id:v.census_id,
+    repository_head_sha:v.repository_head_sha,
+    repository_tree_sha:v.repository_tree_sha,
+    protected_tracked_source_inventory_canonical_sha256:
+      v.protected_tracked_source_inventory_canonical_sha256,
+    economic_artifact_inventory_sha256:v.economic_artifact_inventory_sha256,
+    economic_source_inventory_sha256:v.economic_source_inventory_sha256,
+    canonical_economic_artifact_inventory_sha256:
+      v.canonical_economic_artifact_inventory_sha256,
+    canonical_economic_source_inventory_sha256:
+      v.canonical_economic_source_inventory_sha256,
+    protected_generation_delta_count:v.protected_generation_delta_count,
+    unchanged_protected_path_count:v.unchanged_protected_path_count,
+    source_generation_successor_evidence_bound:true,
+    exact_candidate_head_revalidation:true,
+  });
+}
 function predecessor(){
   const bytes=pin(PREDECESSOR_LOCK,PREDECESSOR_LOCK_BLOB,128*1024),v=JSON.parse(bytes);
   assert.equal(v.marker,"VOID_BUY_VOID_ENFORCEMENT_POST2865_LOCK_V1");
@@ -409,10 +478,21 @@ function currentEnforcementInventory(){
   });
 }
 function derive(){
-  assertCandidateWorkflowTriggerCoverage();requireRuntimeSourceStable();const inventoryEvidence=inventories();const currentEnforcement=currentEnforcementInventory();predecessor();const pkg=packageIdentity();const provider=providerIdentity();deltaIdentity();const liveV2=liveProcessV2StaticEdge();sagaEdge();
+  assertCandidateWorkflowTriggerCoverage();
+  requireRuntimeSourceStable();
+  const protectedCensusCurrent=revalidateProtectedCensus();
+  const inventoryEvidence=inventories();
+  const currentEnforcement=currentEnforcementInventory();
+  predecessor();
+  const pkg=packageIdentity();
+  const provider=providerIdentity();
+  deltaIdentity();
+  const liveV2=liveProcessV2StaticEdge();
+  sagaEdge();
   const body={
     schema:"void_buy_void_enforcement_final_protected_v7_v2_candidate_v3",marker:"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V3",version:3,
     repository:"6ZoSo9/void-node",runtime_source_parent:RUNTIME_SOURCE_PARENT,protected_census_parent:PROTECTED_CENSUS_PARENT,current_enforcement_parent:CURRENT_ENFORCEMENT_PARENT,hosted_census_evidence:HOSTED_CENSUS,protected_census_evidence:HOSTED_PROTECTED_CENSUS,
+    protected_census_current_revalidation:protectedCensusCurrent,
     current_inventory_evidence:Object.freeze({
       hosted_json_artifact_inventory_sha256:inventoryEvidence.hosted_artifact_inventory_sha256,
       hosted_json_source_inventory_sha256:inventoryEvidence.hosted_source_inventory_sha256,
