@@ -9,6 +9,7 @@ import {
 } from "./apollyon-durable-attempt-claim-store-contract-v2.mjs";
 import {
   deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1,
+  qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
   validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
 } from "./apollyon-durable-attempt-claim-authorization-slot-v1.mjs";
 
@@ -251,6 +252,25 @@ export function validateApollyonTrainingStartConsumptionRecordV1(input){
     });
   if(value.authorization_slot_id!==expectedAuthorizationSlot){
     fail("apollyon_training_start_v1_authorization_slot_id_invalid");
+  }
+  const expectedAuthorizationSlotRecord=
+    qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1({
+      store_policy_id:value.store_policy_id,
+      authorization_id:value.authorization_id,
+      store_contract_id:value.store_contract_id,
+      store_generation_id:value.store_generation_id,
+      terminal_receipt_id:value.terminal_receipt_id,
+      claim_record_id:value.claim_record_id,
+      claim_record_sha256:value.claim_record_sha256,
+      publish_request_sha256:value.publish_request_sha256,
+      attempt_limit:value.attempt_limit,
+      automatic_retry_authorized:value.automatic_retry_authorized,
+    });
+  if(
+    value.authorization_slot_record_id!==
+      expectedAuthorizationSlotRecord.authorization_slot_record_id
+  ){
+    fail("apollyon_training_start_v1_authorization_slot_record_id_invalid");
   }
   const expectedSlot=trainingStartConsumptionSlotId({
     authorization_slot_id:value.authorization_slot_id,
