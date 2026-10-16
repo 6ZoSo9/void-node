@@ -110,6 +110,12 @@ assert.equal(plan.authorized_key.restrict_option_required,true);
 assert.equal(plan.authorized_key.forced_command_option_required,true);
 assert.equal(plan.authorized_key.forced_command_option_exact_encoding_required,true);
 assert.equal(plan.authorized_key.forced_command_option_must_equal_selected_command,true);
+assert.equal(plan.authorized_key.materialized_entry_command_option_required,true);
+assert.equal(
+  plan.authorized_key.materialized_entry_command_value_must_equal_forced_command_command,
+  true,
+);
+assert.equal(plan.authorized_key.materialized_entry_restrict_only_sufficient,false);
 assert.equal(
   plan.authorized_key.forced_command_value,
   VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1,
@@ -203,6 +209,7 @@ for(const [key,value] of Object.entries(VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTAL
     "fixed_installation_layout_selected",
     "exact_forced_command_selected",
     "authorized_key_exact_forced_command_option_required",
+    "materialized_authorized_key_command_binding_required",
     "dedicated_client_public_key_required",
     "additive_authorized_keys_successor_required",
     "existing_authorized_keys_generation_preservation_required",
@@ -231,6 +238,7 @@ for(const line of [
   "source_only_installation_plan=true",
   "runtime_bundle_candidate_accepted=false",
   "authorized_key_exact_forced_command_option_required=true",
+  "materialized_authorized_key_command_binding_required=true",
   "authorized_keys_additive_successor_required=true",
   "live_nimo_installed=false",
   "funds_movement=false",
@@ -279,6 +287,8 @@ console.log("reviewed_source_roots="+String(observed.length));
 console.log("runtime_bundle_candidate_accepted=false");
 console.log("committed_base_to_head_diff_hygiene_bound=true");
 console.log("authorized_key_exact_forced_command_option_required=true");
+console.log("materialized_authorized_key_command_binding_required=true");
+console.log("restrict_only_materialized_entry_sufficient=false");
 console.log("authorized_key_option_adversaries_rejected=true");
 console.log("authorized_keys_additive_successor_required=true");
 console.log("private_key_access=false");
