@@ -115,6 +115,9 @@ jobs:
             'boot_relative_time_forward_required=true' \
             'wall_time_non_regression_required=true' \
             'cumulative_wall_monotonic_skew_bounded=true' \
+            'caller_supplied_evidence_only=true' \
+            'evidence_origin_custody_proven=false' \
+            'live_store_inspection_origin_proven=false' \
             'test_only_cross_process_restart_continuity_proven=false' \
             'cross_boot_restart_continuity_proven=false' \
             'durable_time_store_mutation=false' \
