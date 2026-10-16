@@ -32,7 +32,7 @@ QUALIFIER_SOURCE = (
     "void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
 )
 
-TARGET_BLOB = "9daa381f123596ed695c97089d9a4d50f7c59096"
+TARGET_BLOB = "ffa822f1f0ce46cdd3c31cbd918ffdd815d57ebc"
 LOCK_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 NATIVE_SOURCE_BLOB = "5021727f1def1ec11f870d735cab65acc1701a5e"
 RUNNER_SOURCE_BLOB = "499df9b94b5b89354837570da0c7e47ec280025d"
@@ -71,7 +71,7 @@ for required in (
     'LOCK_GIT_BLOB_SHA1 = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"',
     'RUNNER_SOURCE_BLOB = "499df9b94b5b89354837570da0c7e47ec280025d"',
     'QUALIFIER_BLOB = "74c69fe8a95ed5f361a39971618f43f7c768c865"',
-    'STAGE_NAME = ".void-buy-void-epoch2-live-composition-v3.upgrade-v6.stage"',
+    'STAGE_NAME = ".void-buy-void-epoch2-live-composition-v3.upgrade-v6r2.stage"',
     'PREDECESSOR_NAME = ".void-buy-void-epoch2-live-composition-v3.predecessor-v4"',
     'CONFIRM_TOKEN = "ATOMIC_EXCHANGE_ACCEPTED_EPOCH2_LIVE_COMPOSITION_V4_TO_V6R2"',
     'RENAME_NOREPLACE = 1',
@@ -93,7 +93,7 @@ for required in (
     'automatic_rollback_green=',
     'protected_upgrade_performed=true',
     'predecessor_retained=true',
-    'next_action=EPOCH2_V6_NATIVE_INSTALLED_READ_ONLY_QUALIFICATION',
+    'next_action=EPOCH2_V6R2_NATIVE_INSTALLED_READ_ONLY_QUALIFICATION',
 ):
     assert required in source, required
 
@@ -350,7 +350,7 @@ for line in (
 wrong_confirm = subprocess.run(
     [
         "/usr/bin/python3", "-I", "-B", str(TARGET), "--apply",
-        "--native", "/definitely/not/a/native-v6-candidate",
+        "--native", "/definitely/not/a/native-v6r2-candidate",
         "--runner", "/definitely/not/a/runner-v3-candidate",
         "--expected-head", "1" * 40,
         "--expected-plan-id", "voidbuye2nativeupgrade5_" + "2" * 64,
@@ -379,7 +379,7 @@ assert "protected_root_opened=false" in wrong_lines
 assert wrong_lines.index("authority_boundary=PRE_MUTATION") < wrong_lines.index("status=HOLD")
 
 print("VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_PROTECTED_INSTALL_V5_PROOF_GREEN")
-print("accepted_v6_lock_bound=true")
+print("accepted_v6r2_lock_bound=true")
 print("accepted_native_binary_rederived=true")
 print("repaired_runner_bytes_bound=true")
 print("repaired_v3r_qualifier_bound=true")
