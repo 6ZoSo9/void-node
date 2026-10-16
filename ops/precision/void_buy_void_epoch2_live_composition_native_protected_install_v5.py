@@ -242,9 +242,9 @@ def accepted_lock() -> dict[str, Any]:
         "runner_sha256": RUNNER_SHA256,
         "runner_bytes": RUNNER_BYTES,
         "candidate_script_git_blob_sha1":
-            "8abbe3956d6b2a6f5599e3efa18010f622569e61",
+            "c4ac12562f1ce396d7b584ad10a5e86742d49d1a",
         "candidate_workflow_git_blob_sha1":
-            "8e3879df85e6cb40e96b5905b6a72ca771f735de",
+            "ec0b991750ea9f816d3b170cc007977977e01047",
         "source_proof_git_blob_sha1":
             "b48972c0f930f5a33754a390bd2289853fc93c93",
         "source_workflow_git_blob_sha1":
