@@ -178,6 +178,7 @@ with tempfile.TemporaryDirectory(
     temp = pathlib.Path(td)
     a = temp / "candidate-a"
     b = temp / "candidate-b"
+    c_path = temp / "candidate-c"
     flags = [
         cc,
         "-std=c11",
@@ -191,9 +192,11 @@ with tempfile.TemporaryDirectory(
     ]
     run(flags + ["-o", str(a)])
     run(flags + ["-o", str(b)])
+    run(flags + ["-o", str(c_path)])
     raw_a = a.read_bytes()
     raw_b = b.read_bytes()
-    assert raw_a == raw_b
+    raw_c = c_path.read_bytes()
+    assert raw_a == raw_b == raw_c
     candidate_sha256 = hashlib.sha256(raw_a).hexdigest()
     assert len(raw_a) > 0
     assert len(candidate_sha256) == 64
@@ -273,6 +276,7 @@ print("candidate_static=true")
 print("candidate_no_pt_interp=true")
 print("candidate_no_needed=true")
 print("candidate_reproducible_bytes=true")
+print("candidate_three_build_equality=true")
 print("candidate_sha256=" + candidate_sha256)
 print("release_fd3_exact_allowlist_bound=true")
 print("release_frame_short_extra_timeout_adversaries=true")
