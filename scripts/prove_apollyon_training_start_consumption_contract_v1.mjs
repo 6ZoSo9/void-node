@@ -48,24 +48,70 @@ const expectedTriggerPaths=[
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
 ];
-function eventTriggerPaths(startMarker,endMarker){
-  const startIndex=workflow.indexOf(startMarker);
-  const endIndex=workflow.indexOf(endMarker,startIndex+startMarker.length);
-  assert.notEqual(startIndex,-1,"missing event marker "+startMarker);
-  assert.notEqual(endIndex,-1,"missing event boundary "+endMarker);
-  assert.ok(startIndex<endIndex,"event markers out of order");
-  return [...workflow.slice(startIndex,endIndex).matchAll(/^      - "([^"]+)"$/gmu)]
-    .map(match=>match[1]);
+function eventTriggerPaths(yaml,eventName,nextEventName){
+  const lines=yaml.split("\n");
+  const eventMarker="  "+eventName+":";
+  const nextEventMarker="  "+nextEventName+":";
+  const eventStart=lines.indexOf(eventMarker);
+  const eventEnd=lines.indexOf(nextEventMarker,eventStart+1);
+  assert.notEqual(eventStart,-1,"missing event marker "+eventMarker);
+  assert.notEqual(eventEnd,-1,"missing event boundary "+nextEventMarker);
+  assert.ok(eventStart<eventEnd,"event markers out of order");
+
+  const eventLines=lines.slice(eventStart+1,eventEnd);
+  const pathMarkers=eventLines
+    .map((line,index)=>line==="    paths:"?index:-1)
+    .filter(index=>index>=0);
+  assert.deepEqual(pathMarkers.length,1,eventName+" exact paths subsection count");
+
+  const paths=[];
+  for(let index=pathMarkers[0]+1;index<eventLines.length;index++){
+    const line=eventLines[index];
+    const match=/^      - "([^"]+)"$/u.exec(line);
+    if(match){
+      paths.push(match[1]);
+      continue;
+    }
+    if(/^\s*$/u.test(line))continue;
+    if(!line.startsWith("      "))break;
+    assert.fail(eventName+" malformed paths entry: "+line);
+  }
+  return paths;
 }
 function assertExactEventTriggerPaths(label,actual){
   assert.equal(actual.length,expectedTriggerPaths.length,label+" trigger path count");
   assert.equal(new Set(actual).size,actual.length,label+" duplicate trigger path");
   assert.deepEqual([...actual].sort(),[...expectedTriggerPaths].sort(),label+" trigger closure mismatch");
 }
-const pullRequestTriggerPaths=eventTriggerPaths("  pull_request:\n","  push:\n");
-const pushTriggerPaths=eventTriggerPaths("  push:\n","  workflow_dispatch:\n");
+const pullRequestTriggerPaths=eventTriggerPaths(workflow,"pull_request","push");
+const pushTriggerPaths=eventTriggerPaths(workflow,"push","workflow_dispatch");
 assertExactEventTriggerPaths("pull_request",pullRequestTriggerPaths);
 assertExactEventTriggerPaths("push",pushTriggerPaths);
+
+const siblingListAdversary=[
+  "on:",
+  "  pull_request:",
+  "    branches:",
+  '      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"',
+  "    paths:",
+  '      - "tools/apollyon-training-start-consumption-contract-v1.mjs"',
+  "  push:",
+  "    branches: [main]",
+  "    paths:",
+  '      - "tools/apollyon-training-start-consumption-contract-v1.mjs"',
+  "  workflow_dispatch:",
+  "",
+].join("\n");
+assert.deepEqual(
+  eventTriggerPaths(siblingListAdversary,"pull_request","push"),
+  ["tools/apollyon-training-start-consumption-contract-v1.mjs"],
+  "pull_request sibling list must not count as paths",
+);
+assert.deepEqual(
+  eventTriggerPaths(siblingListAdversary,"push","workflow_dispatch"),
+  ["tools/apollyon-training-start-consumption-contract-v1.mjs"],
+  "push sibling list must not count as paths",
+);
 assert.equal(workflow.includes("PUSH_BEFORE:"),true);
 assert.equal(workflow.includes("github.event.before"),true);
 const policy=qualifyApollyonDurableAttemptClaimStorePolicyV2();
