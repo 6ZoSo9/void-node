@@ -115,9 +115,17 @@ assert.equal(
   candidate.compiler_snapshot.layout,
   "typescript_cli_four_file_relative_v1",
 );
-assert.equal(candidate.compiler_snapshot.private_parent_mode, "0500");
-assert.equal(candidate.compiler_snapshot.directory_mode, "0500");
-assert.equal(candidate.compiler_snapshot.file_mode, "0400");
+assert.equal(candidate.compiler_snapshot.fixed_parent, "/tmp");
+assert.equal(
+  candidate.compiler_snapshot.fixed_parent_root_owned_sticky_required,
+  true,
+);
+assert.equal(candidate.compiler_snapshot.private_parent_mode, "0555");
+assert.equal(candidate.compiler_snapshot.directory_mode, "0555");
+assert.equal(candidate.compiler_snapshot.file_mode, "0444");
+assert.equal(candidate.compiler_snapshot.custody_uid, 0);
+assert.equal(candidate.compiler_snapshot.custody_gid, 0);
+assert.equal(candidate.compiler_snapshot.builder_uid_direct_mutation_denied, true);
 assert.match(candidate.compiler_snapshot.package_lock_integrity, /^sha512-/u);
 assert.ok(candidate.compiler_snapshot.package_file_count > 4);
 assert.ok(candidate.compiler_snapshot.package_total_bytes > 0);
@@ -259,13 +267,27 @@ assert.equal(
             candidate.compiler_snapshot.snapshot_id,
           );
           const snapshotEntry = path.join(snapshot_root, binRelative);
-          assert.throws(
+          const snapshotRootStat = fs.lstatSync(snapshot_root);
+          const snapshotEntryStat = fs.lstatSync(snapshotEntry);
+          assert.equal(snapshotRootStat.uid, 0);
+          assert.equal(snapshotRootStat.gid, 0);
+          assert.equal(snapshotRootStat.mode & 0o7777, 0o555);
+          assert.equal(snapshotEntryStat.uid, 0);
+          assert.equal(snapshotEntryStat.gid, 0);
+          assert.equal(snapshotEntryStat.mode & 0o7777, 0o444);
+          for (const mutate of [
+            () => fs.chmodSync(snapshotEntry, 0o600),
             () => fs.appendFileSync(snapshotEntry, "\n// forbidden\n"),
-            (error) =>
-              error?.code === "EACCES" ||
-              error?.code === "EPERM" ||
-              error?.code === "EROFS",
-          );
+            () => fs.unlinkSync(snapshotEntry),
+          ]) {
+            assert.throws(
+              mutate,
+              (error) =>
+                error?.code === "EACCES" ||
+                error?.code === "EPERM" ||
+                error?.code === "EROFS",
+            );
+          }
           fs.writeFileSync(
             binTarget,
             '#!/usr/bin/env node\nthrow new Error("checkout compiler ABA executed");\n',
@@ -323,6 +345,11 @@ assert.equal(candidate.build_recipe.candidate_owned_rebuild_required, true);
 assert.equal(candidate.build_recipe.compiler_pre_post_identity_required, true);
 assert.equal(candidate.build_recipe.compiler_snapshot_required, true);
 assert.equal(candidate.build_recipe.compiler_snapshot_nonwritable_required, true);
+assert.equal(candidate.build_recipe.compiler_snapshot_root_custody_required, true);
+assert.equal(
+  candidate.build_recipe.compiler_snapshot_builder_uid_direct_mutation_denied_required,
+  true,
+);
 assert.equal(candidate.build_recipe.compiler_source_post_revalidation_required, true);
 assert.equal(candidate.build_recipe.compiler_snapshot_post_revalidation_required, true);
 assert.equal(candidate.build_recipe.source_maps_expected, false);
@@ -413,6 +440,8 @@ for (const [key, expected] of Object.entries({
   compiler_snapshot_content_addressed: true,
   compiler_package_snapshot_bound: true,
   compiler_snapshot_nonwritable_during_build: true,
+  compiler_snapshot_root_custody_required: true,
+  compiler_snapshot_builder_uid_direct_mutation_denied: true,
   compiler_source_post_revalidation_required: true,
   compiler_snapshot_post_revalidation_required: true,
   candidate_owned_rebuild_required: true,
@@ -493,6 +522,17 @@ function rehashCandidate(value) {
   const tampered = structuredClone(candidate);
   tampered.compiler_snapshot.snapshot_id =
     "voidblrhntscsnap2_" + "0".repeat(64);
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_compiler_snapshot_identity_invalid/u,
+  );
+}
+{
+  const tampered = structuredClone(candidate);
+  tampered.compiler_snapshot.custody_uid = 1000;
   assert.throws(
     () =>
       verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
@@ -626,6 +666,9 @@ console.log("compiler_pre_post_identity_stable=true");
 console.log("compiler_private_snapshot_bound=true");
 console.log("compiler_package_snapshot_bound=true");
 console.log("compiler_snapshot_nonwritable=true");
+console.log("compiler_snapshot_root_custody=true");
+console.log("compiler_snapshot_builder_uid_direct_mutation_denied=true");
+console.log("compiler_snapshot_chmod_substitute_restore_rejected=true");
 console.log("compiler_snapshot_post_revalidated=true");
 console.log("compiler_aba_checkout_mutation_isolated=true");
 console.log("compiler_closed_environment=true");
