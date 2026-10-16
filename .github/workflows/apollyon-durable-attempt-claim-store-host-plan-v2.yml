@@ -10,6 +10,8 @@ on:
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
       - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
       - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
   push:
     branches: [main]
     paths:
