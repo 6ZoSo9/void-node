@@ -43,7 +43,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-release-binding-v1.mjs":
-    "01df657165156cf5262bb2498301ed19bd99e3c5",
+    "b8d7229369e7d74e515955e726e0268bbdf6e513",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "4333df6c7918fe9efaada36cac765000eec7948f",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
