@@ -19,7 +19,7 @@ RUNNER = (
 )
 
 SOURCE_BLOB = "5021727f1def1ec11f870d735cab65acc1701a5e"
-RUNNER_BLOB = "baab733e43c030d24f8d4abd1644f3c4ae55c3b2"
+RUNNER_BLOB = "499df9b94b5b89354837570da0c7e47ec280025d"
 
 
 def git_blob_sha1(raw: bytes) -> str:

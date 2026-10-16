@@ -24,7 +24,7 @@ V3 consumes:
 - merged V3R installed qualifier:
   `ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py`;
 - qualifier Git blob:
-  `70b74ff2f09f5aef86eec39b8f643d8f2ebb63f5`;
+  `74c69fe8a95ed5f361a39971618f43f7c768c865`;
 - accepted V3R credential lock:
   `voidbuyumqcredelflock3r_8b064214e22ce54ac193b426f38b9d6a7ea4cee07b38b68c8d1eeb6c51de6f34`;
 - sealed Epoch-2 V2 signer Git blob:
@@ -50,6 +50,34 @@ It requires:
 - all mutation/economic authority false.
 
 Unknown or extra qualification fields fail closed.
+
+## Nested V6 HOLD propagation through the runner
+
+The repaired V3R qualifier now translates only the dynamically loaded V6
+module's declared qualification HOLD into:
+
+`v6_security_qualification_hold:<reason>`.
+
+This runner generation binds that repaired qualifier blob and preserves the
+bounded reason through the outer live-composition HOLD instead of reducing every
+nonzero qualifier exit to `credential_qualification_failed:<status>`.
+
+The runner accepts reason propagation only when qualifier stdout is the exact
+reviewed V3R HOLD shape: exact marker, exact key set, `status=HOLD`, conservative
+`query_execution_state=unknown_or_partial`, and all mutation/economic authority
+fields false. The reason is sanitized through the existing bounded
+`safeReason()` surface before becoming:
+
+`credential_qualification_hold:<reason>`.
+
+Malformed HOLD output, unexpected exit status, or traceback-bearing failures are
+not reclassified as reviewed qualification HOLDs; they remain generic execution
+failures. The source self-test covers the actual process-exit mapper with a
+valid nested V6 HOLD, a forged authority-bearing HOLD receipt, and a synthetic
+unexpected exit carrying traceback text.
+
+This is source/error-propagation truth only. The failed live authorization that
+motivated #3303 remains consumed; this source generation grants no retry.
 
 ## Future signing-window binding
 
