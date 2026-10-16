@@ -82,11 +82,19 @@ assert.deepEqual(
 );
 assert.deepEqual(candidate.compiler.cli_edges, [
   {
+    kind: "file",
     from: "node_modules/typescript/bin/tsc",
     specifier: "../lib/tsc.js",
     to: "node_modules/typescript/lib/tsc.js",
   },
   {
+    kind: "node_builtin",
+    from: "node_modules/typescript/lib/tsc.js",
+    specifier: "node:module",
+    to: "node:module",
+  },
+  {
+    kind: "file",
     from: "node_modules/typescript/lib/tsc.js",
     specifier: "./_tsc.js",
     to: "node_modules/typescript/lib/_tsc.js",
@@ -444,6 +452,7 @@ console.log("compiler_file_count=4");
 console.log("typescript_cli_entry_bound=true");
 console.log("typescript_cli_loader_bound=true");
 console.log("compiler_cli_edges_exact=true");
+console.log("typescript_compile_cache_builtin_bound=true");
 console.log("typescript_cli_entry_fixture_tamper_rejected=true");
 console.log("typescript_cli_loader_fixture_tamper_rejected=true");
 console.log("typescript_cli_edge_fixture_tamper_rejected=true");
