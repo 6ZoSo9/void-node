@@ -74,10 +74,31 @@ historical generation back into the live root and clean the V6R2 stage. If that
 rollback itself cannot be proven green, the receipt is conservative and
 requires inspection; it does not claim a clean state.
 
+The focused proof executes the real production apply state machine with
+synthetic/injected host primitives and no real `/opt` I/O. It requires:
+- a complete success transition;
+- failure immediately after the first root exchange with successful rollback;
+- failure after predecessor retention with successful rollback;
+- failure of the parent fsync immediately after exchange with rollback;
+- rollback-stage cleanup ambiguity;
+- rollback rename failure with publication-aware HOLD; and
+- a retained-parent descriptor close failure after a fully verified success.
+
+A descriptor-close failure after the final V6R2 live-root and V4 predecessor
+verification is **not** allowed to regress to a generic no-publication receipt.
+That terminal reports that the upgrade/publication occurred, the final state was
+verified, parent fsync completed, and only the retained parent descriptor close
+failed. It does not roll back an already verified successful upgrade solely
+because close reported an error.
+
 The predecessor is retained after success so later rollback/qualification can
 prove exactly which generation was replaced.
 
 ## Authority boundary
+
+This repair is source/test/CI only. Merged #3335 remains a no-apply HOLD until
+the repaired exact generation is separately accepted. Source-level synthetic
+apply tests do not grant host mutation authority.
 
 This PR does not authorize or perform:
 
