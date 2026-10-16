@@ -32,6 +32,7 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_AUTHORITY_V1 =
     automatic_retry_authorized:false,
     protected_consumption_store_required:true,
     protected_consumption_store_proven:false,
+    recovery_classifier_protected_origin_proven:false,
     training_release_gate_required:true,
     training_release_performed:false,
     filesystem_read:false,
@@ -218,8 +219,9 @@ export function classifyApollyonTrainingStartConsumptionRecoveryV1(input){
   );
   if(snapshot.observed_consumption_record===null){
     return Object.freeze({
-      status:"unconsumed",
-      create_once_publication_eligible:true,
+      status:"unconsumed_shape",
+      create_once_publication_candidate:true,
+      create_once_publication_authorized:false,
       existing_exact_consumption:false,
       training_start_admission:false,
       automatic_retry_authorized:false,
@@ -233,8 +235,9 @@ export function classifyApollyonTrainingStartConsumptionRecoveryV1(input){
     fail("apollyon_training_start_v1_existing_consumption_collision");
   }
   return Object.freeze({
-    status:"already_consumed",
-    create_once_publication_eligible:false,
+    status:"already_consumed_shape",
+    create_once_publication_candidate:false,
+    create_once_publication_authorized:false,
     existing_exact_consumption:true,
     training_start_admission:false,
     automatic_retry_authorized:false,

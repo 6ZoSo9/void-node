@@ -31,7 +31,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "20aea004bc3929c8b70467b4c5818504574b66b6",
+    "56a877f5680e0b0adfff0781b2363fb0debf8fe8",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -180,8 +180,9 @@ assert.deepEqual(
     observed_consumption_record:null,
   }),
   {
-    status:"unconsumed",
-    create_once_publication_eligible:true,
+    status:"unconsumed_shape",
+    create_once_publication_candidate:true,
+    create_once_publication_authorized:false,
     existing_exact_consumption:false,
     training_start_admission:false,
     automatic_retry_authorized:false,
@@ -194,8 +195,9 @@ assert.deepEqual(
     observed_consumption_record:structuredClone(record),
   }),
   {
-    status:"already_consumed",
-    create_once_publication_eligible:false,
+    status:"already_consumed_shape",
+    create_once_publication_candidate:false,
+    create_once_publication_authorized:false,
     existing_exact_consumption:true,
     training_start_admission:false,
     automatic_retry_authorized:false,
@@ -301,6 +303,7 @@ for(const [key,expected] of Object.entries({
   automatic_retry_authorized:false,
   protected_consumption_store_required:true,
   protected_consumption_store_proven:false,
+  recovery_classifier_protected_origin_proven:false,
   training_release_gate_required:true,
   training_release_performed:false,
   filesystem_read:false,filesystem_write:false,network_access:false,
@@ -336,6 +339,8 @@ console.log("exact_inert_pretraining_generation_required=true");
 console.log("training_start_consumption_create_once_required=true");
 console.log("existing_exact_consumption_reusable_admission=false");
 console.log("recovery_unconsumed_vs_already_consumed_closed=true");
+console.log("recovery_classifier_protected_origin_proven=false");
+console.log("create_once_publication_authorized=false");
 console.log("lost_ack_second_start_forbidden=true");
 console.log("training_start_consumption_performed=false");
 console.log("training_execution=false");

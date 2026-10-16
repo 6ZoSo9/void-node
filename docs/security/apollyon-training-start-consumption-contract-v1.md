@@ -63,13 +63,13 @@ The record has a content-addressed `apollyon_training_start_consumption_v1:<sha2
 
 The future implementation must publish the record create-once in a protected namespace that the training identity cannot mutate.
 
-The source exports an exact persisted-record validator and a deterministic recovery classifier. Absent record => `unconsumed` and eligible only for one future create-once publication. Exact matching record => `already_consumed`, never reusable admission. A different or malformed existing record is a fail-closed collision.\n\nAn exact pre-existing consumption is **already consumed**, not reusable training admission. A lost acknowledgement, repeated durable-claim success response, service restart, or client retry may not admit another trainer generation.
+The source exports an exact persisted-record validator and a deterministic recovery classifier. Caller-supplied absence => `unconsumed_shape`, but `create_once_publication_authorized=false` until a future protected-store implementation performs the observation itself. Exact matching caller-supplied record => `already_consumed_shape`, never reusable admission. A different or malformed existing record is a fail-closed collision.\n\nAn exact pre-existing consumption is **already consumed**, not reusable training admission. A lost acknowledgement, repeated durable-claim success response, service restart, or client retry may not admit another trainer generation.
 
 If the protected record becomes durable but the bound inert trainer never crosses its later release gate, the attempt remains spent. Safety takes precedence over automatic retry; a fresh attempt requires fresh authorization through the reviewed claim chain.
 
 ## Deliberate non-authority
 
-The recovery classifier itself performs no protected-store read; the future implementation supplies only a protected-origin observation after retaining/revalidating the reviewed store generation.\n\nThis source contract reports:
+The recovery classifier itself performs no protected-store read and proves no protected origin; the future implementation supplies only a protected-origin observation after retaining/revalidating the reviewed store generation.\n\nThis source contract reports:
 
 ```text
 durable_claim_success_origin_proven=false
@@ -80,6 +80,7 @@ training_start_consumption_performed=false
 existing_exact_consumption_reusable_admission=false
 automatic_retry_authorized=false
 protected_consumption_store_proven=false
+recovery_classifier_protected_origin_proven=false
 training_release_performed=false
 training_execution_authorized=false
 training_execution_performed=false
