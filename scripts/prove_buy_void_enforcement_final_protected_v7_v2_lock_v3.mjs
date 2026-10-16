@@ -38,11 +38,34 @@ const PROVIDER_CLOSURE="3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c
 const PROVIDER_SEMANTIC="95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384";
 const V7_DELTA="5c5637207d5970d2ca793cf431726ff8d86db370b3e69e9ff1e5caa25d9b5224";
 
+const PRESERVATION_PROOF=
+  "scripts/prove_buy_void_enforcement_v3_historical_predecessor_preservation_v1.mjs";
+const PRESERVATION_PROOF_BLOB="d5474b8584aca62814357ce9a29017b933d96450";
+const HISTORICAL_WORKFLOW_TRANSITIONS=Object.freeze({
+  ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml":
+    Object.freeze({
+      before:"8525447c0235c5bb3a64890cba7d9451f249eb87",
+      after:"baa2cdaa32d6993e0b6ed36bd1bfcf7b3cb17fcd",
+    }),
+  ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml":
+    Object.freeze({
+      before:"b7698f6b81999ad257c09d7d608e3f4673ad6e1f",
+      after:"0d1895d6cba6ad35f081a6c03275980c2d7cee6a",
+    }),
+  ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml":
+    Object.freeze({
+      before:"87919ef44491d1bd4797bf17f8727a3085d51727",
+      after:"680aed12f7f632338482505d937f9738c4007403",
+    }),
+});
+
 const EXPECTED_DELTA=Object.freeze([
-  WORKFLOW,LOCK_DOC,LOCK,SELF,CANDIDATE_FILE,
+  WORKFLOW,LOCK_DOC,LOCK,SELF,CANDIDATE_FILE,PRESERVATION_PROOF,
+  ...Object.keys(HISTORICAL_WORKFLOW_TRANSITIONS),
 ].sort());
 const WORKFLOW_TRIGGER_PATHS=Object.freeze([
-  CANDIDATE_FILE,LOCK,SELF,LOCK_DOC,
+  CANDIDATE_FILE,LOCK,SELF,LOCK_DOC,PRESERVATION_PROOF,
+  ...Object.keys(HISTORICAL_WORKFLOW_TRANSITIONS),
 ]);
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
@@ -90,6 +113,25 @@ function verifyBranchDelta(){
   const changed=git(["diff","--name-only",CANDIDATE_HEAD,"HEAD","--"])
     .split("\n").filter(Boolean).sort();
   assert.deepEqual(changed,EXPECTED_DELTA,"lock_branch_scope_drift");
+
+  assert.equal(git(["rev-parse","HEAD:"+PRESERVATION_PROOF]),
+    PRESERVATION_PROOF_BLOB,"preservation_proof_blob_drift");
+  for(const [relative,expected] of Object.entries(HISTORICAL_WORKFLOW_TRANSITIONS)){
+    assert.equal(git(["rev-parse",CANDIDATE_HEAD+":"+relative]),expected.before,
+      "historical_workflow_predecessor_blob_drift:"+relative);
+    assert.equal(git(["rev-parse","HEAD:"+relative]),expected.after,
+      "historical_workflow_successor_blob_drift:"+relative);
+    const source=readExact(relative,256*1024).toString("utf8");
+    assert.ok(source.includes(PRESERVATION_PROOF),
+      "historical_workflow_preservation_proof_missing:"+relative);
+    assert.equal(
+      source.includes(
+        "node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
+      ),
+      false,
+      "historical_workflow_obsolete_current_dispatch_execution:"+relative,
+    );
+  }
 }
 function verifyWorkflowTriggers(){
   const source=readExact(WORKFLOW,256*1024).toString("utf8");
@@ -248,6 +290,18 @@ function expectedLock(candidate){
 function verify(){
   verifyBranchDelta();
   verifyWorkflowTriggers();
+
+  const preservation=run(process.execPath,[path.join(ROOT,PRESERVATION_PROOF),"--self-test"],
+    {timeout:30000});
+  const preservationOut=String(preservation.stdout||"");
+  assert.match(preservationOut,
+    /VOID_BUY_VOID_ENFORCEMENT_V3_HISTORICAL_PREDECESSOR_PRESERVATION_V1_GREEN/u);
+  assert.match(preservationOut,/v1_candidate_and_lock_frozen=true/u);
+  assert.match(preservationOut,/v2_candidate_and_lock_frozen=true/u);
+  assert.match(preservationOut,/v4_census_proof_frozen=true/u);
+  assert.match(preservationOut,/v3_lock_bound=true/u);
+  assert.match(preservationOut,/historical_predecessor_rederivation_required=false/u);
+
   const candidate=validateCandidate(JSON.parse(candidateBytes().toString("utf8")));
   const expected=Buffer.from(JSON.stringify(expectedLock(candidate),null,2)+"\n","utf8");
   const actual=readExact(LOCK,64*1024);
@@ -267,6 +321,10 @@ if(args.length===1&&args[0]==="--derive"){
   console.log("provider_historical_lock_proof_reexecuted=false");
   console.log("provider_current_content_semantics_requalified=true");
   console.log("lock_json_sha256="+sha256(bytes));
+  console.log("historical_predecessor_preservation_bound=true");
+  console.log("historical_workflow_transition_count="+
+    Object.keys(HISTORICAL_WORKFLOW_TRANSITIONS).length);
+  console.log("historical_predecessor_rederivation_required=false");
   console.log("complete_executable_closure_verified=true");
   console.log("current_enforcement_tracked_source_inventory_verified=true");
   console.log("candidate_enforcement_identity_accepted=true");
