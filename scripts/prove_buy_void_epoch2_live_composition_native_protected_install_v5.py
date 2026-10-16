@@ -32,7 +32,7 @@ QUALIFIER_SOURCE = (
     "void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
 )
 
-TARGET_BLOB = "c901cac2719d5f40fec5dbe1322bedd5ec21f520"
+TARGET_BLOB = "701aac2289c262ccf36c59e327056c6f5e33759a"
 LOCK_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 NATIVE_SOURCE_BLOB = "5021727f1def1ec11f870d735cab65acc1701a5e"
 RUNNER_SOURCE_BLOB = "499df9b94b5b89354837570da0c7e47ec280025d"
@@ -569,8 +569,19 @@ assert [
 first_exc, first_events, first_lines = run_synthetic_apply_case(
     "after_first_exchange_failure"
 )
-assert isinstance(first_exc, module.InstallError)
-assert str(first_exc) == "synthetic_after_first_exchange"
+assert isinstance(first_exc, module.PublishedInstallError)
+assert str(first_exc) == "atomic_upgrade_rolled_back_after_failure"
+first_receipt = module._failure_receipt(first_exc)
+assert first_receipt["protected_upgrade_performed"] == "true"
+assert first_receipt["publication"] == "true"
+assert first_receipt["publication_state"] == "published_rolled_back_green"
+assert first_receipt["final_state_verified"] == "true"
+assert first_receipt["parent_fsync_completed"] == "true"
+assert first_receipt["final_verification_completed"] == "false"
+assert first_receipt["rollback_attempted"] == "true"
+assert first_receipt["rollback_green"] == "true"
+assert first_receipt["rollback_final_state_verified"] == "true"
+assert first_receipt["original_failure_class"] == "InstallError"
 assert "automatic_rollback_attempted=true" in first_lines
 assert "automatic_rollback_green=true" in first_lines
 assert [
@@ -583,8 +594,16 @@ assert [
 retained_exc, retained_events, retained_lines = run_synthetic_apply_case(
     "after_predecessor_retention_failure"
 )
-assert isinstance(retained_exc, module.InstallError)
-assert str(retained_exc) == "synthetic_after_predecessor_retention"
+assert isinstance(retained_exc, module.PublishedInstallError)
+assert str(retained_exc) == "atomic_upgrade_rolled_back_after_failure"
+retained_receipt = module._failure_receipt(retained_exc)
+assert retained_receipt["publication"] == "true"
+assert retained_receipt["publication_state"] == "published_rolled_back_green"
+assert retained_receipt["final_state_verified"] == "true"
+assert retained_receipt["rollback_attempted"] == "true"
+assert retained_receipt["rollback_green"] == "true"
+assert retained_receipt["rollback_final_state_verified"] == "true"
+assert retained_receipt["original_failure_class"] == "InstallError"
 assert "automatic_rollback_attempted=true" in retained_lines
 assert "automatic_rollback_green=true" in retained_lines
 assert [
@@ -599,8 +618,18 @@ assert [
 fsync_exc, fsync_events, fsync_lines = run_synthetic_apply_case(
     "fsync_after_exchange_failure"
 )
-assert isinstance(fsync_exc, OSError)
-assert "synthetic_post_exchange_fsync_failure" in str(fsync_exc)
+assert isinstance(fsync_exc, module.PublishedInstallError)
+assert str(fsync_exc) == "atomic_upgrade_rolled_back_after_failure"
+fsync_receipt = module._failure_receipt(fsync_exc)
+assert fsync_receipt["publication"] == "true"
+assert fsync_receipt["publication_state"] == "published_rolled_back_green"
+assert fsync_receipt["final_state_verified"] == "true"
+assert fsync_receipt["parent_fsync_completed"] == "false"
+assert fsync_receipt["rollback_attempted"] == "true"
+assert fsync_receipt["rollback_green"] == "true"
+assert fsync_receipt["rollback_final_state_verified"] == "true"
+assert fsync_receipt["original_failure_class"] == "OSError"
+assert fsync_receipt["original_failure_reason"] == "os_error_5"
 assert "automatic_rollback_attempted=true" in fsync_lines
 assert "automatic_rollback_green=true" in fsync_lines
 assert len([event for event in fsync_events if event[0] == "rename"]) == 2
@@ -616,6 +645,9 @@ assert ambiguous_receipt["publication"] == "true"
 assert ambiguous_receipt["publication_state"] == "published_needs_inspection"
 assert ambiguous_receipt["final_state_verified"] == "false"
 assert ambiguous_receipt["publication_failure_phase"] == "atomic_upgrade_rollback"
+assert ambiguous_receipt["rollback_attempted"] == "true"
+assert ambiguous_receipt["rollback_green"] == "false"
+assert ambiguous_receipt["rollback_final_state_verified"] == "false"
 assert "automatic_rollback_attempted=true" in ambiguous_lines
 assert "automatic_rollback_green=false" in ambiguous_lines
 assert ("cleanup_stage", False) in ambiguous_events
@@ -636,6 +668,9 @@ assert rollback_receipt["protected_upgrade_performed"] == "true"
 assert rollback_receipt["publication"] == "true"
 assert rollback_receipt["publication_state"] == "published_needs_inspection"
 assert rollback_receipt["final_state_verified"] == "false"
+assert rollback_receipt["rollback_attempted"] == "true"
+assert rollback_receipt["rollback_green"] == "false"
+assert rollback_receipt["rollback_final_state_verified"] == "false"
 assert "automatic_rollback_green=false" in rollback_lines
 assert len([event for event in rollback_events if event[0] == "rename"]) == 2
 
@@ -653,6 +688,9 @@ assert close_receipt == {
     "publication_failure_phase": "install_parent_close",
     "parent_fsync_completed": "true",
     "final_verification_completed": "true",
+    "rollback_attempted": "false",
+    "rollback_green": "unknown",
+    "rollback_final_state_verified": "unknown",
     "original_failure_class": "OSError",
     "original_failure_reason": "os_error_5",
     "install_parent_close_completed": "false",
@@ -674,6 +712,8 @@ print("automatic_rollback_required=true")
 print("production_apply_state_machine_synthetic_exercised=true")
 print("post_first_exchange_rollback_exercised=true")
 print("post_predecessor_retention_rollback_exercised=true")
+print("green_rollback_publication_receipt_truthful=true")
+print("post_exchange_oserror_receipt_truthful=true")
 print("rollback_cleanup_ambiguity_exercised=true")
 print("rollback_cleanup_publication_receipt_truthful=true")
 print("rollback_failure_receipt_exercised=true")
