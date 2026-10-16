@@ -11,7 +11,7 @@ SOURCE = "ops/precision/void_buy_void_user_manager_credential_query_protected_re
 LOCK = "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
 
 EXPECTED = {
-    SOURCE: "bd0f40d4c985956cbf75cabb31b12695fa169afd",
+    SOURCE: "452f6c6666e00dbfe8f216ec6d3b4a16a35a43d7",
     LOCK: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
 }
 
@@ -90,13 +90,18 @@ for needle in (
     "STAGED_STATE",
     "EXCHANGED_STATE",
     "ROLLBACK_PENDING_STATE",
-    "_open_locked_install_root",
+    "_open_protected_root",
+    "_require_visible_install_root",
     "replacement_operation_in_progress",
     "_unlink_owned_name",
     "created_stage_identity",
     "foreign_stage_cleanup_rejected=true",
     "current_invocation_stage_inode_bound=true",
     "operation_directory_lock_required=true",
+    "stable_parent_operation_lock_required=true",
+    "descriptor_bound_state_inspection_required=true",
+    "private_stage_publication_required=true",
+    "visible_install_root_generation_revalidation_required=true",
     "crash_state_classifier_complete=true",
     "apply_crash_resume_supported=true",
     "rollback_crash_resume_supported=true",
@@ -133,6 +138,10 @@ for line in (
     "rollback_crash_resume_supported=true",
     "operation_lock_exclusivity_exercised=true",
     "crash_transition_primitives_exercised=true",
+    "stable_parent_operation_lock=true",
+    "descriptor_bound_state_inspection=true",
+    "private_stage_published_only_after_complete=true",
+    "visible_install_root_generation_revalidation=true",
     "query_execution=false",
     "credential_contents_read=false",
 ):
@@ -150,6 +159,10 @@ for line in (
     "v1_predecessor_preserved_after_success=true",
     "query_atomic_exchange_required=true",
     "operation_directory_lock_required=true",
+    "stable_parent_operation_lock_required=true",
+    "descriptor_bound_state_inspection_required=true",
+    "private_stage_publication_required=true",
+    "visible_install_root_generation_revalidation_required=true",
     "crash_state_classification_required=true",
     "apply_crash_resume_supported=true",
     "rollback_crash_resume_supported=true",
@@ -163,7 +176,7 @@ for line in (
     assert line in source_plan.splitlines(), line
 
 print("VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V2_PROOF_GREEN")
-print("source_blob=bd0f40d4c985956cbf75cabb31b12695fa169afd")
+print("source_blob=452f6c6666e00dbfe8f216ec6d3b4a16a35a43d7")
 print("accepted_lock_blob=b73415ce8fc95ff2d49cbde97a15d701ad5b7937")
 print("accepted_lock_id=voidbuyumqcredelflock2_c05afb1a6fbd44a00d4f220652e87ee099e0456992a17a6ae7b60bda9229cf54")
 print("preexec_replacement=false")
@@ -178,6 +191,10 @@ print("apply_crash_resume_supported=true")
 print("rollback_crash_resume_supported=true")
 print("operation_lock_exclusivity_exercised=true")
 print("crash_transition_primitives_exercised=true")
+print("stable_parent_operation_lock=true")
+print("descriptor_bound_state_inspection=true")
+print("private_stage_published_only_after_complete=true")
+print("visible_install_root_generation_revalidation=true")
 print("query_execution=false")
 print("credential_contents_read=false")
 print("service_mutation=false")
