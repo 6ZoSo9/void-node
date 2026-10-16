@@ -124,6 +124,7 @@ AUTHORITY={
     "reviewed_source_head_external_lease_required":True,
     "root_process_census_required":True,
     "host_pid_namespace_external_lease_required":True,
+    "host_user_namespace_external_lease_required":True,
     "host_procfs_visibility_required":True,
     "process_credential_metadata_read":True,
     "filesystem_write":False,
@@ -758,15 +759,34 @@ def census_live_process_credentials(
         ),
     }
 
-def parse_dev_ino_lease(value:str)->tuple[int,int]:
+def parse_dev_ino_lease(
+    value:str,
+    code:str="host_pid_namespace_lease_invalid",
+)->tuple[int,int]:
     if not isinstance(value,str) or not DEV_INO_RE.fullmatch(value):
-        hold("host_pid_namespace_lease_invalid")
+        hold(code)
     dev_text,ino_text=value.split(":",1)
     dev=int(dev_text,10)
     ino=int(ino_text,10)
     if dev<=0 or ino<=0:
-        hold("host_pid_namespace_lease_invalid")
+        hold(code)
     return dev,ino
+
+def verify_namespace_lease(
+    self_ns:os.stat_result,
+    init_ns:os.stat_result,
+    expected:tuple[int,int],
+    *,
+    mismatch_code:str,
+    lease_code:str,
+)->tuple[int,int]:
+    observed=(self_ns.st_dev,self_ns.st_ino)
+    init_observed=(init_ns.st_dev,init_ns.st_ino)
+    if observed!=init_observed:
+        hold(mismatch_code)
+    if observed!=expected:
+        hold(lease_code)
+    return observed
 
 def parse_proc_mountinfo_host_view(data:bytes,proc_root:Path)->dict[str,Any]:
     try:
@@ -803,7 +823,10 @@ def parse_proc_mountinfo_host_view(data:bytes,proc_root:Path)->dict[str,Any]:
         hold("proc_mountinfo_hidepid_forbidden")
     return row
 
-def require_authoritative_process_view(expected_host_pid_namespace_dev_ino:str)->dict[str,Any]:
+def require_authoritative_process_view(
+    expected_host_pid_namespace_dev_ino:str,
+    expected_host_user_namespace_dev_ino:str,
+)->dict[str,Any]:
     if not hasattr(os,"geteuid") or os.geteuid()!=0:
         hold("root_required_for_host_process_census")
     proc_root=PROC_ROOT
@@ -815,17 +838,38 @@ def require_authoritative_process_view(expected_host_pid_namespace_dev_ino:str)-
         raise Hold("proc_root_unreadable") from exc
     if not stat.S_ISDIR(proc_st.st_mode) or stat.S_ISLNK(proc_st.st_mode) or proc_st.st_uid!=0:
         hold("proc_root_identity_invalid")
-    expected_dev,expected_ino=parse_dev_ino_lease(expected_host_pid_namespace_dev_ino)
+    expected_pid_namespace=parse_dev_ino_lease(
+        expected_host_pid_namespace_dev_ino,
+        "host_pid_namespace_lease_invalid",
+    )
+    expected_user_namespace=parse_dev_ino_lease(
+        expected_host_user_namespace_dev_ino,
+        "host_user_namespace_lease_invalid",
+    )
     try:
-        self_ns=os.stat(proc_root/"self/ns/pid")
-        init_ns=os.stat(proc_root/"1/ns/pid")
+        self_pid_ns=os.stat(proc_root/"self/ns/pid")
+        init_pid_ns=os.stat(proc_root/"1/ns/pid")
     except OSError as exc:
         raise Hold("host_pid_namespace_unreadable") from exc
-    observed=(self_ns.st_dev,self_ns.st_ino)
-    if observed!=(init_ns.st_dev,init_ns.st_ino):
-        hold("not_in_pid1_namespace")
-    if observed!=(expected_dev,expected_ino):
-        hold("host_pid_namespace_lease_mismatch")
+    observed_pid_namespace=verify_namespace_lease(
+        self_pid_ns,
+        init_pid_ns,
+        expected_pid_namespace,
+        mismatch_code="not_in_pid1_namespace",
+        lease_code="host_pid_namespace_lease_mismatch",
+    )
+    try:
+        self_user_ns=os.stat(proc_root/"self/ns/user")
+        init_user_ns=os.stat(proc_root/"1/ns/user")
+    except OSError as exc:
+        raise Hold("host_user_namespace_unreadable") from exc
+    observed_user_namespace=verify_namespace_lease(
+        self_user_ns,
+        init_user_ns,
+        expected_user_namespace,
+        mismatch_code="not_in_pid1_user_namespace",
+        lease_code="host_user_namespace_lease_mismatch",
+    )
     try:
         mountinfo=read_bounded_proc_file(proc_root/"self/mountinfo",PROC_MOUNTINFO_MAX_BYTES)
     except OSError as exc:
@@ -840,12 +884,16 @@ def require_authoritative_process_view(expected_host_pid_namespace_dev_ino:str)-
     if set(init_record["uids"])!={0} or set(init_record["gids"])!={0}:
         hold("pid1_credentials_not_root")
     return {
-        "profile":"reviewed_root_host_pid_namespace_procfs_v1",
+        "profile":"reviewed_root_host_pid_user_namespace_procfs_v2",
         "root_execution_verified":True,
         "host_pid_namespace_external_lease_required":True,
-        "host_pid_namespace_dev":str(expected_dev),
-        "host_pid_namespace_ino":str(expected_ino),
+        "host_pid_namespace_dev":str(observed_pid_namespace[0]),
+        "host_pid_namespace_ino":str(observed_pid_namespace[1]),
         "pid1_namespace_matches_self":True,
+        "host_user_namespace_external_lease_required":True,
+        "host_user_namespace_dev":str(observed_user_namespace[0]),
+        "host_user_namespace_ino":str(observed_user_namespace[1]),
+        "pid1_user_namespace_matches_self":True,
         "procfs_root":mount["root"],
         "procfs_mount_point":mount["mount_point"],
         "procfs_hidepid_absent":True,
@@ -942,6 +990,7 @@ def collect_plan(
     expected_parent_head:str,
     expected_source_head:str,
     expected_host_pid_namespace_dev_ino:str,
+    expected_host_user_namespace_dev_ino:str,
 )->dict[str,Any]:
     if expected_parent_head!=PARENT_HEAD:
         hold("expected_parent_head_mismatch")
@@ -949,7 +998,8 @@ def collect_plan(
         hold("wrong_host")
     source_generation=verify_source_generation(expected_source_head)
     process_view_before=require_authoritative_process_view(
-        expected_host_pid_namespace_dev_ino
+        expected_host_pid_namespace_dev_ino,
+        expected_host_user_namespace_dev_ino,
     )
     live_uids,live_gids,process_census_before=census_live_process_credentials(PROC_ROOT)
 
@@ -1025,7 +1075,8 @@ def collect_plan(
     }
 
     process_view_after=require_authoritative_process_view(
-        expected_host_pid_namespace_dev_ino
+        expected_host_pid_namespace_dev_ino,
+        expected_host_user_namespace_dev_ino,
     )
     if process_view_after!=process_view_before:
         hold("process_view_authority_changed_during_plan")
@@ -1104,6 +1155,7 @@ def collect_plan(
         "candidate_slots_globally_distinct":True,
         "candidate_slots_revalidation_required_before_provisioning":True,
         "candidate_slots_live_process_recensus_required_before_provisioning":True,
+        "candidate_slots_host_user_namespace_recensus_required_before_provisioning":True,
         "candidate_slots_provisioning_ready":False,
         "source_generation_authenticated":True,
         "reviewed_source_head_external_lease_required":True,
@@ -1151,6 +1203,27 @@ def self_test()->None:
     assert parsed_proc["gids"]==[201,202,203,204]
     assert parsed_proc["groups"]==[301,302]
     assert parse_dev_ino_lease("12:34")== (12,34)
+    assert parse_dev_ino_lease(
+        "56:78","host_user_namespace_lease_invalid"
+    )==(56,78)
+    fixture_ns=type("FixtureNamespace",(),{"st_dev":12,"st_ino":34})
+    assert verify_namespace_lease(
+        fixture_ns(),fixture_ns(),(12,34),
+        mismatch_code="synthetic_namespace_mismatch",
+        lease_code="synthetic_namespace_lease_mismatch",
+    )==(12,34)
+    try:
+        verify_namespace_lease(
+            fixture_ns(),
+            type("DifferentNamespace",(),{"st_dev":12,"st_ino":35})(),
+            (12,34),
+            mismatch_code="synthetic_user_namespace_mismatch",
+            lease_code="synthetic_user_namespace_lease_mismatch",
+        )
+    except Hold as exc:
+        assert str(exc)=="synthetic_user_namespace_mismatch"
+    else:
+        raise AssertionError("user namespace mismatch must HOLD")
     sample_mount=(
         b"42 35 0:31 / /proc rw,nosuid,nodev,noexec,relatime "
         b"- proc proc rw\n"
@@ -1226,6 +1299,8 @@ def self_test()->None:
     print("candidate_slot_revalidation_required=true")
     print("root_host_process_census_required=true")
     print("host_pid_namespace_external_lease_required=true")
+    print("host_user_namespace_external_lease_required=true")
+    print("host_root_user_namespace_binding_required=true")
     print("all_uid_gid_slots_and_supplementary_groups_consumed=true")
     print("candidate_live_process_recensus_required_before_provisioning=true")
     print("candidate_slots_provisioning_ready=false")
@@ -1245,6 +1320,7 @@ def main()->int:
     parser.add_argument("--expected-parent-head")
     parser.add_argument("--expected-source-head")
     parser.add_argument("--expected-host-pid-namespace-dev-ino")
+    parser.add_argument("--expected-host-user-namespace-dev-ino")
     args=parser.parse_args()
     try:
         if args.self_test:
@@ -1256,10 +1332,13 @@ def main()->int:
             hold("expected_source_head_required")
         if args.expected_host_pid_namespace_dev_ino is None:
             hold("expected_host_pid_namespace_lease_required")
+        if args.expected_host_user_namespace_dev_ino is None:
+            hold("expected_host_user_namespace_lease_required")
         result=collect_plan(
             args.expected_parent_head,
             args.expected_source_head,
             args.expected_host_pid_namespace_dev_ino,
+            args.expected_host_user_namespace_dev_ino,
         )
         sys.stdout.write(canonical(result)+"\n")
         return 0
