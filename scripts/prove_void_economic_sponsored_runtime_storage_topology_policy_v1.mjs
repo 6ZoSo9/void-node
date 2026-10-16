@@ -233,7 +233,10 @@ expectHold(
   "sponsored_runtime_storage_topology_child_owner_mode_invalid",
 );
 expectHold(
-  (x)=>{x.replay_store.root_path=x.time_store.root_path;},
+  (x)=>{
+    x.replay_store.root_path=x.time_store.root_path;
+    x.replay_store.ancestors=structuredClone(x.time_store.ancestors);
+  },
   "sponsored_runtime_storage_topology_roots_not_disjoint",
 );
 expectHold(
