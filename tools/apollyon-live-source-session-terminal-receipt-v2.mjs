@@ -185,8 +185,14 @@ function validateRunnerReceipt(value){
 }
 
 export function finalizeApollyonLiveSourceSessionTerminalReceiptV2(input){
-  exactKeys(input,["runner_receipt"],"apollyon_terminal_receipt_v2_input_invalid");
-  const {receipt,binding}=validateRunnerReceipt(input.runner_receipt);
+  let snapshot;
+  try{
+    snapshot=structuredClone(input);
+  }catch{
+    fail("apollyon_terminal_receipt_v2_input_invalid");
+  }
+  exactKeys(snapshot,["runner_receipt"],"apollyon_terminal_receipt_v2_input_invalid");
+  const {receipt,binding}=validateRunnerReceipt(snapshot.runner_receipt);
   const material={
     marker:VOID_APOLLYON_LIVE_SOURCE_SESSION_TERMINAL_RECEIPT_V2,
     version:2,
