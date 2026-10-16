@@ -14,7 +14,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 INSTALLER=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v1.py"
 LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v3.json"
-INSTALLER_BLOB="832be9ec2fbffe519065ab5d65bec068a915da76"
+INSTALLER_BLOB="6546c0045d5e5c523cf1aac7bba899b5797f2afb"
 LOCK_BLOB="57f965a944031eac90d69b4104b0f8f2473e66cc"
 LOCK_ID="voidbuye2nativecandlock3_024c9e3818a40616fc8b198f605721bf76ed43d6d4f186bf02a202d46860a659"
 EXPECTED_NATIVE_SHA256="78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589"
@@ -129,6 +129,20 @@ assert receipt["publication_state"]=="published_needs_inspection"
 assert receipt["parent_fsync_completed"]=="false"
 assert receipt["final_state_verified"]=="false"
 
+close_failure=module.PublishedInstallError(
+    "synthetic_close_failure",
+    phase="install_parent_close",
+    parent_fsync_completed=True,
+    final_verification_completed=True,
+    original_failure_class="OSError",
+    original_failure_reason="os_error_5",
+)
+close_receipt=module.failure_receipt(close_failure)
+assert close_receipt["protected_install_performed"]=="true"
+assert close_receipt["publication"]=="true"
+assert close_receipt["final_state_verified"]=="true"
+assert close_receipt["final_verification_completed"]=="true"
+
 pre=module.InstallError("synthetic_pre_publish")
 pre_receipt=module.failure_receipt(
     pre,
@@ -142,6 +156,63 @@ assert pre_receipt["stage_cleanup_completed"]=="false"
 
 with tempfile.TemporaryDirectory(prefix="void-e2-native-install-proof-") as td:
     root=Path(td)
+
+    post_fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+    try:
+        try:
+            module._post_publication_checks(
+                post_fd,
+                expected_head="a"*40,
+                node={"sha256":"b"*64,"bytes":1},
+                _fsync_fn=lambda _fd:(_ for _ in ()).throw(
+                    OSError(5,"synthetic fsync failure")
+                ),
+                _verify_fn=lambda *_args,**_kwargs:None,
+            )
+        except module.PublishedInstallError as exc:
+            assert exc.phase=="parent_fsync"
+            assert exc.parent_fsync_completed is False
+            assert exc.final_verification_completed is False
+            fsync_receipt=module.failure_receipt(exc)
+            assert fsync_receipt["protected_install_performed"]=="true"
+            assert fsync_receipt["parent_fsync_completed"]=="false"
+        else:
+            raise AssertionError("post-publication fsync failure not wrapped")
+
+        old_repo_identity=module.repository_identity
+        old_node_identity=module.node_identity
+        synthetic_node={
+            "sha256":"c"*64,"bytes":2,"dev":1,"ino":2,"uid":0,"gid":0,
+            "mode":0o100755,"nlink":1,"size":2,"mtime_ns":3,"ctime_ns":4,
+        }
+        module.repository_identity=lambda expected:expected
+        module.node_identity=lambda:dict(synthetic_node)
+        try:
+            def fail_final(*_args,**_kwargs):
+                raise module.InstallError("synthetic final verification")
+            try:
+                module._post_publication_checks(
+                    post_fd,
+                    expected_head="d"*40,
+                    node=dict(synthetic_node),
+                    _fsync_fn=lambda _fd:None,
+                    _verify_fn=fail_final,
+                )
+            except module.PublishedInstallError as exc:
+                assert exc.phase=="final_verification"
+                assert exc.parent_fsync_completed is True
+                assert exc.final_verification_completed is False
+                final_receipt=module.failure_receipt(exc)
+                assert final_receipt["protected_install_performed"]=="true"
+                assert final_receipt["parent_fsync_completed"]=="true"
+                assert final_receipt["final_state_verified"]=="false"
+            else:
+                raise AssertionError("post-publication final verification failure not wrapped")
+        finally:
+            module.repository_identity=old_repo_identity
+            module.node_identity=old_node_identity
+    finally:
+        os.close(post_fd)
     tampered=root/"candidate"
     tampered.write_bytes(b"\x7fELF"+b"\0"*(EXPECTED_NATIVE_BYTES-4))
     tampered.chmod(0o444)
@@ -199,6 +270,7 @@ for line in (
     "policy_node_identity_bound=true",
     "expected_head_dependency_generation_bound=true",
     "post_publication_failure_receipt_truthful=true",
+    "post_verification_close_failure_preserves_verified_state=true",
     "create_only=true",
     "protected_install_authorized=false",
     "live_execution_authorized=false",
@@ -269,6 +341,9 @@ print("repository_node_parent_revalidated_before_publication=true")
 print("atomic_complete_root_publication_bound=true")
 print("expected_head_dependency_generation_bound=true")
 print("truthful_post_publication_receipt_bound=true")
+print("post_publication_fsync_failure_injected=true")
+print("post_publication_final_verification_failure_injected=true")
+print("post_verification_close_failure_preserves_verified_state=true")
 print("hosted_apply_execution=false")
 print("live_execution_authorized=false")
 print("public_presale_activation_authorized=false")
