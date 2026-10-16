@@ -85,7 +85,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = \
             61a9d85d285f9c9d249adf401580822c44c6dac6
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v5.mjs)" = \
-            0eb543df528f0639566a222af453835365063756
+            ef8238b18efb431736ee6f481f43d2f04e84d736
           test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v5.md)" = \
             789e1b6fde6c3c98a9fb13ca633fa98dbfd5a443
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs)" = \
