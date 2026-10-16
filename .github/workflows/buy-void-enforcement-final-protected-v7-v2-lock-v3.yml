@@ -171,17 +171,20 @@ jobs:
             | tee "$out"
 
           for marker in \
-            'VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1' \
-            'mode=plan' \
+            'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1' \
+            'mode=--plan' \
+            'source_mutation=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'wallet_access=false' \
+            'signing=false' \
+            'transaction_broadcast=false' \
+            'chain2050_mutation=false' \
+            'presale_activation=false' \
+            'funds_movement=false' \
             'accepted_enforcement_set_sha256=75fe0351276ed21b7231b3dd9b50f3d4d6b68ad930b508a1f1f7fdb18d2063c4' \
-            'candidate_enforcement_identity_accepted=true' \
-            'complete_executable_closure_verified=true' \
-            'current_enforcement_tracked_source_inventory_verified=true' \
             'filesystem_mutation=false' \
-            'receipt_write=false' \
-            'runtime_mount_authority=false' \
-            'public_presale_activation=false' \
-            'funds_movement=false'
+            'status=PLAN_GREEN'
           do
             grep -Fx "$marker" "$out"
           done
