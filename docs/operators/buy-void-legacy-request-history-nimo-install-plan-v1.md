@@ -72,10 +72,25 @@ A later gate must:
    role;
 2. bind its public-key SHA-256 to the already-reviewed transport policy;
 3. create a reviewed additive successor authorization set that preserves every
-   accepted existing entry byte-for-byte and adds exactly one restricted
-   legacy-history line; and
-4. prove the effective sshd `AuthorizedKeysFile` is still the reviewed
+   accepted existing entry byte-for-byte and adds exactly one legacy-history
+   line whose options begin with both `restrict` **and** the exact reviewed
+   forced-command option;
+4. require that option to be the exact OpenSSH-escaped encoding of the selected
+   `forced_command.command`: backslashes are escaped first, then embedded
+   double quotes are escaped, yielding
+   `command="<exact reviewed command>"`;
+5. reject a missing command option, `restrict=false`, a differently encoded
+   command option, or any different command value before an additive successor
+   can qualify; and
+6. prove the effective sshd `AuthorizedKeysFile` is still the reviewed
    root-owned `/etc/ssh/authorized_keys/voidwitness`.
+
+The machine-readable plan exposes the exact expected `forced_command_value`
+and exact `forced_command_option` but deliberately does **not** materialize the
+complete authorized-key line because no public key has been selected yet.
+The pure source classifier accepts only
+`{restrict:true, command_option:<exact expected option>}` and keeps
+`authorized_keys_mutation_authorized=false`.
 
 This plan contains no private key, no public-key blob, no key fingerprint and
 no materialized authorized-key line.
@@ -119,6 +134,12 @@ node tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs --plan
 
 Mutation-shaped modes such as `--apply`, `--install`, `--run` and
 `--write-authorized-keys` fail closed.
+
+The focused proof independently derives the OpenSSH command-option escaping and
+requires equality with the plan. Adversaries cover a missing command option,
+missing `restrict`, `restrict=false`, unescaped/differently encoded command
+text, and a different forced command; every case must HOLD while exact-line
+materialization and authorized-keys mutation remain false.
 
 Hosted validation also binds committed diff hygiene. Pull-request runs use the
 exact event base SHA, require it to be an ancestor of the exact checked-out
