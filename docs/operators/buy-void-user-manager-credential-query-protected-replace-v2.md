@@ -82,6 +82,35 @@ invocation's exact stage when the second invocation loses the create-only race.
 A built-in adversary proves a foreign inode is preserved while the creator's
 own inode remains removable.
 
+## Crash/restart state machine
+
+Future apply/rollback execution must hold an exclusive non-blocking kernel
+`flock` on the retained protected install-root directory descriptor for the
+complete mutation interval. A second live compliant invocation therefore HOLDs
+instead of cleaning or advancing the first invocation's state. A process crash
+releases that kernel lock.
+
+Under the lock, the protected root recognizes exactly five generation states:
+
+- `CREDENTIAL_QUERY_V1_GREEN_READY_FOR_V2`: V1 target, no stage/predecessor;
+- `CREDENTIAL_QUERY_V2_STAGE_READY_WITH_V1`: V1 target + exact V2 stage;
+- `CREDENTIAL_QUERY_V2_EXCHANGED_PENDING_PREDECESSOR`: V2 target + exact V1 stage;
+- `CREDENTIAL_QUERY_V2_GREEN_WITH_V1_PREDECESSOR`: V2 target + exact V1 predecessor;
+- `CREDENTIAL_QUERY_V1_ROLLBACK_PENDING_V2_CLEANUP`: V1 target + exact V2 predecessor.
+
+The exact root-entry set is part of every state classification. Unknown or
+mixed generations HOLD.
+
+With the explicit V1→V2 apply token, the two forward crash states resume toward
+V2 GREEN. A rollback-pending state requires the rollback token rather than
+silently re-applying V2.
+
+With the explicit rollback token, V2 GREEN and all exact partial apply/rollback
+states recover toward V1 READY. Directory fsync follows every exchange,
+publication, or cleanup transition. A crash before a directory fsync may leave
+either neighboring exact state; both are reclassified on restart rather than
+being treated as implicit success.
+
 ## Deliberate rollback
 
 Rollback requires the exact V2-green state plus:
