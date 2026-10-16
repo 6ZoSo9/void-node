@@ -48,7 +48,7 @@ jobs:
             case "$changed" in
               '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v1.yml'|\
               'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v1.md'|\
-              'scripts/prove_buy_void_epoch2_dormant_binder_installer_first-entry-candidate-v1.py')
+              'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py')
                 ;;
               *)
                 echo "candidate_scope_violation=$changed" >&2
