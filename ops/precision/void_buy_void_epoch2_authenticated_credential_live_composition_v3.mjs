@@ -937,6 +937,48 @@ function selfTest(){
   if(driftChecks!==2){
     throw new Error("late_source_drift_not_detected");
   }
+
+  let preAuthFailure=null;
+  try{
+    runLiveLifecycle({
+      expectedHead:"f".repeat(40),
+      confirm:CONFIRM,
+      euidFn:()=>0,
+      nativeFn:()=>{throw new Error("pre_native_auth_injected_failure");},
+      trustedExecutablesFn:()=>{},
+      sensitiveFn:()=>{throw new Error("pre_auth_sensitive_unreachable");},
+      revalidateFn:()=>{},
+      emitFn:()=>{},
+    });
+  }catch(error){
+    preAuthFailure=error;
+  }
+  if(preAuthFailure===null||
+     buildHoldReceipt(preAuthFailure).privileged_first_entry_authenticated!==false){
+    throw new Error("pre_native_auth_hold_receipt_not_false");
+  }
+
+  let postAuthFailure=null;
+  try{
+    runLiveLifecycle({
+      expectedHead:"1".repeat(40),
+      confirm:CONFIRM,
+      euidFn:()=>0,
+      nativeFn:()=>({native_proof:true}),
+      trustedExecutablesFn:()=>{},
+      sensitiveFn:()=>{throw new Error("post_native_auth_injected_failure");},
+      revalidateFn:()=>{},
+      emitFn:()=>{},
+    });
+  }catch(error){
+    postAuthFailure=error;
+  }
+  if(postAuthFailure===null||
+     buildHoldReceipt(postAuthFailure).privileged_first_entry_authenticated!==true){
+    throw new Error("post_native_auth_hold_receipt_not_true");
+  }
+  privilegedFirstEntryAuthenticatedForInvocation=false;
+
   console.log(MARKER+"_SELF_TEST_GREEN");
   console.log("native_preentry_required_for_live=true");
   console.log("native_parent_retained_for_child_lifetime=true");
@@ -947,6 +989,9 @@ function selfTest(){
   console.log("receipt_content_addressed=true");
   console.log("final_checkout_revalidation_required=true");
   console.log("late_source_drift_blocks_receipt=true");
+  console.log("pre_native_auth_failure_receipt_false=true");
+  console.log("post_native_auth_failure_receipt_true=true");
+  console.log("truthful_hold_lifecycle_stage=true");
   console.log("runner_parent_credential_content_access=false");
   console.log("sealed_child_credential_content_access=true");
   console.log("nontransaction_signature_only=true");
@@ -983,21 +1028,43 @@ function runSensitiveSequence({
   });
 }
 
-function live(expectedHead,confirm){
+let privilegedFirstEntryAuthenticatedForInvocation=false;
+
+function runLiveLifecycle({
+  expectedHead,
+  confirm,
+  euidFn=()=>(
+    typeof process.geteuid==="function" ? process.geteuid() : -1
+  ),
+  nativeFn=requireNativePreentry,
+  trustedExecutablesFn=()=>{
+    assertTrustedExecutable(GIT);
+    assertTrustedExecutable(PYTHON);
+    assertTrustedExecutable(NODE);
+    assertTrustedExecutable(SETPRIV);
+  },
+  sensitiveFn=runSensitiveSequence,
+  revalidateFn=revalidateNativePreentry,
+  emitFn=(receipt)=>console.log(JSON.stringify(receipt,null,2)),
+}){
+  privilegedFirstEntryAuthenticatedForInvocation=false;
   if(confirm!==CONFIRM)throw new Error("explicit_live_confirmation_required");
-  if(typeof process.geteuid!=="function"||process.geteuid()!==0){
+  if(euidFn()!==0){
     throw new Error("root_required_for_live_composition");
   }
-  const nativeProof=requireNativePreentry(expectedHead);
 
-  assertTrustedExecutable(GIT);
-  assertTrustedExecutable(PYTHON);
-  assertTrustedExecutable(NODE);
-  assertTrustedExecutable(SETPRIV);
+  const nativeProof=nativeFn(expectedHead);
+  privilegedFirstEntryAuthenticatedForInvocation=true;
 
-  const receipt=runSensitiveSequence({expectedHead});
-  revalidateNativePreentry(nativeProof,expectedHead);
-  console.log(JSON.stringify(receipt,null,2));
+  trustedExecutablesFn();
+  const receipt=sensitiveFn({expectedHead});
+  revalidateFn(nativeProof,expectedHead);
+  emitFn(receipt);
+  return receipt;
+}
+
+function live(expectedHead,confirm){
+  return runLiveLifecycle({expectedHead,confirm});
 }
 
 function main(){
@@ -1024,8 +1091,8 @@ function main(){
   );
 }
 
-function printHold(error){
-  console.error(JSON.stringify({
+function buildHoldReceipt(error){
+  return Object.freeze({
     marker:MARKER+"_HOLD",
     status:"HOLD",
     reason:safeReason(error?.message||error),
@@ -1044,8 +1111,13 @@ function printHold(error){
     wc_void_market_activation:false,
     funds_movement:false,
     production_host_evidence_authority:false,
-    privileged_first_entry_authenticated:false,
-  },null,2));
+    privileged_first_entry_authenticated:
+      privilegedFirstEntryAuthenticatedForInvocation,
+  });
+}
+
+function printHold(error){
+  console.error(JSON.stringify(buildHoldReceipt(error),null,2));
 }
 
 const directFileExecution=process.argv[1]&&
