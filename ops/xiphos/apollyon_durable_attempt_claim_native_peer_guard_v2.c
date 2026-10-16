@@ -379,6 +379,72 @@ static int self_test_framing_extra(void) {
   return 0;
 }
 
+static int self_test_framing_short(void) {
+  int pair[2];
+  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, pair) != 0) return -1;
+  pid_t child = fork();
+  if (child < 0) return -1;
+  if (child == 0) {
+    close(pair[0]);
+    unsigned char frame[FRAME_BYTES - 1];
+    memset(frame, 0x4C, sizeof(frame));
+    if (send_all(pair[1], frame, sizeof(frame)) != 0) _exit(10);
+    if (shutdown(pair[1], SHUT_WR) != 0) _exit(11);
+    close(pair[1]);
+    _exit(0);
+  }
+  close(pair[1]);
+  unsigned char observed[FRAME_BYTES];
+  errno = 0;
+  int result = read_exact_then_eof(
+    pair[0], observed, sizeof(observed), TEST_TIMEOUT_MS
+  );
+  int saved = errno;
+  close(pair[0]);
+  int status = 0;
+  if (waitpid(child, &status, 0) != child) return -1;
+  if (result == 0 || saved != EMSGSIZE) {
+    errno = EPROTO;
+    return -1;
+  }
+  return 0;
+}
+
+static int self_test_framing_delayed_extra(void) {
+  int pair[2];
+  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, pair) != 0) return -1;
+  pid_t child = fork();
+  if (child < 0) return -1;
+  if (child == 0) {
+    close(pair[0]);
+    unsigned char frame[FRAME_BYTES];
+    memset(frame, 0x5D, sizeof(frame));
+    if (send_all(pair[1], frame, sizeof(frame)) != 0) _exit(10);
+    struct timespec delay = {.tv_sec = 0, .tv_nsec = 30000000L};
+    nanosleep(&delay, NULL);
+    const unsigned char extra = 0xEE;
+    if (send_all(pair[1], &extra, 1) != 0) _exit(11);
+    if (shutdown(pair[1], SHUT_WR) != 0) _exit(12);
+    close(pair[1]);
+    _exit(0);
+  }
+  close(pair[1]);
+  unsigned char observed[FRAME_BYTES];
+  errno = 0;
+  int result = read_exact_then_eof(
+    pair[0], observed, sizeof(observed), TEST_TIMEOUT_MS
+  );
+  int saved = errno;
+  close(pair[0]);
+  int status = 0;
+  if (waitpid(child, &status, 0) != child) return -1;
+  if (result == 0 || saved != EMSGSIZE) {
+    errno = EPROTO;
+    return -1;
+  }
+  return 0;
+}
+
 static int self_test_framing_no_eof(void) {
   int pair[2];
   if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, pair) != 0) return -1;
@@ -502,6 +568,8 @@ static int self_test_peer_and_exec_drift(void) {
 static int self_test(void) {
   if (self_test_framing_good() != 0) return 1;
   if (self_test_framing_extra() != 0) return 1;
+  if (self_test_framing_short() != 0) return 1;
+  if (self_test_framing_delayed_extra() != 0) return 1;
   if (self_test_framing_no_eof() != 0) return 1;
   if (self_test_peer_and_exec_drift() != 0) return 1;
 
@@ -513,6 +581,8 @@ static int self_test(void) {
   printf("response_frame_exact_bytes=64\n");
   printf("response_half_close_eof_proven=true\n");
   printf("response_extra_byte_rejected=true\n");
+  printf("response_short_eof_rejected=true\n");
+  printf("response_delayed_extra_rejected=true\n");
   printf("response_no_eof_timeout_rejected=true\n");
   printf("read_half_ack_after_peer_eof_proven=true\n");
   printf("cross_uid_host_qualification_performed=false\n");

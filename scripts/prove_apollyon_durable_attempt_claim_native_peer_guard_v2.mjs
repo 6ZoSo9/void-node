@@ -45,6 +45,8 @@ for(const required of [
   "read_exact_then_eof",
   "self_test_framing_good",
   "self_test_framing_extra",
+  "self_test_framing_short",
+  "self_test_framing_delayed_extra",
   "self_test_framing_no_eof",
   "self_test_peer_and_exec_drift",
   'execl("/bin/sleep"',
@@ -111,6 +113,8 @@ try{
     "response_frame_exact_bytes=64",
     "response_half_close_eof_proven=true",
     "response_extra_byte_rejected=true",
+    "response_short_eof_rejected=true",
+    "response_delayed_extra_rejected=true",
     "response_no_eof_timeout_rejected=true",
     "read_half_ack_after_peer_eof_proven=true",
     "cross_uid_host_qualification_performed=false",
@@ -164,6 +168,8 @@ console.log("native_peer_credential_self_test=true");
 console.log("pidfd_liveness_self_test=true");
 console.log("exec_in_place_source_drift_self_test=true");
 console.log("stream_half_close_eof_self_test=true");
+console.log("short_eof_self_test=true");
+console.log("delayed_extra_self_test=true");
 console.log("live_mode=false");
 console.log("claim_store_mutation=false");
 console.log("durable_attempt_claim=false");

@@ -44,8 +44,10 @@ It proves:
 5. exactly 64 response bytes followed by `shutdown(SHUT_WR)` are accepted;
 6. the receiver observes EOF after exactly those 64 bytes and can still send an
    acknowledgment on its write half;
-7. a 65-byte response is rejected; and
-8. a 64-byte response with no timely EOF is rejected.
+7. a 65-byte response is rejected;
+8. EOF after only 63 bytes is rejected;
+9. an extra byte sent after a delay following a valid 64-byte prefix is rejected; and
+10. a 64-byte response with no timely EOF is rejected.
 
 The candidate has no live mode. Any invocation other than `--self-test`
 returns HOLD.
