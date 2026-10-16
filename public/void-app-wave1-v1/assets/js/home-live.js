@@ -58,6 +58,10 @@ const clearHomeEvidence = (stateLabel, shellMeta) => {
   setText('[data-network-context-meta]', shellMeta);
   setText('[data-node-footer-name]', 'Local node');
   setText('[data-node-footer-meta]', shellMeta);
+  setText(
+    '[data-home-last-updated]',
+    stateLabel === 'CHECKING' ? 'Refreshing live state' : 'Live state unavailable'
+  );
 
   const headerDot = document.querySelector('[data-network-context-dot]');
   if (headerDot) headerDot.className = 'status-dot status-dot--warning';

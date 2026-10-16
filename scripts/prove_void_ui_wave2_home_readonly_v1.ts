@@ -185,6 +185,7 @@ for (const marker of [
   "setText('[data-home-mesh-value]', 'HOLD')",
   "setText('[data-network-context-meta]', shellMeta)",
   "setText('[data-node-footer-meta]', shellMeta)",
+  "'[data-home-last-updated]'",
   "headerDot.className = 'status-dot status-dot--warning'",
 ]) {
   if (!clearHomeEvidenceText.includes(marker)) {
