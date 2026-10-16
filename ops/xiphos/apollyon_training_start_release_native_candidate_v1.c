@@ -595,26 +595,50 @@ static bool exact_security_policy(
 }
 
 static bool observe_security(
+    const proc_context_v1 *proc,
     uid_t expected_uid,
     gid_t expected_gid,
     process_security_v1 *out
 ) {
     unsigned char raw[MAX_STATUS_BYTES];
     size_t len=0;
-    if (!read_bounded("/proc/self/status",raw,sizeof(raw)-1U,&len)) return false;
+    if (!read_bounded_at(proc->self_fd,"status",raw,sizeof(raw)-1U,&len)) return false;
     raw[len]='\0';
     if (!parse_status_text((char *)raw,out)) return false;
     if (!exact_security_policy(out,expected_uid,expected_gid)) return false;
+
+    uid_t ruid=0,euid=0,suid=0;
+    gid_t rgid=0,egid=0,sgid=0;
+    if (getresuid(&ruid,&euid,&suid)!=0 ||
+        getresgid(&rgid,&egid,&sgid)!=0) return false;
+    if (out->uid[0]!=ruid || out->uid[1]!=euid || out->uid[2]!=suid ||
+        out->gid[0]!=rgid || out->gid[1]!=egid || out->gid[2]!=sgid) {
+        return false;
+    }
     if (getgroups(0,NULL) != 0) return false;
     if (prctl(PR_GET_NO_NEW_PRIVS,0,0,0,0) != 1) return false;
     return true;
 }
 
-static bool read_start_ticks(unsigned long long *out) {
+static bool read_start_ticks(
+    const proc_context_v1 *proc,
+    unsigned long long *out
+) {
     unsigned char raw[4096];
     size_t len=0;
-    if (!read_bounded("/proc/self/stat",raw,sizeof(raw)-1U,&len)) return false;
+    if (!read_bounded_at(proc->self_fd,"stat",raw,sizeof(raw)-1U,&len)) return false;
     raw[len]='\0';
+
+    errno=0;
+    char *pid_end=NULL;
+    long observed_pid=strtol((char *)raw,&pid_end,10);
+    char *left=strchr((char *)raw,'(');
+    if (
+        errno!=0 || pid_end==(char *)raw || left==NULL ||
+        *pid_end!=' ' || pid_end+1!=left ||
+        observed_pid<=1 || observed_pid!=(long)getpid()
+    ) return false;
+
     char *right=strrchr((char *)raw,')');
     if (right==NULL || right[1]!=' ') return false;
     char *cursor=right+2;
@@ -667,12 +691,16 @@ static bool environment_clean(void) {
     return true;
 }
 
-static bool inherited_fd_set_exact(void) {
+static bool inherited_fd_set_exact(const proc_context_v1 *proc) {
     if (fcntl(0,F_GETFD)<0 || fcntl(1,F_GETFD)<0 ||
         fcntl(2,F_GETFD)<0 || fcntl(RELEASE_FD,F_GETFD)<0) return false;
-    DIR *dir=opendir("/proc/self/fd");
-    if(dir==NULL) return false;
-    int census_fd=dirfd(dir);
+    int census_fd=fcntl(proc->fd_dir_fd,F_DUPFD_CLOEXEC,4);
+    if(census_fd<0) return false;
+    DIR *dir=fdopendir(census_fd);
+    if(dir==NULL) {
+        close(census_fd);
+        return false;
+    }
     bool ok=true;
     errno=0;
     for(;;) {
@@ -681,7 +709,11 @@ static bool inherited_fd_set_exact(void) {
         char *end=NULL;
         long fd=strtol(entry->d_name,&end,10);
         if(end==entry->d_name || *end!='\0') continue;
-        if(fd==0||fd==1||fd==2||fd==RELEASE_FD||fd==census_fd) continue;
+        if(
+            fd==0 || fd==1 || fd==2 || fd==RELEASE_FD ||
+            fd==proc->proc_fd || fd==proc->self_fd ||
+            fd==proc->fd_dir_fd || fd==census_fd
+        ) continue;
         ok=false;
         break;
     }
@@ -690,13 +722,16 @@ static bool inherited_fd_set_exact(void) {
     return ok;
 }
 
-static bool release_fd_snapshot(struct stat *out) {
+static bool release_fd_snapshot(
+    const proc_context_v1 *proc,
+    struct stat *out
+) {
     int flags=fcntl(RELEASE_FD,F_GETFL);
     if(flags<0 || (flags&O_ACCMODE)!=O_RDONLY) return false;
     if(fstat(RELEASE_FD,out)!=0 || !S_ISFIFO(out->st_mode)) return false;
 
     char link[128];
-    ssize_t n=readlink("/proc/self/fd/3",link,sizeof(link)-1U);
+    ssize_t n=readlinkat(proc->fd_dir_fd,"3",link,sizeof(link)-1U);
     if(n<=0 || (size_t)n>=sizeof(link)-1U) return false;
     link[n]='\0';
     const char *prefix="pipe:[";
