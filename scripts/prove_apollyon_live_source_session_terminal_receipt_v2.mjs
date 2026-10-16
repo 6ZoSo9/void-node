@@ -28,7 +28,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
     "981935515e08634be96446e58922c16be56d33ad",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "02839a2fa3bbd0668ed52c5cad74ae1d6a32283f",
+    "ed2b5e9c580b01a733356d4e182ec51b8fe78418",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -157,6 +157,7 @@ for(const mutate of [
   x=>{x.training_generation_absent_after=false;},
   x=>{x.training_pid+=1;},
   x=>{x.training_process_start_time_ticks="123457";},
+  x=>{x.training_process_start_time_ticks=123456;},
   x=>{x.durable_attempt_claim_performed=true;},
   x=>{x.training_execution_performed=true;},
   x=>{x.training_service_enabled=true;},

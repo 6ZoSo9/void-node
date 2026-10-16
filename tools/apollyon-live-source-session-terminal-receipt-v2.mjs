@@ -165,8 +165,9 @@ function validateRunnerReceipt(value){
     value.version!==2||
     value.status!=="live_source_session_binding_complete_training_service_stopped"||
     value.training_pid!==binding.training_pid||
-    String(value.training_process_start_time_ticks)!==
-      String(binding.training_process_start_time_ticks)||
+    typeof value.training_process_start_time_ticks!=="string"||
+    value.training_process_start_time_ticks!==
+      binding.training_process_start_time_ticks||
     value.training_service_enabled!==false||
     value.training_service_active_after!==false||
     value.training_service_exact_dormant_after!==true||
