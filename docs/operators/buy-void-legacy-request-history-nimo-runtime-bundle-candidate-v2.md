@@ -75,19 +75,24 @@ For every V2 candidate creation it:
    tree digest/count/bytes, and copies the complete package into a fresh private
    temporary snapshot; the four executable JS files retain their independent
    hardcoded byte identities;
-3. changes the snapshot parent/directories to mode `0500` and compiler files
-   to mode `0400`, then re-derives the snapshot identity before execution;
-4. removes only the generated `dist/` build output;
-5. invokes the current Node process executable against the **snapshot**
+3. creates the snapshot under fixed root-owned sticky `/tmp`, finalizes all
+   snapshot directories mode `0555` and files mode `0444`, then uses fixed
+   passwordless-sudo + `/usr/bin/chown` to transfer the complete snapshot to
+   `root:root`; the unprivileged candidate-builder UID must have no direct
+   chmod/write/unlink authority over that generation;
+4. re-derives the exact root-custodied snapshot identity before execution;
+5. removes only the generated `dist/` build output;
+6. invokes the current Node process executable against the **snapshot**
    `bin/tsc`, not the checkout `bin/tsc`, under the closed environment
    `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, `TZ=UTC`,
    `NODE_DISABLE_COMPILE_CACHE=1`;
-6. rechecks that every snapshot directory/file remained non-writable and that
-   the exact four-file snapshot identity is unchanged;
-7. re-derives the checkout compiler identity and requires exact canonical
+7. rechecks exact root UID/GID custody, `0555/0444` modes, single-link files,
+   complete package identity, and the exact four-file snapshot identity;
+8. re-derives the checkout compiler identity and requires exact canonical
    equality with the pre-snapshot generation;
-8. only then derives the 14-file runtime closure from the newly built output;
-9. removes the private temporary snapshot.
+9. only then derives the 14-file runtime closure from the newly built output;
+10. removes the root-owned proof snapshot through fixed passwordless-sudo +
+    `/usr/bin/rm`.
 
 The candidate records a deterministic content-addressed
 `compiler_snapshot.snapshot_id` over the exact compiler identity, package-lock
@@ -101,17 +106,18 @@ relative to its own `lib/` directory. Executing a four-JS-file snapshot while
 reopening `.d.ts` files from the checkout would leave a second mutable compiler
 input path.
 
-The focused proof includes an ABA adversary: after the snapshot is created it
-replaces the checkout `bin/tsc` with a deliberately failing compiler for the
-entire build interval, restores the reviewed checkout bytes before final source
-revalidation, and requires the build to succeed from the unchanged read-only
-snapshot. This is the case that pre/post hashes on mutable checkout pathname
-reopens could not distinguish.
+The focused proof includes two coupled ABA adversaries. After root custody is
+established, the original unprivileged builder attempts to chmod, append to, and
+unlink the exact snapshot compiler entry; every direct mutation must fail. It
+then replaces the mutable checkout `bin/tsc` with a deliberately failing
+compiler for the complete build interval, restores the reviewed checkout bytes
+before final source revalidation, and requires the build to succeed from the
+unchanged root-custodied snapshot. This closes both mutable-path reopening and
+same-UID chmod/substitute/restore schedules inside the reviewed proof threat
+model. Separate root authority remains trusted proof infrastructure.
 
-The snapshot modes are a source/test execution boundary, not a claim that an
-arbitrary same-UID hostile process is cryptographically excluded from every
-temporary filesystem object. Production Nimo installation remains separately
-unauthorized.
+The root-custodied snapshot is source/test execution infrastructure only.
+Production Nimo installation remains separately unauthorized.
 
 
 ## Candidate verification
