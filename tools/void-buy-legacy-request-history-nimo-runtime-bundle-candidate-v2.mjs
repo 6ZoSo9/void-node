@@ -486,7 +486,7 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
   const body = {
     schema: VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_SCHEMA_V2,
     marker: VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_CANDIDATE_V2,
-    version: 1,
+    version: 2,
     repository: "6ZoSo9/void-node",
     parent_plan: parentPlan,
     entrypoint: ENTRY,
@@ -563,7 +563,7 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
   if (
     body.schema !== VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_SCHEMA_V2 ||
     body.marker !== VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_CANDIDATE_V2 ||
-    body.version !== 1 ||
+    body.version !== 2 ||
     body.repository !== "6ZoSo9/void-node" ||
     body.entrypoint !== ENTRY ||
     body.runtime_bundle_candidate_accepted !== false ||
