@@ -1,0 +1,157 @@
+name: Buy VOID Epoch-2 dormant binder protected install v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v2.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact stacked scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py' \
+            | sort > "$expected"
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
+            7096622a69fc39cfab18f25d33bbb0b61caa1ac1
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
+            592d7d4db921b4c88180bcd09495a835a40e914f
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md)" = \
+            0db7d5c24dd4ef283a4aaa06237fc640b18fc8dc
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = \
+            5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py)" = \
+            f97cb8aff642f2f3e138fe8e087eece22223b934
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" = \
+            9c29eb4716077e459b9154f39d0f30cf2e56729f
+
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Syntax and focused proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py",
+              "scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PROTECTED_INSTALL_V2_SYNTAX_GREEN")
+          PY
+
+          out="$RUNNER_TEMP/proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py | tee "$out"
+
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PROTECTED_INSTALL_V2_PROOF_GREEN' \
+            'installer_blob_bound=true' \
+            'accepted_lock_v3_bound=true' \
+            'candidate_identity_bound=true' \
+            'native_binary_identity_bound=true' \
+            'binder_identity_bound=true' \
+            'wrong_confirmation_precedes_candidate_and_host_inspection=true' \
+            'create_only_install=true' \
+            'renameat2_noreplace_publish=true' \
+            'automatic_cleanup_or_rollback_required=true' \
+            'publication_truth_monotonic=true' \
+            'final_failure_receipt_required=true' \
+            'service_mutation=false' \
+            'live_execution=false' \
+            'credential_access=false' \
+            'private_key_access=false' \
+            'signing=false' \
+            'transaction=false' \
+            'rpc_call=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Rederive accepted native and run inert install plan
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          # The operational plan requires main; create only the local CI ref.
+          git checkout -B main "$HEAD_SHA"
+
+          candidate="$RUNNER_TEMP/candidate-v2"
+          derive="$RUNNER_TEMP/derive.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py \
+            --derive-dir "$candidate" | tee "$derive"
+
+          grep -Fx 'candidate_id=voidbuye2dormantbindercand2_8ee7517895544b58b4b383f0bd1b63b671a2b354656d28016eeae2b47185a20d' "$derive"
+          grep -Fx 'native_binary_sha256=ca078f3a81191847d5b0b75de99e4d8f7e389fd051afdb76338f28e157ae5a7c' "$derive"
+          grep -Fx 'native_binary_bytes=726976' "$derive"
+          grep -Fx 'candidate_accepted=false' "$derive"
+          grep -Fx 'protected_install_authorized=false' "$derive"
+          grep -Fx 'live_execution_authorized=false' "$derive"
+
+          plan="$RUNNER_TEMP/install-plan.log"
+          python3 -I -B ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py \
+            --plan \
+            --native "$candidate/native-preentry-v2" \
+            --expected-head "$HEAD_SHA" | tee "$plan"
+
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PROTECTED_INSTALL_V2' "$plan"
+          grep -Fx 'mode=plan' "$plan"
+          grep -Fx 'read_only=true' "$plan"
+          grep -E '^plan_id=voidbuye2dormantbinderinstall2_[0-9a-f]{64}$' "$plan"
+          grep -Fx 'protected_state=EPOCH2_DORMANT_BINDER_V2_READY_FOR_CREATE_ONLY_INSTALL' "$plan"
+          grep -Fx 'native_candidate_verified=true' "$plan"
+          grep -Fx 'binder_source_verified=true' "$plan"
+          grep -Fx 'create_only=true' "$plan"
+          grep -Fx 'atomic_publish_required=true' "$plan"
+          grep -Fx 'automatic_cleanup_or_rollback_required=true' "$plan"
+          grep -Fx 'filesystem_write=false' "$plan"
+          grep -Fx 'service_mutation=false' "$plan"
+          grep -Fx 'systemd_mutation=false' "$plan"
+          grep -Fx 'live_execution=false' "$plan"
+          grep -Fx 'credential_access=false' "$plan"
+          grep -Fx 'private_key_access=false' "$plan"
+          grep -Fx 'signing=false' "$plan"
+          grep -Fx 'transaction=false' "$plan"
+          grep -Fx 'rpc_call=false' "$plan"
+          grep -Fx 'funds_movement=false' "$plan"
+          grep -Fx 'already_installed=false' "$plan"
+          grep -Fx 'next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_BINDER_PROTECTED_INSTALL_V2' "$plan"
+
+      - run: git diff --check
