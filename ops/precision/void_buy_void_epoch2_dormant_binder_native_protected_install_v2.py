@@ -85,6 +85,18 @@ FIRST_ENTRY_INSTALLER_FD_ENV = (
 FIRST_ENTRY_NATIVE_FD_ENV = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_NATIVE_FD"
 )
+FIRST_ENTRY_PROOF_FD_ENV = (
+    "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROOF_FD"
+)
+FIRST_ENTRY_PROOF_SCHEMA = (
+    "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_PARENT_PROOF_V1"
+)
+FIRST_ENTRY_LAUNCHER = pathlib.Path(
+    "/opt/void-buy-void-epoch2-dormant-binder-installer-first-entry-v1/bin/"
+    "void_buy_void_epoch2_dormant_binder_installer_first_entry_v1"
+)
+MAX_FIRST_ENTRY_PROOF_BYTES = 4096
+_FIRST_ENTRY_PROOF_CACHE: dict[str, str] | None = None
 
 
 class InstallError(RuntimeError):
@@ -458,11 +470,192 @@ def _parse_first_entry_fd(name: str) -> int:
     return fd
 
 
+def _read_process_start_ticks(pid: int) -> str:
+    path = f"/proc/{pid}/stat"
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            raw = os.read(fd, 4096)
+            if not raw or len(raw) >= 4096 or os.read(fd, 1):
+                raise InstallError("authenticated_first_entry_parent_stat_invalid")
+        finally:
+            os.close(fd)
+        text = raw.decode("ascii")
+    except (OSError, UnicodeError) as exc:
+        raise InstallError("authenticated_first_entry_parent_stat_invalid") from exc
+    right = text.rfind(")")
+    if right < 0 or right + 2 > len(text) or text[right + 1] != " ":
+        raise InstallError("authenticated_first_entry_parent_stat_invalid")
+    fields = text[right + 2 :].strip().split()
+    if len(fields) < 20 or not fields[19].isdecimal() or int(fields[19]) <= 0:
+        raise InstallError("authenticated_first_entry_parent_stat_invalid")
+    return fields[19]
+
+
+def _read_first_entry_proof(fd: int) -> dict[str, str]:
+    global _FIRST_ENTRY_PROOF_CACHE
+    if _FIRST_ENTRY_PROOF_CACHE is not None:
+        return dict(_FIRST_ENTRY_PROOF_CACHE)
+    raw = bytearray()
+    try:
+        while True:
+            remaining = MAX_FIRST_ENTRY_PROOF_BYTES + 1 - len(raw)
+            if remaining <= 0:
+                raise InstallError("authenticated_first_entry_proof_too_large")
+            chunk = os.read(fd, min(1024, remaining))
+            if not chunk:
+                break
+            raw.extend(chunk)
+            if len(raw) > MAX_FIRST_ENTRY_PROOF_BYTES:
+                raise InstallError("authenticated_first_entry_proof_too_large")
+    except OSError as exc:
+        raise InstallError("authenticated_first_entry_proof_read_failed") from exc
+    finally:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    try:
+        text = bytes(raw).decode("ascii")
+    except UnicodeError as exc:
+        raise InstallError("authenticated_first_entry_proof_not_ascii") from exc
+    if not text.endswith("\n") or "\x00" in text:
+        raise InstallError("authenticated_first_entry_proof_framing_invalid")
+    pairs: list[tuple[str, str]] = []
+    for line in text[:-1].split("\n"):
+        if not line or "=" not in line:
+            raise InstallError("authenticated_first_entry_proof_shape_invalid")
+        key, value = line.split("=", 1)
+        pairs.append((key, value))
+    expected_keys = [
+        "schema",
+        "parent_pid",
+        "parent_start_ticks",
+        "launcher_dev",
+        "launcher_ino",
+        "installer_dev",
+        "installer_ino",
+        "native_dev",
+        "native_ino",
+        "python_dev",
+        "python_ino",
+        "installer_fd",
+        "native_fd",
+        "operation",
+        "expected_head",
+    ]
+    if [key for key, _ in pairs] != expected_keys:
+        raise InstallError("authenticated_first_entry_proof_shape_invalid")
+    proof = dict(pairs)
+    if len(proof) != len(expected_keys):
+        raise InstallError("authenticated_first_entry_proof_shape_invalid")
+    _FIRST_ENTRY_PROOF_CACHE = dict(proof)
+    return proof
+
+
+def _proof_positive_decimal(proof: dict[str, str], key: str) -> int:
+    raw = proof.get(key, "")
+    if not raw.isdecimal():
+        raise InstallError("authenticated_first_entry_proof_value_invalid:" + key)
+    value = int(raw, 10)
+    if value <= 0:
+        raise InstallError("authenticated_first_entry_proof_value_invalid:" + key)
+    return value
+
+
+def _same_dev_ino(st: os.stat_result, dev: int, ino: int) -> bool:
+    return st.st_dev == dev and st.st_ino == ino
+
+
+def _validate_first_entry_parent(
+    proof: dict[str, str],
+    installer_fd: int,
+    native_fd: int,
+    *,
+    operation: str | None,
+    expected_head: str | None,
+) -> None:
+    if proof.get("schema") != FIRST_ENTRY_PROOF_SCHEMA:
+        raise InstallError("authenticated_first_entry_proof_schema_invalid")
+    parent_pid = _proof_positive_decimal(proof, "parent_pid")
+    parent_start_ticks = proof.get("parent_start_ticks", "")
+    if not parent_start_ticks.isdecimal() or int(parent_start_ticks) <= 0:
+        raise InstallError("authenticated_first_entry_parent_start_invalid")
+    if os.getppid() != parent_pid:
+        raise InstallError("authenticated_first_entry_parent_pid_mismatch")
+    if _read_process_start_ticks(parent_pid) != parent_start_ticks:
+        raise InstallError("authenticated_first_entry_parent_generation_mismatch")
+
+    proof_installer_fd = _proof_positive_decimal(proof, "installer_fd")
+    proof_native_fd = _proof_positive_decimal(proof, "native_fd")
+    if proof_installer_fd != installer_fd or proof_native_fd != native_fd:
+        raise InstallError("authenticated_first_entry_proof_fd_mismatch")
+    if operation is not None and proof.get("operation") != operation:
+        raise InstallError("authenticated_first_entry_operation_mismatch")
+    if expected_head is not None and proof.get("expected_head") != expected_head:
+        raise InstallError("authenticated_first_entry_expected_head_mismatch")
+    if not HEX40.fullmatch(proof.get("expected_head", "")):
+        raise InstallError("authenticated_first_entry_expected_head_invalid")
+
+    try:
+        visible_launcher = FIRST_ENTRY_LAUNCHER.lstat()
+        parent_exe = os.stat(f"/proc/{parent_pid}/exe")
+        python_exe = os.stat("/proc/self/exe")
+        installer_st = os.fstat(installer_fd)
+        native_st = os.fstat(native_fd)
+    except OSError as exc:
+        raise InstallError("authenticated_first_entry_generation_unavailable") from exc
+
+    if (
+        not stat.S_ISREG(visible_launcher.st_mode)
+        or stat.S_ISLNK(visible_launcher.st_mode)
+        or visible_launcher.st_uid != 0
+        or visible_launcher.st_gid != 0
+        or visible_launcher.st_nlink != 1
+        or (visible_launcher.st_mode & 0o022) != 0
+        or (visible_launcher.st_mode & 0o111) == 0
+    ):
+        raise InstallError("authenticated_first_entry_launcher_custody_invalid")
+
+    expected_identities = (
+        ("launcher", visible_launcher, parent_exe),
+        ("installer", installer_st, installer_st),
+        ("native", native_st, native_st),
+        ("python", python_exe, python_exe),
+    )
+    for label, current, live in expected_identities:
+        dev = _proof_positive_decimal(proof, label + "_dev")
+        ino = _proof_positive_decimal(proof, label + "_ino")
+        if not _same_dev_ino(current, dev, ino) or not _same_dev_ino(live, dev, ino):
+            raise InstallError(
+                "authenticated_first_entry_" + label + "_generation_mismatch"
+            )
+
+    for st, label in ((installer_st, "installer"), (native_st, "native")):
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or st.st_nlink != 1
+            or (st.st_mode & 0o022) != 0
+        ):
+            raise InstallError(
+                "authenticated_first_entry_fd_custody_invalid:" + label
+            )
+
+
 def _first_entry_fd_context(
     native: pathlib.Path,
+    *,
+    operation: str | None = None,
+    expected_head: str | None = None,
 ) -> tuple[int, int] | None:
     marker = os.environ.get(FIRST_ENTRY_ENV)
-    fd_names = (FIRST_ENTRY_INSTALLER_FD_ENV, FIRST_ENTRY_NATIVE_FD_ENV)
+    fd_names = (
+        FIRST_ENTRY_INSTALLER_FD_ENV,
+        FIRST_ENTRY_NATIVE_FD_ENV,
+        FIRST_ENTRY_PROOF_FD_ENV,
+    )
     if marker is None:
         if any(name in os.environ for name in fd_names):
             raise InstallError("authenticated_first_entry_environment_incomplete")
@@ -472,7 +665,8 @@ def _first_entry_fd_context(
 
     installer_fd = _parse_first_entry_fd(FIRST_ENTRY_INSTALLER_FD_ENV)
     native_fd = _parse_first_entry_fd(FIRST_ENTRY_NATIVE_FD_ENV)
-    if installer_fd == native_fd:
+    proof_fd = _parse_first_entry_fd(FIRST_ENTRY_PROOF_FD_ENV)
+    if len({installer_fd, native_fd, proof_fd}) != 3:
         raise InstallError("authenticated_first_entry_fd_alias")
 
     if sys.argv[0] != f"/proc/self/fd/{installer_fd}":
@@ -480,25 +674,14 @@ def _first_entry_fd_context(
     if str(native) != f"/proc/self/fd/{native_fd}":
         raise InstallError("authenticated_first_entry_native_fd_mismatch")
 
-    for fd, label in (
-        (installer_fd, "installer"),
-        (native_fd, "native"),
-    ):
-        try:
-            st = os.fstat(fd)
-        except OSError as exc:
-            raise InstallError(
-                "authenticated_first_entry_fd_unavailable:" + label
-            ) from exc
-        if (
-            not stat.S_ISREG(st.st_mode)
-            or st.st_uid != 0
-            or st.st_gid != 0
-            or (st.st_mode & 0o022) != 0
-        ):
-            raise InstallError(
-                "authenticated_first_entry_fd_custody_invalid:" + label
-            )
+    proof = _read_first_entry_proof(proof_fd)
+    _validate_first_entry_parent(
+        proof,
+        installer_fd,
+        native_fd,
+        operation=operation,
+        expected_head=expected_head,
+    )
     return installer_fd, native_fd
 
 
@@ -888,10 +1071,14 @@ def _failure_receipt(exc: InstallError) -> dict[str, str]:
     }
 
 
-def _require_apply_context(native: pathlib.Path) -> None:
+def _require_apply_context(native: pathlib.Path, expected_head: str) -> None:
     if sys.flags.isolated != 1:
         raise InstallError("python_isolated_mode_required")
-    if _first_entry_fd_context(native) is None:
+    if _first_entry_fd_context(
+        native,
+        operation="installer_apply",
+        expected_head=expected_head,
+    ) is None:
         raise InstallError("authenticated_first_entry_required")
     present = [name for name in FORBIDDEN_APPLY_ENV if name in os.environ]
     if present:
@@ -994,6 +1181,10 @@ def source_plan() -> None:
     print("superseded_pre_3363_locks_install_authority=false")
     print("operation_bound_plan_id_required=true")
     print("authenticated_first_entry_fd_contract_required_for_apply=true")
+    print("authenticated_first_entry_parent_proof_required=true")
+    print("authenticated_first_entry_parent_revalidation_before_mutation_required=true")
+    print("authenticated_first_entry_parent_revalidation_before_publication_required=true")
+    print("running_python_generation_binding_required=true")
     print("prepublication_revalidation_required=true")
     print("retained_stage_directory_generation_required=true")
     print("generation_bound_stage_cleanup_required=true")
@@ -1020,6 +1211,12 @@ def source_plan() -> None:
 
 
 def plan(native: pathlib.Path, expected_head: str) -> None:
+    if os.environ.get(FIRST_ENTRY_ENV) is not None:
+        _first_entry_fd_context(
+            native,
+            operation="installer_plan",
+            expected_head=expected_head,
+        )
     result = _collect_plan(native, expected_head)
     body = result["body"]
     print(MARKER)
@@ -1080,7 +1277,7 @@ def apply(
         )
     ):
         raise InstallError("expected_plan_id_invalid")
-    _require_apply_context(native)
+    _require_apply_context(native, expected_head)
     if os.geteuid() != 0:
         raise InstallError("root_required_for_apply")
 
@@ -1122,6 +1319,11 @@ def apply(
     stage_created = False
     published = False
     try:
+        _first_entry_fd_context(
+            native,
+            operation="installer_apply",
+            expected_head=expected_head,
+        )
         if _exists(STAGE_ROOT) or _exists(INSTALL_ROOT):
             raise InstallError("create_only_target_changed_before_apply")
         os.mkdir(STAGE_NAME, 0o755, dir_fd=opt_fd)
@@ -1161,6 +1363,11 @@ def apply(
         )
         _require_visible_directory_matches_fd(opt_fd, STAGE_NAME, stage_fd)
         _verify_pair_fd(stage_fd)
+        _first_entry_fd_context(
+            native,
+            operation="installer_apply",
+            expected_head=expected_head,
+        )
         _renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)
         published = True
         stage_created = False
