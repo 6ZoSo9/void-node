@@ -700,7 +700,7 @@ assert executable_key_wallet_authority_violations(
 
 def production_content_read_callsite_fingerprint(
     source_text: str,
-) -> dict[str, int]:
+) -> tuple[str, ...]:
     parsed = ast.parse(source_text)
     parents = {
         child: parent
@@ -724,7 +724,7 @@ def production_content_read_callsite_fingerprint(
             return (parent + "." if parent else "") + node.attr
         return ""
 
-    counts: dict[str, int] = {}
+    callsites: list[str] = []
     for node in ast.walk(parsed):
         if not isinstance(node, ast.Call):
             continue
@@ -732,43 +732,40 @@ def production_content_read_callsite_fingerprint(
         if fn == "self_test":
             continue
         chain = dotted(node.func)
-        kind: str | None = None
-        if chain in {
+        is_content_read = chain in {
             "os.open",
             "os.read",
             "os.pread",
             "os.readv",
             "os.preadv",
             "os.fdopen",
-        }:
-            kind = chain
-        elif isinstance(node.func, ast.Attribute) and node.func.attr in {
-            "open",
-            "read_bytes",
-            "read_text",
-        }:
-            kind = "method." + node.func.attr
-        if kind is None:
+        } or (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"open","read_bytes","read_text"}
+        )
+        if not is_content_read:
             continue
-        key = fn + ":" + kind
-        counts[key] = counts.get(key, 0) + 1
-    return dict(sorted(counts.items()))
+        callsites.append(fn + ":" + ast.unparse(node))
+    return tuple(sorted(callsites))
 
 
-EXPECTED_PRODUCTION_CONTENT_READ_CALLS = {
-    "_create_exact_stage:os.open": 1,
-    "_create_exact_stage:os.read": 1,
-    "_direct_repo_bytes:method.read_bytes": 1,
-    "_file_digest:os.open": 1,
-    "_file_digest:os.read": 2,
-    "_open_protected_root:os.open": 2,
-    "read_exact_candidate:os.open": 1,
-    "read_exact_candidate:os.read": 2,
-}
+EXPECTED_PRODUCTION_CONTENT_READ_CALLSITES = (
+    "_create_exact_stage:os.open(pending_name, flags, 320, dir_fd=dir_fd)",
+    "_create_exact_stage:os.read(fd, len(raw) - len(observed))",
+    "_direct_repo_bytes:path.read_bytes()",
+    "_file_digest:os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)",
+    "_file_digest:os.read(fd, 1)",
+    "_file_digest:os.read(fd, min(MAX_READ_CHUNK, remaining))",
+    "_open_protected_root:os.open(INSTALL_ROOT.name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=parent_fd)",
+    "_open_protected_root:os.open(OPT_ROOT, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)",
+    "read_exact_candidate:os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)",
+    "read_exact_candidate:os.read(fd, 1)",
+    "read_exact_candidate:os.read(fd, min(MAX_READ_CHUNK, remaining))",
+)
 
 assert (
     production_content_read_callsite_fingerprint(source)
-    == EXPECTED_PRODUCTION_CONTENT_READ_CALLS
+    == EXPECTED_PRODUCTION_CONTENT_READ_CALLSITES
 )
 
 for credential_read_adversary in (
@@ -790,7 +787,37 @@ for credential_read_adversary in (
     observed = production_content_read_callsite_fingerprint(
         source + "\n" + credential_read_adversary
     )
-    assert observed != EXPECTED_PRODUCTION_CONTENT_READ_CALLS
+    assert observed != EXPECTED_PRODUCTION_CONTENT_READ_CALLSITES
+
+existing_method_argument_adversary = source.replace(
+    "return path.read_bytes()",
+    "return pathlib.Path('/run/credentials/key').read_bytes()",
+    1,
+)
+assert existing_method_argument_adversary != source
+assert (
+    production_content_read_callsite_fingerprint(
+        existing_method_argument_adversary
+    )
+    != EXPECTED_PRODUCTION_CONTENT_READ_CALLSITES
+)
+
+existing_open_argument_adversary = source.replace(
+    "fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)",
+    (
+        "fd = os.open("
+        "pathlib.Path('/run/credentials/key'), "
+        "os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)"
+    ),
+    1,
+)
+assert existing_open_argument_adversary != source
+assert (
+    production_content_read_callsite_fingerprint(
+        existing_open_argument_adversary
+    )
+    != EXPECTED_PRODUCTION_CONTENT_READ_CALLSITES
+)
 
 
 for forbidden in (
@@ -1027,7 +1054,9 @@ print("reviewed_libc_renameat2_binding_only=true")
 print("all_ctypes_calls_closed=true")
 print("destructured_authority_aliases_rejected=true")
 print("production_read_callsite_fingerprint_bound=true")
+print("production_read_callsite_ast_arguments_bound=true")
 print("credential_read_adversaries_exercised=true")
+print("existing_approved_read_argument_adversaries_exercised=true")
 print("ast_signing_key_authority_guard=true")
 print("ast_generic_sign_call_adversary_exercised=true")
 print("query_execution=false")
