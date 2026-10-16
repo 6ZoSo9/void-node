@@ -1,0 +1,112 @@
+name: Buy VOID Epoch-2 dormant candidate V3R live binding v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact V2 binding generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          qualifier_parent=78d8a43293e21e51e2a89cb9b1de90ec24b73a02
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$qualifier_parent" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n'             '.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.yml'             'docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md'             'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs'             'scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs'             | sort > "$expected"
+          git diff --name-only "$qualifier_parent" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "42c29e30637367fa9541b24db38d6421af6409d9"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "3116f9867d1bad145639dda157ffc7d398a3234a"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md)" =             "85d35b6fdafa49f673dc5178bf0f233ed3789d9b"
+
+          test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json)" =             "e569c9211e01f14c7c00dd1c5041d4dfb0817609"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" =             "a04c2e7665294cdd142426e9eb01ee27c5292b8d"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs)" =             "499df9b94b5b89354837570da0c7e47ec280025d"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" =             "5021727f1def1ec11f870d735cab65acc1701a5e"
+
+          git diff --check "$qualifier_parent" "$EXPECTED_HEAD"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs
+          node --check scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs
+
+      - name: Prove V5-qualified dormant binding
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e2-v3r-dormant-binding-v2-proof.log"
+          node scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V2_PROOF_GREEN"
+            "binder_git_object_entry_required=true"
+            "candidate_v4_git_object_bound=true"
+            "candidate_v4_signer_control_preserved=true"
+            "v6r2_qualifier_git_object_bound=true"
+            "v6r2_qualification_before_after_required=true"
+            "fixed_native_v3_live_composition_required=true"
+            "native_devnull_stdin_required=true"
+            "arbitrary_live_receipt_input_accepted=false"
+            "voide2livecomp3_receipt_content_address_verified=true"
+            "systemd_credential_identity_promoted_only_from_native_live_receipt=true"
+            "active_signing_capability_promoted_only_from_native_live_receipt=true"
+            "remaining_gate_count=3"
+            "customer_safe_to_pay=false"
+            "transaction=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
