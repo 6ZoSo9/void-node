@@ -23,6 +23,7 @@ import {
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_SUCCESS_RESPONSE_KEYS_V2,
+  qualifyApollyonDurableAttemptClaimFailureResponseShapeV2,
   qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2,
   qualifyApollyonDurableAttemptClaimPublisherLeastAuthorityV2,
   qualifyApollyonDurableAttemptClaimRecordShapeV2,
@@ -46,7 +47,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "f9b3c86f61dc836ae7f4a29f278299222bd9cf7c",
+    "877b00b8e674c4bca8d8320466e9619d590f5542",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -717,6 +718,51 @@ function claimRecord(overrides={}){
     );
   }
 }
+{
+  const publishRequestSha="c".repeat(64);
+  const response={
+    marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RESPONSE_V2",
+    version:2,
+    status:"indeterminate",
+    reason:"directory_fsync_indeterminate",
+    store_contract_id:result.store_contract_id,
+    store_generation_id:STORE_GENERATION_ID,
+    terminal_receipt_id:t.terminal_receipt_id,
+    authorization_id:t.authorization_id,
+    publish_request_sha256:publishRequestSha,
+    durability_proven:false,
+    training_start_admission:false,
+  };
+  const q=qualifyApollyonDurableAttemptClaimFailureResponseShapeV2({
+    authorization_id:t.authorization_id,
+    failure_response:response,
+    publish_request_sha256:publishRequestSha,
+    store_contract_id:result.store_contract_id,
+    store_generation_id:STORE_GENERATION_ID,
+    terminal_receipt_id:t.terminal_receipt_id,
+  });
+  assert.equal(q.status,"indeterminate");
+  assert.equal(q.training_start_admission,false);
+  for(const mutate of [
+    x=>{x.durability_proven=true;},
+    x=>{x.training_start_admission=true;},
+    x=>{x.status="ok";},
+    x=>{x.unknown_authority=true;},
+  ]){
+    const bad={...response};mutate(bad);
+    assert.throws(
+      ()=>qualifyApollyonDurableAttemptClaimFailureResponseShapeV2({
+        authorization_id:t.authorization_id,
+        failure_response:bad,
+        publish_request_sha256:publishRequestSha,
+        store_contract_id:result.store_contract_id,
+        store_generation_id:STORE_GENERATION_ID,
+        terminal_receipt_id:t.terminal_receipt_id,
+      }),
+      /schema_invalid/u,
+    );
+  }
+}
 
 function oldClaimRecord(authDigit,requestDigit){
   return claimRecord({
@@ -811,6 +857,20 @@ function continuityReceipt(overrides={}){
   );
 }
 {
+  const duplicateAuthorization=[
+    oldClaimRecord("1","2"),
+    oldClaimRecord("1","7"),
+  ];
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
+      continuity_receipt:continuityReceipt(),
+      predecessor_generation_record:predecessor,
+      prior_claim_records:duplicateAuthorization,
+    }),
+    /authorization_replay/u,
+  );
+}
+{
   const mutated={...PRIOR_RECORDS[0],request_sha256:"9".repeat(64)};
   assert.throws(
     ()=>qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2({
@@ -890,6 +950,7 @@ for(const required of [
   'claim_record_exact_key_schema_required:true',
   'claim_success_response_exact_schema_required:true',
   'claim_failure_response_exact_schema_required:true',
+  'claim_publish_request_sha256_canonical_exact_request_required:true',
   'claim_success_ack_only_after_directory_fsync_required:true',
   'dedicated_claim_publisher_identity_required:true',
   'claim_publisher_supplementary_groups_closed_required:true',
@@ -900,6 +961,7 @@ for(const required of [
   'store_generation_record_content_addressed_id_required:true',
   'migration_continuity_receipt_exact_schema_required:true',
   'migration_continuity_binds_predecessor_generation_record_id_required:true',
+  'migration_authorization_ids_unique_across_complete_history_required:true',
   'claim_request_method:"publish_claim_v2"',
   'claim_store_generation_identity_required:true',
   'same_path_replacement_must_be_new_generation_required:true',
@@ -948,6 +1010,8 @@ console.log("claim_request_unauthorized_peer_rejected_before_body_read_required=
 console.log("claim_request_exact_key_schema_required=true");
 console.log("claim_record_exact_key_schema_required=true");
 console.log("claim_success_response_exact_schema_required=true");
+console.log("claim_failure_response_exact_schema_required=true");
+console.log("claim_publish_request_sha256_canonical_exact_request_required=true");
 console.log("claim_success_ack_after_durable_revalidation_required=true");
 console.log("dedicated_claim_publisher_identity_required=true");
 console.log("claim_service_systemd_sandbox_exact_required=true");
@@ -956,6 +1020,7 @@ console.log("claim_client_server_authentication_required=true");
 console.log("store_generation_record_content_addressed_id_required=true");
 console.log("migration_continuity_receipt_exact_schema_required=true");
 console.log("migration_continuity_binds_predecessor_generation_record_id_required=true");
+console.log("migration_authorization_ids_unique_across_complete_history_required=true");
 console.log("claim_store_generation_identity_required=true");
 console.log("same_path_replacement_must_be_new_generation_required=true");
 console.log("authorization_binding_to_claim_store_generation_required=true");

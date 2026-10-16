@@ -52,7 +52,7 @@ The protected store may persist only one exact canonical claim-record shape. The
 
 Unknown record keys are rejected. In particular, a canonical record may not add an authority-looking field such as training_execution_authorized, automatic_retry_authorized=true, or a future policy flag. The claim-record ID is derived from the exact canonical record material.
 
-The future service response is also a closed protocol. The exact success schema binds the store contract/generation, terminal receipt, authorization/custody generation, content-addressed claim record, canonical claim-record SHA-256, and exact publish-request SHA-256. Success is one of two explicit outcomes only: newly created durable record or recovered existing exact durable record. A different pre-existing record is duplicate rejection.
+The future service response is also a closed protocol. The exact success schema binds the store contract/generation, terminal receipt, authorization/custody generation, content-addressed claim record, canonical claim-record SHA-256, and SHA-256 of the exact canonical publish request. Success is one of two explicit outcomes only: newly created durable record or recovered existing exact durable record. A different pre-existing record is duplicate rejection.
 
 A success acknowledgment is forbidden until all of the following have completed successfully:
 
@@ -99,7 +99,7 @@ Store replacement never resets replay history. Every generation has an exact con
 - fixed claim-set ordering;
 - fresh authorization identity.
 
-Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check. The predecessor generation record has its own content-derived ID and must commit the same complete count and history digest; the migration receipt binds that exact predecessor-record ID; missing, extra, duplicate or mutated claims fail closed. The new generation must commit the continuity receipt, and fresh Sovereign authorization must bind the new generation plus prior-history digest.
+Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check. The predecessor generation record has its own content-derived ID and must commit the same complete count and history digest; the migration receipt binds that exact predecessor-record ID; missing, extra, duplicate or mutated claims fail closed. Authorization IDs must also be unique across the complete retained history so a different record ID cannot hide cross-generation authorization replay. The new generation must commit the continuity receipt, and fresh Sovereign authorization must bind the new generation plus prior-history digest.
 
 Genesis is a separate exact zero-history shape with no predecessor. A migration cannot masquerade as genesis, including by presenting a forged zero-count history. Migration is accepted only after the new generation and retained history are durably published and reread.
 

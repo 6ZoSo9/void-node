@@ -277,6 +277,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     migration_complete_prior_claim_set_sha256_required:true,
     migration_claim_set_order:"claim_record_id_lexicographic",
     migration_every_prior_claim_exact_schema_and_hash_required:true,
+    migration_authorization_ids_unique_across_complete_history_required:true,
     new_store_generation_commits_continuity_receipt_required:true,
     fresh_authorization_binds_new_generation_and_prior_history_digest_required:true,
     genesis_zero_history_shape_distinct_from_migration_required:true,
@@ -343,6 +344,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_REQUIREMENTS_V2 =
     claim_failure_response_exact_keys:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_FAILURE_RESPONSE_KEYS_V2,
     claim_failure_response_unknown_keys_rejected_required:true,
     claim_failure_response_statuses:Object.freeze(["rejected","duplicate","indeterminate"]),
+    claim_publish_request_sha256_canonical_exact_request_required:true,
     claim_success_bind_publish_request_sha256_required:true,
     claim_success_bind_claim_record_id_sha256_required:true,
     claim_success_bind_store_generation_required:true,
@@ -796,6 +798,55 @@ export function qualifyApollyonDurableAttemptClaimSuccessResponseShapeV2(input){
   return Object.freeze(structuredClone(value));
 }
 
+export function qualifyApollyonDurableAttemptClaimFailureResponseShapeV2(input){
+  let snapshot;
+  try{
+    snapshot=structuredClone(input);
+  }catch{
+    fail("apollyon_claim_failure_response_v2_input_invalid");
+  }
+  exactKeys(
+    snapshot,
+    [
+      "authorization_id","failure_response","publish_request_sha256",
+      "store_contract_id","store_generation_id","terminal_receipt_id",
+    ],
+    "apollyon_claim_failure_response_v2_input_invalid",
+  );
+  if(
+    !AUTH_ID.test(snapshot.authorization_id)||
+    !HASH64.test(snapshot.publish_request_sha256)||
+    !STORE_CONTRACT_ID.test(snapshot.store_contract_id)||
+    !STORE_GENERATION_ID.test(snapshot.store_generation_id)||
+    !TERMINAL_ID.test(snapshot.terminal_receipt_id)
+  ){
+    fail("apollyon_claim_failure_response_v2_input_invalid");
+  }
+  const value=snapshot.failure_response;
+  exactKeys(
+    value,
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_FAILURE_RESPONSE_KEYS_V2,
+    "apollyon_claim_failure_response_v2_schema_invalid",
+  );
+  if(
+    value.marker!=="VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RESPONSE_V2"||
+    value.version!==2||
+    !["rejected","duplicate","indeterminate"].includes(value.status)||
+    typeof value.reason!=="string"||
+    !/^[a-z0-9_.:-]{1,120}$/u.test(value.reason)||
+    value.store_contract_id!==snapshot.store_contract_id||
+    value.store_generation_id!==snapshot.store_generation_id||
+    value.terminal_receipt_id!==snapshot.terminal_receipt_id||
+    value.authorization_id!==snapshot.authorization_id||
+    value.publish_request_sha256!==snapshot.publish_request_sha256||
+    value.durability_proven!==false||
+    value.training_start_admission!==false
+  ){
+    fail("apollyon_claim_failure_response_v2_schema_invalid");
+  }
+  return Object.freeze(structuredClone(value));
+}
+
 function validateApollyonDurableAttemptClaimStoreGenerationRecordV2(value){
   exactKeys(
     value,
@@ -855,6 +906,9 @@ export function qualifyApollyonDurableAttemptClaimHistoryContinuityShapeV2(input
   const sorted=[...records].sort((a,b)=>a.claim_record_id.localeCompare(b.claim_record_id));
   if(new Set(sorted.map(x=>x.claim_record_id)).size!==sorted.length){
     fail("apollyon_claim_store_continuity_v2_duplicate_claim_record");
+  }
+  if(new Set(sorted.map(x=>x.authorization_id)).size!==sorted.length){
+    fail("apollyon_claim_store_continuity_v2_authorization_replay");
   }
   const historySha=sha256(Buffer.from(canonical(sorted),"utf8"));
   const receipt=snapshot.continuity_receipt;
