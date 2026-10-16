@@ -65,11 +65,11 @@ jobs:
           git diff --name-only "$qualifier_parent" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "42c29e30637367fa9541b24db38d6421af6409d9"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "9c29eb4716077e459b9154f39d0f30cf2e56729f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" = \
-            "322e3cbac9986205a946319d216c7a5de164f117"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "3116f9867d1bad145639dda157ffc7d398a3234a"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md)" =             "85d35b6fdafa49f673dc5178bf0f233ed3789d9b"
+            "f2fcc922fa0679d781ec31e03a856486d1f2642a"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             "4c9cf70fe7fa650ef490c636be005072dfc600c8"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v2.md)" =             "bcd357f4b5d605dfedb04482f36f47b9a72ce7ca"
 
           test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json)" =             "e569c9211e01f14c7c00dd1c5041d4dfb0817609"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" =             "a04c2e7665294cdd142426e9eb01ee27c5292b8d"
