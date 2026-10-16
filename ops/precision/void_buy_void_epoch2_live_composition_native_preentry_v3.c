@@ -149,11 +149,41 @@ static void sha256_buffer(const unsigned char *d, size_t n, unsigned char out[32
     sha256_final(&c, out);
 }
 
+static bool child_proof_released = false;
+
 static void hold(const char *reason) {
     fprintf(stderr, "%s_HOLD reason=%s\n", MARKER, reason);
-    fprintf(stderr, "root_javascript_started=false\n");
-    fprintf(stderr, "credential_content_access=false\n");
-    fprintf(stderr, "private_key_access=false\n");
+    fprintf(
+        stderr,
+        "child_proof_released=%s\n",
+        child_proof_released ? "true" : "false"
+    );
+    if (child_proof_released) {
+        fprintf(
+            stderr,
+            "root_javascript_started_state="
+            "unknown_or_started_if_child_released\n"
+        );
+        fprintf(
+            stderr,
+            "credential_content_access_state="
+            "unknown_or_partial_if_child_released\n"
+        );
+        fprintf(
+            stderr,
+            "private_key_access_state="
+            "unknown_or_partial_if_child_released\n"
+        );
+        fprintf(
+            stderr,
+            "signing_state=unknown_or_partial_if_child_released\n"
+        );
+    } else {
+        fprintf(stderr, "root_javascript_started=false\n");
+        fprintf(stderr, "credential_content_access=false\n");
+        fprintf(stderr, "private_key_access=false\n");
+        fprintf(stderr, "signing=false\n");
+    }
     fprintf(stderr, "transaction=false\n");
     fprintf(stderr, "public_presale_activation=false\n");
     fprintf(stderr, "wc_void_market_activation=false\n");
@@ -594,6 +624,14 @@ int main(int argc, char **argv) {
     if (argc == 2 && strcmp(argv[1], "--self-test") == 0) {
         return self_test();
     }
+    if (argc == 2 && strcmp(argv[1], "--self-test-hold-preproof") == 0) {
+        child_proof_released = false;
+        hold("self_test_preproof_hold");
+    }
+    if (argc == 2 && strcmp(argv[1], "--self-test-hold-postproof") == 0) {
+        child_proof_released = true;
+        hold("self_test_postproof_hold");
+    }
     if (geteuid() != 0) hold("native_preentry_root_required");
 
     char requested_head[41];
@@ -748,6 +786,7 @@ int main(int argc, char **argv) {
         parent_start_ticks,
         child_start_ticks
     );
+    child_proof_released = true;
     close(proof_pipe[1]);
     close(runner_fd);
 
