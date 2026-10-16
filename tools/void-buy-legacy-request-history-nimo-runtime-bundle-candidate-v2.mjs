@@ -474,7 +474,7 @@ function candidateId(body) {
   );
 }
 
-export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
+export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
   root = ROOT,
 ) {
   const parentPlan = parentPlanRecord(root);
@@ -532,7 +532,7 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
   });
 }
 
-export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
+export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
   candidate,
   root = ROOT,
 ) {
@@ -770,8 +770,8 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
 
 function emitCandidate(output) {
   const candidate =
-    buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(ROOT);
-  verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(candidate, ROOT);
+    buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(ROOT);
+  verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(candidate, ROOT);
   const bytes = Buffer.from(
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(candidate) + "\n",
     "utf8",
@@ -817,7 +817,7 @@ function compareCandidates(paths) {
     fail("legacy_history_nimo_bundle_three_node_candidate_mismatch");
   }
   const candidate = JSON.parse(bytes[0].toString("utf8"));
-  verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(candidate, ROOT);
+  verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(candidate, ROOT);
   console.log(
     "VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_CANDIDATE_V2_THREE_NODE_GREEN",
   );
