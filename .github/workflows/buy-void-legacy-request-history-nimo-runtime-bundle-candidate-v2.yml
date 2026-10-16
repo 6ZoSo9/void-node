@@ -122,6 +122,7 @@ jobs:
           grep -Fx 'typescript_cli_entry_bound=true' "$proof"
           grep -Fx 'typescript_cli_loader_bound=true' "$proof"
           grep -Fx 'compiler_cli_edges_exact=true' "$proof"
+          grep -Fx 'typescript_compile_cache_builtin_bound=true' "$proof"
           grep -Fx 'typescript_cli_entry_fixture_tamper_rejected=true' "$proof"
           grep -Fx 'typescript_cli_loader_fixture_tamper_rejected=true' "$proof"
           grep -Fx 'typescript_cli_edge_fixture_tamper_rejected=true' "$proof"
