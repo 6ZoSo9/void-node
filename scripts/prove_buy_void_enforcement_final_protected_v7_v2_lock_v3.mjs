@@ -61,7 +61,7 @@ const WORKFLOW_TRIGGER_PATHS=Object.freeze([
   PROJECTION,LOCK,LOCK_DOC,SELF,
 ]);
 
-const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
+const NODE_BIN=path.dirname(process.execPath);\nconst NPM=path.join(NODE_BIN,"npm");\nconst sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+b.length+"\0","utf8")).update(b).digest("hex");
 
@@ -70,7 +70,7 @@ function run(command,args,{cwd=ROOT,timeout=300000,encoding=null}={}){
     cwd,encoding,stdio:["ignore","pipe","pipe"],timeout,
     maxBuffer:64*1024*1024,
     env:{
-      PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",
+      PATH:NODE_BIN+":/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",
       NODE_ENV:"test",GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",
       GIT_CONFIG_SYSTEM:"/dev/null",GIT_NO_REPLACE_OBJECTS:"1",
       GIT_OPTIONAL_LOCKS:"0",GIT_TERMINAL_PROMPT:"0",
@@ -205,10 +205,10 @@ function deriveFullCandidate(){
     assert.equal(gitBlob(proofBytes),CANDIDATE_PROOF_BLOB,
       "detached_candidate_proof_blob");
 
-    run("/usr/bin/npm",["ci","--ignore-scripts","--no-audit","--no-fund"],
+    run(NPM,["ci","--ignore-scripts","--no-audit","--no-fund"],
       {cwd:tmp,timeout:300000});
-    run("/usr/bin/npm",["run","typecheck"],{cwd:tmp,timeout:300000});
-    run("/usr/bin/npm",["run","build"],{cwd:tmp,timeout:300000});
+    run(NPM,["run","typecheck"],{cwd:tmp,timeout:300000});
+    run(NPM,["run","build"],{cwd:tmp,timeout:300000});
 
     const r=run(process.execPath,[
       path.join(tmp,...CANDIDATE_PROOF.split("/")),"--derive",
