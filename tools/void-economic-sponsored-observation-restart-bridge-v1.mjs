@@ -175,16 +175,18 @@ function safeMs(value,reason){
   return value;
 }
 
-function hostBindingBody(binding){
+function hostBindingBody(binding,sample){
   const body={};
   for(const key of HOST_BINDING_KEYS){
-    if(key!=="binding_id" && key!=="authority") body[key]=binding[key];
+    if(key==="binding_id" || key==="authority") continue;
+    body[key]=key==="observation_sample"?sample:binding[key];
   }
   return body;
 }
 
 function normalizeHostBinding(value,reason){
   const binding=exactSnapshot(value,HOST_BINDING_KEYS,reason);
+  const sample=exactSnapshot(binding.observation_sample,SAMPLE_KEYS,reason);
   if(
     binding.marker!==VOID_ECONOMIC_SPONSORED_HOST_TRUSTED_CLOCK_BINDING_V1 ||
     binding.schema!==VOID_ECONOMIC_SPONSORED_HOST_TRUSTED_CLOCK_BINDING_SCHEMA_V1 ||
@@ -193,7 +195,7 @@ function normalizeHostBinding(value,reason){
     typeof binding.binding_id!=="string" || !HOST_BINDING_ID.test(binding.binding_id) ||
     binding.binding_id!==contentId(
       VOID_ECONOMIC_SPONSORED_HOST_TRUSTED_CLOCK_BINDING_ID_PREFIX_V1,
-      hostBindingBody(binding),
+      hostBindingBody(binding,sample),
     ) ||
     typeof binding.host_time_sync_evidence_id!=="string" ||
     !HOST_EVIDENCE_ID.test(binding.host_time_sync_evidence_id) ||
@@ -224,7 +226,6 @@ function normalizeHostBinding(value,reason){
     midpoint!==before+(after-before)/2n ||
     uncertainty!==(after-before+1n)/2n
   ) fail(reason);
-  const sample=exactSnapshot(binding.observation_sample,SAMPLE_KEYS,reason);
   if(
     sample.boot_id!==binding.boot_id ||
     sample.process_start_ticks!==binding.process_start_ticks ||
