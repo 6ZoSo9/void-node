@@ -149,21 +149,31 @@ static void sha256_buffer(const unsigned char *d, size_t n, unsigned char out[32
     sha256_final(&c, out);
 }
 
+static bool child_process_created = false;
 static bool child_proof_released = false;
 
 static void hold(const char *reason) {
     fprintf(stderr, "%s_HOLD reason=%s\n", MARKER, reason);
     fprintf(
         stderr,
+        "child_process_created=%s\n",
+        child_process_created ? "true" : "false"
+    );
+    fprintf(
+        stderr,
         "child_proof_released=%s\n",
         child_proof_released ? "true" : "false"
     );
-    if (child_proof_released) {
+    if (child_process_created) {
         fprintf(
             stderr,
             "root_javascript_started_state="
-            "unknown_or_started_if_child_released\n"
+            "unknown_or_started_if_child_created\n"
         );
+    } else {
+        fprintf(stderr, "root_javascript_started=false\n");
+    }
+    if (child_proof_released) {
         fprintf(
             stderr,
             "credential_content_access_state="
@@ -179,7 +189,6 @@ static void hold(const char *reason) {
             "signing_state=unknown_or_partial_if_child_released\n"
         );
     } else {
-        fprintf(stderr, "root_javascript_started=false\n");
         fprintf(stderr, "credential_content_access=false\n");
         fprintf(stderr, "private_key_access=false\n");
         fprintf(stderr, "signing=false\n");
@@ -625,10 +634,17 @@ int main(int argc, char **argv) {
         return self_test();
     }
     if (argc == 2 && strcmp(argv[1], "--self-test-hold-preproof") == 0) {
+        child_process_created = false;
         child_proof_released = false;
         hold("self_test_preproof_hold");
     }
+    if (argc == 2 && strcmp(argv[1], "--self-test-hold-postfork-preproof") == 0) {
+        child_process_created = true;
+        child_proof_released = false;
+        hold("self_test_postfork_preproof_hold");
+    }
     if (argc == 2 && strcmp(argv[1], "--self-test-hold-postproof") == 0) {
+        child_process_created = true;
         child_proof_released = true;
         hold("self_test_postproof_hold");
     }
@@ -764,6 +780,7 @@ int main(int argc, char **argv) {
         _exit(126);
     }
 
+    child_process_created = true;
     close(proof_pipe[0]);
     close(node_fd);
 
