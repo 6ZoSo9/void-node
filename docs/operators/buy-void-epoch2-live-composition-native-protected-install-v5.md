@@ -70,14 +70,62 @@ The upgrade executes neither native nor runner.
 Before exchange, failures clean only the V6R2 stage.
 
 After exchange, any failure triggers an automatic attempt to exchange the exact
-historical generation back into the live root and clean the V6R2 stage. If that
-rollback itself cannot be proven green, the receipt is conservative and
-requires inspection; it does not claim a clean state.
+historical generation back into the live root and clean the V6R2 stage. The
+implementation retains a monotonic `publication_occurred` fact from the first
+successful `RENAME_EXCHANGE`; exchanging the historical root back does not erase
+that audit boundary.
+
+Every terminal after that publication boundary remains publication-aware,
+including a **proven-green filesystem rollback**. A green rollback reports
+`publication_state=published_rolled_back_green`, preserves the bounded original
+failure, and separately reports rollback attempted/green. It never regresses to
+generic `not_published`.
+
+Filesystem rollback success alone does **not** prove the broader final state.
+After a green rollback the upgrader rechecks the same Node and checkout/Git/
+setpriv bindings carried by the plan. Only if those bindings still match may
+`rollback_final_state_verified=true` and `final_state_verified=true` be
+reported. If node/checkout/tool drift caused the post-exchange failure, the
+filesystem rollback may remain green while final-state verification stays
+false.
+
+If rollback cannot be proven green — including the case where the historical
+live root is restored but cleanup of the staged V6R2 generation is ambiguous —
+the terminal reports `published_needs_inspection`.
+
+The focused proof executes the real production apply state machine with
+synthetic/injected host primitives and no real `/opt` I/O. It requires:
+- a complete success transition;
+- failure immediately after the first root exchange with successful rollback,
+  requiring a publication-aware green-rollback receipt;
+- failure after predecessor retention with successful rollback, with the same
+  monotonic publication truth;
+- failure of the parent fsync immediately after exchange with rollback,
+  requiring the original `OSError` to be wrapped in a publication-aware
+  terminal instead of escaping the receipt surface;
+- post-exchange Node-generation drift with a green filesystem rollback but
+  `final_state_verified=false`;
+- post-exchange checkout-generation drift with the same conservative result;
+- rollback-stage cleanup ambiguity after the historical live root has been
+  exchanged back, requiring a publication-aware inspection receipt;
+- rollback rename failure with publication-aware HOLD; and
+- a retained-parent descriptor close failure after a fully verified success.
+
+A descriptor-close failure after the final V6R2 live-root and V4 predecessor
+verification is **not** allowed to regress to a generic no-publication receipt.
+That terminal reports that the upgrade/publication occurred, the final state was
+verified, parent fsync completed, and only the retained parent descriptor close
+failed. It does not roll back an already verified successful upgrade solely
+because close reported an error.
 
 The predecessor is retained after success so later rollback/qualification can
 prove exactly which generation was replaced.
 
 ## Authority boundary
+
+This repair is source/test/CI only. Merged #3335 remains a no-apply HOLD until
+the repaired exact generation is separately accepted. Source-level synthetic
+apply tests do not grant host mutation authority.
 
 This PR does not authorize or perform:
 
