@@ -20,7 +20,7 @@ def git_blob(path:Path)->str:
 
 expected={
     "tools/apollyon-live-custody-source-session-runner-v2.mjs":
-        "a702c5da4e68b018987127252be9879b960916e5",
+        "8c2c92055ab05c074653cee971e095934b5cb85c",
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
@@ -78,6 +78,9 @@ for required in (
     "custody_loader_environment_seven_name_boundary=true",
     "trainingStartAttempted=true",
     "stopTrainingAndAttest(training)",
+    "verifyTrainingStartBoundary();",
+    "apollyon_live_runner_training_execstart_invalid",
+    "apollyon_live_runner_unreviewed_dependency_entry",
 ):
     assert required in runner, required
 
@@ -104,6 +107,8 @@ runner_test=subprocess.run(
 )
 assert "VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2_SELF_TEST=GREEN" in runner_test.stdout
 assert "training_start_attempt_cleanup_required=true" in runner_test.stdout
+assert "training_first_instruction_boundary_required=true" in runner_test.stdout
+assert "training_effective_unit_path_bound=true" in runner_test.stdout
 assert "training_service_exact_dormancy_required=true" in runner_test.stdout
 assert "training_generation_absence_required=true" in runner_test.stdout
 assert "custody_loader_environment_seven_name_boundary=true" in runner_test.stdout
