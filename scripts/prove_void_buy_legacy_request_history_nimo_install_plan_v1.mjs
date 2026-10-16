@@ -5,10 +5,12 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 
 import {
+  VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
   VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1,
   VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_AUTHORITY_V1,
   VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_V1,
   VOID_BUY_VOID_LEGACY_HISTORY_NIMO_REVIEWED_SOURCE_ROOTS_V1,
+  classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1,
   planVoidBuyVoidLegacyHistoryNimoInstallV1,
 } from "../tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs";
 
@@ -105,6 +107,78 @@ for(const forbidden of ["sudo ","ssh ","scp ","rsync ","/bin/bash","/bin/sh -c"]
 }
 
 assert.equal(plan.authorized_key.restrict_option_required,true);
+assert.equal(plan.authorized_key.forced_command_option_required,true);
+assert.equal(plan.authorized_key.forced_command_option_exact_encoding_required,true);
+assert.equal(plan.authorized_key.forced_command_option_must_equal_selected_command,true);
+assert.equal(
+  plan.authorized_key.forced_command_value,
+  VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1,
+);
+const independentlyEncodedCommandOption=
+  'command="'+
+  VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1
+    .replaceAll("\\","\\\\")
+    .replaceAll('"','\\"')+
+  '"';
+assert.equal(
+  VOID_BUY_VOID_LEGACY_HISTORY_NIMO_AUTHORIZED_KEY_COMMAND_OPTION_V1,
+  independentlyEncodedCommandOption,
+);
+assert.equal(
+  plan.authorized_key.forced_command_option,
+  independentlyEncodedCommandOption,
+);
+
+const exactAuthorizedKeyOptions=
+  classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1({
+    restrict:true,
+    command_option:independentlyEncodedCommandOption,
+  });
+assert.equal(exactAuthorizedKeyOptions.ok,true);
+assert.equal(exactAuthorizedKeyOptions.authorized_keys_mutation_authorized,false);
+
+for(const [label,value,reason] of [
+  [
+    "missing_command",
+    {restrict:true},
+    "legacy_history_nimo_authorized_key_options_shape_invalid",
+  ],
+  [
+    "missing_restrict",
+    {command_option:independentlyEncodedCommandOption},
+    "legacy_history_nimo_authorized_key_options_shape_invalid",
+  ],
+  [
+    "restrict_false",
+    {restrict:false,command_option:independentlyEncodedCommandOption},
+    "legacy_history_nimo_authorized_key_restrict_required",
+  ],
+  [
+    "different_encoding",
+    {
+      restrict:true,
+      command_option:
+        'command="'+VOID_BUY_VOID_LEGACY_HISTORY_NIMO_FORCED_COMMAND_LINE_V1+'"',
+    },
+    "legacy_history_nimo_authorized_key_command_option_mismatch",
+  ],
+  [
+    "different_command",
+    {
+      restrict:true,
+      command_option:'command="/usr/bin/false"',
+    },
+    "legacy_history_nimo_authorized_key_command_option_mismatch",
+  ],
+]){
+  const held=classifyVoidBuyVoidLegacyHistoryNimoAuthorizedKeyOptionsV1(value);
+  assert.equal(held.ok,false,label);
+  assert.equal(held.status,"HOLD",label);
+  assert.equal(held.reason,reason,label);
+  assert.equal(held.exact_line_materialized,false,label);
+  assert.equal(held.authorized_keys_mutation_authorized,false,label);
+}
+
 assert.equal(plan.authorized_key.dedicated_ed25519_client_key_required,true);
 assert.equal(plan.authorized_key.public_key_blob_selected,false);
 assert.equal(plan.authorized_key.public_key_fingerprint_selected,false);
@@ -128,6 +202,7 @@ for(const [key,value] of Object.entries(VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTAL
     "exact_reviewed_source_generation_bound",
     "fixed_installation_layout_selected",
     "exact_forced_command_selected",
+    "authorized_key_exact_forced_command_option_required",
     "dedicated_client_public_key_required",
     "additive_authorized_keys_successor_required",
     "existing_authorized_keys_generation_preservation_required",
@@ -155,6 +230,7 @@ for(const line of [
   "VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_V1_SELF_TEST_GREEN",
   "source_only_installation_plan=true",
   "runtime_bundle_candidate_accepted=false",
+  "authorized_key_exact_forced_command_option_required=true",
   "authorized_keys_additive_successor_required=true",
   "live_nimo_installed=false",
   "funds_movement=false",
@@ -202,6 +278,8 @@ console.log("VOID_BUY_VOID_LEGACY_HISTORY_NIMO_INSTALL_PLAN_V1_PROOF_GREEN");
 console.log("reviewed_source_roots="+String(observed.length));
 console.log("runtime_bundle_candidate_accepted=false");
 console.log("committed_base_to_head_diff_hygiene_bound=true");
+console.log("authorized_key_exact_forced_command_option_required=true");
+console.log("authorized_key_option_adversaries_rejected=true");
 console.log("authorized_keys_additive_successor_required=true");
 console.log("private_key_access=false");
 console.log("live_nimo_installed=false");
