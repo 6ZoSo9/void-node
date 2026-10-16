@@ -25,13 +25,16 @@ needed to bind the compiler CLI entry chain.
 
 ## Exact compiler execution boundary
 
-Hosted compilation remains exactly:
+The workflow keeps an ordinary checkout build as an independent smoke check:
 
 ```text
 node node_modules/typescript/bin/tsc -p tsconfig.build.json
 ```
 
-The installed and lockfile TypeScript version must remain exactly `5.9.3`.
+That smoke build is not candidate authority. Candidate derivation uses the
+separately bound root-custodied compiler, build-input and runtime-output
+snapshots described below. The installed and lockfile TypeScript version must
+remain exactly `5.9.3`.
 
 V2 requires the compiler identity to contain this exact ordered file set:
 
@@ -75,24 +78,36 @@ For every V2 candidate creation it:
    tree digest/count/bytes, and copies the complete package into a fresh private
    temporary snapshot; the four executable JS files retain their independent
    hardcoded byte identities;
-3. creates the snapshot under fixed root-owned sticky `/tmp`, finalizes all
-   snapshot directories mode `0555` and files mode `0444`, then uses fixed
-   passwordless-sudo + `/usr/bin/chown` to transfer the complete snapshot to
-   `root:root`; the unprivileged candidate-builder UID must have no direct
-   chmod/write/unlink authority over that generation;
-4. re-derives the exact root-custodied snapshot identity before execution;
-5. removes only the generated `dist/` build output;
-6. invokes the current Node process executable against the **snapshot**
-   `bin/tsc`, not the checkout `bin/tsc`, under the closed environment
+3. creates the compiler snapshot under fixed root-owned sticky `/tmp`,
+   finalizes directories mode `0555` and files mode `0444`, then transfers
+   the complete snapshot to `root:root`; the candidate-builder UID has no
+   direct chmod/write/unlink authority over that generation;
+4. creates a second root-custodied build-input snapshot containing the exact
+   15-file TypeScript program, reviewed build config and exact locked type
+   packages;
+5. verifies that the resolved `process.execPath` itself is a direct,
+   single-link, root-owned, non-setid, executable regular file beneath
+   root-owned non-group/world-writable ancestry;
+6. creates a fresh runtime-output directory beneath sticky `/tmp`, records
+   its generation, transfers that exact directory to `root:root` mode
+   `0700` **before compilation begins**, and never emits candidate JS into
+   checkout `dist/`;
+7. invokes fixed `/usr/bin/sudo -n /usr/bin/env -i` with the root-custodied
+   Node executable, compiler snapshot and build-input snapshot under exactly
    `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, `TZ=UTC`,
-   `NODE_DISABLE_COMPILE_CACHE=1`;
-7. rechecks exact root UID/GID custody, `0555/0444` modes, single-link files,
-   complete package identity, and the exact four-file snapshot identity;
-8. re-derives the checkout compiler identity and requires exact canonical
-   equality with the pre-snapshot generation;
-9. only then derives the 14-file runtime closure from the newly built output;
-10. removes the root-owned proof snapshot through fixed passwordless-sudo +
-    `/usr/bin/rm`.
+   `NODE_DISABLE_COMPILE_CACHE=1`, with
+   `--outDir <root-custodied-runtime-output-snapshot>/dist`;
+8. after successful TypeScript execution, fixed privileged chmod removes write
+   authority and exposes only root-owned `0555` directories / `0444`
+   single-link files before any runtime observation;
+9. revalidates compiler and build-input snapshots plus the mutable checkout
+   compiler/source endpoints, then derives the 14-file runtime closure using
+   compiled `dist/*` only from the protected output tree and tracked
+   `tools/*` only from the reviewed checkout;
+10. content-addresses the exact nine compiled runtime files in
+    `runtime_output_snapshot`, captures those protected hashes into the
+    candidate, and only afterward removes all root-owned proof snapshots with
+    fixed passwordless-sudo + `/usr/bin/rm`.
 
 The candidate records a deterministic content-addressed
 `compiler_snapshot.snapshot_id` over the exact compiler identity, package-lock
@@ -116,9 +131,29 @@ unchanged root-custodied snapshot. This closes both mutable-path reopening and
 same-UID chmod/substitute/restore schedules inside the reviewed proof threat
 model. Separate root authority remains trusted proof infrastructure.
 
-The root-custodied snapshot is source/test execution infrastructure only.
-Production Nimo installation remains separately unauthorized.
+The root-custodied compiler, build-input and runtime-output snapshots are
+source/test execution infrastructure only. Production Nimo installation remains
+separately unauthorized.
 
+### Emitted-runtime custody
+
+The emitted JavaScript is part of the reviewed build provenance, not a mutable
+checkout scratch product. The candidate therefore carries a content-addressed
+`runtime_output_snapshot.snapshot_id` over the exact nine compiled runtime
+paths, byte lengths and SHA-256 values plus the reviewed custody policy.
+
+The output root is transferred to `root:root` before TypeScript starts, so the
+ordinary candidate-builder UID cannot win a post-compile substitution race.
+After compilation, the tree is finalized non-writable before the post-build
+hook and before runtime-closure observation. The random snapshot pathname is not
+candidate material.
+
+The focused adversary verifies this boundary directly. It requires the protected
+emitted `dist/probe.js` to be root-owned mode `0444`, requires unprivileged
+chmod/append/unlink attempts to fail, then writes a different red
+`dist/probe.js` into the mutable checkout. The candidate-facing runtime
+observer must still bind the original green protected output and its hash.
+Cleanup occurs only after the protected output record has been captured.
 
 ## Candidate verification
 
@@ -130,7 +165,9 @@ The verifier re-reads the current checkout and independently rebuilds:
 - the exact 14-file package-free runtime import graph;
 - all runtime byte hashes;
 - the exact ordered four-file TypeScript compiler identity;
-- the exact three loader edges.
+- the exact three loader edges;
+- the deterministic runtime-output snapshot identity corresponding to the
+  candidate's nine compiled runtime records.
 
 A resealed candidate with a changed CLI-entry hash, changed loader hash, or
 changed loader edge is rejected even when its candidate ID is recomputed.
@@ -210,14 +247,19 @@ then finalized root:root with 0555 directories and 0444 files before TypeScript
 executes. The ordinary candidate-builder UID cannot chmod, replace, unlink, or
 rewrite those inputs during the build.
 
-Compilation uses the root-custodied compiler snapshot and the root-custodied
-build-input snapshot simultaneously. Both immutable snapshots and the mutable
-checkout source/package endpoints are revalidated after execution.
+Compilation uses the root-custodied Node executable, compiler snapshot,
+build-input snapshot, and pre-custodied runtime-output root simultaneously.
+Compiler/build-input snapshots and mutable checkout source/package endpoints are
+revalidated after execution; the output tree is finalized root-owned and
+non-writable before it becomes candidate evidence.
 
-The focused proof now substitutes and later restores both a source file and
+The focused proof substitutes and later restores both a source file and
 `tsconfig.build.json` after snapshot creation, while also attempting direct
-chmod/write/unlink against the snapshot. Emitted JavaScript must remain bound to
-the immutable reviewed snapshot generation.
+chmod/write/unlink against the protected inputs. It then attempts the same
+mutation family against the protected emitted JavaScript and places a different
+compiled-looking file at checkout `dist/`. Candidate runtime hashes must
+remain bound to the immutable reviewed input generation and the protected output
+generation, not to the substituted checkout bytes.
 
 This closes the source/config ABA class without granting Nimo contact,
 installation, witness access, signing, payment, transaction, presale/WC, or
