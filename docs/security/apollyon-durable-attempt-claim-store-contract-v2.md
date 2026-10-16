@@ -33,7 +33,7 @@ A host-qualified successor must prove the static boundary below, and the future 
 - a dedicated claim IPC group has an exact reviewed membership set that excludes training, custody, and public-runtime identities;
 - every publish request is admitted from kernel peer credentials against the exact reviewed caller UID/GID and caller process generation/source identity; caller-supplied identity is never trusted and root has no implicit bypass;
 - unauthorized peers are rejected before request-body reads;
-- the only write method is `publish_claim_v2`, with exact request keys `claim_record`, `marker`, `method`, `store_contract_id`, `version`, canonical encoding, no unknown keys, one request per connection, maximum request/response size 65,536 bytes, 5,000 ms request deadline, and at most 16 concurrent connections.
+- the only write method is `publish_claim_v2`, with exact request keys `claim_record`, `marker`, `method`, `store_contract_id`, `store_policy_id`, `version`, canonical encoding, no unknown keys, one request per connection, maximum request/response size 65,536 bytes, 5,000 ms request deadline, and at most 16 concurrent connections.
 
 This source contract does not choose the future literal account name, UID/GID, socket path, or state-root path. It does define a pure least-authority classifier for a later chosen numeric identity/policy: claim UID/GID must be non-root and collision-free against the four protected identities, `NoNewPrivileges` must be true, and every Linux capability mask must be exactly zero. Hosted proof rejects root, collision, and capability-bearing fixtures without observing or changing Xiphos.
 
@@ -62,13 +62,13 @@ A success acknowledgment is forbidden until all of the following have completed 
 4. claim-directory fsync completes;
 5. the final visible record metadata and bytes are revalidated.
 
-An indeterminate file/directory durability outcome is never success. Failure responses use a separate exact key schema and classify rejected, duplicate, or indeterminate outcomes. The future training caller may accept only the exact durable-success response; socket close, generic truthiness, or a generic ok token is never training admission.
+An indeterminate file/directory durability outcome is never success. Failure responses use a separate exact key schema and classify rejected, duplicate, or indeterminate outcomes. Durable-claim success proves only that the exact claim exists durably; it is never itself training-start admission. Socket close, generic truthiness, a generic ok token, or replay of the durable-success response cannot admit a trainer start.
 
 ## Least-authority claim publisher
 
 The AF_UNIX publisher/client is a distinct protected identity, not the interactive operator, claim service, training identity, custody identity, or public runtime. The selected publisher UID/GID must be non-root, have the complete supplementary-group vector exactly equal to the reviewed claim IPC group and no other group, NoNewPrivileges, and empty inheritable/permitted/effective/bounding/ambient capabilities.
 
-The publisher must have no direct write/rename/unlink authority over the claim root, no control over claim/training/custody services, no private-key/wallet/signing authority, and exactly the reviewed process/source generation. Any privileged read-only host/session revalidation is a separate evidence-producing gate; its receipt may be handed to the non-root publisher, but root itself is not the publisher.
+The publisher must have no direct write/rename/unlink authority over the claim root, no control over claim/training/custody services, no private-key/wallet/signing authority, and exactly the reviewed process/source generation. Its loader/runtime environment must be explicitly clean of the reviewed dangerous set `GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF`; a dirty or unproven environment is a HOLD. Any privileged read-only host/session revalidation is a separate evidence-producing gate; its receipt may be handed to the non-root publisher, but root itself is not the publisher.
 
 ## Exact claim-service sandbox and AF_UNIX server authentication
 
@@ -76,6 +76,7 @@ The future claim service must be qualified against an exact loaded systemd polic
 
 - exact FragmentPath, no drop-ins, NeedDaemonReload=no and complete reviewed Exec arrays;
 - exact claim User/Group and claim-IPC-only supplementary groups;
+- exact effective `UnsetEnvironment=GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF`, with no unreviewed Environment/EnvironmentFile/PassEnvironment influence;
 - UMask=0077;
 - PrivateTmp and PrivateDevices;
 - ProtectSystem=strict and protected home/kernel tunables/modules/logs/control-groups;
@@ -86,7 +87,17 @@ The future claim service must be qualified against an exact loaded systemd polic
 
 The socket path and socket-parent path must be versioned/fixed before installation. The parent is direct/symlink-free, retained-ancestor protected, claim-service:claim-IPC owned mode 0750, and unauthorized rename/unlink is denied. The final AF_UNIX socket is claim-service:claim-IPC mode 0660 with an exact reviewed link count.
 
+Socket lifecycle is restart-safe as well as request-safe: publication is create-only/no-overwrite; an existing fixed pathname must be classified as a live reviewed listener or an exact stale reviewed socket before cleanup; live/changed/ambiguous generations are never unlinked; exact owner/group/mode/inode/link-count and claim-UID process exclusivity are rebound immediately before cleanup; cleanup ownership/argv is reviewed; and two-cycle restart plus crash/stale recovery are separately qualified.
+
 Authentication is bidirectional. The server validates the publisher before reading the body; the publisher/client authenticates the server before sending the body and again before accepting the response. Server UID/GID/PID, PID start ticks, executable/source generation and socket inode must remain stable across the request/response. Path replacement, peer PID reuse, wrong executable/source, or server restart mid-request is a HOLD.
+
+## Stable store policy vs per-admission contract
+
+The physical protected store has a terminal-independent content-addressed `store_policy_id`, derived only from this versioned store policy/requirements. It is the persistent policy identity carried by generation records and migration continuity receipts.
+
+Each admitted terminal receipt still produces its own terminal-specific `store_contract_id`. That admission ID binds the exact authorization/custody/request generation and is carried by that claim record/request/response. Different valid admissions may therefore have different `store_contract_id` values while sharing the same exact `store_policy_id`.
+
+A current claim record must re-derive both identities: its `store_contract_id` from the supplied terminal receipt and its `store_policy_id` from the reviewed policy. Generation/continuity state never substitutes one for the other.
 
 ## Store-generation history continuity
 
@@ -99,9 +110,11 @@ Store replacement never resets replay history. A non-genesis migration must adva
 - fixed claim-set ordering;
 - fresh authorization identity that is not equal to any authorization ID already present in the retained claim history.
 
-Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check. The predecessor generation record has its own content-derived ID and must commit the same complete count and history digest; the migration receipt binds that exact predecessor-record ID; missing, extra, duplicate or mutated claims fail closed. Authorization IDs must also be unique across the complete retained history so a different record ID cannot hide cross-generation authorization replay. The new generation must commit the continuity receipt, and fresh Sovereign authorization must bind the new generation plus prior-history digest.
+Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check and must carry the same reviewed `store_policy_id` as the retained generation lineage. Historical claims may carry different terminal-specific `store_contract_id` values. The predecessor generation record has its own content-derived ID and must commit the same complete count and history digest; the migration receipt binds that exact predecessor-record ID; missing, extra, duplicate or mutated claims fail closed. Authorization IDs must also be unique across the complete retained history so a different record ID cannot hide cross-generation authorization replay.
 
-`genesis` is an exact boolean discriminator. Genesis is a separate exact zero-history shape with no predecessor. A migration cannot masquerade as genesis, including by presenting a forged zero-count history. Migration is accepted only after the new generation and retained history are durably published and reread.
+Generation membership has a separate **shape commitment** from claim-history hashing. Every store-generation record commits a deterministic count and SHA-256 of the declared retained set of ancestor/current store-generation IDs, sorted lexicographically. This pure source contract does not authenticate that a caller-supplied predecessor/lineage was actually retained by the protected host store. Protected retained-lineage origin remains a required, unproven host-qualification fact. A migration receipt binds that predecessor lineage commitment and the exact one-generation extension obtained by adding the fresh new generation ID. Every historical claim's `store_generation_id` must be a member of the declared predecessor lineage shape; a flat self-consistent claim set from an unrelated generation is a structural HOLD. Actual migration authority additionally requires the later host qualification to authenticate the retained predecessor generation/continuity origin; this source helper returns only `lineage_shape_qualified=true` with `protected_generation_lineage_origin_proven=false`. The new generation must persist the extended lineage commitment together with the continuity receipt, and fresh Sovereign authorization must bind the new generation plus prior-history digest.
+
+`genesis` is an exact boolean discriminator. The genesis **creation/continuity event** has zero prior claims, zero prior lineage, and no predecessor; a later history snapshot of that original generation may legitimately contain claims. A migration cannot masquerade as the genesis creation event. Migration is accepted only after the new generation, retained history, and extended generation-lineage commitment are durably published and reread.
 
 ## Required future revalidation
 
@@ -114,14 +127,14 @@ Immediately before any durable claim publication, the future host gate/executor 
 - exact custody generation;
 - request/source/corpus/parent-adapter/operator identities already content-addressed through the accepted chain.
 
-A stale source receipt is never a perpetual host lease.
+A stale source receipt is never a perpetual host lease. Likewise, a content-addressed generation/continuity shape is not proof of protected retained-store provenance; the host qualifier must authenticate that lineage before migration or claim publication authority exists.
 
 ## Required future publication semantics
 
 The claim store must use a create-only/no-overwrite canonical claim record with:
 
 - exactly one claim per admitted authorization/custody/store generation;
-- the canonical claim record binds the store generation, terminal receipt ID and runner-receipt digest, authorization ID, custody generation and record SHA-256, and the literal identity fields `request_sha256`, `canonical_main`, `canonical_tree`, `corpus_sha256`, `parent_adapter_sha256`, `operator_public_key_raw_sha256`, plus the attempt limit;
+- the canonical claim record binds both the exact terminal-derived `store_contract_id` (re-derived from the supplied terminal receipt rather than trusted from the caller) and the stable reviewed `store_policy_id`, plus the store generation, terminal receipt ID and runner-receipt digest, authorization ID, custody generation and record SHA-256, and the literal identity fields `request_sha256`, `canonical_main`, `canonical_tree`, `corpus_sha256`, `parent_adapter_sha256`, `operator_public_key_raw_sha256`, plus the attempt limit;
 - `attempt_limit=1`;
 - `automatic_retry_authorized=false`;
 - final claim record link count 1;
@@ -131,7 +144,7 @@ The claim store must use a create-only/no-overwrite canonical claim record with:
 - duplicate claim rejection within the current generation **and** cross-generation authorization replay rejection;
 - durable claim publication completed before any trainer may start.
 
-A successful store write must not itself start training.
+A successful store write must not itself start training and is **not** a reusable bearer capability for training start. Durable success reports `training_start_admission=false`, `training_start_consumption_required=true`, `training_start_consumption_performed=false`, and next gate `apollyon_training_start_consumption_v1`. That later protected one-time consumption boundary must create-once bind the claim record, authorization/custody/store generation and exact trainer process generation; recovery must distinguish an unconsumed claim from an already-consumed start so a lost ACK or replayed durable-claim success cannot admit a second trainer start.
 
 ## Deliberate non-authority
 

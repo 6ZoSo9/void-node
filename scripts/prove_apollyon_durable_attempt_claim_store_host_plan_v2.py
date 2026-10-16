@@ -20,8 +20,8 @@ def git_blob(data:bytes)->str:
 source=PLAN.read_text(encoding="utf-8")
 ast.parse(source)
 
-assert git_blob(CONTRACT.read_bytes())=="4bf474b8f282972b4dca4ab79eaf44260ce3ba54"
-assert 'PARENT_HEAD="30183b8cd5f80d8c51fe069ce3d2a3dc08163ca0"' in source
+assert git_blob(CONTRACT.read_bytes())=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
+assert 'PARENT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"' in source
 assert 'PARENT_CONTRACT_BLOB_SHA1="4bf474b8f282972b4dca4ab79eaf44260ce3ba54"' in source
 
 for required in (
@@ -36,6 +36,11 @@ for required in (
     'CLAIM_PUBLISHER_SOURCE_ROOT=Path("/opt/void-apollyon-attempt-claim-publisher-v2-reviewed-v1")',
     '"candidate_slots_selected_in_plan":True',
     '"candidate_slots_globally_distinct":True',
+    '"candidate_slots_revalidation_required_before_provisioning":True',
+    '"local_identity_authority":{',
+    '"libc_nss_lookup_used":False',
+    '"remote_nss_provider_allowed":False',
+    '"identity_resolution_external_network_calls":False',
     '"claim_identity_provisioned":False',
     '"protected_claim_store_proven":False',
     '"durable_attempt_claim_performed":False',
@@ -60,6 +65,10 @@ for forbidden in (
     "systemctl",
     "useradd",
     "groupadd",
+    "import pwd",
+    "import grp",
+    "pwd.",
+    "grp.",
 ):
     assert forbidden not in source,forbidden
 
@@ -75,6 +84,30 @@ assert module.parse_login_defs(
     "SYS_GID_MIN":200,"SYS_GID_MAX":888,
 }
 assert module.choose_highest_free(100,106,{106,104,101},3)==[105,103,102]
+assert module.parse_nsswitch_local_files_only(
+    "passwd: files\ngroup: files\nhosts: files dns\n"
+)=={"passwd":["files"],"group":["files"]}
+for bad,reason in (
+    ("passwd: files sss\ngroup: files\n","nsswitch_identity_source_not_files_only:passwd"),
+    ("passwd: ldap\ngroup: files\n","nsswitch_identity_source_not_files_only:passwd"),
+    ("passwd: compat\ngroup: files\n","nsswitch_identity_source_not_files_only:passwd"),
+):
+    try:
+        module.parse_nsswitch_local_files_only(bad)
+    except module.Hold as exc:
+        assert str(exc)==reason
+    else:
+        raise AssertionError("unsafe NSS profile must HOLD")
+passwd_rows=module.parse_passwd_file(
+    "root:x:0:0:root:/root:/bin/bash\n"
+    "zoso:x:1000:1000:ZoSo:/home/zoso:/bin/bash\n"
+)
+group_rows=module.parse_group_file(
+    "root:x:0:\n"
+    "zoso:x:1000:\n"
+)
+assert module.existing_user("zoso",passwd_rows)=={"name":"zoso","uid":1000,"gid":1000}
+assert module.existing_group("zoso",group_rows)=={"name":"zoso","gid":1000}
 try:
     module.parse_login_defs(
         "SYS_UID_MIN 100\nSYS_UID_MIN 101\nSYS_UID_MAX 999\n"
@@ -103,6 +136,11 @@ for line in (
     "fixed_identity_names_bound=true",
     "fixed_paths_bound=true",
     "candidate_slot_selection_deterministic=true",
+    "nsswitch_passwd_group_files_only_required=true",
+    "libc_nss_lookup_used=false",
+    "remote_nss_provider_rejected=true",
+    "identity_resolution_external_network_calls=false",
+    "candidate_slot_revalidation_required=true",
     "host_installation_performed=false",
     "durable_attempt_claim=false",
     "training_execution=false",
@@ -111,7 +149,7 @@ for line in (
 
 negative=subprocess.run(
     ["python3","-I","-B",str(PLAN),"--run","--expected-parent-head",
-     "30183b8cd5f80d8c51fe069ce3d2a3dc08163ca0"],
+     "fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"],
     cwd=ROOT,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
     text=True,check=False,timeout=20,
 )
@@ -131,6 +169,10 @@ for line in (
 print("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_HOST_PLAN_V2_PROOF_GREEN")
 print("parent_contract_exact_blob_bound=true")
 print("hosted_live_run_negative_only=true")
+print("nsswitch_passwd_group_files_only_required=true")
+print("libc_nss_lookup_used=false")
+print("remote_nss_provider_rejected=true")
+print("candidate_slot_revalidation_required=true")
 print("persistent_filesystem_write=false")
 print("account_mutation=false")
 print("systemd_mutation=false")

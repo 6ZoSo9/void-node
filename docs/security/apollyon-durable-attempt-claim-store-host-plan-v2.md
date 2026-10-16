@@ -12,11 +12,11 @@ This phase binds the Xiphos preinstall choices without creating them. It is not 
 
 Exact parent:
 
-`#3233@30183b8cd5f80d8c51fe069ce3d2a3dc08163ca0`
+`#3233@fe7e1ad9b78a24b77a1657067e4d08f7c56a7731`
 
 Parent contract Git blob:
 
-`4bf474b8f282972b4dca4ab79eaf44260ce3ba54`
+`6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`
 
 ## Fixed future names
 
@@ -44,20 +44,29 @@ Existing protected identities are observed read-only from:
 
 The plan requires the install-target leaves to be absent and the retained system parents `/`, `/var`, `/var/lib`, `/run`, `/opt`, `/etc`, `/etc/systemd`, and `/etc/systemd/system` to be direct, root-owned and non-group/world-writable.
 
-## Numeric slot selection
+## Local identity authority and numeric slot selection
 
-The live read-only plan parses the host's exact `SYS_UID_MIN/MAX` and `SYS_GID_MIN/MAX` values from `/etc/login.defs`, inventories the existing passwd/group databases, and selects:
+The plan does **not** call libc NSS. Before any identity lookup or candidate selection it descriptor-binds direct root-owned, non-group/world-writable copies of:
+
+- `/etc/nsswitch.conf`;
+- `/etc/passwd`;
+- `/etc/group`;
+- `/etc/login.defs`.
+
+It accepts exactly `passwd: files` and `group: files`; SSS, LDAP, NIS, compat, systemd or action-clause profiles HOLD. Passwd/group data are parsed directly from the bound local files, so the declared `network_access=false` boundary does not depend on an external NSS provider. The four file identities/hashes are revalidated before the plan is emitted.
+
+The live read-only plan parses the exact `SYS_UID_MIN/MAX` and `SYS_GID_MIN/MAX` values from the bound `/etc/login.defs`, inventories only the bound local passwd/group files, and selects:
 
 - two unused system UID candidates;
 - three unused system GID candidates.
 
 Selection is deterministic from the highest available values downward. For conservative separation, the five selected numbers must be globally distinct and cannot collide with any currently used UID/GID or any observed protected identity.
 
-The result binds candidate numbers into the content-addressed plan. They are only candidates until a separately reviewed create-only account/bootstrap gate provisions them.
+The result binds candidate numbers into the content-addressed plan. They are only candidates until a separately reviewed create-only account/bootstrap gate provisions them. That later provisioning gate must repeat the local-files authority census and prove the selected numeric slots are still free immediately before create-only mutation.
 
 ## Host binding
 
-A future `--run` requires hostname `Xiphos`, exact parent head, and records SHA-256 of the current `/etc/machine-id` value. It performs only read-only NSS/filesystem/login-defs observations.
+A future `--run` requires hostname `Xiphos`, exact parent head, and records SHA-256 plus stable file identity for the current `/etc/machine-id`. It performs only direct read-only filesystem observations; libc NSS lookup and remote NSS providers are not used.
 
 Hosted CI does **not** perform the Xiphos census. It runs self-tests and an explicit live-run negative that must stop at `HOLD=wrong_host`.
 
