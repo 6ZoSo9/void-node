@@ -50,10 +50,24 @@ Accepted V2 runner identity:
   `2ba779e98b76cd24c6b24de38b77dfded5ce7dd35869b8dd99490d3aa653af73`;
 - future installed mode 0444.
 
-The ELF bytes are **not** committed to the repository. A future operator must
-supply one normalized absolute candidate path whose retained descriptor read is
-single-link, non-symlink, non-group/world-writable, exactly 726,976 bytes and
-matches the accepted SHA-256.
+The ELF bytes are **not** committed to the repository. This lane adds an
+unprivileged materializer,
+`scripts/materialize_buy_void_epoch2_live_composition_native_v3.py`, that
+first authenticates the exact merged V3 lock, exact V3 candidate-tool Git blob
+and exact native-source Git blob. It then executes the already-reviewed V3
+`compile_one()` path in an isolated temporary directory and refuses output
+unless the resulting stripped ELF is exactly 726,976 bytes with the accepted
+SHA-256.
+
+The focused workflow runs that materializer and uploads the exact ELF together
+with a SHA-256 manifest. The same workflow is manually dispatchable after
+merge, so the install input can be regenerated from canonical source instead
+of relying on an expiring predecessor artifact that never contained ELF bytes.
+
+A future operator still supplies the downloaded/materialized ELF to the
+installer by normalized absolute path. The installer independently performs its
+own retained-descriptor check: single-link, non-symlink,
+non-group/world-writable, exactly 726,976 bytes and the accepted SHA-256.
 
 ## Policy binding
 
@@ -150,6 +164,8 @@ or source-head-drift state HOLDS.
 Hosted CI performs only:
 
 - Python syntax/AST checks;
+- exact-lock/source-bound materialization of the accepted ELF in runner-temp,
+  followed by size/SHA/no-`PT_INTERP` verification and artifact upload;
 - exact source/lock identity checks;
 - installer `--self-test`;
 - inert `--source-plan`;
@@ -157,8 +173,10 @@ Hosted CI performs only:
 - Linux no-replace rename exercise in `/tmp`;
 - missing confirmation and unprivileged root-required refusal.
 
-Hosted CI never invokes production `--apply`, writes `/opt`, reads
-credentials/private keys, starts/stops services, signs, constructs/broadcasts a
+The materializer writes only under the workflow's disposable runner-temp
+directory and grants no install authority. Hosted CI never invokes production
+`--apply`, writes `/opt`, reads credentials/private keys, starts/stops
+services, signs, constructs/broadcasts a
 transaction, accepts payment, or activates presale/WC.
 
 ## Authority boundary
