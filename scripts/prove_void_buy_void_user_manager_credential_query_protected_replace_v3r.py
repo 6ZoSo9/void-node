@@ -296,7 +296,7 @@ for mode_name, argv, expected_reason in (
     assert "reason=" + expected_reason in lines
 
 print("VOID_BUY_VOID_USER_MANAGER_CREDENTIAL_QUERY_PROTECTED_REPLACE_V3R_PROOF_GREEN")
-print("source_blob=df103c1439dd054d98132c3beee226f3d8222314")
+print("source_blob=573fd2785910eae62568a4add0be4d176886b28e")
 print("accepted_lock_blob=c4870f3178aebc9a0bb6557562f663b8480cfefa")
 print("accepted_lock_id=voidbuyumqcredelflock3r_8b064214e22ce54ac193b426f38b9d6a7ea4cee07b38b68c8d1eeb6c51de6f34")
 print("installed_predecessor_lock_id=voidbuyumqcredelflock2_c05afb1a6fbd44a00d4f220652e87ee099e0456992a17a6ae7b60bda9229cf54")
