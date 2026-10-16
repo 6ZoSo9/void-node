@@ -36,7 +36,7 @@ function sha256(value){return crypto.createHash("sha256").update(value).digest("
 
 const EXACT_BLOBS=Object.freeze({
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "f1730feac517c17a90632e8735e44a5ce06fd261",
+    "4428c0056ae5311f418a1cffce2b67b09fab2aaf",
   "ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py":
     "03ea7df9b7a548c73ec1c715d716391be5d5d223",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -88,6 +88,7 @@ assert.deepEqual(candidate.fixed_paths,{
 assert.equal(candidate.numeric_host_identities,null);
 assert.equal(candidate.host_plan_receipt_required_for_numeric_identity_binding,true);
 assert.equal(candidate.host_plan_receipt_consumed,false);
+assert.equal(candidate.host_plan_receipt_content_address_reverification_required,true);
 assert.equal(candidate.caller_supplied_host_plan_sufficient,false);
 assert.equal(candidate.live_host_plan_reexecution_required_before_provisioning,true);
 assert.deepEqual(candidate.host_plan_receipt_requirements,{
