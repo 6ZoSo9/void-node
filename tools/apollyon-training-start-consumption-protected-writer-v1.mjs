@@ -146,7 +146,7 @@ function openOwnedDirectoryFd(directoryFd){
     return Object.freeze({fd:ownedFd,identity:owned});
   }catch(error){
     if(ownedFd>=0){
-      try{fs.closeSync(ownedFd);}catch{}
+      try{fs.closeSync(ownedFd);}catch(closeError){void closeError;}
     }
     throw error;
   }
