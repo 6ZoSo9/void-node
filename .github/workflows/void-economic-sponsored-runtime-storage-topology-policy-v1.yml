@@ -64,6 +64,9 @@ jobs:
           grep -Fx 'production_service_identity_selected=false' "$proof"
           grep -Fx 'production_root_paths_selected=false' "$proof"
           grep -Fx 'live_host_evidence_verified=false' "$proof"
+          grep -Fx 'time_store_rollback_resistance_proven=false' "$proof"
+          grep -Fx 'cross_process_restart_continuity_proven=false' "$proof"
+          grep -Fx 'execution_replay_atomic_consume_performed=false' "$proof"
           grep -Fx 'runtime_integration=false' "$proof"
           grep -Fx 'funds_movement=false' "$proof"
 
