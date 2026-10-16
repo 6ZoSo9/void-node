@@ -17,6 +17,7 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_AUTHORITY_V1 =
   Object.freeze({
     source_only_contract:true,
     exact_parent_store_contract_required:true,
+    exact_accepted_store_policy_required:true,
     durable_claim_success_shape_required:true,
     durable_claim_success_is_bearer_training_authority:false,
     protected_claim_record_reread_required:true,
@@ -34,6 +35,11 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_AUTHORITY_V1 =
     protected_consumption_store_proven:false,
     recovery_classifier_protected_origin_proven:false,
     training_release_gate_required:true,
+    bound_trainer_generation_revalidation_required_before_release:true,
+    bound_trainer_generation_revalidation_performed:false,
+    training_identity_policy_revalidation_required_before_release:true,
+    training_identity_policy_revalidation_performed:false,
+    bound_trainer_generation_loss_after_consumption_forfeits_attempt:true,
     training_release_performed:false,
     filesystem_read:false,
     filesystem_write:false,
@@ -168,11 +174,13 @@ export function validateApollyonTrainingStartConsumptionRecordV1(input){
     value,VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1,
     "apollyon_training_start_v1_consumption_record_invalid",
   );
+  const reviewedPolicyId=qualifyApollyonDurableAttemptClaimStorePolicyV2().store_policy_id;
   if(
     value.marker!=="VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_V1"||
     value.version!==1||
     value.status!=="training_start_consumption_record_v1"||
     !STORE_POLICY_ID.test(value.store_policy_id)||
+    value.store_policy_id!==reviewedPolicyId||
     !STORE_CONTRACT_ID.test(value.store_contract_id)||
     !STORE_GENERATION_ID.test(value.store_generation_id)||
     !TERMINAL_ID.test(value.terminal_receipt_id)||
@@ -362,6 +370,11 @@ export function qualifyApollyonTrainingStartConsumptionContractV1(input){
     protected_consumption_store_required:true,
     protected_consumption_store_proven:false,
     training_release_gate_required:true,
+    bound_trainer_generation_revalidation_required_before_release:true,
+    bound_trainer_generation_revalidation_performed:false,
+    training_identity_policy_revalidation_required_before_release:true,
+    training_identity_policy_revalidation_performed:false,
+    bound_trainer_generation_loss_after_consumption_forfeits_attempt:true,
     training_release_performed:false,
     training_execution_authorized:false,
     training_execution_performed:false,

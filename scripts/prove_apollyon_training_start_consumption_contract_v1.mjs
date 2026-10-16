@@ -31,7 +31,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "56a877f5680e0b0adfff0781b2363fb0debf8fe8",
+    "b75b617f62087b780e8d189ae9378323aef01e21",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -147,6 +147,11 @@ assert.equal(result.lost_ack_second_start_forbidden,true);
 assert.equal(result.automatic_retry_authorized,false);
 assert.equal(result.protected_consumption_store_proven,false);
 assert.equal(result.training_release_gate_required,true);
+assert.equal(result.bound_trainer_generation_revalidation_required_before_release,true);
+assert.equal(result.bound_trainer_generation_revalidation_performed,false);
+assert.equal(result.training_identity_policy_revalidation_required_before_release,true);
+assert.equal(result.training_identity_policy_revalidation_performed,false);
+assert.equal(result.bound_trainer_generation_loss_after_consumption_forfeits_attempt,true);
 assert.equal(result.training_release_performed,false);
 assert.equal(result.training_execution_authorized,false);
 assert.equal(result.training_execution_performed,false);
@@ -229,6 +234,18 @@ assert.deepEqual(
 }
 {
   const bad=structuredClone(record);
+  bad.store_policy_id="apollyon_claim_store_policy_v2:"+"f".repeat(64);
+  const material=structuredClone(bad);
+  delete material.training_start_consumption_id;
+  bad.training_start_consumption_id="apollyon_training_start_consumption_v1:"+
+    sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(material),"utf8"));
+  assert.throws(
+    ()=>validateApollyonTrainingStartConsumptionRecordV1(bad),
+    /consumption_record_invalid/u,
+  );
+}
+{
+  const bad=structuredClone(record);
   bad.training_start_consumption_id=
     "apollyon_training_start_consumption_v1:"+"0".repeat(64);
   assert.throws(
@@ -288,6 +305,7 @@ for(const mutate of [
 for(const [key,expected] of Object.entries({
   source_only_contract:true,
   exact_parent_store_contract_required:true,
+  exact_accepted_store_policy_required:true,
   durable_claim_success_shape_required:true,
   durable_claim_success_is_bearer_training_authority:false,
   protected_claim_record_reread_required:true,
@@ -305,6 +323,11 @@ for(const [key,expected] of Object.entries({
   protected_consumption_store_proven:false,
   recovery_classifier_protected_origin_proven:false,
   training_release_gate_required:true,
+  bound_trainer_generation_revalidation_required_before_release:true,
+  bound_trainer_generation_revalidation_performed:false,
+  training_identity_policy_revalidation_required_before_release:true,
+  training_identity_policy_revalidation_performed:false,
+  bound_trainer_generation_loss_after_consumption_forfeits_attempt:true,
   training_release_performed:false,
   filesystem_read:false,filesystem_write:false,network_access:false,
   service_action:false,socket_action:false,training_execution_authorized:false,
@@ -343,4 +366,6 @@ console.log("recovery_classifier_protected_origin_proven=false");
 console.log("create_once_publication_authorized=false");
 console.log("lost_ack_second_start_forbidden=true");
 console.log("training_start_consumption_performed=false");
+console.log("bound_trainer_generation_revalidation_required_before_release=true");
+console.log("bound_trainer_generation_loss_after_consumption_forfeits_attempt=true");
 console.log("training_execution=false");
