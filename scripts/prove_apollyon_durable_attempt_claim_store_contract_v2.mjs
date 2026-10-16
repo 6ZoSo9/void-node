@@ -31,7 +31,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "7cbf238b5c30875091d400f4718dbb7963b983e3",
+    "e73d8beecadcb91deca28e2efae10927d93ff12f",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -139,8 +139,20 @@ for(const [key,expected] of Object.entries({
   dedicated_claim_service_identity_required:true,
   claim_identity_distinct_from_training_required:true,
   claim_identity_distinct_from_custody_required:true,
+  claim_identity_supplementary_groups_closed_required:true,
+  claim_uid_only_reviewed_service_required:true,
+  claim_service_source_identity_required:true,
+  non_claim_unprivileged_uid_write_denied_required:true,
+  claim_service_training_state_write_denied_required:true,
+  claim_service_custody_state_write_denied_required:true,
+  claim_service_training_service_control_denied_required:true,
+  claim_service_custody_service_control_denied_required:true,
+  claim_service_delete_or_overwrite_api_forbidden:true,
   future_identity_must_be_versioned_and_fixed_before_install:true,
   future_claim_root_must_be_versioned_and_fixed_before_install:true,
+  claim_store_generation_identity_required:true,
+  claim_store_generation_create_once_required:true,
+  same_path_replacement_must_be_new_generation_required:true,
   protected_root_mode:"0700",
   immutable_claim_record_mode:"0600",
   final_claim_record_link_count:1,
@@ -275,6 +287,9 @@ for(const required of [
   'protected_claim_store_proven:false','host_installation_performed:false',
   'terminal_receipt_shape_bound:true','terminal_receipt_source_origin_proven:false',
   'claim_must_be_durable_before_training_start:true',
+  'claim_uid_only_reviewed_service_required:true',
+  'claim_store_generation_identity_required:true',
+  'same_path_replacement_must_be_new_generation_required:true',
   'broker_execution_ledger_reuse_allowed:false',
   'historical_v1_consumption_store_sufficient:false',
   'next_gate:"apollyon_durable_attempt_claim_store_host_qualification_v2"',
@@ -293,6 +308,9 @@ console.log("requirements_defined=true");
 console.log("terminal_receipt_shape_bound=true");
 console.log("terminal_receipt_source_origin_proven=false");
 console.log("dedicated_claim_service_identity_required=true");
+console.log("claim_uid_only_reviewed_service_required=true");
+console.log("claim_store_generation_identity_required=true");
+console.log("same_path_replacement_must_be_new_generation_required=true");
 console.log("claim_identity_bound=false");
 console.log("claim_root_bound=false");
 console.log("protected_claim_store_proven=false");

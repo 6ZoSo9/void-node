@@ -16,13 +16,16 @@ This contract therefore defines the requirements for a future independently prot
 
 A host-qualified successor must prove:
 
-- a dedicated claim-service identity distinct from training and custody;
+- a dedicated claim-service identity distinct from training and custody, with a closed supplementary-group set and exactly the reviewed claim-service process admitted under that UID;
 - a versioned, fixed claim identity and claim-state root before installation;
 - protected root mode `0700` and final immutable claim record mode `0600`;
+- a create-once store-generation identity; replacing the same pathname is a new generation and cannot inherit replay authority;
 - root-owned/non-writable retained ancestors;
-- training UID cannot write the claim namespace;
-- custody UID cannot write the claim namespace;
-- training and custody cannot control the claim service;
+- no non-claim unprivileged identity may write the claim namespace;
+- training UID and custody UID cannot write the claim namespace;
+- the claim-service identity cannot write training or custody state;
+- training and custody cannot control the claim service, and the claim service cannot control training or custody services;
+- the reviewed claim service exposes no delete/overwrite API;
 - the claim service is AF_UNIX-only and has no external network, private-key, signing, wallet, transaction, or funds authority.
 
 This source contract does not choose the future literal account name, UID/GID, socket path, or state-root path.
