@@ -106,6 +106,43 @@ def _same_file_identity(a: os.stat_result, b: os.stat_result) -> bool:
     )
 
 
+def _inode_identity(st: os.stat_result) -> tuple[int, int]:
+    return (st.st_dev, st.st_ino)
+
+
+def _path_inode(path: pathlib.Path) -> tuple[int, int]:
+    try:
+        st = path.lstat()
+    except OSError as exc:
+        raise ReplaceError("path_identity_unavailable:" + str(path)) from exc
+    if stat.S_ISLNK(st.st_mode):
+        raise ReplaceError("path_identity_symlink:" + str(path))
+    return _inode_identity(st)
+
+
+def _require_owned_path(
+    path: pathlib.Path, created_identity: tuple[int, int]
+) -> None:
+    if _path_inode(path) != created_identity:
+        raise ReplaceError("created_inode_ownership_mismatch:" + path.name)
+
+
+def _unlink_owned_name(
+    dir_fd: int, name: str, created_identity: tuple[int, int]
+) -> bool:
+    try:
+        st = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise ReplaceError("owned_cleanup_stat_failed:" + name) from exc
+    if stat.S_ISLNK(st.st_mode) or _inode_identity(st) != created_identity:
+        return False
+    os.unlink(name, dir_fd=dir_fd)
+    os.fsync(dir_fd)
+    return True
+
+
 def _direct_repo_bytes(path: pathlib.Path) -> bytes:
     st = path.lstat()
     if (
@@ -350,21 +387,33 @@ def _write_all(fd: int, raw: bytes) -> None:
         offset += wrote
 
 
-def _create_exact_stage(dir_fd: int, raw: bytes) -> None:
+def _create_exact_stage(
+    dir_fd: int, raw: bytes
+) -> tuple[int, int]:
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
     fd = os.open(STAGING_NAME, flags, 0o500, dir_fd=dir_fd)
+    created_identity = _inode_identity(os.fstat(fd))
     try:
-        _write_all(fd, raw)
-        os.fchmod(fd, 0o555)
-        os.fchown(fd, 0, 0)
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    _file_digest(
-        STAGING_TARGET,
-        expected_bytes=V2_QUERY_BYTES,
-        expected_sha256=V2_QUERY_SHA256,
-    )
+        try:
+            _write_all(fd, raw)
+            os.fchmod(fd, 0o555)
+            os.fchown(fd, 0, 0)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        _require_owned_path(STAGING_TARGET, created_identity)
+        _file_digest(
+            STAGING_TARGET,
+            expected_bytes=V2_QUERY_BYTES,
+            expected_sha256=V2_QUERY_SHA256,
+        )
+        return created_identity
+    except BaseException:
+        try:
+            _unlink_owned_name(dir_fd, STAGING_NAME, created_identity)
+        except BaseException:
+            pass
+        raise
 
 
 def _root_entries() -> list[str]:
@@ -483,8 +532,15 @@ def plan(query: pathlib.Path | None) -> None:
         print("next_action=SEPARATELY_AUTHORIZE_ATOMIC_V1_TO_V2_REPLACEMENT")
 
 
-def _restore_ready_after_failed_apply(dir_fd: int, old_name: str | None) -> bool:
+def _restore_ready_after_failed_apply(
+    dir_fd: int,
+    old_name: str | None,
+    created_identity: tuple[int, int] | None,
+) -> bool:
     try:
+        if created_identity is None:
+            return _base_state() == READY_STATE
+
         if old_name is not None and _exists(INSTALL_ROOT / old_name):
             current_is_v2 = False
             try:
@@ -493,6 +549,7 @@ def _restore_ready_after_failed_apply(dir_fd: int, old_name: str | None) -> bool
                     expected_bytes=V2_QUERY_BYTES,
                     expected_sha256=V2_QUERY_SHA256,
                 )
+                _require_owned_path(QUERY_TARGET, created_identity)
                 current_is_v2 = True
             except ReplaceError:
                 current_is_v2 = False
@@ -514,30 +571,30 @@ def _restore_ready_after_failed_apply(dir_fd: int, old_name: str | None) -> bool
             )
             residue = INSTALL_ROOT / old_name
             if _exists(residue):
+                _require_owned_path(residue, created_identity)
                 _file_digest(
                     residue,
                     expected_bytes=V2_QUERY_BYTES,
                     expected_sha256=V2_QUERY_SHA256,
                 )
-                os.unlink(old_name, dir_fd=dir_fd)
-                os.fsync(dir_fd)
+                if not _unlink_owned_name(
+                    dir_fd, old_name, created_identity
+                ):
+                    return False
         elif _exists(STAGING_TARGET):
-            _file_digest(
-                QUERY_TARGET,
-                expected_bytes=V1_QUERY_BYTES,
-                expected_sha256=V1_QUERY_SHA256,
-            )
+            _require_owned_path(STAGING_TARGET, created_identity)
             _file_digest(
                 STAGING_TARGET,
                 expected_bytes=V2_QUERY_BYTES,
                 expected_sha256=V2_QUERY_SHA256,
             )
-            os.unlink(STAGING_NAME, dir_fd=dir_fd)
-            os.fsync(dir_fd)
+            if not _unlink_owned_name(
+                dir_fd, STAGING_NAME, created_identity
+            ):
+                return False
         return _base_state() == READY_STATE
     except BaseException:
         return False
-
 
 def apply(query: pathlib.Path, confirm: str) -> None:
     if confirm != CONFIRM_APPLY:
@@ -569,11 +626,12 @@ def apply(query: pathlib.Path, confirm: str) -> None:
         os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
     )
     old_name: str | None = None
+    created_stage_identity: tuple[int, int] | None = None
     try:
         if _exists(STAGING_TARGET) or _exists(V1_PREDECESSOR_TARGET):
             raise ReplaceError("replacement_target_changed_before_apply")
 
-        _create_exact_stage(dir_fd, raw)
+        created_stage_identity = _create_exact_stage(dir_fd, raw)
         os.fsync(dir_fd)
 
         old_name = STAGING_NAME
@@ -608,7 +666,9 @@ def apply(query: pathlib.Path, confirm: str) -> None:
         if _base_state() != GREEN_STATE:
             raise ReplaceError("post_exchange_state_invalid")
     except BaseException:
-        rollback_green = _restore_ready_after_failed_apply(dir_fd, old_name)
+        rollback_green = _restore_ready_after_failed_apply(
+            dir_fd, old_name, created_stage_identity
+        )
         print("automatic_rollback_attempted=true")
         print("automatic_rollback_green=" + str(rollback_green).lower())
         raise
@@ -704,6 +764,23 @@ def self_test() -> None:
     assert V1_QUERY_BYTES != V2_QUERY_BYTES
 
     with tempfile.TemporaryDirectory(
+        prefix="void-credential-query-v2-owned-cleanup-"
+    ) as raw:
+        root = pathlib.Path(raw)
+        stage = root / "stage"
+        stage.write_bytes(b"owned")
+        dir_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            owned = _inode_identity(stage.lstat())
+            foreign = (owned[0], owned[1] + 1)
+            assert _unlink_owned_name(dir_fd, "stage", foreign) is False
+            assert stage.read_bytes() == b"owned"
+            assert _unlink_owned_name(dir_fd, "stage", owned) is True
+            assert not stage.exists()
+        finally:
+            os.close(dir_fd)
+
+    with tempfile.TemporaryDirectory(
         prefix="void-credential-query-v2-renameat2-"
     ) as raw:
         root = pathlib.Path(raw)
@@ -739,6 +816,8 @@ def main() -> int:
         print("preexec_replacement=false")
         print("v1_predecessor_preserved_after_success=true")
         print("automatic_failure_rollback=true")
+        print("foreign_stage_cleanup_rejected=true")
+        print("current_invocation_stage_inode_bound=true")
         print("query_execution=false")
         print("credential_contents_read=false")
         return 0
