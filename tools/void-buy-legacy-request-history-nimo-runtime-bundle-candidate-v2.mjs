@@ -41,6 +41,14 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     compiler_snapshot_builder_uid_direct_mutation_denied: true,
     compiler_source_post_revalidation_required: true,
     compiler_snapshot_post_revalidation_required: true,
+    build_input_private_snapshot_required: true,
+    build_input_snapshot_content_addressed: true,
+    build_input_snapshot_root_custody_required: true,
+    build_input_snapshot_builder_uid_direct_mutation_denied: true,
+    build_input_snapshot_post_revalidation_required: true,
+    build_input_source_generation_bound: true,
+    build_input_tsconfig_generation_bound: true,
+    build_input_type_packages_bound: true,
     candidate_owned_rebuild_required: true,
     three_node_byte_equality_required: true,
     candidate_report_filesystem_write: true,
@@ -490,6 +498,245 @@ const SUDO_V2 = "/usr/bin/sudo";
 const CHOWN_V2 = "/usr/bin/chown";
 const RM_V2 = "/usr/bin/rm";
 
+const BUILD_INPUT_SNAPSHOT_SCHEMA_V2 =
+  "void_buy_void_legacy_history_nimo_build_input_snapshot_v2";
+const BUILD_INPUT_SNAPSHOT_ID_PREFIX_V2 = "voidblrhnbsnap2_";
+const BUILD_INPUT_DERIVED_TSCONFIG_V2 =
+  "tsconfig.nimo-runtime-bundle-snapshot-v2.json";
+
+const BUILD_INPUT_PROJECT_FILES_V2 = Object.freeze([
+  Object.freeze({path:"src/economic/buy_void_allocation_custody_external_witness_v1.ts",git_blob_sha1:"5d24f3fb3e94611c653a0e3e1319afa7d0f4db72"}),
+  Object.freeze({path:"src/economic/buy_void_allocation_custody_witness_transport_v1.ts",git_blob_sha1:"a5163272f08d6d96a9c2387fa6db344018e09694"}),
+  Object.freeze({path:"src/economic/buy_void_allocation_reservation_high_water_v1.ts",git_blob_sha1:"9383c94cf848efb9a0112f1b741df4e10f790ac6"}),
+  Object.freeze({path:"src/economic/buy_void_allocation_reservation_ledger_v1.ts",git_blob_sha1:"8d84955e1e093a5c5af63241e62b8722fadd2f29"}),
+  Object.freeze({path:"src/economic/buy_void_auto_fulfillment_v1.ts",git_blob_sha1:"b7c963b1d55f000d82ad82289b31107b432503de"}),
+  Object.freeze({path:"src/economic/buy_void_broadcast_outcome_journal_v1.ts",git_blob_sha1:"de8765d306c9ba1153ade10f0e5db92823ef3e39"}),
+  Object.freeze({path:"src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",git_blob_sha1:"e284a38a4b7f3d498b07e77c661d6eef3b742e7a"}),
+  Object.freeze({path:"src/economic/buy_void_execution_attempt_journal_v1.ts",git_blob_sha1:"536b6f6970c3aaf48b1ae0dec3a0356ad7c3a7fe"}),
+  Object.freeze({path:"src/economic/buy_void_filesystem_bakery_lock_v1.ts",git_blob_sha1:"9bd47abb857368d928c0ca289766cdf3571629ba"}),
+  Object.freeze({path:"src/economic/buy_void_fulfillment_confirmation_v1.ts",git_blob_sha1:"31c8ce9b88c86d32e187ed2ca7d0a23344fbd113"}),
+  Object.freeze({path:"src/economic/buy_void_fulfillment_journal_v1.ts",git_blob_sha1:"7c4b099d835b84f50867e873fca763767c80c015"}),
+  Object.freeze({path:"src/economic/buy_void_inventory_reservation_journal_v1.ts",git_blob_sha1:"dc15061a3c4f09ec31da678aa26a731708e70d6c"}),
+  Object.freeze({path:"src/economic/buy_void_verified_payment_v2.ts",git_blob_sha1:"550ede02fc0b7d6874c324af58b5ef9c5591b311"}),
+  Object.freeze({path:"src/security/void_alignment_layer_v1.ts",git_blob_sha1:"002172c5edfa7d34687eb2aba018795aeb53f9d0"}),
+  Object.freeze({path:"src/security/void_sovereign_emergency_control_v1.ts",git_blob_sha1:"1756c395bfb3e3c97aaf98546ae0ec2b59b1bea9"}),
+  Object.freeze({path:"package.json",git_blob_sha1:"14fbdf5717b07fd4c734f5da7a8e84ed59bee93f"}),
+  Object.freeze({path:"package-lock.json",git_blob_sha1:"15b5c82ea36f13079a2f9e8863722f654eb3f201"}),
+  Object.freeze({path:"tsconfig.build.json",git_blob_sha1:"d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb"}),
+]);
+const BUILD_INPUT_COMPILE_FILES_V2 = Object.freeze(
+  BUILD_INPUT_PROJECT_FILES_V2.map((record)=>record.path)
+    .filter((value)=>value.startsWith("src/")),
+);
+const BUILD_INPUT_PACKAGE_ROOTS_V2 = Object.freeze([
+  Object.freeze({
+    path:"node_modules/@types/node",
+    version:"22.18.12",
+    integrity:"sha512-BICHQ67iqxQGFSzfCFTT7MRQ5XcBjG5aeKh5Ok38UBbPe5fxTyE+aHFxwVrGyr8GNlqFMLKD1D3P2K/1ks8tog==",
+  }),
+  Object.freeze({
+    path:"node_modules/undici-types",
+    version:"6.21.0",
+    integrity:"sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==",
+  }),
+]);
+const PRODUCTION_BUILD_INPUT_PROFILE_V2 = Object.freeze({
+  project_files: BUILD_INPUT_PROJECT_FILES_V2,
+  compile_files: BUILD_INPUT_COMPILE_FILES_V2,
+  package_roots: BUILD_INPUT_PACKAGE_ROOTS_V2,
+  types: Object.freeze(["node"]),
+});
+
+function packageTreeFileRecordsV2(root, relativeRoot, maximumFiles=4096, maximumBytes=128*1024*1024){
+  const queue=[relativeRoot], records=[];
+  let totalBytes=0;
+  while(queue.length){
+    const directory=queue.shift();
+    const entries=fs.readdirSync(path.resolve(root,directory),{withFileTypes:true})
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    for(const entry of entries){
+      const relative=path.join(directory,entry.name).split(path.sep).join("/");
+      const absolute=path.resolve(root,relative);
+      const st=fs.lstatSync(absolute);
+      if(st.isSymbolicLink()) fail("legacy_history_nimo_bundle_build_input_package_symlink_forbidden:"+relative);
+      if(st.isDirectory()){ queue.push(relative); continue; }
+      if(!st.isFile()) fail("legacy_history_nimo_bundle_build_input_package_entry_invalid:"+relative);
+      const bytes=readRegular(root,relative,32*1024*1024);
+      totalBytes+=bytes.length;
+      if(records.length>=maximumFiles||totalBytes>maximumBytes){
+        fail("legacy_history_nimo_bundle_build_input_package_inventory_too_large");
+      }
+      records.push(Object.freeze({path:relative,bytes:bytes.length,sha256:sha256(bytes)}));
+    }
+  }
+  records.sort((a,b)=>a.path.localeCompare(b.path));
+  return Object.freeze(records);
+}
+
+function buildInputPackageSummaryV2(root,spec){
+  const lock=JSON.parse(readRegular(root,"package-lock.json").toString("utf8"));
+  const locked=lock?.packages?.[spec.path];
+  if(locked?.version!==spec.version||locked?.integrity!==spec.integrity){
+    fail("legacy_history_nimo_bundle_build_input_package_lock_mismatch:"+spec.path);
+  }
+  const packageJson=JSON.parse(readRegular(root,spec.path+"/package.json",1024*1024).toString("utf8"));
+  if(packageJson.version!==spec.version){
+    fail("legacy_history_nimo_bundle_build_input_package_version_mismatch:"+spec.path);
+  }
+  const files=packageTreeFileRecordsV2(root,spec.path);
+  const canonical=canonicalLegacyHistoryNimoRuntimeBundleJsonV1(files)+"\n";
+  return Object.freeze({
+    path:spec.path,version:spec.version,integrity:spec.integrity,
+    file_count:files.length,total_bytes:files.reduce((sum,r)=>sum+r.bytes,0),
+    tree_sha256:sha256(Buffer.from(canonical,"utf8")),files,
+  });
+}
+
+function buildInputProjectFileRecordsV2(root,profile){
+  return Object.freeze(profile.project_files.map((record)=>{
+    const bytes=readRegular(root,record.path,32*1024*1024);
+    const observed=gitBlobSha1(bytes);
+    if(observed!==record.git_blob_sha1){
+      fail("legacy_history_nimo_bundle_build_input_source_blob_mismatch:"+record.path);
+    }
+    return Object.freeze({
+      path:record.path,git_blob_sha1:observed,bytes:bytes.length,sha256:sha256(bytes),
+    });
+  }));
+}
+
+function buildInputStateV2(root,profile){
+  return Object.freeze({
+    project_files:buildInputProjectFileRecordsV2(root,profile),
+    package_roots:Object.freeze(profile.package_roots.map((spec)=>buildInputPackageSummaryV2(root,spec))),
+  });
+}
+
+function derivedBuildInputTsconfigBytesV2(profile){
+  return Buffer.from(JSON.stringify({
+    extends:"./tsconfig.build.json",
+    compilerOptions:{types:[...profile.types]},
+    files:[...profile.compile_files],
+    include:[],
+    exclude:[],
+  },null,2)+"\n","utf8");
+}
+
+function buildInputSnapshotRecordV2(state,profile){
+  const derived=derivedBuildInputTsconfigBytesV2(profile);
+  const body={
+    schema:BUILD_INPUT_SNAPSHOT_SCHEMA_V2,version:2,
+    project_files:state.project_files,
+    package_roots:state.package_roots.map((record)=>({
+      path:record.path,version:record.version,integrity:record.integrity,
+      file_count:record.file_count,total_bytes:record.total_bytes,tree_sha256:record.tree_sha256,
+    })),
+    compile_files:[...profile.compile_files],
+    compiler_types:[...profile.types],
+    derived_tsconfig_path:BUILD_INPUT_DERIVED_TSCONFIG_V2,
+    derived_tsconfig_bytes:derived.length,
+    derived_tsconfig_sha256:sha256(derived),
+    fixed_parent:COMPILER_SNAPSHOT_PARENT_V2,
+    fixed_parent_root_owned_sticky_required:true,
+    root_owned_snapshot_required:true,
+    directory_mode:"0555",file_mode:"0444",
+    builder_uid_direct_mutation_denied:true,
+  };
+  return Object.freeze({...body,snapshot_id:BUILD_INPUT_SNAPSHOT_ID_PREFIX_V2+
+    sha256(Buffer.from(canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body)+"\n","utf8"))});
+}
+
+function snapshotAllFileRecordsV2(snapshotRoot){
+  const queue=[snapshotRoot],files=[],directories=[];
+  while(queue.length){
+    const directory=queue.shift();
+    directories.push(directory);
+    for(const entry of fs.readdirSync(directory,{withFileTypes:true})){
+      const absolute=path.join(directory,entry.name);
+      const st=fs.lstatSync(absolute);
+      if(st.isSymbolicLink()) fail("legacy_history_nimo_bundle_build_input_snapshot_symlink_forbidden");
+      if(st.isDirectory()) queue.push(absolute);
+      else if(st.isFile()) files.push(absolute);
+      else fail("legacy_history_nimo_bundle_build_input_snapshot_entry_invalid");
+    }
+  }
+  return {directories,files};
+}
+
+function assertBuildInputSnapshotNonwritableV2(snapshotRoot){
+  assertFixedSnapshotParentV2();
+  const inventory=snapshotAllFileRecordsV2(snapshotRoot);
+  for(const directory of inventory.directories){
+    const st=fs.lstatSync(directory);
+    if(st.uid!==0||st.gid!==0||(st.mode&0o7777)!==0o555){
+      fail("legacy_history_nimo_bundle_build_input_snapshot_directory_custody_invalid");
+    }
+  }
+  for(const file of inventory.files){
+    const st=fs.lstatSync(file);
+    if(!st.isFile()||st.isSymbolicLink()||st.uid!==0||st.gid!==0||st.nlink!==1||(st.mode&0o7777)!==0o444){
+      fail("legacy_history_nimo_bundle_build_input_snapshot_file_custody_invalid");
+    }
+  }
+}
+
+function cleanupBuildInputSnapshotV2(snapshotRoot){ cleanupCompilerSnapshotV2(snapshotRoot); }
+
+function createPrivateBuildInputSnapshotV2(sourceRoot,profile){
+  assertFixedSnapshotParentV2();
+  const before=buildInputStateV2(sourceRoot,profile);
+  const snapshotRoot=fs.mkdtempSync(path.join(COMPILER_SNAPSHOT_PARENT_V2,"void-nimo-build-input-snapshot-v2-"));
+  try{
+    fs.chmodSync(snapshotRoot,0o755);
+    const copied=new Set();
+    for(const record of before.project_files){
+      const bytes=readRegular(sourceRoot,record.path,32*1024*1024);
+      const target=path.join(snapshotRoot,record.path);
+      fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o755});
+      fs.writeFileSync(target,bytes,{flag:"wx",mode:0o444});
+      fs.chmodSync(target,0o444);
+      copied.add(record.path);
+    }
+    for(const packageRoot of before.package_roots){
+      for(const record of packageRoot.files){
+        if(copied.has(record.path)) fail("legacy_history_nimo_bundle_build_input_snapshot_duplicate_path");
+        const bytes=readRegular(sourceRoot,record.path,32*1024*1024);
+        if(bytes.length!==record.bytes||sha256(bytes)!==record.sha256){
+          fail("legacy_history_nimo_bundle_build_input_package_source_drift");
+        }
+        const target=path.join(snapshotRoot,record.path);
+        fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o755});
+        fs.writeFileSync(target,bytes,{flag:"wx",mode:0o444});
+        fs.chmodSync(target,0o444);
+        copied.add(record.path);
+      }
+    }
+    const derived=derivedBuildInputTsconfigBytesV2(profile);
+    const derivedTarget=path.join(snapshotRoot,BUILD_INPUT_DERIVED_TSCONFIG_V2);
+    fs.writeFileSync(derivedTarget,derived,{flag:"wx",mode:0o444});
+    fs.chmodSync(derivedTarget,0o444);
+    for(const directory of snapshotAllFileRecordsV2(snapshotRoot).directories.reverse()){
+      fs.chmodSync(directory,0o555);
+    }
+    runPrivilegedSnapshotToolV2(CHOWN_V2,["-R","root:root","--",snapshotRoot],"build_input_chown");
+    assertBuildInputSnapshotNonwritableV2(snapshotRoot);
+    const snapshotState=buildInputStateV2(snapshotRoot,profile);
+    const after=buildInputStateV2(sourceRoot,profile);
+    if(canonicalLegacyHistoryNimoRuntimeBundleJsonV1(before)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(snapshotState)||
+       canonicalLegacyHistoryNimoRuntimeBundleJsonV1(before)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(after)){
+      fail("legacy_history_nimo_bundle_build_input_snapshot_source_mismatch");
+    }
+    const observedDerived=readRegular(snapshotRoot,BUILD_INPUT_DERIVED_TSCONFIG_V2,1024*1024);
+    if(!observedDerived.equals(derived)){
+      fail("legacy_history_nimo_bundle_build_input_derived_tsconfig_mismatch");
+    }
+    return Object.freeze({root:snapshotRoot,state:before,record:buildInputSnapshotRecordV2(before,profile)});
+  }catch(error){
+    cleanupBuildInputSnapshotV2(snapshotRoot);
+    throw error;
+  }
+}
+
 function typescriptPackageLockIntegrityV2(root) {
   const lock = JSON.parse(readRegular(root, "package-lock.json").toString("utf8"));
   const record = lock?.packages?.["node_modules/typescript"];
@@ -803,103 +1050,88 @@ function createPrivateCompilerSnapshotV2(
   }
 }
 
-function compileReviewedRuntimeWithBoundCompilerV2(root, testHooks = null) {
-  const absoluteRoot = path.resolve(root);
-  const compilerBefore = compilerIdentity(absoluteRoot);
-  const packageBefore = typescriptPackageSummaryV2(absoluteRoot);
-  const snapshot = createPrivateCompilerSnapshotV2(
-    absoluteRoot,
-    compilerBefore,
-    packageBefore,
-  );
-  try {
-    fs.rmSync(path.join(absoluteRoot, "dist"), {
-      recursive: true,
-      force: true,
-    });
-
-    if (typeof testHooks?.after_snapshot_before_build === "function") {
+function compileReviewedRuntimeWithBoundCompilerV2(
+  root,
+  testHooks = null,
+  buildInputProfile = PRODUCTION_BUILD_INPUT_PROFILE_V2,
+) {
+  const absoluteRoot=path.resolve(root);
+  const compilerBefore=compilerIdentity(absoluteRoot);
+  const packageBefore=typescriptPackageSummaryV2(absoluteRoot);
+  const buildInputSnapshot=createPrivateBuildInputSnapshotV2(absoluteRoot,buildInputProfile);
+  const snapshot=createPrivateCompilerSnapshotV2(absoluteRoot,compilerBefore,packageBefore);
+  try{
+    fs.rmSync(path.join(absoluteRoot,"dist"),{recursive:true,force:true});
+    if(typeof testHooks?.after_snapshot_before_build==="function"){
       testHooks.after_snapshot_before_build({
-        snapshot_root: snapshot.root,
-        compiler_snapshot: snapshot.record,
+        snapshot_root:snapshot.root,
+        compiler_snapshot:snapshot.record,
+        build_input_snapshot_root:buildInputSnapshot.root,
+        build_input_snapshot:buildInputSnapshot.record,
       });
     }
-
-    const tscEntry = path.join(
-      snapshot.root,
-      "node_modules/typescript/bin/tsc",
-    );
-    const tsconfig = path.join(absoluteRoot, "tsconfig.build.json");
-    const result = spawnSync(
-      process.execPath,
-      [tscEntry, "-p", tsconfig],
-      {
-        cwd: absoluteRoot,
-        env: { ...CANDIDATE_COMPILE_ENV_V2 },
-        encoding: "utf8",
-        timeout: 120_000,
-        maxBuffer: 2 * 1024 * 1024,
-      },
-    );
-    if (result.error) {
-      fail("legacy_history_nimo_bundle_candidate_compile_spawn_failed");
-    }
-    if (
-      result.status !== 0 ||
-      result.signal !== null ||
-      result.stdout !== "" ||
-      result.stderr !== ""
-    ) {
+    const tscEntry=path.join(snapshot.root,"node_modules/typescript/bin/tsc");
+    const tsconfig=path.join(buildInputSnapshot.root,BUILD_INPUT_DERIVED_TSCONFIG_V2);
+    const result=spawnSync(process.execPath,[
+      tscEntry,"-p",tsconfig,"--outDir",path.join(absoluteRoot,"dist"),
+    ],{
+      cwd:buildInputSnapshot.root,
+      env:{...CANDIDATE_COMPILE_ENV_V2},
+      encoding:"utf8",timeout:120_000,maxBuffer:2*1024*1024,
+    });
+    if(result.error) fail("legacy_history_nimo_bundle_candidate_compile_spawn_failed");
+    if(result.status!==0||result.signal!==null||result.stdout!==""||result.stderr!==""){
       fail("legacy_history_nimo_bundle_candidate_compile_failed_or_output");
     }
-
-    if (typeof testHooks?.after_build_before_revalidation === "function") {
+    if(typeof testHooks?.after_build_before_revalidation==="function"){
       testHooks.after_build_before_revalidation({
-        snapshot_root: snapshot.root,
-        compiler_snapshot: snapshot.record,
+        snapshot_root:snapshot.root,
+        compiler_snapshot:snapshot.record,
+        build_input_snapshot_root:buildInputSnapshot.root,
+        build_input_snapshot:buildInputSnapshot.record,
       });
     }
 
-    assertCompilerSnapshotNonwritableV2(snapshot.root, packageBefore);
-    const snapshotAfter = snapshotCompilerIdentityV2(snapshot.root);
-    const snapshotPackageAfter = snapshotPackageSummaryV2(
-      snapshot.root,
-      packageBefore.package_lock_integrity,
-    );
-    if (
-      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(snapshotAfter) !==
-        canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerBefore) ||
-      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(snapshotPackageAfter.files) !==
-        canonicalLegacyHistoryNimoRuntimeBundleJsonV1(packageBefore.files)
-    ) {
+    assertCompilerSnapshotNonwritableV2(snapshot.root,packageBefore);
+    assertBuildInputSnapshotNonwritableV2(buildInputSnapshot.root);
+    const snapshotAfter=snapshotCompilerIdentityV2(snapshot.root);
+    const snapshotPackageAfter=snapshotPackageSummaryV2(snapshot.root,packageBefore.package_lock_integrity);
+    if(canonicalLegacyHistoryNimoRuntimeBundleJsonV1(snapshotAfter)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerBefore)||
+       canonicalLegacyHistoryNimoRuntimeBundleJsonV1(snapshotPackageAfter.files)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(packageBefore.files)){
       fail("legacy_history_nimo_bundle_compiler_snapshot_changed_during_build");
     }
 
-    const compilerAfter = compilerIdentity(absoluteRoot);
-    const packageAfter = typescriptPackageSummaryV2(absoluteRoot);
-    if (
-      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerAfter) !==
-        canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerBefore) ||
-      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(packageAfter.files) !==
-        canonicalLegacyHistoryNimoRuntimeBundleJsonV1(packageBefore.files) ||
-      packageAfter.package_lock_integrity !== packageBefore.package_lock_integrity
-    ) {
+    const buildInputSnapshotAfter=buildInputStateV2(buildInputSnapshot.root,buildInputProfile);
+    const buildInputSourceAfter=buildInputStateV2(absoluteRoot,buildInputProfile);
+    if(canonicalLegacyHistoryNimoRuntimeBundleJsonV1(buildInputSnapshotAfter)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(buildInputSnapshot.state)||
+       canonicalLegacyHistoryNimoRuntimeBundleJsonV1(buildInputSourceAfter)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(buildInputSnapshot.state)){
+      fail("legacy_history_nimo_bundle_build_input_generation_changed_during_build");
+    }
+
+    const compilerAfter=compilerIdentity(absoluteRoot);
+    const packageAfter=typescriptPackageSummaryV2(absoluteRoot);
+    if(canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerAfter)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(compilerBefore)||
+       canonicalLegacyHistoryNimoRuntimeBundleJsonV1(packageAfter.files)!==canonicalLegacyHistoryNimoRuntimeBundleJsonV1(packageBefore.files)||
+       packageAfter.package_lock_integrity!==packageBefore.package_lock_integrity){
       fail("legacy_history_nimo_bundle_compiler_generation_changed_during_build");
     }
     return Object.freeze({
-      compiler: compilerAfter,
-      compiler_snapshot: snapshot.record,
+      compiler:compilerAfter,
+      compiler_snapshot:snapshot.record,
+      build_input_snapshot:buildInputSnapshot.record,
     });
-  } finally {
+  }finally{
     cleanupCompilerSnapshotV2(snapshot.root);
+    cleanupBuildInputSnapshotV2(buildInputSnapshot.root);
   }
 }
 
 export function testOnlyCompileReviewedRuntimeWithBoundCompilerV2(
   root,
   hooks = null,
+  buildInputProfile = PRODUCTION_BUILD_INPUT_PROFILE_V2,
 ) {
-  return compileReviewedRuntimeWithBoundCompilerV2(root, hooks);
+  return compileReviewedRuntimeWithBoundCompilerV2(root, hooks, buildInputProfile);
 }
 
 function candidateId(body) {
@@ -922,6 +1154,7 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
   const compiled = compileReviewedRuntimeWithBoundCompilerV2(root);
   const compiler = compiled.compiler;
   const compilerSnapshot = compiled.compiler_snapshot;
+  const buildInputSnapshot = compiled.build_input_snapshot;
   const runtime = runtimeClosure(root);
   const plan = planVoidBuyVoidLegacyHistoryNimoInstallV1();
 
@@ -942,9 +1175,10 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     parent_source_inputs: sourceInputs,
     compiler,
     compiler_snapshot: compilerSnapshot,
+    build_input_snapshot: buildInputSnapshot,
     build_recipe: {
       dependency_install: "npm ci --ignore-scripts --no-audit --no-fund",
-      compile: "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p tsconfig.build.json",
+      compile: "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <candidate-dist>",
       compile_node_executable_source: "process.execPath",
       compile_environment: CANDIDATE_COMPILE_ENV_V2,
       candidate_owned_rebuild_required: true,
@@ -955,6 +1189,10 @@ export function buildVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
       compiler_snapshot_builder_uid_direct_mutation_denied_required: true,
       compiler_source_post_revalidation_required: true,
       compiler_snapshot_post_revalidation_required: true,
+      build_input_snapshot_required: true,
+      build_input_snapshot_root_custody_required: true,
+      build_input_snapshot_builder_uid_direct_mutation_denied_required: true,
+      build_input_snapshot_post_revalidation_required: true,
       source_maps_expected: false,
       supported_node_majors: [22, 24, 26],
       three_node_byte_equality_required: true,
@@ -992,7 +1230,7 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
   exactKeys(
     candidate,
     [
-      "authority","authorized_keys_mutation_authorized","build_recipe",
+      "authority","authorized_keys_mutation_authorized","build_input_snapshot","build_recipe",
       "candidate_id","compiler","compiler_snapshot","entrypoint","external_node_builtins",
       "external_transport_authenticated","funds_movement","live_nimo_installed",
       "marker","next_gate","node_modules_runtime_files","parent_plan",
@@ -1178,6 +1416,16 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     body.compiler,
     typescriptPackageSummaryV2(root),
   );
+  const expectedBuildInputSnapshot = buildInputSnapshotRecordV2(
+    buildInputStateV2(root, PRODUCTION_BUILD_INPUT_PROFILE_V2),
+    PRODUCTION_BUILD_INPUT_PROFILE_V2,
+  );
+  if (
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body.build_input_snapshot) !==
+      canonicalLegacyHistoryNimoRuntimeBundleJsonV1(expectedBuildInputSnapshot)
+  ) {
+    fail("legacy_history_nimo_bundle_build_input_snapshot_identity_invalid");
+  }
   if (
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body.compiler_snapshot) !==
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(expectedCompilerSnapshot)
@@ -1188,6 +1436,10 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
   exactKeys(
     body.build_recipe,
     [
+      "build_input_snapshot_builder_uid_direct_mutation_denied_required",
+      "build_input_snapshot_post_revalidation_required",
+      "build_input_snapshot_required",
+      "build_input_snapshot_root_custody_required",
       "candidate_owned_rebuild_required","compile",
       "compile_environment","compile_node_executable_source",
       "compiler_pre_post_identity_required","compiler_snapshot_required",
@@ -1205,7 +1457,7 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     body.build_recipe.dependency_install !==
       "npm ci --ignore-scripts --no-audit --no-fund" ||
     body.build_recipe.compile !==
-      "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p tsconfig.build.json" ||
+      "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <candidate-dist>" ||
     body.build_recipe.compile_node_executable_source !== "process.execPath" ||
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
       body.build_recipe.compile_environment,
@@ -1220,6 +1472,10 @@ export function verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
     body.build_recipe.compiler_snapshot_builder_uid_direct_mutation_denied_required !== true ||
     body.build_recipe.compiler_source_post_revalidation_required !== true ||
     body.build_recipe.compiler_snapshot_post_revalidation_required !== true ||
+    body.build_recipe.build_input_snapshot_required !== true ||
+    body.build_recipe.build_input_snapshot_root_custody_required !== true ||
+    body.build_recipe.build_input_snapshot_builder_uid_direct_mutation_denied_required !== true ||
+    body.build_recipe.build_input_snapshot_post_revalidation_required !== true ||
     body.build_recipe.source_maps_expected !== false ||
     canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
       body.build_recipe.supported_node_majors,

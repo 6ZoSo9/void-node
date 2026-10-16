@@ -190,3 +190,35 @@ Next gate after accepted V2 hosted derivation:
 `void_buy_void_legacy_history_nimo_runtime_bundle_lock_v2`.
 
 PROTECT THE CORE.
+
+
+## Immutable build-input provenance
+
+Candidate-owned compilation now executes against a second private snapshot in
+addition to the root-custodied TypeScript compiler snapshot.
+
+The build-input snapshot binds the 15-file transitive TypeScript program used by
+the nine compiled runtime files, plus reviewed `package.json`,
+`package-lock.json`, and `tsconfig.build.json`. The only compiler type
+packages admitted into the snapshot are the exact locked
+`@types/node@22.18.12` and `undici-types@6.21.0` trees.
+
+A deterministic derived tsconfig extends the reviewed build config, fixes the
+program to those 15 files, and fixes the type set to `node`. Project source,
+config, and type-package bytes are copied into a private `/tmp` snapshot,
+then finalized root:root with 0555 directories and 0444 files before TypeScript
+executes. The ordinary candidate-builder UID cannot chmod, replace, unlink, or
+rewrite those inputs during the build.
+
+Compilation uses the root-custodied compiler snapshot and the root-custodied
+build-input snapshot simultaneously. Both immutable snapshots and the mutable
+checkout source/package endpoints are revalidated after execution.
+
+The focused proof now substitutes and later restores both a source file and
+`tsconfig.build.json` after snapshot creation, while also attempting direct
+chmod/write/unlink against the snapshot. Emitted JavaScript must remain bound to
+the immutable reviewed snapshot generation.
+
+This closes the source/config ABA class without granting Nimo contact,
+installation, witness access, signing, payment, transaction, presale/WC, or
+funds authority.

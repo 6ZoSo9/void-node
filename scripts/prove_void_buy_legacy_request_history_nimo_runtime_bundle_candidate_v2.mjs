@@ -258,10 +258,29 @@ assert.equal(
     );
 
     binOriginal = fs.readFileSync(binTarget);
+    const probePath = path.join(fixture, "src/probe.ts");
+    const configPath = path.join(fixture, "tsconfig.build.json");
+    const probeOriginal = fs.readFileSync(probePath);
+    const configOriginal = fs.readFileSync(configPath);
+    const fixtureBuildInputProfile = Object.freeze({
+      project_files: Object.freeze([
+        Object.freeze({path:"src/probe.ts",git_blob_sha1:gitBlob(probeOriginal)}),
+        Object.freeze({path:"tsconfig.build.json",git_blob_sha1:gitBlob(configOriginal)}),
+      ]),
+      compile_files: Object.freeze(["src/probe.ts"]),
+      package_roots: Object.freeze([]),
+      types: Object.freeze([]),
+    });
+    let observedBuildInputSnapshotRoot = null;
     const compiled =
       testOnlyCompileReviewedRuntimeWithBoundCompilerV2(fixture, {
-        after_snapshot_before_build({ snapshot_root, compiler_snapshot }) {
+        after_snapshot_before_build({
+          snapshot_root, compiler_snapshot,
+          build_input_snapshot_root, build_input_snapshot,
+        }) {
           observedSnapshotRoot = snapshot_root;
+          observedBuildInputSnapshotRoot = build_input_snapshot_root;
+          assert.match(build_input_snapshot.snapshot_id, /^voidblrhnbsnap2_[0-9a-f]{64}$/u);
           assert.equal(
             compiler_snapshot.snapshot_id,
             candidate.compiler_snapshot.snapshot_id,
@@ -288,22 +307,54 @@ assert.equal(
                 error?.code === "EROFS",
             );
           }
+          for (const snapshotEntry of [
+            path.join(build_input_snapshot_root, "src/probe.ts"),
+            path.join(build_input_snapshot_root, "tsconfig.build.json"),
+          ]) {
+            const st = fs.lstatSync(snapshotEntry);
+            assert.equal(st.uid, 0);
+            assert.equal(st.gid, 0);
+            assert.equal(st.mode & 0o7777, 0o444);
+            for (const mutate of [
+              () => fs.chmodSync(snapshotEntry, 0o600),
+              () => fs.appendFileSync(snapshotEntry, "\n// forbidden\n"),
+              () => fs.unlinkSync(snapshotEntry),
+            ]) {
+              assert.throws(
+                mutate,
+                (error) =>
+                  error?.code === "EACCES" ||
+                  error?.code === "EPERM" ||
+                  error?.code === "EROFS",
+              );
+            }
+          }
           fs.writeFileSync(
             binTarget,
             '#!/usr/bin/env node\nthrow new Error("checkout compiler ABA executed");\n',
             "utf8",
           );
+          fs.writeFileSync(probePath,'export const compilerSnapshotProbe = "red";\n',"utf8");
+          fs.writeFileSync(configPath,JSON.stringify({
+            compilerOptions:{
+              target:"ES2022",module:"CommonJS",outDir:"dist",rootDir:"src",noEmit:true,
+            },
+            include:["src/**/*.ts"],
+          })+"\n","utf8");
         },
         after_build_before_revalidation() {
-          assert.equal(
-            fs.existsSync(path.join(fixture, "dist/probe.js")),
-            true,
-          );
+          assert.equal(fs.existsSync(path.join(fixture, "dist/probe.js")),true);
+          const emitted=fs.readFileSync(path.join(fixture,"dist/probe.js"),"utf8");
+          assert.match(emitted,/green/u);
+          assert.doesNotMatch(emitted,/red/u);
           fs.writeFileSync(binTarget, binOriginal);
+          fs.writeFileSync(probePath, probeOriginal);
+          fs.writeFileSync(configPath, configOriginal);
         },
-      });
+      }, fixtureBuildInputProfile);
 
     assert.ok(observedSnapshotRoot);
+    assert.ok(observedBuildInputSnapshotRoot);
     assert.deepEqual(compiled.compiler, candidate.compiler);
     assert.deepEqual(
       compiled.compiler_snapshot,
@@ -313,7 +364,9 @@ assert.equal(
       testOnlyLegacyHistoryNimoCompilerIdentityV2(fixture),
       candidate.compiler,
     );
+    assert.match(compiled.build_input_snapshot.snapshot_id,/^voidblrhnbsnap2_[0-9a-f]{64}$/u);
     assert.equal(fs.existsSync(observedSnapshotRoot), false);
+    assert.equal(fs.existsSync(observedBuildInputSnapshotRoot), false);
   } finally {
     if (binOriginal && fs.existsSync(binTarget)) {
       fs.writeFileSync(binTarget, binOriginal);
@@ -328,7 +381,7 @@ assert.equal(
 );
 assert.equal(
   candidate.build_recipe.compile,
-  "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p tsconfig.build.json",
+  "node <private-compiler-snapshot>/node_modules/typescript/bin/tsc -p <root-custodied-build-input-snapshot>/tsconfig.nimo-runtime-bundle-snapshot-v2.json --outDir <candidate-dist>",
 );
 assert.equal(
   candidate.build_recipe.compile_node_executable_source,
@@ -352,6 +405,15 @@ assert.equal(
 );
 assert.equal(candidate.build_recipe.compiler_source_post_revalidation_required, true);
 assert.equal(candidate.build_recipe.compiler_snapshot_post_revalidation_required, true);
+assert.equal(candidate.build_recipe.build_input_snapshot_required, true);
+assert.equal(candidate.build_recipe.build_input_snapshot_root_custody_required, true);
+assert.equal(candidate.build_recipe.build_input_snapshot_builder_uid_direct_mutation_denied_required, true);
+assert.equal(candidate.build_recipe.build_input_snapshot_post_revalidation_required, true);
+assert.match(candidate.build_input_snapshot.snapshot_id,/^voidblrhnbsnap2_[0-9a-f]{64}$/u);
+assert.equal(candidate.build_input_snapshot.project_files.length,18);
+assert.equal(candidate.build_input_snapshot.compile_files.length,15);
+assert.deepEqual(candidate.build_input_snapshot.compiler_types,["node"]);
+assert.equal(candidate.build_input_snapshot.package_roots.length,2);
 assert.equal(candidate.build_recipe.source_maps_expected, false);
 assert.deepEqual(candidate.build_recipe.supported_node_majors, [22, 24, 26]);
 assert.equal(candidate.build_recipe.three_node_byte_equality_required, true);
@@ -444,6 +506,14 @@ for (const [key, expected] of Object.entries({
   compiler_snapshot_builder_uid_direct_mutation_denied: true,
   compiler_source_post_revalidation_required: true,
   compiler_snapshot_post_revalidation_required: true,
+  build_input_private_snapshot_required: true,
+  build_input_snapshot_content_addressed: true,
+  build_input_snapshot_root_custody_required: true,
+  build_input_snapshot_builder_uid_direct_mutation_denied: true,
+  build_input_snapshot_post_revalidation_required: true,
+  build_input_source_generation_bound: true,
+  build_input_tsconfig_generation_bound: true,
+  build_input_type_packages_bound: true,
   candidate_owned_rebuild_required: true,
   three_node_byte_equality_required: true,
   candidate_report_filesystem_write: true,
@@ -671,6 +741,12 @@ console.log("compiler_snapshot_builder_uid_direct_mutation_denied=true");
 console.log("compiler_snapshot_chmod_substitute_restore_rejected=true");
 console.log("compiler_snapshot_post_revalidated=true");
 console.log("compiler_aba_checkout_mutation_isolated=true");
+console.log("build_input_snapshot_bound=true");
+console.log("build_input_snapshot_root_custody=true");
+console.log("build_input_snapshot_builder_uid_direct_mutation_denied=true");
+console.log("build_input_snapshot_post_revalidated=true");
+console.log("build_input_source_aba_isolated=true");
+console.log("build_input_tsconfig_aba_isolated=true");
 console.log("compiler_closed_environment=true");
 console.log("typescript_cli_entry_fixture_tamper_rejected=true");
 console.log("typescript_cli_loader_fixture_tamper_rejected=true");
