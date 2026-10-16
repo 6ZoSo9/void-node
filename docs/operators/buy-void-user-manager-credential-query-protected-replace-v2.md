@@ -85,31 +85,43 @@ own inode remains removable.
 ## Crash/restart state machine
 
 Future apply/rollback execution must hold an exclusive non-blocking kernel
-`flock` on the retained protected install-root directory descriptor for the
-complete mutation interval. A second live compliant invocation therefore HOLDs
-instead of cleaning or advancing the first invocation's state. A process crash
-releases that kernel lock.
+`flock` on the retained **stable `/opt` parent directory descriptor** for the
+complete mutation interval. The replaceable child install-root directory is
+opened separately and its visible generation is revalidated against the
+retained child descriptor immediately before protected transitions. Locking the
+child directory itself is not the reviewed serialization authority.
 
-Under the lock, the protected root recognizes exactly five generation states:
+A second live compliant invocation therefore HOLDs on the same stable parent
+inode even if the visible child install-root pathname is renamed/recreated.
+A process crash releases the kernel lock.
+
+Under the stable parent lock, the protected root recognizes exactly six
+generation states:
 
 - `CREDENTIAL_QUERY_V1_GREEN_READY_FOR_V2`: V1 target, no stage/predecessor;
 - `CREDENTIAL_QUERY_V2_STAGE_READY_WITH_V1`: V1 target + exact V2 stage;
 - `CREDENTIAL_QUERY_V2_EXCHANGED_PENDING_PREDECESSOR`: V2 target + exact V1 stage;
 - `CREDENTIAL_QUERY_V2_GREEN_WITH_V1_PREDECESSOR`: V2 target + exact V1 predecessor;
-- `CREDENTIAL_QUERY_V1_ROLLBACK_PENDING_V2_CLEANUP`: V1 target + exact V2 predecessor.
+- `CREDENTIAL_QUERY_V1_ROLLBACK_PENDING_V2_CLEANUP`: V1 target + exact V2 predecessor;
+- `CREDENTIAL_QUERY_V2_PRIVATE_PENDING_RECOVERY_REQUIRED`: V1 target plus
+  exactly one private pending staging name created before visible stage
+  publication. The pending file may be partial or complete, but must satisfy
+  the reviewed root-owned/single-link/bounded-mode and size envelope.
 
-The exact root-entry set is part of every state classification. Unknown or
-mixed generations HOLD.
+The exact visible root-entry set is part of every state classification. Unknown
+or mixed generations HOLD.
 
-With the explicit V1→V2 apply token, the two forward crash states resume toward
-V2 GREEN. A rollback-pending state requires the rollback token rather than
-silently re-applying V2.
+With the explicit V1→V2 apply token, the two visible forward crash states resume
+toward V2 GREEN. A private-pending state first removes only the reviewed private
+pending name under the stable parent lock, fsyncs the child directory, rechecks
+V1 READY, and only then begins a fresh V2 stage. A rollback-pending state
+requires the rollback token rather than silently re-applying V2.
 
 With the explicit rollback token, V2 GREEN and all exact partial apply/rollback
-states recover toward V1 READY. Directory fsync follows every exchange,
-publication, or cleanup transition. A crash before a directory fsync may leave
-either neighboring exact state; both are reclassified on restart rather than
-being treated as implicit success.
+states—including private-pending cleanup—recover toward V1 READY. Directory
+fsync follows every exchange, publication, or cleanup transition. A crash
+before a directory fsync may leave either neighboring exact state; both are
+reclassified on restart rather than being treated as implicit success.
 
 ## Deliberate rollback
 
@@ -120,6 +132,41 @@ Rollback requires the exact V2-green state plus:
 It atomically restores V1, verifies V2 at the predecessor path, removes only
 that verified V2 residue, fsyncs, and requires the original V1-ready state.
 
+## Behavioral proof boundary
+
+Hosted CI runs the ordinary source/plan proof unprivileged and a separate
+passwordless-sudo **disposable `/tmp` root fixture**. The root fixture imports
+the exact current replacement source but redirects its fixed `OPT_ROOT` and
+install-root globals to root-owned temporary directories; it never points them
+at host `/opt`.
+
+That fixture behaviorally executes:
+
+- the real `_create_exact_stage()` path and requires finalized private bytes
+  plus file fsync before no-replace stage publication and directory fsync;
+- the real stable-parent `_open_protected_root()` flock using two independent
+  opens;
+- child install-root rename/recreate while the parent lock is held, requiring
+  `_require_visible_install_root()` to reject the replacement generation and
+  requiring a second compliant opener to remain serialized by the parent lock;
+- the real `CREDENTIAL_QUERY_V2_PRIVATE_PENDING_RECOVERY_REQUIRED`
+  classifier from an incomplete private pending file;
+- the real forward `apply()` state machine from that private-pending state,
+  including pending cleanup, fresh stage publication, atomic exchange and V1
+  predecessor retention through V2 GREEN;
+- the real `rollback()` state machine from V2 GREEN back to exact V1 READY,
+  including removal of only the verified V2 residue while the static preexec
+  remains unchanged.
+
+The fixture substitutes only the accepted-lock lookup because its test V1/V2
+payloads are deliberately tiny synthetic bytes; all filesystem/locking/state
+transition primitives under test are the production functions. It runs under
+Python isolated mode with a closed environment and redirects the fixed
+`OPT_ROOT`/install-root globals exclusively into the disposable `/tmp` tree.
+
+The fixture controls the corresponding GREEN markers. Static source substrings
+or unconditional self-test prints are not accepted as behavioral evidence for
+these repaired properties.
 ## Authority boundary
 
 This source does not execute the credential query and does not read credential
