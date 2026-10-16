@@ -702,6 +702,23 @@ function rehashCandidate(value) {
   return clone;
 }
 
+function rehashRuntimeOutputSnapshot(value) {
+  const clone = structuredClone(value);
+  const { snapshot_id: _ignored, ...body } = clone;
+  clone.snapshot_id =
+    "voidblrhnoutsnap2_" +
+    crypto
+      .createHash("sha256")
+      .update(
+        Buffer.from(
+          canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body) + "\n",
+          "utf8",
+        ),
+      )
+      .digest("hex");
+  return clone;
+}
+
 {
   const tampered = structuredClone(candidate);
   const compiled = tampered.runtime_files.find(
@@ -709,6 +726,29 @@ function rehashCandidate(value) {
   );
   assert.ok(compiled);
   compiled.sha256 = "0".repeat(64);
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_runtime_output_snapshot_identity_invalid/u,
+  );
+}
+{
+  const tampered = structuredClone(candidate);
+  const compiled = tampered.runtime_files.find(
+    (record) => record.runtime_kind === "compiled_typescript",
+  );
+  assert.ok(compiled);
+  compiled.sha256 = "0".repeat(64);
+  const outputRecord = tampered.runtime_output_snapshot.compiled_files.find(
+    (record) => record.path === compiled.path,
+  );
+  assert.ok(outputRecord);
+  outputRecord.sha256 = compiled.sha256;
+  tampered.runtime_output_snapshot = rehashRuntimeOutputSnapshot(
+    tampered.runtime_output_snapshot,
+  );
   assert.throws(
     () =>
       verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
@@ -903,6 +943,8 @@ console.log("typescript_cli_loader_fixture_tamper_rejected=true");
 console.log("typescript_cli_edge_fixture_tamper_rejected=true");
 console.log("third_party_runtime_packages=0");
 console.log("node_modules_runtime_files=0");
+console.log("runtime_output_snapshot_mismatch_rejected=true");
+console.log("rehashed_runtime_output_snapshot_tamper_rejected=true");
 console.log("rehashed_runtime_bytes_tamper_rejected=true");
 console.log("rehashed_compiler_bytes_tamper_rejected=true");
 console.log("rehashed_compiler_snapshot_tamper_rejected=true");
