@@ -113,6 +113,12 @@ def verify_scope()->None:
         raise AssertionError("candidate proof blob drift")
     if git(["rev-parse","HEAD:"+CANDIDATE_WORKFLOW_REL])!=CANDIDATE_WORKFLOW_BLOB:
         raise AssertionError("candidate workflow blob drift")
+    git(["cat-file","-e",CANDIDATE_MERGE_COMMIT+"^{commit}"])
+    git(["merge-base","--is-ancestor",CANDIDATE_HEAD,CANDIDATE_MERGE_COMMIT])
+    if git(["rev-parse",CANDIDATE_MERGE_COMMIT+":"+CANDIDATE_PROOF_REL])!=CANDIDATE_PROOF_BLOB:
+        raise AssertionError("candidate merge proof blob mismatch")
+    if git(["rev-parse",CANDIDATE_MERGE_COMMIT+":"+CANDIDATE_WORKFLOW_REL])!=CANDIDATE_WORKFLOW_BLOB:
+        raise AssertionError("candidate merge workflow blob mismatch")
     if git(["status","--porcelain=v1","--untracked-files=all"]):
         raise AssertionError("lock checkout not clean")
 
@@ -338,6 +344,7 @@ def main()->None:
     print("preexec_binary_sha256="+PREEXEC_SHA256)
     print("query_binary_sha256="+QUERY_SHA256)
     print("candidate_proof_reexecuted_at_exact_head=true")
+    print("candidate_merge_lineage_verified=true")
     print("complete_native_toolchain_provenance_bound=true")
     print("closed_link_trace_grammar_required=true")
     print("preexec_predecessor_identity_exact=true")
