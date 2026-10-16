@@ -115,3 +115,25 @@ Next source gate after a future GREEN live run:
 `BIND_V3R_AUTHENTICATED_CREDENTIAL_METADATA_IN_EPOCH2_LIVE_COMPOSITION_SUCCESSOR`.
 
 PROTECT THE CORE.
+
+## Nested V6 HOLD propagation
+
+The V3R qualifier loads V6 as an authenticated source module. Its declared
+`QualificationError` class is therefore distinct from V3R's own
+`QualificationError` class.
+
+V3R now catches **only** the nested V6 module's declared qualification HOLD and
+re-emits it through the V3R HOLD boundary as:
+
+`v6_security_qualification_hold:<v6-reason>`.
+
+This prevents a normal V6 qualification HOLD from escaping as generic Python
+exit status `1`, which previously hid the actual V6 reason from the outer
+Epoch-2 live-composition runner.
+
+Unexpected V6 exceptions are deliberately not translated or masked. They still
+escape as code defects.
+
+This repair changes error propagation only. It grants no query, credential,
+signing, transaction, service, presale/WC, treasury, or funds authority.
+
