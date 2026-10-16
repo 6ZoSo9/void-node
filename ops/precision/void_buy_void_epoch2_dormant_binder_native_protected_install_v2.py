@@ -612,6 +612,7 @@ def apply(
     )
     stage_created = False
     published = False
+    publication_occurred = False
     rollback_attempted = False
     rollback_green = False
     failure_phase = "before_stage"
@@ -669,6 +670,7 @@ def apply(
         )
         stage_created = False
         published = True
+        publication_occurred = True
         os.fsync(parent_fd)
 
         failure_phase = "post_publish_verify"
@@ -718,7 +720,7 @@ def apply(
         print("status=HOLD")
         print("reason=" + str(exc))
         print("failure_phase=" + failure_phase)
-        print("publication_performed=" + str(published or failure_phase == "post_publish_verify").lower())
+        print("publication_performed=" + str(publication_occurred).lower())
         print("rollback_attempted=" + str(rollback_attempted).lower())
         print("rollback_green=" + str(rollback_green).lower())
         print("final_protected_state=" + final_state)
