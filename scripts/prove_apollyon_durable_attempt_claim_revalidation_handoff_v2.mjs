@@ -323,7 +323,7 @@ for(const required of [
   "exec_in_place_source_drift_rejected_required:true",
   "provenance_source_identity_drift_before_mutation_rejects_required:true",
   "exec_sensitive_source_identity_revalidation_must_be_proven:true",
-  "privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation_required:true",
+  "privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation:true",
   "claim_service_local_revalidation_after_challenge_response_required:true",
   "no_unbounded_or_external_work_between_challenge_response_and_store_mutation_required:true",
   "serialized_privileged_attestation_or_bearer_token_forbidden:true",
