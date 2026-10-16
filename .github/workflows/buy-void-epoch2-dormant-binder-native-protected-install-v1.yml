@@ -1,0 +1,120 @@
+name: Buy VOID Epoch-2 dormant binder protected install v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v1.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.json"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v1.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.json"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact stacked generation
+        run: |
+          set -euo pipefail
+          lock_head=c214868fb515e52778f5997f07c14ce10397e063
+          git merge-base --is-ancestor "$lock_head" HEAD
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v1.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v1.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$lock_head" HEAD -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v1.py)" = \
+            2ec6e0160a79d8a9de0641d22eb5b1018ca6a081
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v1.py)" = \
+            8fa70e07cd5a44588a54e99669f30aa36e1b1d5e
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v2.json)" = \
+            9e9661ded53116e2c3312108294a2675b6a6f900
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" = \
+            4fdf3f627f407335b9d50800fbbc913d1edae523
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" = \
+            9c29eb4716077e459b9154f39d0f30cf2e56729f
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v1.py",
+              "scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v1.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PROTECTED_INSTALL_V1_SYNTAX_GREEN")
+          PY
+
+      - name: Prove source-only installer
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/dormant-binder-install-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v1.py |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PROTECTED_INSTALL_V1_PROOF_GREEN"
+            "accepted_dormant_binder_lock_bound=true"
+            "exact_native_candidate_bound=true"
+            "exact_binder_git_object_bound=true"
+            "distinct_fixed_install_root=true"
+            "root_git_object_stdin_required_for_apply=true"
+            "create_only=true"
+            "atomic_root_publication_required=true"
+            "rename_noreplace_required=true"
+            "native_mode_0555=true"
+            "binder_mode_0444=true"
+            "staging_cleanup_before_publication_failure=true"
+            "explicit_apply_confirmation_required=true"
+            "truthful_post_publication_failure_receipt=true"
+            "post_publication_failure_requires_inspection=true"
+            "native_execution=false"
+            "binder_execution=false"
+            "service_mutation=false"
+            "systemd_mutation=false"
+            "credential_access=false"
+            "private_key_access=false"
+            "signing=false"
+            "transaction=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "funds_movement=false"
+            "production_host_evidence_authority=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
