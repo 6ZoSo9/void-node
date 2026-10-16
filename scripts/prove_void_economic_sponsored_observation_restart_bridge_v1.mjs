@@ -26,7 +26,7 @@ import {
 const ROOT=process.cwd();
 const EXPECTED_BLOBS=Object.freeze({
   "tools/void-economic-sponsored-observation-restart-bridge-v1.mjs":
-    "eb330ba2b9ac0c7a1d4f34433dc285f25b00e236",
+    "895cee87a47b1ad75f7b8fff864c9cbd4ab44adb",
   "tools/void-economic-sponsored-host-observation-time-store-binding-v1.mjs":
     "7cfba597ddf9667021b662ce3e4ac8c0c3f1103b",
   "tools/void-economic-sponsored-host-trusted-clock-binding-v1.mjs":
@@ -326,6 +326,15 @@ assert.throws(
 );
 
 {
+  const revoked=Proxy.revocable({}, {});
+  revoked.revoke();
+  assert.throws(
+    ()=>qualifyVoidEconomicSponsoredObservationRestartBridgeV1(revoked.proxy),
+    /sponsored_restart_bridge_input_invalid/u,
+  );
+}
+
+{
   let nestedReads=0;
   const nestedSample={
     boot_id:currentBinding.observation_sample.boot_id,
@@ -404,6 +413,7 @@ console.log("VOID_ECONOMIC_SPONSORED_OBSERVATION_RESTART_BRIDGE_V1_PROOF_GREEN")
 console.log("prior_durable_head_independently_inspected=true");
 console.log("prior_composition_receipt_bound=true");
 console.log("prior_host_binding_bound=true");
+console.log("revoked_proxy_rejected_before_array_reflection=true");
 console.log("nested_host_sample_accessor_rejected_without_read=true");
 console.log("same_boot_restart_required=true");
 console.log("changed_process_generation_required=true");
