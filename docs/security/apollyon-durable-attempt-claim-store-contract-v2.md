@@ -91,6 +91,14 @@ Socket lifecycle is restart-safe as well as request-safe: publication is create-
 
 Authentication is bidirectional. The server validates the publisher before reading the body; the publisher/client authenticates the server before sending the body and again before accepting the response. Server UID/GID/PID, PID start ticks, executable/source generation and socket inode must remain stable across the request/response. Path replacement, peer PID reuse, wrong executable/source, or server restart mid-request is a HOLD.
 
+## Stable store policy vs per-admission contract
+
+The physical protected store has a terminal-independent content-addressed `store_policy_id`, derived only from this versioned store policy/requirements. It is the persistent policy identity carried by generation records and migration continuity receipts.
+
+Each admitted terminal receipt still produces its own terminal-specific `store_contract_id`. That admission ID binds the exact authorization/custody/request generation and is carried by that claim record/request/response. Different valid admissions may therefore have different `store_contract_id` values while sharing the same exact `store_policy_id`.
+
+A current claim record must re-derive both identities: its `store_contract_id` from the supplied terminal receipt and its `store_policy_id` from the reviewed policy. Generation/continuity state never substitutes one for the other.
+
 ## Store-generation history continuity
 
 Store replacement never resets replay history. A non-genesis migration must advance to a different store-generation ID and a different retained root identity; re-labeling a replacement as the existing generation is a HOLD. Every generation has an exact content-addressed store-generation record, and every migration has an exact content-addressed continuity receipt binding:
@@ -102,7 +110,7 @@ Store replacement never resets replay history. A non-genesis migration must adva
 - fixed claim-set ordering;
 - fresh authorization identity that is not equal to any authorization ID already present in the retained claim history.
 
-Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check. The predecessor generation record has its own content-derived ID and must commit the same complete count and history digest; the migration receipt binds that exact predecessor-record ID; missing, extra, duplicate or mutated claims fail closed. Authorization IDs must also be unique across the complete retained history so a different record ID cannot hide cross-generation authorization replay.
+Every prior claim included in the history digest must itself pass the exact durable claim-record schema and content-derived ID check and must carry the same reviewed `store_policy_id` as the retained generation lineage. Historical claims may carry different terminal-specific `store_contract_id` values. The predecessor generation record has its own content-derived ID and must commit the same complete count and history digest; the migration receipt binds that exact predecessor-record ID; missing, extra, duplicate or mutated claims fail closed. Authorization IDs must also be unique across the complete retained history so a different record ID cannot hide cross-generation authorization replay.
 
 Generation membership is authenticated separately from claim-history hashing. Every store-generation record commits a deterministic count and SHA-256 of the complete retained set of ancestor/current store-generation IDs, sorted lexicographically. A migration receipt binds that predecessor lineage commitment and the exact one-generation extension obtained by adding the fresh new generation ID. Every historical claim's `store_generation_id` must be a member of the authenticated predecessor lineage; a flat self-consistent claim set from an unrelated generation is a HOLD. The new generation must persist the extended lineage commitment together with the continuity receipt, and fresh Sovereign authorization must bind the new generation plus prior-history digest.
 
@@ -126,7 +134,7 @@ A stale source receipt is never a perpetual host lease.
 The claim store must use a create-only/no-overwrite canonical claim record with:
 
 - exactly one claim per admitted authorization/custody/store generation;
-- the canonical claim record binds the exact terminal-derived `store_contract_id` (re-derived from the supplied terminal receipt rather than trusted from the caller), the store generation, terminal receipt ID and runner-receipt digest, authorization ID, custody generation and record SHA-256, and the literal identity fields `request_sha256`, `canonical_main`, `canonical_tree`, `corpus_sha256`, `parent_adapter_sha256`, `operator_public_key_raw_sha256`, plus the attempt limit;
+- the canonical claim record binds both the exact terminal-derived `store_contract_id` (re-derived from the supplied terminal receipt rather than trusted from the caller) and the stable reviewed `store_policy_id`, plus the store generation, terminal receipt ID and runner-receipt digest, authorization ID, custody generation and record SHA-256, and the literal identity fields `request_sha256`, `canonical_main`, `canonical_tree`, `corpus_sha256`, `parent_adapter_sha256`, `operator_public_key_raw_sha256`, plus the attempt limit;
 - `attempt_limit=1`;
 - `automatic_retry_authorized=false`;
 - final claim record link count 1;
