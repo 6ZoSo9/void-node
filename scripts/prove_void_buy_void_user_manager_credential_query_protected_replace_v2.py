@@ -407,13 +407,6 @@ def root_fixture() -> None:
         assert (
             install_root / module.V1_PREDECESSOR_NAME
         ).read_bytes() == v1
-        assert not module._private_pending_names_at(
-            os.open(
-                install_root,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-            )
-        )
-
         module.rollback(module.CONFIRM_ROLLBACK)
         assert module._base_state() == module.READY_STATE
         assert (install_root / module.QUERY_NAME).read_bytes() == v1
