@@ -49,9 +49,9 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
-            ffa822f1f0ce46cdd3c31cbd918ffdd815d57ebc
+            2f1a834e378c3ae8062140079c43beb16fad9d14
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
-            8118756528f3f72d39271d2320ab7d257605b2fa
+            18e5769544a20621d4605cd1b44b22f7504d65fc
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-protected-install-v5.md)" = \
             7f7cb3d568de653b89996dcbcf264cc8975bb4dc
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json)" = \
