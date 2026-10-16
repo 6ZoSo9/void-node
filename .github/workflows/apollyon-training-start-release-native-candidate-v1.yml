@@ -50,11 +50,11 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_native_candidate_v1.c)" = \
-            accb5bc2810e51e54f17baf5e179cf848d75b381
+            0197446bc893ce82b82bafc8f801516f87f23d10
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_native_candidate_v1.py)" = \
-            09c8e63e4d96e9c780b3555337eb10c52323ca84
+            912edae8cf41760e84a16e6d36ee1cdc82c56fd0
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-native-candidate-v1.md)" = \
-            817c7170449ef49c14065e8f2c9144cbfadeb97d
+            33078c19cae8bf6e007b52db15b16e8b79abd621
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-release-binding-v1.mjs)" = \
             b8d7229369e7d74e515955e726e0268bbdf6e513
@@ -123,6 +123,7 @@ jobs:
             "release_frame_short_extra_timeout_adversaries=true"
             "held_duplicate_writer_timeout_adversary=true"
             "trainer_nnp_capability_adversaries=true"
+            "trainer_pidfd_retained_and_revalidated=true"
             "post_first_entry_noexec_barrier_proven=true"
             "release_pipe_identity_observed_but_writer_origin_unproven=true"
             "private_release_channel_origin_proven=false"
