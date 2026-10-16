@@ -6,6 +6,16 @@ on:
       - "ops/precision/void_buy_void_epoch2_operator_first_entry_v1.c"
       - "scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py"
       - "docs/operators/buy-void-epoch2-operator-first-entry-v1.md"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json"
+      - "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
       - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
   push:
     branches: [main]
@@ -13,6 +23,16 @@ on:
       - "ops/precision/void_buy_void_epoch2_operator_first_entry_v1.c"
       - "scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py"
       - "docs/operators/buy-void-epoch2-operator-first-entry-v1.md"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json"
+      - "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
       - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
   workflow_dispatch:
 
@@ -32,6 +52,141 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Prove trigger/pin parity
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from collections import Counter
+          from pathlib import Path
+          import re
+
+          workflow = Path(".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml")
+          text = workflow.read_text(encoding="utf-8")
+          trigger_text = text.split("\npermissions:", 1)[0]
+
+          EXPECTED_PINNED_PATHS = {
+              "ops/precision/void_buy_void_epoch2_operator_first_entry_v1.c",
+              "scripts/prove_void_buy_void_epoch2_operator_first_entry_v1.py",
+              "docs/operators/buy-void-epoch2-operator-first-entry-v1.md",
+              "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v2.py",
+              "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v2.py",
+              "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v2.py",
+              "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v2.py",
+              "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json",
+              "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py",
+              "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs",
+              "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py",
+              ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml",
+              "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs",
+          }
+          EXPECTED_TRIGGER_PATHS = EXPECTED_PINNED_PATHS | {
+              workflow.as_posix()
+          }
+
+          def event_paths(event_name):
+              lines = trigger_text.splitlines()
+              marker = "  " + event_name + ":"
+              if lines.count(marker) != 1:
+                  raise SystemExit(
+                      "trigger_event_count_invalid:" + event_name
+                  )
+              start = lines.index(marker)
+              end = len(lines)
+              for index in range(start + 1, len(lines)):
+                  if re.fullmatch(
+                      r"  [A-Za-z_][A-Za-z0-9_-]*:",
+                      lines[index],
+                  ):
+                      end = index
+                      break
+              block = lines[start + 1:end]
+
+              if event_name == "pull_request":
+                  expected_prefix = ["    paths:"]
+              elif event_name == "push":
+                  expected_prefix = [
+                      "    branches: [main]",
+                      "    paths:",
+                  ]
+              else:
+                  raise SystemExit(
+                      "unsupported_trigger_event:" + event_name
+                  )
+
+              if block[:len(expected_prefix)] != expected_prefix:
+                  raise SystemExit(
+                      "trigger_event_shape_invalid:"
+                      + event_name + ":" + repr(block)
+                  )
+
+              paths = []
+              for line in block[len(expected_prefix):]:
+                  match = re.fullmatch(r'      - "([^"]+)"', line)
+                  if match is None:
+                      raise SystemExit(
+                          "trigger_event_unconsumed_content:"
+                          + event_name + ":" + repr(line)
+                      )
+                  paths.append(match.group(1))
+              if not paths:
+                  raise SystemExit(
+                      "trigger_paths_empty:" + event_name
+                  )
+              return paths
+
+          pin_matches = re.findall(
+              r'test "\$\(git rev-parse HEAD:([A-Za-z0-9_./-]+)\)" =',
+              text,
+          )
+          pin_counts = Counter(pin_matches)
+          bad_pin_counts = {
+              path: count for path, count in sorted(pin_counts.items())
+              if count != 1
+          }
+          if bad_pin_counts:
+              raise SystemExit(
+                  "preservation_pin_count_mismatch:"
+                  + repr(bad_pin_counts)
+              )
+
+          pinned_paths = set(pin_counts)
+          if pinned_paths != EXPECTED_PINNED_PATHS:
+              missing = sorted(EXPECTED_PINNED_PATHS - pinned_paths)
+              extra = sorted(pinned_paths - EXPECTED_PINNED_PATHS)
+              raise SystemExit(
+                  "preservation_pin_set_mismatch:"
+                  f"missing={missing}:extra={extra}"
+              )
+
+          for event_name in ("pull_request", "push"):
+              counts = Counter(event_paths(event_name))
+              if set(counts) != EXPECTED_TRIGGER_PATHS:
+                  missing = sorted(EXPECTED_TRIGGER_PATHS - set(counts))
+                  extra = sorted(set(counts) - EXPECTED_TRIGGER_PATHS)
+                  raise SystemExit(
+                      "trigger_pin_path_set_mismatch:"
+                      + event_name
+                      + f":missing={missing}:extra={extra}"
+                  )
+              wrong_counts = {
+                  path: count for path, count in sorted(counts.items())
+                  if count != 1
+              }
+              if wrong_counts:
+                  raise SystemExit(
+                      "trigger_pin_path_count_mismatch:"
+                      + event_name + ":" + repr(wrong_counts)
+                  )
+
+          print("operator_first_entry_trigger_pin_parity=true")
+          print("operator_first_entry_explicit_preservation_set_bound=true")
+          print("operator_first_entry_trigger_sections_fully_consumed=true")
+          print("operator_first_entry_pull_request_trigger_pin_parity=true")
+          print("operator_first_entry_main_push_trigger_pin_parity=true")
+          print("operator_first_entry_preservation_pin_count=" + str(len(pinned_paths)))
+          print("operator_first_entry_trigger_path_count=" + str(len(EXPECTED_TRIGGER_PATHS)))
+          PY
 
       - name: Preserve exact historical V1 evidence and exact V3 successor
         env:
