@@ -63,6 +63,26 @@ Node inode generations.
 This PR defines that native source but does not install, materialize or accept a
 native preentry binary.
 
+### Monotonic parent failure truth
+
+The native parent distinguishes failures before binder-source release from
+failures after child execution may have begun. Before the first source write
+attempt, parent-side HOLD output may truthfully report
+`credential_content_access=false`, `private_key_access=false`, and
+`signing=false`.
+
+Immediately before the first non-empty binder-source write attempt, the parent
+sets `binder_source_release_started=true`. Any later parent-side HOLD reports
+those three fields as `unproven_after_binder_source_release` instead of
+claiming that sensitive execution definitely did not occur. The transition is
+conservative: even a failed first write marks the child-side sensitive state
+unproven.
+
+The native binary exposes inert compiled self-test HOLD modes for both sides of
+this boundary. The focused proof executes both receipts and also requires the
+release-state assignment to precede the first source write in the reviewed C
+source.
+
 ## Future live sequence
 
 A future separately authorized root run, only after a separate native-preentry
