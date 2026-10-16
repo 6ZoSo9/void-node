@@ -98,7 +98,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py)" = \
-            36dc19b789f793a4e22e19d00ea0abf905db2a6e
+            1d15fccf256571c382a09d99c8545d5b24ad2077
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v1.md)" = \
             34d161aeb851982e52d026f4e96026a6f50d02e1
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c)" = \
