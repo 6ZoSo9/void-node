@@ -73,17 +73,27 @@ After exchange, any failure triggers an automatic attempt to exchange the exact
 historical generation back into the live root and clean the V6R2 stage. The
 implementation retains a monotonic `publication_occurred` fact from the first
 successful `RENAME_EXCHANGE`; exchanging the historical root back does not erase
-that audit boundary. If the rollback cannot be proven green — including the
-case where the historical live root is restored but cleanup of the staged V6R2
-generation is ambiguous — the terminal receipt remains publication-aware and
-requires inspection instead of regressing to generic `not_published`.
+that audit boundary.
+
+Every terminal after that publication boundary remains publication-aware,
+including a **proven-green rollback**. A green rollback reports
+`publication_state=published_rolled_back_green`, preserves the bounded original
+failure, and separately reports rollback attempted/green/final-state-verified.
+It never regresses to generic `not_published`. If rollback cannot be proven
+green — including the case where the historical live root is restored but
+cleanup of the staged V6R2 generation is ambiguous — the terminal reports
+`published_needs_inspection`.
 
 The focused proof executes the real production apply state machine with
 synthetic/injected host primitives and no real `/opt` I/O. It requires:
 - a complete success transition;
-- failure immediately after the first root exchange with successful rollback;
-- failure after predecessor retention with successful rollback;
-- failure of the parent fsync immediately after exchange with rollback;
+- failure immediately after the first root exchange with successful rollback,
+  requiring a publication-aware green-rollback receipt;
+- failure after predecessor retention with successful rollback, with the same
+  monotonic publication truth;
+- failure of the parent fsync immediately after exchange with rollback,
+  requiring the original `OSError` to be wrapped in a publication-aware
+  terminal instead of escaping the receipt surface;
 - rollback-stage cleanup ambiguity after the historical live root has been
   exchanged back, requiring a publication-aware inspection receipt;
 - rollback rename failure with publication-aware HOLD; and
