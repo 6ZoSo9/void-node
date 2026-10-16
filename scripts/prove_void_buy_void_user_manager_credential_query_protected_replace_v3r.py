@@ -540,7 +540,8 @@ def executable_key_wallet_authority_violations(
     return sorted(set(violations))
 
 
-assert executable_key_wallet_authority_violations(source) == []
+source_authority_violations = executable_key_wallet_authority_violations(source)
+assert source_authority_violations == [], source_authority_violations
 for safe_authority_literal in (
     'print("private_key_access=false")',
     'print("wallet_or_signer_access=false")',
