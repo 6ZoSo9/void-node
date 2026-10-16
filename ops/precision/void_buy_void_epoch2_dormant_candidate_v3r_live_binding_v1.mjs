@@ -15,15 +15,15 @@ export const CONFIRM =
 export const STATUS =
   "EPOCH2_SIGNER_CONTROL_AND_AUTHENTICATED_CREDENTIAL_PROVEN_REMAINING_GATES_HOLD";
 export const NEXT_ACTION =
-  "QUALIFY_LIVE_ZERO_FEE_OR_NONZERO_FEE_ENVELOPE_AND_EXACT_CHAIN_RECEIPT";
+  "QUALIFY_LIVE_ZERO_FEE_ENVELOPE_AND_EXACT_CHAIN_RECEIPT_OR_PROVE_PER_PAYMENT_NATIVE_GAS_FUNDING";
 
 const ROOT="/home/zoso/dev/void-node";
 const QUALIFIER_REL=
   "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py";
 const QUALIFIER_BLOB="767e088d1383a8cecf4d5daa7bf6779f368db56e";
 const CANDIDATE_REL=
-  "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json";
-const CANDIDATE_BLOB="6a0159e516d30ca8a4b9af4dcace79a4fcddfbb1";
+  "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v3.json";
+const CANDIDATE_BLOB="04061934a537a1d91213cdd1f9110b46faca4cc7";
 
 const FIXED_NATIVE=
   "/opt/void-buy-void-epoch2-live-composition-v3/"+
@@ -58,7 +58,7 @@ const SEALED_MARKER=
 const SEALED_ID=/^voide2sealed2_[0-9a-f]{64}$/u;
 
 const CANDIDATE_MARKER=
-  "VOID_BUY_VOID_PAYMENT_KEYED_EPOCH2_DORMANT_CANDIDATE_V2";
+  "VOID_BUY_VOID_PAYMENT_KEYED_EPOCH2_DORMANT_CANDIDATE_V3";
 const CANDIDATE_STATUS=
   "EPOCH2_SOURCE_CANDIDATE_SIGNER_CONTROL_PROVEN_CREDENTIAL_AND_ACTIVATION_HOLD";
 const EXPECTED_FULFILLER=
@@ -412,7 +412,7 @@ function loadCandidate(expectedHead){
   }finally{raw.fill(0);}
 }
 function validateCandidate(c){
-  if(c?.marker!==CANDIDATE_MARKER||c.version!==2||
+  if(c?.marker!==CANDIDATE_MARKER||c.version!==3||
      c.status!==CANDIDATE_STATUS||c.canonical_chain_id!==2050||
      c.execution_epoch!==2||c.epoch2_presale_contract!==EXPECTED_PRESALE||
      c.epoch2_fulfiller_public_address!==EXPECTED_FULFILLER){
@@ -442,7 +442,7 @@ function validateCandidate(c){
   const expectedGates=[
     "independently_attest_systemd_credential_identity_and_active_signing_capability",
     "bind_accepted_epoch2_signer_evidence_to_current_runtime_source_generation",
-    "qualify_live_zero_fee_or_nonzero_fee_envelope_and_exact_chain_receipt",
+    "qualify_live_zero_fee_envelope_and_exact_chain_receipt_or_prove_per_payment_native_gas_funding",
     "complete_current_chain_2050_one_payment_one_fulfillment_canary",
     "coupled_presale_and_wc_void_market_sovereign_activation",
   ];
@@ -464,7 +464,7 @@ function buildBindingReceipt(expectedHead,candidate,qualification,child){
   validateQualification(qualification,expectedHead);
   validateChildReceipt(child,expectedHead);
   const remainingGates=[
-    "qualify_live_zero_fee_or_nonzero_fee_envelope_and_exact_chain_receipt",
+    "qualify_live_zero_fee_envelope_and_exact_chain_receipt_or_prove_per_payment_native_gas_funding",
     "complete_current_chain_2050_one_payment_one_fulfillment_canary",
     "coupled_presale_and_wc_void_market_sovereign_activation",
   ];
@@ -535,7 +535,7 @@ function plan(){
   console.log("mode=plan");
   console.log("git_object_stdin_required_for_live=true");
   console.log("root_required_for_run=true");
-  console.log("exact_dormant_candidate_v2_git_object_required=true");
+  console.log("exact_dormant_candidate_v3_git_object_required=true");
   console.log("v6r2_installed_qualification_before_after_required=true");
   console.log("fixed_native_v3_live_composition_required=true");
   console.log("arbitrary_live_receipt_input_accepted=false");
@@ -584,7 +584,7 @@ function selfTest(){
     next_action:QUALIFIER_NEXT_ACTION,
   };
   const candidate={
-    marker:CANDIDATE_MARKER,version:2,status:CANDIDATE_STATUS,
+    marker:CANDIDATE_MARKER,version:3,status:CANDIDATE_STATUS,
     canonical_chain_id:2050,execution_epoch:2,
     epoch2_presale_contract:EXPECTED_PRESALE,
     epoch2_fulfiller_public_address:EXPECTED_FULFILLER,
@@ -610,7 +610,7 @@ function selfTest(){
     explicit_remaining_gates:[
       "independently_attest_systemd_credential_identity_and_active_signing_capability",
       "bind_accepted_epoch2_signer_evidence_to_current_runtime_source_generation",
-      "qualify_live_zero_fee_or_nonzero_fee_envelope_and_exact_chain_receipt",
+      "qualify_live_zero_fee_envelope_and_exact_chain_receipt_or_prove_per_payment_native_gas_funding",
       "complete_current_chain_2050_one_payment_one_fulfillment_canary",
       "coupled_presale_and_wc_void_market_sovereign_activation",
     ],
@@ -680,7 +680,7 @@ function selfTest(){
     throw new Error("binding_receipt_self_test_failed");
   }
   console.log(MARKER+"_SELF_TEST_GREEN");
-  console.log("candidate_v2_signer_control_preserved=true");
+  console.log("candidate_v3_signer_control_preserved=true");
   console.log("v6r2_installed_qualification_required=true");
   console.log("fixed_native_v3_live_composition_required=true");
   console.log("arbitrary_live_receipt_input_accepted=false");
