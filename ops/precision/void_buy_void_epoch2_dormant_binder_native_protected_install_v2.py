@@ -897,6 +897,15 @@ def apply(
 ) -> None:
     if confirm != CONFIRM_TOKEN:
         raise InstallError("explicit_create_only_confirmation_required")
+    if (
+        not expected_plan_id.startswith(PLAN_PREFIX)
+        or len(expected_plan_id) != len(PLAN_PREFIX) + 64
+        or any(
+            ch not in "0123456789abcdef"
+            for ch in expected_plan_id[len(PLAN_PREFIX):]
+        )
+    ):
+        raise InstallError("expected_plan_id_invalid")
     _require_apply_context()
     if os.geteuid() != 0:
         raise InstallError("root_required_for_apply")
@@ -1157,8 +1166,6 @@ def main() -> int:
     if args.plan:
         plan(args.native, args.expected_head)
         return 0
-    if not args.expected_plan_id:
-        raise InstallError("expected_plan_id_required")
     apply(args.native, args.expected_head, args.expected_plan_id, args.confirm)
     return 0
 
