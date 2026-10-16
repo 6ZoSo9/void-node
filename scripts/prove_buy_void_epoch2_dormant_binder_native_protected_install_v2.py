@@ -153,7 +153,7 @@ for token in (
     "published_needs_inspection",
     "post_publication_parent_fsync_failed",
     "post_publication_final_verification_failed",
-    "automatic_stage_cleanup_attempted=true",
+    'print("automatic_stage_cleanup_attempted=" + str(attempted).lower())',
     "candidate_native_verified=",
     "binder_source_verified=",
     "native_execution=false",
@@ -224,6 +224,15 @@ post_checks = apply_source.index("_post_publication_checks(opt_fd)", published_f
 assert verify_stage < revalidate_at < publish < published_flag < post_checks
 assert apply_source.count("_renameat2(") == 1
 assert "INSTALL_NAME, STAGE_NAME" not in apply_source
+
+cleanup_attempted_at = apply_source.index("attempted = stage_fd is not None")
+cleanup_call_at = apply_source.index(
+    "cleanup_green = _cleanup_retained_stage(opt_fd, stage_fd)"
+)
+cleanup_receipt_at = apply_source.index(
+    'print("automatic_stage_cleanup_attempted=" + str(attempted).lower())'
+)
+assert cleanup_attempted_at < cleanup_call_at < cleanup_receipt_at
 
 # Create-only means no final-root unlink/rmdir/overwrite path.
 for forbidden in (
