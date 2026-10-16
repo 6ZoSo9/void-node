@@ -51,6 +51,7 @@ const CANDIDATE_WORKFLOW_TRIGGER_DEPENDENCIES=Object.freeze([
   PROTECTED_CENSUS_WORKFLOW,
   "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs",
   "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs",
+  "ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json",
   "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs",
   "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs",
 ]);
