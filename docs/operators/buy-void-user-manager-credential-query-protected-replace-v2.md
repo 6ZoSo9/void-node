@@ -150,8 +150,19 @@ That fixture behaviorally executes:
   `_require_visible_install_root()` to reject the replacement generation and
   requiring a second compliant opener to remain serialized by the parent lock;
 - the real `CREDENTIAL_QUERY_V2_PRIVATE_PENDING_RECOVERY_REQUIRED`
-  classifier from an incomplete private pending file and the real cleanup path
-  back to V1 READY.
+  classifier from an incomplete private pending file;
+- the real forward `apply()` state machine from that private-pending state,
+  including pending cleanup, fresh stage publication, atomic exchange and V1
+  predecessor retention through V2 GREEN;
+- the real `rollback()` state machine from V2 GREEN back to exact V1 READY,
+  including removal of only the verified V2 residue while the static preexec
+  remains unchanged.
+
+The fixture substitutes only the accepted-lock lookup because its test V1/V2
+payloads are deliberately tiny synthetic bytes; all filesystem/locking/state
+transition primitives under test are the production functions. It runs under
+Python isolated mode with a closed environment and redirects the fixed
+`OPT_ROOT`/install-root globals exclusively into the disposable `/tmp` tree.
 
 The fixture controls the corresponding GREEN markers. Static source substrings
 or unconditional self-test prints are not accepted as behavioral evidence for
