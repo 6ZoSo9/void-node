@@ -126,8 +126,9 @@ continuous-provenance mechanism.
 The candidate snapshots and revalidates:
 
 - its Linux process start-time ticks;
+- a retained self pidfd, which must remain live through frame completion;
 - retained `/proc/self/exe` file generation;
-- FD 3 pipe generation;
+- FD 3 anonymous-pipe generation;
 - exact UID/GID/group/NNP/capability state.
 
 A future installed candidate still requires separate source/binary
@@ -164,6 +165,7 @@ The focused proof:
 - proves short, extra, delayed-extra and missing-EOF rejection;
 - proves a held duplicate writer produces timeout/HOLD;
 - proves NNP=0, nonzero capabilities and supplementary groups are rejected;
+- proves the candidate can retain and revalidate a live self pidfd;
 - proves the no-exec seccomp barrier blocks exec;
 - proves direct `--run` without exact inherited FD 3 cannot authorize release;
 - proves PR/main-push trigger closure includes the exact #3351 source/proof/
