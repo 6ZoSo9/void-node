@@ -841,7 +841,7 @@ if (direct) {
       compareCandidates(process.argv.slice(3));
     } else {
       fail(
-        "usage: void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v1.mjs --emit <new.json> | --compare <node22.json> <node24.json> <node26.json>",
+        "usage: void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v2.mjs --emit <new.json> | --compare <node22.json> <node24.json> <node26.json>",
       );
     }
   } catch (error) {
