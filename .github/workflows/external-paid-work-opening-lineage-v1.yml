@@ -1,0 +1,100 @@
+name: VOID external paid-work opening lineage v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-external-paid-work-opening-lineage-v1.mjs"
+      - "scripts/prove_void_external_paid_work_opening_lineage_v1.mjs"
+      - "docs/architecture/external-paid-work-opening-lineage-v1.md"
+      - ".github/workflows/external-paid-work-opening-lineage-v1.yml"
+      - "scripts/agent_paid_work_credential_request_intake_v1.ts"
+      - "scripts/agent_paid_work_credential_request_review_queue_v1.ts"
+      - "scripts/agent_paid_work_canonical_remote_credential_issuance_v1.mjs"
+      - "scripts/agent_paid_work_credential_registry_v1.ts"
+      - "scripts/agent_paid_work_credential_wc_account_binding_lifecycle_v1.mjs"
+      - "tools/void-cloudflare-origin-proxy-v2-source-v1.mjs"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/void-ai-agent-public-gateway-v1.mjs"
+      - "scripts/agent_paid_work_submission_receiver_v1.ts"
+      - "scripts/external_agent_paid_work_fresh_canary_credential_live_transport_adapters_v1.ts"
+      - "scripts/external_agent_paid_work_fresh_canary_credential_live_stage_commands_v1.ts"
+      - "scripts/external_agent_paid_work_fulfillment_fresh_canary_credential_lifecycle_and_wc_binding_v1.ts"
+      - "scripts/external_agent_paid_work_fulfillment_orchestrator_v1.ts"
+      - "scripts/external_agent_paid_work_fulfillment_executor_receive_and_run_v1.ts"
+      - "scripts/external_agent_paid_work_fulfillment_return_package_acceptance_and_adapter_finalize_v1.ts"
+      - "scripts/agent_paid_work_wc_earning_adapter_cli_v1.ts"
+      - "src/economic/agent_paid_work_wc_earning_adapter_v1.ts"
+      - "scripts/void_wc_void_opening_production_wc_capacity_census_v1.ts"
+      - "public/public-node/agents/paid-work-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: opening lineage / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove current opening-eligible paid-work lineage
+        run: |
+          set -euo pipefail
+          node --check tools/void-external-paid-work-opening-lineage-v1.mjs
+          node --check scripts/prove_void_external_paid_work_opening_lineage_v1.mjs
+          proof="$RUNNER_TEMP/external-paid-work-opening-lineage-v1.txt"
+          node scripts/prove_void_external_paid_work_opening_lineage_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_EXTERNAL_PAID_WORK_OPENING_LINEAGE_V1_GREEN' "$proof"
+          grep -Fx 'source_blob_count=20' "$proof"
+          grep -Fx 'credential_request_source_authenticated_ingress_bound=true' "$proof"
+          grep -Fx 'authenticated_submission_exact_ingress_bound=true' "$proof"
+          grep -Fx 'agents_namespace_siblings_fail_closed=true' "$proof"
+          grep -Fx 'generic_agents_namespace_proxy_authorized=false' "$proof"
+          grep -Fx 'credential_scope=agent_paid_work_submit' "$proof"
+          grep -Fx 'fixed_award_wc=3' "$proof"
+          grep -Fx 'opening_eligibility_policy_changed=false' "$proof"
+          grep -Fx 'external_agent_runtime_onboarding_available=false' "$proof"
+          grep -Fx 'external_agent_paid_work_execution_available=false' "$proof"
+          grep -Fx 'live_runtime_observed=false' "$proof"
+          grep -Fx 'work_dispatch=false' "$proof"
+          grep -Fx 'wc_ledger_write=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
