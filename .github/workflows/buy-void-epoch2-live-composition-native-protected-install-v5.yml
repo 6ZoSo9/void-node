@@ -7,6 +7,7 @@ on:
       - "scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v5.py"
       - "docs/operators/buy-void-epoch2-live-composition-native-protected-install-v5.md"
       - ".github/workflows/buy-void-epoch2-live-composition-native-protected-install-v5.yml"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v4.yml"
       - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
       - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
       - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
@@ -40,6 +41,7 @@ jobs:
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
           printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v4.yml' \
             '.github/workflows/buy-void-epoch2-live-composition-native-protected-install-v5.yml' \
             'docs/operators/buy-void-epoch2-live-composition-native-protected-install-v5.md' \
             'ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py' \
@@ -48,6 +50,8 @@ jobs:
           git diff --name-only "$repair_base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v4.yml)" = \
+            acc11bafbbf47e25e8cc204a9be0a26ecfc12120
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
             fd7a06490ccf6fb14831d8b0372a892e2764c9dc
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
