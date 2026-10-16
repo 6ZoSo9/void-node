@@ -1154,6 +1154,7 @@ def apply(
     )
     stage_created = False
     exchanged = False
+    publication_occurred = False
     predecessor_retained = False
     rollback_attempted = False
     rollback_green = False
@@ -1201,6 +1202,7 @@ def apply(
 
         _renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_EXCHANGE)
         exchanged = True
+        publication_occurred = True
         os.fsync(opt_fd)
 
         _verify_install_root(policy)
@@ -1249,7 +1251,7 @@ def apply(
 
         print("automatic_rollback_attempted=" + str(rollback_attempted).lower())
         print("automatic_rollback_green=" + str(rollback_green).lower())
-        if exchanged and not rollback_green:
+        if publication_occurred and not rollback_green:
             failure = _published_failure(
                 "atomic_upgrade_rollback_failed",
                 phase="atomic_upgrade_rollback",
@@ -1335,6 +1337,10 @@ def self_test() -> None:
     assert PREDECESSOR_NATIVE_BYTES == 722_880
     assert PREDECESSOR_RUNNER_BYTES == 40_616
     assert PREDECESSOR_POLICY_BYTES == 305
+    own_source = pathlib.Path(__file__).read_text(encoding="utf-8")
+    assert "publication_occurred = False" in own_source
+    assert "publication_occurred = True" in own_source
+    assert "if publication_occurred and not rollback_green:" in own_source
     sample_node = {"sha256": "a" * 64, "bytes": 123}
     policy = build_policy("b" * 40, sample_node)
     assert policy == (
