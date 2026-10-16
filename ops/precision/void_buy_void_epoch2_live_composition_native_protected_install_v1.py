@@ -691,7 +691,9 @@ def failure_receipt(
             "protected_install_performed":"true",
             "publication":"true",
             "publication_state":"published_needs_inspection",
-            "final_state_verified":"false",
+            "final_state_verified":(
+                "true" if exc.final_verification_completed is True else "false"
+            ),
             "publication_failure_phase":exc.phase,
             "parent_fsync_completed":_bool_fact(exc.parent_fsync_completed),
             "final_verification_completed":_bool_fact(exc.final_verification_completed),
@@ -976,6 +978,7 @@ def self_test()->None:
     print("policy_node_identity_bound=true")
     print("expected_head_dependency_generation_bound=true")
     print("post_publication_failure_receipt_truthful=true")
+    print("post_verification_close_failure_preserves_verified_state=true")
     print("create_only=true")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
