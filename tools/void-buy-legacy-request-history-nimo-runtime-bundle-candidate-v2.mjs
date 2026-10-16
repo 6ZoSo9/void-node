@@ -30,6 +30,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V2 =
     compiler_identity_bound: true,
     compiler_cli_entry_chain_bound: true,
     compiler_cli_loader_edges_bound: true,
+    compiler_exact_file_identity_allowlist_bound: true,
     compiler_execution_generation_bound: true,
     candidate_owned_rebuild_required: true,
     three_node_byte_equality_required: true,
@@ -372,27 +373,34 @@ function runtimeClosure(root) {
   });
 }
 
-function staticRequireSpecifiers(sourceText, label) {
-  if (typeof sourceText !== "string") {
-    fail("legacy_history_nimo_bundle_compiler_loader_not_text:" + label);
-  }
-  const callPattern = /\brequire\s*\(/gu;
-  const calls = [...sourceText.matchAll(callPattern)].length;
-  const literalPattern = /\brequire\s*\(\s*(["'])([^"'\r\n]+)\1\s*\)/gu;
-  const specifiers = [...sourceText.matchAll(literalPattern)].map(
-    (match) => match[2],
-  );
-  if (calls !== specifiers.length) {
-    fail("legacy_history_nimo_bundle_compiler_dynamic_loader_forbidden:" + label);
-  }
-  return specifiers;
-}
-
 const TYPESCRIPT_COMPILER_FILES_V2 = Object.freeze([
   "node_modules/typescript/bin/tsc",
   "node_modules/typescript/lib/tsc.js",
   "node_modules/typescript/lib/_tsc.js",
   "node_modules/typescript/lib/typescript.js",
+]);
+
+const EXPECTED_TYPESCRIPT_COMPILER_FILES_V2 = Object.freeze([
+  Object.freeze({
+    path: "node_modules/typescript/bin/tsc",
+    bytes: 45,
+    sha256: "8d5fa5bd883fec0979fc2004f1fe1d99aef40570155d550eadc0b03b55513bf0",
+  }),
+  Object.freeze({
+    path: "node_modules/typescript/lib/tsc.js",
+    bytes: 267,
+    sha256: "2cffde0b8c6760dfb0b5b0382bbb7e00ba6a8b2d981b9205b256a700a481d983",
+  }),
+  Object.freeze({
+    path: "node_modules/typescript/lib/_tsc.js",
+    bytes: 6213092,
+    sha256: "e8f349eabd48486bdb2bf9dc1a00c89d58297270c54b745838879e2859194419",
+  }),
+  Object.freeze({
+    path: "node_modules/typescript/lib/typescript.js",
+    bytes: 9112572,
+    sha256: "3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675",
+  }),
 ]);
 
 const TYPESCRIPT_CLI_EDGES_V2 = Object.freeze([
@@ -429,37 +437,21 @@ function compilerIdentity(root) {
     fail("legacy_history_nimo_bundle_installed_typescript_version_mismatch");
   }
 
-  const compilerBytes = new Map();
   const files = TYPESCRIPT_COMPILER_FILES_V2.map((relative) => {
     const bytes = readRegular(root, relative, 16 * 1024 * 1024);
-    compilerBytes.set(relative, bytes);
     return Object.freeze({
       path: relative,
       bytes: bytes.length,
       sha256: sha256(bytes),
     });
   });
-
-  const binSpecs = staticRequireSpecifiers(
-    compilerBytes.get("node_modules/typescript/bin/tsc").toString("utf8"),
-    "bin_tsc",
-  );
   if (
-    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(binSpecs) !==
-    '["../lib/tsc.js"]'
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(files) !==
+    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(
+      EXPECTED_TYPESCRIPT_COMPILER_FILES_V2,
+    )
   ) {
-    fail("legacy_history_nimo_bundle_typescript_bin_loader_edge_invalid");
-  }
-
-  const loaderSpecs = staticRequireSpecifiers(
-    compilerBytes.get("node_modules/typescript/lib/tsc.js").toString("utf8"),
-    "lib_tsc",
-  );
-  if (
-    canonicalLegacyHistoryNimoRuntimeBundleJsonV1(loaderSpecs) !==
-    '["node:module","./_tsc.js"]'
-  ) {
-    fail("legacy_history_nimo_bundle_typescript_cli_loader_edge_invalid");
+    fail("legacy_history_nimo_bundle_typescript_compiler_file_identity_mismatch");
   }
 
   return Object.freeze({
