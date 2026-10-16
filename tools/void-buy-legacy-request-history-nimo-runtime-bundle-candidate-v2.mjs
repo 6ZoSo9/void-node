@@ -670,7 +670,9 @@ function cleanupCompilerSnapshotV2(snapshotRoot) {
   for (const directory of compilerSnapshotDirectoriesV2(snapshotRoot).reverse()) {
     try {
       fs.chmodSync(directory, 0o700);
-    } catch {}
+    } catch (_error) {
+      continue;
+    }
   }
   fs.rmSync(snapshotRoot, { recursive: true, force: true });
 }
