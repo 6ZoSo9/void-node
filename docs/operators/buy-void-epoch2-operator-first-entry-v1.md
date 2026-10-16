@@ -223,6 +223,51 @@ It does not weaken:
 
 The focused workflow reruns both accepted parent proofs unchanged.
 
+## Parent HOLD receipt truth
+
+The native parent distinguishes the successful-fork boundary from pre-fork
+validation.
+
+Before a child exists, a parent HOLD may state both:
+
+```text
+installer_apply_performed=false
+installed_qualifier_run_performed=false
+```
+
+because no protected Python operation has started.
+
+After a successful `fork()`, a parent-generated HOLD must not reuse those
+false-negative claims for the selected operation. The parent records
+`child_process_created=true` and reports the selected operation
+conservatively:
+
+```text
+installer_apply_state=unknown_or_partial_if_child_created
+```
+
+or:
+
+```text
+installed_qualifier_run_state=unknown_or_partial_if_child_created
+```
+
+as applicable. The unselected mutating/read operation may still remain strict
+false.
+
+This rule applies to parent-side wait failures, abnormal child termination, and
+post-child revalidation failures. Ordinary nonzero child exits are returned
+without replacing the child's own more precise receipt.
+
+The focused proof requires:
+
+- a pre-fork bad-confirmation HOLD with both operation-performed booleans false;
+- an installer-apply child that terminates abnormally after creation, requiring
+  conservative apply state;
+- a qualifier child that completes its retained-source execution while the
+  visible qualifier pathname is replaced, requiring conservative qualifier
+  state when the parent rejects GREEN.
+
 ## Authority boundary
 
 Source/test/CI only.
