@@ -486,7 +486,7 @@ function rehashCandidate(value) {
       verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
         rehashCandidate(tampered),
       ),
-    /legacy_history_nimo_bundle_compiler_bytes_identity_invalid/u,
+    /legacy_history_nimo_bundle_compiler_snapshot_identity_invalid/u,
   );
 }
 {
@@ -513,7 +513,7 @@ function rehashCandidate(value) {
       verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV2(
         rehashCandidate(tampered),
       ),
-    /legacy_history_nimo_bundle_compiler_bytes_identity_invalid/u,
+    /legacy_history_nimo_bundle_compiler_snapshot_identity_invalid/u,
   );
 }
 {
