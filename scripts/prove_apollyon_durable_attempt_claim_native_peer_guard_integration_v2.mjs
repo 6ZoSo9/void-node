@@ -25,13 +25,13 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs":
-    "124a06a13ade1bf1f12cfa599b0092d5b2ffa40d",
+    "fb92b4b3bd2a6594a2a90d7e607cae193452b92b",
   "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs":
     "fab2b7699121b58010a5ed96ec50a47dd441726f",
   "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c":
-    "97639e6d2bc2f67281a4d7b3af5bfa2b59c5df51",
+    "defd863de841a1f1460e10985d1990ba1a382f70",
   "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs":
-    "866c9dcac8f85de936ee537617ddf9b2904439f9",
+    "d9af4667a429a9e55f491676db48cdd5975b7e16",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
     "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
@@ -52,8 +52,8 @@ assert.equal(result.status,"native_peer_guard_integration_source_contract_define
 assert.equal(result.target_host,"Xiphos");
 assert.equal(result.parent_handoff_contract_id,handoff.handoff_contract_id);
 assert.equal(result.parent_handoff_blob_sha1,"fab2b7699121b58010a5ed96ec50a47dd441726f");
-assert.equal(result.native_peer_guard_blob_sha1,"97639e6d2bc2f67281a4d7b3af5bfa2b59c5df51");
-assert.equal(result.native_peer_guard_proof_blob_sha1,"866c9dcac8f85de936ee537617ddf9b2904439f9");
+assert.equal(result.native_peer_guard_blob_sha1,"defd863de841a1f1460e10985d1990ba1a382f70");
+assert.equal(result.native_peer_guard_proof_blob_sha1,"d9af4667a429a9e55f491676db48cdd5975b7e16");
 assert.match(result.integration_contract_id,/^apollyon_claim_peer_integration_v2:[0-9a-f]{64}$/u);
 
 for(const key of [
@@ -72,6 +72,7 @@ for(const key of [
   "exact_prefix_before_no_eof_timeout_primitive_required",
   "held_open_no_eof_timeout_primitive_required",
   "read_half_ack_after_peer_eof_primitive_required",
+  "negative_frame_sender_success_required",
 ]){
   assert.equal(result.native_candidate_boundary[key],true,key);
 }
@@ -180,6 +181,7 @@ try{
     "response_half_close_eof_proven=true",
     "response_exact_prefix_before_no_eof_timeout_proven=true",
     "response_no_eof_peer_held_open_until_timeout_proven=true",
+    "negative_frame_sender_success_required=true",
     "cross_uid_host_qualification_performed=false",
     "claim_store_mutation=false",
     "durable_attempt_claim=false",

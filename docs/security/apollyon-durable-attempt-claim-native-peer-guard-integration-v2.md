@@ -18,9 +18,9 @@ already a claim-service implementation or Xiphos host qualification.
 - parent #3291 revalidation-handoff source blob:
   `fab2b7699121b58010a5ed96ec50a47dd441726f`;
 - #3300 native peer-guard source blob:
-  `97639e6d2bc2f67281a4d7b3af5bfa2b59c5df51`;
+  `defd863de841a1f1460e10985d1990ba1a382f70`;
 - #3300 focused proof blob:
-  `866c9dcac8f85de936ee537617ddf9b2904439f9`.
+  `d9af4667a429a9e55f491676db48cdd5975b7e16`.
 
 The hosted proof recompiles and executes the exact native self-test again.
 
@@ -37,6 +37,7 @@ The future implementation must use equivalent reviewed primitives for:
 - write-half-close + EOF;
 - overflow, short-EOF, delayed-extra and missing-EOF rejection;
 - read-half availability for the later acknowledgment.
+- negative-frame receiver rejection counts only after the adversary sender is proven to have completed its intended send/half-close sequence with exit status 0.
 
 The source candidate remains self-test only. It has no live mode.
 

@@ -44,9 +44,9 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_NATIVE_PEER_GUARD_INTEGRATION_A
 export const PARENT_HANDOFF_BLOB_SHA1 =
   "fab2b7699121b58010a5ed96ec50a47dd441726f";
 export const NATIVE_PEER_GUARD_BLOB_SHA1 =
-  "97639e6d2bc2f67281a4d7b3af5bfa2b59c5df51";
+  "defd863de841a1f1460e10985d1990ba1a382f70";
 export const NATIVE_PEER_GUARD_PROOF_BLOB_SHA1 =
-  "866c9dcac8f85de936ee537617ddf9b2904439f9";
+  "d9af4667a429a9e55f491676db48cdd5975b7e16";
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -148,6 +148,7 @@ export function qualifyApollyonDurableAttemptClaimNativePeerGuardIntegrationV2()
       exact_prefix_before_no_eof_timeout_primitive_required:true,
       held_open_no_eof_timeout_primitive_required:true,
       read_half_ack_after_peer_eof_primitive_required:true,
+      negative_frame_sender_success_required:true,
       cross_uid_host_qualification_performed:false,
       interpreted_body_source_identity_proven:false,
     },
