@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 import os
@@ -55,7 +56,34 @@ for required in (
 ):
     assert required in source, required
 
-assert source.count("_run_native_self_test(installer)") == 2
+tree=ast.parse(source)
+collect_defs=[
+    node for node in tree.body
+    if isinstance(node,ast.FunctionDef) and node.name=="collect"
+]
+assert len(collect_defs)==1
+self_test_calls=[
+    node for node in ast.walk(collect_defs[0])
+    if isinstance(node,ast.Call)
+    and isinstance(node.func,ast.Name)
+    and node.func.id=="_run_native_self_test"
+]
+assert len(self_test_calls)==2
+assert all(
+    len(call.args)>=2
+    and isinstance(call.args[0],ast.Name)
+    and call.args[0].id=="installer"
+    for call in self_test_calls
+)
+bound_generations=[]
+for call in self_test_calls:
+    arg=call.args[1]
+    assert isinstance(arg,ast.Subscript)
+    assert isinstance(arg.value,ast.Name)
+    assert isinstance(arg.slice,ast.Constant)
+    assert arg.slice.value=="native"
+    bound_generations.append(arg.value.id)
+assert bound_generations==["before","middle"]
 assert "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V2" not in source
 assert "void_buy_void_epoch2_authenticated_credential_live_composition_v2.mjs" not in source
 assert "CREDENTIALS_DIRECTORY" not in source
