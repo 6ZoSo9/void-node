@@ -309,6 +309,10 @@ def source_plan() -> None:
     print("policy_atomic_exchange_required=true")
     print("old_policy_retention_required=true")
     print("automatic_rollback_required=true")
+    print("publication_aware_failure_receipt=true")
+    print("post_exchange_failure_reports_publication=true")
+    print("rollback_failure_final_state_uncertain=true")
+    print("pre_mutation_authority_scoped=true")
     print("live_execution_authorized=false")
     print("credential_access_authorized=false")
     print("private_key_access_authorized=false")
@@ -464,7 +468,7 @@ def emit_operation_authority() -> None:
     print("mode=apply")
     print("authority_boundary=PRE_MUTATION")
     print("filesystem_mutation_possible=true")
-    print("filesystem_mutation_performed=false")
+    print("filesystem_mutation_performed_at_pre_mutation_boundary=false")
     print("native_mutation_authorized=false")
     print("runner_mutation_authorized=false")
     print("policy_atomic_exchange_authorized=true")
@@ -481,6 +485,99 @@ def emit_operation_authority() -> None:
     print("wc_void_market_activation=false")
     print("treasury_liquidity_action=false")
     print("funds_movement=false")
+    sys.stdout.flush()
+
+
+_FAILURE_PHASES = frozenset({
+    "pre_exchange",
+    "stage_write",
+    "pre_exchange_revalidation",
+    "policy_exchanged",
+    "post_exchange_verification",
+    "backup_retained",
+    "post_backup_revalidation",
+})
+
+
+def _classify_final_protected_state(
+    installer: Any,
+    *,
+    old_policy: bytes,
+    new_policy: bytes,
+) -> tuple[bool, str]:
+    try:
+        state = protected_state(
+            installer,
+            old_policy=old_policy,
+            new_policy=new_policy,
+        )
+    except BaseException:
+        return False, "UNKNOWN"
+    if state not in (READY_STATE, GREEN_STATE):
+        return False, "UNKNOWN"
+    return True, state
+
+
+def _failure_receipt(
+    *,
+    failure_phase: str,
+    policy_exchange_performed: bool,
+    rollback_attempted: bool,
+    rollback_green: bool | None,
+    final_state_verified: bool,
+    final_state: str,
+) -> dict[str, Any]:
+    if failure_phase not in _FAILURE_PHASES:
+        raise RebindError("failure_receipt_phase_invalid")
+    if policy_exchange_performed and failure_phase in {
+        "pre_exchange",
+        "stage_write",
+        "pre_exchange_revalidation",
+    }:
+        raise RebindError("failure_receipt_exchange_phase_invalid")
+    if not rollback_attempted and rollback_green is not None:
+        raise RebindError("failure_receipt_rollback_state_invalid")
+    if rollback_attempted and not isinstance(rollback_green, bool):
+        raise RebindError("failure_receipt_rollback_state_invalid")
+    if final_state_verified:
+        if final_state not in (READY_STATE, GREEN_STATE):
+            raise RebindError("failure_receipt_final_state_invalid")
+    elif final_state != "UNKNOWN":
+        raise RebindError("failure_receipt_final_state_invalid")
+    return {
+        "authority_boundary": "FINAL_FAILURE_RECEIPT",
+        "failure_phase": failure_phase,
+        "policy_exchange_performed": policy_exchange_performed,
+        "policy_publication_performed": policy_exchange_performed,
+        "automatic_rollback_attempted": rollback_attempted,
+        "automatic_rollback_green": rollback_green,
+        "final_state_verified": final_state_verified,
+        "final_state": final_state,
+    }
+
+
+def _emit_failure_receipt(receipt: dict[str, Any]) -> None:
+    print(MARKER)
+    print("mode=apply")
+    print("status=HOLD")
+    for key in (
+        "authority_boundary",
+        "failure_phase",
+        "policy_exchange_performed",
+        "policy_publication_performed",
+        "automatic_rollback_attempted",
+        "automatic_rollback_green",
+        "final_state_verified",
+        "final_state",
+    ):
+        value = receipt[key]
+        if isinstance(value, bool):
+            rendered = str(value).lower()
+        elif value is None:
+            rendered = "not_applicable"
+        else:
+            rendered = str(value)
+        print(key + "=" + rendered)
     sys.stdout.flush()
 
 
@@ -532,14 +629,17 @@ def apply(
     backup_retained = False
     rollback_attempted = False
     rollback_green = False
+    failure_phase = "pre_exchange"
     try:
         if _exists(installer.INSTALL_PARENT / STAGE_NAME):
             raise RebindError("policy_rebind_stage_present")
         if _exists(installer.INSTALL_PARENT / BACKUP_NAME):
             raise RebindError("policy_predecessor_backup_present")
 
+        failure_phase = "stage_write"
         _write_stage(installer, opt_fd, new_policy)
         stage_created = True
+        failure_phase = "pre_exchange_revalidation"
 
         checkout_bound = installer.checkout_snapshot_with_tools(
             expected_head,
@@ -561,6 +661,7 @@ def apply(
             RENAME_EXCHANGE,
         )
         exchanged = True
+        failure_phase = "policy_exchanged"
         os.fsync(root_fd)
         os.fsync(opt_fd)
 
@@ -572,6 +673,7 @@ def apply(
             expected_sha256=OLD_POLICY_SHA256,
             expected_mode=0o444,
         )
+        failure_phase = "post_exchange_verification"
 
         _renameat2(
             opt_fd,
@@ -582,8 +684,10 @@ def apply(
         )
         stage_created = False
         backup_retained = True
+        failure_phase = "backup_retained"
         os.fsync(opt_fd)
 
+        failure_phase = "post_backup_revalidation"
         if (
             installer.checkout_snapshot_with_tools(
                 expected_head,
@@ -656,8 +760,20 @@ def apply(
                 rollback_green = True
             except BaseException:
                 rollback_green = False
-        print("automatic_rollback_attempted=" + str(rollback_attempted).lower())
-        print("automatic_rollback_green=" + str(rollback_green).lower())
+        final_state_verified, final_state = _classify_final_protected_state(
+            installer,
+            old_policy=old_policy,
+            new_policy=new_policy,
+        )
+        receipt = _failure_receipt(
+            failure_phase=failure_phase,
+            policy_exchange_performed=exchanged,
+            rollback_attempted=rollback_attempted,
+            rollback_green=rollback_green if rollback_attempted else None,
+            final_state_verified=final_state_verified,
+            final_state=final_state,
+        )
+        _emit_failure_receipt(receipt)
         raise
     finally:
         os.close(root_fd)
@@ -704,6 +820,55 @@ def self_test() -> None:
     assert installer.PREDECESSOR_NATIVE_BYTES == 722_880
     assert installer.PREDECESSOR_RUNNER_BYTES == 40_616
     assert installer.PREDECESSOR_POLICY_BYTES == 305
+
+    immediate_exchange = _failure_receipt(
+        failure_phase="policy_exchanged",
+        policy_exchange_performed=True,
+        rollback_attempted=True,
+        rollback_green=True,
+        final_state_verified=True,
+        final_state=READY_STATE,
+    )
+    assert immediate_exchange["policy_publication_performed"] is True
+    assert immediate_exchange["automatic_rollback_green"] is True
+    assert immediate_exchange["final_state"] == READY_STATE
+
+    post_backup = _failure_receipt(
+        failure_phase="backup_retained",
+        policy_exchange_performed=True,
+        rollback_attempted=True,
+        rollback_green=True,
+        final_state_verified=True,
+        final_state=READY_STATE,
+    )
+    assert post_backup["policy_exchange_performed"] is True
+    assert post_backup["final_state_verified"] is True
+
+    rollback_uncertain = _failure_receipt(
+        failure_phase="post_backup_revalidation",
+        policy_exchange_performed=True,
+        rollback_attempted=True,
+        rollback_green=False,
+        final_state_verified=False,
+        final_state="UNKNOWN",
+    )
+    assert rollback_uncertain["policy_publication_performed"] is True
+    assert rollback_uncertain["automatic_rollback_green"] is False
+    assert rollback_uncertain["final_state_verified"] is False
+
+    try:
+        _failure_receipt(
+            failure_phase="pre_exchange",
+            policy_exchange_performed=True,
+            rollback_attempted=False,
+            rollback_green=None,
+            final_state_verified=True,
+            final_state=READY_STATE,
+        )
+    except RebindError as exc:
+        assert str(exc) == "failure_receipt_exchange_phase_invalid"
+    else:
+        raise AssertionError("pre-exchange receipt accepted exchange=true")
 
     with tempfile.TemporaryDirectory(
         prefix="void-e2-v6r2-policy-rebind-self-test-"
@@ -754,6 +919,10 @@ def self_test() -> None:
     print("runner_mutation_authorized=false")
     print("old_policy_retention_required=true")
     print("automatic_rollback_required=true")
+    print("publication_aware_failure_receipt=true")
+    print("post_exchange_failure_reports_publication=true")
+    print("rollback_failure_final_state_uncertain=true")
+    print("pre_mutation_authority_scoped=true")
     print("live_execution_authorized=false")
     print("credential_access_authorized=false")
     print("transaction_authorized=false")

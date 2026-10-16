@@ -51,6 +51,31 @@ Any failure after exchange attempts to restore the exact old policy and remove
 the exact new staged policy. A rollback that cannot be proven green fails
 closed.
 
+### Monotonic failure receipt
+
+The apply transcript separates the initial authority declaration from final
+operation evidence. Before mutation it emits only the scoped fact
+`filesystem_mutation_performed_at_pre_mutation_boundary=false`.
+
+If apply later fails, it emits one `FINAL_FAILURE_RECEIPT` before returning
+HOLD. That receipt binds:
+
+- the exact failure phase;
+- whether the live policy exchange/publication occurred;
+- whether rollback was attempted;
+- whether rollback was proven green; and
+- whether the final protected state was independently reclassified as exact
+  READY or exact GREEN.
+
+Once the live policy exchange succeeds,
+`policy_publication_performed=true` is monotonic even when rollback later
+restores the old policy. If rollback or final-state verification is uncertain,
+the receipt reports that uncertainty rather than reverting to a pre-mutation
+`false` claim.
+
+Focused proof covers failure immediately after exchange, failure after backup
+retention, and rollback/final-state uncertainty.
+
 ## Authority boundary
 
 This lane does not authorize or perform:
