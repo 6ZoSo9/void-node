@@ -17,7 +17,7 @@ PARENT_SOURCE_REL = "tools/apollyon-training-start-release-binding-v1.mjs"
 PARENT_PROOF_REL = "scripts/prove_apollyon_training_start_release_binding_v1.mjs"
 PARENT_WORKFLOW_REL = ".github/workflows/apollyon-training-start-release-binding-v1.yml"
 
-SOURCE_BLOB = "accb5bc2810e51e54f17baf5e179cf848d75b381"
+SOURCE_BLOB = "0197446bc893ce82b82bafc8f801516f87f23d10"
 PARENT_SOURCE_BLOB = "b8d7229369e7d74e515955e726e0268bbdf6e513"
 PARENT_PROOF_BLOB = "7a67f25c40d52574cc4a7bd25604e9ff79367487"
 PARENT_WORKFLOW_BLOB = "c577da33e31b2c32d8a01e42105c7ced8cab0b4f"
@@ -225,6 +225,8 @@ with tempfile.TemporaryDirectory(
         "exact_uid_gid_slots_required=true",
         "supplementary_groups_empty_required=true",
         "no_new_privileges_required=true",
+        "retained_self_pidfd_required=true",
+        "retained_self_pidfd_liveness_revalidated=true",
         "all_capability_sets_zero_required=true",
         "hostile_nnp_zero_rejected=true",
         "hostile_nonzero_capability_rejected=true",
@@ -284,6 +286,7 @@ print("release_fd_anonymous_pipe_identity_bound=true")
 print("release_frame_short_extra_timeout_adversaries=true")
 print("held_duplicate_writer_timeout_adversary=true")
 print("trainer_nnp_capability_adversaries=true")
+print("trainer_pidfd_retained_and_revalidated=true")
 print("post_first_entry_noexec_barrier_proven=true")
 print("release_pipe_identity_observed_but_writer_origin_unproven=true")
 print("private_release_channel_origin_proven=false")
