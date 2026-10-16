@@ -542,6 +542,48 @@ def choose_shared_system_id(
     raise PlanError("no_free_shared_system_uid_gid")
 
 
+def derive_local_identity_plan(
+    passwd_rows: list[dict[str, Any]],
+    group_rows: list[dict[str, Any]],
+    bounds: dict[str, int],
+) -> dict[str, Any]:
+    service_users = [row for row in passwd_rows if row["name"] == SERVICE_USER]
+    service_groups = [row for row in group_rows if row["name"] == SERVICE_GROUP]
+    if service_users or service_groups:
+        raise PlanError("selected_account_or_group_already_exists")
+
+    operator_rows = [row for row in passwd_rows if row["name"] == EXPECTED_OPERATOR]
+    uid_rows = [row for row in passwd_rows if row["uid"] == EXPECTED_OPERATOR_UID]
+    if (
+        len(operator_rows) != 1
+        or operator_rows[0]["uid"] != EXPECTED_OPERATOR_UID
+        or len(uid_rows) != 1
+        or uid_rows[0]["name"] != EXPECTED_OPERATOR
+    ):
+        raise PlanError("local_operator_identity_invalid")
+
+    used_uids = {row["uid"] for row in passwd_rows}
+    used_gids = {row["gid"] for row in group_rows}
+    used_gids.update(row["gid"] for row in passwd_rows)
+    candidate = choose_shared_system_id(used_uids, used_gids, bounds)
+
+    uid_wire = ",".join(str(x) for x in sorted(used_uids)).encode("ascii")
+    gid_wire = ",".join(str(x) for x in sorted(used_gids)).encode("ascii")
+    return {
+        "service_user_exists": False,
+        "service_group_exists": False,
+        "operator_name": EXPECTED_OPERATOR,
+        "operator_uid": EXPECTED_OPERATOR_UID,
+        "operator_local_files_unique": True,
+        "candidate_runtime_uid": candidate,
+        "candidate_runtime_gid": candidate,
+        "candidate_uid_gid_same": True,
+        "candidate_local_identity_namespace_free_verified": True,
+        "used_uid_set_sha256": sha256(uid_wire),
+        "used_gid_set_sha256": sha256(gid_wire),
+    }
+
+
 def _local_identity_authority() -> dict[str, Any]:
     files = {
         "nsswitch": (NSSWITCH, MAX_SMALL_FILE_BYTES),
@@ -569,46 +611,15 @@ def _local_identity_authority() -> dict[str, Any]:
         _decode_utf8(raws["login_defs"], "login_defs_encoding_invalid")
     )
 
-    service_users = [row for row in passwd_rows if row["name"] == SERVICE_USER]
-    service_groups = [row for row in group_rows if row["name"] == SERVICE_GROUP]
-    if service_users or service_groups:
-        raise PlanError("selected_account_or_group_already_exists")
-
-    operator_rows = [row for row in passwd_rows if row["name"] == EXPECTED_OPERATOR]
-    uid_rows = [row for row in passwd_rows if row["uid"] == EXPECTED_OPERATOR_UID]
-    if (
-        len(operator_rows) != 1
-        or operator_rows[0]["uid"] != EXPECTED_OPERATOR_UID
-        or len(uid_rows) != 1
-        or uid_rows[0]["name"] != EXPECTED_OPERATOR
-    ):
-        raise PlanError("local_operator_identity_invalid")
-
-    used_uids = {row["uid"] for row in passwd_rows}
-    used_gids = {row["gid"] for row in group_rows}
-    used_gids.update(row["gid"] for row in passwd_rows)
-    candidate = choose_shared_system_id(used_uids, used_gids, bounds)
-
-    uid_wire = ",".join(str(x) for x in sorted(used_uids)).encode("ascii")
-    gid_wire = ",".join(str(x) for x in sorted(used_gids)).encode("ascii")
+    derived = derive_local_identity_plan(passwd_rows, group_rows, bounds)
     return {
         "profile": "local_files_only_v2",
         "nsswitch_sources": nss,
         "files": evidence,
         "passwd_row_count": len(passwd_rows),
         "group_row_count": len(group_rows),
-        "used_uid_set_sha256": sha256(uid_wire),
-        "used_gid_set_sha256": sha256(gid_wire),
         "system_id_bounds": bounds,
-        "service_user_exists": False,
-        "service_group_exists": False,
-        "operator_name": EXPECTED_OPERATOR,
-        "operator_uid": EXPECTED_OPERATOR_UID,
-        "operator_local_files_unique": True,
-        "candidate_runtime_uid": candidate,
-        "candidate_runtime_gid": candidate,
-        "candidate_uid_gid_same": True,
-        "candidate_local_identity_namespace_free_verified": True,
+        **derived,
         "libc_nss_lookup_used": False,
         "remote_nss_provider_allowed": False,
         "identity_resolution_external_network_calls": False,
@@ -914,6 +925,41 @@ SYS_GID_MAX 999
 """
     bounds = parse_login_defs(login_text)
     assert choose_shared_system_id({999, 998}, {999, 997}, bounds) == 996
+    derived = derive_local_identity_plan(passwd_rows, group_rows, bounds)
+    assert derived["candidate_runtime_uid"] == 999
+    assert derived["candidate_runtime_gid"] == 999
+    assert derived["operator_local_files_unique"] is True
+
+    service_row = {
+        "name": SERVICE_USER,
+        "uid": 998,
+        "gid": 998,
+        "password": "x",
+        "gecos": "",
+        "home": "/nonexistent",
+        "shell": "/usr/sbin/nologin",
+    }
+    _expect_hold(
+        lambda: derive_local_identity_plan(
+            [*passwd_rows, service_row], group_rows, bounds
+        ),
+        "selected_account_or_group_already_exists",
+    )
+    alias_row = {
+        "name": "zoso-alias",
+        "uid": EXPECTED_OPERATOR_UID,
+        "gid": 1000,
+        "password": "x",
+        "gecos": "",
+        "home": "/home/zoso",
+        "shell": "/bin/bash",
+    }
+    _expect_hold(
+        lambda: derive_local_identity_plan(
+            [*passwd_rows, alias_row], group_rows, bounds
+        ),
+        "local_operator_identity_invalid",
+    )
     _expect_hold(
         lambda: choose_shared_system_id(set(range(100, 1000)), set(), bounds),
         "no_free_shared_system_uid_gid",
