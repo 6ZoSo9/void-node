@@ -47,26 +47,13 @@ jobs:
 
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
-          printf '%s\n' \
-            '.github/workflows/buy-void-epoch2-dormant-binder-installed-qualification-v2.yml' \
-            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml' \
-            '.github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v2.yml' \
-            'docs/operators/buy-void-epoch2-dormant-binder-installed-qualification-v2.md' \
-            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md' \
-            'docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md' \
-            'ops/precision/void_buy_void_epoch2_dormant_binder_installed_qualification_v2.py' \
-            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c' \
-            'ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py' \
-            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py' \
-            'scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py' \
-            'scripts/prove_void_buy_void_epoch2_dormant_binder_installed_qualification_v2.py' \
-            | sort > "$expected"
+          printf '%s\n'             '.github/workflows/buy-void-epoch2-dormant-binder-installed-qualification-v2.yml'             'docs/operators/buy-void-epoch2-dormant-binder-installed-qualification-v2.md'             'ops/precision/void_buy_void_epoch2_dormant_binder_installed_qualification_v2.py'             'scripts/prove_void_buy_void_epoch2_dormant_binder_installed_qualification_v2.py'             | sort > "$expected"
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             f3d6b1559be7490303cf36338c4bfa38fdaa390a
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installed_qualification_v2.py)" =             a904b47577c9dd9b071d855b99d2d50616185684
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_dormant_binder_installed_qualification_v2.py)" =             b35cbcc4d5d56d615df72183fcfc864a4bd1b268
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             9b38d2186c2a0db0042e5fd0d551566a1f8f646c
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installed_qualification_v2.py)" =             0d7d41a2bcdcd570865b0a75c1e7879561f7a6d5
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_dormant_binder_installed_qualification_v2.py)" =             c0ecc584f664c4eea8cdcc45d2ba0f07046282dc
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
