@@ -125,7 +125,7 @@ function run(command,args,options={}){
     env:options.env??cleanRootEnv(),
     input:options.input,
     encoding:"utf8",
-    stdio:["pipe","pipe","pipe"],
+    stdio:[options.stdinIgnore===true?"ignore":"pipe","pipe","pipe"],
     timeout:options.timeout??120_000,
     maxBuffer:MAX_OUTPUT,
   });
@@ -388,6 +388,7 @@ function runNativeLive(expectedHead){
     "--run","--confirm",NATIVE_CONFIRM,"--expected-head",expectedHead,
   ],{
     env:cleanRootEnv(),
+    stdinIgnore:true,
     timeout:120_000,
   });
   if(r.status!==0){
