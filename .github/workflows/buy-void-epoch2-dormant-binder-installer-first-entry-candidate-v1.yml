@@ -36,16 +36,16 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Bind exact derivation generation
         env:
-          EVENT_NAME: \${{ github.event_name }}
-          PR_BASE: \${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE: \${{ github.event.before }}
-          EXPECTED_HEAD: \${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -132,7 +132,7 @@ jobs:
           done
 
   derive:
-    name: derive first-entry candidate / \${{ matrix.lane }}
+    name: derive first-entry candidate / ${{ matrix.lane }}
     needs: source-proof
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -143,7 +143,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -171,8 +171,8 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: void-buy-epoch2-dormant-binder-first-entry-candidate-v1-\${{ github.event.pull_request.head.sha || github.sha }}-\${{ matrix.lane }}
-          path: \${{ runner.temp }}/first-entry-candidate-v1
+          name: void-buy-epoch2-dormant-binder-first-entry-candidate-v1-${{ github.event.pull_request.head.sha || github.sha }}-${{ matrix.lane }}
+          path: ${{ runner.temp }}/first-entry-candidate-v1
           if-no-files-found: error
           retention-days: 7
 
@@ -184,14 +184,14 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: void-buy-epoch2-dormant-binder-first-entry-candidate-v1-\${{ github.event.pull_request.head.sha || github.sha }}-*
-          path: \${{ runner.temp }}/first-entry-candidates-v1
+          pattern: void-buy-epoch2-dormant-binder-first-entry-candidate-v1-${{ github.event.pull_request.head.sha || github.sha }}-*
+          path: ${{ runner.temp }}/first-entry-candidates-v1
           merge-multiple: false
 
       - name: Require three-run byte identity and independent rederivation
