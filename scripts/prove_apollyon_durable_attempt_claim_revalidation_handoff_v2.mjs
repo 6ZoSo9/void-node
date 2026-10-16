@@ -84,6 +84,17 @@ assert.equal(result.provenance_connections.publisher_authenticates_claim_service
 assert.equal(result.provenance_connections.claim_service_socket_and_process_stability_revalidation_required,true);
 assert.equal(result.provenance_connections.root_not_implicitly_authorized_to_publish,true);
 assert.equal(result.parent_child_lineage.revalidator_must_spawn_publisher_directly,true);
+assert.equal(result.parent_child_lineage.request_bytes_validated_before_publisher_spawn_required,true);
+assert.equal(result.parent_child_lineage.publisher_request_bytes_must_come_only_from_revalidator_required,true);
+assert.equal(result.parent_child_lineage.revalidator_to_publisher_private_inherited_descriptor_required,true);
+assert.equal(result.parent_child_lineage.publisher_request_input_descriptor_number_fixed_before_install_required,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_argv_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_environment_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_stdin_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_filesystem_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_request_from_network_forbidden,true);
+assert.equal(result.parent_child_lineage.publisher_forwards_exact_revalidator_validated_canonical_bytes_required,true);
+assert.equal(result.parent_child_lineage.publisher_recanonicalization_or_request_reconstruction_forbidden,true);
 assert.equal(result.parent_child_lineage.publisher_ppid_must_equal_authenticated_revalidator_pid,true);
 assert.equal(result.parent_child_lineage.revalidator_must_remain_live_through_success_ack,true);
 assert.equal(result.privileged_revalidation.initial_privileged_revalidation_before_control_connect_required,true);
@@ -108,7 +119,7 @@ assert.equal(result.fresh_prepublication_challenge.provenance_session_exactly_on
 assert.equal(result.fresh_prepublication_challenge.provenance_session_reuse_forbidden,true);
 assert.equal(result.fresh_prepublication_challenge.publisher_connection_after_authenticated_control_required,true);
 assert.equal(result.fresh_prepublication_challenge.revalidator_reruns_all_privileged_checks_after_challenge_required,true);
-assert.equal(result.fresh_prepublication_challenge.revalidator_revalidates_exact_same_request_after_challenge_required,true);
+assert.equal(result.fresh_prepublication_challenge.revalidator_revalidates_exact_same_retained_request_bytes_after_challenge_required,true);
 assert.equal(result.fresh_prepublication_challenge.response_binds_publish_request_sha256_required,true);
 assert.equal(result.mutation_and_ack_boundary.privileged_handoff_does_not_replace_claim_service_local_prepublication_revalidation,true);
 assert.equal(result.mutation_and_ack_boundary.all_parent_store_contract_local_prepublication_checks_remain_required,true);
@@ -204,6 +215,13 @@ for(const required of [
   "claim_service_so_peercred_before_any_request_body_required:true",
   "publisher_authenticates_claim_service_before_request_body_required:true",
   "publisher_ppid_must_equal_authenticated_revalidator_pid:true",
+  "publisher_request_bytes_must_come_only_from_revalidator_required:true",
+  "revalidator_to_publisher_private_inherited_descriptor_required:true",
+  "publisher_request_from_argv_forbidden:true",
+  "publisher_request_from_environment_forbidden:true",
+  "publisher_request_from_stdin_forbidden:true",
+  "publisher_request_from_filesystem_forbidden:true",
+  "publisher_request_from_network_forbidden:true",
   "revalidator_pidfd_retained_required:true",
   "publisher_pidfd_retained_required:true",
   "challenge_after_publisher_request_parse_required:true",

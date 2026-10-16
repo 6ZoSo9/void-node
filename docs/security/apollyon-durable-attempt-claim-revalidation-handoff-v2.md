@@ -75,8 +75,17 @@ checks needed by the accepted chain:
 The revalidator then establishes the provenance connection and directly spawns
 the fixed non-root publisher.
 
+The exact canonical request bytes already validated by root must be handed to
+that child only through a private inherited descriptor whose descriptor number
+is fixed by the later implementation contract. The publisher may not source a
+request from argv, environment, stdin, filesystem or another network input; it
+must forward the exact inherited bytes without reconstructing or
+recanonicalizing them.
+
 The request bytes reach the claim service only from that publisher role; the
-root control connection never becomes a claim request.
+root control connection never becomes a claim request. If the publisher alters
+even one byte, the service's parsed request digest will not match the retained
+root revalidator's post-challenge digest response.
 
 ## Fresh pre-publication challenge
 
@@ -91,7 +100,7 @@ store mutation**, the service must:
    root revalidator connection; no control bytes are accepted before this
    challenge;
 3. require the same revalidator generation to rerun the complete privileged
-   checks;
+   checks against the same retained canonical request bytes;
 4. require one exact **64-byte binary response**:
    the 32 challenge bytes followed by the 32 raw bytes obtained by decoding the
    parsed lowercase-hex `publish_request_sha256`;
