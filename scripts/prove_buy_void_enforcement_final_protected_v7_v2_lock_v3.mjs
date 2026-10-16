@@ -59,13 +59,24 @@ const HISTORICAL_WORKFLOW_TRANSITIONS=Object.freeze({
     }),
 });
 
+const CURRENT_WORKFLOW_TRANSITIONS=Object.freeze({
+  ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml":
+    Object.freeze({
+      before:"4543abd100f1ae4d109be5e1fe2c4b8d88c28f07",
+      after:"009ec6c08967f01307b072e9ecb949f2a76f4944",
+    }),
+});
+
+
 const EXPECTED_DELTA=Object.freeze([
   WORKFLOW,LOCK_DOC,LOCK,SELF,CANDIDATE_FILE,PRESERVATION_PROOF,
   ...Object.keys(HISTORICAL_WORKFLOW_TRANSITIONS),
+  ...Object.keys(CURRENT_WORKFLOW_TRANSITIONS),
 ].sort());
 const WORKFLOW_TRIGGER_PATHS=Object.freeze([
   CANDIDATE_FILE,LOCK,SELF,LOCK_DOC,PRESERVATION_PROOF,
   ...Object.keys(HISTORICAL_WORKFLOW_TRANSITIONS),
+  ...Object.keys(CURRENT_WORKFLOW_TRANSITIONS),
 ]);
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
@@ -130,6 +141,26 @@ function verifyBranchDelta(){
       ),
       false,
       "historical_workflow_obsolete_current_dispatch_execution:"+relative,
+    );
+  }
+  for(const [relative,expected] of Object.entries(CURRENT_WORKFLOW_TRANSITIONS)){
+    assert.equal(git(["rev-parse",CANDIDATE_HEAD+":"+relative]),expected.before,
+      "current_workflow_predecessor_blob_drift:"+relative);
+    assert.equal(git(["rev-parse","HEAD:"+relative]),expected.after,
+      "current_workflow_successor_blob_drift:"+relative);
+    const source=readExact(relative,256*1024).toString("utf8");
+    assert.ok(
+      source.includes(
+        "node scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs"
+      ),
+      "current_workflow_v5_census_dispatch_missing:"+relative,
+    );
+    assert.equal(
+      source.includes(
+        "node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
+      ),
+      false,
+      "current_workflow_obsolete_v2_dispatch_present:"+relative,
     );
   }
 }
