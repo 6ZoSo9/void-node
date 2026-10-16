@@ -16,7 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
-EXPECTED_PLANNER_BLOB_SHA1="03ea7df9b7a548c73ec1c715d716391be5d5d223"
+EXPECTED_PLANNER_BLOB_SHA1="69db13fffaf1678da03b90f0fa14fd60c3c5c98c"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -96,6 +96,20 @@ for required in (
     '"candidate_slots_selected_in_plan":True',
     '"candidate_slots_globally_distinct":True',
     '"candidate_slots_revalidation_required_before_provisioning":True',
+    '"candidate_slots_live_process_recensus_required_before_provisioning":True',
+    '"candidate_slots_host_user_namespace_recensus_required_before_provisioning":True',
+    '"candidate_slots_provisioning_ready":False',
+    '"live_process_identity_authority":{',
+    '"all_four_uid_slots_consumed":True',
+    '"all_four_gid_slots_consumed":True',
+    '"supplementary_groups_consumed":True',
+    '"candidate_slots_clear_in_final_process_census":True',
+    'hold("root_required_for_host_process_census")',
+    'lease_code="host_pid_namespace_lease_mismatch"',
+    'lease_code="host_user_namespace_lease_mismatch"',
+    '"host_user_namespace_external_lease_required":True',
+    '"pid1_user_namespace_matches_self":True',
+    'census_live_process_credentials(PROC_ROOT)',
     '"store_policy_id":PARENT_STORE_POLICY_ID',
     '"source_generation":source_generation',
     '"source_generation_authenticated":True',
@@ -184,6 +198,184 @@ group_rows=module.parse_group_file(
 )
 assert module.existing_user("zoso",passwd_rows)=={"name":"zoso","uid":1000,"gid":1000}
 assert module.existing_group("zoso",group_rows)=={"name":"zoso","gid":1000}
+
+
+def fixture_proc_stat(pid:int,start_ticks:int)->bytes:
+    tail=["S"]+["0"]*18+[str(start_ticks)]
+    return (str(pid)+" (fixture) "+" ".join(tail)+"\n").encode("ascii")
+
+def fixture_proc_status(
+    pid:int,
+    uids:tuple[int,int,int,int],
+    gids:tuple[int,int,int,int],
+    groups:tuple[int,...],
+)->bytes:
+    return (
+        "Name:\tfixture\n"
+        "Pid:\t"+str(pid)+"\n"
+        "Uid:\t"+" ".join(str(value) for value in uids)+"\n"
+        "Gid:\t"+" ".join(str(value) for value in gids)+"\n"
+        "Groups:\t"+" ".join(str(value) for value in groups)+"\n"
+    ).encode("ascii")
+
+def write_fixture_process(
+    root:Path,
+    pid:int,
+    *,
+    uids:tuple[int,int,int,int]=(601,602,603,604),
+    gids:tuple[int,int,int,int]=(701,702,703,704),
+    groups:tuple[int,...]=(801,802),
+    start_ticks:int=100,
+)->Path:
+    proc=root/str(pid)
+    proc.mkdir(parents=True)
+    (proc/"stat").write_bytes(fixture_proc_stat(pid,start_ticks))
+    (proc/"status").write_bytes(fixture_proc_status(pid,uids,gids,groups))
+    return proc
+
+with tempfile.TemporaryDirectory(prefix="apollyon-proc-census-") as td:
+    proc_root=Path(td)
+    write_fixture_process(proc_root,41)
+    uid_values,gid_values,evidence=module.census_live_process_credentials(proc_root)
+    assert {601,602,603,604}<=uid_values
+    assert {701,702,703,704,801,802}<=gid_values
+    assert evidence["numeric_pid_entries_observed"]==1
+    assert evidence["stable_process_generations_observed"]==1
+    # Real/effective/saved/fs UID and GID slots plus supplementary groups all
+    # participate in candidate exclusion.
+    unavailable=uid_values|gid_values
+    assert module.choose_highest_free(600,605,unavailable,1)==[605]
+    assert module.choose_highest_free(700,705,unavailable,1)==[705]
+
+with tempfile.TemporaryDirectory(prefix="apollyon-proc-malformed-") as td:
+    proc_root=Path(td)
+    proc=proc_root/"42"
+    proc.mkdir()
+    (proc/"stat").write_bytes(fixture_proc_stat(42,100))
+    (proc/"status").write_bytes(
+        b"Pid:\t42\nUid:\t1 1 1 1\nGid:\t2 2 2 2\n"
+    )
+    try:
+        module.read_stable_process_credentials(proc_root,42)
+    except module.Hold as exc:
+        assert str(exc)=="process_status_required_field_missing",str(exc)
+    else:
+        raise AssertionError("malformed still-existing process status must HOLD")
+
+with tempfile.TemporaryDirectory(prefix="apollyon-proc-unreadable-") as td:
+    proc_root=Path(td)
+    proc=proc_root/"43"
+    proc.mkdir()
+    (proc/"stat").write_bytes(fixture_proc_stat(43,100))
+    (proc/"status").mkdir()
+    try:
+        module.read_stable_process_credentials(proc_root,43)
+    except module.Hold as exc:
+        assert str(exc)=="process_status_unreadable:43",str(exc)
+    else:
+        raise AssertionError("unreadable still-existing process status must HOLD")
+
+with tempfile.TemporaryDirectory(prefix="apollyon-proc-disappeared-") as td:
+    proc_root=Path(td)
+    assert module.read_stable_process_credentials(proc_root,44) is None
+
+with tempfile.TemporaryDirectory(prefix="apollyon-proc-generation-change-") as td:
+    proc_root=Path(td)
+    write_fixture_process(proc_root,45,start_ticks=100)
+    saved_reader=module.read_proc_start_ticks
+    ticks=iter((100,101))
+    module.read_proc_start_ticks=lambda _root,_pid: next(ticks)
+    try:
+        try:
+            module.read_stable_process_credentials(proc_root,45)
+        except module.Hold as exc:
+            assert str(exc)=="process_generation_changed_during_census:45",str(exc)
+        else:
+            raise AssertionError("PID generation change must HOLD")
+    finally:
+        module.read_proc_start_ticks=saved_reader
+
+for bad in (
+    b"42 35 0:31 / /proc rw,nosuid - proc proc rw,hidepid=2\n",
+    b"42 35 0:31 / /proc rw,nosuid - tmpfs tmpfs rw\n",
+):
+    try:
+        module.parse_proc_mountinfo_host_view(bad,Path("/proc"))
+    except module.Hold:
+        pass
+    else:
+        raise AssertionError("non-authoritative procfs view must HOLD")
+assert module.parse_dev_ino_lease("12:34")== (12,34)
+assert module.parse_dev_ino_lease(
+    "56:78","host_user_namespace_lease_invalid"
+)==(56,78)
+for bad in ("", "0:1", "1:0", "1", "a:b"):
+    try:
+        module.parse_dev_ino_lease(bad)
+    except module.Hold as exc:
+        assert str(exc)=="host_pid_namespace_lease_invalid"
+    else:
+        raise AssertionError("invalid PID namespace lease must HOLD")
+    try:
+        module.parse_dev_ino_lease(
+            bad,"host_user_namespace_lease_invalid"
+        )
+    except module.Hold as exc:
+        assert str(exc)=="host_user_namespace_lease_invalid"
+    else:
+        raise AssertionError("invalid user namespace lease must HOLD")
+
+class FakeNamespaceStat:
+    def __init__(self,dev:int,ino:int)->None:
+        self.st_dev=dev
+        self.st_ino=ino
+
+assert module.verify_namespace_lease(
+    FakeNamespaceStat(12,34),
+    FakeNamespaceStat(12,34),
+    (12,34),
+    mismatch_code="synthetic_namespace_mismatch",
+    lease_code="synthetic_namespace_lease_mismatch",
+)==(12,34)
+try:
+    module.verify_namespace_lease(
+        FakeNamespaceStat(56,78),
+        FakeNamespaceStat(56,79),
+        (56,78),
+        mismatch_code="synthetic_user_namespace_mismatch",
+        lease_code="synthetic_user_namespace_lease_mismatch",
+    )
+except module.Hold as exc:
+    assert str(exc)=="synthetic_user_namespace_mismatch"
+else:
+    raise AssertionError("user namespace mismatch must HOLD")
+
+saved_geteuid=module.os.geteuid
+saved_stat=module.os.stat
+module.os.geteuid=lambda:0
+def namespace_mismatch_stat(path):
+    text=str(path)
+    if text.endswith("/self/ns/pid") or text.endswith("/1/ns/pid"):
+        return FakeNamespaceStat(12,34)
+    if text.endswith("/self/ns/user"):
+        return FakeNamespaceStat(56,78)
+    if text.endswith("/1/ns/user"):
+        return FakeNamespaceStat(56,79)
+    return saved_stat(path)
+module.os.stat=namespace_mismatch_stat
+try:
+    try:
+        module.require_authoritative_process_view("12:34","56:78")
+    except module.Hold as exc:
+        assert str(exc)=="not_in_pid1_user_namespace",str(exc)
+    else:
+        raise AssertionError(
+            "euid0 with host PID namespace but mismatched user namespace must HOLD"
+        )
+finally:
+    module.os.geteuid=saved_geteuid
+    module.os.stat=saved_stat
+
 
 git_env={
     "PATH":"/usr/bin:/bin",
@@ -408,6 +600,13 @@ for line in (
     "remote_nss_provider_rejected=true",
     "identity_resolution_external_network_calls=false",
     "candidate_slot_revalidation_required=true",
+    "root_host_process_census_required=true",
+    "host_pid_namespace_external_lease_required=true",
+    "host_user_namespace_external_lease_required=true",
+    "host_root_user_namespace_binding_required=true",
+    "all_uid_gid_slots_and_supplementary_groups_consumed=true",
+    "candidate_live_process_recensus_required_before_provisioning=true",
+    "candidate_slots_provisioning_ready=false",
     "stable_store_policy_id_bound=true",
     "source_generation_authentication_required=true",
     "isolated_python_startup_required=true",
@@ -421,7 +620,9 @@ for line in (
 negative=subprocess.run(
     ["python3","-I","-B",str(PLAN),"--run","--expected-parent-head",
      "fe7e1ad9b78a24b77a1657067e4d08f7c56a7731",
-     "--expected-source-head",CURRENT_HEAD],
+     "--expected-source-head",CURRENT_HEAD,
+     "--expected-host-pid-namespace-dev-ino","1:1",
+     "--expected-host-user-namespace-dev-ino","1:1"],
     cwd=ROOT,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
     text=True,check=False,timeout=20,
 )
@@ -445,6 +646,17 @@ print("nsswitch_passwd_group_files_only_required=true")
 print("libc_nss_lookup_used=false")
 print("remote_nss_provider_rejected=true")
 print("candidate_slot_revalidation_required=true")
+print("root_host_process_census_required=true")
+print("host_pid_namespace_external_lease_required=true")
+print("host_user_namespace_external_lease_required=true")
+print("host_root_user_namespace_binding_required=true")
+print("euid0_user_namespace_mismatch_rejected=true")
+print("all_uid_gid_slots_and_supplementary_groups_consumed=true")
+print("malformed_unreadable_process_status_fails_closed=true")
+print("disappeared_pid_skipped=true")
+print("pid_generation_change_rejected=true")
+print("candidate_live_process_recensus_required_before_provisioning=true")
+print("candidate_slots_provisioning_ready=false")
 print("store_policy_id_rederived_from_parent_contract=true")
 print("store_policy_esm_dependency_closure_exact=true")
 print("store_policy_import_trigger_symmetry=true")
