@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+#define APOLLYON_CLAIM_PROCESS_IDENTITY_MAX_SUPPLEMENTARY_GIDS_V2 64U
+
 #define VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_NATIVE_PROCESS_IDENTITY_V2 \
   "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_NATIVE_PROCESS_IDENTITY_V2"
 
@@ -23,6 +25,8 @@ int apollyon_claim_process_identity_observe_v2(
   pid_t expected_ppid,
   uid_t expected_uid,
   gid_t expected_gid,
+  const gid_t *expected_supplementary_gids,
+  size_t expected_supplementary_gid_count,
   int expected_executable_fd,
   const unsigned char *expected_cmdline,
   size_t expected_cmdline_len,
