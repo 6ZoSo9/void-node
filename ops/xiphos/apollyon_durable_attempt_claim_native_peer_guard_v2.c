@@ -578,6 +578,9 @@ static int self_test(void) {
   printf("so_peercred_proven=true\n");
   printf("pidfd_liveness_proven=true\n");
   printf("exec_in_place_source_drift_detected=true\n");
+  printf("native_executable_inode_drift_proven=true\n");
+  printf("interpreted_body_source_identity_proven=false\n");
+  printf("exact_cmdline_and_script_identity_integration_required=true\n");
   printf("response_frame_exact_bytes=64\n");
   printf("response_half_close_eof_proven=true\n");
   printf("response_extra_byte_rejected=true\n");

@@ -40,7 +40,7 @@ It proves:
    self-test binary;
 4. the exact same PID/start-ticks/pidfd generation performs an in-place
    `execve("/bin/sleep", ...)` and the executable-inode comparison detects the
-   source change while the process is still alive;
+   executable-image change while the process is still alive;
 5. exactly 64 response bytes followed by `shutdown(SHUT_WR)` are accepted;
 6. the receiver observes EOF after exactly those 64 bytes and can still send an
    acknowledgment on its write half;
@@ -68,6 +68,17 @@ This source does **not** prove:
 - training admission/execution.
 
 Those remain later integration and designated-host qualification gates.
+
+### Interpreted-source limitation
+
+Executable-inode comparison is an exec-sensitive primitive, not complete source
+identity for an interpreted body. Re-executing the same reviewed interpreter
+with different argv or a different script can preserve the interpreter inode.
+The later revalidator/publisher integration must additionally bind exact
+`/proc/<pid>/cmdline` semantics and the root-custodied script/source bytes
+(or use a fully native fixed executable) at every #3291 source-revalidation
+boundary. This candidate therefore reports
+`interpreted_body_source_identity_proven=false`.
 
 ## Authority
 
