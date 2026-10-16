@@ -5,11 +5,16 @@ import ast
 import hashlib
 import importlib.util
 from pathlib import Path
+import shutil
 import subprocess
 
 ROOT=Path(__file__).resolve().parents[1]
 PLAN=ROOT/"ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py"
 CONTRACT=ROOT/"tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+EXPECTED_STORE_POLICY_ID=(
+    "apollyon_claim_store_policy_v2:"
+    "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
+)
 
 def git_blob(data:bytes)->str:
     h=hashlib.sha1()
@@ -23,6 +28,28 @@ ast.parse(source)
 assert git_blob(CONTRACT.read_bytes())=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
 assert 'PARENT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"' in source
 assert 'PARENT_CONTRACT_BLOB_SHA1="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"' in source
+assert '"e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"' in source
+assert '"store_policy_id":PARENT_STORE_POLICY_ID' in source
+
+node_path=shutil.which("node")
+assert node_path is not None
+node_real=Path(node_path).resolve()
+assert node_real.is_file()
+policy_script=(
+    'import {qualifyApollyonDurableAttemptClaimStorePolicyV2} from "'
+    +CONTRACT.resolve().as_uri()
+    +'";process.stdout.write('
+    'qualifyApollyonDurableAttemptClaimStorePolicyV2().store_policy_id+"\\n");'
+)
+policy_run=subprocess.run(
+    [str(node_real),"--input-type=module","-e",policy_script],
+    cwd=ROOT,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+    text=True,check=False,timeout=20,
+    env={"PATH":"/usr/bin:/bin","HOME":str(ROOT),"LANG":"C","LC_ALL":"C","TZ":"UTC"},
+)
+assert policy_run.returncode==0,policy_run.stderr
+assert policy_run.stderr=="",policy_run.stderr
+assert policy_run.stdout==EXPECTED_STORE_POLICY_ID+"\n",policy_run.stdout
 
 for required in (
     'TARGET_HOST="Xiphos"',
@@ -37,6 +64,7 @@ for required in (
     '"candidate_slots_selected_in_plan":True',
     '"candidate_slots_globally_distinct":True',
     '"candidate_slots_revalidation_required_before_provisioning":True',
+    '"store_policy_id":PARENT_STORE_POLICY_ID',
     '"local_identity_authority":{',
     '"libc_nss_lookup_used":False',
     '"remote_nss_provider_allowed":False',
@@ -141,6 +169,7 @@ for line in (
     "remote_nss_provider_rejected=true",
     "identity_resolution_external_network_calls=false",
     "candidate_slot_revalidation_required=true",
+    "stable_store_policy_id_bound=true",
     "host_installation_performed=false",
     "durable_attempt_claim=false",
     "training_execution=false",
@@ -173,6 +202,8 @@ print("nsswitch_passwd_group_files_only_required=true")
 print("libc_nss_lookup_used=false")
 print("remote_nss_provider_rejected=true")
 print("candidate_slot_revalidation_required=true")
+print("store_policy_id_rederived_from_parent_contract=true")
+print("stable_store_policy_id="+EXPECTED_STORE_POLICY_ID)
 print("persistent_filesystem_write=false")
 print("account_mutation=false")
 print("systemd_mutation=false")
