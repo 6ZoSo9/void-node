@@ -111,8 +111,17 @@ jobs:
           grep -Fx 'production_source_finality_authority_ready=false' "$self"
           grep -Fx 'public_presale_activation=false' "$self"
           grep -Fx 'funds_movement=false' "$self"
+          self_sha="$(sed -n 's/^candidate_enforcement_set_sha256=//p' "$self")"
+          test -n "$self_sha"
           out="$RUNNER_TEMP/protected-v7-v2-candidate-v3-node-${{ matrix.node }}.json"
+          repeat="$RUNNER_TEMP/protected-v7-v2-candidate-v3-node-${{ matrix.node }}-repeat.json"
           node "$proof" --derive > "$out"
+          node "$proof" --derive > "$repeat"
+          cmp "$out" "$repeat"
+          derived_sha="$(node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(c.candidate_enforcement_set_sha256)' "$out")"
+          test "$self_sha" = "$derived_sha"
+          echo "cross_process_derivation_byte_identical=true"
+          echo "self_test_candidate_sha_matches_derive=true"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
