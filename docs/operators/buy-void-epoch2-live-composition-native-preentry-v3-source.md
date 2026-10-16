@@ -107,8 +107,8 @@ This PR does not:
 - authorize live execution.
 
 The V3 runner source blob is pinned only as the reviewed consumer generation:
-baab733e43c030d24f8d4abd1644f3c4ae55c3b2
+499df9b94b5b89354837570da0c7e47ec280025d
 
-After both stacked source PRs are green and merged, the next gate is a fresh deterministic V3 native/runner candidate derivation. Historical V2 native candidate identity must not be repurposed.
+After the repaired runner and this rebound native-source proof are green, the next gate is a fresh deterministic native/runner candidate derivation. Historical V2 native candidate identity must not be repurposed.
 
 PROTECT THE CORE.
