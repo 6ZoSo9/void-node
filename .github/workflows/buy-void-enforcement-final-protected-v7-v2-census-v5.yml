@@ -1,0 +1,270 @@
+name: VOID Buy VOID final protected V7/V2 enforcement census v5
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-census-v5.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v5.yml"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-census-v5.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v5.yml"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V5 census generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          if [ "$EVENT_NAME" = pull_request ]; then
+            expected="$RUNNER_TEMP/expected-scope.txt"
+            actual="$RUNNER_TEMP/actual-scope.txt"
+            printf '%s\n' \
+              '.github/workflows/buy-void-enforcement-final-protected-v7-v2-census-v5.yml' \
+              'docs/architecture/buy-void-enforcement-final-protected-v7-v2-census-v5.md' \
+              'scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs' \
+              | sort > "$expected"
+            git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+            diff -u "$expected" "$actual"
+          fi
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs)" = \
+            24cca9f3e3af328b640d33694492f6f71c1f0d52
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-census-v5.md)" = \
+            886ba7003cc9a895b29de848036d96039d7f36b7
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = \
+            72dec8920c1a7177d353400c33b71c2de2562aba
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = \
+            d74aa53bc8ee87581de748d7d0fc57ffa0b13944
+          test "$(git rev-parse HEAD:docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md)" = \
+            32dbc7a69187a09c5cd7fe27ed5481463a157a8f
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json)" = \
+            4e23ecbb64eb26c14f5ab15af85eb86d59c3a718
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = \
+            589845615654da8b688764377b34296267ac0063
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs)" = \
+            f0e1334da67309c1aeb98a2fa19e5ff77424955f
+
+          node --check scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  derive:
+    name: derive V5 custody census / Node ${{ matrix.node }}
+    needs: source-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build exact economic generation
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Derive V5 census
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/census-v5.json"
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs > "$out"
+
+          node --input-type=module - "$out" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(c.schema,"void_buy_void_enforcement_final_protected_v7_v2_census_v5");
+          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CENSUS_V5");
+          assert.equal(c.version,5);
+          assert.equal(c.base_main,"adc5a87d0200aa354b03d9910cbfc1cb2d59bb38");
+          assert.equal(c.custody_parent,"5ebba1f2b301d1e12d4dff95ae4f3ce22bb82c33");
+          assert.equal(c.protected_tracked_source_count,49);
+          assert.equal(c.protected_generation_delta_count,1);
+          assert.equal(c.protected_generation_delta_exact,true);
+          assert.equal(c.unchanged_protected_path_count,48);
+          assert.equal(c.deployment_receipt_installer_generation_blob,
+            "72dec8920c1a7177d353400c33b71c2de2562aba");
+          assert.equal(c.deployment_receipt_custody_successor_evidence_bound,true);
+          assert.equal(c.economic_and_build_source_drift_count,0);
+          assert.equal(c.economic_executable_closure_preserved,true);
+          assert.equal(c.frozen_candidate_rederived,false);
+          assert.equal(c.frozen_lock_rewritten,false);
+          assert.equal(c.census_only,true);
+          assert.equal(c.complete_executable_closure_verified,false);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.deployed_artifact_generation_verified,false);
+          assert.equal(c.runtime_mount_authority,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          assert.match(c.census_id,/^voidbefv7c5_[0-9a-f]{64}$/u);
+          assert.deepEqual(c.protected_generation_delta,[{
+            path:"ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts",
+            before_blob:"3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0",
+            after_blob:"72dec8920c1a7177d353400c33b71c2de2562aba",
+            before_mode:"100644",
+            after_mode:"100644",
+          }]);
+          console.log("VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CENSUS_V5_VALIDATE_GREEN");
+          console.log("census_id="+c.census_id);
+          console.log("protected_generation_delta_count=1");
+          console.log("unchanged_protected_path_count=48");
+          console.log("economic_executable_closure_preserved=true");
+          console.log("candidate_enforcement_identity_accepted=false");
+          console.log("funds_movement=false");
+          NODE
+
+          test -s "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-enforcement-census-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/census-v5.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+          check-latest: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build independent comparison generation
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-enforcement-census-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          path: ${{ runner.temp }}/census-v5-hosted
+          merge-multiple: false
+
+      - name: Require cross-node identity and independent rederivation
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/census-v5-hosted"
+          mapfile -t hosted < <(find "$root" -type f -name census-v5.json | sort)
+          test "${#hosted[@]}" -eq 3
+          cmp -s "${hosted[0]}" "${hosted[1]}"
+          cmp -s "${hosted[0]}" "${hosted[2]}"
+
+          independent="$RUNNER_TEMP/census-v5-independent.json"
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_census_v5.mjs > "$independent"
+          cmp -s "${hosted[0]}" "$independent"
+
+          node --input-type=module - "${hosted[0]}" <<'NODE'
+          import assert from "node:assert/strict";
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const bytes=fs.readFileSync(process.argv[2]);
+          const c=JSON.parse(bytes.toString("utf8"));
+          assert.equal(c.protected_generation_delta_count,1);
+          assert.equal(c.unchanged_protected_path_count,48);
+          assert.equal(c.economic_executable_closure_preserved,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.funds_movement,false);
+          console.log("VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CENSUS_V5_THREE_NODE_GREEN");
+          console.log("three_node_census_bytes_identical=true");
+          console.log("independent_rederivation_identical=true");
+          console.log("census_id="+c.census_id);
+          console.log("census_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+          console.log("census_json_bytes="+bytes.length);
+          console.log("candidate_enforcement_identity_accepted=false");
+          console.log("funds_movement=false");
+          NODE
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
