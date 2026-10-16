@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <linux/audit.h>
 #include <linux/filter.h>
+#include <linux/magic.h>
 #include <linux/seccomp.h>
 #include <poll.h>
 #include <stddef.h>
@@ -17,6 +18,7 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/vfs.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -32,6 +34,9 @@
 #define SELFTEST_TIMEOUT_MS 60
 #define MAX_STATUS_BYTES 65536U
 #define MAX_GROUPS 64U
+#ifndef VOID_APOLLYON_PROC_ROOT
+#define VOID_APOLLYON_PROC_ROOT "/proc"
+#endif
 
 #if defined(__x86_64__)
 #define EXPECTED_AUDIT_ARCH AUDIT_ARCH_X86_64
@@ -79,6 +84,15 @@ typedef struct {
     uint64_t cap_amb;
     int no_new_privs;
 } process_security_v1;
+
+typedef struct {
+    int proc_fd;
+    int self_fd;
+    int fd_dir_fd;
+    struct stat proc_stat;
+    struct stat self_stat;
+    struct stat fd_dir_stat;
+} proc_context_v1;
 
 typedef enum {
     FRAME_OK = 0,
@@ -312,9 +326,20 @@ static frame_result_v1 read_frame_then_eof(
     }
 }
 
-static bool read_bounded(const char *path, unsigned char *buf, size_t cap, size_t *out_len) {
-    int fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+static bool read_bounded_at(
+    int dirfd,
+    const char *name,
+    unsigned char *buf,
+    size_t cap,
+    size_t *out_len
+) {
+    int fd = openat(dirfd, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) return false;
+    struct statfs fs;
+    if (fstatfs(fd, &fs) != 0 || (unsigned long)fs.f_type != (unsigned long)PROC_SUPER_MAGIC) {
+        close(fd);
+        return false;
+    }
     size_t offset = 0;
     for (;;) {
         if (offset == cap) {
@@ -333,6 +358,104 @@ static bool read_bounded(const char *path, unsigned char *buf, size_t cap, size_
     if (close(fd) != 0) return false;
     *out_len = offset;
     return true;
+}
+
+static bool same_proc_generation(const struct stat *a, const struct stat *b) {
+    return a->st_dev == b->st_dev &&
+           a->st_ino == b->st_ino &&
+           a->st_mode == b->st_mode &&
+           a->st_uid == b->st_uid &&
+           a->st_gid == b->st_gid;
+}
+
+static bool proc_fd_is_procfs(int fd) {
+    struct statfs fs;
+    return fstatfs(fd, &fs) == 0 &&
+           (unsigned long)fs.f_type == (unsigned long)PROC_SUPER_MAGIC;
+}
+
+static bool proc_self_link_matches_pid(int proc_fd) {
+    char link[64];
+    ssize_t n = readlinkat(proc_fd, "self", link, sizeof(link) - 1U);
+    if (n <= 0 || (size_t)n >= sizeof(link) - 1U) return false;
+    link[n] = '\0';
+    errno = 0;
+    char *end = NULL;
+    long observed = strtol(link, &end, 10);
+    return errno == 0 && end != link && *end == '\0' &&
+           observed > 1 && observed == (long)getpid();
+}
+
+static void proc_context_init(proc_context_v1 *ctx) {
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->proc_fd = -1;
+    ctx->self_fd = -1;
+    ctx->fd_dir_fd = -1;
+}
+
+static bool close_proc_context(proc_context_v1 *ctx) {
+    bool ok = true;
+    if (ctx->fd_dir_fd >= 0 && close(ctx->fd_dir_fd) != 0) ok = false;
+    if (ctx->self_fd >= 0 && close(ctx->self_fd) != 0) ok = false;
+    if (ctx->proc_fd >= 0 && close(ctx->proc_fd) != 0) ok = false;
+    proc_context_init(ctx);
+    return ok;
+}
+
+static bool open_proc_context_root(const char *root, proc_context_v1 *ctx) {
+    proc_context_init(ctx);
+    ctx->proc_fd = open(root, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (ctx->proc_fd < 0 || !proc_fd_is_procfs(ctx->proc_fd) ||
+        fstat(ctx->proc_fd, &ctx->proc_stat) != 0 ||
+        !S_ISDIR(ctx->proc_stat.st_mode) ||
+        !proc_self_link_matches_pid(ctx->proc_fd)) {
+        close_proc_context(ctx);
+        return false;
+    }
+
+    ctx->self_fd = openat(
+        ctx->proc_fd,
+        "self",
+        O_RDONLY | O_DIRECTORY | O_CLOEXEC
+    );
+    if (ctx->self_fd < 0 || !proc_fd_is_procfs(ctx->self_fd) ||
+        fstat(ctx->self_fd, &ctx->self_stat) != 0 ||
+        !S_ISDIR(ctx->self_stat.st_mode)) {
+        close_proc_context(ctx);
+        return false;
+    }
+
+    ctx->fd_dir_fd = openat(
+        ctx->self_fd,
+        "fd",
+        O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW
+    );
+    if (ctx->fd_dir_fd < 0 || !proc_fd_is_procfs(ctx->fd_dir_fd) ||
+        fstat(ctx->fd_dir_fd, &ctx->fd_dir_stat) != 0 ||
+        !S_ISDIR(ctx->fd_dir_stat.st_mode)) {
+        close_proc_context(ctx);
+        return false;
+    }
+    return true;
+}
+
+static bool open_proc_context(proc_context_v1 *ctx) {
+    return open_proc_context_root(VOID_APOLLYON_PROC_ROOT, ctx);
+}
+
+static bool revalidate_proc_context(const proc_context_v1 *ctx) {
+    struct stat proc_now, self_now, fd_now;
+    return ctx->proc_fd >= 0 && ctx->self_fd >= 0 && ctx->fd_dir_fd >= 0 &&
+           proc_fd_is_procfs(ctx->proc_fd) &&
+           proc_fd_is_procfs(ctx->self_fd) &&
+           proc_fd_is_procfs(ctx->fd_dir_fd) &&
+           proc_self_link_matches_pid(ctx->proc_fd) &&
+           fstat(ctx->proc_fd, &proc_now) == 0 &&
+           fstat(ctx->self_fd, &self_now) == 0 &&
+           fstat(ctx->fd_dir_fd, &fd_now) == 0 &&
+           same_proc_generation(&ctx->proc_stat, &proc_now) &&
+           same_proc_generation(&ctx->self_stat, &self_now) &&
+           same_proc_generation(&ctx->fd_dir_stat, &fd_now);
 }
 
 static bool parse_four_ids(
