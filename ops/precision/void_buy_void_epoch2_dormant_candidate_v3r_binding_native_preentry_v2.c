@@ -63,7 +63,7 @@ static void sha256_update(sha256_ctx*c,const unsigned char*d,size_t n){for(size_
 static void sha256_final(sha256_ctx*c,unsigned char h[32]){uint32_t i=c->datalen;c->data[i++]=0x80U;if(i>56U){while(i<64U)c->data[i++]=0;sha256_transform(c,c->data);i=0;}while(i<56U)c->data[i++]=0;c->bitlen+=(uint64_t)c->datalen*8U;for(size_t j=0;j<8;j++)c->data[63U-j]=(unsigned char)(c->bitlen>>(j*8U));sha256_transform(c,c->data);for(size_t j=0;j<8;j++){h[j*4U]=(unsigned char)(c->state[j]>>24);h[j*4U+1]=(unsigned char)(c->state[j]>>16);h[j*4U+2]=(unsigned char)(c->state[j]>>8);h[j*4U+3]=(unsigned char)c->state[j];}}
 static void sha256_buffer(const unsigned char*d,size_t n,unsigned char h[32]){sha256_ctx c;sha256_init(&c);sha256_update(&c,d,n);sha256_final(&c,h);}
 static bool sha256_fd_matches(int fd,const unsigned char expected[32]){
-  if(lseek(fd,0,SEEK_SET)<0)return false;sha256_ctx c;sha256_init(&c);unsigned char b[8192];
+  if(lseek(fd,0,SEEK_SET)<0)return false;\n  sha256_ctx c;sha256_init(&c);unsigned char b[8192];
   for(;;){ssize_t n=read(fd,b,sizeof(b));if(n<0){if(errno==EINTR)continue;return false;}if(n==0)break;sha256_update(&c,b,(size_t)n);}
   unsigned char h[32];sha256_final(&c,h);if(lseek(fd,0,SEEK_SET)<0)return false;return memcmp(h,expected,32U)==0;
 }
@@ -119,7 +119,7 @@ static void require_devnull_stdin(void){
 }
 static bool write_all(int fd,const unsigned char*d,size_t n){size_t o=0;while(o<n){ssize_t w=write(fd,d+o,n-o);if(w<0){if(errno==EINTR)continue;return false;}if(w==0)return false;o+=(size_t)w;}return true;}
 static bool stream_fd(int in_fd,int out_fd){
-  if(lseek(in_fd,0,SEEK_SET)<0)return false;unsigned char b[8192];
+  if(lseek(in_fd,0,SEEK_SET)<0)return false;\n  unsigned char b[8192];
   for(;;){ssize_t n=read(in_fd,b,sizeof(b));if(n<0){if(errno==EINTR)continue;return false;}if(n==0)break;if(!write_all(out_fd,b,(size_t)n))return false;}
   return lseek(in_fd,0,SEEK_SET)>=0;
 }
@@ -148,7 +148,7 @@ static policy_v1 read_policy(void){
   memcpy(p.expected_head,head,41U);memcpy(p.node_sha256,node_sha,65U);free(buf);return p;
 }
 static void sha256_fd_hex(int fd,char out[65]){
-  if(lseek(fd,0,SEEK_SET)<0)hold("binder_preentry_digest_seek_failed");sha256_ctx c;sha256_init(&c);unsigned char b[8192];
+  if(lseek(fd,0,SEEK_SET)<0)hold("binder_preentry_digest_seek_failed");\n  sha256_ctx c;sha256_init(&c);unsigned char b[8192];
   for(;;){ssize_t n=read(fd,b,sizeof(b));if(n<0){if(errno==EINTR)continue;hold("binder_preentry_digest_read_failed");}if(n==0)break;sha256_update(&c,b,(size_t)n);}
   unsigned char h[32];sha256_final(&c,h);static const char hex[]="0123456789abcdef";for(size_t i=0;i<32;i++){out[i*2U]=hex[h[i]>>4];out[i*2U+1U]=hex[h[i]&15U];}out[64]='\0';if(lseek(fd,0,SEEK_SET)<0)hold("binder_preentry_digest_rewind_failed");
 }
@@ -157,7 +157,7 @@ static void require_node_policy(int fd,const policy_v1*p){
   char h[65];sha256_fd_hex(fd,h);if(strcmp(h,p->node_sha256)!=0)hold("binder_preentry_node_digest_mismatch");
 }
 static void parse_args(int argc,char**argv,char head[41]){
-  if(argc!=6||strcmp(argv[1],"--run")!=0||strcmp(argv[2],"--confirm")!=0||strcmp(argv[3],CONFIRM)!=0||strcmp(argv[4],"--expected-head")!=0||!lower_hex_exact(argv[5],40U))hold("binder_preentry_arguments_invalid");memcpy(head,argv[5],41U);
+  if(argc!=6||strcmp(argv[1],"--run")!=0||strcmp(argv[2],"--confirm")!=0||strcmp(argv[3],CONFIRM)!=0||strcmp(argv[4],"--expected-head")!=0||!lower_hex_exact(argv[5],40U))hold("binder_preentry_arguments_invalid");\n  memcpy(head,argv[5],41U);
 }
 static void emit_proof(int fd,pid_t child,const char head[41],const struct stat*self,const struct stat*binder,const struct stat*node,unsigned long long parent_ticks,unsigned long long child_ticks){
   char proof[2048];int n=snprintf(proof,sizeof(proof),
@@ -172,7 +172,7 @@ static int self_test(void){
 }
 int main(int argc,char**argv){
   if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
-  if(geteuid()!=0)hold("binder_preentry_root_required");char requested_head[41];parse_args(argc,argv,requested_head);struct stat self_st=require_self_identity();require_devnull_stdin();
+  if(geteuid()!=0)hold("binder_preentry_root_required");\n  char requested_head[41];parse_args(argc,argv,requested_head);struct stat self_st=require_self_identity();require_devnull_stdin();
   policy_v1 policy=read_policy();if(strcmp(requested_head,policy.expected_head)!=0)hold("binder_preentry_expected_head_policy_mismatch");
   int binder_fd=open_trusted(FIXED_BINDER,false,"binder_preentry_binder_custody_invalid");struct stat binder_st;if(fstat(binder_fd,&binder_st)!=0||(uintmax_t)binder_st.st_size!=BINDER_BYTES||!sha256_fd_matches(binder_fd,BINDER_SHA256)){close(binder_fd);hold("binder_preentry_binder_identity_mismatch");}
   int node_fd=open_trusted(FIXED_NODE,true,"binder_preentry_node_custody_invalid");require_node_policy(node_fd,&policy);
