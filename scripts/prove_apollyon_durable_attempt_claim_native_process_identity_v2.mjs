@@ -21,13 +21,13 @@ function gitBlob(bytes){
 
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs":
-    "fb92b4b3bd2a6594a2a90d7e607cae193452b92b",
+    "394b9dbaebbdbb561be6119f5be8b60d59fb367d",
   "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_integration_v2.mjs":
-    "6afa9e9c74effb3555694ce9a5b7a01fc518190d",
+    "fffb8de303cfbbe265bf9f5191bc50cd2543b98b",
   "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c":
     "defd863de841a1f1460e10985d1990ba1a382f70",
   "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs":
-    "d9af4667a429a9e55f491676db48cdd5975b7e16",
+    "4cf08f60a604496ea7087167f0ef6a744182aad4",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -49,6 +49,14 @@ for(const required of [
   "after_start",
   "expected_executable_fd",
   "expected_cmdline",
+  "expected_supplementary_gids",
+  "expected_supplementary_gid_count",
+  "Groups:",
+  "APOLLYON_CLAIM_PROCESS_IDENTITY_MAX_SUPPLEMENTARY_GIDS_V2",
+  "POLLNVAL",
+  "POLLERR",
+  "POLLHUP",
+  "APOLLYON_CLAIM_PROCESS_IDENTITY_V2_SELF_TEST",
 ]) assert.equal(source.includes(required),true,required);
 for(const required of [
   "struct apollyon_claim_process_identity_v2",
@@ -56,6 +64,8 @@ for(const required of [
   "start_ticks",
   "executable_dev",
   "executable_ino",
+  "expected_supplementary_gids",
+  "expected_supplementary_gid_count",
 ]) assert.equal(header.includes(required),true,required);
 for(const forbidden of [
   "AF_UNIX","SO_PEERCRED","socket(","connect(","bind(","listen(","accept(",
@@ -81,13 +91,28 @@ const parentDependencies=[
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
 ];
 const workflow=fs.readFileSync(WORKFLOW,"utf8");
-for(const dependency of parentDependencies){
+const pushToken="  push:\n";
+const dispatchToken="  workflow_dispatch:\n";
+const pushIndex=workflow.indexOf(pushToken);
+const dispatchIndex=workflow.indexOf(dispatchToken,pushIndex+pushToken.length);
+assert.notEqual(pushIndex,-1);
+assert.notEqual(dispatchIndex,-1);
+const pullSection=workflow.slice(0,pushIndex);
+const pushSection=workflow.slice(pushIndex+pushToken.length,dispatchIndex);
+function requireTriggerPath(relative){
+  const entry='      - "'+relative+'"';
   assert.equal(
-    workflow.split(dependency).length-1,
-    2,
-    "PR/main-push trigger parity missing for "+dependency,
+    pullSection.split(entry).length-1,
+    1,
+    "pull_request trigger missing/duplicate for "+relative,
+  );
+  assert.equal(
+    pushSection.split(entry).length-1,
+    1,
+    "push trigger missing/duplicate for "+relative,
   );
 }
+for(const dependency of parentDependencies)requireTriggerPath(dependency);
 for(const own of [
   "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c",
   "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h",
@@ -95,9 +120,7 @@ for(const own of [
   "scripts/prove_apollyon_durable_attempt_claim_native_process_identity_v2.mjs",
   "docs/security/apollyon-durable-attempt-claim-native-process-identity-v2.md",
   ".github/workflows/apollyon-durable-attempt-claim-native-process-identity-v2.yml",
-]){
-  assert.equal(workflow.split(own).length-1,2,"own trigger parity missing for "+own);
-}
+])requireTriggerPath(own);
 assert.equal(workflow.includes("pull_request:"),true);
 assert.equal(workflow.includes("push:"),true);
 assert.equal(workflow.includes("workflow_dispatch:"),true);
@@ -105,11 +128,25 @@ assert.equal(workflow.includes("PUSH_BEFORE: ${{ github.event.before }}"),true);
 
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),"apollyon-native-identity-v2-"));
 const binary=path.join(temp,"identity-selftest");
+const object=path.join(temp,"identity.o");
 try{
+  const productionCompile=spawnSync(
+    "/usr/bin/cc",
+    [
+      "-std=c11","-O2","-Wall","-Wextra","-Werror",
+      "-I",path.dirname(HEADER),"-c",SOURCE,"-o",object,
+    ],
+    {cwd:ROOT,encoding:"utf8",timeout:20000,env:{PATH:"/usr/bin:/bin",LC_ALL:"C"}},
+  );
+  assert.equal(
+    productionCompile.status,0,
+    "production compile failed:\n"+String(productionCompile.stderr||""),
+  );
   const compile=spawnSync(
     "/usr/bin/cc",
     [
       "-std=c11","-O2","-Wall","-Wextra","-Werror",
+      "-DAPOLLYON_CLAIM_PROCESS_IDENTITY_V2_SELF_TEST=1",
       "-I",path.dirname(HEADER),SOURCE,SELFTEST,"-o",binary,
     ],
     {cwd:ROOT,encoding:"utf8",timeout:20000,env:{PATH:"/usr/bin:/bin",LC_ALL:"C"}},
@@ -128,10 +165,15 @@ try{
     "direct_parent_lineage_primitive_proven=true",
     "pid_start_generation_bound=true",
     "all_uid_gid_slots_bound=true",
+    "exact_supplementary_groups_bound=true",
+    "supplementary_group_parser_adversaries=true",
     "native_executable_inode_identity_bound=true",
     "raw_cmdline_identity_bound=true",
+    "double_observation_generation_bracketed=true",
+    "exec_in_place_observation_drift_rejected=true",
     "retained_pidfd_liveness_bound=true",
     "retained_pidfd_exit_state_bound=true",
+    "invalid_pidfd_rejected=true",
     "wrong_parent_rejected=true",
     "wrong_cmdline_rejected=true",
     "wrong_executable_rejected=true",
@@ -157,6 +199,12 @@ console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_NATIVE_PROCESS_IDENTITY_V2_PROO
 console.log("parent_integration_blob_bound=true");
 console.log("parent_native_generation_bound=true");
 console.log("direct_parent_lineage_primitive_proven=true");
+console.log("supplementary_groups_exact_set_proven=true");
+console.log("double_observation_stability_proven=true");
+console.log("exec_in_place_observation_drift_rejected=true");
+console.log("pidfd_error_state_fail_closed=true");
+console.log("production_compile_without_test_hook=true");
+console.log("parent_generation_rebound=true");
 console.log("fully_native_process_identity_path_proven=true");
 console.log("cross_uid_host_qualification_performed=false");
 console.log("interpreted_body_source_identity_proven=false");
