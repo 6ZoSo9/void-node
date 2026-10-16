@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v1.c"
       - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs"
       - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v1.md"
       - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v1.yml"
@@ -15,6 +16,7 @@ on:
     branches: [main]
     paths:
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v1.c"
       - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs"
       - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v1.md"
       - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v1.yml"
@@ -46,9 +48,11 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs)" = \
-            2df409bef681d77a07c49784bba879eedc5dc9fd
+            af31dcd6f381c04c77aeef2a20d2846c0446807a
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v1.c)" = \
+            4c955b50fb6cb4e584c2abac3ac091bb620572e0
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs)" = \
-            088014510f2403afe9dabda2ab9aec83397d8a74
+            f5908673e88045d6b29d1cac116a9a2be59b97a6
           test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json)" = \
             e569c9211e01f14c7c00dd1c5041d4dfb0817609
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py)" = \
@@ -67,6 +71,8 @@ jobs:
           set -euo pipefail
           node --check ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs
           node --check scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v1.mjs
+          /usr/bin/cc -std=c11 -O2 -Wall -Wextra -Werror -fsyntax-only \
+            ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v1.c
 
       - name: Prove V3R live binding source
         run: |
@@ -77,7 +83,13 @@ jobs:
 
           markers=(
             "VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V1_PROOF_GREEN"
-            "binder_git_object_entry_required=true"
+            "native_binder_first_entry_required=true"
+            "native_binder_preentry_source_bound=true"
+            "binder_exact_sha256_bound=true"
+            "private_binder_parent_proof_required=true"
+            "arbitrary_stdin_live_binding_rejected=true"
+            "native_source_stream_required=true"
+            "native_node_policy_binding_required=true"
             "candidate_v4_git_object_bound=true"
             "candidate_v4_signer_control_preserved=true"
             "v6r2_qualifier_git_object_bound=true"
