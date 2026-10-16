@@ -44,9 +44,9 @@ It proves:
 5. exactly 64 response bytes followed by `shutdown(SHUT_WR)` are accepted;
 6. the receiver observes EOF after exactly those 64 bytes and can still send an
    acknowledgment on its write half;
-7. a 65-byte response is rejected;
-8. EOF after only 63 bytes is rejected;
-9. an extra byte sent after a delay following a valid 64-byte prefix is rejected; and
+7. a 65-byte response is rejected only after the adversary sender is proven to have exited successfully after its intended send/half-close sequence;
+8. EOF after only 63 bytes is rejected only after that sender is likewise proven successful;
+9. an extra byte sent after a delay following a valid 64-byte prefix is rejected only after the sender's intended delayed-extra sequence exits successfully; and
 10. after an explicit synchronization proves the child has already sent the full 64-byte prefix, the child keeps its write half open until the parent observes the EOF deadline and terminates it; the missing EOF is therefore deterministically rejected rather than depending on a fixed sleep.
 
 The candidate has no live mode. Any invocation other than `--self-test`

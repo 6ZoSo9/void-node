@@ -301,6 +301,23 @@ static int abstract_listener(
   return 0;
 }
 
+static int wait_child_exit_zero(pid_t child) {
+  int status = 0;
+  pid_t waited;
+  do {
+    waited = waitpid(child, &status, 0);
+  } while (waited < 0 && errno == EINTR);
+  if (
+    waited != child ||
+    !WIFEXITED(status) ||
+    WEXITSTATUS(status) != 0
+  ) {
+    errno = EPROTO;
+    return -1;
+  }
+  return 0;
+}
+
 static int self_test_framing_good(void) {
   int pair[2];
   if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, pair) != 0) return -1;
@@ -339,12 +356,7 @@ static int self_test_framing_good(void) {
     return -1;
   }
   close(pair[0]);
-  int status = 0;
-  if (
-    waitpid(child, &status, 0) != child ||
-    !WIFEXITED(status) ||
-    WEXITSTATUS(status) != 0
-  ) return -1;
+  if (wait_child_exit_zero(child) != 0) return -1;
   return 0;
 }
 
@@ -370,8 +382,7 @@ static int self_test_framing_extra(void) {
   );
   int saved = errno;
   close(pair[0]);
-  int status = 0;
-  if (waitpid(child, &status, 0) != child) return -1;
+  if (wait_child_exit_zero(child) != 0) return -1;
   if (result == 0 || saved != EMSGSIZE) {
     errno = EPROTO;
     return -1;
@@ -401,8 +412,7 @@ static int self_test_framing_short(void) {
   );
   int saved = errno;
   close(pair[0]);
-  int status = 0;
-  if (waitpid(child, &status, 0) != child) return -1;
+  if (wait_child_exit_zero(child) != 0) return -1;
   if (result == 0 || saved != EMSGSIZE) {
     errno = EPROTO;
     return -1;
@@ -436,8 +446,7 @@ static int self_test_framing_delayed_extra(void) {
   );
   int saved = errno;
   close(pair[0]);
-  int status = 0;
-  if (waitpid(child, &status, 0) != child) return -1;
+  if (wait_child_exit_zero(child) != 0) return -1;
   if (result == 0 || saved != EMSGSIZE) {
     errno = EPROTO;
     return -1;
@@ -636,6 +645,7 @@ static int self_test(void) {
   printf("response_no_eof_timeout_rejected=true\n");
   printf("response_exact_prefix_before_no_eof_timeout_proven=true\n");
   printf("response_no_eof_peer_held_open_until_timeout_proven=true\n");
+  printf("negative_frame_sender_success_required=true\n");
   printf("read_half_ack_after_peer_eof_proven=true\n");
   printf("cross_uid_host_qualification_performed=false\n");
   printf("host_installation=false\n");

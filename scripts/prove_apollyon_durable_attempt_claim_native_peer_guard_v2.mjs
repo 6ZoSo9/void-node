@@ -43,6 +43,7 @@ for(const required of [
   "send_exact_then_half_close",
   "shutdown(fd, SHUT_WR)",
   "read_exact_then_eof",
+  "wait_child_exit_zero",
   "self_test_framing_good",
   "self_test_framing_extra",
   "self_test_framing_short",
@@ -125,6 +126,7 @@ try{
     "response_no_eof_timeout_rejected=true",
     "response_exact_prefix_before_no_eof_timeout_proven=true",
     "response_no_eof_peer_held_open_until_timeout_proven=true",
+    "negative_frame_sender_success_required=true",
     "read_half_ack_after_peer_eof_proven=true",
     "cross_uid_host_qualification_performed=false",
     "host_installation=false",
@@ -185,6 +187,7 @@ console.log("short_eof_self_test=true");
 console.log("delayed_extra_self_test=true");
 console.log("exact_prefix_before_no_eof_timeout_self_test=true");
 console.log("no_eof_peer_held_open_until_timeout_self_test=true");
+console.log("negative_frame_sender_success_required=true");
 console.log("live_mode=false");
 console.log("claim_store_mutation=false");
 console.log("durable_attempt_claim=false");
