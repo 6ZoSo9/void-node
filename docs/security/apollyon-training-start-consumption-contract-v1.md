@@ -1,0 +1,91 @@
+# Apollyon one-time training-start consumption source contract v1
+
+Marker: `VOID_APOLLYON_TRAINING_START_CONSUMPTION_V1`
+
+Status: **pure source/test contract; no protected consumption store, trainer release, or training execution exists here**.
+
+## Purpose
+
+The accepted protected attempt-claim store contract (#3233) deliberately makes durable-claim success non-bearer authority. A durable claim proves that one exact attempt claim exists, but it does not permit a trainer to start.
+
+This contract defines the next boundary named by #3233: `apollyon_training_start_consumption_v1`.
+
+## Required input shapes
+
+The source finalizer accepts only:
+
+1. an exact V2 durable claim record;
+2. an exact V2 durable-success response cross-bound to that record and the exact publish-request SHA-256; and
+3. one content-addressed inert pre-training admission generation.
+
+The durable-success shape must still report:
+
+```text
+training_start_admission=false
+training_start_consumption_required=true
+training_start_consumption_performed=false
+```
+
+A success object supplied by a caller is not proof that the protected claim record currently exists. The future implementation must reread and revalidate the exact claim record from protected storage and revalidate the current store generation before it creates a start-consumption record.
+
+## Inert pre-training generation
+
+The trainer generation exists before consumption only in a blocked, non-training admission state. Its content-addressed identity binds:
+
+- Linux boot-ID SHA-256;
+- PID and process start-time ticks;
+- non-root training UID/GID;
+- reviewed source-identity SHA-256;
+- `admission_blocked=true`;
+- `training_execution_performed=false`;
+- `candidate_weight_mutation_performed=false`;
+- `automatic_retry_authorized=false`.
+
+This source contract validates only that evidence shape. Protected source origin and live host observation remain future gates.
+
+## Exact consumption record
+
+The deterministic candidate record binds:
+
+- store policy, admission contract and store generation;
+- terminal receipt;
+- authorization ID;
+- custody generation and custody-record SHA-256;
+- claim-record ID and canonical claim-record SHA-256;
+- exact publish-request SHA-256;
+- exact pre-training generation ID, boot ID, PID, start ticks, UID/GID and source identity;
+- `attempt_limit=1`;
+- `automatic_retry_authorized=false`.
+
+The record has a content-addressed `apollyon_training_start_consumption_v1:<sha256>` identity.
+
+## Replay and crash rule
+
+The future implementation must publish the record create-once in a protected namespace that the training identity cannot mutate.
+
+An exact pre-existing consumption is **already consumed**, not reusable training admission. A lost acknowledgement, repeated durable-claim success response, service restart, or client retry may not admit another trainer generation.
+
+If the protected record becomes durable but the bound inert trainer never crosses its later release gate, the attempt remains spent. Safety takes precedence over automatic retry; a fresh attempt requires fresh authorization through the reviewed claim chain.
+
+## Deliberate non-authority
+
+This source contract reports:
+
+```text
+durable_claim_success_origin_proven=false
+protected_claim_record_reread_performed=false
+current_store_generation_revalidation_performed=false
+pretraining_generation_source_origin_proven=false
+training_start_consumption_performed=false
+existing_exact_consumption_reusable_admission=false
+automatic_retry_authorized=false
+protected_consumption_store_proven=false
+training_release_performed=false
+training_execution_authorized=false
+training_execution_performed=false
+candidate_weight_mutation_performed=false
+```
+
+It selects no UID/GID, pathname, service, socket, filesystem layout, release mechanism, model, trainer, key, signing, transaction, or funds authority.
+
+The next gate is `apollyon_training_start_consumption_implementation_v1`, which must separately define and qualify the protected create-once store and the later exact-generation release boundary.
