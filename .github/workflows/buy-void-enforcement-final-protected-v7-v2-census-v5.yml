@@ -117,7 +117,8 @@ jobs:
           done
           cmp census/final-protected-v7-v2-census-v5-node-22.json census/final-protected-v7-v2-census-v5-node-24.json
           cmp census/final-protected-v7-v2-census-v5-node-22.json census/final-protected-v7-v2-census-v5-node-26.json
-          sha256sum census/final-protected-v7-v2-census-v5-node-22.json
+          census_json_sha256="$(sha256sum census/final-protected-v7-v2-census-v5-node-22.json | awk '{print $1}')"
+          printf 'census_json_sha256=%s\n' "$census_json_sha256"
           node --input-type=module - <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
@@ -131,6 +132,14 @@ jobs:
           assert.equal(c.production_source_finality_authority_ready,false);
           assert.equal(c.funds_movement,false);
           console.log("VOID_BUY_VOID_PROTECTED_V7_V2_CENSUS_V5_CROSS_NODE_GREEN");
+          console.log("census_id="+c.census_id);
+          console.log("repository_head_sha="+c.repository_head_sha);
+          console.log("repository_tree_sha="+c.repository_tree_sha);
+          console.log("protected_inventory_sha256="+c.protected_tracked_source_inventory_canonical_sha256);
+          console.log("economic_artifact_inventory_sha256="+c.economic_artifact_inventory_sha256);
+          console.log("economic_source_inventory_sha256="+c.economic_source_inventory_sha256);
+          console.log("canonical_economic_artifact_inventory_sha256="+c.canonical_economic_artifact_inventory_sha256);
+          console.log("canonical_economic_source_inventory_sha256="+c.canonical_economic_source_inventory_sha256);
           console.log("protected_generation_delta_count=2");
           console.log("unchanged_protected_path_count=47");
           console.log("funds_movement=false");
