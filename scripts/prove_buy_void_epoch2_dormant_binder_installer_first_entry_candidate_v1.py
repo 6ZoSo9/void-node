@@ -599,7 +599,58 @@ def derive() -> tuple[dict, bytes]:
         + sha256(canonical(candidate_material(report)).encode("utf-8"))
     )
     validate(report, binary_a)
+
+    forged_source = _readdress(report)
+    forged_source["source_generation"]["launcher_source_git_blob_sha1"] = "0" * 40
+    forged_source = _readdress(forged_source)
+    try:
+        validate(forged_source, binary_a)
+    except AssertionError as exc:
+        if "candidate_source_generation_invalid" not in str(exc):
+            raise
+    else:
+        raise AssertionError("readdressed_source_binding_accepted")
+
+    forged_confirm = _readdress(report)
+    forged_confirm["compile_binding"]["apply_confirmation"] = "FORGED_CONFIRMATION"
+    forged_confirm = _readdress(forged_confirm)
+    try:
+        validate(forged_confirm, binary_a)
+    except AssertionError as exc:
+        if "compile_binding_invalid" not in str(exc):
+            raise
+    else:
+        raise AssertionError("readdressed_confirmation_binding_accepted")
+
+    forged_flags = _readdress(report)
+    forged_flags["toolchain"]["compile_flags"] = [*COMPILE_FLAGS, "-w"]
+    forged_flags = _readdress(forged_flags)
+    try:
+        validate(forged_flags, binary_a)
+    except AssertionError as exc:
+        if "toolchain_binding_invalid" not in str(exc):
+            raise
+    else:
+        raise AssertionError("readdressed_toolchain_binding_accepted")
+
     return report, binary_a
+
+
+def _hex(value: object, width: int) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == width
+        and all(ch in "0123456789abcdef" for ch in value)
+    )
+
+
+def _readdress(report: dict) -> dict:
+    value = json.loads(json.dumps(report))
+    value["candidate_id"] = (
+        "voidbuye2dormantfirstentrycand1_"
+        + sha256(canonical(candidate_material(value)).encode("utf-8"))
+    )
+    return value
 
 
 def validate(report: dict, binary: bytes) -> None:
@@ -616,6 +667,86 @@ def validate(report: dict, binary: bytes) -> None:
     )
     if report.get("candidate_id") != expected_id:
         raise AssertionError("candidate_id_invalid")
+
+    current_head, current_tree = repository_identity()
+    if (
+        report.get("repository_head") != current_head
+        or report.get("repository_tree") != current_tree
+        or not _hex(report.get("repository_head"), 40)
+        or not _hex(report.get("repository_tree"), 40)
+    ):
+        raise AssertionError("candidate_repository_generation_invalid")
+
+    launcher_raw = stable_file(LAUNCHER_REL, MAX_SOURCE_BYTES, LAUNCHER_BLOB)
+    installer_raw = stable_file(INSTALLER_REL, MAX_INSTALLER_BYTES, INSTALLER_BLOB)
+    source = report.get("source_generation")
+    if (
+        not isinstance(source, dict)
+        or not _hex(source.get("derivation_proof_git_blob_sha1"), 40)
+        or source.get("launcher_source_path") != LAUNCHER_REL
+        or source.get("launcher_source_git_blob_sha1") != LAUNCHER_BLOB
+        or source.get("launcher_source_bytes") != len(launcher_raw)
+        or source.get("launcher_source_sha256") != sha256(launcher_raw)
+        or source.get("installer_source_path") != INSTALLER_REL
+        or source.get("installer_source_git_blob_sha1") != INSTALLER_BLOB
+        or source.get("installer_source_bytes") != len(installer_raw)
+        or source.get("installer_source_sha256") != sha256(installer_raw)
+    ):
+        raise AssertionError("candidate_source_generation_invalid")
+
+    compiled = report.get("compile_binding")
+    if (
+        not isinstance(compiled, dict)
+        or compiled.get("fixed_install_root_default_used") is not True
+        or compiled.get("fixed_python_default_used") is not True
+        or compiled.get("expected_head") != current_head
+        or compiled.get("apply_confirmation") != APPLY_CONFIRM
+        or compiled.get("installer_sha256") != sha256(installer_raw)
+        or compiled.get("installer_bytes") != len(installer_raw)
+        or compiled.get("native_sha256") != NATIVE_SHA256
+        or compiled.get("native_bytes") != NATIVE_BYTES
+        or compiled.get("sealed_launcher_source_snapshot") is not True
+        or compiled.get("required_seal_mask") != REQUIRED_SEALS
+    ):
+        raise AssertionError("compile_binding_invalid")
+
+    toolchain = report.get("toolchain")
+    if (
+        not isinstance(toolchain, dict)
+        or toolchain.get("cc") != tool_identity("/usr/bin/cc")
+        or toolchain.get("strip") != tool_identity("/usr/bin/strip")
+        or not isinstance(toolchain.get("compiler_version_line"), str)
+        or not toolchain["compiler_version_line"]
+        or not isinstance(toolchain.get("compiler_dumpmachine"), str)
+        or not toolchain["compiler_dumpmachine"]
+        or not isinstance(toolchain.get("compiler_dumpversion"), str)
+        or not toolchain["compiler_dumpversion"]
+        or toolchain.get("compile_flags") != list(COMPILE_FLAGS)
+        or toolchain.get("link_flags") != list(LINK_FLAGS)
+        or toolchain.get("toolchain_revalidated_after_build") is not True
+    ):
+        raise AssertionError("toolchain_binding_invalid")
+    static_inputs = toolchain.get("static_link_inputs")
+    if not isinstance(static_inputs, list) or len(static_inputs) < 4:
+        raise AssertionError("static_link_input_inventory_invalid")
+    if not any(
+        isinstance(item, dict)
+        and str(item.get("path", "")).endswith("/libc.a")
+        for item in static_inputs
+    ):
+        raise AssertionError("static_libc_identity_missing")
+    for item in static_inputs:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("path"), str)
+            or not str(item["path"]).startswith("/")
+            or not isinstance(item.get("bytes"), int)
+            or item["bytes"] < 1
+            or not _hex(item.get("sha256"), 64)
+            or item.get("root_owned_protected") is not True
+        ):
+            raise AssertionError("static_link_input_identity_invalid")
+
     accepted = report.get("accepted_native_input")
     if (
         not isinstance(accepted, dict)
@@ -626,17 +757,6 @@ def validate(report: dict, binary: bytes) -> None:
         or accepted.get("independently_rederived") is not True
     ):
         raise AssertionError("accepted_native_binding_invalid")
-    compiled = report.get("compile_binding")
-    if (
-        not isinstance(compiled, dict)
-        or compiled.get("fixed_install_root_default_used") is not True
-        or compiled.get("fixed_python_default_used") is not True
-        or compiled.get("expected_head") != report.get("repository_head")
-        or compiled.get("native_sha256") != NATIVE_SHA256
-        or compiled.get("native_bytes") != NATIVE_BYTES
-        or compiled.get("sealed_launcher_source_snapshot") is not True
-    ):
-        raise AssertionError("compile_binding_invalid")
     result = report.get("binary")
     if (
         not isinstance(result, dict)
@@ -675,6 +795,10 @@ def derive_dir(output: Path) -> None:
     print("launcher_binary_sha256=" + report["binary"]["sha256"])
     print("launcher_binary_bytes=" + str(report["binary"]["bytes"]))
     print("static_no_interp=true")
+    print("semantic_report_validation_fail_closed=true")
+    print("readdressed_source_binding_rejected=true")
+    print("readdressed_confirmation_binding_rejected=true")
+    print("readdressed_toolchain_binding_rejected=true")
     print("candidate_accepted=false")
     print("precision_install_authorized=false")
     print("funds_movement=false")
@@ -709,6 +833,7 @@ def compare_dir(root: Path) -> None:
     print("comparison_rederived_report=true")
     print("comparison_rederived_launcher_elf=true")
     print("accepted_native_rederived=true")
+    print("semantic_report_validation_fail_closed=true")
     print("candidate_id=" + hosted["candidate_id"])
     print("launcher_binary_sha256=" + hosted["binary"]["sha256"])
     print("candidate_accepted=false")
@@ -741,6 +866,9 @@ def self_test() -> None:
         '"fixed_python_default_used": True',
         '"candidate_accepted": False',
         '"precision_install_authorized": False',
+        "readdressed_source_binding_accepted",
+        "readdressed_confirmation_binding_accepted",
+        "readdressed_toolchain_binding_accepted",
     ):
         if required not in source:
             raise AssertionError("proof_invariant_missing:" + required)
@@ -754,6 +882,7 @@ def self_test() -> None:
     print("root_protected_compiler_and_strip_required=true")
     print("two_builds_required=true")
     print("three_hosted_derivations_required=true")
+    print("semantic_report_validation_fail_closed=true")
     print("candidate_accepted=false")
     print("precision_install_authorized=false")
     print("native_or_binder_live_execution_authorized=false")
