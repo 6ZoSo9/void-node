@@ -17,6 +17,8 @@ from types import ModuleType
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = "ops/precision/void_buy_void_user_manager_credential_query_protected_replace_v2.py"
 LOCK = "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
+DOC = "docs/operators/buy-void-user-manager-credential-query-protected-replace-v2.md"
+WORKFLOW = ".github/workflows/buy-void-user-manager-credential-query-protected-replace-v2.yml"
 
 EXPECTED = {
     SOURCE: "452f6c6666e00dbfe8f216ec6d3b4a16a35a43d7",
@@ -149,6 +151,32 @@ def static_contract_checks() -> None:
         "wallet",
     ):
         assert forbidden not in source, forbidden
+
+    doc = (ROOT / DOC).read_text(encoding="utf-8")
+    for required_doc in (
+        "stable `/opt` parent directory descriptor",
+        "CREDENTIAL_QUERY_V2_PRIVATE_PENDING_RECOVERY_REQUIRED",
+        "exactly six",
+        "Behavioral proof boundary",
+        "_create_exact_stage()",
+        "_open_protected_root()",
+        "_require_visible_install_root()",
+    ):
+        assert required_doc in doc, "doc_contract_missing:" + required_doc
+
+    workflow = (ROOT / WORKFLOW).read_text(encoding="utf-8")
+    for required_workflow in (
+        "Exercise repaired recovery primitives",
+        "--root-fixture",
+        "private_stage_publication_behavior_exercised=true",
+        "stable_parent_lock_behavior_exercised=true",
+        "visible_install_root_replacement_rejected=true",
+        "private_pending_state_behavior_exercised=true",
+        "private_pending_cleanup_behavior_exercised=true",
+    ):
+        assert required_workflow in workflow, (
+            "workflow_contract_missing:" + required_workflow
+        )
 
     self_test = run(
         "/usr/bin/python3", "-I", "-B", str(ROOT / SOURCE), "--self-test"
@@ -403,6 +431,7 @@ def source_proof() -> None:
     print("visible_install_root_generation_revalidation_required=true")
     print("private_pending_state_required=true")
     print("root_fixture_required_for_behavioral_claims=true")
+    print("docs_and_workflow_repair_contract_bound=true")
     print("query_execution=false")
     print("credential_contents_read=false")
     print("service_mutation=false")
