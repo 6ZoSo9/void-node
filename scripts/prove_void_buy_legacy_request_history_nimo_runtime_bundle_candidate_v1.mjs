@@ -198,6 +198,33 @@ function rehashCandidate(value) {
 
 {
   const tampered = structuredClone(candidate);
+  const compiled = tampered.runtime_files.find(
+    (record) => record.runtime_kind === "compiled_typescript",
+  );
+  assert.ok(compiled);
+  compiled.sha256 = "0".repeat(64);
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_runtime_bytes_identity_invalid/u,
+  );
+}
+{
+  const tampered = structuredClone(candidate);
+  tampered.compiler.compiler_files[0].sha256 = "0".repeat(64);
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_compiler_bytes_identity_invalid/u,
+  );
+}
+
+{
+  const tampered = structuredClone(candidate);
   const tracked = tampered.runtime_files.find(
     (record) => record.runtime_kind === "tracked_source",
   );
@@ -273,6 +300,8 @@ console.log("parent_source_input_count=19");
 console.log("typescript_version=5.9.3");
 console.log("third_party_runtime_packages=0");
 console.log("node_modules_runtime_files=0");
+console.log("rehashed_runtime_bytes_tamper_rejected=true");
+console.log("rehashed_compiler_bytes_tamper_rejected=true");
 console.log("rehashed_runtime_kind_tamper_rejected=true");
 console.log("rehashed_builtin_set_tamper_rejected=true");
 console.log("rehashed_compiler_identity_tamper_rejected=true");
