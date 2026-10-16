@@ -88,6 +88,23 @@ jobs:
             BASE="$(git rev-parse "$HEAD^1")"
           fi
           git cat-file -e "$BASE^{commit}"
-          git merge-base --is-ancestor "$BASE" "$HEAD"
-          git diff --check "$BASE" "$HEAD"
+          DIFF_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$DIFF_BASE"
+          git cat-file -e "$DIFF_BASE^{commit}"
+          git diff --check "$DIFF_BASE" "$HEAD"
+
+          # Regression: a disjoint advancement of the base tip must not make
+          # an otherwise valid PR head fail diff hygiene.
+          SYNTH_TREE="$(git rev-parse "$DIFF_BASE^{tree}")"
+          SYNTH_BASE="$(
+            printf '%s\n' 'synthetic disjoint base tip' |
+              GIT_AUTHOR_NAME='VOID CI'               GIT_AUTHOR_EMAIL='void-ci@example.invalid'               GIT_COMMITTER_NAME='VOID CI'               GIT_COMMITTER_EMAIL='void-ci@example.invalid'               git commit-tree "$SYNTH_TREE" -p "$DIFF_BASE"
+          )"
+          if git merge-base --is-ancestor "$SYNTH_BASE" "$HEAD"; then
+            echo "synthetic disjoint base unexpectedly became an ancestor" >&2
+            exit 1
+          fi
+          SYNTH_DIFF_BASE="$(git merge-base "$SYNTH_BASE" "$HEAD")"
+          test "$SYNTH_DIFF_BASE" = "$DIFF_BASE"
+          git diff --check "$SYNTH_DIFF_BASE" "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
