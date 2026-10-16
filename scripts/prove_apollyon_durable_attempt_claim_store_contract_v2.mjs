@@ -31,7 +31,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "4309a6de97b1db04b45ff00283b58afe7205059c",
+    "ea76bd43524eb7c7c70d7691522b96341dfb7f79",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -158,6 +158,11 @@ for(const [key,expected] of Object.entries({
   authorization_binding_to_claim_store_generation_required:true,
   old_terminal_receipt_reuse_across_store_generation_forbidden:true,
   new_store_generation_requires_fresh_authorization_required:true,
+  cross_generation_authorization_replay_rejected_required:true,
+  store_generation_change_blocks_claim_publication_until_requalified_required:true,
+  prior_claim_history_continuity_required_for_store_migration:true,
+  claim_store_generation_replacement_without_retained_history_is_permanent_hold_required:true,
+  fresh_sovereign_rebootstrap_required_for_new_store_generation:true,
   protected_root_mode:"0700",
   immutable_claim_record_mode:"0600",
   final_claim_record_link_count:1,
@@ -173,6 +178,15 @@ for(const [key,expected] of Object.entries({
   exact_terminal_receipt_revalidation_required:true,
   protected_runner_origin_proof_required:true,
   current_host_revalidation_required:true,
+  complete_claim_boundary_revalidation_immediately_before_publication_required:true,
+  claim_uid_process_exclusivity_revalidation_immediately_before_publication_required:true,
+  claim_service_source_identity_revalidation_immediately_before_publication_required:true,
+  claim_service_supplementary_groups_revalidation_immediately_before_publication_required:true,
+  claim_service_effective_policy_revalidation_immediately_before_publication_required:true,
+  claim_store_generation_revalidation_immediately_before_publication_required:true,
+  claim_store_root_identity_revalidation_immediately_before_publication_required:true,
+  claim_write_authority_revalidation_immediately_before_publication_required:true,
+  claim_service_control_denials_revalidation_immediately_before_publication_required:true,
   training_service_exact_dormancy_revalidation_required:true,
   training_generation_absence_revalidation_required:true,
   custody_state_root_identity_revalidation_required:true,
@@ -308,6 +322,11 @@ for(const required of [
   'old_terminal_receipt_reuse_across_store_generation_forbidden:true',
   'claim_record_bind_terminal_receipt_id_required:true',
   'claim_record_bind_store_generation_id_required:true',
+  'complete_claim_boundary_revalidation_immediately_before_publication_required:true',
+  'claim_uid_process_exclusivity_revalidation_immediately_before_publication_required:true',
+  'claim_store_generation_revalidation_immediately_before_publication_required:true',
+  'cross_generation_authorization_replay_rejected_required:true',
+  'claim_store_generation_replacement_without_retained_history_is_permanent_hold_required:true',
   'broker_execution_ledger_reuse_allowed:false',
   'historical_v1_consumption_store_sufficient:false',
   'next_gate:"apollyon_durable_attempt_claim_store_host_qualification_v2"',
@@ -333,6 +352,11 @@ console.log("authorization_binding_to_claim_store_generation_required=true");
 console.log("old_terminal_receipt_reuse_across_store_generation_forbidden=true");
 console.log("claim_record_bind_terminal_receipt_id_required=true");
 console.log("claim_record_bind_store_generation_id_required=true");
+console.log("complete_claim_boundary_revalidation_immediately_before_publication_required=true");
+console.log("claim_uid_process_exclusivity_revalidation_immediately_before_publication_required=true");
+console.log("claim_store_generation_revalidation_immediately_before_publication_required=true");
+console.log("cross_generation_authorization_replay_rejected_required=true");
+console.log("claim_store_generation_replacement_without_retained_history_is_permanent_hold_required=true");
 console.log("claim_identity_bound=false");
 console.log("claim_root_bound=false");
 console.log("protected_claim_store_proven=false");

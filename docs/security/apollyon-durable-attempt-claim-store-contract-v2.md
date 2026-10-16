@@ -14,18 +14,19 @@ This contract therefore defines the requirements for a future independently prot
 
 ## Required future ownership boundary
 
-A host-qualified successor must prove:
+A host-qualified successor must prove the static boundary below, and the future executor must re-establish the complete boundary immediately before every claim publication:
 
 - a dedicated claim-service identity distinct from training, custody, the public runtime, and the interactive non-root operator, with a closed supplementary-group set and exactly the reviewed claim-service process admitted under that UID;
 - a versioned, fixed claim identity and claim-state root before installation;
 - protected root mode `0700` and final immutable claim record mode `0600`;
-- a create-once store-generation identity; replacing the same pathname is a new generation, cannot inherit replay authority, cannot reuse an old terminal receipt, and requires fresh authorization;
+- a create-once store-generation identity; replacing the same pathname is a new generation, blocks claim publication until separately requalified, cannot reuse an old terminal receipt or authorization/custody generation, and requires fresh Sovereign rebootstrap; migration is allowed only with verified continuity of prior claim history, otherwise replacement is a permanent HOLD;
 - root-owned/non-writable retained ancestors;
 - no non-claim unprivileged identity may write the claim namespace;
 - training UID and custody UID cannot write the claim namespace;
 - the claim-service identity cannot write training or custody state;
 - training and custody cannot control the claim service, and the claim service cannot control training or custody services;
 - the reviewed claim service exposes no delete/overwrite API;
+- immediately before publication, revalidate claim-UID process exclusivity, exact service source identity, supplementary groups, effective sandbox/policy, store generation/root identity, write authority, and all service-control denials;
 - the claim service is AF_UNIX-only and has no external network, private-key, signing, wallet, transaction, or funds authority.
 
 This source contract does not choose the future literal account name, UID/GID, socket path, or state-root path.
@@ -55,7 +56,7 @@ The claim store must use a create-only/no-overwrite canonical claim record with:
 - file fsync after final metadata and before publication;
 - parent-directory fsync after publication;
 - fail-closed classification of every crash/restart intermediate state;
-- duplicate claim rejection;
+- duplicate claim rejection within the current generation **and** cross-generation authorization replay rejection;
 - durable claim publication completed before any trainer may start.
 
 A successful store write must not itself start training.
