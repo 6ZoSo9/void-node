@@ -72,6 +72,15 @@ Fixed `/usr/bin/git` and `/usr/bin/setpriv` generations are also measured.
 Checkout inspection is performed as runtime UID/GID 1000 with no-new-privs and
 cleared supplementary groups.
 
+Every authoritative checkout census is bracketed by the exact Git and setpriv
+generations that produce it. The installer snapshots both tools before the
+census, executes the complete HEAD/branch/status/blob query set, snapshots both
+again, and requires exact generation equality. Plan construction records those
+bracketed tool generations. Pre-publication and post-publication checkout
+revalidation additionally require them to equal the plan-bound identities.
+A Git or setpriv generation change during any checkout census HOLDs rather than
+allowing evidence from one generation to be attributed to another.
+
 ## Exact checkout binding
 
 A future plan/apply requires:
@@ -127,6 +136,9 @@ production_host_evidence_authority=false
 A flush failure aborts before candidate or protected-root access. The source
 proof behaviorally exercises a wrong-confirmation HOLD and requires this
 boundary to precede the HOLD receipt.
+
+The proof also injects Git and setpriv generation drift across the authoritative
+checkout-census boundary and requires fail-closed rejection for each tool.
 
 ## Future create-only publication
 
