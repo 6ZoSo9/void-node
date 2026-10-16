@@ -7,6 +7,7 @@ import importlib.util
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
 PLAN=ROOT/"ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py"
@@ -15,6 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+EXPECTED_PLANNER_BLOB_SHA1="be68fa349132645a998c06d4e0ec7f3f1cd65a28"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -29,6 +31,7 @@ def git_blob(data:bytes)->str:
 source=PLAN.read_text(encoding="utf-8")
 ast.parse(source)
 
+assert git_blob(PLAN.read_bytes())==EXPECTED_PLANNER_BLOB_SHA1
 assert git_blob(CONTRACT.read_bytes())=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
 assert git_blob(CANONICALIZER.read_bytes())=="f97fafb0148527ae3a954e2752faef8c7fc9e88e"
 assert git_blob(TERMINAL_RECEIPT.read_bytes())=="e27f0ebb968f4611bfc069670325c3f5e6df1c65"
@@ -88,6 +91,12 @@ for required in (
     '"candidate_slots_globally_distinct":True',
     '"candidate_slots_revalidation_required_before_provisioning":True',
     '"store_policy_id":PARENT_STORE_POLICY_ID',
+    '"source_generation":source_generation',
+    '"source_generation_authenticated":True',
+    '"reviewed_source_head_external_lease_required":True',
+    'GIT_BIN=Path("/usr/bin/git")',
+    'run_git(["rev-parse","HEAD"])',
+    'run_git(["merge-base","--is-ancestor",PARENT_HEAD,observed_head],check=False)',
     '"local_identity_authority":{',
     '"libc_nss_lookup_used":False',
     '"remote_nss_provider_allowed":False',
@@ -101,7 +110,6 @@ for required in (
     assert required in source,required
 
 for forbidden in (
-    "subprocess",
     "os.system(",
     "os.mkdir(",
     ".mkdir(",
@@ -120,8 +128,15 @@ for forbidden in (
     "import grp",
     "pwd.",
     "grp.",
+    "shell=True",
+    "GIT_ALLOW_PROTOCOL",
 ):
     assert forbidden not in source,forbidden
+assert source.count("subprocess.run(")==1
+assert 'env=GIT_ENV' in source
+assert '"GIT_CONFIG_NOSYSTEM":"1"' in source
+assert '"GIT_CONFIG_GLOBAL":"/dev/null"' in source
+assert '"GIT_TERMINAL_PROMPT":"0"' in source
 
 spec=importlib.util.spec_from_file_location("claim_store_host_plan_v2",PLAN)
 assert spec is not None and spec.loader is not None
@@ -159,6 +174,53 @@ group_rows=module.parse_group_file(
 )
 assert module.existing_user("zoso",passwd_rows)=={"name":"zoso","uid":1000,"gid":1000}
 assert module.existing_group("zoso",group_rows)=={"name":"zoso","gid":1000}
+
+git_env={
+    "PATH":"/usr/bin:/bin",
+    "HOME":"/nonexistent",
+    "LANG":"C",
+    "LC_ALL":"C",
+    "GIT_CONFIG_NOSYSTEM":"1",
+    "GIT_CONFIG_GLOBAL":"/dev/null",
+    "GIT_TERMINAL_PROMPT":"0",
+    "GIT_OPTIONAL_LOCKS":"0",
+}
+head_run=subprocess.run(
+    ["/usr/bin/git","-C",str(ROOT),"rev-parse","HEAD"],
+    stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+    text=True,check=False,timeout=10,env=git_env,
+)
+assert head_run.returncode==0,head_run.stderr
+CURRENT_HEAD=head_run.stdout.strip()
+assert len(CURRENT_HEAD)==40 and all(ch in "0123456789abcdef" for ch in CURRENT_HEAD)
+source_generation=module.verify_source_generation(CURRENT_HEAD)
+assert source_generation["source_head"]==CURRENT_HEAD
+assert source_generation["parent_head"]=="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"
+assert source_generation["parent_head_ancestor"] is True
+assert source_generation["planner_git_blob_sha1"]==EXPECTED_PLANNER_BLOB_SHA1
+assert source_generation["parent_contract_git_blob_sha1"]=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
+assert source_generation["source_generation_authenticated"] is True
+assert source_generation["reviewed_source_head_external_lease_required"] is True
+assert source_generation["git_network_access_performed"] is False
+
+try:
+    module.verify_source_generation("0"*40)
+except module.Hold as exc:
+    assert str(exc)=="source_head_mismatch"
+else:
+    raise AssertionError("wrong reviewed source head must HOLD")
+
+with tempfile.TemporaryDirectory(prefix="apollyon-substituted-planner-") as td:
+    substituted=Path(td)/"planner.py"
+    substituted.write_bytes(PLAN.read_bytes()+b"\n# substituted\n")
+    try:
+        module.require_tracked_source_file(
+            substituted,EXPECTED_PLANNER_BLOB_SHA1,"synthetic_substituted_planner"
+        )
+    except module.Hold as exc:
+        assert str(exc)=="synthetic_substituted_planner"
+    else:
+        raise AssertionError("substituted planner bytes must HOLD")
 try:
     module.parse_login_defs(
         "SYS_UID_MIN 100\nSYS_UID_MIN 101\nSYS_UID_MAX 999\n"
@@ -193,6 +255,8 @@ for line in (
     "identity_resolution_external_network_calls=false",
     "candidate_slot_revalidation_required=true",
     "stable_store_policy_id_bound=true",
+    "source_generation_authentication_required=true",
+    "reviewed_source_head_external_lease_required=true",
     "host_installation_performed=false",
     "durable_attempt_claim=false",
     "training_execution=false",
@@ -201,7 +265,8 @@ for line in (
 
 negative=subprocess.run(
     ["python3","-I","-B",str(PLAN),"--run","--expected-parent-head",
-     "fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"],
+     "fe7e1ad9b78a24b77a1657067e4d08f7c56a7731",
+     "--expected-source-head",CURRENT_HEAD],
     cwd=ROOT,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
     text=True,check=False,timeout=20,
 )
@@ -228,6 +293,10 @@ print("candidate_slot_revalidation_required=true")
 print("store_policy_id_rederived_from_parent_contract=true")
 print("store_policy_esm_dependency_closure_exact=true")
 print("store_policy_import_trigger_symmetry=true")
+print("live_source_head_and_blob_authenticated=true")
+print("wrong_source_head_rejected=true")
+print("substituted_planner_rejected=true")
+print("reviewed_source_head_external_lease_required=true")
 print("stable_store_policy_id="+EXPECTED_STORE_POLICY_ID)
 print("persistent_filesystem_write=false")
 print("account_mutation=false")

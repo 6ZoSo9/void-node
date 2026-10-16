@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import socket
 import stat
+import subprocess
 import sys
 from typing import Any
 
@@ -70,11 +71,30 @@ ACCOUNT_NAME_RE=re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,63}\$?$")
 MAX_LOCAL_FILE_BYTES=4*1024*1024
 MAX_LOCAL_ROWS=32768
 MAX_ID=65533
+GIT40_RE=re.compile(r"^[0-9a-f]{40}$")
+GIT_BIN=Path("/usr/bin/git")
+SOURCE_PATH=Path(__file__).absolute()
+SOURCE_ROOT=SOURCE_PATH.parents[2]
+PLANNER_REL=Path("ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py")
+PARENT_CONTRACT_REL=Path("tools/apollyon-durable-attempt-claim-store-contract-v2.mjs")
+GIT_ENV={
+    "PATH":"/usr/bin:/bin",
+    "HOME":"/nonexistent",
+    "LANG":"C",
+    "LC_ALL":"C",
+    "GIT_CONFIG_NOSYSTEM":"1",
+    "GIT_CONFIG_GLOBAL":"/dev/null",
+    "GIT_TERMINAL_PROMPT":"0",
+    "GIT_OPTIONAL_LOCKS":"0",
+}
 
 AUTHORITY={
     "source_contract":True,
     "designated_host_read_only_plan":True,
     "filesystem_read":True,
+    "local_git_metadata_read":True,
+    "source_generation_authentication_required":True,
+    "reviewed_source_head_external_lease_required":True,
     "filesystem_write":False,
     "account_mutation":False,
     "group_mutation":False,
@@ -119,6 +139,170 @@ def same_file_identity(a:os.stat_result,b:os.stat_result)->bool:
         getattr(a,"st_mtime_ns",None)==getattr(b,"st_mtime_ns",None) and
         getattr(a,"st_ctime_ns",None)==getattr(b,"st_ctime_ns",None)
     )
+
+
+def read_bound_repo_file(path:Path,*,max_bytes:int=MAX_LOCAL_FILE_BYTES)->tuple[bytes,dict[str,Any]]:
+    try:
+        before=os.lstat(path)
+    except OSError as exc:
+        raise Hold("source_file_unreadable:"+os.fspath(path)) from exc
+    if (
+        not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or
+        before.st_size<1 or before.st_size>max_bytes or
+        Path(os.path.realpath(path))!=path
+    ):
+        hold("source_file_invalid:"+os.fspath(path))
+    try:
+        fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0))
+    except OSError as exc:
+        raise Hold("source_file_open_failed:"+os.fspath(path)) from exc
+    try:
+        opened=os.fstat(fd)
+        if not same_file_identity(before,opened):
+            hold("source_file_changed:"+os.fspath(path))
+        chunks:list[bytes]=[]
+        total=0
+        while True:
+            chunk=os.read(fd,min(65536,max_bytes+1-total))
+            if not chunk:
+                break
+            total+=len(chunk)
+            if total>max_bytes:
+                hold("source_file_too_large:"+os.fspath(path))
+            chunks.append(chunk)
+        after=os.fstat(fd)
+        visible=os.lstat(path)
+        if (
+            not same_file_identity(opened,after) or
+            not same_file_identity(after,visible) or
+            total!=after.st_size
+        ):
+            hold("source_file_changed:"+os.fspath(path))
+        data=b"".join(chunks)
+        return data,{
+            "uid":after.st_uid,
+            "gid":after.st_gid,
+            "mode":f"{stat.S_IMODE(after.st_mode):04o}",
+            "dev":str(after.st_dev),
+            "ino":str(after.st_ino),
+            "nlink":after.st_nlink,
+            "size":after.st_size,
+            "mtime_ns":getattr(after,"st_mtime_ns",None),
+            "ctime_ns":getattr(after,"st_ctime_ns",None),
+            "sha256":sha256_bytes(data),
+            "git_blob_sha1":git_blob_sha1(data),
+        }
+    finally:
+        os.close(fd)
+
+def require_tracked_source_file(
+    path:Path,
+    tracked_blob_sha1:str,
+    code:str,
+)->dict[str,Any]:
+    if not GIT40_RE.fullmatch(tracked_blob_sha1):
+        hold(code)
+    data,evidence=read_bound_repo_file(path)
+    if git_blob_sha1(data)!=tracked_blob_sha1:
+        hold(code)
+    return evidence
+
+def require_fixed_git_binary()->None:
+    try:
+        st=os.lstat(GIT_BIN)
+    except OSError as exc:
+        raise Hold("source_git_binary_unavailable") from exc
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_uid!=0 or stat.S_IMODE(st.st_mode)&0o022 or
+        Path(os.path.realpath(GIT_BIN))!=GIT_BIN
+    ):
+        hold("source_git_binary_untrusted")
+
+def run_git(args:list[str],*,check:bool=True)->subprocess.CompletedProcess[str]:
+    require_fixed_git_binary()
+    if any(not isinstance(arg,str) or "\x00" in arg for arg in args):
+        hold("source_git_argument_invalid")
+    try:
+        result=subprocess.run(
+            [os.fspath(GIT_BIN),"-C",os.fspath(SOURCE_ROOT),*args],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=10,
+            env=GIT_ENV,
+        )
+    except (OSError,subprocess.SubprocessError) as exc:
+        raise Hold("source_git_command_failed") from exc
+    if check and result.returncode!=0:
+        hold("source_git_command_failed")
+    return result
+
+def tracked_blob_at_head(head:str,relative:Path)->str:
+    rel=relative.as_posix()
+    result=run_git(["ls-tree",head,"--",rel])
+    line=result.stdout.rstrip("\n")
+    expected_prefix="100644 blob "
+    suffix="\t"+rel
+    if (
+        "\n" in line or not line.startswith(expected_prefix) or
+        not line.endswith(suffix)
+    ):
+        hold("source_git_tree_entry_invalid:"+rel)
+    blob=line[len(expected_prefix):-len(suffix)]
+    if not GIT40_RE.fullmatch(blob):
+        hold("source_git_tree_blob_invalid:"+rel)
+    return blob
+
+def verify_source_generation(expected_source_head:str)->dict[str,Any]:
+    if not GIT40_RE.fullmatch(expected_source_head):
+        hold("expected_source_head_invalid")
+    if SOURCE_PATH!=SOURCE_ROOT/PLANNER_REL or Path(os.path.realpath(SOURCE_PATH))!=SOURCE_PATH:
+        hold("source_planner_path_invalid")
+    toplevel=run_git(["rev-parse","--show-toplevel"]).stdout.strip()
+    if toplevel!=os.fspath(SOURCE_ROOT):
+        hold("source_git_toplevel_mismatch")
+    observed_head=run_git(["rev-parse","HEAD"]).stdout.strip()
+    if not GIT40_RE.fullmatch(observed_head) or observed_head!=expected_source_head:
+        hold("source_head_mismatch")
+    ancestor=run_git(["merge-base","--is-ancestor",PARENT_HEAD,observed_head],check=False)
+    if ancestor.returncode!=0:
+        hold("source_parent_not_ancestor")
+
+    planner_blob=tracked_blob_at_head(observed_head,PLANNER_REL)
+    planner_evidence=require_tracked_source_file(
+        SOURCE_PATH,planner_blob,"source_planner_worktree_blob_mismatch"
+    )
+
+    contract_path=SOURCE_ROOT/PARENT_CONTRACT_REL
+    contract_blob=tracked_blob_at_head(observed_head,PARENT_CONTRACT_REL)
+    contract_evidence=require_tracked_source_file(
+        contract_path,contract_blob,"source_parent_contract_worktree_blob_mismatch"
+    )
+    if contract_blob!=PARENT_CONTRACT_BLOB_SHA1:
+        hold("source_parent_contract_blob_mismatch")
+
+    return {
+        "source_head":observed_head,
+        "parent_head":PARENT_HEAD,
+        "parent_head_ancestor":True,
+        "planner_git_blob_sha1":planner_blob,
+        "planner_file":planner_evidence,
+        "parent_contract_git_blob_sha1":contract_blob,
+        "parent_contract_file":contract_evidence,
+        "fixed_git_binary":os.fspath(GIT_BIN),
+        "git_environment_sanitized":True,
+        "git_network_access_performed":False,
+        "reviewed_source_head_external_lease_required":True,
+        "source_generation_authenticated":True,
+    }
+
+def revalidate_source_generation(expected_source_head:str,expected:dict[str,Any])->None:
+    observed=verify_source_generation(expected_source_head)
+    if observed!=expected:
+        hold("source_generation_changed_during_plan")
 
 def read_bound_local_file(path:Path,*,max_bytes:int=MAX_LOCAL_FILE_BYTES)->tuple[bytes,dict[str,Any]]:
     try:
@@ -390,11 +574,12 @@ def machine_id_sha256(data:bytes)->str:
         hold("machine_id_invalid")
     return sha256_bytes(text.encode("ascii"))
 
-def collect_plan(expected_parent_head:str)->dict[str,Any]:
+def collect_plan(expected_parent_head:str,expected_source_head:str)->dict[str,Any]:
     if expected_parent_head!=PARENT_HEAD:
         hold("expected_parent_head_mismatch")
     if socket.gethostname().casefold()!=TARGET_HOST.casefold():
         hold("wrong_host")
+    source_generation=verify_source_generation(expected_source_head)
 
     parents=[require_trusted_directory(path) for path in TRUSTED_EXISTING_PARENTS]
     for path in TARGET_PATHS:
@@ -468,6 +653,7 @@ def collect_plan(expected_parent_head:str)->dict[str,Any]:
     for key,path in bound_paths.items():
         revalidate_bound_local_file(path,evidence[key])
     revalidate_bound_local_file(MACHINE_ID_PATH,machine_evidence)
+    revalidate_source_generation(expected_source_head,source_generation)
 
     material={
         "marker":MARKER,
@@ -478,6 +664,7 @@ def collect_plan(expected_parent_head:str)->dict[str,Any]:
         "machine_id_file":machine_evidence,
         "parent_head":PARENT_HEAD,
         "parent_contract_blob_sha1":PARENT_CONTRACT_BLOB_SHA1,
+        "source_generation":source_generation,
         "store_policy_id":PARENT_STORE_POLICY_ID,
         "fixed_names":{
             "claim_service_user":CLAIM_SERVICE_USER,
@@ -519,6 +706,8 @@ def collect_plan(expected_parent_head:str)->dict[str,Any]:
         "candidate_slots_selected_in_plan":True,
         "candidate_slots_globally_distinct":True,
         "candidate_slots_revalidation_required_before_provisioning":True,
+        "source_generation_authenticated":True,
+        "reviewed_source_head_external_lease_required":True,
         "claim_identity_provisioned":False,
         "publisher_identity_provisioned":False,
         "claim_ipc_group_provisioned":False,
@@ -605,6 +794,9 @@ def self_test()->None:
     assert CLAIM_SOCKET.parent==CLAIM_SOCKET_PARENT
     assert all(path.is_absolute() for path in TARGET_PATHS)
     assert AUTHORITY["filesystem_write"] is False
+    assert AUTHORITY["local_git_metadata_read"] is True
+    assert AUTHORITY["source_generation_authentication_required"] is True
+    assert AUTHORITY["reviewed_source_head_external_lease_required"] is True
     assert AUTHORITY["service_action"] is False
     assert AUTHORITY["durable_attempt_claim"] is False
     assert AUTHORITY["training_execution"] is False
@@ -619,6 +811,8 @@ def self_test()->None:
     print("identity_resolution_external_network_calls=false")
     print("candidate_slot_revalidation_required=true")
     print("stable_store_policy_id_bound=true")
+    print("source_generation_authentication_required=true")
+    print("reviewed_source_head_external_lease_required=true")
     print("host_installation_performed=false")
     print("durable_attempt_claim=false")
     print("training_execution=false")
@@ -629,6 +823,7 @@ def main()->int:
     mode.add_argument("--self-test",action="store_true")
     mode.add_argument("--run",action="store_true")
     parser.add_argument("--expected-parent-head")
+    parser.add_argument("--expected-source-head")
     args=parser.parse_args()
     try:
         if args.self_test:
@@ -636,7 +831,9 @@ def main()->int:
             return 0
         if args.expected_parent_head is None:
             hold("expected_parent_head_required")
-        result=collect_plan(args.expected_parent_head)
+        if args.expected_source_head is None:
+            hold("expected_source_head_required")
+        result=collect_plan(args.expected_parent_head,args.expected_source_head)
         sys.stdout.write(canonical(result)+"\n")
         return 0
     except Hold as exc:
