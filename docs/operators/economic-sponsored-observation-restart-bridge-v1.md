@@ -145,6 +145,8 @@ The focused proof:
 - rejects wall-time regression;
 - rejects cumulative skew beyond the existing 5-second bound;
 - rejects a durable-store head different from the prior receipt;
+- rejects revoked Proxy evidence through the bridge's bounded input error before
+  array/prototype reflection;
 - rejects accessor-backed top-level evidence without invoking the accessor; and
 - rejects accessor-backed nested host observation samples without invoking the
   accessor before content-address verification.
