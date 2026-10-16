@@ -39,7 +39,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-    "7b3de8573a07cf6eed6d75fb9a94cc43a3707dcd",
+    "d383bfe97f621efdd4761a16ff93a63efdfcd4fd",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
     "a08927b7b16884a9bf0c28328047afdab49649ea",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
@@ -224,6 +224,7 @@ for(const key of [
   "durable_claim_record_reread_performed",
   "authorization_winner_reread_performed",
   "consumption_slot_classification_performed",
+  "writer_directory_capability_exact_path_proven",
   "writer_directory_capability_origin_proven",
   "protected_writer_invocation_authorized",
   "training_start_consumption_performed",
@@ -242,6 +243,7 @@ for(const key of [
   "authorization_winner_reread_required",
   "consumption_slot_classification_required",
   "writer_directory_capability_from_fixed_root_required",
+  "writer_directory_capability_exact_path_required",
   "same_store_generation_through_writer_required",
   "protected_writer_invocation_required",
 ]){

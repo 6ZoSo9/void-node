@@ -168,6 +168,8 @@ export function qualifyApollyonTrainingStartStoreRevalidationRequestV1(input){
     consumption_slot_classification_required:true,
     consumption_slot_classification_performed:false,
     writer_directory_capability_from_fixed_root_required:true,
+    writer_directory_capability_exact_path_required:true,
+    writer_directory_capability_exact_path_proven:false,
     writer_directory_capability_origin_proven:false,
     same_store_generation_through_writer_required:true,
     protected_writer_invocation_required:true,
