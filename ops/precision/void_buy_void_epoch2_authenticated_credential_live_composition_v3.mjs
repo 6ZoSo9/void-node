@@ -63,6 +63,31 @@ const MAX_OUTPUT=2*1024*1024;
 const SHA40=/^[0-9a-f]{40}$/u;
 const HEX64=/^[0-9a-f]{64}$/u;
 const SEALED_ID=/^voide2sealed2_[0-9a-f]{64}$/u;
+const QUALIFICATION_KEYS=Object.freeze([
+  "marker","version","read_only","root_execution_required",
+  "credential_lock_id","credential_v3r_generation_verified",
+  "credential_v1_predecessor_verified","credential_v2_predecessor_verified",
+  "credential_installed_generation_stable",
+  "credential_query_preexec_path_verified","double_credential_query_stable",
+  "complete_dropin_set_hash_stable","complete_credential_set_hash_stable",
+  "credential_metadata_same_generation_as_v6_security",
+  "v6_security_qualification_composed","credential_contents_read",
+  "native_output_sha256_first","native_output_sha256_second",
+  "runtime_uid","manager_pid","manager_start_ticks","main_pid",
+  "service_start_ticks","fragment_path","dropin_path_count",
+  "credential_dropin_match_count","credential_dropin_path",
+  "dropin_paths_canonical_bytes","dropin_paths_canonical_sha256",
+  "load_credential_count","load_credential_target_match_count",
+  "load_credential_canonical_bytes","load_credential_canonical_sha256",
+  "load_credential_id","credential_source","v6_kernel_cap_last_cap",
+  "v6_kernel_supported_capability_mask","v6_capability_bounding_set",
+  "v6_kernel_cap_bnd","query_execution","host_mutation","filesystem_write",
+  "service_mutation","systemd_mutation","external_network_calls",
+  "private_key_access","wallet_or_signer_access",
+  "request_or_payment_contents_read","payment_acceptance",
+  "public_presale_activation","wc_void_market_activation","transaction",
+  "funds_movement","production_host_evidence_authority","next_action",
+]);
 
 function sha256(bytes){
   return crypto.createHash("sha256").update(bytes).digest("hex");
@@ -87,6 +112,25 @@ function canonical(value){
   if(!value||typeof value!=="object")throw new Error("noncanonical_value");
   return "{"+Object.keys(value).sort()
     .map((key)=>JSON.stringify(key)+":"+canonical(value[key])).join(",")+"}";
+}
+
+function exactKeys(value,expected){
+  if(!value||typeof value!=="object"||Array.isArray(value)||
+     Object.getPrototypeOf(value)!==Object.prototype)return false;
+  const got=Object.keys(value).sort();
+  const want=[...expected].sort();
+  return got.length===want.length&&
+    got.every((key,index)=>key===want[index]);
+}
+
+function capabilityMaskForLastCap(lastCap){
+  if(!Number.isSafeInteger(lastCap)||lastCap<0||lastCap>63){
+    throw new Error("qualification_kernel_cap_last_cap_invalid");
+  }
+  const mask=lastCap===63
+    ? ((1n<<64n)-1n)
+    : ((1n<<BigInt(lastCap+1))-1n);
+  return mask.toString(16).padStart(16,"0");
 }
 
 function cleanGitEnv(){
@@ -375,6 +419,9 @@ export function parseQualificationStdout(stdout){
 }
 
 function validateQualification(q){
+  if(!exactKeys(q,QUALIFICATION_KEYS)){
+    throw new Error("qualification_shape_invalid");
+  }
   for(const [key,want] of Object.entries({
     marker:QUALIFIER_MARKER,
     version:3,
@@ -419,6 +466,24 @@ function validateQualification(q){
      !Number.isSafeInteger(q.manager_pid)||q.manager_pid<=1){
     throw new Error("qualification_identity_invalid");
   }
+  if(!/^[1-9][0-9]*$/u.test(String(q.manager_start_ticks||""))||
+     !/^[1-9][0-9]*$/u.test(String(q.service_start_ticks||""))){
+    throw new Error("qualification_generation_ticks_invalid");
+  }
+  for(const [key,value] of [
+    ["fragment_path",q.fragment_path],
+    ["credential_dropin_path",q.credential_dropin_path],
+    ["credential_source",q.credential_source],
+  ]){
+    if(typeof value!=="string"||!path.posix.isAbsolute(value)||
+       path.posix.normalize(value)!==value||value.includes("//")){
+      throw new Error("qualification_path_invalid:"+key);
+    }
+  }
+  if(path.posix.basename(q.credential_dropin_path)!==
+     "97-buy-void-epoch2-fulfiller-credential-v1.conf"){
+    throw new Error("qualification_credential_dropin_invalid");
+  }
   if(!Number.isSafeInteger(q.dropin_path_count)||q.dropin_path_count<1||
      q.dropin_path_count>64||
      !Number.isSafeInteger(q.dropin_paths_canonical_bytes)||
@@ -441,18 +506,24 @@ function validateQualification(q){
       throw new Error("qualification_complete_set_hash_invalid:"+key);
     }
   }
-  if(typeof q.credential_source!=="string"||
-     !path.posix.isAbsolute(q.credential_source)||
-     path.posix.normalize(q.credential_source)!==q.credential_source){
-    throw new Error("qualification_credential_source_invalid");
-  }
   if(typeof q.native_output_sha256_first!=="string"||
      q.native_output_sha256_first!==q.native_output_sha256_second||
      !/^sha256:[0-9a-f]{64}$/u.test(q.native_output_sha256_first)){
     throw new Error("qualification_native_transcript_invalid");
   }
-  if(q.v6_capability_bounding_set!==q.v6_kernel_cap_bnd||
-     !/^[0-9a-f]{16}$/u.test(String(q.v6_kernel_cap_bnd||""))){
+  for(const key of [
+    "v6_kernel_supported_capability_mask",
+    "v6_capability_bounding_set",
+    "v6_kernel_cap_bnd",
+  ]){
+    if(!/^[0-9a-f]{16}$/u.test(String(q[key]||""))){
+      throw new Error("qualification_capability_mask_invalid:"+key);
+    }
+  }
+  const supported=capabilityMaskForLastCap(q.v6_kernel_cap_last_cap);
+  if(q.v6_kernel_supported_capability_mask!==supported||
+     q.v6_capability_bounding_set!==q.v6_kernel_cap_bnd||
+     (BigInt("0x"+q.v6_kernel_cap_bnd)&~BigInt("0x"+supported))!==0n){
     throw new Error("qualification_capability_binding_invalid");
   }
 }
@@ -730,18 +801,65 @@ function selfTest(){
     throw new Error("qualification_parser_self_test_failed");
   }
   const q={
-    credential_lock_id:"lock",
+    marker:QUALIFIER_MARKER,
+    version:3,
+    read_only:true,
+    root_execution_required:true,
+    credential_lock_id:EXPECTED_CREDENTIAL_LOCK_ID,
+    credential_v3r_generation_verified:true,
+    credential_v1_predecessor_verified:true,
+    credential_v2_predecessor_verified:true,
+    credential_installed_generation_stable:true,
+    credential_query_preexec_path_verified:true,
+    double_credential_query_stable:true,
+    complete_dropin_set_hash_stable:true,
+    complete_credential_set_hash_stable:true,
+    credential_metadata_same_generation_as_v6_security:true,
+    v6_security_qualification_composed:true,
+    credential_contents_read:false,
+    native_output_sha256_first:"sha256:"+"c".repeat(64),
+    native_output_sha256_second:"sha256:"+"c".repeat(64),
     runtime_uid:1000,
     manager_pid:2693,
     manager_start_ticks:"1409",
     main_pid:4242,
     service_start_ticks:"998877",
-    dropin_paths_canonical_sha256:"a".repeat(64),
+    fragment_path:"/usr/lib/systemd/user/void-node-live.service",
     dropin_path_count:2,
-    load_credential_canonical_sha256:"b".repeat(64),
+    credential_dropin_match_count:1,
+    credential_dropin_path:
+      "/home/zoso/.config/systemd/user/void-node-live.service.d/"+
+      "97-buy-void-epoch2-fulfiller-credential-v1.conf",
+    dropin_paths_canonical_bytes:256,
+    dropin_paths_canonical_sha256:"a".repeat(64),
     load_credential_count:4,
     load_credential_target_match_count:1,
+    load_credential_canonical_bytes:512,
+    load_credential_canonical_sha256:"b".repeat(64),
+    load_credential_id:EXPECTED_CREDENTIAL_ID,
+    credential_source:"/home/zoso/.local/share/void-epoch2/credential",
+    v6_kernel_cap_last_cap:40,
+    v6_kernel_supported_capability_mask:"000001ffffffffff",
+    v6_capability_bounding_set:"000001ffffffffff",
+    v6_kernel_cap_bnd:"000001ffffffffff",
+    query_execution:true,
+    host_mutation:false,
+    filesystem_write:false,
+    service_mutation:false,
+    systemd_mutation:false,
+    external_network_calls:false,
+    private_key_access:false,
+    wallet_or_signer_access:false,
+    request_or_payment_contents_read:false,
+    payment_acceptance:false,
+    public_presale_activation:false,
+    wc_void_market_activation:false,
+    transaction:false,
+    funds_movement:false,
+    production_host_evidence_authority:false,
+    next_action:QUALIFIER_NEXT_ACTION,
   };
+  validateQualification(q);
   const sealed={
     evidence_id:"voide2sealed1_"+"b".repeat(64),
     immutable_fulfiller:EXPECTED_FULFILLER,
@@ -770,6 +888,22 @@ function selfTest(){
      receipt.credential_complete_credential_set_sha256!=="b".repeat(64)){
     throw new Error("authority_self_test_failed");
   }
+  for(const mutate of [
+    (x)=>{x.load_credential_count=33;},
+    (x)=>{x.dropin_path_count=65;},
+    (x)=>{x.load_credential_target_match_count=2;},
+    (x)=>{x.dropin_paths_canonical_sha256="g".repeat(64);},
+    (x)=>{x.manager_start_ticks="0";},
+    (x)=>{x.v6_kernel_supported_capability_mask="ffffffffffffffff";},
+    (x)=>{x.payment_acceptance=true;},
+  ]){
+    const bad=structuredClone(q);
+    mutate(bad);
+    let held=false;
+    try{validateQualification(bad);}catch{held=true;}
+    if(!held)throw new Error("qualification_adversary_accepted");
+  }
+
 
   let checkoutCount=0;
   const stableSequence=runSensitiveSequence({
