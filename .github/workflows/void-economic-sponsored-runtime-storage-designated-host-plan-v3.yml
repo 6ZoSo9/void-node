@@ -1,0 +1,157 @@
+name: VOID sponsored runtime manager UnitPath v3
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v3.py"
+      - "scripts/prove_void_economic_sponsored_runtime_storage_designated_host_plan_v3.py"
+      - "docs/operators/economic-sponsored-runtime-storage-designated-host-plan-v3.md"
+      - ".github/workflows/void-economic-sponsored-runtime-storage-designated-host-plan-v3.yml"
+      - "ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v2.py"
+      - "scripts/prove_void_economic_sponsored_runtime_storage_local_identity_v2.py"
+      - "ops/mainnet0/economic-sponsored-runtime-storage-production-selection-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v3.py"
+      - "scripts/prove_void_economic_sponsored_runtime_storage_designated_host_plan_v3.py"
+      - "docs/operators/economic-sponsored-runtime-storage-designated-host-plan-v3.md"
+      - ".github/workflows/void-economic-sponsored-runtime-storage-designated-host-plan-v3.yml"
+      - "ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v2.py"
+      - "scripts/prove_void_economic_sponsored_runtime_storage_local_identity_v2.py"
+      - "ops/mainnet0/economic-sponsored-runtime-storage-production-selection-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-sponsored-runtime-manager-unitpath-v3-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: manager UnitPath authority
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Re-prove merged V2 local-files identity authority
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/sponsored-runtime-local-identity-v2.txt"
+          {
+            python3 -I -B \
+              ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v2.py \
+              --self-test
+            python3 -I -B \
+              scripts/prove_void_economic_sponsored_runtime_storage_local_identity_v2.py
+          } | tee "$proof"
+          grep -Fx 'VOID_ECONOMIC_SPONSORED_RUNTIME_STORAGE_DESIGNATED_HOST_PLAN_V2_SELF_TEST_GREEN' "$proof"
+          grep -Fx 'VOID_ECONOMIC_SPONSORED_RUNTIME_STORAGE_LOCAL_IDENTITY_V2_PROOF_GREEN' "$proof"
+          grep -Fx 'identity_resolution_external_network_calls=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Prove V3 manager-derived UnitPath authority
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/sponsored-runtime-manager-unitpath-v3.txt"
+          {
+            python3 -I -B \
+              ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v3.py \
+              --self-test
+            python3 -I -B \
+              scripts/prove_void_economic_sponsored_runtime_storage_designated_host_plan_v3.py
+          } | tee "$proof"
+          grep -Fx 'VOID_ECONOMIC_SPONSORED_RUNTIME_STORAGE_DESIGNATED_HOST_PLAN_V3_SELF_TEST_GREEN' "$proof"
+          grep -Fx 'VOID_ECONOMIC_SPONSORED_RUNTIME_STORAGE_DESIGNATED_HOST_PLAN_V3_PROOF_GREEN' "$proof"
+          grep -Fx 'predecessor_v2_blob_bound=true' "$proof"
+          grep -Fx 'local_files_nss_v2_preserved=true' "$proof"
+          grep -Fx 'systemd_bus_owner_pid1_bound=true' "$proof"
+          grep -Fx 'systemd_running_installed_version_match_required=true' "$proof"
+          grep -Fx 'manager_unit_path_exact_array_bound=true' "$proof"
+          grep -Fx 'all_manager_unit_path_roots_observed=true' "$proof"
+          grep -Fx 'manager_loaded_unit_rejected=true' "$proof"
+          grep -Fx 'usr_local_unit_collision_rejected=true' "$proof"
+          grep -Fx 'transient_unit_collision_rejected=true' "$proof"
+          grep -Fx 'unit_path_reorder_rejected=true' "$proof"
+          grep -Fx 'manager_generation_change_rejected=true' "$proof"
+          grep -Fx 'unit_path_root_generation_change_rejected=true' "$proof"
+          grep -Fx 'systemd_mutation=false' "$proof"
+          grep -Fx 'filesystem_mutation=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Prove inert V3 source plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/sponsored-runtime-manager-unitpath-v3-plan.txt"
+          python3 -I -B \
+            ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v3.py \
+            --source-plan | tee "$plan"
+          grep -Fx 'source_only=true' "$plan"
+          grep -Fx 'host_read=false' "$plan"
+          grep -Fx 'identity_resolution_profile=local_files_only_v2' "$plan"
+          grep -Fx 'systemd_manager_authority_profile=pid1_manager_unitpath_v3' "$plan"
+          grep -Fx 'reviewed_systemd_major=255' "$plan"
+          grep -Fx 'systemd_bus_owner_pid1_required=true' "$plan"
+          grep -Fx 'systemd_running_installed_version_match_required=true' "$plan"
+          grep -Fx 'systemd_manager_unit_path_required=true' "$plan"
+          grep -Fx 'systemd_manager_selected_unit_absence_required=true' "$plan"
+          grep -Fx 'runtime_account_creation_authorized=false' "$plan"
+          grep -Fx 'storage_provisioning_authorized=false' "$plan"
+          grep -Fx 'funds_movement=false' "$plan"
+
+      - name: Live mode requires explicit reviewed head before host read
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/live-without-head.out"
+          err="$RUNNER_TEMP/live-without-head.err"
+          if python3 -I -B \
+            ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v3.py \
+            --run >"$out" 2>"$err"; then
+            echo "V3 live mode without expected head unexpectedly succeeded" >&2
+            exit 1
+          fi
+          test ! -s "$err"
+          grep -Fx 'status=HOLD' "$out"
+          grep -Fx 'reason=expected_head_required' "$out"
+          grep -Fx 'host_mutation=false' "$out"
+          grep -Fx 'runtime_account_creation_authorized=false' "$out"
+          grep -Fx 'storage_provisioning_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+
+      - name: Diff hygiene
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha || '' }}
+          PUSH_BEFORE: ${{ github.event.before || '' }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          BASE="$PR_BASE"
+          if [ "$EVENT_NAME" = "push" ]; then
+            BASE="$PUSH_BEFORE"
+          fi
+          if [ -z "$BASE" ] || printf '%s' "$BASE" | grep -Eq '^0+$'; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git cat-file -e "$BASE^{commit}"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
