@@ -23,9 +23,13 @@ Stable terminal-independent store policy:
 `apollyon_claim_store_policy_v2:e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137`
 
 The focused proof independently imports the exact accepted parent contract and
-re-derives this policy ID from its canonical policy material. The host plan
-carries this stable policy identity directly. It does **not** use a
-terminal-specific `store_contract_id` as the durable host-store identity.
+re-derives this policy ID from its canonical policy material. Before that import,
+the proof pins the exact complete ESM dependency closure used by the policy
+derivation: the parent contract, claim-contract canonicalizer, terminal-receipt
+module, and the terminal module's live source/session binding dependency. The
+focused workflow triggers on all four reviewed files. The host plan carries this
+stable policy identity directly. It does **not** use a terminal-specific
+`store_contract_id` as the durable host-store identity.
 
 ## Fixed future names
 
