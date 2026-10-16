@@ -56,6 +56,20 @@ census workflow Git blob
 evidence to name that same workflow generation. A child-side workflow drift
 therefore cannot inherit the accepted census receipt silently.
 
+V3 also re-executes the exact pinned #3242 census proof on the candidate head.
+That current-head revalidation must reproduce the accepted protected inventory,
+economic artifact/source inventories, exact two-path protected delta, zero
+economic/build-source drift, frozen-candidate/lock nonmutation, and all
+authority-false fields. The new revalidation census ID plus candidate-head/tree
+are included in the content-addressed V3 candidate. This prevents changes to
+range proofs, canonical-producer/checkpoint evidence, frozen V2 evidence, or
+other census inputs from inheriting stale parent evidence.
+
+The V3 workflow trigger set deliberately covers the complete source classes
+consumed by this revalidation (`ops/**`, `runtime/**`, `scripts/**`,
+`src/**`, `tools/**`, package/build files and the exact pinned workflow
+inputs), in addition to its exact dependency paths.
+
 This generation does **not** runtime-import the TypeScript deployment installer
 to obtain that list. The current source tree contains source-relative `.js`
 imports that are valid for the reviewed compiled/runtime path but are not
