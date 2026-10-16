@@ -128,10 +128,21 @@ jobs:
           )
           counts = Counter(trigger_paths)
 
-          pinned_paths = set(re.findall(
+          pin_counts = Counter(re.findall(
               r"git rev-parse HEAD:([A-Za-z0-9_./-]+)",
               text,
           ))
+          duplicate_pins = {
+              path: count for path, count in sorted(pin_counts.items())
+              if count != 1
+          }
+          if duplicate_pins:
+              raise SystemExit(
+                  "preservation_pin_count_mismatch:"
+                  + repr(duplicate_pins)
+              )
+
+          pinned_paths = set(pin_counts)
           required = pinned_paths | {workflow.as_posix()}
 
           if set(counts) != required:
@@ -153,6 +164,7 @@ jobs:
               )
 
           print("operator_first_entry_trigger_pin_parity=true")
+          print("operator_first_entry_preservation_pin_count=" + str(len(pinned_paths)))
           print("operator_first_entry_trigger_path_count=" + str(len(required)))
           PY
 
