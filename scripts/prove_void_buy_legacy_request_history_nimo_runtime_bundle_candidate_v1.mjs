@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 
 import {
   VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_AUTHORITY_V1,
@@ -178,6 +179,84 @@ for (const [key, expected] of Object.entries({
   );
 }
 
+function rehashCandidate(value) {
+  const clone = structuredClone(value);
+  const { candidate_id: _ignored, ...body } = clone;
+  clone.candidate_id =
+    "voidblrhnrb1_" +
+    crypto
+      .createHash("sha256")
+      .update(
+        Buffer.from(
+          canonicalLegacyHistoryNimoRuntimeBundleJsonV1(body) + "\n",
+          "utf8",
+        ),
+      )
+      .digest("hex");
+  return clone;
+}
+
+{
+  const tampered = structuredClone(candidate);
+  const tracked = tampered.runtime_files.find(
+    (record) => record.runtime_kind === "tracked_source",
+  );
+  tracked.runtime_kind = "compiled_typescript";
+  tracked.tracked_source_git_blob_sha1 = null;
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_runtime_kind_invalid/u,
+  );
+}
+{
+  const tampered = structuredClone(candidate);
+  tampered.external_node_builtins.push("fs");
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_node_builtin_set_invalid/u,
+  );
+}
+{
+  const tampered = structuredClone(candidate);
+  tampered.compiler.compiler_files[0].path =
+    "node_modules/typescript/lib/not-the-compiler.js";
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_compiler_file_identity_invalid/u,
+  );
+}
+{
+  const tampered = structuredClone(candidate);
+  tampered.planned_handler_path += ".wrong";
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_planned_layout_invalid/u,
+  );
+}
+{
+  const tampered = structuredClone(candidate);
+  tampered.public_key_selected = true;
+  assert.throws(
+    () =>
+      verifyVoidBuyVoidLegacyHistoryNimoRuntimeBundleCandidateV1(
+        rehashCandidate(tampered),
+      ),
+    /legacy_history_nimo_bundle_candidate_identity_invalid/u,
+  );
+}
+
 const canonical = canonicalLegacyHistoryNimoRuntimeBundleJsonV1(candidate);
 assert.equal(
   canonical,
@@ -194,6 +273,11 @@ console.log("parent_source_input_count=19");
 console.log("typescript_version=5.9.3");
 console.log("third_party_runtime_packages=0");
 console.log("node_modules_runtime_files=0");
+console.log("rehashed_runtime_kind_tamper_rejected=true");
+console.log("rehashed_builtin_set_tamper_rejected=true");
+console.log("rehashed_compiler_identity_tamper_rejected=true");
+console.log("rehashed_planned_layout_tamper_rejected=true");
+console.log("rehashed_authority_tamper_rejected=true");
 console.log("runtime_bundle_candidate_accepted=false");
 console.log("runtime_bundle_lock_created=false");
 console.log("protected_runtime_install_authorized=false");
