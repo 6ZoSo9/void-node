@@ -173,6 +173,8 @@ jobs:
           grep -Fx 'typescript_cli_loader_fixture_tamper_rejected=true' "$proof"
           grep -Fx 'typescript_cli_edge_fixture_tamper_rejected=true' "$proof"
           grep -Fx 'third_party_runtime_packages=0' "$proof"
+          grep -Fx 'runtime_output_snapshot_mismatch_rejected=true' "$proof"
+          grep -Fx 'rehashed_runtime_output_snapshot_tamper_rejected=true' "$proof"
           grep -Fx 'rehashed_runtime_bytes_tamper_rejected=true' "$proof"
           grep -Fx 'rehashed_compiler_bytes_tamper_rejected=true' "$proof"
           grep -Fx 'rehashed_compiler_snapshot_tamper_rejected=true' "$proof"
