@@ -102,7 +102,7 @@ def accepted_inputs()->tuple[bytes,bytes,bytes]:
 
 
 def load_candidate(candidate_raw:bytes):
-    module=types.ModuleType("void_epoch2_native_candidate_v5")
+    module=types.ModuleType("void_epoch2_native_candidate_v6")
     module.__file__=os.fspath(CANDIDATE)
     code=compile(
         candidate_raw,
@@ -245,7 +245,7 @@ def self_test()->None:
     accepted_inputs()
     assert EXPECTED_BYTES==726976
     assert len(EXPECTED_SHA256)==64
-    assert LOCK_ID.startswith("voidbuye2nativecandlock5_")
+    assert LOCK_ID.startswith("voidbuye2nativecandlock6_")
     with tempfile.TemporaryDirectory(
         prefix="void-buy-epoch2-native-v6-output-test-"
     ) as td:
