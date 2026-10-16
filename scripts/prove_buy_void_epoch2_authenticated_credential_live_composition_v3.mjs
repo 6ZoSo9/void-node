@@ -91,8 +91,14 @@ for(const forbidden of [
 
 const validateAt=source.indexOf("function validateQualification(q){");
 const sequenceAt=source.indexOf("function runSensitiveSequence({");
+const lifecycleAt=source.indexOf("function runLiveLifecycle({");
 const liveAt=source.indexOf("function live(expectedHead,confirm){");
-assert.ok(validateAt>0&&sequenceAt>validateAt&&liveAt>sequenceAt);
+assert.ok(
+  validateAt>0&&
+  sequenceAt>validateAt&&
+  lifecycleAt>sequenceAt&&
+  liveAt>lifecycleAt
+);
 const openingCheckout=source.indexOf("checkoutFn(expectedHead);",sequenceAt);
 const beforeAt=source.indexOf("const before=qualificationFn(expectedHead);",sequenceAt);
 const sealedAt=source.indexOf("const sealedRecord=sealedFn(expectedHead);",sequenceAt);
@@ -109,11 +115,44 @@ assert.ok(
   stableAt<crossAt&&
   crossAt<closingCheckout
 );
-assert.ok(
-  source.indexOf("const nativeProof=requireNativePreentry(expectedHead);",liveAt)>liveAt
+
+const nativeDefaultAt=source.indexOf("nativeFn=requireNativePreentry",lifecycleAt);
+const revalidateDefaultAt=source.indexOf(
+  "revalidateFn=revalidateNativePreentry",
+  lifecycleAt
+);
+const nativeCallAt=source.indexOf(
+  "const nativeProof=nativeFn(expectedHead);",
+  lifecycleAt
+);
+const authenticatedAt=source.indexOf(
+  "privilegedFirstEntryAuthenticatedForInvocation=true;",
+  nativeCallAt
+);
+const trustedAt=source.indexOf("trustedExecutablesFn();",authenticatedAt);
+const sensitiveAt=source.indexOf(
+  "const receipt=sensitiveFn({expectedHead});",
+  trustedAt
+);
+const revalidateAt=source.indexOf(
+  "revalidateFn(nativeProof,expectedHead);",
+  sensitiveAt
+);
+const emitAt=source.indexOf("emitFn(receipt);",revalidateAt);
+const liveDelegateAt=source.indexOf(
+  "return runLiveLifecycle({expectedHead,confirm});",
+  liveAt
 );
 assert.ok(
-  source.indexOf("revalidateNativePreentry(nativeProof,expectedHead);",liveAt)>liveAt
+  nativeDefaultAt>lifecycleAt&&
+  revalidateDefaultAt>nativeDefaultAt&&
+  nativeCallAt>revalidateDefaultAt&&
+  authenticatedAt>nativeCallAt&&
+  trustedAt>authenticatedAt&&
+  sensitiveAt>trustedAt&&
+  revalidateAt>sensitiveAt&&
+  emitAt>revalidateAt&&
+  liveDelegateAt>liveAt
 );
 
 const env={PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"};
