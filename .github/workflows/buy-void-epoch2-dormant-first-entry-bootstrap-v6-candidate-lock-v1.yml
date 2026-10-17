@@ -68,27 +68,62 @@ jobs:
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
           printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.yml' \
             '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v3.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.md' \
+            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.md' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.md' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.md' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v3.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
+            'ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json' \
+            'ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf' \
+            'scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py' \
             'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_lock_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
             | sort > "$expected"
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f5b03c6b81016edf21f605099e0ef8976f40e107
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_lock_v1.py)" = e9d1d24affbd412440472091d500a4cb39074c41
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.md)" = cf3347916c9cbdcc8a43b6eaea3987cc1b0fcc89
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_lock_v1.py)" = 87a7a0b7e2f1a9052e6cd12e4378b310b65303ba
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.md)" = 4ca83fa0cb1a86a78e7957b9999778eccb5b1e88
 
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = b963ac9ef0b9c8ac685763b3a82375f970ef12df
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml)" = 25e958065859772457dfdc148b4ace5a47ab83e8
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md)" = 98b9aee33580249bae8d1a2955b0336563f26ddf
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = a317d3dce324337f107909bd6e33e98622b3ef09
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = 6e0630af72111bd9976dcc38cdcdada1904dd067
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = e4e8ca7f5ca3fbc935821ce6d607751fcd653658
+          test "$(git rev-parse 404367eb982fa92a40f3c2fe51d5f172a1e9fac0:.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml)" = cfc99617fb69f6cb945b806c6b3b153086eeb159
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml)" = e352eae2dd442ea328af190c6653adf078b74207
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md)" = e5f4023f0b60ce5ef144f91b8f95bb9094a1dfce
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = 560726bcae6ea0738502cb5e74b65f9116bd447d
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = de56bacb30bea0adc418e240cf3fb8d900b061ef
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py)" = ce6930bc1be8239a3171d4922c44b96a50f5778b
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.json)" = 46f8512395936f5fc81423ce31a5c9b88928a21f
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json)" = 471a52641135ee3ce31d521980e6ea37af18ce58
 
-          test "$(git rev-parse 02e6e1f7f938d8d7331f32eaca8d2d07c7f7854b^{tree})" = 3d77c814e8dbde6d88e824f1b90667d69a39eeaf
-          git merge-base --is-ancestor 02e6e1f7f938d8d7331f32eaca8d2d07c7f7854b "$EXPECTED_HEAD"
+          test "$(git rev-parse 404367eb982fa92a40f3c2fe51d5f172a1e9fac0^{tree})" = 724f501caeb7fa888b3b93f55ff5da08a577088a
+          git merge-base --is-ancestor 404367eb982fa92a40f3c2fe51d5f172a1e9fac0 "$EXPECTED_HEAD"
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -101,7 +136,7 @@ jobs:
 
           markers=(
             'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_CANDIDATE_LOCK_V1_PROOF_GREEN'
-            'lock_id=voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b'
+            'lock_id=voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396'
             'canonical_main_push_candidate_bound=true'
             'canonical_candidate_merge_rederived=true'
             'descriptor_independent_candidate_rederived=true'
@@ -111,6 +146,7 @@ jobs:
             'source_generation_identity_accepted=true'
             'candidate_accepted=true'
             'native_binary_identity_accepted=true'
+            'superseded_sourcegen3_lock_install_authority=false'
             'superseded_sourcegen2_lock_install_authority=false'
             'superseded_sourcegen1_lock_install_authority=false'
             'protected_install_authorized=false'
