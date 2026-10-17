@@ -195,7 +195,7 @@ jobs:
             grep -Fx "$marker" "$log"
           done
           test -s "$out/candidate-v2.json"
-          test -s "$out/installer-first-entry-v1"
+          test -s "$out/installer-first-entry-v2"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
