@@ -178,6 +178,8 @@ void apollyon_claim_protected_first_entry_close_v1(
   out->expected_executable_fd_derived_internally=0;
   out->expected_cmdline_derived_internally=0;
   out->visible_generation_revalidated_after_lock=0;
+  out->fixed_path_expected_source_bound=0;
+  out->static_first_instruction_proven=0;
   out->protected_expected_source_origin_proven=0;
 }
 
@@ -267,7 +269,15 @@ int apollyon_claim_protected_first_entry_install_v1(
   out->expected_executable_fd_derived_internally=1;
   out->expected_cmdline_derived_internally=1;
   out->visible_generation_revalidated_after_lock=1;
-  out->protected_expected_source_origin_proven=1;
+  out->fixed_path_expected_source_bound=1;
+
+  /*
+   * Source code cannot prove that this binary was entered without a dynamic
+   * loader. A later reproducible static candidate/lock gate must close that
+   * first-instruction boundary before full protected source origin is true.
+   */
+  out->static_first_instruction_proven=0;
+  out->protected_expected_source_origin_proven=0;
 
   /* Still not proved by this source-only fixed-entry layer. */
   out->protected_parent_origin_proven=0;
