@@ -12,7 +12,7 @@ Source generation:
 
 Canonical candidate merge:
 
-`02e6e1f7f938d8d7331f32eaca8d2d07c7f7854b`
+`404367eb982fa92a40f3c2fe51d5f172a1e9fac0`
 
 Tree:
 
@@ -24,22 +24,22 @@ The source-generation manifest binds bootstrap V6 source blob
 
 ## Canonical hosted evidence
 
-The acceptance lock uses the **post-merge main-push** run, not PR-preview evidence:
+The acceptance lock uses the exact reviewed **PR-head hosted derivation** run. It does not claim post-merge main-push evidence:
 
-- workflow run: `39052446979`;
-- source proof: `117453594171`;
-- derive A: `117453668048`;
-- derive B: `117453668092`;
-- derive C: `117453668080`;
-- compare/rederive: `117453745953`;
+- workflow run: `39077019801`;
+- source proof: `117526163023`;
+- derive A: `117526232018`;
+- derive B: `117526232033`;
+- derive C: `117526232057`;
+- compare/rederive: `117526492254`;
 - artifacts A/B/C:
-  `12108395551`, `12108530851`, `12107734752`.
+  `12116918415`, `12117740915`, `12117910498`.
 
 All three hosted reports and ELFs are byte-identical. The compare job independently
 rederived the report and ELF.
 
 The lock proof also creates a disposable detached worktree at exact canonical
-candidate merge `02e6e1f7f938d8d7331f32eaca8d2d07c7f7854b`, reruns the
+candidate merge `404367eb982fa92a40f3c2fe51d5f172a1e9fac0`, reruns the
 V6 candidate derivation there, and requires the exact report/ELF byte, SHA-256,
 Git-blob and candidate-ID identities below. This prevents the newer lock branch
 HEAD from becoming implicit candidate build authority.
@@ -54,9 +54,9 @@ Candidate report:
 
 - bytes: `2745`;
 - SHA-256:
-  `f081e70836f9e6862c6ee207ff2ef1cbad6d36e043b70286443fc9101705912d`;
+  `14a8c9b60440f81d906070d3efee3248ac60b2a4ae43783fe5c1484ff0847c3d`;
 - Git blob:
-  `1929d4ea5ba5b91f8330c9c8a86c368795245b3a`.
+  `d0302cf5a1b7af91b46458585784c70e0d37432f`.
 
 Accepted static bootstrap V6 ELF:
 
@@ -77,6 +77,12 @@ Lock ID:
 `voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396`
 
 The suffix is SHA-256 over canonical JSON of the lock body excluding `lock_id`.
+
+Superseded prior V6 source-generation V3 lock:
+
+`voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b`
+
+Its lock blob `f5b03c6b81016edf21f605099e0ef8976f40e107` remains immutable historical evidence and has zero install authority for the repaired generation.
 
 Historical source-generation V2 lock:
 
