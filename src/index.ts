@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { parseAttachBlockRange } from "./http/api_attach.js";
+import { attachBlockRangeErrorV1, parseAttachBlockRange } from "./http/api_attach.js";
 import { listDirectDirectoryNamesV1 as ldn, readDirectRegularFileV1 as rf } from "./http/public_node_local_data_drop_file_v1.js";
 import { classifyVoidDemo003PublicServingSetV1, VOID_DEMO003_CANONICAL_PAYLOADS_V1 as d3p, VOID_DEMO003_CONTROL_MAX_BYTES_V1 as d3c } from "./http/void_demo003_public_serving_contract_v1.js";
 import {
@@ -8651,7 +8651,13 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
       head,
     );
     if (!range) {
-      return res.status(400).json({ ok: false, error: "bad range" });
+      return res.status(400).json(
+        attachBlockRangeErrorV1(
+          req.query.from ?? req.query.start,
+          req.query.to ?? req.query.end,
+          head,
+        ),
+      );
     }
     try {
       const blocks: any[] = [];
