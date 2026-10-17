@@ -1,0 +1,216 @@
+name: Buy VOID presale source-freeze delta census v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-source-freeze-delta-census-v1.yml"
+      - "docs/architecture/buy-void-presale-source-freeze-delta-census-v1.md"
+      - "scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-source-freeze-delta-census-v1.yml"
+      - "docs/architecture/buy-void-presale-source-freeze-delta-census-v1.md"
+      - "scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  census:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact census generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              cursor="$EXPECTED_HEAD"
+              while [ "$cursor" != "$base" ]; do
+                parent_line="$(git rev-list --parents -n 1 "$cursor")"
+                parent_count="$(awk '{print NF-1}' <<<"$parent_line")"
+                if [ "$parent_count" -gt 1 ]; then
+                  candidate_base="$(git rev-parse "$cursor^1")"
+                  if git merge-base --is-ancestor "$base" "$candidate_base"; then
+                    base="$candidate_base"
+                    break
+                  fi
+                fi
+                next="$(git rev-parse "$cursor^1")"
+                if ! git merge-base --is-ancestor "$base" "$next"; then
+                  break
+                fi
+                cursor="$next"
+              done
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-source-freeze-delta-census-v1.yml' \
+            'docs/architecture/buy-void-presale-source-freeze-delta-census-v1.md' \
+            'scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py)" = \
+            6c65ebbc9bfbfb38548bd14db86218dfbe38b791
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-delta-census-v1.md)" = \
+            0eea3854d7bab501dd0b2d61dbdc1aaed6b791c8
+
+          test "$(git rev-parse 5e514e4b6e2151c18cf7459bd7a697287eebbd4c^{tree})" = \
+            47a0c6eb9408b97226472d1297115633b0b3d799
+          test "$(git rev-parse 879cef181d8da2866d84eb56f5aa08c8564f8146^{tree})" = \
+            52a311c69c9c7d274dbc3d909bc1eea2cbe38be4
+          test "$(git rev-parse bfdff02472c57439721ebed0a94498c691c68a9c:ops/security/buy-void-presale-source-freeze-candidate-v1.json)" = \
+            91d2d7877bc3066e3030337576ca2dddeb55bfc8
+          test "$(git rev-parse bfdff02472c57439721ebed0a94498c691c68a9c:scripts/prove_buy_void_presale_source_freeze_candidate_v1.py)" = \
+            31fe4e06b390f19a0cbccc065a69f5f7afd410e0
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Static read-only safety guard
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import ast
+          from pathlib import Path
+
+          p=Path("scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py")
+          source=p.read_text("utf-8")
+          compile(source,str(p),"exec",dont_inherit=True)
+          tree=ast.parse(source)
+
+          forbidden_imports={"socket","requests","urllib","http","ftplib"}
+          for node in ast.walk(tree):
+              if isinstance(node,ast.Import):
+                  for alias in node.names:
+                      assert alias.name.split(".")[0] not in forbidden_imports, alias.name
+              if isinstance(node,ast.ImportFrom) and node.module:
+                  assert node.module.split(".")[0] not in forbidden_imports, node.module
+
+          for token in (
+              "os.O_WRONLY",
+              "os.O_RDWR",
+              "os.O_CREAT",
+              ".write_text(",
+              ".write_bytes(",
+              "open(" + '"' + "w" + '"',
+              "git fetch",
+              "git pull",
+              "git checkout",
+              "git switch",
+          ):
+              assert token not in source, token
+          print("VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_DELTA_CENSUS_V1_STATIC_GREEN")
+          PY
+
+      - name: Synthetic self-test
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/freeze-delta-self-test.log"
+          python3 -I -B scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py \
+            --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_DELTA_CENSUS_V1_SELF_TEST_GREEN' \
+            'freeze_auto_adopt_new_main_commits=false' \
+            'tree_to_tree_inventory_required=true' \
+            'bootstrap_lifecycle_category_fixed=true' \
+            'apollyon_xiphos_category_fixed=true' \
+            'economic_integration_category_fixed=true' \
+            'release_authority=false' \
+            'funds_movement_authorized=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Derive fixed tree delta
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/freeze-delta-census-v1.json"
+          python3 -I -B scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py \
+            --run > "$report"
+
+          python3 -I -B - "$report" <<'PY'
+          import json,sys
+          with open(sys.argv[1],"r",encoding="utf-8") as fh:
+              r=json.load(fh)
+          assert r["marker"]=="VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_DELTA_CENSUS_V1"
+          assert r["version"]==1
+          assert r["delta_path_count"]==188
+          assert r["delta_status_counts"]=={"added":120,"modified":28,"deleted":40}
+          assert r["delta_inventory_sha256"]=="84dad42a352fbca2c8d18236a911ee8de1155351225e11704f309a2e07f09034"
+          assert r["bootstrap_lifecycle_path_count"]==43
+          assert r["bootstrap_lifecycle_inventory_sha256"]=="942d106df3087f0990af410f959c929f43abff22e30cc4b66e31f43f78f8c16a"
+          assert r["apollyon_xiphos_path_count"]==82
+          assert r["apollyon_xiphos_inventory_sha256"]=="5a0202eca03125a84c19973361ed1fd0b750c4a4a99715605601e5c6d5f60e2b"
+          assert r["economic_integration_path_count"]==63
+          assert r["economic_integration_inventory_sha256"]=="a9ad791a18aea4e58363c5bdfb2b5a9dcb1db661b72145d9ab574db2fc8eddc6"
+          assert len(r["economic_integration_paths"])==63
+          for key in (
+              "freeze_auto_adopt_new_main_commits",
+              "current_main_auto_adopted",
+              "bootstrap_lifecycle_auto_adopted",
+              "apollyon_xiphos_auto_adopted",
+              "economic_integration_auto_forwarded",
+              "host_install_qualified",
+              "customer_payment_acceptance_authorized",
+              "public_presale_activation_authorized",
+              "wc_void_activation_authorized",
+              "wallet_or_signing_authority",
+              "transaction_submission_authorized",
+              "treasury_or_liquidity_action_authorized",
+              "funds_movement_authorized",
+              "production_host_evidence_authority",
+          ):
+              assert r[key] is False,key
+          assert r["new_versioned_freeze_review_required"] is True
+          assert r["census_only"] is True
+          print("VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_DELTA_CENSUS_V1_DERIVE_GREEN")
+          PY
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Refuse apply mode
+        run: |
+          set -euo pipefail
+          if python3 -I -B scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py --apply \
+            >"$RUNNER_TEMP/apply.out" 2>"$RUNNER_TEMP/apply.err"
+          then
+            echo "unexpected_apply_success" >&2
+            exit 1
+          fi
+          grep -q -- '--apply' "$RUNNER_TEMP/apply.err"
