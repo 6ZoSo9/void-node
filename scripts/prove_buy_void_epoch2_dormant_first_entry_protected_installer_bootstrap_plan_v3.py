@@ -18,7 +18,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v3.py"
 )
-TARGET_BLOB = "b5f0a3a79632ea9bbb17c9e3a8cb4771752fca47"
+TARGET_BLOB = "2bf1f3798943c3eeab0494ec661eca864fae0fd8"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -30,14 +30,14 @@ QUALIFIER_BLOB = "a2298dbdbf9928f14963ce8bf77d91f54e349ce9"
 LAUNCHER_LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-binder-installer-first-entry-"
-    "candidate-lock-v1.json"
+    "candidate-lock-v2.json"
 )
-LAUNCHER_LOCK_BLOB = "f8ff6fbb855aecafc329cd60622cf3af782745a3"
+LAUNCHER_LOCK_BLOB = "227c2fa449abf1387925373c706ecd07775d5898"
 LAUNCHER_MATERIALIZER_REL = (
     "scripts/materialize_buy_void_epoch2_dormant_binder_"
-    "installer_first_entry_v1.py"
+    "installer_first_entry_v2.py"
 )
-LAUNCHER_MATERIALIZER_BLOB = "50e8e7ba06740af830cc3c9df34d0ef7739a7e67"
+LAUNCHER_MATERIALIZER_BLOB = "611e5d54154e3d3d5d9e7ba6c0374d697ecc3ba7"
 
 NATIVE_LOCK_REL = (
     "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
@@ -200,6 +200,10 @@ for mode, expected_lines in (
             "host_write=false",
             "qualifier_git_blob_sha1=" + QUALIFIER_BLOB,
             "launcher_lock_git_blob_sha1=" + LAUNCHER_LOCK_BLOB,
+    "accepted_launcher_lock_id=",
+    "accepted_launcher_candidate_id=",
+    "launcher_runtime_head_contract_accepted=true",
+    "launcher_superseded_v1_lock_install_authority=false",
             "native_lock_git_blob_sha1=" + NATIVE_LOCK_BLOB,
             "superseded_v3_lock_install_authority=false",
             "superseded_v2_lock_install_authority=false",
@@ -232,6 +236,7 @@ print(MARKER + "_PROOF_GREEN")
 print("target_blob_bound=true")
 print("merged_v3_qualifier_bound=true")
 print("launcher_lock_and_materializer_bound=true")
+print("launcher_v2_runtime_head_authority_bound=true")
 print("native_lock_and_materializer_bound=true")
 print("read_only_artifact_verification_only=true")
 print("nonroot_plan_required=true")
