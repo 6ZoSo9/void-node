@@ -41,33 +41,33 @@ LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
 )
-LOCK_BYTES = 4272
-LOCK_SHA256 = "4265561667d8825601610e21d36667162a6bc1538c9abac2e07b2ae22b9bf4ad"
-LOCK_GIT_BLOB_SHA1 = "f5b03c6b81016edf21f605099e0ef8976f40e107"
+LOCK_BYTES = 4550
+LOCK_SHA256 = "8d10c909c88e56b81f3c42abe5195bbf7d3f9cbc95053ea555387a76084fdd71"
+LOCK_GIT_BLOB_SHA1 = "f2ce1364dd776bfbf1aa1ef59ce999cb46037b73"
 LOCK_ID = (
     "voidbuye2dormantbootstraplock3_"
-    "5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"
+    "4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396"
 )
 CANDIDATE_ID = (
     "voidbuye2dormantbootstrapcand3_"
-    "13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062"
+    "1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2"
 )
 
 MANIFEST_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
 )
-MANIFEST_GIT_BLOB_SHA1 = "6e0630af72111bd9976dcc38cdcdada1904dd067"
+MANIFEST_GIT_BLOB_SHA1 = "de56bacb30bea0adc418e240cf3fb8d900b061ef"
 MANIFEST_BYTES = 2382
 MANIFEST_SHA256 = (
-    "aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662"
+    "8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9"
 )
 
 BOOTSTRAP_BYTES = 874_608
 BOOTSTRAP_SHA256 = (
-    "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
+    "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
 )
-BOOTSTRAP_GIT_BLOB_SHA1 = "a91707c3e5803071fc73c3451c9bcb3b774f8b48"
+BOOTSTRAP_GIT_BLOB_SHA1 = "b577d70666f98ac59a75b84b3dab741fe7b93a4b"
 
 FIXED_CHECKOUT = pathlib.Path("/home/zoso/dev/void-node")
 FIXED_GIT = pathlib.Path("/usr/bin/git")
