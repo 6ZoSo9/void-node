@@ -325,7 +325,7 @@ for line in (
 
 print(MARKER + "_PROOF_GREEN")
 print("lock_id=" + LOCK_ID)
-print("canonical_main_push_candidate_bound=true")
+print("exact_pr_head_candidate_evidence_bound=true")
 print("canonical_candidate_merge_rederived=true")
 print("descriptor_independent_candidate_rederived=true")
 print("hosted_three_way_candidate_identity_bound=true")
