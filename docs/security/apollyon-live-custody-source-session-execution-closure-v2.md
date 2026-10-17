@@ -31,6 +31,33 @@ The runner performs one bounded live session:
 
 It never invokes a trainer and never creates a durable attempt claim.
 
+Before any training-isolation start, the runner now binds the first-instruction
+surface: exact root-owned training unit bytes, exact locked pre-entry and
+entrypoint binaries, exact loaded FragmentPath, empty DropInPaths,
+NeedDaemonReload=no, and exactly one reviewed ExecStart. It also queries PID1's
+effective UnitPath and rejects unreviewed dependency-directory entries before
+start. The same boundary is repeated immediately before the start command and
+again before success output.
+
+Before the runner may emit a successful source/session binding, the inert
+training-isolation unit must begin in the exact reviewed dormant state and
+return to exact `loaded/inactive/dead/MainPID=0/static` state after the bounded
+stop attempt. The exact training PID/start-ticks generation observed during the
+session must also be absent before success output. A nonzero stop command is
+not itself treated as success or failure authority; only the exact terminal
+state and generation disappearance qualify the cleanup boundary. Cleanup is
+armed before the start command is issued, so a timeout, client error, or other
+indeterminate start result still triggers a bounded stop plus exact dormant
+postcondition check. Active,
+deactivating, failed, nonzero-MainPID, enabled/non-static, or lingering exact
+process-generation states HOLD.
+
+The runner's live custody-process environment assertion uses the same
+seven-name loader/runtime boundary as the reviewed service:
+`GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH
+OPENSSL_CONF`. It may report `loader_environment_clean=true` only after all
+seven names are absent or empty in the exact bound custody process generation.
+
 ## Complete reviewed closure
 
 The Python launcher authenticates every transitive local source before the
