@@ -86,16 +86,16 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py)" = \
-            3b6efd9a22c43e7d3f8698265ac68920cec08a2f
+            faaa62fc96023dcd9aa46454068a865f428e720b
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py)" = \
-            6d056b6bc720e9cb97e703553c045940486c26bb
+            4caf9f2335d6537ab1a439f0e905b641161bd3a3
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v2r.md)" = \
-            a2764531d000c20be2b6ac7e3b005cb1a941fed1
+            195f49b3381e46ba5c3373a3187c0a226769bc79
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py)" = \
-            7d7942dfe4b1def5f5a58201080cc30c3a13d3a0
+            883186eb5e6f4d7cee94370f0ee74ef908ec058b
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py)" = \
-            838f1c181cae033541d1bd666fb616ab3b40532f
+            f2b27b0e1a643c3dc4baa241d44508da75d77dd6
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json)" = \
             64c9a42ca1108a9e8f88218c34d53e50668c653e
           test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py)" = \
@@ -150,6 +150,8 @@ jobs:
             'runtime_head_contract_bound=true' \
             'canonical_main_candidate_authority=true' \
             'frozen_head_alignment_not_required=true' \
+            'git_lazy_fetch_suppressed=true' \
+            'git_transport_denied=true' \
             'filesystem_write=false' \
             'service_mutation=false' \
             'funds_movement=false'
