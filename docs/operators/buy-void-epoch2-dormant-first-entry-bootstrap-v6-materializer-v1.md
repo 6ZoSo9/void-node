@@ -30,7 +30,7 @@ Source-generation manifest:
   `aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`;
 - artifact mode: `0444`.
 
-The materializer verifies the accepted lock and candidate-tool Git blobs before executing the candidate derivation code. It rederives the ELF and rejects any bytes/size mismatch with the accepted identity.
+The materializer verifies the accepted lock and candidate-tool Git blobs before executing the candidate derivation code. It also verifies source-generation V3's exact inner-installer V5 Git blob `ce6930bc1be8239a3171d4922c44b96a50f5778b`. It rederives the ELF and rejects any bytes/size mismatch with the accepted identity.
 
 The accepted V6 lock also binds the descriptor-independent build contract:
 - compiler logical source name is `stdin`;
