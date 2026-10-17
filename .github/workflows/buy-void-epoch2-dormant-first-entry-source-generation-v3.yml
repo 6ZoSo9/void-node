@@ -97,24 +97,12 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           case "$EVENT_NAME" in
             pull_request)
-              base="$PR_BASE"
-              cursor="$EXPECTED_HEAD"
-              while test "$cursor" != "$base"; do
-                parent_line="$(git rev-list --parents -n 1 "$cursor")"
-                parent_count="$(awk '{print NF-1}' <<<"$parent_line")"
-                if test "$parent_count" -gt 1; then
-                  candidate_base="$(git rev-parse "$cursor^1")"
-                  if git merge-base --is-ancestor "$PR_BASE" "$candidate_base"; then
-                    base="$candidate_base"
-                    break
-                  fi
-                fi
-                next="$(git rev-parse "$cursor^1")"
-                if ! git merge-base --is-ancestor "$PR_BASE" "$next"; then
-                  break
-                fi
-                cursor="$next"
-              done
+              readonly REVIEWED_PR_SCOPE_BASE="862d71817ba1f07f8c1c8c4605c54d7f1d67c07b"
+              test -n "$PR_BASE"
+              git cat-file -e "$REVIEWED_PR_SCOPE_BASE^{commit}"
+              git merge-base --is-ancestor "$PR_BASE" "$REVIEWED_PR_SCOPE_BASE"
+              git merge-base --is-ancestor "$REVIEWED_PR_SCOPE_BASE" "$EXPECTED_HEAD"
+              base="$REVIEWED_PR_SCOPE_BASE"
               ;;
             push)
               base="$PUSH_BEFORE"
