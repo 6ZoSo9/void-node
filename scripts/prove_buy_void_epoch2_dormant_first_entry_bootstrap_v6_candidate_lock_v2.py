@@ -348,9 +348,9 @@ for required in (
     '"bootstrap_source"',
     '"manifest"',
     '"candidate_id"',
-    '"candidate_accepted": False',
-    '"protected_install_authorized": False',
-    '"funds_movement": False',
+    '"candidate_accepted"',
+    '"protected_install_authorized"',
+    '"funds_movement"',
     "def derive(",
     "def compare_dir(",
 ):
