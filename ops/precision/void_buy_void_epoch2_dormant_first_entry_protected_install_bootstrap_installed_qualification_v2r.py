@@ -223,6 +223,10 @@ def _git(args: list[str]) -> bytes:
             str(FIXED_CHECKOUT),
             "-c",
             "safe.directory=" + str(FIXED_CHECKOUT),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "core.fsmonitor=false",
             *args,
         ],
         stdin=subprocess.DEVNULL,
@@ -613,6 +617,9 @@ def self_test() -> None:
     ).encode("ascii")
     assert _git_env()["GIT_NO_LAZY_FETCH"] == "1"
     assert _git_env()["GIT_ALLOW_PROTOCOL"] == ""
+    source = Path(__file__).read_text("utf-8")
+    assert '"core.hooksPath=/dev/null"' in source
+    assert '"core.fsmonitor=false"' in source
     print(MARKER + "_SELF_TEST_GREEN")
     print("accepted_bootstrap_lock_v3_bound=true")
     print("canonical_main_candidate_authority_required=true")
@@ -625,6 +632,8 @@ def self_test() -> None:
     print("frozen_head_alignment_not_required=true")
     print("git_lazy_fetch_suppressed=true")
     print("git_transport_denied=true")
+    print("git_hooks_disabled=true")
+    print("git_fsmonitor_disabled=true")
     print("bootstrap_execution=false")
     print("protected_installer_apply=false")
     print("filesystem_write=false")
