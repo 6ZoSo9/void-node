@@ -62,6 +62,14 @@ The proof:
 Hosted CI performs three independent derivation lanes and a fourth independent
 comparison/rederivation.
 
+The candidate report validator is deliberately semantic rather than merely
+content-addressed. It independently rechecks the exact repository head/tree,
+bootstrap and installer source identities, compile-time confirmation/defaults,
+current compiler/strip identities, current static-link input identities, binary
+identity/properties, and the closed authority schema. Adversaries modify source,
+confirmation, and toolchain claims, recompute a syntactically valid candidate
+ID, and must still fail validation.
+
 The pull-request candidate remains preview-only. The workflow also triggers on
 a future canonical-main generation so an accepted lock can use a candidate
 compiled against an exact accepted HEAD rather than assuming a draft commit is
