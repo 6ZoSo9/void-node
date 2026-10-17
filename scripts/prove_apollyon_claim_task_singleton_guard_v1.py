@@ -78,7 +78,7 @@ for required in (
     'BASE="$PUSH_BEFORE"',
     "git diff --check",
     "gcc",
-    "--self-test",
+    "Compile and prove singleton task-set guard",
     "VOID_APOLLYON_CLAIM_TASK_SINGLETON_GUARD_V1_PROOF_GREEN",
 ):
     assert required in workflow, required

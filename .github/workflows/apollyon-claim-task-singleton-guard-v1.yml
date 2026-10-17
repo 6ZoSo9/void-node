@@ -57,7 +57,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_task_singleton_guard_v1.c)" = b507d8d5bff32b39be998482efe3c0e8b729cefe
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_task_singleton_guard_v1.h)" = 2ff84bb8f04ba3bc935272175fb8056624e2222a
           test "$(git rev-parse HEAD:scripts/apollyon_claim_task_singleton_guard_v1_selftest.c)" = fbfade764e58fc2161abb978a9494b55107df47b
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_task_singleton_guard_v1.py)" = 6020131271f9448f6ba38d29ea70593a6576d785
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_task_singleton_guard_v1.py)" = 92ebe388acba2f1abd23faf1c11e8606e667cc33
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-task-singleton-guard-v1.md)" = 770d0c95c28a5439faf5cfbbe8f20a2656693131
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = 5355ffd2856e0f0c57f6e52fd1b347441b94e4d7
