@@ -308,6 +308,8 @@ def _installed_snapshot(installer: Any, expected_head: str) -> dict[str, Any]:
 def _run_bootstrap_self_test(
     installer: Any,
     expected_bootstrap: dict[str, Any],
+    *,
+    _test_before_exec_hook: Any = None,
 ) -> tuple[str, str]:
     path = installer.INSTALL_ROOT / installer.BIN_DIR / installer.BOOTSTRAP_NAME
     try:
@@ -344,6 +346,8 @@ def _run_bootstrap_self_test(
         os.lseek(fd, 0, os.SEEK_SET)
 
         executable = f"/proc/self/fd/{fd}"
+        if _test_before_exec_hook is not None:
+            _test_before_exec_hook(path, fd)
         try:
             cp = subprocess.run(
                 [executable, "--self-test"],
