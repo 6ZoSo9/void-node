@@ -13,9 +13,16 @@ ROOT = Path(__file__).resolve().parents[1]
 MARKER = "VOID_BUY_VOID_V5_EPOCH2_MAIN_COMPOSITION_V1"
 BASE = "adc5a87d0200aa354b03d9910cbfc1cb2d59bb38"
 LOCK_PARENT = "c005ca30ab156427deb7731d596cde52d7a669ac"
-MAIN_PARENT = "206d3d61e5051704e9fd0c47068bcfe56a15c85f"
-COMPOSED = "38614797be01f2dd7d6d87503874182c5669c22d"
-COMPOSED_TREE = "01b460d46c703b619a43c8747b1dc5537a39019e"
+INITIAL_MAIN_PARENT = "206d3d61e5051704e9fd0c47068bcfe56a15c85f"
+INITIAL_COMPOSED = "38614797be01f2dd7d6d87503874182c5669c22d"
+INITIAL_COMPOSED_TREE = "01b460d46c703b619a43c8747b1dc5537a39019e"
+PRE_FORWARD_HEAD = "fd2fa4e0fbe412cdf31aad12b3f28d93761b013a"
+INTERMEDIATE_MAIN_PARENT = "9cc49f39e643e6bba667f7cda9dd3ea299860ff4"
+FIRST_FORWARD = "6a5e8afa27aa91b4f0b577809966eecb9a06e60a"
+FIRST_FORWARD_TREE = "94388a64a4d5576630202d2b4a284f56771d785f"
+CURRENT_MAIN_PARENT = "0ea097a3fa43dc95a1a0a5272c61afe570361fc7"
+CURRENT_COMPOSED = "7847428a943b328e1b5a130d2fa8009b07d9819e"
+CURRENT_COMPOSED_TREE = "639c7d8564b8ab9b5e6cfdfd3700bb8bfa2157a3"
 LOCK_REL = "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
 LOCK_BLOB = "61a9d85d285f9c9d249adf401580822c44c6dac6"
 PROJECTION_REL = "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json"
@@ -23,22 +30,53 @@ PROJECTION_BLOB = "dd849928bc945478a1a8fcf687f374cfca59f4e4"
 CANDIDATE_HEAD = "a884c8b69d19523e99da02899ff5fa8ab18e7100"
 CANDIDATE_SET = "1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf"
 PROTECTED_SHA = "e7e0625ff47dc4b4c7e0f93e4b75be30d04d9538acc233174c0abc18198b38e3"
-ADDED_MAIN = tuple(sorted((
+CURRENT_MAIN_ADDED = tuple(sorted((
     ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.yml",
     ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v1.yml",
     ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.yml",
     ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.yml",
+    ".github/workflows/buy-void-epoch2-dormant-binder-native-materializer-v1.yml",
+    ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v1.yml",
+    ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-v1.yml",
     "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.md",
     "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v1.md",
     "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.md",
     "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.md",
+    "docs/operators/buy-void-epoch2-dormant-binder-native-materializer-v1.md",
+    "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v1.md",
+    "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-v1.md",
     "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py",
+    "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c",
     "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json",
     "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py",
+    "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py",
     "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v1.py",
     "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py",
     "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py",
     "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py",
+    "scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py",
+    "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v1.py",
+    "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.py",
+)))
+POST_INITIAL_MAIN_ADDED = tuple(sorted(set(CURRENT_MAIN_ADDED) - set(
+    p for p in CURRENT_MAIN_ADDED
+    if p in {
+        ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.yml",
+        ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v1.yml",
+        ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.yml",
+        ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.yml",
+        "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.md",
+        "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v1.md",
+        "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.md",
+        "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.md",
+        "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py",
+        "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json",
+        "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py",
+        "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v1.py",
+        "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py",
+        "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py",
+        "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py",
+    }
 )))
 LOCAL_SCOPE = tuple(sorted((
     ".github/workflows/buy-void-v5-epoch2-main-composition-v1.yml",
@@ -93,33 +131,57 @@ def read_tracked(relative: str, blob: str) -> dict:
 
 def prove() -> None:
     head = git("rev-parse", "HEAD")
-    check(git("rev-parse", COMPOSED + "^{tree}") == COMPOSED_TREE,
-          "composed_tree_drift")
-    check(git("rev-list", "--parents", "-n", "1", COMPOSED) ==
-          " ".join((COMPOSED, LOCK_PARENT, MAIN_PARENT)),
-          "composition_parents_drift")
-    check(git("merge-base", COMPOSED, head) == COMPOSED,
-          "composition_not_ancestor")
+
+    check(git("rev-parse", INITIAL_COMPOSED + "^{tree}") == INITIAL_COMPOSED_TREE,
+          "initial_composed_tree_drift")
+    check(git("rev-list", "--parents", "-n", "1", INITIAL_COMPOSED) ==
+          " ".join((INITIAL_COMPOSED, LOCK_PARENT, INITIAL_MAIN_PARENT)),
+          "initial_composition_parents_drift")
+
+    check(git("rev-parse", FIRST_FORWARD + "^{tree}") == FIRST_FORWARD_TREE,
+          "first_forward_tree_drift")
+    check(git("rev-list", "--parents", "-n", "1", FIRST_FORWARD) ==
+          " ".join((FIRST_FORWARD, PRE_FORWARD_HEAD, INTERMEDIATE_MAIN_PARENT)),
+          "first_forward_parents_drift")
+
+    check(git("rev-parse", CURRENT_COMPOSED + "^{tree}") == CURRENT_COMPOSED_TREE,
+          "current_composed_tree_drift")
+    check(git("rev-list", "--parents", "-n", "1", CURRENT_COMPOSED) ==
+          " ".join((CURRENT_COMPOSED, FIRST_FORWARD, CURRENT_MAIN_PARENT)),
+          "current_composition_parents_drift")
+    check(git("merge-base", CURRENT_COMPOSED, head) == CURRENT_COMPOSED,
+          "current_composition_not_ancestor")
     check(git("status", "--porcelain=v1", "--untracked-files=all") == "",
           "repository_not_clean")
 
-    main_changes = delta(BASE, MAIN_PARENT, True)
-    check(main_changes == tuple("A\t" + p for p in ADDED_MAIN),
+    main_changes = delta(BASE, CURRENT_MAIN_PARENT, True)
+    check(main_changes == tuple("A\t" + p for p in CURRENT_MAIN_ADDED),
           "canonical_epoch2_added_scope_drift")
+    check(len(CURRENT_MAIN_ADDED) == 26 and len(POST_INITIAL_MAIN_ADDED) == 11,
+          "canonical_epoch2_path_count_drift")
+
     econ = delta(BASE, LOCK_PARENT)
-    check(len(econ) == 60 and not set(econ).intersection(ADDED_MAIN),
+    check(len(econ) == 60 and not set(econ).intersection(CURRENT_MAIN_ADDED),
           "economic_lock_scope_or_overlap_drift")
-    check(delta(LOCK_PARENT, COMPOSED, True) ==
-          tuple("A\t" + p for p in ADDED_MAIN),
-          "merged_current_main_paths_changed")
-    check(delta(MAIN_PARENT, COMPOSED) == econ,
-          "economic_branch_tree_changed_in_composition")
-    check(delta(COMPOSED, head, True) ==
-          tuple("A\t" + p for p in LOCAL_SCOPE),
-          "composition_local_add_only_scope_drift")
-    check(git("diff", "--quiet", LOCK_PARENT, COMPOSED, "--", *econ) == "",
+
+    current_from_lock = delta(LOCK_PARENT, CURRENT_COMPOSED, True)
+    expected_from_lock = tuple(sorted(
+        ["A\t" + p for p in CURRENT_MAIN_ADDED + LOCAL_SCOPE]
+    ))
+    check(current_from_lock == expected_from_lock,
+          "current_composition_lock_relative_scope_drift")
+
+    current_from_main = delta(CURRENT_MAIN_PARENT, CURRENT_COMPOSED)
+    check(current_from_main == tuple(sorted(set(econ).union(LOCAL_SCOPE))),
+          "economic_branch_tree_changed_in_current_composition")
+
+    check(delta(CURRENT_COMPOSED, head, True) ==
+          tuple("M\t" + p for p in LOCAL_SCOPE),
+          "composition_local_modified_scope_drift")
+    check(git("diff", "--quiet", LOCK_PARENT, CURRENT_COMPOSED, "--", *econ) == "",
           "economic_content_drift")
-    check(git("diff", "--quiet", MAIN_PARENT, COMPOSED, "--", *ADDED_MAIN) == "",
+    check(git("diff", "--quiet", CURRENT_MAIN_PARENT, CURRENT_COMPOSED, "--",
+              *CURRENT_MAIN_ADDED) == "",
           "current_main_content_drift")
 
     lock = read_tracked(LOCK_REL, LOCK_BLOB)
@@ -167,10 +229,12 @@ def main() -> None:
     prove()
     print(MARKER + "_GREEN")
     print("read_only=true")
-    print("canonical_epoch2_added_paths=15")
+    print("canonical_epoch2_added_paths=26")
+    print("post_initial_main_added_paths=11")
     print("preserved_economic_paths=60")
     print("protected_source_rows=49")
-    print("exact_two_parent_composition_verified=true")
+    print("initial_two_parent_composition_preserved=true")
+    print("exact_merge_forward_composition_verified=true")
     print("accepted_v5_lock_identity_preserved=true")
     print("deployed_artifact_generation_verified=false")
     print("runtime_mount_authority=false")
