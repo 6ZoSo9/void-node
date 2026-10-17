@@ -10,6 +10,11 @@ Status: **read-only qualification definition; no host execution or apply authori
 This is the read-only successor to the create-only protected-bootstrap install
 gate in #3408.
 
+The qualifier is bound to #3408's terminal-truth install generation: stage
+cleanup is generation-bound by the stage device/inode, and any retained
+`/opt` descriptor close failure after publication remains a publication-aware
+failure rather than being misreported as an unpublished state.
+
 It answers two separate questions without conflating them:
 
 1. Is the installed root-custodied bootstrap generation exactly the accepted
