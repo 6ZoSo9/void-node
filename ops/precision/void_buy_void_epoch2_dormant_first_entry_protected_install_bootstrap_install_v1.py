@@ -637,7 +637,7 @@ def _create_file(
 ) -> None:
     fd = os.open(
         name,
-        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+        os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
         0o400,
         dir_fd=dir_fd,
     )
