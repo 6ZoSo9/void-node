@@ -5,12 +5,19 @@ Marker:
 
 Status: **source/CI artifact publication only**.
 
+This four-file repair of the merged V2 materializer makes cleanup and output
+publication checks explicit, corrects completion receipts and supports manual
+replay. The accepted lock, candidate commit, report and launcher bytes remain
+unchanged.
+
 ## Purpose
 
 Materialize the launcher ELF accepted by V2 lock #3450 as a deterministic
 create-only operator artifact.
 
-This gate does not install the launcher under `/opt` and does not execute it.
+The verified candidate derivation compiles the launcher and runs its inert
+`--self-test`. This gate creates an artifact; it does not install it under `/opt`
+or invoke the default-path launcher against a host repository.
 
 ## Accepted authority
 
@@ -83,10 +90,23 @@ The materializer:
 6. calls its reviewed `derive()`;
 7. requires exact report bytes/hash/Git blob/candidate ID;
 8. requires exact launcher bytes/hash/Git blob and ELF magic;
-9. removes the disposable worktree.
+9. verifies removal of the owned worktree, its Git registration and the owned
+   temporary directory before permitting output publication.
 
-It never derives against the newer materializer branch HEAD and calls that
-accepted.
+Derivation remains fixed to this accepted candidate commit when the materializer
+runs from a later source commit. The candidate helper uses the compiler and
+static-link inputs recorded in the accepted report; any resulting report or ELF
+drift causes HOLD. No expiring hosted artifact is needed for reproduction.
+
+The materializer emits its temporary-write and helper-execution authority before
+starting derivation. A successful cleanup receipt reports completed removal;
+cleanup failure causes HOLD and does not claim that temporary state was removed.
+
+`--self-test` checks the accepted lock and fixed source bindings. It reports
+derivation, output readback, synchronization and cleanup as required capabilities;
+it does not report those operations as completed. It performs no candidate build
+or output creation. `--derive ABSENT_OUTPUT` authorizes the temporary worktree,
+compiler/helper processes, inert launcher self-tests and create-only output.
 
 ## Create-only publication
 
@@ -100,18 +120,33 @@ The materializer:
 - fsyncs the output;
 - rereads/hashes the retained output descriptor;
 - fsyncs the parent directory;
-- verifies the visible name still identifies the created inode.
+- checks the retained parent and the parent reached through the absolute output
+  path;
+- verifies both the parent-relative name and the absolute output name still
+  identify the created inode.
 
 Replay against an existing output fails with `reason=output_exists`.
 
-A failed materialization does not delete the visible pathname by name.
+A failed materialization does not delete the visible pathname by name. HOLD can
+leave an incomplete output for inspection; an existing pathname is never
+silently overwritten or removed. Output success is reported only after the
+write, descriptor readback, directory synchronization, final pathname checks and
+descriptor closes succeed. These checks observe the output at completion; they
+do not guarantee that another process cannot change it later.
+
+Successful derivation requires `git_worktree_cleanup_verified=true`,
+`temporary_directory_cleanup_verified=true`,
+`output_visible_parent_and_leaf_verified=true` and `output_verified=true`.
+HOLD reports the observed mutation and cleanup state with exit status `2`;
+possible temporary writes, completed cleanup and verified output are separate
+facts.
 
 ## Independent proof
 
 The proof binds:
 
 - materializer Git blob
-  `611e5d54154e3d3d5d9e7ba6c0374d697ecc3ba7`;
+  `3556931d9e14a5181d5ced96df6c89a2ade4284e`;
 - V2 lock blob
   `227c2fa449abf1387925373c706ecd07775d5898`;
 - V2 candidate proof
@@ -121,8 +156,27 @@ The proof binds:
 - frozen runtime child
   `f3d6b1559be7490303cf36338c4bfa38fdaa390a`.
 
-It performs two independent materializations and requires byte identity, exact
-SHA/Git-blob identity, static ELF properties and replay rejection.
+The default proof run performs two independent materializations and requires
+byte identity, exact SHA/Git-blob identity, static ELF properties and replay
+rejection. Focused temporary-directory fixtures exercise output parent/name
+changes, retained output readback and failed worktree cleanup. `--fixtures-only` runs those bounded
+fixtures and reports `full_materialization_performed=false`. The accepted
+candidate's launcher source proof and source workflow are authenticated as data;
+this materializer does not run the privileged production-child source proof.
+
+## CI release scope and manual replay
+
+Pull-request and main-push qualification use their event's base commit and
+require exactly the four existing materializer paths to be modified, with both
+old and new Git modes `100644`. The event base is separate from the fixed
+candidate reproduction commit.
+
+Manual dispatch replays the exact pinned materializer and accepted dependency
+state. It checks the four materializer tree-entry modes, exact source/proof/doc
+pins and the accepted candidate closure. It reports
+`manual_exact_state_replay=true` and `event_diff_scope_verified=false`: a manual
+replay does not claim to validate a new four-file repair diff. It can therefore
+run from a later commit that preserves these exact inputs.
 
 ## Authority
 
@@ -134,18 +188,22 @@ Still false:
 protected_install_authorized=false
 precision_install_authorized=false
 native_or_binder_live_execution_authorized=false
-credential_access=false
-private_key_access=false
-signing=false
-transaction=false
-payment_acceptance=false
-public_presale_activation=false
-wc_void_market_activation=false
-treasury_liquidity_action=false
+protected_installer_consumer_bound=false
+live_launcher_execution_authorized=false
+credential_access_authorized=false
+private_key_access_authorized=false
+signing_authorized=false
+transaction_authorized=false
+payment_acceptance_authorized=false
+public_presale_activation_authorized=false
+wc_void_market_activation_authorized=false
 funds_movement=false
 ```
 
-The next gate is a separately versioned V2-compatible protected installer. The
-historical V1 installer is not silently repinned to this lock.
+The next gate is a coherent protected installer generation that binds this
+accepted launcher. The accepted inner V4 / native C5 / source-generation V2
+protected-install generation binds the earlier launcher; this materializer does
+not change that binding or establish a Precision host handoff.
 
 **PROTECT THE CORE.**
+

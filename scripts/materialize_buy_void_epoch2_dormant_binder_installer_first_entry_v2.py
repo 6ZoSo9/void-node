@@ -71,6 +71,68 @@ class MaterializeError(RuntimeError):
     pass
 
 
+MUTATION_STATE = {
+    "temporary_filesystem_mutation_possible": False,
+    "git_worktree_mutation_possible": False,
+    "git_worktree_cleanup_verified": False,
+    "temporary_directory_cleanup_verified": False,
+    "candidate_rederivation_completed": False,
+    "output_creation_attempted": False,
+    "output_created": False,
+    "output_verified": False,
+}
+
+
+def _stat_identity(st: os.stat_result) -> tuple:
+    return tuple(getattr(st, field) for field in (
+        "st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",
+        "st_size", "st_mtime_ns", "st_ctime_ns",
+    ))
+
+
+def _directory_identity(st: os.stat_result) -> tuple:
+    # Child creation/removal legitimately changes directory timestamps.
+    return _stat_identity(st)[:5]
+
+
+def _failure_reason(exc: BaseException | None) -> str:
+    if exc is None:
+        return "none"
+    return str(exc) if isinstance(exc, MaterializeError) else type(exc).__name__
+
+
+def _emit_mutation_state() -> None:
+    for name, value in MUTATION_STATE.items():
+        print(name + "=" + str(value).lower())
+
+
+def _emit_authority(deriving: bool) -> None:
+    print(MARKER)
+    for name in (
+        "temporary_filesystem_write_authorized",
+        "git_worktree_mutation_authorized",
+        "candidate_derivation_processes_authorized",
+        "launcher_self_test_execution_authorized",
+        "create_only_output_authorized",
+    ):
+        print(name + "=" + str(deriving).lower())
+    print("git_fetch_requested=false")
+    print("service_action_authorized=false")
+    print("live_launcher_execution_authorized=false")
+    print("protected_installer_consumer_bound=false")
+    print("credential_access_authorized=false")
+    print("private_key_access_authorized=false")
+    print("signing_authorized=false")
+    print("transaction_authorized=false")
+    print("payment_acceptance_authorized=false")
+    print("public_presale_activation_authorized=false")
+    print("wc_void_market_activation_authorized=false")
+    print("protected_install_authorized=false")
+    print("precision_install_authorized=false")
+    print("native_or_binder_live_execution_authorized=false")
+    print("funds_movement=false", flush=True)
+
+
 def sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
@@ -254,97 +316,129 @@ def load_candidate_from_worktree(worktree: Path):
     return module
 
 
+def _cleanup_derivation(
+    temp: Path,
+    temp_identity: tuple,
+    worktree: Path,
+    worktree_identity: tuple | None,
+    attempted: bool,
+) -> None:
+    if _directory_identity(temp.lstat()) != temp_identity:
+        raise MaterializeError("temporary_directory_generation_changed")
+    if attempted:
+        def registered() -> bool:
+            fields = run_git(["worktree", "list", "--porcelain", "-z"]).split("\0")
+            return "worktree " + os.fspath(worktree) in fields
+
+        if registered():
+            # A partial add is checked, but unknown/rebound paths are not removed.
+            if (
+                worktree_identity is None
+                or _directory_identity(worktree.lstat()) != worktree_identity
+            ):
+                raise MaterializeError("worktree_cleanup_generation_unverified")
+            run_git(["worktree", "remove", "--force", os.fspath(worktree)])
+        if registered() or os.path.lexists(worktree):
+            raise MaterializeError("worktree_cleanup_incomplete")
+        MUTATION_STATE["git_worktree_cleanup_verified"] = True
+    if (
+        _directory_identity(temp.lstat()) != temp_identity
+        or list(temp.iterdir())
+    ):
+        raise MaterializeError("temporary_directory_cleanup_unverified")
+    temp.rmdir()
+    if os.path.lexists(temp):
+        raise MaterializeError("temporary_directory_cleanup_incomplete")
+    MUTATION_STATE["temporary_directory_cleanup_verified"] = True
+
+
 def derive_accepted() -> tuple[bytes, bytes]:
     accepted_lock()
     verify_candidate_merge()
 
-    with tempfile.TemporaryDirectory(
-        prefix="void-e2-first-entry-materializer-v2-"
-    ) as td:
-        temp = Path(td)
-        worktree = temp / "candidate-worktree"
-        added = False
+    MUTATION_STATE["temporary_filesystem_mutation_possible"] = True
+    temp = Path(tempfile.mkdtemp(prefix="void-e2-first-entry-materializer-v2-"))
+    temp_identity = _directory_identity(temp.lstat())
+    worktree = temp / "candidate-worktree"
+    worktree_identity = None
+    attempted = False
+    result = None
+    failure = None
+    try:
+        attempted = True
+        MUTATION_STATE["git_worktree_mutation_possible"] = True
+        cp = subprocess.run(
+            [
+                "/usr/bin/git", "--no-replace-objects", "-C", os.fspath(ROOT),
+                "worktree", "add", "--detach", os.fspath(worktree), CANDIDATE_MERGE,
+            ],
+            cwd=ROOT,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=GIT_ENV,
+            check=False,
+            timeout=60,
+        )
+        if cp.returncode != 0:
+            raise MaterializeError("candidate_worktree_add_failed")
+        worktree_opened = worktree.lstat()
+        if not stat.S_ISDIR(worktree_opened.st_mode):
+            raise MaterializeError("candidate_worktree_directory_invalid")
+        worktree_identity = _directory_identity(worktree_opened)
+        if run_git(["rev-parse", "HEAD"], cwd=worktree) != CANDIDATE_MERGE:
+            raise MaterializeError("candidate_worktree_head_mismatch")
+        if run_git(["rev-parse", "HEAD^{tree}"], cwd=worktree) != CANDIDATE_TREE:
+            raise MaterializeError("candidate_worktree_tree_mismatch")
+        if run_git(
+            ["status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=worktree,
+        ) != "":
+            raise MaterializeError("candidate_worktree_dirty")
+
+        module = load_candidate_from_worktree(worktree)
         try:
-            cp = subprocess.run(
-                [
-                    "/usr/bin/git",
-                    "--no-replace-objects",
-                    "-C",
-                    os.fspath(ROOT),
-                    "worktree",
-                    "add",
-                    "--detach",
-                    os.fspath(worktree),
-                    CANDIDATE_MERGE,
-                ],
-                cwd=ROOT,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                env=GIT_ENV,
-                check=False,
-                timeout=60,
-            )
-            if cp.returncode != 0:
-                raise MaterializeError("candidate_worktree_add_failed")
-            added = True
-            if run_git(["rev-parse", "HEAD"], cwd=worktree) != CANDIDATE_MERGE:
-                raise MaterializeError("candidate_worktree_head_mismatch")
-            if run_git(["rev-parse", "HEAD^{tree}"], cwd=worktree) != CANDIDATE_TREE:
-                raise MaterializeError("candidate_worktree_tree_mismatch")
-            if run_git(
-                ["status", "--porcelain=v1", "--untracked-files=all"],
-                cwd=worktree,
-            ) != "":
-                raise MaterializeError("candidate_worktree_dirty")
+            report, binary = module.derive()
+        except Exception as exc:
+            raise MaterializeError("candidate_rederivation_failed") from exc
+        if not isinstance(report, dict) or not isinstance(binary, bytes):
+            raise MaterializeError("candidate_rederivation_type_invalid")
 
-            module = load_candidate_from_worktree(worktree)
-            try:
-                report, binary = module.derive()
-            except Exception as exc:
-                raise MaterializeError("candidate_rederivation_failed") from exc
-            if not isinstance(report, dict) or not isinstance(binary, bytes):
-                raise MaterializeError("candidate_rederivation_type_invalid")
-
-            report_bytes = canonical(report)
-            if (
-                len(report_bytes) != EXPECTED_REPORT_BYTES
-                or sha256(report_bytes) != EXPECTED_REPORT_SHA256
-                or git_blob(report_bytes) != EXPECTED_REPORT_GIT_BLOB_SHA1
-                or report.get("candidate_id") != EXPECTED_CANDIDATE_ID
-                or report.get("repository_head") != CANDIDATE_MERGE
-                or report.get("repository_tree") != CANDIDATE_TREE
-            ):
-                raise MaterializeError("candidate_report_identity_mismatch")
-            if (
-                len(binary) != EXPECTED_BINARY_BYTES
-                or sha256(binary) != EXPECTED_BINARY_SHA256
-                or git_blob(binary) != EXPECTED_BINARY_GIT_BLOB_SHA1
-                or not binary.startswith(b"\x7fELF")
-            ):
-                raise MaterializeError("candidate_binary_identity_mismatch")
-            return report_bytes, binary
-        finally:
-            if added:
-                subprocess.run(
-                    [
-                        "/usr/bin/git",
-                        "--no-replace-objects",
-                        "-C",
-                        os.fspath(ROOT),
-                        "worktree",
-                        "remove",
-                        "--force",
-                        os.fspath(worktree),
-                    ],
-                    cwd=ROOT,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    env=GIT_ENV,
-                    check=False,
-                    timeout=60,
-                )
+        report_bytes = canonical(report)
+        if (
+            len(report_bytes) != EXPECTED_REPORT_BYTES
+            or sha256(report_bytes) != EXPECTED_REPORT_SHA256
+            or git_blob(report_bytes) != EXPECTED_REPORT_GIT_BLOB_SHA1
+            or report.get("candidate_id") != EXPECTED_CANDIDATE_ID
+            or report.get("repository_head") != CANDIDATE_MERGE
+            or report.get("repository_tree") != CANDIDATE_TREE
+        ):
+            raise MaterializeError("candidate_report_identity_mismatch")
+        if (
+            len(binary) != EXPECTED_BINARY_BYTES
+            or sha256(binary) != EXPECTED_BINARY_SHA256
+            or git_blob(binary) != EXPECTED_BINARY_GIT_BLOB_SHA1
+            or not binary.startswith(b"\x7fELF")
+        ):
+            raise MaterializeError("candidate_binary_identity_mismatch")
+        result = (report_bytes, binary)
+        MUTATION_STATE["candidate_rederivation_completed"] = True
+    except BaseException as exc:
+        failure = exc
+    try:
+        _cleanup_derivation(temp, temp_identity, worktree, worktree_identity, attempted)
+    except BaseException as exc:
+        raise MaterializeError(
+            "derivation_cleanup_failed:primary=" + _failure_reason(failure)
+            + ":cleanup=" + _failure_reason(exc)
+        ) from exc
+    if failure is not None:
+        if isinstance(failure, (MaterializeError, KeyboardInterrupt, SystemExit)):
+            raise failure
+        raise MaterializeError("candidate_derivation_failed:" + _failure_reason(failure)) from failure
+    if result is None:
+        raise MaterializeError("candidate_derivation_result_missing")
+    return result
 
 
 def write_create_only(output: Path, raw: bytes) -> None:
@@ -373,6 +467,7 @@ def write_create_only(output: Path, raw: bytes) -> None:
         ):
             raise MaterializeError("output_parent_generation_changed")
 
+        MUTATION_STATE["output_creation_attempted"] = True
         try:
             fd = os.open(
                 output.name,
@@ -383,6 +478,7 @@ def write_create_only(output: Path, raw: bytes) -> None:
         except FileExistsError as exc:
             raise MaterializeError("output_exists") from exc
 
+        MUTATION_STATE["output_created"] = True
         created = os.fstat(fd)
         view = memoryview(raw)
         offset = 0
@@ -437,19 +533,25 @@ def write_create_only(output: Path, raw: bytes) -> None:
             or visible.st_size != EXPECTED_BINARY_BYTES
         ):
             raise MaterializeError("output_visible_generation_changed")
-        parent_after = os.fstat(parent_fd)
         if (
-            parent_after.st_dev != parent_opened.st_dev
-            or parent_after.st_ino != parent_opened.st_ino
+            _stat_identity(os.fstat(fd)) != _stat_identity(after)
+            or _stat_identity(visible) != _stat_identity(after)
+        ):
+            raise MaterializeError("output_final_generation_changed")
+        if (
+            _directory_identity(os.fstat(parent_fd)) != _directory_identity(parent_opened)
+            or _directory_identity(parent.lstat()) != _directory_identity(parent_opened)
         ):
             raise MaterializeError("output_parent_changed_after_publication")
+        if _stat_identity(output.lstat()) != _stat_identity(after):
+            raise MaterializeError("output_absolute_leaf_generation_changed")
     finally:
-        if fd is not None:
-            try:
+        try:
+            if fd is not None:
                 os.close(fd)
-            except OSError:
-                pass
-        os.close(parent_fd)
+        finally:
+            os.close(parent_fd)
+    MUTATION_STATE["output_verified"] = True
 
 
 def self_test() -> None:
@@ -479,11 +581,13 @@ def self_test() -> None:
     print("runtime_head_contract_accepted=true")
     print("superseded_v1_lock_install_authority=false")
     print("candidate_merge_exact=true")
-    print("candidate_tool_verified_before_execution=true")
-    print("candidate_rederived_at_locked_merge=true")
-    print("create_only_output=true")
-    print("output_descriptor_readback=true")
-    print("output_parent_directory_fsync=true")
+    print("candidate_tool_verification_required=true")
+    print("candidate_rederivation_required=true")
+    print("create_only_output_required=true")
+    print("output_descriptor_readback_required=true")
+    print("output_parent_directory_fsync_required=true")
+    print("output_visible_parent_and_leaf_binding_required=true")
+    print("worktree_cleanup_verification_required=true")
     print("output_failure_destructive_cleanup=false")
     print("launcher_binary_identity_accepted=true")
     print("protected_install_authorized=false")
@@ -498,20 +602,28 @@ def main() -> int:
     mode.add_argument("--self-test", action="store_true")
     mode.add_argument("--derive", type=Path)
     args = parser.parse_args()
+    MUTATION_STATE.update({name: False for name in MUTATION_STATE})
+    _emit_authority(args.derive is not None)
 
     if args.self_test:
         self_test()
+        _emit_mutation_state()
         return 0
 
+    output = Path(os.path.abspath(os.fspath(args.derive)))
+    if os.path.lexists(output):
+        raise MaterializeError("output_exists")
     report_bytes, binary = derive_accepted()
-    write_create_only(args.derive, binary)
+    write_create_only(output, binary)
     print(MARKER + "_DERIVE_GREEN")
-    print("output=" + os.fspath(Path(args.derive).resolve()))
+    print("output=" + os.fspath(output))
     print("candidate_report_sha256=" + sha256(report_bytes))
     print("candidate_id=" + EXPECTED_CANDIDATE_ID)
     print("launcher_binary_bytes=" + str(len(binary)))
     print("launcher_binary_sha256=" + sha256(binary))
     print("accepted_lock_id=" + LOCK_ID)
+    print("candidate_rederived_at_locked_merge=true")
+    print("output_visible_parent_and_leaf_verified=true")
     print("runtime_head_contract_accepted=true")
     print("superseded_v1_lock_install_authority=false")
     print("output_descriptor_readback=true")
@@ -522,18 +634,25 @@ def main() -> int:
     print("precision_install_authorized=false")
     print("native_or_binder_live_execution_authorized=false")
     print("funds_movement=false")
+    _emit_mutation_state()
     return 0
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except MaterializeError as exc:
+    except (
+        MaterializeError, OSError, subprocess.SubprocessError,
+        UnicodeError, MemoryError, KeyboardInterrupt,
+    ) as exc:
         print(MARKER)
         print("status=HOLD")
-        print("reason=" + str(exc))
+        print("reason=" + _failure_reason(exc))
         print("protected_install_authorized=false")
         print("precision_install_authorized=false")
         print("native_or_binder_live_execution_authorized=false")
         print("funds_movement=false")
+        print("protected_installer_consumer_bound=false")
+        print("output_failure_destructive_cleanup=false")
+        _emit_mutation_state()
         raise SystemExit(2)

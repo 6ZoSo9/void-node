@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import ast
+import contextlib
+import io
+import json
+import os
 import hashlib
 from pathlib import Path
 import stat
 import subprocess
+import sys
 import tempfile
+import types
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,7 +26,7 @@ MATERIALIZER_REL = (
     "scripts/materialize_buy_void_epoch2_dormant_binder_"
     "installer_first_entry_v2.py"
 )
-MATERIALIZER_BLOB = "611e5d54154e3d3d5d9e7ba6c0374d697ecc3ba7"
+MATERIALIZER_BLOB = "3556931d9e14a5181d5ced96df6c89a2ade4284e"
 LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-binder-installer-first-entry-"
@@ -72,11 +80,15 @@ def pin(relative: str, expected: str) -> bytes:
     return raw
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--fixtures-only", action="store_true")
+args = parser.parse_args()
 materializer_raw = pin(MATERIALIZER_REL, MATERIALIZER_BLOB)
-pin(LOCK_REL, LOCK_BLOB)
-pin(CANDIDATE_REL, CANDIDATE_BLOB)
-pin(LAUNCHER_REL, LAUNCHER_BLOB)
-pin(RUNTIME_CHILD_REL, RUNTIME_CHILD_BLOB)
+if not args.fixtures_only:
+    pin(LOCK_REL, LOCK_BLOB)
+    pin(CANDIDATE_REL, CANDIDATE_BLOB)
+    pin(LAUNCHER_REL, LAUNCHER_BLOB)
+    pin(RUNTIME_CHILD_REL, RUNTIME_CHILD_BLOB)
 
 source = materializer_raw.decode("utf-8", "strict")
 tree = ast.parse(source, MATERIALIZER_REL)
@@ -145,6 +157,256 @@ for forbidden in (
 ):
     assert forbidden not in source, forbidden
 
+
+def regression_fixtures() -> int:
+    """Exercise only owned temporary files and inert process results."""
+    inert = b"\x7fELF" + b"nonexecutable fixture bytes\n" * 8
+
+    def fresh():
+        m = types.ModuleType("materializer_v2_reconciliation_fixture")
+        m.__file__ = str(ROOT / MATERIALIZER_REL)
+        exec(compile(materializer_raw, MATERIALIZER_REL, "exec", dont_inherit=True), m.__dict__)
+        m.os = types.SimpleNamespace(**os.__dict__)
+        m.subprocess = types.SimpleNamespace(**subprocess.__dict__)
+        m.tempfile = types.SimpleNamespace(**tempfile.__dict__)
+        m.EXPECTED_BINARY_BYTES = len(inert)
+        m.EXPECTED_BINARY_SHA256 = hashlib.sha256(inert).hexdigest()
+        m.EXPECTED_BINARY_GIT_BLOB_SHA1 = git_blob(inert)
+        return m
+
+    def holds(m, action, reason):
+        try:
+            action()
+        except (m.MaterializeError, OSError) as exc:
+            assert reason in m._failure_reason(exc), (reason, str(exc))
+        else:
+            raise AssertionError("expected HOLD:" + reason)
+
+    count = 0
+    with tempfile.TemporaryDirectory(prefix="void-e2-materializer-v2-regressions-") as td:
+        owned = Path(td)
+        m = fresh()
+        target = owned / "normal"
+        m.write_create_only(target, inert)
+        assert m.MUTATION_STATE["output_verified"]
+        assert target.read_bytes() == inert and stat.S_IMODE(target.stat().st_mode) == 0o555
+        before = m._stat_identity(target.stat())
+        holds(m, lambda: m.write_create_only(target, inert), "output_exists")
+        assert m._stat_identity(target.stat()) == before and target.read_bytes() == inert
+        count += 2
+
+        for case in ("parent", "leaf", "late_bytes", "readback", "fsync", "close"):
+            m = fresh()
+            parent = owned / case
+            parent.mkdir()
+            target = parent / "artifact"
+            descriptor = None
+            fired = False
+            def capture_write(fd, data):
+                nonlocal descriptor
+                descriptor = fd
+                return os.write(fd, data)
+            def intercept_sync(fd):
+                nonlocal fired
+                if case == "fsync":
+                    raise OSError("inert fsync failure")
+                if (stat.S_ISDIR(os.fstat(fd).st_mode) and not fired
+                        and case in ("parent", "leaf", "late_bytes")):
+                    fired = True
+                    if case == "parent":
+                        parent.rename(owned / "parent-original")
+                        parent.mkdir()
+                        (parent / "operator-entry").write_bytes(b"preserve")
+                    elif case == "leaf":
+                        target.rename(parent / "original")
+                        target.write_bytes(b"replacement remains")
+                    elif case == "late_bytes":
+                        assert descriptor is not None
+                        old = os.fstat(descriptor)
+                        os.pwrite(descriptor, b"!", 4)
+                        os.utime(descriptor, ns=(old.st_atime_ns, old.st_mtime_ns + 1_000_000))
+                return os.fsync(fd)
+            def intercept_read(fd, length):
+                nonlocal fired
+                if case == "readback" and not fired:
+                    fired = True
+                    os.pwrite(fd, b"?", 4)
+                return os.read(fd, length)
+            def intercept_close(fd):
+                nonlocal fired
+                os.close(fd)
+                if not fired:
+                    fired = True
+                    raise OSError("inert close failure")
+            m.os.write = capture_write
+            m.os.fsync = intercept_sync
+            m.os.read = intercept_read
+            if case == "close":
+                m.os.close = intercept_close
+            reason = {
+                "parent": "output_parent_changed_after_publication",
+                "leaf": "output_visible_generation_changed",
+                "late_bytes": "output_final_generation_changed",
+                "readback": "output_descriptor_readback_mismatch",
+                "fsync": "OSError",
+                "close": "OSError",
+            }[case]
+            holds(m, lambda: m.write_create_only(target, inert), reason)
+            assert m.MUTATION_STATE["output_created"] and not m.MUTATION_STATE["output_verified"]
+            if case == "parent":
+                assert (owned / "parent-original" / "artifact").read_bytes() == inert
+                assert (parent / "operator-entry").read_bytes() == b"preserve"
+            elif case == "leaf":
+                assert target.read_bytes() == b"replacement remains"
+                assert (parent / "original").read_bytes() == inert
+            else:
+                assert target.exists()
+            count += 1
+
+        # Run the actual derivation control flow with inert Git/helper results.
+        # No accepted helper, compiler, launcher or live Git subprocess is run.
+        for case in ("ok", "remove_failed", "registry_left", "add_failed", "add_timeout", "temp_failed"):
+            m = fresh()
+            home = owned / ("cleanup-" + case)
+            home.mkdir()
+            temp = home / "owned-temp"
+            worktree = temp / "candidate-worktree"
+            output = home / "output"
+            registered = False
+            commands = []
+            class Receipt(io.StringIO):
+                flushed = False
+                def flush(self):
+                    self.flushed = True
+                    super().flush()
+            receipt = Receipt()
+            def make_temp(**kwargs):
+                assert receipt.flushed
+                assert "temporary_filesystem_write_authorized=true" in receipt.getvalue().splitlines()
+                assert "git_worktree_mutation_authorized=true" in receipt.getvalue().splitlines()
+                temp.mkdir(mode=0o700)
+                return str(temp)
+            m.tempfile.mkdtemp = make_temp
+            m.accepted_lock = lambda: {}
+            m.verify_candidate_merge = lambda: None
+            report = {
+                "candidate_id": m.EXPECTED_CANDIDATE_ID,
+                "repository_head": m.CANDIDATE_MERGE,
+                "repository_tree": m.CANDIDATE_TREE,
+            }
+            report_bytes = m.canonical(report)
+            m.EXPECTED_REPORT_BYTES = len(report_bytes)
+            m.EXPECTED_REPORT_SHA256 = hashlib.sha256(report_bytes).hexdigest()
+            m.EXPECTED_REPORT_GIT_BLOB_SHA1 = git_blob(report_bytes)
+            m.load_candidate_from_worktree = lambda path: types.SimpleNamespace(
+                derive=lambda: (report, inert))
+            def inert_git(argv, **kwargs):
+                nonlocal registered
+                command = argv[4:]
+                commands.append(command)
+                body = b""
+                code = 0
+                if command[:2] == ["worktree", "add"]:
+                    worktree.mkdir()
+                    registered = True
+                    if case == "add_timeout":
+                        raise subprocess.TimeoutExpired(argv, 60)
+                    if case == "add_failed":
+                        code = 1
+                elif command == ["rev-parse", "HEAD"]:
+                    body = m.CANDIDATE_MERGE.encode()
+                elif command == ["rev-parse", "HEAD^{tree}"]:
+                    body = m.CANDIDATE_TREE.encode()
+                elif command[0] == "status":
+                    pass
+                elif command == ["worktree", "list", "--porcelain", "-z"]:
+                    body = (("worktree " + str(worktree) + "\0").encode() if registered else b"")
+                elif command == ["worktree", "remove", "--force", str(worktree)]:
+                    if case == "remove_failed":
+                        code = 1
+                    else:
+                        worktree.rmdir()
+                        registered = case == "registry_left"
+                else:
+                    raise AssertionError(command)
+                return subprocess.CompletedProcess(argv, code, body, b"")
+            m.subprocess.run = inert_git
+            real_rmdir = Path.rmdir
+            def temp_failure(path):
+                if case == "temp_failed" and path == temp:
+                    raise OSError("inert temp cleanup failure")
+                return real_rmdir(path)
+            with mock.patch.object(Path, "rmdir", temp_failure):
+                with mock.patch.object(sys, "argv", [str(ROOT / MATERIALIZER_REL), "--derive", str(output)]):
+                    with contextlib.redirect_stdout(receipt):
+                        if case == "ok":
+                            assert m.main() == 0
+                        else:
+                            reason = {
+                                "remove_failed": "primary=none:cleanup=git_command_failed:worktree",
+                                "registry_left": "primary=none:cleanup=worktree_cleanup_incomplete",
+                                "add_failed": "primary=candidate_worktree_add_failed:cleanup=worktree_cleanup_generation_unverified",
+                                "add_timeout": "primary=TimeoutExpired:cleanup=worktree_cleanup_generation_unverified",
+                                "temp_failed": "primary=none:cleanup=OSError",
+                            }[case]
+                            holds(m, m.main, reason)
+            assert ["worktree", "list", "--porcelain", "-z"] in commands
+            if case == "ok":
+                assert output.read_bytes() == inert and not temp.exists()
+                assert m.MUTATION_STATE["git_worktree_cleanup_verified"]
+                assert m.MUTATION_STATE["temporary_directory_cleanup_verified"]
+            else:
+                assert not output.exists()
+                assert not m.MUTATION_STATE["output_creation_attempted"]
+                assert not m.MUTATION_STATE["temporary_directory_cleanup_verified"]
+                assert m.MUTATION_STATE["git_worktree_mutation_possible"]
+                assert m.MUTATION_STATE["temporary_filesystem_mutation_possible"]
+            count += 1
+
+        # Real CLI refusal before Git or derivation, with truthful HOLD state.
+        existing = owned / "existing-cli"
+        existing.write_bytes(b"unchanged")
+        cp = subprocess.run(
+            ["/usr/bin/python3", "-I", "-B", str(ROOT / MATERIALIZER_REL), "--derive", str(existing)],
+            cwd=owned, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, timeout=20, check=False,
+        )
+        assert cp.returncode == 2 and not cp.stderr, (cp.returncode, cp.stderr)
+        for line in (
+            "status=HOLD", "reason=output_exists",
+            "temporary_filesystem_write_authorized=true", "git_worktree_mutation_authorized=true",
+            "temporary_filesystem_mutation_possible=false", "git_worktree_mutation_possible=false",
+            "output_created=false", "output_verified=false",
+            "protected_installer_consumer_bound=false", "output_failure_destructive_cleanup=false",
+        ):
+            assert line in cp.stdout.splitlines(), line
+        assert existing.read_bytes() == b"unchanged"
+        count += 1
+    return count
+
+
+fixture_count = regression_fixtures()
+print("bounded_fixture_cases=" + str(fixture_count))
+for fact in (
+    "final_absolute_output_parent_and_leaf_bound=true",
+    "final_output_file_generation_drift_rejected=true",
+    "output_io_and_close_failure_holds=true",
+    "checked_worktree_cleanup_before_publication=true",
+    "partial_add_and_timeout_cleanup_checked=true",
+    "primary_and_cleanup_failure_reported=true",
+    "cleanup_failure_blocks_publication=true",
+    "pre_mutation_authority_flushed=true",
+    "hold_mutation_state_truthful=true",
+):
+    print(fact)
+if args.fixtures_only:
+    print(MARKER + "_FIXTURES_GREEN")
+    print("full_materialization_performed=false")
+    print("protected_installer_consumer_bound=false")
+    print("funds_movement=false")
+    raise SystemExit(0)
+
+
 python = "/usr/bin/python3"
 self_test = subprocess.run(
     [python, "-I", "-B", str(ROOT / MATERIALIZER_REL), "--self-test"],
@@ -163,11 +425,16 @@ for line in (
     "runtime_head_contract_accepted=true",
     "superseded_v1_lock_install_authority=false",
     "candidate_merge_exact=true",
-    "candidate_tool_verified_before_execution=true",
-    "candidate_rederived_at_locked_merge=true",
-    "create_only_output=true",
-    "output_descriptor_readback=true",
-    "output_parent_directory_fsync=true",
+    "candidate_tool_verification_required=true",
+    "candidate_rederivation_required=true",
+    "create_only_output_required=true",
+    "output_descriptor_readback_required=true",
+    "output_parent_directory_fsync_required=true",
+    "output_visible_parent_and_leaf_binding_required=true",
+    "worktree_cleanup_verification_required=true",
+    "candidate_rederivation_completed=false",
+    "output_created=false",
+    "output_verified=false",
     "output_failure_destructive_cleanup=false",
     "launcher_binary_identity_accepted=true",
     "protected_install_authorized=false",
@@ -208,6 +475,14 @@ with tempfile.TemporaryDirectory(
             "launcher_binary_bytes=" + str(EXPECTED_BYTES),
             "launcher_binary_sha256=" + EXPECTED_SHA256,
             "accepted_lock_id=" + LOCK_ID,
+            "candidate_rederived_at_locked_merge=true",
+            "output_visible_parent_and_leaf_verified=true",
+            "git_worktree_cleanup_verified=true",
+            "temporary_directory_cleanup_verified=true",
+            "candidate_rederivation_completed=true",
+            "output_created=true",
+            "output_verified=true",
+            "protected_installer_consumer_bound=false",
             "runtime_head_contract_accepted=true",
             "superseded_v1_lock_install_authority=false",
             "output_descriptor_readback=true",
@@ -297,6 +572,7 @@ print("output_descriptor_readback=true")
 print("output_parent_directory_fsync=true")
 print("output_failure_destructive_cleanup=false")
 print("artifact_publication_only=true")
+print("protected_installer_consumer_bound=false")
 print("protected_install_authorized=false")
 print("precision_install_authorized=false")
 print("native_or_binder_live_execution_authorized=false")
