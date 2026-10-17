@@ -102,7 +102,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
             b5192a2bcf56717f5296619038b9c9bd66105cc0
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
-            acc263ab6774d05b4922d1f39e8608fbcf22c120
+            b31455bc0eeeabea3b8a3e52007cfab4695f11ac
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = \
             0859444e40fab93b7ab8af9b388e15dc3a818641
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_v1.py)" = \
@@ -142,6 +142,7 @@ jobs:
           for marker in \
             'VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_V1_PROOF_GREEN' \
             'candidate_tool_blob_bound=true' \
+            'candidate_tool_executed_from_verified_bytes=true' \
             'accepted_parent_bound=true' \
             'predecessor_proof_blob_bound=true' \
             'two_full_derivations_byte_identical=true' \
@@ -186,10 +187,13 @@ jobs:
           test -f "$dest/candidate-v1.json"
           test -f "$dest/apollyon-claim-protected-first-entry-static-v1"
           test "$(stat -c '%a' "$dest/apollyon-claim-protected-first-entry-static-v1")" = 555
-          sha256sum \
-            "$dest/candidate-v1.json" \
-            "$dest/apollyon-claim-protected-first-entry-static-v1" \
-            > "$dest/SHA256SUMS.txt"
+          (
+            cd "$dest"
+            sha256sum \
+              candidate-v1.json \
+              apollyon-claim-protected-first-entry-static-v1 \
+              > SHA256SUMS.txt
+          )
           printf '%s\n' "$EXPECTED_HEAD" > "$dest/source-head.txt"
 
           git diff --check
