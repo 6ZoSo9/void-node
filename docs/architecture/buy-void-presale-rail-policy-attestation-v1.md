@@ -47,6 +47,10 @@ the frozen source manifest, and the V5 lock** at their exact Git
 blobs/modes. It binds:
 
 - `README.md`, blob `6b52c555eb7d93b9ea6652d50aa946f6a319d7de`;
+- `scripts/lib/void_buy_void_dual_rail_server_policy_contract_v1.mjs`,
+  blob `fbdfc69b23ea2c7a81ed83e0a327af37a94fc552`: executable-source
+  definitions for Base chain 8453, Ethereum chain 1, native USDC, the
+  10M pool, 2:1 rate and source-only activation HOLD;
 - `docs/architecture/buy-void-dual-rail-server-policy-v1.md`,
   blob `a8c2300f7f2b1296790bf496e02a997f7126310f`;
 - `docs/operators/wc-void-coupled-launch-regeneration-census-v2.md`,
@@ -71,6 +75,11 @@ manifest should name the coupling without this ambiguity, but no
 earlier manifest or lock is repinned here.
 
 ## Hosted verification
+
+The source-only proof also pins the reviewed JavaScript dual-rail
+policy contract in addition to the public docs. This is evidence of the
+checked-in source configuration, not proof that either live RPC/payment
+rail, server environment or runtime consumer is installed and ready.
 
 The source-only proof requires exactly three **ADD-only** paths on
 top of the immutable #3415 host-census head:
