@@ -120,7 +120,7 @@ cp = subprocess.run(
 assert cp.returncode == 0, cp.stderr
 assert cp.stderr == ""
 for line in (
-    "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_MATERIALIZER_V2_SELF_TEST_GREEN",
+    "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_MATERIALIZER_V2R_SELF_TEST_GREEN",
     "accepted_lock_bound=true",
     "candidate_merge_frozen=true",
     "candidate_source_blob_bound=true",
