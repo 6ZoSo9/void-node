@@ -927,8 +927,15 @@ def apply(
         if _exists(STAGE_ROOT) or _exists(INSTALL_ROOT):
             raise InstallError("install_root_or_stage_already_present")
 
-        stage_fd = _mkdir_at(opt_fd, STAGE_NAME)
+        os.mkdir(STAGE_NAME, 0o755, dir_fd=opt_fd)
         stage_created = True
+        stage_fd = os.open(
+            STAGE_NAME,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=opt_fd,
+        )
+        os.fchown(stage_fd, 0, 0)
+        os.fchmod(stage_fd, 0o755)
         try:
             bin_fd = _mkdir_at(stage_fd, BIN_DIR)
             try:
