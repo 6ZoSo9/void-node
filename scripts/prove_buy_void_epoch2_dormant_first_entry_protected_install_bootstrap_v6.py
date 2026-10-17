@@ -34,16 +34,16 @@ MANIFEST_REL = "ops/security/buy-void-epoch2-dormant-first-entry-source-generati
 MARKER = "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_V6"
 GENERATION_PREFIX = "voidbuye2dormantsourcegen3_"
 SOURCE_ROLES = ("installer", "bootstrap_source", "lock", "runtime_installer")
-SOURCE_BLOB = "a317d3dce324337f107909bd6e33e98622b3ef09"
+SOURCE_BLOB = "560726bcae6ea0738502cb5e74b65f9116bd447d"
 INSTALLER_BLOB = "ce6930bc1be8239a3171d4922c44b96a50f5778b"
-MANIFEST_BLOB = "6e0630af72111bd9976dcc38cdcdada1904dd067"
+MANIFEST_BLOB = "de56bacb30bea0adc418e240cf3fb8d900b061ef"
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
 MAX_MANIFEST_BYTES = 16384
 ACCEPTED_BOOTSTRAP_BYTES = 874_608
-ACCEPTED_BOOTSTRAP_SHA256 = "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
-ACCEPTED_BOOTSTRAP_BLOB = "a91707c3e5803071fc73c3451c9bcb3b774f8b48"
+ACCEPTED_BOOTSTRAP_SHA256 = "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
+ACCEPTED_BOOTSTRAP_BLOB = "b577d70666f98ac59a75b84b3dab741fe7b93a4b"
 ACCEPTED_BOOTSTRAP_LOCK_REL = "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
-ACCEPTED_BOOTSTRAP_LOCK_ID = "voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"
+ACCEPTED_BOOTSTRAP_LOCK_ID = "voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396"
 ACCEPTED_LAUNCHER_BYTES = 731_072
 ACCEPTED_LAUNCHER_SHA256 = "4e54056d22a084c1649ddbce3ef1933513bebbd11de7fa76b26d7b636a262a28"
 ACCEPTED_NATIVE_BYTES = 726_976
@@ -54,7 +54,7 @@ FIXTURE_GIT_CONFIG = (
 )
 FIXTURE_SCHEMA = "source_generation_v3_accepted_native_v6_inner_v5_fixture_v1"
 FROZEN = {
-    ACCEPTED_BOOTSTRAP_LOCK_REL: (4272, "f5b03c6b81016edf21f605099e0ef8976f40e107"),
+    ACCEPTED_BOOTSTRAP_LOCK_REL: (4550, "f2ce1364dd776bfbf1aa1ef59ce999cb46037b73"),
     "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py": (127102, "88577de29dddbe61d2c2f59179d0dcb62a49165a"),
     "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c": (106764, "81fc960f1cec597b01875ed944b25e5b6574d34d"),
     "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf": (2382, "782f747cda24a214c64e8ec3f49b6791bbb62f97"),
@@ -803,7 +803,13 @@ def private_git_fixtures(harness: Path, temporary: Path, manifest: bytes,
     git(checkout, "prune-packed")
     git(checkout, "pack-refs", "--all", "--prune")
     require(not (checkout / ".git/refs/heads/main").exists(), "native_packed_refs_fixture_not_packed")
-    require(bool(list((checkout / ".git/objects/pack").glob("*.pack"))), "native_packed_objects_fixture_not_packed")
+    packs = sorted((checkout / ".git/objects/pack").glob("*.pack"))
+    require(bool(packs), "native_packed_objects_fixture_not_packed")
+    verify(harness, installed, checkout, head, generation)
+
+    mtimes = packs[0].with_suffix(".mtimes")
+    mtimes.write_bytes(b"standard cruft-pack mtimes auxiliary fixture\n")
+    require(mtimes.is_file() and mtimes.stat().st_nlink == 1, "native_mtimes_fixture_invalid")
     verify(harness, installed, checkout, head, generation)
 
     checkout, head = create("split-index")
@@ -982,8 +988,8 @@ def production_fixture_driver() -> None:
         require(loaded["bootstrap"].startswith(b"\x7fELF")
                 and len(loaded["bootstrap"]) == 874608
                 and digest(loaded["bootstrap"]) ==
-                "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
-                and blob(loaded["bootstrap"]) == "a91707c3e5803071fc73c3451c9bcb3b774f8b48",
+                "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
+                and blob(loaded["bootstrap"]) == "b577d70666f98ac59a75b84b3dab741fe7b93a4b",
                 "fixture_accepted_bootstrap_changed")
         require(len(loaded["launcher"]) == 731072 and digest(loaded["launcher"]) ==
                 "4e54056d22a084c1649ddbce3ef1933513bebbd11de7fa76b26d7b636a262a28",
@@ -1061,11 +1067,11 @@ def production_fixture_driver() -> None:
                 "fixture_checkout_not_ordinary_index_v2")
         tracked_pins = {
             "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf":
-                (2382, "6e0630af72111bd9976dcc38cdcdada1904dd067"),
+                (2382, "de56bacb30bea0adc418e240cf3fb8d900b061ef"),
             "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py":
                 (127528, "ce6930bc1be8239a3171d4922c44b96a50f5778b"),
             "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c":
-                (106764, "a317d3dce324337f107909bd6e33e98622b3ef09"),
+                (106792, "560726bcae6ea0738502cb5e74b65f9116bd447d"),
             "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json":
                 (4548, "227c2fa449abf1387925373c706ecd07775d5898"),
             "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py":
@@ -1699,8 +1705,8 @@ def production_fixture_driver() -> None:
         raise SystemExit(2)
     print("REAL_PRODUCTION_NATIVE_V6_INNER_V5_HANDOFF_GREEN")
     print("production_child_exact_blob=ce6930bc1be8239a3171d4922c44b96a50f5778b")
-    print("production_native_source_exact_blob=a317d3dce324337f107909bd6e33e98622b3ef09")
-    print("production_source_manifest_exact_blob=6e0630af72111bd9976dcc38cdcdada1904dd067")
+    print("production_native_source_exact_blob=560726bcae6ea0738502cb5e74b65f9116bd447d")
+    print("production_source_manifest_exact_blob=de56bacb30bea0adc418e240cf3fb8d900b061ef")
     print("production_bootstrap_invocations=4")
     print("production_native_parent_pid_greater_than_one=true")
     print("production_child_parent_validator_unchanged=true")
@@ -1718,8 +1724,8 @@ def production_fixture_driver() -> None:
     print("production_inner_and_final_native_receipts_verified=true")
     print("production_accepted_bootstrap_binary_exercised=true")
     print("production_bootstrap_binary_bytes=874608")
-    print("production_bootstrap_binary_sha256=c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b")
-    print("production_bootstrap_binary_git_blob_sha1=a91707c3e5803071fc73c3451c9bcb3b774f8b48")
+    print("production_bootstrap_binary_sha256=618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c")
+    print("production_bootstrap_binary_git_blob_sha1=b577d70666f98ac59a75b84b3dab741fe7b93a4b")
     print("accepted_launcher_native_or_binder_executed=false")
     print("fixture_bytes_and_mtime_ctime_preserved_during_operations=true")
     print("production_fixture_cleanup_completed=true")
