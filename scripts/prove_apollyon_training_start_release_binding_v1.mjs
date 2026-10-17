@@ -453,9 +453,11 @@ function recomputeReleaseBindingId(value){
 {
   const bad=structuredClone(binding1);
   bad.trainer_pid+=1;
+  // The stricter persisted-consumption validator must reject the mismatched
+  // trainer-generation ID before outer release-binding checks run.
   assert.throws(
     ()=>validateApollyonTrainingStartReleaseBindingV1(bad),
-    /binding_invalid|consumption_record/u,
+    /trainer_generation_id_invalid/u,
   );
 }
 {
