@@ -1,0 +1,162 @@
+name: Buy VOID Epoch-2 dormant first-entry bootstrap V6 candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact V6 generation and self-test
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_CHECKOUT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_CHECKOUT_SHA"
+
+          readonly REVIEWED_PR_BASE="15697936570a8b7efc89d463db76462b41204294"
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE" = "$REVIEWED_PR_BASE"
+              base="$REVIEWED_PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_CHECKOUT_SHA^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_CHECKOUT_SHA"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_CHECKOUT_SHA" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = b963ac9ef0b9c8ac685763b3a82375f970ef12df
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md)" = 98b9aee33580249bae8d1a2955b0336563f26ddf
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = a317d3dce324337f107909bd6e33e98622b3ef09
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = 6e0630af72111bd9976dcc38cdcdada1904dd067
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py --self-test | tee "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_CANDIDATE_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'exact_source_generation_bound=true' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'sealed_source_snapshot_required=true' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'checkout_path_is_not_build_authority=true' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'compiler_logical_source_name=stdin' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'distinct_source_fd_numbers_required=true' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'descriptor_number_not_candidate_identity=true' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'candidate_accepted=false' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/self-test.log"
+          git diff --check
+
+  derive:
+    name: derive bootstrap V6 candidate / ${{ matrix.lane }}
+    needs: source-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [a, b, c]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derive exact V6 candidate
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/candidate-v1"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py --derive-dir "$out" | tee "$RUNNER_TEMP/derive.log"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_CANDIDATE_V1_DERIVE_GREEN' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'source_generation_id=voidbuye2dormantsourcegen3_aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'sealed_source_snapshot=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'checkout_path_is_not_build_authority=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'compiler_logical_source_name=stdin' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'distinct_source_fd_numbers_exercised=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'distinct_source_fd_builds_byte_identical=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'descriptor_number_not_candidate_identity=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'toolchain_revalidated_after_build=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'candidate_accepted=false' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/derive.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1-${{ matrix.lane }}
+          path: ${{ runner.temp }}/candidate-v1
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1-*
+          path: ${{ runner.temp }}/candidates
+      - name: Compare and independently rederive V6
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/compare.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py --compare-dir "$RUNNER_TEMP/candidates" | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_CANDIDATE_V1_THREE_RUN_GREEN' "$out"
+          grep -Fx 'three_report_bytes_identical=true' "$out"
+          grep -Fx 'three_binary_bytes_identical=true' "$out"
+          grep -Fx 'independent_rederivation_verified=true' "$out"
+          grep -Fx 'checkout_path_is_not_build_authority=true' "$out"
+          grep -Fx 'compiler_logical_source_name=stdin' "$out"
+          grep -Fx 'distinct_source_fd_numbers_exercised=true' "$out"
+          grep -Fx 'distinct_source_fd_builds_byte_identical=true' "$out"
+          grep -Fx 'descriptor_number_not_candidate_identity=true' "$out"
+          grep -Fx 'candidate_accepted=false' "$out"
+          grep -Fx 'protected_install_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+          git diff --check
