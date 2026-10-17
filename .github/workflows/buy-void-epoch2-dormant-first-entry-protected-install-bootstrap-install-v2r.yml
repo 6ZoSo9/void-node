@@ -86,11 +86,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py)" = \
-            883186eb5e6f4d7cee94370f0ee74ef908ec058b
+            f8355b728b4c6870b92b10a0c19f154cf9c2ab51
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py)" = \
-            f2b27b0e1a643c3dc4baa241d44508da75d77dd6
+            bfae4e1c9a3875b07e92c2b4051f31d56510e0ca
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v2r.md)" = \
-            52ae7ce0c1e3ccdd2c082dc9dda0d2f0e9aa5520
+            8d3177cbcce53e0985f525ddabeb02bd8fda330f
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json)" = \
             64c9a42ca1108a9e8f88218c34d53e50668c653e
@@ -157,6 +157,9 @@ jobs:
             'git_lazy_fetch_suppressed=true' \
             'git_transport_denial_fallback=true' \
             'plan_git_repository_unchanged_on_missing_object=true' \
+            'git_fsmonitor_positive_control_reproduced=true' \
+            'git_fsmonitor_disabled=true' \
+            'git_local_hook_execution_suppressed=true' \
             'bootstrap_execution_absent=true' \
             'protected_installer_apply_absent=true' \
             'post_publication_rollback=false' \
