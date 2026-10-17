@@ -158,3 +158,22 @@ qualification + plan execution evidence step**, still with protected installer
 apply disabled.
 
 **PROTECT THE CORE.**
+
+## Post-merge V6 planner entrypoint consistency
+
+The canonical merged planner has exactly one top-level `main()` and one
+`if __name__ == "__main__"` guard. Direct CLI execution and import-based
+inspection therefore refer to the same argument validation and HOLD output
+contract; duplicate shadow functions and unreachable duplicate entry guards
+are forbidden by the focused AST proof.
+
+The focused workflow binds the current reviewed planner/proof/document
+Git blobs. A PR against current `main` may touch only the reviewed V6
+installer, installed qualifier, planner, and their proofs, documentation,
+and focused workflows; post-merge `push` and
+`workflow_dispatch` validate exact current blobs and full diff hygiene
+without incorrectly requiring the historical four-path initial ADD-only diff.
+
+This is a source/proof repair only. It does not execute the installed
+qualifier, the bootstrap, or the protected installer; credential access,
+payment acceptance, presale/WC activation, and funds movement remain false.

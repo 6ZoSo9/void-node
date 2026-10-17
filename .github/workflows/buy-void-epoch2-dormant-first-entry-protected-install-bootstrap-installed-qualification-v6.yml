@@ -70,7 +70,7 @@ jobs:
             pull_request)
               test -n "$PR_BASE"
               test "$PR_BASE" != 0000000000000000000000000000000000000000
-              base="$(git merge-base "$PR_BASE" "$EXPECTED_HEAD")"
+              base="$PR_BASE"
               ;;
             push)
               test -n "$PUSH_BEFORE"
@@ -87,24 +87,32 @@ jobs:
           esac
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
 
-          expected="$RUNNER_TEMP/expected-scope.txt"
-          actual="$RUNNER_TEMP/actual-scope.txt"
-          printf '%s\n' \
-            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.yml' \
-            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml' \
-            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.yml' \
-            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.md' \
-            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md' \
-            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md' \
-            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
-            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
-            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
-            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
-            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
-            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
-            | LC_ALL=C sort > "$expected"
-          git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | LC_ALL=C sort > "$actual"
-          diff -u "$expected" "$actual"
+          if test "$EVENT_NAME" = pull_request; then
+            allowed="$RUNNER_TEMP/allowed-scope.txt"
+            actual="$RUNNER_TEMP/actual-scope.txt"
+            printf '%s\n' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.yml' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.md' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md' \
+              'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
+              'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
+              'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
+              | LC_ALL=C sort > "$allowed"
+            git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | LC_ALL=C sort > "$actual"
+            test -s "$actual"
+            unexpected="$RUNNER_TEMP/unexpected-scope.txt"
+            LC_ALL=C comm -23 "$actual" "$allowed" > "$unexpected"
+            if test -s "$unexpected"; then
+              cat "$unexpected" >&2
+              exit 1
+            fi
+          fi
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = e16b0ce71a4522b21762fa824c96aefb58e3a25b
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = 3ed1ce3df27a950e03c07eeb61d2aad670e3cbc8

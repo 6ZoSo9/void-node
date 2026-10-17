@@ -18,7 +18,7 @@ TARGET_REL = (
     "protected_installer_bootstrap_plan_v6.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "d80cf0a527e7bb948ef2e395edeae7b5eae9afa4"
+TARGET_BLOB = "58ab3eaf57a03c8a5dc8140902b51b1c447fad4f"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -190,11 +190,33 @@ for forbidden in (
     assert forbidden not in source, forbidden
 
 tree = ast.parse(source, filename=TARGET_REL)
-functions = {
-    node.name: node
-    for node in tree.body
+function_nodes = [
+    node for node in tree.body
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-}
+]
+function_names = [node.name for node in function_nodes]
+assert len(function_names) == len(set(function_names)), "duplicate_top_level_function"
+assert function_names.count("main") == 1, "main_entrypoint_count_invalid"
+
+def is_main_guard(node: ast.AST) -> bool:
+    if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
+        return False
+    test = node.test
+    return (
+        isinstance(test.left, ast.Name)
+        and test.left.id == "__name__"
+        and len(test.ops) == 1
+        and isinstance(test.ops[0], ast.Eq)
+        and len(test.comparators) == 1
+        and isinstance(test.comparators[0], ast.Constant)
+        and test.comparators[0].value == "__main__"
+    )
+
+main_guards = [node for node in tree.body if is_main_guard(node)]
+assert len(main_guards) == 1, "duplicate_or_missing_main_guard"
+assert tree.body[-1] is main_guards[0], "entry_guard_not_terminal"
+
+functions = {node.name: node for node in function_nodes}
 for name in (
     "git",
     "repository_blob",
@@ -293,6 +315,41 @@ for mode, expected_lines in (
     lines = set(cp.stdout.splitlines())
     for expected in expected_lines:
         assert expected in lines, (mode, expected)
+
+
+# Missing plan arguments must produce the canonical HOLD and complete no-authority
+# footer, regardless of the module's import/CLI entrypoint generation.
+cp = subprocess.run(
+    ["/usr/bin/python3", "-I", "-B", str(TARGET), "--plan"],
+    cwd=ROOT,
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=30,
+    env={"PATH":"/usr/bin:/bin","HOME":"/nonexistent","LANG":"C","LC_ALL":"C","TZ":"UTC"},
+)
+assert cp.returncode == 2, cp.stderr
+assert cp.stderr == "", cp.stderr
+negative_lines = cp.stdout.splitlines()
+assert negative_lines.count(MARKER) == 1, negative_lines
+for required in (
+    "status=HOLD",
+    "reason=plan_arguments_required",
+    "read_only=true",
+    "installed_qualification_performed=false",
+    "bootstrap_execution_performed=false",
+    "protected_installer_apply_performed=false",
+    "filesystem_write=false",
+    "service_mutation=false",
+    "payment_acceptance=false",
+    "public_presale_activation=false",
+    "wc_void_market_activation=false",
+    "funds_movement=false",
+    "production_host_evidence_authority=false",
+):
+    assert negative_lines.count(required) == 1, required
 
 
 class FakeInstaller:
@@ -448,6 +505,8 @@ finally:
     module.os.geteuid = orig_geteuid
 
 print(MARKER + "_PROOF_GREEN")
+print("single_main_entrypoint_and_guard=true")
+print("canonical_missing_arguments_hold=true")
 print("target_blob_bound=true")
 print("merged_v6_qualifier_bound=true")
 print("v6_installer_blob_bound=true")
