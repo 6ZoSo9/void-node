@@ -7,8 +7,10 @@ import json
 import os
 from pathlib import Path
 import re
+import selectors
 import stat
 import subprocess
+import time
 import types
 from typing import Any
 
@@ -85,6 +87,18 @@ NATIVE_SHA256 = (
 
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 MAX_READ = 2 * 1024 * 1024
+MAX_GIT_OUTPUT = 8 * 1024 * 1024
+MAX_GIT_STDERR = 64 * 1024
+GIT_TIMEOUT = 20
+MAX_TRACKED_FILE_BYTES = 16 * 1024 * 1024
+MAX_TRACKED_TOTAL_BYTES = 256 * 1024 * 1024
+MAX_TRACKED_ENTRIES = 30_000
+MAX_INDEX_BYTES = 16 * 1024 * 1024
+MAX_CHECKOUT_DIRECTORIES = 1024
+MAX_PATH_BYTES = 4096
+MAX_PATH_DEPTH = 128
+MAX_SYMLINK_BYTES = 4096
+TRACKED_MODES = {"100644", "100755", "120000"}
 
 GIT_ENV = {
     "PATH": "/usr/bin:/bin",
@@ -127,53 +141,371 @@ def canonical(value: object) -> bytes:
     ).encode("ascii")
 
 
+def _safe_relative_path(raw: bytes, *, metadata: bool = False) -> list[bytes]:
+    parts = raw.split(b"/")
+    if (
+        not raw
+        or len(raw) > MAX_PATH_BYTES
+        or len(parts) > MAX_PATH_DEPTH
+        or b"\0" in raw
+        or any(part in (b"", b".", b"..") or len(part) > 255 for part in parts)
+        or (not metadata and any(part.lower() == b".git" for part in parts))
+    ):
+        raise PlanError("checkout_path_invalid")
+    return parts
+
+
+def _git_read_allowed(args: tuple[str, ...]) -> bool:
+    if args in (
+        ("rev-parse", "--verify", "HEAD^{commit}"),
+        ("rev-parse", "--verify", "HEAD^{tree}"),
+        ("symbolic-ref", "--quiet", "HEAD"),
+        ("ls-files", "--stage", "-v", "-z", "--full-name", "--sparse"),
+        ("ls-files", "--others", "--exclude-standard", "-z", "--full-name"),
+    ):
+        return True
+    if len(args) == 5 and args[:4] == ("ls-tree", "-r", "--full-tree", "-z"):
+        return HEX40.fullmatch(args[4]) is not None
+    if len(args) == 2 and args[0] == "rev-parse" and args[1].startswith("HEAD:"):
+        _safe_relative_path(os.fsencode(args[1][5:]))
+        return True
+    return False
+
+
+def git_bytes(*args: str) -> bytes:
+    # Only these raw plumbing reads are admitted. In particular, worktree
+    # content never enters status, diff, filters, textconv, or hash-object.
+    if not _git_read_allowed(args):
+        raise PlanError("git_read_not_allowed")
+    argv = [
+        "/usr/bin/git", "--no-pager", "-C", str(ROOT),
+        "--git-dir=" + str(ROOT / ".git"), "--work-tree=" + str(ROOT),
+        "-c", "core.fsmonitor=false",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.bare=false",
+        "-c", "protocol.allow=never",
+        *args,
+    ]
+    proc = None
+    selector = selectors.DefaultSelector()
+    output = bytearray()
+    errors = bytearray()
+    try:
+        proc = subprocess.Popen(
+            argv, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=GIT_ENV,
+        )
+        assert proc.stdout is not None and proc.stderr is not None
+        for stream, buffer, limit in (
+            (proc.stdout, output, MAX_GIT_OUTPUT),
+            (proc.stderr, errors, MAX_GIT_STDERR),
+        ):
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ, (buffer, limit))
+        deadline = time.monotonic() + GIT_TIMEOUT
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise PlanError("git_read_timeout")
+            for key, _ in selector.select(min(remaining, 0.25)):
+                buffer, limit = key.data
+                try:
+                    chunk = os.read(key.fd, min(64 * 1024, limit - len(buffer) + 1))
+                except BlockingIOError:
+                    continue
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                if len(buffer) + len(chunk) > limit:
+                    raise PlanError("git_output_limit")
+                buffer.extend(chunk)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise PlanError("git_read_timeout")
+        try:
+            returncode = proc.wait(timeout=remaining)
+        except subprocess.TimeoutExpired as exc:
+            raise PlanError("git_read_timeout") from exc
+        if returncode != 0 or errors:
+            raise PlanError("git_failed:" + args[0])
+        return bytes(output)
+    except OSError as exc:
+        raise PlanError("git_read_unavailable") from exc
+    finally:
+        selector.close()
+        if proc is not None:
+            if proc.poll() is None:
+                proc.kill()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired as exc:
+                    raise PlanError("git_read_cleanup_timeout") from exc
+            for stream in (proc.stdout, proc.stderr):
+                if stream is not None:
+                    stream.close()
+
+
 def git(*args: str) -> str:
-    cp = subprocess.run(
-        ["/usr/bin/git", "-C", str(ROOT), *args],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
-        timeout=20,
-        env=GIT_ENV,
-    )
-    if cp.returncode != 0 or cp.stderr:
-        raise PlanError("git_failed:" + ":".join(args))
-    return cp.stdout.strip()
+    try:
+        return git_bytes(*args).decode("ascii", "strict").strip()
+    except UnicodeDecodeError as exc:
+        raise PlanError("git_text_invalid") from exc
+
+
+def _listing_records(raw: bytes) -> list[bytes]:
+    if len(raw) > MAX_GIT_OUTPUT or (raw and not raw.endswith(b"\0")):
+        raise PlanError("git_listing_invalid")
+    if raw.count(b"\0") > MAX_TRACKED_ENTRIES:
+        raise PlanError("git_listing_limit")
+    records = raw[:-1].split(b"\0") if raw else []
+    if any(not row for row in records):
+        raise PlanError("git_listing_limit")
+    return records
+
+
+def _parse_tree(raw: bytes) -> dict[bytes, tuple[str, str]]:
+    result = {}
+    for record in _listing_records(raw):
+        try:
+            fields, path = record.split(b"\t", 1)
+            mode, kind, blob = fields.decode("ascii", "strict").split(" ")
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise PlanError("git_tree_record_invalid") from exc
+        _safe_relative_path(path)
+        if mode not in TRACKED_MODES or kind != "blob" or HEX40.fullmatch(blob) is None:
+            raise PlanError("git_tree_mode_or_blob_invalid")
+        if path in result:
+            raise PlanError("git_tree_duplicate_path")
+        result[path] = (mode, blob)
+    return result
+
+
+def _parse_index(raw: bytes) -> dict[bytes, tuple[str, str]]:
+    result = {}
+    for record in _listing_records(raw):
+        try:
+            fields, path = record.split(b"\t", 1)
+            flag, mode, blob, stage = fields.decode("ascii", "strict").split(" ")
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise PlanError("git_index_record_invalid") from exc
+        _safe_relative_path(path)
+        if (
+            flag != "H" or stage != "0" or mode not in TRACKED_MODES
+            or HEX40.fullmatch(blob) is None
+        ):
+            raise PlanError("git_index_flags_mode_or_stage_invalid")
+        if path in result:
+            raise PlanError("git_index_duplicate_path")
+        result[path] = (mode, blob)
+    return result
+
+
+def _metadata(value: os.stat_result) -> tuple[int, ...]:
+    return tuple(getattr(value, name) for name in (
+        "st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",
+        "st_size", "st_mtime_ns", "st_ctime_ns",
+    ))
+
+
+def _directory_identity(value: os.stat_result) -> tuple[int, ...]:
+    return tuple(getattr(value, name) for name in (
+        "st_dev", "st_ino", "st_mode", "st_uid", "st_gid",
+    ))
+
+
+def _open_checkout_root() -> tuple[int, list[tuple[int, ...]]]:
+    raw = os.fsencode(ROOT)
+    if not ROOT.is_absolute() or os.path.normpath(raw) != raw:
+        raise PlanError("checkout_root_invalid")
+    parts = raw[1:].split(b"/") if raw != b"/" else []
+    if len(raw) > MAX_PATH_BYTES or len(parts) > MAX_PATH_DEPTH:
+        raise PlanError("checkout_root_limit")
+    fd = os.open(b"/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    identities = [_directory_identity(os.fstat(fd))]
+    try:
+        for part in parts:
+            before = os.stat(part, dir_fd=fd, follow_symlinks=False)
+            if not stat.S_ISDIR(before.st_mode):
+                raise PlanError("checkout_parent_not_physical_directory")
+            child = os.open(
+                part, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=fd,
+            )
+            try:
+                if (
+                    _metadata(before) != _metadata(os.fstat(child))
+                    or _metadata(before) != _metadata(os.stat(part, dir_fd=fd, follow_symlinks=False))
+                ):
+                    raise PlanError("checkout_parent_rebound")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(fd)
+            fd = child
+            identities.append(_directory_identity(before))
+        return fd, identities
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+class _CheckoutPaths:
+    # Retain directory authority while streaming files. At most the bounded
+    # parent-directory set remains open; leaf metadata is rechecked by name.
+    def __init__(self) -> None:
+        root_fd, self.ancestry = _open_checkout_root()
+        self.fds = {b"": root_fd}
+        self.directories = {b"": _metadata(os.fstat(root_fd))}
+        self.leaves: dict[bytes, tuple[int, ...]] = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        for fd in self.fds.values():
+            os.close(fd)
+
+    def directory(self, path: bytes) -> int:
+        if path in self.fds:
+            return self.fds[path]
+        parts = _safe_relative_path(path, metadata=True)
+        parent_path = b""
+        for part in parts:
+            child_path = parent_path + (b"/" if parent_path else b"") + part
+            if child_path not in self.fds:
+                if len(self.fds) >= MAX_CHECKOUT_DIRECTORIES:
+                    raise PlanError("checkout_directory_limit")
+                parent_fd = self.fds[parent_path]
+                before = os.stat(part, dir_fd=parent_fd, follow_symlinks=False)
+                if not stat.S_ISDIR(before.st_mode):
+                    raise PlanError("checkout_parent_not_physical_directory")
+                fd = os.open(
+                    part, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                    dir_fd=parent_fd,
+                )
+                try:
+                    if (
+                        _metadata(before) != _metadata(os.fstat(fd))
+                        or _metadata(before) != _metadata(os.stat(part, dir_fd=parent_fd, follow_symlinks=False))
+                    ):
+                        raise PlanError("checkout_directory_rebound")
+                except BaseException:
+                    os.close(fd)
+                    raise
+                self.fds[child_path] = fd
+                self.directories[child_path] = _metadata(before)
+            parent_path = child_path
+        return self.fds[path]
+
+    def parent(self, path: bytes, *, metadata: bool = False) -> tuple[int, bytes]:
+        parts = _safe_relative_path(path, metadata=metadata)
+        return self.directory(b"/".join(parts[:-1])), parts[-1]
+
+    def regular(
+        self, path: bytes, limit: int, *, capture: bool = False,
+        mode: str | None = None, metadata: bool = False,
+    ) -> tuple[bytes, str, str, tuple[int, ...]]:
+        parent, name = self.parent(path, metadata=metadata)
+        before = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
+            or before.st_size < 0 or before.st_size > limit
+            or (mode is not None and bool(before.st_mode & stat.S_IXUSR) != (mode == "100755"))
+        ):
+            raise PlanError("checkout_file_metadata_invalid")
+        observed = _metadata(before)
+        fd = os.open(
+            name, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+            dir_fd=parent,
+        )
+        try:
+            if _metadata(os.fstat(fd)) != observed:
+                raise PlanError("checkout_file_rebound")
+            blob = hashlib.sha1(b"blob " + str(before.st_size).encode("ascii") + b"\0")
+            digest = hashlib.sha256()
+            raw = bytearray()
+            remaining = before.st_size
+            while remaining:
+                chunk = os.read(fd, min(1024 * 1024, remaining))
+                if not chunk:
+                    raise PlanError("checkout_file_short_read")
+                blob.update(chunk)
+                digest.update(chunk)
+                if capture:
+                    raw.extend(chunk)
+                remaining -= len(chunk)
+            if os.read(fd, 1):
+                raise PlanError("checkout_file_grew")
+            if (
+                _metadata(os.fstat(fd)) != observed
+                or _metadata(os.stat(name, dir_fd=parent, follow_symlinks=False)) != observed
+            ):
+                raise PlanError("checkout_file_changed")
+        finally:
+            os.close(fd)
+        self.leaves[path] = observed
+        return bytes(raw), blob.hexdigest(), digest.hexdigest(), observed
+
+    def symlink(self, path: bytes, limit: int = MAX_SYMLINK_BYTES) -> tuple[str, int]:
+        parent, name = self.parent(path)
+        before = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        if (
+            not stat.S_ISLNK(before.st_mode) or before.st_nlink != 1
+            or before.st_size < 1 or before.st_size > min(MAX_SYMLINK_BYTES, limit)
+        ):
+            raise PlanError("checkout_symlink_metadata_invalid")
+        raw = os.readlink(name, dir_fd=parent)
+        if (
+            not isinstance(raw, bytes) or len(raw) != before.st_size
+            or _metadata(os.stat(name, dir_fd=parent, follow_symlinks=False)) != _metadata(before)
+        ):
+            raise PlanError("checkout_symlink_changed")
+        self.leaves[path] = _metadata(before)
+        return git_blob(raw), len(raw)
+
+    def revalidate(self) -> None:
+        for path, observed in self.leaves.items():
+            parent, name = self.parent(path, metadata=True)
+            if _metadata(os.stat(name, dir_fd=parent, follow_symlinks=False)) != observed:
+                raise PlanError("checkout_leaf_generation_changed")
+        for path, observed in self.directories.items():
+            if _metadata(os.fstat(self.fds[path])) != observed:
+                raise PlanError("checkout_directory_generation_changed")
+            if path:
+                parent, name = self.parent(path, metadata=True)
+                if _metadata(os.stat(name, dir_fd=parent, follow_symlinks=False)) != observed:
+                    raise PlanError("checkout_directory_generation_changed")
+        root_fd, ancestry = _open_checkout_root()
+        try:
+            if ancestry != self.ancestry or _metadata(os.fstat(root_fd)) != self.directories[b""]:
+                raise PlanError("checkout_visible_root_generation_changed")
+        finally:
+            os.close(root_fd)
+
+    def generation_sha256(self, index_sha256: str) -> str:
+        return sha256(canonical({
+            "root_ancestry": self.ancestry,
+            "directories": [[path.hex(), value] for path, value in sorted(self.directories.items())],
+            "leaves": [[path.hex(), value] for path, value in sorted(self.leaves.items())],
+            "index_sha256": index_sha256,
+        }))
 
 
 def repository_blob(relative: str, expected: str) -> bytes:
-    path = ROOT / relative
-    before = path.lstat()
-    if (
-        not stat.S_ISREG(before.st_mode)
-        or stat.S_ISLNK(before.st_mode)
-        or before.st_nlink != 1
-        or before.st_size < 1
-        or before.st_size > MAX_READ
-    ):
-        raise PlanError("repository_file_metadata_invalid:" + relative)
-    raw = path.read_bytes()
-    after = path.lstat()
-    for field in (
-        "st_dev",
-        "st_ino",
-        "st_mode",
-        "st_uid",
-        "st_gid",
-        "st_nlink",
-        "st_size",
-        "st_mtime_ns",
-        "st_ctime_ns",
-    ):
-        if getattr(before, field) != getattr(after, field):
-            raise PlanError("repository_file_changed:" + relative)
-    if git_blob(raw) != expected:
-        raise PlanError("repository_blob_mismatch:" + relative)
-    if git("rev-parse", "HEAD:" + relative) != expected:
-        raise PlanError("repository_head_blob_mismatch:" + relative)
-    return raw
+    try:
+        with _CheckoutPaths() as paths:
+            raw, blob, _, observed = paths.regular(os.fsencode(relative), MAX_READ, capture=True)
+            if observed[6] < 1:
+                raise PlanError("repository_file_metadata_invalid:" + relative)
+            if blob != expected:
+                raise PlanError("repository_blob_mismatch:" + relative)
+            if git("rev-parse", "HEAD:" + relative) != expected:
+                raise PlanError("repository_head_blob_mismatch:" + relative)
+            paths.revalidate()
+            return raw
+    except OSError as exc:
+        raise PlanError("repository_file_unavailable:" + relative) from exc
 
 
 def stable_artifact(
@@ -355,23 +687,71 @@ def _safe_tool(path: Path, label: str, maximum: int) -> dict[str, Any]:
     }
 
 
+def _checkout_refs(expected_head: str) -> dict[str, str]:
+    head = git("rev-parse", "--verify", "HEAD^{commit}")
+    tree = git("rev-parse", "--verify", "HEAD^{tree}")
+    branch = git("symbolic-ref", "--quiet", "HEAD")
+    if head != expected_head:
+        raise PlanError("checkout_head_mismatch")
+    if HEX40.fullmatch(tree) is None:
+        raise PlanError("checkout_tree_invalid")
+    if branch != "refs/heads/main":
+        raise PlanError("checkout_branch_not_main")
+    return {"head": head, "tree": tree, "branch": "main"}
+
+
 def checkout_snapshot(expected_head: str) -> dict[str, str]:
     if HEX40.fullmatch(expected_head) is None:
         raise PlanError("expected_head_invalid")
-    head = git("rev-parse", "--verify", "HEAD^{commit}")
-    tree = git("rev-parse", "--verify", "HEAD^{tree}")
-    branch = git("symbolic-ref", "--short", "-q", "HEAD")
-    status = git("status", "--porcelain=v1", "--untracked-files=all")
-    top = git("rev-parse", "--show-toplevel")
-    if head != expected_head:
-        raise PlanError("checkout_head_mismatch")
-    if branch != "main":
-        raise PlanError("checkout_branch_not_main")
-    if status != "":
-        raise PlanError("checkout_not_clean")
-    if Path(top).resolve() != ROOT.resolve():
-        raise PlanError("checkout_root_invalid")
-    return {"head": head, "tree": tree, "branch": branch}
+    try:
+        with _CheckoutPaths() as paths:
+            # A physical .git directory is required. No temporary metadata,
+            # refresh, or content conversion is used to observe the checkout.
+            paths.directory(b".git")
+            _, _, index_hash, index_metadata = paths.regular(
+                b".git/index", MAX_INDEX_BYTES, metadata=True,
+            )
+            refs = _checkout_refs(expected_head)
+            tree_raw = git_bytes("ls-tree", "-r", "--full-tree", "-z", expected_head)
+            index_raw = git_bytes("ls-files", "--stage", "-v", "-z", "--full-name", "--sparse")
+            tree = _parse_tree(tree_raw)
+            index = _parse_index(index_raw)
+            if tree != index:
+                raise PlanError("checkout_index_tree_mismatch")
+            if git_bytes("ls-files", "--others", "--exclude-standard", "-z", "--full-name"):
+                raise PlanError("checkout_not_clean")
+            total = 0
+            for path, (mode, expected_blob) in sorted(tree.items()):
+                remaining = MAX_TRACKED_TOTAL_BYTES - total
+                if mode == "120000":
+                    blob, size = paths.symlink(path, remaining)
+                else:
+                    _, blob, _, observed = paths.regular(
+                        path, min(MAX_TRACKED_FILE_BYTES, remaining), mode=mode,
+                    )
+                    size = observed[6]
+                total += size
+                if total > MAX_TRACKED_TOTAL_BYTES:
+                    raise PlanError("checkout_total_bytes_limit")
+                if blob != expected_blob:
+                    raise PlanError("checkout_tracked_raw_blob_mismatch")
+            if git_bytes("ls-files", "--others", "--exclude-standard", "-z", "--full-name"):
+                raise PlanError("checkout_not_clean")
+            if git_bytes("ls-files", "--stage", "-v", "-z", "--full-name", "--sparse") != index_raw:
+                raise PlanError("checkout_index_listing_changed")
+            if git_bytes("ls-tree", "-r", "--full-tree", "-z", expected_head) != tree_raw:
+                raise PlanError("checkout_tree_listing_changed")
+            if _checkout_refs(expected_head) != refs:
+                raise PlanError("checkout_refs_changed")
+            _, _, final_hash, final_metadata = paths.regular(
+                b".git/index", MAX_INDEX_BYTES, metadata=True,
+            )
+            if final_hash != index_hash or final_metadata != index_metadata:
+                raise PlanError("checkout_index_generation_changed")
+            paths.revalidate()
+            return {**refs, "generation_sha256": paths.generation_sha256(index_hash)}
+    except OSError as exc:
+        raise PlanError("checkout_observation_unavailable") from exc
 
 
 def load_qualifier():
@@ -638,17 +1018,25 @@ def collect_plan(
         "funds_movement": False,
         "production_host_evidence_authority": False,
     }
-    plan_id = PLAN_PREFIX + sha256(canonical(body))
-    return {"plan_id": plan_id, "body": body}
+    if canonical(checkout_snapshot(expected_head)) != canonical(checkout):
+        raise PlanError("checkout_generation_changed_during_plan")
+    return {"plan_id": plan_id_for_body(body), "body": body}
+
+
+def plan_id_for_body(body: object) -> str:
+    return PLAN_PREFIX + sha256(canonical(body))
 
 
 def emit_plan(result: dict[str, Any]) -> None:
     body = result["body"]
+    if result["plan_id"] != plan_id_for_body(body):
+        raise PlanError("plan_id_body_mismatch")
     print(MARKER)
     print("mode=plan")
     print("read_only=true")
     print("nonroot_required=true")
     print("plan_id=" + result["plan_id"])
+    print("plan_body_json=" + canonical(body).decode("ascii"))
     print("expected_head=" + body["expected_head"])
     print("qualifier_git_blob_sha1=" + QUALIFIER_BLOB)
     print("installed_qualification_performed=false")
