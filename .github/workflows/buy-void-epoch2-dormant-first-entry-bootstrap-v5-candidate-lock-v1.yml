@@ -1,0 +1,91 @@
+name: Buy VOID Epoch-2 dormant first-entry bootstrap V5 candidate lock v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.json"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v5_candidate_lock_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.yml"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v5_candidate_v1.py"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-v1.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-v1.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf"
+  push:
+    branches:
+      - main
+    paths:
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.json"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v5_candidate_lock_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.yml"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v5_candidate_v1.py"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-v1.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-v1.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V5 lock generation
+        env:
+          CHECKOUT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CHECKOUT_SHA"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.json)" = 46f8512395936f5fc81423ce31a5c9b88928a21f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v5_candidate_lock_v1.py)" = b9c2f156e101b8e194dc7794b5d4924df9820feb
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.md)" = 2d99da3469a829491a119d9fc2dc1ad8c2738127
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v5_candidate_v1.py)" = 2b17ad5aebd44caf8162b88ea9b9d7e25161c75e
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-v1.yml)" = a67b9a47dd18f8cd279bf1ed5c8eeeda8eaa3ce5
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-v1.md)" = 0597f155335f69fdd7ec11ccd63ee8ad4ae86205
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c)" = 81fc960f1cec597b01875ed944b25e5b6574d34d
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py)" = 88577de29dddbe61d2c2f59179d0dcb62a49165a
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf)" = 782f747cda24a214c64e8ec3f49b6791bbb62f97
+
+      - name: Prove V5 lock
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v5-lock-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v5_candidate_lock_v1.py | tee "$out"
+
+          markers=(
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V5_CANDIDATE_LOCK_V1_PROOF_GREEN'
+            'lock_id=voidbuye2dormantbootstraplock2_f2e419eb1643989a4b881b2d817ff097eff9d68d6d763a933d624301a93930e3'
+            'hosted_three_way_candidate_identity_bound=true'
+            'independent_rederivation_bound=true'
+            'candidate_report_content_address_bound=true'
+            'source_generation_identity_accepted=true'
+            'candidate_accepted=true'
+            'native_binary_identity_accepted=true'
+            'superseded_sourcegen1_lock_install_authority=false'
+            'protected_install_authorized=false'
+            'live_execution_authorized=false'
+            'credential_access_authorized=false'
+            'signing_authorized=false'
+            'transaction_authorized=false'
+            'rpc_call_authorized=false'
+            'funds_movement_authorized=false'
+            'next_gate=void_buy_void_epoch2_dormant_first_entry_bootstrap_v5_materializer_v1'
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
+          git diff --check
