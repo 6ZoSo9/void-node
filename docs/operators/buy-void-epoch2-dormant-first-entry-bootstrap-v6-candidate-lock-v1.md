@@ -8,7 +8,7 @@ Status: **candidate/source-generation identity acceptance only; not installed an
 
 Source generation:
 
-`voidbuye2dormantsourcegen3_aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`
+`voidbuye2dormantsourcegen3_8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9`
 
 Canonical candidate merge:
 
@@ -19,7 +19,7 @@ Tree:
 `3d77c814e8dbde6d88e824f1b90667d69a39eeaf`
 
 The source-generation manifest binds bootstrap V6 source blob
-`a317d3dce324337f107909bd6e33e98622b3ef09` and inner installer V5 blob
+`560726bcae6ea0738502cb5e74b65f9116bd447d` and inner installer V5 blob
 `ce6930bc1be8239a3171d4922c44b96a50f5778b`.
 
 ## Canonical hosted evidence
@@ -48,7 +48,7 @@ HEAD from becoming implicit candidate build authority.
 
 Candidate:
 
-`voidbuye2dormantbootstrapcand3_13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062`
+`voidbuye2dormantbootstrapcand3_1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2`
 
 Candidate report:
 
@@ -62,7 +62,7 @@ Accepted static bootstrap V6 ELF:
 
 - bytes: `874608`;
 - SHA-256:
-  `c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b`.
+  `618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c`.
 
 The report additionally binds a sealed memfd build input, compiler logical source
 `stdin`, distinct source descriptor numbers, descriptor-number-independent
@@ -74,7 +74,7 @@ report before acceptance.
 
 Lock ID:
 
-`voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b`
+`voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396`
 
 The suffix is SHA-256 over canonical JSON of the lock body excluding `lock_id`.
 
@@ -120,3 +120,7 @@ Next gate:
 `void_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1`.
 
 PROTECT THE CORE.
+
+## Git cruft-pack compatibility
+
+The accepted V6 generation treats `pack-<oid>.mtimes` as non-authoritative cruft-pack metadata under the same regular-file/single-link shape checks as other pack auxiliaries. It is not copied into the private object view and does not grant object authority.
