@@ -1,0 +1,180 @@
+name: Buy VOID Epoch-2 live composition native candidate v6r2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-v6r2.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v6r2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-v6r2.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v6r2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind canonical repaired parent and exact candidate scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          canonical_parent=a3896576a0a716337f679deb26de36dc039219e0
+          canonical_tree=7f9fe7beb108368039fdc97ee58b1c6dfb4a69eb
+          base="${PR_BASE:-}"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse "$EXPECTED_HEAD^1")"
+          fi
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse "$canonical_parent^{commit}")" = "$canonical_parent"
+          test "$(git rev-parse "$canonical_parent^{tree}")" = "$canonical_tree"
+          git merge-base --is-ancestor "$canonical_parent" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n'             '.github/workflows/buy-void-epoch2-live-composition-native-candidate-v6r2.yml'             'docs/operators/buy-void-epoch2-live-composition-native-candidate-v6r2.md'             'scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py'             | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" =             5021727f1def1ec11f870d735cab65acc1701a5e
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs)" =             499df9b94b5b89354837570da0c7e47ec280025d
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py)" =             b48972c0f930f5a33754a390bd2289853fc93c93
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml)" =             428bd68439ab5b7251632107839346d6b18fc769
+          test "$(git rev-parse HEAD:scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs)" =             14cbe81e27d04fee77cbe75225ce308bf8561a7b
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-operator-first-entry-v1.yml)" =             c66c1cd21ce762a128d7a25be8cec22686bca993
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py)" =             c4ac12562f1ce396d7b584ad10a5e86742d49d1a
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Re-run repaired native source proof
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/native-v3-source-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py |
+            tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V3_SOURCE_PROOF_GREEN' "$out"
+          grep -Fx 'native_first_instruction_preserved=true' "$out"
+          grep -Fx 'runner_digest_policy_binding_preserved=true' "$out"
+          grep -Fx 'native_parent_retained_for_child_lifetime=true' "$out"
+          grep -Fx 'candidate_accepted=false' "$out"
+          grep -Fx 'live_execution_authorized=false' "$out"
+          grep -Fx 'credential_content_access=false' "$out"
+          grep -Fx 'transaction=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+
+  derive:
+    name: derive v6r2 candidate / ${{ matrix.lane }}
+    needs: source-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [a, b, c]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Derive static-closure candidate
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/candidate.json"
+          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py --derive "$out" |
+            tee "$RUNNER_TEMP/derive.txt"
+          grep -Fx 'static_link_required=true' "$RUNNER_TEMP/derive.txt"
+          grep -Fx 'pt_interp_absent=true' "$RUNNER_TEMP/derive.txt"
+          grep -Fx 'hostile_ld_preload_preentry_blocked=true' "$RUNNER_TEMP/derive.txt"
+          grep -Fx 'static_toolchain_closure_bound=true' "$RUNNER_TEMP/derive.txt"
+          grep -Fx 'candidate_accepted=false' "$RUNNER_TEMP/derive.txt"
+          grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/derive.txt"
+          grep -Fx 'live_execution_authorized=false' "$RUNNER_TEMP/derive.txt"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-native-candidate-v6r2-${{ matrix.lane }}
+          path: ${{ runner.temp }}/candidate.json
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: independently compare v6r2 candidate closure
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-epoch2-native-candidate-v6r2-*
+          path: ${{ runner.temp }}/candidates
+          merge-multiple: false
+
+      - name: Self-test candidate verifier
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/self-test.txt"
+          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py --self-test | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_V6R2_SELF_TEST=GREEN' "$out"
+          grep -Fx 'source_blob_bound=true' "$out"
+          grep -Fx 'three_hosted_reports_required=true' "$out"
+          grep -Fx 'comparison_rederives_elf=true' "$out"
+          grep -Fx 'static_link_required=true' "$out"
+          grep -Fx 'pt_interp_absent=true' "$out"
+          grep -Fx 'candidate_accepted=false' "$out"
+          grep -Fx 'protected_install_authorized=false' "$out"
+          grep -Fx 'live_execution_authorized=false' "$out"
+
+      - name: Require three-run equality and independent re-derivation
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/compare.txt"
+          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py --compare-dir "$RUNNER_TEMP/candidates" | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_V6R2_THREE_RUN_GREEN' "$out"
+          grep -Fx 'three_run_report_bytes_identical=true' "$out"
+          grep -Fx 'comparison_rederived_elf=true' "$out"
+          grep -Fx 'static_link_required=true' "$out"
+          grep -Fx 'pt_interp_absent=true' "$out"
+          grep -Fx 'candidate_accepted=false' "$out"
+          grep -Fx 'live_execution_authorized=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - run: git diff --check

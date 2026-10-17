@@ -1,0 +1,51 @@
+name: Buy VOID Epoch-2 native V4 materializer v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "scripts/materialize_buy_void_epoch2_live_composition_native_v4.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_v4_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-v4-materializer-v1.md"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v5.json"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-v4-materializer-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "scripts/materialize_buy_void_epoch2_live_composition_native_v4.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_v4_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-v4-materializer-v1.md"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v5.json"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-v4-materializer-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Preserve historical V4 materializer on exact V5 successor
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" = "5021727f1def1ec11f870d735cab65acc1701a5e"
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_live_composition_native_v4.py)" = "465f223dce8ab8fb653f28e11cbe6610d7616661"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_v4_materializer_v1.py)" = "17d15a2e2469b85163a7837ed0c2b4b8ee65986a"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-v4-materializer-v1.md)" = "032dfb7213cacf25d2d348f3b2e0dfef076dcddf"
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v4.json)" = "34340b5a8d13b7496bf5cafcf9d2937cb777d45c"
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v5.json)" = "db59358bab68a0fa33d0840bd9afe967dd809e61"
+          echo VOID_BUY_VOID_EPOCH2_NATIVE_V4_MATERIALIZER_V1_HISTORICAL_PRESERVED
+          echo v5_lock_successor_exact=true
+          echo materialization_v4_current_authority=false
+          echo protected_install_authorized=false
+          echo live_execution_authorized=false
+          echo funds_movement=false
+      - run: git diff --check

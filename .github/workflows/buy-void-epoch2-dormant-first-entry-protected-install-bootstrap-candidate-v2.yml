@@ -1,0 +1,212 @@
+name: Buy VOID Epoch-2 dormant first-entry protected-install bootstrap candidate v2
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact candidate generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          if [ -n "$base" ] && [[ ! "$base" =~ ^0+$ ]]; then
+            cursor="$EXPECTED_HEAD"
+            while [ "$cursor" != "$base" ]; do
+              parent_line="$(git rev-list --parents -n 1 "$cursor")"
+              parent_count="$(awk '{print NF-1}' <<<"$parent_line")"
+              if [ "$parent_count" -gt 1 ]; then
+                candidate_base="$(git rev-parse "$cursor^1")"
+                if git merge-base --is-ancestor "$base" "$candidate_base"; then
+                  base="$candidate_base"
+                  break
+                fi
+              fi
+              next="$(git rev-parse "$cursor^1")"
+              if ! git merge-base --is-ancestor "$base" "$next"; then
+                break
+              fi
+              cursor="$next"
+            done
+          fi
+          if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]]; then
+            base="$(git rev-parse "$EXPECTED_HEAD^1")"
+          fi
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.md' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py)" = 4f9b5a2ca77b3aebc9e70ea835c92155601a1a06
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.md)" = b5580a5be7d28ea915f16d0d2fd1e952ddb0018a
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c)" = 19f9baf8d6d707da43dbd0e247667af1a10e46c5
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = 383b84e71b371de65579e4113469e86a59b807ab
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and invariant proof
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py"
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          p=Path("scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py")
+          compile(p.read_text("utf-8"),str(p),"exec",dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_V2_SYNTAX_GREEN")
+          PY
+          out="$RUNNER_TEMP/bootstrap-candidate-self-test.log"
+          python3 -I -B "$proof" --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_V2_SELF_TEST_GREEN' \
+            'bootstrap_source_exact_head_bound=true' \
+            'installer_source_exact_head_bound=true' \
+            'production_defaults_preserved=true' \
+            'runtime_expected_head_compile_bound=false' \
+            'runtime_expected_head_strict_lowercase_hex=true' \
+            'runtime_expected_head_forwarded_unchanged=true' \
+            'sealed_bootstrap_source_required=true' \
+            'root_protected_toolchain_required=true' \
+            'two_builds_required=true' \
+            'three_hosted_derivations_required=true' \
+            'semantic_report_validation_fail_closed=true' \
+            'candidate_accepted=false' \
+            'protected_bootstrap_install_authorized=false' \
+            'protected_installer_apply_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+  derive:
+    name: derive protected bootstrap / ${{ matrix.lane }}
+    needs: source-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [a, b, c]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Derive exact protected-bootstrap candidate
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/bootstrap-candidate-v2"
+          log="$RUNNER_TEMP/bootstrap-candidate-v2.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py \
+            --derive-dir "$out" | tee "$log"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_V2_DERIVE_GREEN' \
+            'two_builds_byte_identical=true' \
+            'repository_head_not_embedded_in_bootstrap=true' \
+            'runtime_expected_head_compile_bound=false' \
+            'semantic_report_validation_fail_closed=true' \
+            'readdressed_source_binding_rejected=true' \
+            'readdressed_confirmation_binding_rejected=true' \
+            'readdressed_runtime_head_binding_rejected=true' \
+            'readdressed_toolchain_binding_rejected=true' \
+            'candidate_accepted=false' \
+            'protected_bootstrap_install_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$log"
+          done
+          test -s "$out/candidate-v2.json"
+          test -s "$out/protected-install-bootstrap-v2"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-e2-protected-bootstrap-candidate-v2-${{ github.event.pull_request.head.sha || github.sha }}-${{ matrix.lane }}
+          path: ${{ runner.temp }}/bootstrap-candidate-v2
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: compare protected bootstrap candidate
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-e2-protected-bootstrap-candidate-v2-${{ github.event.pull_request.head.sha || github.sha }}-*
+          path: ${{ runner.temp }}/bootstrap-candidates-v1
+          merge-multiple: false
+
+      - name: Require three-run byte identity and independent rederivation
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/bootstrap-candidate-compare.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py \
+            --compare-dir "$RUNNER_TEMP/bootstrap-candidates-v1" | tee "$log"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_V2_THREE_RUN_GREEN' \
+            'three_run_report_bytes_identical=true' \
+            'three_run_binary_bytes_identical=true' \
+            'independent_report_rederived=true' \
+            'independent_bootstrap_rederived=true' \
+            'semantic_report_validation_fail_closed=true' \
+            'candidate_accepted=false' \
+            'protected_bootstrap_install_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$log"
+          done
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
