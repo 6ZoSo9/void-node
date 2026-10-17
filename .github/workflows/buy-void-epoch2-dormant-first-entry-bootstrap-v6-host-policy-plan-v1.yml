@@ -1,0 +1,173 @@
+name: Buy VOID Epoch-2 dormant first-entry bootstrap V6 host policy plan v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-host-policy-plan-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-host-policy-plan-v1.yml"
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-host-policy-plan-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-host-policy-plan-v1.yml"
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-dormant-bootstrap-v6-host-policy-plan-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V6 host-policy plan generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          parent_head=9cde0dc5aa579d31d404759a1652e501c640d561
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$parent_head" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-host-policy-plan-v1.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-host-policy-plan-v1.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$parent_head" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py)" = \
+            0a3be74df4574107defd75852c3c799a332f588f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py)" = \
+            33c5e694e984c34b42b1811c6b1a6ca78f9ffc33
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-host-policy-plan-v1.md)" = \
+            03acc846e0e4f791c6f7005ecf5dbfbccf5572c4
+
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py)" = \
+            3a937c756a91ad2565897f1ae5d881f9fa2f41c6
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py)" = \
+            58ae5cb2c3c4f47aa56744e4202c0b45db1416ef
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md)" = \
+            0d141b39670de03cba791504d1d27ee56f588db5
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml)" = \
+            5347246d7aec42377a366058c5156f3d7e8cc2d9
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = \
+            f5b03c6b81016edf21f605099e0ef8976f40e107
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry-bootstrap-v6-candidate-v1.py 2>/dev/null || true)" = "" || true
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = \
+            b963ac9ef0b9c8ac685763b3a82375f970ef12df
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = \
+            a317d3dce324337f107909bd6e33e98622b3ef09
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = \
+            6e0630af72111bd9976dcc38cdcdada1904dd067
+
+          git diff --check "$parent_head" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and read-only source proof
+        run: |
+          set -euo pipefail
+          for relative in \
+            ops/precision/void_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py \
+            scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py
+          do
+            python3 -I -B - "$relative" <<'PY'
+          import sys
+          from pathlib import Path
+          relative=sys.argv[1]
+          compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("syntax_green="+relative)
+          PY
+          done
+
+          out="$RUNNER_TEMP/bootstrap-v6-host-policy-plan-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py | tee "$out"
+
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_HOST_POLICY_PLAN_V1_PROOF_GREEN' \
+            'target_blob_bound=true' \
+            'materializer_generation_bound=true' \
+            'accepted_bootstrap_v6_lock_bound=true' \
+            'bootstrap_v6_source_bound=true' \
+            'source_generation_v3_bound=true' \
+            'read_only_host_tool_measurement_only=true' \
+            'precision_python_generation_plan_bound=true' \
+            'precision_git_generation_plan_bound=true' \
+            'host_policy_exact_order_bound=true' \
+            'create_only_install_plan=true' \
+            'nonroot_plan_required=true' \
+            'subprocess_execution_limited_to_git_read_only=true' \
+            'bootstrap_execution_absent=true' \
+            'protected_installer_apply_absent=true' \
+            'filesystem_write=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'signing=false' \
+            'transaction=false' \
+            'rpc_call=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'wc_void_market_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          target=ops/precision/void_buy_void_epoch2_dormant_first_entry_bootstrap_v6_host_policy_plan_v1.py
+          self="$RUNNER_TEMP/bootstrap-v6-host-policy-self.log"
+          source="$RUNNER_TEMP/bootstrap-v6-host-policy-source.log"
+          python3 -I -B "$target" --self-test | tee "$self"
+          python3 -I -B "$target" --source-plan | tee "$source"
+
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_HOST_POLICY_PLAN_V1_SELF_TEST_GREEN' "$self"
+          grep -Fx 'host_policy_exact_order_bound=true' "$self"
+          grep -Fx 'create_only_install_plan=true' "$self"
+          grep -Fx 'filesystem_write=false' "$self"
+
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_HOST_POLICY_PLAN_V1' "$source"
+          grep -Fx 'mode=source-plan' "$source"
+          grep -Fx 'host_read=false' "$source"
+          grep -Fx 'host_write=false' "$source"
+          grep -Fx 'filesystem_write=false' "$source"
+          grep -Fx 'bootstrap_execution_performed=false' "$source"
+          grep -Fx 'protected_installer_apply_performed=false' "$source"
+
+      - run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
