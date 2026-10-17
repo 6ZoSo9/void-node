@@ -258,6 +258,7 @@ jobs:
               raise SystemExit("checkout_head_mismatch")
           event = os.environ["EVENT_NAME"]
           manual = event == "workflow_dispatch"
+          repair = False
           if not manual:
               if event == "pull_request":
                   base = os.environ["PR_BASE"]
@@ -306,7 +307,8 @@ jobs:
           print("accepted_c6_generation_and_artifact_inputs_frozen=true")
           print("manual_exact_state_replay=" + str(manual).lower())
           print("event_diff_scope_verified=" + str(not manual).lower())
-          print("three_modified_evidence_paths_verified=" + str(not manual).lower())
+          print("three_modified_evidence_paths_verified=" + str(not manual and not repair).lower())
+          print("repair_exact_36_paths_verified=" + str(not manual and repair).lower())
           PY
           git diff --check
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
