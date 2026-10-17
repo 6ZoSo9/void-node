@@ -18,20 +18,20 @@ TARGET_REL = (
     "protected_installer_bootstrap_plan_v6.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "a6ee24fe7ad41ad7aa0baffa7d20210e06c8e4f2"
+TARGET_BLOB = "d80cf0a527e7bb948ef2e395edeae7b5eae9afa4"
 
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_installed_qualification_v6.py"
 )
-QUALIFIER_BLOB = "f8e25ef310ef4493dd23baee70eef6db84ae68f9"
+QUALIFIER_BLOB = "e16b0ce71a4522b21762fa824c96aefb58e3a25b"
 INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v6.py"
 )
-INSTALLER_BLOB = "63e1c973978cfcb67105010e4145f01552673bc3"
+INSTALLER_BLOB = "c9dd842b620f2ed7c3fdd5876c222a419b6b0c68"
 LAUNCHER_LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-binder-installer-first-entry-"

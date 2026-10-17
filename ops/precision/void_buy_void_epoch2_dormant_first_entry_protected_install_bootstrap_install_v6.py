@@ -248,7 +248,9 @@ def _tool_snapshot(fixed: pathlib.Path, maximum_bytes: int) -> dict[str, Any]:
     if (
         alias.st_uid != 0
         or alias.st_gid != 0
-        or (alias.st_mode & 0o022) != 0
+        # Linux symlink permission bits do not govern target access.
+        # Keep ownership/type checks here and authenticate the target below.
+        or (stat.S_ISREG(alias.st_mode) and (alias.st_mode & 0o022) != 0)
         or (not stat.S_ISREG(alias.st_mode) and not stat.S_ISLNK(alias.st_mode))
     ):
         raise InstallError("tool_alias_invalid:" + str(fixed))
