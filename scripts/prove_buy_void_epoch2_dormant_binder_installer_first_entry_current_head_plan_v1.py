@@ -15,14 +15,15 @@ TARGET_REL = (
     "current_head_plan_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "963b3b08c366731afc7d0aa73d9a2ab55c4be7a4"
+TARGET_BLOB = "9751c7120f4cb587c9c11993bcf3e09da18e6712"
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_"
     "installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "474e525cd54cc99b745d1e3aa62d66dac47ca785"
+QUALIFIER_BLOB = "5ef5c8768bc2fceb4658613e0e911733bfccdef2"
 INSTALLER_BLOB = "ce6930bc1be8239a3171d4922c44b96a50f5778b"
+REPOSITORY_OBSERVER_BLOB = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_"
     "CURRENT_HEAD_PLAN_V1"
@@ -185,17 +186,26 @@ def qualification(head: str) -> dict:
         "root_execution_required": True,
         "expected_head": head,
         "installer_source_git_blob_sha1": INSTALLER_BLOB,
+        "repository_observer_source_git_blob_sha1": REPOSITORY_OBSERVER_BLOB,
         "accepted_lock_id": module.LOCK_ID,
         "candidate_id": module.CANDIDATE_ID,
         "protected_state": "DORMANT_FIRST_ENTRY_PROTECTED_ROOT_GREEN",
         "installed_identity_green": True,
         "checkout_generation_bound": True,
+        "git_generation_bound": True,
         "python_generation_bound": True,
         "policy_generation_green": True,
         "installed_generation_stable": True,
         "triple_snapshot_required": True,
+        "temporary_git_metadata_write_required": True,
         "temporary_git_metadata_write_performed": True,
         "temporary_git_metadata_cleanup_completed": True,
+        "source_repository_mutation": False,
+        "source_object_fetch": False,
+        "repository_config_loaded": False,
+        "repository_callback_execution": False,
+        "standalone_git_tool_admission": True,
+        "native_parent_authority_claimed": False,
         "protected_root_write": False,
         "repository_worktree_write": False,
         "launcher_execution": False,
@@ -311,6 +321,25 @@ try:
     else:
         raise AssertionError("qualification_authority_drift_accepted")
 
+    for field, invalid in (
+        ("repository_observer_source_git_blob_sha1", "0" * 40),
+        ("git_generation_bound", False),
+        ("temporary_git_metadata_cleanup_completed", False),
+        ("temporary_git_metadata_write_performed", False),
+        ("repository_callback_execution", True),
+        ("native_parent_authority_claimed", True),
+        ("standalone_git_tool_admission", 1),
+        ("source_repository_mutation", 0),
+    ):
+        invalid_receipt = qualification(EXPECTED_HEAD)
+        invalid_receipt[field] = invalid
+        try:
+            module._require_qualification(invalid_receipt, EXPECTED_HEAD)
+        except module.PlanError as exc:
+            assert str(exc) == "qualification_field_mismatch:" + field
+        else:
+            raise AssertionError("invalid_repository_observer_receipt_accepted:" + field)
+
     module.load_qualifier = lambda: FakeQualifier
     module.os.geteuid = lambda: 1000
     try:
@@ -330,6 +359,9 @@ print("installer_blob_bound=true")
 print("installed_qualification_contract_exercised=true")
 print("stale_qualification_authority_rejected=true")
 print("qualification_authority_drift_rejected=true")
+print("repository_observer_contract_required=true")
+print("repository_observer_receipt_drift_rejected=true")
+print("qualification_receipt_types_strict=true")
 print("installed_launcher_identity_bound=true")
 print("current_head_plan_id_deterministic=true")
 print("current_head_plan_id_head_sensitive=true")

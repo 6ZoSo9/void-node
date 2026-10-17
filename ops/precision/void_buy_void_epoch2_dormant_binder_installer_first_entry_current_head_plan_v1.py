@@ -28,8 +28,9 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_"
     "installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "474e525cd54cc99b745d1e3aa62d66dac47ca785"
+QUALIFIER_BLOB = "5ef5c8768bc2fceb4658613e0e911733bfccdef2"
 INSTALLER_BLOB = "ce6930bc1be8239a3171d4922c44b96a50f5778b"
+REPOSITORY_OBSERVER_BLOB = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
 
 LOCK_ID = (
     "voidbuye2dormantfirstentrylock2_"
@@ -149,6 +150,8 @@ def load_qualifier():
         raise PlanError("qualifier_marker_mismatch")
     if getattr(module, "INSTALLER_SOURCE_GIT_BLOB_SHA1", "") != INSTALLER_BLOB:
         raise PlanError("qualifier_installer_blob_mismatch")
+    if getattr(module, "REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1", "") != REPOSITORY_OBSERVER_BLOB:
+        raise PlanError("qualifier_repository_observer_blob_mismatch")
     if not callable(getattr(module, "collect", None)):
         raise PlanError("qualifier_collect_missing")
     if not callable(getattr(module, "_load_installer", None)):
@@ -163,15 +166,25 @@ def _require_qualification(result: dict[str, Any], expected_head: str) -> None:
         "root_execution_required": True,
         "expected_head": expected_head,
         "installer_source_git_blob_sha1": INSTALLER_BLOB,
+        "repository_observer_source_git_blob_sha1": REPOSITORY_OBSERVER_BLOB,
         "accepted_lock_id": LOCK_ID,
         "candidate_id": CANDIDATE_ID,
         "installed_identity_green": True,
         "checkout_generation_bound": True,
+        "git_generation_bound": True,
         "python_generation_bound": True,
         "policy_generation_green": True,
         "installed_generation_stable": True,
         "triple_snapshot_required": True,
+        "temporary_git_metadata_write_required": True,
+        "temporary_git_metadata_write_performed": True,
         "temporary_git_metadata_cleanup_completed": True,
+        "source_repository_mutation": False,
+        "source_object_fetch": False,
+        "repository_config_loaded": False,
+        "repository_callback_execution": False,
+        "standalone_git_tool_admission": True,
+        "native_parent_authority_claimed": False,
         "protected_root_write": False,
         "repository_worktree_write": False,
         "launcher_execution": False,
@@ -195,7 +208,7 @@ def _require_qualification(result: dict[str, Any], expected_head: str) -> None:
         "privileged_execution_authorized": False,
     }
     for key, want in required.items():
-        if result.get(key) != want:
+        if type(result.get(key)) is not type(want) or result.get(key) != want:
             raise PlanError("qualification_field_mismatch:" + key)
 
     installed = result.get("installed")
@@ -265,6 +278,7 @@ def collect_plan(expected_head: str) -> dict[str, Any]:
         "expected_head": expected_head,
         "qualifier_git_blob_sha1": QUALIFIER_BLOB,
         "installer_git_blob_sha1": INSTALLER_BLOB,
+        "repository_observer_git_blob_sha1": REPOSITORY_OBSERVER_BLOB,
         "qualification": qualification,
         "installed_launcher": qualification["installed"]["files"]["launcher"],
         "future_argv": future_argv,
