@@ -275,7 +275,7 @@ def rederive_candidate_at_merge() -> None:
                 raise AssertionError("descriptor_independent_candidate_contract_missing")
         finally:
             if added:
-                subprocess.run(
+                cleanup = subprocess.run(
                     [
                         "/usr/bin/git", "-C", str(ROOT), "worktree", "remove",
                         "--force", str(worktree),
@@ -287,6 +287,8 @@ def rederive_candidate_at_merge() -> None:
                     check=False,
                     timeout=60,
                 )
+                if cleanup.returncode != 0:
+                    raise AssertionError("candidate_worktree_cleanup_failed")
 
 
 rederive_candidate_at_merge()
