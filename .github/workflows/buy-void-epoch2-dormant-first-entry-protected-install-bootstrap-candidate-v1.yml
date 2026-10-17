@@ -81,7 +81,7 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v1.py)" = 3e3742ced974b71b8df09951edb4c855e8d4a3aa
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v1.py)" = d1417455330837c4d584f7bf36f932a869c903cb
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v1.md)" = f662cd0873c64af76b44b0fff16aed9d33cb0110
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c)" = 243583d4ed0522796b2bbf448abd4e9c28958f50
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = 383b84e71b371de65579e4113469e86a59b807ab
@@ -109,6 +109,7 @@ jobs:
             'root_protected_toolchain_required=true' \
             'two_builds_required=true' \
             'three_hosted_derivations_required=true' \
+            'semantic_report_validation_fail_closed=true' \
             'candidate_accepted=false' \
             'protected_bootstrap_install_authorized=false' \
             'protected_installer_apply_authorized=false' \
@@ -143,6 +144,10 @@ jobs:
           for marker in \
             'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_V1_DERIVE_GREEN' \
             'two_builds_byte_identical=true' \
+            'semantic_report_validation_fail_closed=true' \
+            'readdressed_source_binding_rejected=true' \
+            'readdressed_confirmation_binding_rejected=true' \
+            'readdressed_toolchain_binding_rejected=true' \
             'candidate_accepted=false' \
             'protected_bootstrap_install_authorized=false' \
             'funds_movement=false'
@@ -190,6 +195,7 @@ jobs:
             'three_run_binary_bytes_identical=true' \
             'independent_report_rederived=true' \
             'independent_bootstrap_rederived=true' \
+            'semantic_report_validation_fail_closed=true' \
             'candidate_accepted=false' \
             'protected_bootstrap_install_authorized=false' \
             'funds_movement=false'
