@@ -2299,8 +2299,8 @@ def collect_plan(
 
     body = {
         "schema":
-            "void_buy_void_epoch2_dormant_binder_installer_first_entry_install_plan_v4",
-        "version": 4,
+            "void_buy_void_epoch2_dormant_binder_installer_first_entry_install_plan_v5",
+        "version": 5,
         "lock_id": LOCK_ID,
         "candidate_id": CANDIDATE_ID,
         "expected_head": expected_head,
@@ -2440,7 +2440,7 @@ def plan(
         print("already_installed=false")
         print(
             "next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_"
-            "CREATE_ONLY_PROTECTED_INSTALL_V4"
+            "CREATE_ONLY_PROTECTED_INSTALL_V5"
         )
 
 
