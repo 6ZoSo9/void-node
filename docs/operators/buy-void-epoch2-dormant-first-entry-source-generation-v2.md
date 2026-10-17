@@ -75,7 +75,21 @@ change its metadata while claiming read-only source observation.
 
 ### Object identity
 
-The Python witness independently authenticates raw commit/tree/object identities.
+The Python witness keeps two intentionally separate object-access boundaries.
+
+The operational `_git_object()` accessor is **not** a generic repository reader:
+it accepts only the closed inherited source set authenticated by the native
+bootstrap and therefore requires the retained `_BOOTSTRAP_CONTEXT["sources"]`
+descriptor generation. An arbitrary repository path without that inherited
+source context must fail with
+`authenticated_source_descriptors_required`.
+
+Generic raw repository-witness tests instead use the retained
+`_RepositorySnapshot.blob()` path. That primitive authenticates tree membership,
+object identity, exact bytes and SHA-256 through the private Git witness without
+granting those bytes operational source authority. The focused generation proof
+requires both sides of this split and verifies the fixture repository remains
+byte/metadata unchanged.
 
 Native V5 runs strict Git object verification before and after its worktree
 pass and independently recomputes the requested commit and root-tree SHA-1 from
