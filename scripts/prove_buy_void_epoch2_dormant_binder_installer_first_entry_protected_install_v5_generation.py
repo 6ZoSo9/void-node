@@ -720,8 +720,8 @@ def prove_plan_identity(generation_fixture) -> None:
 
         first_context = context_for_parent("100", "200")
         first = collect(first_context)
-        require(first["body"]["schema"] == "void_buy_void_epoch2_dormant_binder_installer_first_entry_install_plan_v4" and first["body"]["version"] == 4, "successor_plan_schema_or_version_invalid")
-        require(first["plan_id"].startswith("voidbuye2dormantfirstentryinstall4_"), "successor_plan_domain_invalid")
+        require(first["body"]["schema"] == "void_buy_void_epoch2_dormant_binder_installer_first_entry_install_plan_v5" and first["body"]["version"] == 5, "successor_plan_schema_or_version_invalid")
+        require(first["plan_id"].startswith("voidbuye2dormantfirstentryinstall5_"), "successor_plan_domain_invalid")
         require(first["body"]["temporary_git_metadata_write_required"] is True and first["body"]["source_repository_mutation_authorized"] is False, "plan_private_metadata_scope_not_bound")
         second_context = context_for_parent("101", "201")
         require(first_context["fds"] != second_context["fds"], "fresh_parent_fixture_reused_descriptors")
