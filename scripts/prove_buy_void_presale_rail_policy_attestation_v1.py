@@ -115,17 +115,19 @@ def prove() -> None:
     manifest = texts["ops/security/buy-void-presale-source-freeze-candidate-v1.json"]
     lock = texts["ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"]
 
-    require("source-allowlisted to native USDC on Ethereum mainnet (chain ID \`1\`) "
-            "and Base mainnet (chain ID \`8453\`) only" in readme,
+    require("source-allowlisted to native USDC on Ethereum mainnet (chain ID `1`) "
+            "and Base mainnet (chain ID `8453`) only" in readme,
             "current_approved_rails_not_source_documented")
     require("BTC/VOID remains post-presale and separately launch-gated" in readme,
             "post_presale_market_not_separated")
+    require("No fixed WC-to-VOID redemption or conversion ratio exists" in readme,
+            "wc_void_fixed_rate_claim_forbidden")
     require("Public presale intake and production WC/VOID market activation "
             "are coupled and remain closed" in readme,
             "public_launch_coupling_not_source_documented")
 
-    for value in ("Base mainnet", "chain ID \`8453\`",
-                  "Ethereum mainnet", "chain ID \`1\`",
+    for value in ("Base mainnet", "chain ID `8453`",
+                  "Ethereum mainnet", "chain ID `1`",
                   "fixed rate: **2 VOID per 1 USDC**",
                   "finite presale maximum: **10,000,000 VOID**",
                   "accepted source asset: USDC",
