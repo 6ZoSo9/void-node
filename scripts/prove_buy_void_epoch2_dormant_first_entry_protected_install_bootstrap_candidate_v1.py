@@ -318,35 +318,217 @@ def material(report: dict) -> dict:
     return out
 
 
+def _hex(value: object, width: int) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == width
+        and all(ch in "0123456789abcdef" for ch in value)
+    )
+
+
+def _exact_keys(value: object, expected: set[str], label: str) -> dict:
+    if not isinstance(value, dict) or set(value) != expected:
+        raise AssertionError(label + "_keys_invalid")
+    return value
+
+
+def _readdress(report: dict) -> dict:
+    value = json.loads(json.dumps(report))
+    value["candidate_id"] = "voidbuye2bootstrapcand1_" + sha256(
+        canonical(material(value)).encode("utf-8")
+    )
+    return value
+
+
 def validate(report: dict, binary: bytes) -> None:
-    if report.get("schema") != SCHEMA or report.get("marker") != MARKER:
+    _exact_keys(
+        report,
+        {
+            "authority",
+            "binary",
+            "candidate_id",
+            "compile_binding",
+            "marker",
+            "repository",
+            "repository_head",
+            "repository_tree",
+            "schema",
+            "source_generation",
+            "toolchain",
+            "version",
+        },
+        "candidate_report",
+    )
+    if (
+        report.get("schema") != SCHEMA
+        or report.get("marker") != MARKER
+        or report.get("version") != 1
+        or report.get("repository") != "6ZoSo9/void-node"
+    ):
         raise AssertionError("candidate_schema_invalid")
+
     expected = "voidbuye2bootstrapcand1_" + sha256(
         canonical(material(report)).encode("utf-8")
     )
     if report.get("candidate_id") != expected:
         raise AssertionError("candidate_id_invalid")
-    if report.get("repository_head") != git(["rev-parse", "HEAD"]):
-        raise AssertionError("candidate_head_invalid")
-    src = report.get("source_generation", {})
+
+    head = git(["rev-parse", "HEAD"])
+    tree = git(["rev-parse", "HEAD^{tree}"])
     if (
-        src.get("bootstrap_source_git_blob_sha1") != BOOTSTRAP_BLOB
+        report.get("repository_head") != head
+        or report.get("repository_tree") != tree
+        or not _hex(report.get("repository_head"), 40)
+        or not _hex(report.get("repository_tree"), 40)
+    ):
+        raise AssertionError("candidate_repository_generation_invalid")
+
+    bootstrap_raw = stable_file(BOOTSTRAP_REL, 2 * 1024 * 1024, BOOTSTRAP_BLOB)
+    installer_raw = stable_file(INSTALLER_REL, 2 * 1024 * 1024, INSTALLER_BLOB)
+    proof_raw = stable_file(SELF_REL, 2 * 1024 * 1024)
+    src = _exact_keys(
+        report.get("source_generation"),
+        {
+            "bootstrap_source_bytes",
+            "bootstrap_source_git_blob_sha1",
+            "bootstrap_source_path",
+            "bootstrap_source_sha256",
+            "derivation_proof_git_blob_sha1",
+            "installer_source_bytes",
+            "installer_source_git_blob_sha1",
+            "installer_source_path",
+            "installer_source_sha256",
+        },
+        "source_generation",
+    )
+    if (
+        src.get("derivation_proof_git_blob_sha1") != git_blob(proof_raw)
+        or src.get("bootstrap_source_path") != BOOTSTRAP_REL
+        or src.get("bootstrap_source_git_blob_sha1") != BOOTSTRAP_BLOB
+        or src.get("bootstrap_source_bytes") != len(bootstrap_raw)
+        or src.get("bootstrap_source_sha256") != sha256(bootstrap_raw)
+        or src.get("installer_source_path") != INSTALLER_REL
         or src.get("installer_source_git_blob_sha1") != INSTALLER_BLOB
-        or src.get("installer_source_sha256") != INSTALLER_SHA256
+        or src.get("installer_source_bytes") != len(installer_raw)
+        or src.get("installer_source_sha256") != sha256(installer_raw)
         or src.get("installer_source_bytes") != INSTALLER_BYTES
+        or src.get("installer_source_sha256") != INSTALLER_SHA256
     ):
         raise AssertionError("source_generation_invalid")
-    binding = report.get("compile_binding", {})
+
+    binding = _exact_keys(
+        report.get("compile_binding"),
+        {
+            "confirmation",
+            "expected_head",
+            "fixed_installer",
+            "fixed_python",
+            "fixed_root",
+            "installer_bytes",
+            "installer_sha256",
+            "production_defaults_preserved",
+            "sealed_bootstrap_source_snapshot",
+        },
+        "compile_binding",
+    )
     if (
-        binding.get("expected_head") != report.get("repository_head")
+        binding.get("expected_head") != head
         or binding.get("fixed_root") != FIXED_ROOT
         or binding.get("fixed_installer") != FIXED_INSTALLER
         or binding.get("fixed_python") != FIXED_PYTHON
         or binding.get("confirmation") != CONFIRM
+        or binding.get("installer_sha256") != INSTALLER_SHA256
+        or binding.get("installer_bytes") != INSTALLER_BYTES
         or binding.get("production_defaults_preserved") is not True
+        or binding.get("sealed_bootstrap_source_snapshot") is not True
     ):
         raise AssertionError("compile_binding_invalid")
-    result = report.get("binary", {})
+
+    toolchain = _exact_keys(
+        report.get("toolchain"),
+        {
+            "cc",
+            "compile_flags",
+            "compiler_dumpmachine",
+            "compiler_version_line",
+            "link_flags",
+            "static_link_inputs",
+            "strip",
+            "toolchain_revalidated_after_build",
+        },
+        "toolchain",
+    )
+    expected_cc_version = (
+        run(["/usr/bin/cc", "--version"])
+        .stdout.decode("utf-8", "strict")
+        .splitlines()[0]
+    )
+    expected_cc_machine = (
+        run(["/usr/bin/cc", "-dumpmachine"])
+        .stdout.decode("utf-8", "strict")
+        .strip()
+    )
+    if (
+        toolchain.get("cc") != tool_identity("/usr/bin/cc")
+        or toolchain.get("strip") != tool_identity("/usr/bin/strip")
+        or toolchain.get("compiler_version_line") != expected_cc_version
+        or toolchain.get("compiler_dumpmachine") != expected_cc_machine
+        or toolchain.get("compile_flags") != list(COMPILE_FLAGS)
+        or toolchain.get("link_flags") != list(LINK_FLAGS)
+        or toolchain.get("toolchain_revalidated_after_build") is not True
+    ):
+        raise AssertionError("toolchain_binding_invalid")
+
+    static_link_inputs = toolchain.get("static_link_inputs")
+    if not isinstance(static_link_inputs, list) or len(static_link_inputs) < 4:
+        raise AssertionError("static_link_input_inventory_invalid")
+    if not any(
+        isinstance(item, dict)
+        and str(item.get("path", "")).endswith("/libc.a")
+        for item in static_link_inputs
+    ):
+        raise AssertionError("static_libc_identity_missing")
+    for item in static_link_inputs:
+        _exact_keys(
+            item,
+            {"bytes", "path", "root_owned_protected", "sha256"},
+            "static_link_input",
+        )
+        if (
+            not isinstance(item.get("path"), str)
+            or not str(item["path"]).startswith("/")
+            or not isinstance(item.get("bytes"), int)
+            or item["bytes"] < 1
+            or not _hex(item.get("sha256"), 64)
+            or item.get("root_owned_protected") is not True
+        ):
+            raise AssertionError("static_link_input_identity_invalid")
+        input_path = Path(item["path"])
+        root_protected_chain(input_path)
+        st = input_path.lstat()
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_uid != 0
+            or stat.S_IMODE(st.st_mode) & 0o022
+            or st.st_size != item["bytes"]
+            or sha256(input_path.read_bytes()) != item["sha256"]
+        ):
+            raise AssertionError("static_link_input_current_identity_invalid")
+
+    result = _exact_keys(
+        report.get("binary"),
+        {
+            "bytes",
+            "dynamic_needed_absent",
+            "git_blob_sha1",
+            "self_test_green",
+            "sha256",
+            "static_no_interp",
+            "two_builds_byte_identical",
+        },
+        "binary",
+    )
     if (
         result.get("bytes") != len(binary)
         or result.get("sha256") != sha256(binary)
@@ -357,23 +539,33 @@ def validate(report: dict, binary: bytes) -> None:
         or result.get("self_test_green") is not True
     ):
         raise AssertionError("binary_identity_invalid")
-    auth = report.get("authority", {})
-    for key in (
-        "candidate_accepted",
-        "protected_bootstrap_install_authorized",
-        "protected_installer_apply_authorized",
-        "live_execution_authorized",
-        "credential_access",
-        "private_key_access",
-        "signing",
-        "transaction",
-        "payment_acceptance",
-        "public_presale_activation",
-        "wc_void_market_activation",
-        "treasury_liquidity_action",
-        "funds_movement",
-    ):
-        if auth.get(key) is not False:
+
+    auth = _exact_keys(
+        report.get("authority"),
+        {
+            "candidate_accepted",
+            "credential_access",
+            "funds_movement",
+            "live_execution_authorized",
+            "payment_acceptance",
+            "private_key_access",
+            "protected_bootstrap_install_authorized",
+            "protected_installer_apply_authorized",
+            "public_presale_activation",
+            "signing",
+            "source_only_candidate",
+            "transaction",
+            "treasury_liquidity_action",
+            "wc_void_market_activation",
+        },
+        "authority",
+    )
+    if auth.get("source_only_candidate") is not True:
+        raise AssertionError("source_only_candidate_truth_invalid")
+    for key, value in auth.items():
+        if key == "source_only_candidate":
+            continue
+        if value is not False:
             raise AssertionError("authority_overclaim:" + key)
 
 
@@ -494,6 +686,40 @@ def derive() -> tuple[dict, bytes]:
         canonical(report).encode("utf-8")
     )
     validate(report, first)
+
+    forged_source = _readdress(report)
+    forged_source["source_generation"]["bootstrap_source_git_blob_sha1"] = "0" * 40
+    forged_source = _readdress(forged_source)
+    try:
+        validate(forged_source, first)
+    except AssertionError as exc:
+        if "source_generation_invalid" not in str(exc):
+            raise
+    else:
+        raise AssertionError("readdressed_source_binding_accepted")
+
+    forged_confirm = _readdress(report)
+    forged_confirm["compile_binding"]["confirmation"] = "FORGED_CONFIRMATION"
+    forged_confirm = _readdress(forged_confirm)
+    try:
+        validate(forged_confirm, first)
+    except AssertionError as exc:
+        if "compile_binding_invalid" not in str(exc):
+            raise
+    else:
+        raise AssertionError("readdressed_confirmation_binding_accepted")
+
+    forged_toolchain = _readdress(report)
+    forged_toolchain["toolchain"]["compile_flags"] = [*COMPILE_FLAGS, "-w"]
+    forged_toolchain = _readdress(forged_toolchain)
+    try:
+        validate(forged_toolchain, first)
+    except AssertionError as exc:
+        if "toolchain_binding_invalid" not in str(exc):
+            raise
+    else:
+        raise AssertionError("readdressed_toolchain_binding_accepted")
+
     return report, first
 
 
@@ -509,6 +735,10 @@ def derive_dir(output: Path) -> None:
     print("bootstrap_sha256=" + report["binary"]["sha256"])
     print("bootstrap_bytes=" + str(report["binary"]["bytes"]))
     print("two_builds_byte_identical=true")
+    print("semantic_report_validation_fail_closed=true")
+    print("readdressed_source_binding_rejected=true")
+    print("readdressed_confirmation_binding_rejected=true")
+    print("readdressed_toolchain_binding_rejected=true")
     print("candidate_accepted=false")
     print("protected_bootstrap_install_authorized=false")
     print("funds_movement=false")
@@ -541,6 +771,7 @@ def compare_dir(root: Path) -> None:
     print("three_run_binary_bytes_identical=true")
     print("independent_report_rederived=true")
     print("independent_bootstrap_rederived=true")
+    print("semantic_report_validation_fail_closed=true")
     print("candidate_id=" + hosted["candidate_id"])
     print("bootstrap_sha256=" + hosted["binary"]["sha256"])
     print("candidate_accepted=false")
@@ -563,6 +794,9 @@ def self_test() -> None:
         '"protected_bootstrap_install_authorized": False',
         '"protected_installer_apply_authorized": False',
         '"funds_movement": False',
+        "readdressed_source_binding_accepted",
+        "readdressed_confirmation_binding_accepted",
+        "readdressed_toolchain_binding_accepted",
     ):
         if token not in source:
             raise AssertionError("proof_invariant_missing:" + token)
@@ -574,6 +808,7 @@ def self_test() -> None:
     print("root_protected_toolchain_required=true")
     print("two_builds_required=true")
     print("three_hosted_derivations_required=true")
+    print("semantic_report_validation_fail_closed=true")
     print("candidate_accepted=false")
     print("protected_bootstrap_install_authorized=false")
     print("protected_installer_apply_authorized=false")
