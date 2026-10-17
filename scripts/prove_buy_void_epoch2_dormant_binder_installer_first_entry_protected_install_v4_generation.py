@@ -167,6 +167,23 @@ def unchanged_call(module,repo:Path,operation):
         finally:
             require(repository_state(repo)==before,"source_repository_changed")
 
+def raw_snapshot_blob(
+    module,
+    head:str,
+    relative:str,
+    *,
+    expected_blob:str,
+    expected_bytes:int,
+    expected_sha256:str,
+)->bytes:
+    with module._RepositorySnapshot(head) as snapshot:
+        return snapshot.blob(
+            relative,
+            expected_blob=expected_blob,
+            expected_bytes=expected_bytes,
+            expected_sha256=expected_sha256,
+        )
+
 def expect_hold(module,repo:Path,head:str,operation=None)->str:
     if operation is None:
         operation=lambda:module.checkout_snapshot(head)
@@ -206,10 +223,21 @@ def prove_repository_witness(module)->None:
         snap=unchanged_call(module,repo,lambda:module.checkout_snapshot(head))
         require(snap["head"]==head and snap["branch"]=="main" and snap["clean"] is True,"clean_snapshot")
         require(snap["git_boundary_policy"]=="private_metadata_pinned_objects_raw_checkout_v4","boundary_policy")
-        got=unchanged_call(
-            module,repo,
+        reason=expect_hold(
+            module,repo,head,
             lambda:module._git_object(
                 head,"source.txt",expected_blob=blob(raw),
+                expected_bytes=len(raw),expected_sha256=sha256(raw),
+            ),
+        )
+        require(
+            reason=="authenticated_source_descriptors_required",
+            "operational_source_accessor_reason:"+reason,
+        )
+        got=unchanged_call(
+            module,repo,
+            lambda:raw_snapshot_blob(
+                module,head,"source.txt",expected_blob=blob(raw),
                 expected_bytes=len(raw),expected_sha256=sha256(raw),
             ),
         )
@@ -323,6 +351,8 @@ def main()->int:
     print("raw_tree_object_identity_recomputed=true")
     print("tracked_file_final_recheck=true")
     print("retained_sealed_git_executable_required=true")
+    print("operational_source_accessor_requires_authenticated_descriptors=true")
+    print("raw_repository_snapshot_blob_verified=true")
     print("source_repository_configuration_not_authority=true")
     print("temporary_git_metadata_write_truthful=true")
     print("protected_state_mutation=false")
