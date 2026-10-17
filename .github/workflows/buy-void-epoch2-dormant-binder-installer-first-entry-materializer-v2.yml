@@ -86,7 +86,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = \
             611e5d54154e3d3d5d9e7ba6c0374d697ecc3ba7
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v2.py)" = \
-            53dc3d3fc7477e165a886b803ca2626fb7e90f30
+            2ded5e06e70bea7da82c022be8a82eb471070012
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.md)" = \
             15ea65dad8cfd25a5603f34446f6bc17a76158b6
 
