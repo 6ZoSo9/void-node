@@ -70,7 +70,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py)" = 4879c5c294535869ad162502a7f89e2f2ddcee84
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2r.py)" = c0d43a1d6a8a6b8ceb38053ff9a98ecfa33dd0ad
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2r.py)" = 5bc49381844581dfb30a815ff0d1b18e6def85c6
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v2r.md)" = fb7f45a3fe9d06b588933cedc14c558b935ad926
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json)" = 64c9a42ca1108a9e8f88218c34d53e50668c653e
