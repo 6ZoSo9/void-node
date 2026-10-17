@@ -8,7 +8,7 @@ Status: **root/read-only qualification plus non-executing current-head plan; pri
 
 ## Purpose
 
-This gate follows the installed qualification introduced by #3474. It re-runs
+This gate follows the installed-qualification authority repair in #3475. It re-runs
 the exact read-only installed qualification for an explicit current HEAD, binds
 the exact installed launcher generation into a content-addressed plan, and emits
 only the future privileged installer-plan argv.
@@ -20,7 +20,7 @@ and binder remain unexecuted.
 
 The planner authenticates the exact installed qualifier Git blob:
 
-`a03e5879c91bb86fa68897ba6bb4b5e87519a0c6`.
+`474e525cd54cc99b745d1e3aa62d66dac47ca785`.
 
 That qualifier is in turn bound to frozen V5 installer blob:
 
@@ -51,6 +51,8 @@ the current host. The qualifier must prove:
 - exact root-owned installed file/directory identities;
 - exact Python and policy generation;
 - temporary private Git metadata cleanup complete;
+- installed-generation evidence authority true;
+- production/designated-host evidence authority false;
 - protected-root/worktree writes false;
 - launcher/native/binder execution false;
 - credential/key/signing/transaction/RPC/payment/presale/WC/treasury/funds
@@ -81,7 +83,17 @@ The emitted future argv is exactly:
 The planner emits that argv as JSON only. It does not execute the installed
 launcher or any descendant.
 
-## Authority boundary
+## Evidence and authority boundary
+
+On a GREEN live plan:
+
+```text
+installed_generation_evidence_authority=true
+production_host_evidence_authority=false
+```
+
+All execution/economic authorities remain false.
+
 
 Always false:
 
@@ -104,11 +116,19 @@ public_presale_activation=false
 wc_void_market_activation=false
 treasury_liquidity_action=false
 funds_movement=false
+production_host_evidence_authority=false
 privileged_execution_authorized=false
 ```
 
-A GREEN plan establishes current production-host evidence and advances only to a
-separate authorization of the planned privileged **installer-plan** first-entry.
-It does not authorize that execution itself.
+A GREEN plan establishes current installed-generation evidence only. It keeps
+`production_host_evidence_authority=false` and does not establish designated-host
+identity. The full qualification result—including
+`installed_generation_evidence_authority=true` and production-host authority
+false—is part of the content-addressed plan body.
+
+The plan advances only to a separate authorization review of the planned
+privileged **installer-plan** first-entry. That later review must not infer
+designated-host authority from this plan, and this gate does not authorize the
+execution itself.
 
 PROTECT THE CORE.
