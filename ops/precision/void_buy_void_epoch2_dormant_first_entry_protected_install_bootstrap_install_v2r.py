@@ -286,6 +286,10 @@ def _git(args: list[str]) -> bytes:
             str(FIXED_CHECKOUT),
             "-c",
             "safe.directory=" + str(FIXED_CHECKOUT),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "core.fsmonitor=false",
             *args,
         ],
         stdin=subprocess.DEVNULL,
@@ -1176,6 +1180,8 @@ def self_test() -> None:
     print("explicit_apply_confirmation_required=true")
     print("git_lazy_fetch_suppressed=true")
     print("git_transport_denied=true")
+    print("git_hooks_disabled=true")
+    print("git_fsmonitor_disabled=true")
     print("prepublication_cleanup_limited_to_created_stage=true")
     print("prepublication_cleanup_stage_generation_bound=true")
     print("post_publication_rollback=false")
