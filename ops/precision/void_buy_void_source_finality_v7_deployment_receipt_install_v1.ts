@@ -475,6 +475,12 @@ export function buildBuyVoidSourceFinalityV7DeploymentReceiptV1(input:{
   });
 }
 
+function sameMetadataIdentityV1(a:fs.Stats,b:fs.Stats):boolean{
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode&&a.nlink===b.nlink;
+}
+
+
 function validateRootAncestorsV1(absolute:string){
   let current=path.dirname(absolute);
   for(;;){
@@ -490,14 +496,173 @@ function validateRootAncestorsV1(absolute:string){
   }
 }
 
-function verifyFinalV1(absolute:string,expected:Buffer){
-  const st=fs.lstatSync(absolute);
-  assert.ok(st.isFile()&&!st.isSymbolicLink(),"receipt_leaf_not_regular");
-  assert.equal(st.uid,0,"receipt_leaf_not_root_owned");
-  assert.equal(st.nlink,1,"receipt_leaf_link_count_invalid");
-  assert.equal(st.mode&0o777,0o444,"receipt_leaf_mode_invalid");
-  const got=fs.readFileSync(absolute);
-  assert.ok(got.equals(expected),"receipt_leaf_bytes_mismatch");
+type ReceiptParentBindingV1=Readonly<{
+  parent:string;
+  parent_fd:number;
+  parent_dev:number;
+  parent_ino:number;
+  parent_uid:number;
+  parent_gid:number;
+  parent_mode:number;
+  grandparent:string;
+  grandparent_fd:number;
+  grandparent_dev:number;
+  grandparent_ino:number;
+  parent_via_fd:string;
+}>;
+
+function assertRootDirectoryV1(st:fs.Stats,label:string):void{
+  assert.ok(st.isDirectory()&&!st.isSymbolicLink(),label+"_not_direct_directory");
+  assert.equal(st.uid,0,label+"_not_root_owned");
+  assert.equal(st.mode&0o022,0,label+"_group_or_world_writable");
+}
+
+function bindReceiptParentV1(absolute:string):ReceiptParentBindingV1{
+  const parent=path.dirname(absolute);
+  const grandparent=path.dirname(parent);
+  const parentName=path.basename(parent);
+  assert.match(parentName,/^[A-Za-z0-9._-]{1,120}$/u,"receipt_parent_name_invalid");
+
+  validateRootAncestorsV1(path.join(grandparent,".void-receipt-parent-probe"));
+  const grandVisible=fs.lstatSync(grandparent);
+  assertRootDirectoryV1(grandVisible,"receipt_grandparent");
+  const grandFd=fs.openSync(
+    grandparent,
+    fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW,
+  );
+  let parentFd=-1;
+  try{
+    const grandOpened=fs.fstatSync(grandFd);
+    assert.ok(sameMetadataIdentityV1(grandVisible,grandOpened),
+      "receipt_grandparent_open_identity_mismatch");
+    const parentViaFd="/proc/self/fd/"+String(grandFd)+"/"+parentName;
+    let created=false;
+    try{
+      const existing=fs.lstatSync(parentViaFd);
+      assertRootDirectoryV1(existing,"receipt_parent");
+    }catch(error:any){
+      if(error?.code!=="ENOENT")throw error;
+      fs.mkdirSync(parentViaFd,{mode:0o755});
+      created=true;
+    }
+
+    const visible=fs.lstatSync(parentViaFd);
+    assertRootDirectoryV1(visible,"receipt_parent");
+    parentFd=fs.openSync(
+      parentViaFd,
+      fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW,
+    );
+    if(created){
+      fs.fchownSync(parentFd,0,0);
+      fs.fchmodSync(parentFd,0o755);
+      fs.fsyncSync(parentFd);
+      // Persist the new parent directory entry in the retained grandparent.
+      fs.fsyncSync(grandFd);
+    }
+    const opened=fs.fstatSync(parentFd);
+    assertRootDirectoryV1(opened,"receipt_parent");
+    const visibleAfter=fs.lstatSync(parentViaFd);
+    assert.ok(
+      sameMetadataIdentityV1(opened,visibleAfter),
+      "receipt_parent_open_identity_mismatch",
+    );
+    assert.equal(fs.realpathSync.native(parent),parent,
+      "receipt_parent_not_canonical_direct_path");
+
+    return Object.freeze({
+      parent,
+      parent_fd:parentFd,
+      parent_dev:opened.dev,
+      parent_ino:opened.ino,
+      parent_uid:opened.uid,
+      parent_gid:opened.gid,
+      parent_mode:opened.mode,
+      grandparent,
+      grandparent_fd:grandFd,
+      grandparent_dev:grandOpened.dev,
+      grandparent_ino:grandOpened.ino,
+      parent_via_fd:parentViaFd,
+    });
+  }catch(error){
+    if(parentFd>=0)fs.closeSync(parentFd);
+    fs.closeSync(grandFd);
+    throw error;
+  }
+}
+
+function assertReceiptParentStableV1(binding:ReceiptParentBindingV1):void{
+  const parentOpened=fs.fstatSync(binding.parent_fd);
+  assertRootDirectoryV1(parentOpened,"receipt_parent");
+  assert.equal(parentOpened.dev,binding.parent_dev,"receipt_parent_device_changed");
+  assert.equal(parentOpened.ino,binding.parent_ino,"receipt_parent_inode_changed");
+  assert.equal(parentOpened.uid,binding.parent_uid,"receipt_parent_owner_changed");
+  assert.equal(parentOpened.gid,binding.parent_gid,"receipt_parent_group_changed");
+  assert.equal(parentOpened.mode,binding.parent_mode,"receipt_parent_mode_changed");
+
+  const parentVisible=fs.lstatSync(binding.parent_via_fd);
+  assert.ok(
+    sameMetadataIdentityV1(parentOpened,parentVisible),
+    "receipt_parent_visible_identity_changed",
+  );
+  const canonicalVisible=fs.lstatSync(binding.parent);
+  assert.ok(
+    sameMetadataIdentityV1(parentOpened,canonicalVisible),
+    "receipt_parent_canonical_identity_changed",
+  );
+  assert.equal(fs.realpathSync.native(binding.parent),binding.parent,
+    "receipt_parent_canonical_path_changed");
+
+  const grandOpened=fs.fstatSync(binding.grandparent_fd);
+  assertRootDirectoryV1(grandOpened,"receipt_grandparent");
+  assert.equal(grandOpened.dev,binding.grandparent_dev,
+    "receipt_grandparent_device_changed");
+  assert.equal(grandOpened.ino,binding.grandparent_ino,
+    "receipt_grandparent_inode_changed");
+}
+
+function closeReceiptParentV1(binding:ReceiptParentBindingV1|undefined):void{
+  if(!binding)return;
+  fs.closeSync(binding.parent_fd);
+  fs.closeSync(binding.grandparent_fd);
+}
+
+function finalViaParentV1(binding:ReceiptParentBindingV1,leaf:string):string{
+  return "/proc/self/fd/"+String(binding.parent_fd)+"/"+leaf;
+}
+
+function verifyFinalBoundV1(
+  binding:ReceiptParentBindingV1,
+  leaf:string,
+  expected:Buffer,
+):void{
+  assertReceiptParentStableV1(binding);
+  const absolute=finalViaParentV1(binding,leaf);
+  const visible=fs.lstatSync(absolute);
+  assert.ok(visible.isFile()&&!visible.isSymbolicLink(),"receipt_leaf_not_regular");
+  assert.equal(visible.uid,0,"receipt_leaf_not_root_owned");
+  assert.equal(visible.nlink,1,"receipt_leaf_link_count_invalid");
+  assert.equal(visible.mode&0o777,0o444,"receipt_leaf_mode_invalid");
+  const fd=fs.openSync(absolute,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+  try{
+    const before=fs.fstatSync(fd);
+    assert.ok(sameMetadataIdentityV1(visible,before),
+      "receipt_leaf_open_identity_mismatch");
+    const got=fs.readFileSync(fd);
+    const after=fs.fstatSync(fd);
+    const visibleAfter=fs.lstatSync(absolute);
+    assert.ok(
+      sameMetadataIdentityV1(before,after)&&
+      sameMetadataIdentityV1(after,visibleAfter)&&
+      before.size===after.size&&after.size===visibleAfter.size&&
+      before.mtimeMs===after.mtimeMs&&after.mtimeMs===visibleAfter.mtimeMs&&
+      before.ctimeMs===after.ctimeMs&&after.ctimeMs===visibleAfter.ctimeMs,
+      "receipt_leaf_changed_during_read",
+    );
+    assert.ok(got.equals(expected),"receipt_leaf_bytes_mismatch");
+  }finally{
+    fs.closeSync(fd);
+  }
+  assertReceiptParentStableV1(binding);
 }
 
 export function installRootCustodiedReceiptV1(input:{
@@ -513,56 +678,127 @@ export function installRootCustodiedReceiptV1(input:{
   assert.ok(Buffer.isBuffer(input.bytes)&&input.bytes.length>0&&
     input.bytes.length<=64*1024,"receipt_bytes_invalid");
 
-  const parent=path.dirname(absolute);
-  fs.mkdirSync(parent,{recursive:true,mode:0o755});
-  fs.chownSync(parent,0,0);
-  fs.chmodSync(parent,0o755);
-  validateRootAncestorsV1(absolute);
-
-  if(fs.existsSync(absolute)){
-    verifyFinalV1(absolute,input.bytes);
-    return Object.freeze({created:false,already_matching:true});
-  }
-
   const leaf=path.basename(absolute);
   assert.match(leaf,/^[A-Za-z0-9._-]{3,120}$/u,"receipt_leaf_name_invalid");
-  const temp=path.join(parent,
-    "."+leaf+".tmp-"+String(process.pid)+"-"+String(Date.now()));
-  let fd=-1;
+  let binding:ReceiptParentBindingV1|undefined;
+  let tempFd=-1;
+  let tempCreatedIdentity:Readonly<{dev:number;ino:number}>|undefined;
+  let tempIdentity:fs.Stats|undefined;
+  let tempVia="";
+  let primaryError:unknown;
   try{
-    fd=fs.openSync(temp,
+    binding=bindReceiptParentV1(absolute);
+    assertReceiptParentStableV1(binding);
+    const finalVia=finalViaParentV1(binding,leaf);
+    try{
+      fs.lstatSync(finalVia);
+      verifyFinalBoundV1(binding,leaf,input.bytes);
+      return Object.freeze({created:false,already_matching:true});
+    }catch(error:any){
+      if(error?.code!=="ENOENT")throw error;
+    }
+
+    const tempName="."+leaf+".tmp-"+String(process.pid)+"-"+String(Date.now());
+    tempVia=finalViaParentV1(binding,tempName);
+    tempFd=fs.openSync(
+      tempVia,
       fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|
         fs.constants.O_NOFOLLOW,
-      0o600);
+      0o600,
+    );
+    const justCreated=fs.fstatSync(tempFd);
+    tempCreatedIdentity=Object.freeze({
+      dev:justCreated.dev,
+      ino:justCreated.ino,
+    });
+    fs.fchownSync(tempFd,0,0);
     let offset=0;
     while(offset<input.bytes.length){
-      const written=fs.writeSync(fd,input.bytes,offset,input.bytes.length-offset,offset);
+      const written=fs.writeSync(
+        tempFd,input.bytes,offset,input.bytes.length-offset,offset,
+      );
       assert.ok(written>0,"receipt_short_write");
       offset+=written;
     }
-    fs.fsyncSync(fd);
-    fs.fchmodSync(fd,0o444);
-    fs.fsyncSync(fd);
-    fs.closeSync(fd); fd=-1;
+    fs.fsyncSync(tempFd);
+    fs.fchmodSync(tempFd,0o444);
+    fs.fsyncSync(tempFd);
+    tempIdentity=fs.fstatSync(tempFd);
+    assert.ok(
+      tempCreatedIdentity&&
+      tempIdentity.dev===tempCreatedIdentity.dev&&
+      tempIdentity.ino===tempCreatedIdentity.ino,
+      "receipt_temp_descriptor_identity_changed",
+    );
+    const tempVisible=fs.lstatSync(tempVia);
+    assert.ok(
+      sameMetadataIdentityV1(tempIdentity,tempVisible),
+      "receipt_temp_identity_changed",
+    );
+    assertReceiptParentStableV1(binding);
 
     try{
-      fs.linkSync(temp,absolute);
+      fs.linkSync(tempVia,finalVia);
     }catch(error:any){
       if(error?.code!=="EEXIST")throw error;
-      verifyFinalV1(absolute,input.bytes);
-      fs.unlinkSync(temp);
-      const dirFd=fs.openSync(parent,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
-      try{fs.fsyncSync(dirFd);}finally{fs.closeSync(dirFd);}
+      verifyFinalBoundV1(binding,leaf,input.bytes);
+      const currentTemp=fs.lstatSync(tempVia);
+      if(tempIdentity&&sameMetadataIdentityV1(tempIdentity,currentTemp)){
+        fs.unlinkSync(tempVia);
+      }
+      fs.fsyncSync(binding.parent_fd);
       return Object.freeze({created:false,already_matching:true});
     }
-    fs.unlinkSync(temp);
-    const dirFd=fs.openSync(parent,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
-    try{fs.fsyncSync(dirFd);}finally{fs.closeSync(dirFd);}
-    verifyFinalV1(absolute,input.bytes);
+
+    const published=fs.lstatSync(finalVia);
+    assert.ok(
+      tempIdentity&&published.dev===tempIdentity.dev&&published.ino===tempIdentity.ino,
+      "receipt_published_identity_mismatch",
+    );
+    const currentTemp=fs.lstatSync(tempVia);
+    assert.ok(
+      tempIdentity&&currentTemp.dev===tempIdentity.dev&&currentTemp.ino===tempIdentity.ino,
+      "receipt_temp_identity_changed_before_cleanup",
+    );
+    fs.unlinkSync(tempVia);
+    fs.fsyncSync(binding.parent_fd);
+    verifyFinalBoundV1(binding,leaf,input.bytes);
     return Object.freeze({created:true,already_matching:false});
+  }catch(error:unknown){
+    primaryError=error;
+    throw error;
   }finally{
-    if(fd>=0)fs.closeSync(fd);
-    if(fs.existsSync(temp))fs.unlinkSync(temp);
+    const cleanupErrors:unknown[]=[];
+    if(tempFd>=0){
+      try{fs.closeSync(tempFd);}
+      catch(error:unknown){cleanupErrors.push(error);}
+    }
+    if(binding&&tempCreatedIdentity&&tempVia){
+      try{
+        const visible=fs.lstatSync(tempVia);
+        if(
+          visible.dev===tempCreatedIdentity.dev&&
+          visible.ino===tempCreatedIdentity.ino
+        ){
+          try{fs.unlinkSync(tempVia);}
+          catch(error:any){
+            if(error?.code!=="ENOENT")cleanupErrors.push(error);
+          }
+          try{fs.fsyncSync(binding.parent_fd);}
+          catch(error:unknown){cleanupErrors.push(error);}
+        }
+      }catch(error:any){
+        if(error?.code!=="ENOENT")cleanupErrors.push(error);
+      }
+    }
+    try{closeReceiptParentV1(binding);}
+    catch(error:unknown){cleanupErrors.push(error);}
+    if(cleanupErrors.length>0){
+      throw new AggregateError(
+        primaryError===undefined?cleanupErrors:[primaryError,...cleanupErrors],
+        "deployment_receipt_cleanup_failed",
+      );
+    }
   }
 }
 

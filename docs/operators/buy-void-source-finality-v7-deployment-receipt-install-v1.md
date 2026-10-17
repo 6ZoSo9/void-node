@@ -66,11 +66,32 @@ restricted to:
 
 `/var/lib/void-source-finality-v7/deployment-receipt.json`
 
-The parent directory is root-owned mode 0755. The final receipt is root-owned,
-single-link, mode 0444. Publication uses an exclusive temporary file followed
-by an atomic hard-link no-clobber publication and directory fsync. An existing
-byte-identical receipt is accepted idempotently; an existing different receipt
-HOLDs and is never overwritten.
+The receipt parent is retained through a trusted grandparent descriptor. If the
+parent is absent it is created descriptor-relative as root:root mode 0755 and
+both the new parent and retained grandparent are fsynced before the new directory
+entry is treated as durable. If the parent already exists, it must already be a
+direct root-owned non-group/world-writable directory; its ownership and mode are
+preserved, including a safe restrictive mode such as 0700. The installer never
+chowns or chmods a pre-existing parent.
+
+The final receipt is root-owned, single-link, mode 0444. Temporary creation,
+verification, hard-link publication, cleanup and final verification remain
+descriptor-relative to the retained parent. The installer captures the exact
+device/inode of the exclusively created temporary receipt before chown/write and
+will clean up only that inode; a pathname substitution cannot make an unrelated
+file eligible for cleanup. Publication uses an atomic hard-link no-clobber
+operation followed by retained-parent fsync. An existing byte-identical receipt
+is accepted idempotently; an existing different receipt HOLDs and is never
+overwritten.
+
+Failures after temporary creation preserve the primary error while cleanup
+continues best-effort. Non-ENOENT unlink failures, cleanup parent-fsync failures,
+temporary-FD close failures and retained-parent close failures remain observable
+through `AggregateError(..., "deployment_receipt_cleanup_failed")`. The
+adversarial proof covers symlink-parent zero collateral mutation, restrictive
+parent preservation, new-parent grandparent fsync, post-create failures at
+chown/write/fsync/chmod, foreign temporary-inode substitution and cleanup
+failure observability.
 
 This PR only creates the tool/proof. It does not run `--apply` on Precision,
 change systemd, configure source RPCs, contact a provider, access credentials,
