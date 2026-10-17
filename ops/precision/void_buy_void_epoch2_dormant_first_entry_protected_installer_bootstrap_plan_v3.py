@@ -309,12 +309,12 @@ def collect_plan(
     required_qualification = {
         "expected_head": expected_head,
         "accepted_lock_id": (
-            "voidbuye2bootstraplock3_"
-            "690d119c90f5c8c20f429fcc14919b62691f9a1b3bfe2226476267ede993197f"
+            "voidbuye2bootstraplock4_"
+            "6568c1cd0195405d49001fbf6cb9a086364e401f78f3bfcf1d6cbb080947cb67"
         ),
         "candidate_id": (
-            "voidbuye2bootstrapcand2_"
-            "b71b8757fa64fc36c2df0e95e3812c00eccef114b71e0b854c34ddfd62285def"
+            "voidbuye2bootstrapcand3_"
+            "9e914f52eb3cde5a5fef42fbdf065b375f89fdabb768034b09615861bba67ce3"
         ),
         "bootstrap_runtime_head_compile_bound": False,
         "runtime_expected_head_strict_lowercase_hex": True,
