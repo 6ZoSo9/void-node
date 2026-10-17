@@ -75,5 +75,6 @@
   "funds_movement_authorized": false,
   "production_host_evidence_authority": false,
   "next_gate": "void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2",
-  "lock_id": "voidbuye2bootstraplock2_8524098b733e02451e307a8814fb593bbce9f6239f1e45ecda1563efb95e3ce7"
+  "lock_id": "voidbuye2bootstraplock2_01dc714bb754ede30ce187fdfedfc9b5c585ba5593e8c1ec15c6752ed92c191c",
+  "candidate_merge": "344f0abcc57d6f2fbacbb6a57e27009ae9ea7a4b"
 }
