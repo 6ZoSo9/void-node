@@ -1,0 +1,90 @@
+name: VOID sponsored runtime storage production selection v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/economic-sponsored-runtime-storage-production-selection-v1.json"
+      - "scripts/prove_void_economic_sponsored_runtime_storage_production_selection_v1.mjs"
+      - "docs/architecture/economic-sponsored-runtime-storage-production-selection-v1.md"
+      - ".github/workflows/void-economic-sponsored-runtime-storage-production-selection-v1.yml"
+      - "tools/void-economic-sponsored-runtime-storage-topology-policy-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/mainnet0/economic-sponsored-runtime-storage-production-selection-v1.json"
+      - "scripts/prove_void_economic_sponsored_runtime_storage_production_selection_v1.mjs"
+      - "docs/architecture/economic-sponsored-runtime-storage-production-selection-v1.md"
+      - ".github/workflows/void-economic-sponsored-runtime-storage-production-selection-v1.yml"
+      - "tools/void-economic-sponsored-runtime-storage-topology-policy-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22,24,26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact selection generation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/mainnet0/economic-sponsored-runtime-storage-production-selection-v1.json)" =             "2d609f5fdcd10be767ad5518bc3188dff45d1fea"
+          test "$(git rev-parse HEAD:scripts/prove_void_economic_sponsored_runtime_storage_production_selection_v1.mjs)" =             "389b0aa4b7b341145cfa19a13a41b7872c622d21"
+          test "$(git rev-parse HEAD:tools/void-economic-sponsored-runtime-storage-topology-policy-v1.mjs)" =             "df6464ac119d88004a75613568c7a64fa01ca4de"
+          test "$(git rev-parse HEAD:ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json)" =             "ab7982b52fb0850eb2f1e796c88dcd7a7c743b6c"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove production names and roots selection
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/sponsored-storage-selection.log"
+          node scripts/prove_void_economic_sponsored_runtime_storage_production_selection_v1.mjs |
+            tee "$out"
+          markers=(
+            "VOID_ECONOMIC_SPONSORED_RUNTIME_STORAGE_PRODUCTION_SELECTION_V1_PROOF_GREEN"
+            "selection_id=voidsponsoredstoreselect1_0224ed5a5cb20670e4b12259f0871357ebb8b52478702a98dd80edbf1d3ae938"
+            "service_unit_selected=void-economic-sponsored-runtime-v1.service"
+            "service_account_name_selected=true"
+            "service_group_name_selected=true"
+            "production_runtime_uid_gid_selected=false"
+            "production_root_paths_selected=true"
+            "root_parent_selected=/var/lib/void-economic-sponsored-runtime-v1"
+            "time_root_selected=/var/lib/void-economic-sponsored-runtime-v1/time"
+            "reservation_root_selected=/var/lib/void-economic-sponsored-runtime-v1/reservation"
+            "replay_root_selected=/var/lib/void-economic-sponsored-runtime-v1/replay"
+            "historical_user_home_replay_root_reused=false"
+            "selected_paths_policy_shape_qualified=true"
+            "proof_only_numeric_identity_not_production=true"
+            "live_host_evidence_verified=false"
+            "storage_bootstrap=false"
+            "service_installation=false"
+            "systemd_mutation=false"
+            "filesystem_mutation=false"
+            "runtime_integration=false"
+            "gas_sponsorship_performed=false"
+            "public_presale_activation=false"
+            "work_credit_write=false"
+            "funds_movement=false"
+            "next_action=BUILD_SPONSORED_RUNTIME_STORAGE_DESIGNATED_HOST_PLAN_V1"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
