@@ -13,41 +13,41 @@ from typing import Any
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_"
-    "BOOTSTRAP_INSTALLED_QUALIFICATION_V2R"
+    "BOOTSTRAP_INSTALLED_QUALIFICATION_V3"
 )
 
 LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-first-entry-protected-install-"
-    "bootstrap-candidate-lock-v3.json"
+    "bootstrap-candidate-lock-v4.json"
 )
-LOCK_GIT_BLOB_SHA1 = "64c9a42ca1108a9e8f88218c34d53e50668c653e"
+LOCK_GIT_BLOB_SHA1 = "57ecc08d465fe2a3c395546d349864312cd08a3f"
 LOCK_ID = (
-    "voidbuye2bootstraplock3_"
-    "690d119c90f5c8c20f429fcc14919b62691f9a1b3bfe2226476267ede993197f"
+    "voidbuye2bootstraplock4_"
+    "6568c1cd0195405d49001fbf6cb9a086364e401f78f3bfcf1d6cbb080947cb67"
 )
-CANDIDATE_MERGE = "344f0abcc57d6f2fbacbb6a57e27009ae9ea7a4b"
-CANDIDATE_TREE = "4085987d856fa303b8bc81087e3b5a207bc8964f"
+CANDIDATE_MERGE = "78875f7379c2dd995e1b545dd0543c934e59907a"
+CANDIDATE_TREE = "a2c1b6b9989ceb11c4fbea3f2fc4ecf64eb50176"
 CANDIDATE_ID = (
-    "voidbuye2bootstrapcand2_"
-    "b71b8757fa64fc36c2df0e95e3812c00eccef114b71e0b854c34ddfd62285def"
+    "voidbuye2bootstrapcand3_"
+    "9e914f52eb3cde5a5fef42fbdf065b375f89fdabb768034b09615861bba67ce3"
 )
 
 BOOTSTRAP_BYTES = 731_072
 BOOTSTRAP_SHA256 = (
-    "37a6979c274e93fa09860b26664804a9d912201a290db65deb9b4499e39aa276"
+    "904e6b05df45bc9212be7689ea0617ccfbf65d5edf8535a381abcbb588f236cd"
 )
-BOOTSTRAP_GIT_BLOB_SHA1 = "45ca1ed7a6237fccbd6bb0b9d73ef5ff47c72d62"
+BOOTSTRAP_GIT_BLOB_SHA1 = "69e3bf6db7baf614eb0b7d8c5e93aafce0deab46"
 
 PROTECTED_INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_"
-    "installer_first_entry_protected_install_v1.py"
+    "installer_first_entry_protected_install_v2.py"
 )
-PROTECTED_INSTALLER_BLOB = "383b84e71b371de65579e4113469e86a59b807ab"
-PROTECTED_INSTALLER_BYTES = 42_054
+PROTECTED_INSTALLER_BLOB = "69a018c0eccedf3782055c56725579d02463b05e"
+PROTECTED_INSTALLER_BYTES = 58_454
 PROTECTED_INSTALLER_SHA256 = (
-    "e80b68e19d1498d57cffe2cd05a15cb22a6c2f1acb639175e2be2a2f1c18c9ef"
+    "6db5c9520af7070056acfd854d79219053fbcb561f63e7530423974ddd80562a"
 )
 
 FIXED_CHECKOUT = pathlib.Path("/home/zoso/dev/void-node")
@@ -56,20 +56,20 @@ FIXED_PYTHON = pathlib.Path("/usr/bin/python3")
 INSTALL_PARENT = pathlib.Path("/opt")
 INSTALL_NAME = (
     "void-buy-void-epoch2-dormant-first-entry-"
-    "protected-install-bootstrap-v2"
+    "protected-install-bootstrap-v3"
 )
 INSTALL_ROOT = INSTALL_PARENT / INSTALL_NAME
 BIN_DIR = "bin"
 BOOTSTRAP_NAME = (
     "void_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_v2"
+    "protected_install_bootstrap_v3"
 )
 POLICY_NAME = "policy-v1.conf"
 BOOTSTRAP_TARGET = INSTALL_ROOT / BIN_DIR / BOOTSTRAP_NAME
 POLICY_TARGET = INSTALL_ROOT / POLICY_NAME
 POLICY_SCHEMA = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
-    "PROTECTED_INSTALL_BOOTSTRAP_POLICY_V2"
+    "PROTECTED_INSTALL_BOOTSTRAP_POLICY_V3"
 )
 
 MAX_READ_CHUNK = 1024 * 1024
@@ -299,6 +299,7 @@ def accepted_lock(expected_head: str) -> dict[str, Any]:
         "installer_source_identity_bound": True,
         "runtime_head_contract_accepted": True,
         "canonical_main_candidate_authority": True,
+        "superseded_v3_lock_install_authority": False,
         "superseded_v2_lock_install_authority": False,
         "superseded_v1_lock_install_authority": False,
         "protected_bootstrap_install_authorized": False,
@@ -547,6 +548,7 @@ def emit(result: dict[str, Any], *, mode: str) -> int:
     print("runtime_expected_head_strict_lowercase_hex=true")
     print("runtime_expected_head_forwarded_unchanged=true")
     print("canonical_main_candidate_authority=true")
+    print("superseded_v3_lock_install_authority=false")
     print("superseded_v2_lock_install_authority=false")
     print("superseded_v1_lock_install_authority=false")
     print("installed_identity_green=true")
@@ -571,7 +573,7 @@ def emit(result: dict[str, Any], *, mode: str) -> int:
     print("status=GREEN")
     print(
         "next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_"
-        "PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V2R"
+        "PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V3"
     )
     return 0
 def source_plan() -> None:
@@ -588,6 +590,7 @@ def source_plan() -> None:
     print("runtime_expected_head_strict_lowercase_hex=true")
     print("runtime_expected_head_forwarded_unchanged=true")
     print("canonical_main_candidate_authority=true")
+    print("superseded_v3_lock_install_authority=false")
     print("superseded_v2_lock_install_authority=false")
     print("installed_bootstrap_execution=false")
     print("protected_installer_apply=false")
