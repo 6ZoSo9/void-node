@@ -7,8 +7,10 @@ Status: **source/CI-only candidate derivation; unaccepted and not installed**.
 
 ## Purpose
 
-This gate derives the reproducible static candidate for #3436's runtime-head
-first-entry launcher V2.
+This gate derives the reproducible static candidate for merged #3436's
+runtime-head first-entry launcher V2. The candidate report binds the exact
+accepted source proof/workflow generation that exercised the real frozen child,
+not merely the launcher C blob.
 
 Historical launcher V1 and candidate V1 remain frozen. V2 removes the
 self-expiring compile-time repository HEAD while preserving the native-first
@@ -22,6 +24,10 @@ The candidate proof binds:
   `ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c`;
 - launcher V2 Git blob
   `86dc09e52402c04fb6e4b30a7fcf695833808ca3`;
+- accepted #3436 complete handoff proof Git blob
+  `a6574e2d52f267d4a595c8cad0004d4797fd6f93`;
+- accepted #3436 focused workflow Git blob
+  `4169a50df2b278776e046a8516be92aa3e56cdfc`;
 - protected Python installer
   `ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py`;
 - installer Git blob
