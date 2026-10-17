@@ -27,6 +27,11 @@ INSTALL_REL = (
     "protected_install_bootstrap_install_v2r.py"
 )
 INSTALL_BLOB = "7d7942dfe4b1def5f5a58201080cc30c3a13d3a0"
+INSTALL_PROOF_REL = (
+    "scripts/prove_buy_void_epoch2_dormant_first_entry_"
+    "protected_install_bootstrap_install_v2r.py"
+)
+INSTALL_PROOF_BLOB = "838f1c181cae033541d1bd666fb616ab3b40532f"
 
 LOCK_REL = (
     "ops/security/"
@@ -40,6 +45,11 @@ MATERIALIZER_REL = (
     "protected_install_bootstrap_v2r.py"
 )
 MATERIALIZER_BLOB = "f79e52b5d0af99194b0cf89a73ae5bf3285d3840"
+MATERIALIZER_PROOF_REL = (
+    "scripts/prove_buy_void_epoch2_dormant_first_entry_"
+    "protected_install_bootstrap_materializer_v2r.py"
+)
+MATERIALIZER_PROOF_BLOB = "c66bcd1f1d0d4751de475d5d6c1c98cab1eba31a"
 
 BOOTSTRAP_SOURCE_REL = (
     "ops/precision/"
@@ -86,8 +96,10 @@ def pin(relative: str, expected: str) -> bytes:
 
 target_raw = pin(TARGET_REL, TARGET_BLOB)
 install_raw = pin(INSTALL_REL, INSTALL_BLOB)
+pin(INSTALL_PROOF_REL, INSTALL_PROOF_BLOB)
 lock_raw = pin(LOCK_REL, LOCK_BLOB)
 materializer_raw = pin(MATERIALIZER_REL, MATERIALIZER_BLOB)
+pin(MATERIALIZER_PROOF_REL, MATERIALIZER_PROOF_BLOB)
 bootstrap_source_raw = pin(BOOTSTRAP_SOURCE_REL, BOOTSTRAP_SOURCE_BLOB)
 pin(PROTECTED_INSTALLER_REL, PROTECTED_INSTALLER_BLOB)
 
@@ -335,8 +347,10 @@ for mode, expected_lines in (
 print(MARKER + "_PROOF_GREEN")
 print("target_blob_bound=true")
 print("protected_bootstrap_install_v2r_source_bound=true")
+print("protected_bootstrap_install_v2r_proof_bound=true")
 print("accepted_bootstrap_lock_v3_bound=true")
 print("materializer_v2r_generation_bound=true")
+print("materializer_v2r_proof_bound=true")
 print("bootstrap_source_runtime_head_contract_bound=true")
 print("protected_installer_source_generation_bound=true")
 print("read_only_no_mutation_calls=true")
