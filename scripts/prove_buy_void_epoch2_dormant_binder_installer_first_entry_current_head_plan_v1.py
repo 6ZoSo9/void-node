@@ -15,13 +15,13 @@ TARGET_REL = (
     "current_head_plan_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "a319893d1424ea926825df686bd7fdaef786637f"
+TARGET_BLOB = "963b3b08c366731afc7d0aa73d9a2ab55c4be7a4"
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_"
     "installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "a03e5879c91bb86fa68897ba6bb4b5e87519a0c6"
+QUALIFIER_BLOB = "474e525cd54cc99b745d1e3aa62d66dac47ca785"
 INSTALLER_BLOB = "ce6930bc1be8239a3171d4922c44b96a50f5778b"
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_"
@@ -62,6 +62,8 @@ for required in (
     '"binder_execution": False',
     '"credential_access": False',
     '"funds_movement": False',
+    '"production_host_evidence_authority": False',
+    '"installed_generation_evidence_authority": True',
 ):
     assert required in source, required
 
@@ -109,6 +111,8 @@ for mode, markers in (
             "binder_execution=false",
             "credential_access=false",
             "funds_movement=false",
+            "production_host_evidence_authority=false",
+            "installed_generation_evidence_authority=false",
             "privileged_execution_authorized=false",
         ),
     ),
@@ -129,6 +133,8 @@ for mode, markers in (
             "binder_execution=false",
             "credential_access=false",
             "funds_movement=false",
+            "production_host_evidence_authority=false",
+            "installed_generation_evidence_authority=false",
             "privileged_execution_authorized=false",
         ),
     ),
@@ -207,7 +213,8 @@ def qualification(head: str) -> dict:
         "wc_void_market_activation": False,
         "treasury_liquidity_action": False,
         "funds_movement": False,
-        "production_host_evidence_authority": True,
+        "production_host_evidence_authority": False,
+        "installed_generation_evidence_authority": True,
         "installed": {
             "expected_head": head,
             "lock_id": module.LOCK_ID,
@@ -264,10 +271,31 @@ try:
     assert body["binder_execution"] is False
     assert body["credential_access"] is False
     assert body["funds_movement"] is False
-    assert body["production_host_evidence_authority"] is True
+    assert body["production_host_evidence_authority"] is False
+    assert body["installed_generation_evidence_authority"] is True
     assert body["privileged_execution_authorized"] is False
 
-    # Qualification authority cannot be weakened or silently reclassified.
+    # The merged pre-repair qualifier semantics must fail closed rather than
+    # re-elevate installed evidence into production-host authority.
+    class StaleAuthorityQualifier(FakeQualifier):
+        @staticmethod
+        def collect(head: str):
+            result = qualification(head)
+            result["production_host_evidence_authority"] = True
+            result.pop("installed_generation_evidence_authority", None)
+            return result
+
+    module.load_qualifier = lambda: StaleAuthorityQualifier
+    try:
+        module.collect_plan(EXPECTED_HEAD)
+    except module.PlanError as exc:
+        assert str(exc) == (
+            "qualification_field_mismatch:production_host_evidence_authority"
+        )
+    else:
+        raise AssertionError("stale_qualification_authority_accepted")
+
+    # Other qualification authority cannot be weakened or silently reclassified.
     class BadQualifier(FakeQualifier):
         @staticmethod
         def collect(head: str):
@@ -300,6 +328,7 @@ print("target_blob_bound=true")
 print("qualifier_blob_bound=true")
 print("installer_blob_bound=true")
 print("installed_qualification_contract_exercised=true")
+print("stale_qualification_authority_rejected=true")
 print("qualification_authority_drift_rejected=true")
 print("installed_launcher_identity_bound=true")
 print("current_head_plan_id_deterministic=true")
@@ -314,4 +343,6 @@ print("signing=false")
 print("transaction=false")
 print("rpc_call=false")
 print("funds_movement=false")
+print("production_host_evidence_authority=false")
+print("installed_generation_evidence_authority=true")
 print("privileged_execution_authorized=false")
