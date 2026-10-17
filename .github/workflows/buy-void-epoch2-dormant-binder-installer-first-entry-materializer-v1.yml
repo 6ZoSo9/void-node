@@ -1,0 +1,242 @@
+name: Buy VOID Epoch-2 dormant binder installer first-entry materializer v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-dormant-binder-first-entry-materializer-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact materializer generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          lock_head=f07079ca98fef5671e40def3371ebf19d24efef7
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$lock_head" "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            expected="$RUNNER_TEMP/expected-scope.txt"
+            actual="$RUNNER_TEMP/actual-scope.txt"
+            printf '%s\n' \
+              '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.yml' \
+              'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.md' \
+              'scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py' \
+              'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py' \
+              | sort > "$expected"
+            git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+            diff -u "$expected" "$actual"
+          fi
+
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py)" = \
+            50e8e7ba06740af830cc3c9df34d0ef7739a7e67
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py)" = \
+            78c2fde8e7f73bbaea07a1f3314e305bc95f9797
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v1.md)" = \
+            02c2cbc14ba83ba9b452bd25f3b0b28395abaa2a
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = \
+            f8ff6fbb855aecafc329cd60622cf3af782745a3
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v1.py)" = \
+            1d15fccf256571c382a09d99c8545d5b24ad2077
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c)" = \
+            5f1195d0c0a328be4334ad5b7f6e32b150776cab
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
+            f3d6b1559be7490303cf36338c4bfa38fdaa390a
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = \
+            383b84e71b371de65579e4113469e86a59b807ab
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = \
+            06fd54e92d004f3ce4dba9a751fae22b152d1b50
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.md)" = \
+            0b48dad4168b6a2510534bb7c898bf4ee2139cc7
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-protected-install-v1.yml)" = \
+            5f65753d78abc7ea42c6656b502a0e62b76dfb70
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and independent materializer proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py",
+              "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py",
+          ):
+              compile(
+                  Path(relative).read_text("utf-8"),
+                  relative,
+                  "exec",
+                  dont_inherit=True,
+              )
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_MATERIALIZER_V1_SYNTAX_GREEN")
+          PY
+
+          out="$RUNNER_TEMP/first-entry-materializer-proof-v1.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v1.py |
+            tee "$out"
+
+          markers=(
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_MATERIALIZER_V1_PROOF_GREEN'
+            'materializer_blob_bound=true'
+            'accepted_first_entry_lock_bound=true'
+            'candidate_tool_blob_bound=true'
+            'launcher_source_blob_bound=true'
+            'installer_source_blob_bound=true'
+            'protected_installer_consumer_bound=true'
+            'candidate_rederived_at_locked_merge=true'
+            'two_materializations_byte_identical=true'
+            'accepted_binary_bytes=731072'
+            'accepted_binary_sha256=4fbf67bff503cead931b59e4364d66ccf2f2d6c0ee40182b6f9498cf96e8f51a'
+            'static_no_pt_interp_verified=true'
+            'dynamic_needed_absent=true'
+            'create_only_output_replay_rejected=true'
+            'output_descriptor_readback=true'
+            'output_parent_directory_fsync=true'
+            'output_failure_destructive_cleanup=false'
+            'artifact_publication_only=true'
+            'protected_install_authorized=false'
+            'precision_install_authorized=false'
+            'native_or_binder_live_execution_authorized=false'
+            'funds_movement=false'
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Materialize exact accepted first-entry launcher
+        run: |
+          set -euo pipefail
+          launcher="$RUNNER_TEMP/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1"
+          receipt="$RUNNER_TEMP/epoch2-dormant-binder-first-entry-materialize.log"
+          sums="$RUNNER_TEMP/SHA256SUMS_epoch2_dormant_binder_first_entry_v1.txt"
+
+          python3 -I -B scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py \
+            --derive "$launcher" | tee "$receipt"
+
+          test "$(stat -c %s "$launcher")" = 731072
+          test "$(stat -c %a "$launcher")" = 555
+          test "$(sha256sum "$launcher" | awk '{print $1}')" = \
+            4fbf67bff503cead931b59e4364d66ccf2f2d6c0ee40182b6f9498cf96e8f51a
+
+          readelf -lW "$launcher" > "$RUNNER_TEMP/first-entry-readelf-program.txt"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/first-entry-readelf-program.txt"; then
+            echo first_entry_launcher_has_dynamic_interpreter >&2
+            exit 1
+          fi
+          readelf -dW "$launcher" > "$RUNNER_TEMP/first-entry-readelf-dynamic.txt" 2>&1 || true
+          if grep -F 'NEEDED' "$RUNNER_TEMP/first-entry-readelf-dynamic.txt"; then
+            echo first_entry_launcher_has_dynamic_needed >&2
+            exit 1
+          fi
+
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_MATERIALIZER_V1_DERIVE_GREEN' "$receipt"
+          grep -Fx 'candidate_id=voidbuye2dormantfirstentrycand1_b7109c847373114e2d5e044928ecc4e30c65ef446880d70d9ec57d5853ad3736' "$receipt"
+          grep -Fx 'launcher_binary_sha256=4fbf67bff503cead931b59e4364d66ccf2f2d6c0ee40182b6f9498cf96e8f51a' "$receipt"
+          grep -Fx 'output_descriptor_readback=true' "$receipt"
+          grep -Fx 'output_parent_directory_fsync=true' "$receipt"
+          grep -Fx 'output_failure_destructive_cleanup=false' "$receipt"
+          grep -Fx 'protected_install_authorized=false' "$receipt"
+          grep -Fx 'precision_install_authorized=false' "$receipt"
+          grep -Fx 'funds_movement=false' "$receipt"
+
+          printf '%s  %s\n' \
+            4fbf67bff503cead931b59e4364d66ccf2f2d6c0ee40182b6f9498cf96e8f51a \
+            void_buy_void_epoch2_dormant_binder_installer_first_entry_v1 \
+            > "$sums"
+
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum -c "$(basename "$sums")"
+          )
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Upload exact accepted first-entry install input
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-dormant-binder-first-entry-install-input-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1
+            ${{ runner.temp }}/SHA256SUMS_epoch2_dormant_binder_first_entry_v1.txt
+            ${{ runner.temp }}/epoch2-dormant-binder-first-entry-materialize.log
+            ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
