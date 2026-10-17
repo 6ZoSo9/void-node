@@ -363,6 +363,15 @@ def validate_candidate_dir(root: Path) -> None:
         raise AssertionError("candidate_binary_bytes_invalid")
 
     report = json.loads(report_raw)
+    if (
+        report.get("schema")
+        != "void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2"
+        or report.get("marker")
+        != "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_V2"
+        or report.get("version") != 2
+        or report.get("repository") != "6ZoSo9/void-node"
+    ):
+        raise AssertionError("candidate_report_schema_invalid")
     if report.get("candidate_id") != EXPECTED["candidate_id"]:
         raise AssertionError("candidate_report_id_invalid")
     if report.get("repository_head") != EXPECTED["candidate_source_head"]:
@@ -413,6 +422,7 @@ def self_test() -> None:
     for token in (
         "lock_id_content_binding_invalid",
         "candidate_report_bytes_invalid",
+        "candidate_report_schema_invalid",
         "candidate_binary_bytes_invalid",
         "candidate_source_not_ancestor",
         "candidate_runtime_head_contract_invalid",
