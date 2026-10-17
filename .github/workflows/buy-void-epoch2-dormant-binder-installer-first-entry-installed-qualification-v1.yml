@@ -90,11 +90,11 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py)" = \
-            a03e5879c91bb86fa68897ba6bb4b5e87519a0c6
+            474e525cd54cc99b745d1e3aa62d66dac47ca785
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py)" = \
-            13fb3cc36f0456b070217ec8ace39bb22b841e30
+            1474696bd4e60065dda5ae39ad54d1c2244ab935
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.md)" = \
-            1854da7ee8667acfdc4bacf2a3b60feb846de7a2
+            d082e8aceb78c14e81d3790a972657b75264f82f
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py)" = \
             ce6930bc1be8239a3171d4922c44b96a50f5778b
 
@@ -136,6 +136,9 @@ jobs:
             'transaction=false' \
             'rpc_call=false' \
             'funds_movement=false' \
+            'production_host_evidence_authority=false' \
+            'installed_generation_evidence_authority=true' \
+            'non_designated_host_authority_rejected=true' \
             'privileged_execution_authorized=false'
           do
             grep -Fx "$marker" "$out"
@@ -163,6 +166,8 @@ jobs:
             'binder_execution=false' \
             'credential_access=false' \
             'funds_movement=false' \
+            'production_host_evidence_authority=false' \
+            'installed_generation_evidence_authority=false' \
             'privileged_execution_authorized=false'
           do
             grep -Fx "$marker" "$out"

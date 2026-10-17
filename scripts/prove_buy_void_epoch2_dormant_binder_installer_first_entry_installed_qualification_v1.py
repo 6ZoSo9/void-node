@@ -18,7 +18,7 @@ TARGET_REL = (
     "installed_qualification_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "a03e5879c91bb86fa68897ba6bb4b5e87519a0c6"
+TARGET_BLOB = "474e525cd54cc99b745d1e3aa62d66dac47ca785"
 INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_"
@@ -60,6 +60,8 @@ for required in (
     "binder_execution",
     "credential_access",
     "funds_movement",
+    "production_host_evidence_authority",
+    "installed_generation_evidence_authority",
     "privileged_execution_authorized",
     "non_executing_current_head_plan",
 ):
@@ -282,7 +284,10 @@ with tempfile.TemporaryDirectory(prefix="void-e2-first-entry-installed-qual-v1-"
         assert result["binder_execution"] is False
         assert result["credential_access"] is False
         assert result["funds_movement"] is False
-        assert result["production_host_evidence_authority"] is True
+        # This disposable fixture has no designated-host binding. A GREEN
+        # installed generation must never elevate into production-host authority.
+        assert result["production_host_evidence_authority"] is False
+        assert result["installed_generation_evidence_authority"] is True
         assert result["next_gate"] == "non_executing_current_head_plan"
         assert result["privileged_execution_authorized"] is False
 
@@ -328,4 +333,7 @@ print("signing=false")
 print("transaction=false")
 print("rpc_call=false")
 print("funds_movement=false")
+print("production_host_evidence_authority=false")
+print("installed_generation_evidence_authority=true")
+print("non_designated_host_authority_rejected=true")
 print("privileged_execution_authorized=false")
