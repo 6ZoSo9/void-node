@@ -451,7 +451,7 @@ def verify(harness: Path, installed: Path, checkout: Path, head: str,
 def parse_fixtures(harness: Path, temporary: Path, manifest: bytes) -> int:
     fixture = temporary / "parser-input.conf"
     count = 0
-    policy = ("schema=VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_POLICY_V5\n"
+    policy = ("schema=VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_POLICY_V6\n"
               "python_sha256=" + "1" * 64 + "\npython_bytes=1\ngit_sha256=" + "2" * 64 + "\ngit_bytes=1\n").encode("ascii")
     for command, raw in (("parse-manifest", manifest), ("parse-policy", policy)):
         fixture.write_bytes(raw)
@@ -559,7 +559,7 @@ def entry_contract_fixtures(harness: Path, temporary: Path, manifest: bytes) -> 
 
 
 def snapshot_fixtures(harness: Path, temporary: Path, manifest: bytes) -> int:
-    rows = {"schema": "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_POLICY_V5"}
+    rows = {"schema": "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_POLICY_V6"}
     for role, path in (("python", Path("/usr/bin/python3")), ("git", Path("/usr/bin/git"))):
         raw = path.read_bytes()
         rows[role + "_sha256"] = sha256(raw)
