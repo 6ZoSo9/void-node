@@ -54,6 +54,23 @@ jobs:
             pull_request)
               test -n "$PR_BASE"
               base="$PR_BASE"
+              cursor="$EXPECTED_HEAD"
+              while [ "$cursor" != "$base" ]; do
+                parent_line="$(git rev-list --parents -n 1 "$cursor")"
+                parent_count="$(awk '{print NF-1}' <<<"$parent_line")"
+                if [ "$parent_count" -gt 1 ]; then
+                  candidate_base="$(git rev-parse "$cursor^1")"
+                  if git merge-base --is-ancestor "$base" "$candidate_base"; then
+                    base="$candidate_base"
+                    break
+                  fi
+                fi
+                next="$(git rev-parse "$cursor^1")"
+                if ! git merge-base --is-ancestor "$base" "$next"; then
+                  break
+                fi
+                cursor="$next"
+              done
               ;;
             push)
               test -n "$PUSH_BEFORE"
