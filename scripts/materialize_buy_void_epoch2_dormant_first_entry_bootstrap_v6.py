@@ -22,6 +22,9 @@ MANIFEST_BLOB="6e0630af72111bd9976dcc38cdcdada1904dd067"
 MANIFEST_BYTES=2382
 MANIFEST_SHA256="aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662"
 
+INSTALLER=ROOT/"ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py"
+INSTALLER_BLOB="ce6930bc1be8239a3171d4922c44b96a50f5778b"
+
 EXPECTED_CANDIDATE_ID="voidbuye2dormantbootstrapcand3_13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062"
 EXPECTED_BINARY_BYTES=874608
 EXPECTED_BINARY_SHA256="c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
@@ -68,10 +71,13 @@ def accepted_inputs()->tuple[bytes,bytes,bytes,dict]:
     lock_raw=direct(LOCK,128*1024)
     candidate_raw=direct(CANDIDATE,256*1024)
     manifest_raw=direct(MANIFEST,64*1024)
+    installer_raw=direct(INSTALLER,256*1024)
     if git_blob(lock_raw)!=LOCK_BLOB: raise MaterializeError("accepted_lock_blob_mismatch")
     if git_blob(candidate_raw)!=CANDIDATE_BLOB: raise MaterializeError("candidate_tool_blob_mismatch")
     if git_blob(manifest_raw)!=MANIFEST_BLOB or len(manifest_raw)!=MANIFEST_BYTES or sha256(manifest_raw)!=MANIFEST_SHA256:
         raise MaterializeError("manifest_identity_mismatch")
+    if git_blob(installer_raw)!=INSTALLER_BLOB:
+        raise MaterializeError("inner_installer_blob_mismatch")
     try:
         lock=json.loads(lock_raw)
     except json.JSONDecodeError as exc:
@@ -111,7 +117,12 @@ def accepted_inputs()->tuple[bytes,bytes,bytes,dict]:
     ):
         raise MaterializeError("accepted_lock_binary_mismatch")
     sg=lock.get("source_generation")
-    if not isinstance(sg,dict) or sg.get("manifest_git_blob_sha1")!=MANIFEST_BLOB or sg.get("manifest_sha256")!=MANIFEST_SHA256:
+    if (
+        not isinstance(sg,dict)
+        or sg.get("manifest_git_blob_sha1")!=MANIFEST_BLOB
+        or sg.get("manifest_sha256")!=MANIFEST_SHA256
+        or sg.get("inner_installer_git_blob_sha1")!=INSTALLER_BLOB
+    ):
         raise MaterializeError("accepted_lock_source_generation_mismatch")
     return lock_raw,candidate_raw,manifest_raw,lock
 
@@ -220,6 +231,7 @@ def self_test()->None:
     print("accepted_bootstrap_v6_lock_bound=true")
     print("candidate_tool_verified_before_execution=true")
     print("source_generation_manifest_bound=true")
+    print("inner_installer_generation_bound=true")
     print("candidate_binary_identity_accepted=true")
     print("descriptor_independent_candidate_bound=true")
     print("accepted_binary_git_blob_bound=true")
