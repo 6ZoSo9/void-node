@@ -71,6 +71,10 @@ jobs:
             83a323b3430c397d2806ad88c2075e4ad427db9d
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf)" = \
             14bd75433f8c79d7e15c999501b6eb5224553802
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py)" = \
+            4dfac06e6e155eaec13365a99dbb2cd10fe615b8
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md)" = \
+            f9684c128d7fc0b6421984be43d8dc23f6194a41
 
           # Frozen predecessor/payload identities remain unchanged.
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = \
@@ -103,6 +107,8 @@ jobs:
             raw_tree_object_identity_recomputed=true
             tracked_file_final_recheck=true
             retained_sealed_git_executable_required=true
+            operational_source_accessor_requires_authenticated_descriptors=true
+            raw_repository_snapshot_blob_verified=true
             source_repository_configuration_not_authority=true
             temporary_git_metadata_write_truthful=true
             protected_state_mutation=false
