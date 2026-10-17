@@ -92,7 +92,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py)" = \
             a03e5879c91bb86fa68897ba6bb4b5e87519a0c6
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py)" = \
-            b2bbe0a3040cdc1d60604399f4e758bb0b120eec
+            13fb3cc36f0456b070217ec8ace39bb22b841e30
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.md)" = \
             1854da7ee8667acfdc4bacf2a3b60feb846de7a2
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py)" = \
@@ -121,6 +121,8 @@ jobs:
             'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_INSTALLED_QUALIFICATION_V1_PROOF_GREEN' \
             'target_blob_bound=true' \
             'installer_v5_blob_bound=true' \
+            'production_root_ownership_checks_preserved=true' \
+            'fixture_root_metadata_emulated=true' \
             'triple_installed_snapshot_exercised=true' \
             'installed_generation_drift_rejected=true' \
             'temporary_git_metadata_truth_preserved=true' \
