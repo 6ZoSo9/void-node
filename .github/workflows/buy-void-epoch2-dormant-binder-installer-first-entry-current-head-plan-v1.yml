@@ -46,7 +46,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          source_base=ba00252c4753b195bf05c1058da27326e4b67461
+          source_base=2a41b15cbb4e371a43d63b5bd6dcbba26eee17f3
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$source_base" "$EXPECTED_HEAD"
 
@@ -92,13 +92,13 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py)" = \
-            a319893d1424ea926825df686bd7fdaef786637f
+            963b3b08c366731afc7d0aa73d9a2ab55c4be7a4
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py)" = \
-            4a9590a9a3f02876a2108f202c4728bf224aeec2
+            5ef8a1785425814b65860bb2f6366caea65efa06
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.md)" = \
-            f1b25721466ca77f1753759d60e584afd544b952
+            92035a9fe251609ac840ca494e4628ff3e712af8
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py)" = \
-            a03e5879c91bb86fa68897ba6bb4b5e87519a0c6
+            474e525cd54cc99b745d1e3aa62d66dac47ca785
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py)" = \
             ce6930bc1be8239a3171d4922c44b96a50f5778b
 
@@ -126,6 +126,7 @@ jobs:
             'qualifier_blob_bound=true' \
             'installer_blob_bound=true' \
             'installed_qualification_contract_exercised=true' \
+            'stale_qualification_authority_rejected=true' \
             'qualification_authority_drift_rejected=true' \
             'installed_launcher_identity_bound=true' \
             'current_head_plan_id_deterministic=true' \
@@ -140,6 +141,8 @@ jobs:
             'transaction=false' \
             'rpc_call=false' \
             'funds_movement=false' \
+            'production_host_evidence_authority=false' \
+            'installed_generation_evidence_authority=true' \
             'privileged_execution_authorized=false'
           do
             grep -Fx "$marker" "$out"
@@ -162,6 +165,8 @@ jobs:
             'binder_execution=false' \
             'credential_access=false' \
             'funds_movement=false' \
+            'production_host_evidence_authority=false' \
+            'installed_generation_evidence_authority=false' \
             'privileged_execution_authorized=false'
           do
             grep -Fx "$marker" "$out"
