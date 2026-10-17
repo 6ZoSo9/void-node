@@ -265,6 +265,10 @@ def _git_env() -> dict[str, str]:
         "GIT_NO_REPLACE_OBJECTS": "1",
         "GIT_OPTIONAL_LOCKS": "0",
         "GIT_TERMINAL_PROMPT": "0",
+        # Plan/apply Git identity reads must never lazy-fetch missing objects.
+        # Transport denial is a fail-closed fallback for older Git builds.
+        "GIT_NO_LAZY_FETCH": "1",
+        "GIT_ALLOW_PROTOCOL": "",
     }
 
 
@@ -1170,6 +1174,8 @@ def self_test() -> None:
     print("rename_noreplace_required=true")
     print("operation_bound_plan_id_required=true")
     print("explicit_apply_confirmation_required=true")
+    print("git_lazy_fetch_suppressed=true")
+    print("git_transport_denied=true")
     print("prepublication_cleanup_limited_to_created_stage=true")
     print("prepublication_cleanup_stage_generation_bound=true")
     print("post_publication_rollback=false")
