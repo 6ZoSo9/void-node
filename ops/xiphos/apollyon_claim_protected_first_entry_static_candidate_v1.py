@@ -424,8 +424,37 @@ def validate(report: dict[str, Any], binary: bytes) -> None:
         or observed.get("elf_type_exec") is not True
         or observed.get("elf_machine_x86_64") is not True
         or observed.get("production_fixed_self_embedded") is not True
+        or observed.get("validator_reinspected_supplied_binary") is not True
+        or observed.get("validator_independent_rebuild_byte_identical") is not True
     ):
         hold("candidate_binary_identity_invalid")
+    if (
+        len(binary) < MIN_BINARY_BYTES
+        or len(binary) > MAX_BINARY_BYTES
+        or not binary.startswith(b"\x7fELF")
+        or FIXED_SELF.encode("ascii") not in binary
+    ):
+        hold("candidate_supplied_binary_shape_invalid")
+    with tempfile.TemporaryDirectory(
+        prefix="void-apollyon-static-candidate-validate-v1-"
+    ) as td:
+        validation_root = Path(td)
+        supplied = validation_root / "supplied"
+        supplied.write_bytes(binary)
+        supplied.chmod(0o555)
+        static = inspect_static(supplied)
+        if static != {
+            "elf_static_no_interp": True,
+            "elf_dynamic_needed_absent": True,
+            "elf_type_exec": True,
+            "elf_machine_x86_64": True,
+        }:
+            hold("candidate_supplied_binary_static_identity_invalid")
+        rebuild_root = validation_root / "rebuild"
+        rebuild_root.mkdir(mode=0o700)
+        rebuilt = build_once(rebuild_root, "candidate")
+        if rebuilt != binary:
+            hold("candidate_independent_rebuild_mismatch")
 
     if report.get("candidate_semantics") != {
         "static_first_instruction_candidate_evidence": True,
@@ -527,6 +556,8 @@ def derive() -> tuple[dict[str, Any], bytes]:
             "three_builds_byte_identical": True,
             **static,
             "production_fixed_self_embedded": True,
+            "validator_reinspected_supplied_binary": True,
+            "validator_independent_rebuild_byte_identical": True,
         },
         "candidate_semantics": {
             "static_first_instruction_candidate_evidence": True,
@@ -558,6 +589,8 @@ def derive_dir(output: Path) -> None:
     print("binary_bytes=" + str(report["binary"]["bytes"]))
     print("three_builds_byte_identical=true")
     print("static_no_interp=true")
+    print("validator_reinspected_supplied_binary=true")
+    print("validator_independent_rebuild_byte_identical=true")
     print("production_defaults_used=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
@@ -589,6 +622,7 @@ def self_test() -> None:
     print("production_fixed_self_default_bound=true")
     print("production_uid_gid_defaults_bound=true")
     print("static_three_build_derivation_required=true")
+    print("validator_reinspection_and_rebuild_required=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
     print("funds_movement=false")
