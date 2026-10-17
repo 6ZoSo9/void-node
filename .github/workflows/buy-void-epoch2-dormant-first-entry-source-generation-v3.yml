@@ -144,7 +144,7 @@ jobs:
           else
             echo "scope_event_comparison=not_applicable_manual_replay"
           fi
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v3.md)" = 695af55c3d3951bc14b7cb9c2acd7d855bb757bd
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v3.md)" = c088e73e32b0d51a0e9e6bd923138bc84398fe19
           test "$(git ls-tree HEAD -- docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v3.md | cut -d" " -f1)" = 100644
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = 383b84e71b371de65579e4113469e86a59b807ab
           test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py | cut -d" " -f1)" = 100644
@@ -152,7 +152,7 @@ jobs:
           test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2.py | cut -d" " -f1)" = 100644
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v3.py)" = 242eac04da6e17d32e9a9baa9b57f572cabda7a8
           test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v3.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py)" = d98a717efcf8c925cea628cfc618e70da6b617ef
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py)" = ce6930bc1be8239a3171d4922c44b96a50f5778b
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py)" = 88577de29dddbe61d2c2f59179d0dcb62a49165a
           test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py | cut -d" " -f1)" = 100644
           test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py | cut -d" " -f1)" = 100644
@@ -186,17 +186,17 @@ jobs:
           test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v4.json | cut -d" " -f1)" = 100644
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf)" = a484a7d2e1159ebbef3357ec849af92d7f12cff1
           test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = ff9af3c7bc7619522cacb014f1addf90d9a5b615
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = ed4bafa88932a81be91c14e4bca71b25362a09c8
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf)" = 782f747cda24a214c64e8ec3f49b6791bbb62f97
           test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf | cut -d" " -f1)" = 100644
           test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf | cut -d" " -f1)" = 100644
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2_terminal.py)" = 7b2ddaeddf844d98aa4eb7006ee371ea6a455f57
           test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2_terminal.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_generation.py)" = 423eb8223456c0acbead673fbe46c0e9836f7316
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_generation.py)" = 228ac886b843429c5c1ad79b5c5a8f9c4f7788be
           test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_generation.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_terminal.py)" = bc4974adba275be18e8e9936a321aa7435bc4da1
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_terminal.py)" = fc9b91d6b0d6129f34006388669a6bfd3c879cc1
           test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_terminal.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py)" = 64a66f6e833aee993f136484e56cf5d1f26e4fb9
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py)" = a703119f43820863fb8b89baf01db019b18ac7a2
           test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py | cut -d" " -f1)" = 100644
           test "$(git ls-tree HEAD -- .github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v3.yml | cut -d" " -f1)" = 100644
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
