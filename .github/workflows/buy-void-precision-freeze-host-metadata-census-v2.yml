@@ -1,0 +1,135 @@
+name: Buy VOID Precision frozen-source metadata census v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-precision-freeze-host-metadata-census-v2.yml"
+      - "docs/operators/buy-void-precision-source-freeze-host-metadata-census-v2.md"
+      - "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v2.py"
+      - "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v2_proof.py"
+      - "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v1.py"
+      - "ops/security/buy-void-presale-source-freeze-candidate-v1.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind frozen parent, source bytes, and four additive paths
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 1048cfb584826f84012cdbba4496a7f0df8575b3 "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v1.py)" = e82feb591d3dfab838e0aeb597efab3f2b5866a3
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v2.py)" = 10ea8510a91505b0f14145b64a3940fa1a8421f3
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v2_proof.py)" = 1ea8fdbf402a73f2296ba211a03b5cbffd16e570
+          test "$(git rev-parse HEAD:docs/operators/buy-void-precision-source-freeze-host-metadata-census-v2.md)" = 02603c19d5ce7a8b318bec906ae14165bc732a7e
+          python3 -I -B - <<'PY'
+          import subprocess
+          expected = {
+              ".github/workflows/buy-void-precision-freeze-host-metadata-census-v2.yml",
+              "docs/operators/buy-void-precision-source-freeze-host-metadata-census-v2.md",
+              "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v2.py",
+              "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v2_proof.py",
+          }
+          raw = subprocess.check_output(
+              ["git", "diff", "--name-status", "--no-renames",
+               "1048cfb584826f84012cdbba4496a7f0df8575b3", "HEAD"],
+              text=True, timeout=20,
+          )
+          rows = [line.split("\t") for line in raw.splitlines()]
+          assert len(rows) == 4 and all(len(row) == 2 and row[0] == "A" for row in rows), rows
+          assert {row[1] for row in rows} == expected, rows
+          for path in expected:
+              mode = subprocess.check_output(["git", "ls-tree", "HEAD", "--", path], text=True, timeout=20)
+              assert mode.startswith("100644 blob "), (path, mode)
+          print("VOID_PRECISION_CENSUS_V2_FROZEN_PARENT_SCOPE_GREEN")
+          PY
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v1.json)" = 91d2d7877bc3066e3030337576ca2dddeb55bfc8
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = 61a9d85d285f9c9d249adf401580822c44c6dac6
+          git diff --check bfdff02472c57439721ebed0a94498c691c68a9c "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Reject unsafe host-probe source constructs by Python AST
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path("scripts/void_buy_void_precision_source_freeze_host_metadata_census_v2.py")
+          source=p.read_text("utf-8")
+          tree=ast.parse(source)
+          modules=set()
+          forbidden_modules={"socket","ssl","urllib","http","requests","ftplib","paramiko","ctypes"}
+          forbidden_calls={"open","read_bytes","read_text","write_bytes","write_text","unlink",
+                           "rmtree","mkdir","makedirs","chmod","chown","replace","rename",
+                           "connect","urlopen","Popen","system","run_command"}
+          for n in ast.walk(tree):
+              if isinstance(n,ast.Import):
+                  modules.update(x.name.split(".")[0] for x in n.names)
+              if isinstance(n,ast.ImportFrom) and n.module:
+                  modules.add(n.module.split(".")[0])
+              if isinstance(n,ast.Call):
+                  if isinstance(n.func,ast.Name):
+                      assert n.func.id not in forbidden_calls,n.func.id
+                  if isinstance(n.func,ast.Attribute):
+                      assert n.func.attr not in forbidden_calls,n.func.attr
+          assert not (modules & forbidden_modules),modules & forbidden_modules
+          assert '"status": "HOST_RELEASE_EVIDENCE_HOLD"' in source
+          assert '"root_execution_not_required_or_allowed"' in source
+          assert '"GIT_OPTIONAL_LOCKS": "0"' in source
+          assert '"GIT_NO_LAZY_FETCH": "1"' in source
+          assert '"GIT_ALLOW_PROTOCOL": ""' in source
+          assert '"/var/lib/void-source-finality-v7/deployment-receipt.json"' in source
+          assert '"/var/lib/void-allocation-custody-v1"' in source
+          assert '"/opt/void-buy-void-epoch2-live-composition-v3"' in source
+          print("VOID_BUY_VOID_PRECISION_HOST_CENSUS_AST_GUARD_GREEN")
+          PY
+
+      - name: Reproduce implicit fetch and prove both guards with local Git fixtures
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/void_buy_void_precision_source_freeze_host_metadata_census_v2_proof.py --self-test
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Run synthetic self-test only, including negative apply refusal
+        run: |
+          set -euo pipefail
+          proof="scripts/void_buy_void_precision_source_freeze_host_metadata_census_v2.py"
+          out="$RUNNER_TEMP/void-buy-precision-census-selftest.log"
+          python3 -I -B "$proof" --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRECISION_SOURCE_FREEZE_HOST_METADATA_CENSUS_V2_SELF_TEST_GREEN' \
+            'metadata_only=true' \
+            'root_required=false' \
+            'network_contact=false' \
+            'credential_content_access=false' \
+            'wallet_or_signer_access=false' \
+            'service_mutation=false' \
+            'receipt_content_read=false' \
+            'customer_payment_acceptance=false' \
+            'presale_activation=false' \
+            'wc_void_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+          if python3 -I -B "$proof" --apply > "$RUNNER_TEMP/forbidden-apply.log" 2>&1; then
+            echo "UNEXPECTED_APPLY_ACCEPTED" >&2
+            exit 1
+          fi
+          grep -F 'usage:' "$RUNNER_TEMP/forbidden-apply.log"
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
