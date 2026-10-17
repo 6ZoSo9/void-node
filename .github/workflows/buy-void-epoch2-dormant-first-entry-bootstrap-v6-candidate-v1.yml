@@ -72,8 +72,8 @@ jobs:
             | sort > "$expected"
           git diff --name-only "$base" "$EXPECTED_CHECKOUT_SHA" -- | sort > "$actual"
           diff -u "$expected" "$actual"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = 647125f7b36bb4dde62fcfdc17f92e7fe1af2dbf
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md)" = 8db2315064facc7db0d469b338cc91471fe8589f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = b963ac9ef0b9c8ac685763b3a82375f970ef12df
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md)" = 98b9aee33580249bae8d1a2955b0336563f26ddf
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = a317d3dce324337f107909bd6e33e98622b3ef09
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = 6e0630af72111bd9976dcc38cdcdada1904dd067
           python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py --self-test | tee "$RUNNER_TEMP/self-test.log"
@@ -81,6 +81,9 @@ jobs:
           grep -Fx 'exact_source_generation_bound=true' "$RUNNER_TEMP/self-test.log"
           grep -Fx 'sealed_source_snapshot_required=true' "$RUNNER_TEMP/self-test.log"
           grep -Fx 'checkout_path_is_not_build_authority=true' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'compiler_logical_source_name=stdin' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'distinct_source_fd_numbers_required=true' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'descriptor_number_not_candidate_identity=true' "$RUNNER_TEMP/self-test.log"
           grep -Fx 'candidate_accepted=false' "$RUNNER_TEMP/self-test.log"
           grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/self-test.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/self-test.log"
@@ -110,6 +113,10 @@ jobs:
           grep -Fx 'source_generation_id=voidbuye2dormantsourcegen3_aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662' "$RUNNER_TEMP/derive.log"
           grep -Fx 'sealed_source_snapshot=true' "$RUNNER_TEMP/derive.log"
           grep -Fx 'checkout_path_is_not_build_authority=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'compiler_logical_source_name=stdin' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'distinct_source_fd_numbers_exercised=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'distinct_source_fd_builds_byte_identical=true' "$RUNNER_TEMP/derive.log"
+          grep -Fx 'descriptor_number_not_candidate_identity=true' "$RUNNER_TEMP/derive.log"
           grep -Fx 'toolchain_revalidated_after_build=true' "$RUNNER_TEMP/derive.log"
           grep -Fx 'candidate_accepted=false' "$RUNNER_TEMP/derive.log"
           grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/derive.log"
@@ -145,6 +152,10 @@ jobs:
           grep -Fx 'three_binary_bytes_identical=true' "$out"
           grep -Fx 'independent_rederivation_verified=true' "$out"
           grep -Fx 'checkout_path_is_not_build_authority=true' "$out"
+          grep -Fx 'compiler_logical_source_name=stdin' "$out"
+          grep -Fx 'distinct_source_fd_numbers_exercised=true' "$out"
+          grep -Fx 'distinct_source_fd_builds_byte_identical=true' "$out"
+          grep -Fx 'descriptor_number_not_candidate_identity=true' "$out"
           grep -Fx 'candidate_accepted=false' "$out"
           grep -Fx 'protected_install_authorized=false' "$out"
           grep -Fx 'funds_movement=false' "$out"
