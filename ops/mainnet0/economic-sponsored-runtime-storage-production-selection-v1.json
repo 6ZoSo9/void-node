@@ -1,0 +1,56 @@
+{
+  "marker": "VOID_ECONOMIC_SPONSORED_RUNTIME_STORAGE_PRODUCTION_SELECTION_V1",
+  "schema": "void_economic_sponsored_runtime_storage_production_selection_v1",
+  "version": 1,
+  "status": "PRODUCTION_NAMES_AND_ROOTS_SELECTED_NOT_PROVISIONED",
+  "service": {
+    "unit": "void-economic-sponsored-runtime-v1.service",
+    "user": "void-sponsored-runtime",
+    "group": "void-sponsored-runtime",
+    "manager_scope": "system",
+    "unit_install_path": "/etc/systemd/system/void-economic-sponsored-runtime-v1.service",
+    "runtime_uid": null,
+    "runtime_gid": null
+  },
+  "storage": {
+    "parent_root": "/var/lib/void-economic-sponsored-runtime-v1",
+    "parent_owner_uid": 0,
+    "parent_owner_gid": 0,
+    "parent_mode": "0755",
+    "runtime_root_mode": "0700",
+    "time_root": "/var/lib/void-economic-sponsored-runtime-v1/time",
+    "reservation_root": "/var/lib/void-economic-sponsored-runtime-v1/reservation",
+    "replay_root": "/var/lib/void-economic-sponsored-runtime-v1/replay",
+    "time_children": [
+      "observation-time-v1.queue",
+      "records"
+    ],
+    "reservation_children": [
+      "records",
+      "sponsorship-admission-v1.queue"
+    ],
+    "replay_children": []
+  },
+  "historical_user_home_replay_root_reused": false,
+  "production_service_identity_selected": true,
+  "production_account_names_selected": true,
+  "production_runtime_uid_gid_selected": false,
+  "production_root_paths_selected": true,
+  "live_host_evidence_verified": false,
+  "storage_bootstrap": false,
+  "service_installation": false,
+  "service_start": false,
+  "systemd_mutation": false,
+  "filesystem_mutation": false,
+  "time_store_root_stability_proven": false,
+  "reservation_store_root_stability_proven": false,
+  "execution_replay_store_root_stability_proven": false,
+  "runtime_integration": false,
+  "gas_sponsorship_performed": false,
+  "transaction_submission": false,
+  "public_presale_activation": false,
+  "work_credit_write": false,
+  "funds_movement": false,
+  "next_action": "BUILD_SPONSORED_RUNTIME_STORAGE_DESIGNATED_HOST_PLAN_V1",
+  "selection_id": "voidsponsoredstoreselect1_0224ed5a5cb20670e4b12259f0871357ebb8b52478702a98dd80edbf1d3ae938"
+}
