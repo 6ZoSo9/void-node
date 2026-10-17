@@ -98,11 +98,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py)" = \
-            a1f81907751a54808c6062de2fcd0dcdbe7c0324
+            bb2bbbdcc0a4e355c36fecc63a891e9a05f64cc6
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.md)" = \
-            72718f2d8bb3eae7b3968dd52809f87c161795d0
+            792a0f48fdf441ab122984e35ba08935463162dd
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c)" = \
-            e3fc712709c8c3b56fbe1f7b2dc0d20ba0860dc5
+            86dc09e52402c04fb6e4b30a7fcf695833808ca3
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
             f3d6b1559be7490303cf36338c4bfa38fdaa390a
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = \
@@ -143,6 +143,7 @@ jobs:
             'runtime_expected_head_compile_bound=false' \
             'runtime_expected_head_strict_lowercase_hex=true' \
             'runtime_expected_head_forwarded_unchanged=true' \
+            'frozen_child_launcher_path_compatible=true' \
             'repository_head_not_embedded_in_launcher=true' \
             'semantic_report_validation_fail_closed=true' \
             'candidate_accepted=false' \
