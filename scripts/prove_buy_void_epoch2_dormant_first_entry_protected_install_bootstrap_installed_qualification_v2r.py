@@ -266,13 +266,35 @@ for required in (
     assert required in install_source, required
 
 materializer_source = materializer_raw.decode("utf-8", "strict")
+materializer_tree = ast.parse(materializer_source)
+
+def materializer_constant(name: str) -> object:
+    for node in materializer_tree.body:
+        if isinstance(node, ast.Assign):
+            if any(
+                isinstance(target, ast.Name) and target.id == name
+                for target in node.targets
+            ):
+                return ast.literal_eval(node.value)
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == name
+        ):
+            return ast.literal_eval(node.value)
+    raise AssertionError("materializer_constant_missing:" + name)
+
+assert materializer_constant("LOCK_REL") == LOCK_REL
+assert materializer_constant("LOCK_BLOB") == LOCK_BLOB
+assert materializer_constant("LOCK_ID") == LOCK_ID
+assert materializer_constant("CANDIDATE_MERGE") == CANDIDATE_MERGE
+assert materializer_constant("CANDIDATE_TREE") == CANDIDATE_TREE
+assert materializer_constant("EXPECTED_CANDIDATE_ID") == CANDIDATE_ID
+assert materializer_constant("EXPECTED_BINARY_SHA256") == BOOTSTRAP_SHA256
+assert materializer_constant("EXPECTED_BINARY_GIT_BLOB") == BOOTSTRAP_GIT_BLOB
 for required in (
-    LOCK_ID,
-    CANDIDATE_ID,
-    BOOTSTRAP_SHA256,
-    BOOTSTRAP_GIT_BLOB,
-    "canonical_main_candidate_authority",
-    "superseded_v2_lock_install_authority",
+    '"canonical_main_candidate_authority": True',
+    '"superseded_v2_lock_install_authority": False',
 ):
     assert required in materializer_source, required
 
@@ -358,6 +380,7 @@ print("protected_bootstrap_install_v2r_source_bound=true")
 print("protected_bootstrap_install_v2r_proof_bound=true")
 print("accepted_bootstrap_lock_v3_bound=true")
 print("materializer_v2r_generation_bound=true")
+print("materializer_v2r_constants_semantically_bound=true")
 print("materializer_v2r_proof_bound=true")
 print("bootstrap_source_runtime_head_contract_bound=true")
 print("protected_installer_source_generation_bound=true")
