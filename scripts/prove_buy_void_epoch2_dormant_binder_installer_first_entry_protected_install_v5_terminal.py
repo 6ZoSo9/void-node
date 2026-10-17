@@ -374,9 +374,37 @@ def prove() -> None:
     assert successor.MARKER.endswith("PROTECTED_INSTALL_V5")
     assert successor.PLAN_PREFIX == "voidbuye2dormantfirstentryinstall5_"
     assert successor.CONFIRM_TOKEN == "INSTALL_ACCEPTED_EPOCH2_DORMANT_FIRST_ENTRY_V5_CREATE_ONLY"
+    # V5 intentionally advances only the launcher authority from frozen V1
+    # to accepted runtime-head V2 while preserving the frozen child namespace.
+    assert predecessor.LOCK_REL != successor.LOCK_REL
+    assert predecessor.LOCK_GIT_BLOB_SHA1 == "f8ff6fbb855aecafc329cd60622cf3af782745a3"
+    assert successor.LOCK_GIT_BLOB_SHA1 == "227c2fa449abf1387925373c706ecd07775d5898"
+    assert predecessor.LOCK_ID == (
+        "voidbuye2dormantfirstentrylock1_"
+        "bdff90d00036a0e5cebd72dd06aa708842385c3857e4acb3bf9674c2b1e16a85"
+    )
+    assert successor.LOCK_ID == (
+        "voidbuye2dormantfirstentrylock2_"
+        "89b8e50609c148f844a64b7566f919a32ef9f1a863318f1cc891bd3ee6539543"
+    )
+    assert predecessor.CANDIDATE_ID == (
+        "voidbuye2dormantfirstentrycand1_"
+        "b7109c847373114e2d5e044928ecc4e30c65ef446880d70d9ec57d5853ad3736"
+    )
+    assert successor.CANDIDATE_ID == (
+        "voidbuye2dormantfirstentrycand2_"
+        "b9c71a294db1259f8dc599aec82a246170eea75c941180e39aab23c52885e70b"
+    )
+    assert predecessor.LAUNCHER_SHA256 == (
+        "4fbf67bff503cead931b59e4364d66ccf2f2d6c0ee40182b6f9498cf96e8f51a"
+    )
+    assert successor.LAUNCHER_SHA256 == (
+        "4e54056d22a084c1649ddbce3ef1933513bebbd11de7fa76b26d7b636a262a28"
+    )
+    assert predecessor.LAUNCHER_SHA256 != successor.LAUNCHER_SHA256
+
     for name in (
-        "LOCK_REL", "LOCK_GIT_BLOB_SHA1", "LOCK_ID", "CANDIDATE_ID",
-        "LAUNCHER_BYTES", "LAUNCHER_SHA256", "NATIVE_BYTES", "NATIVE_SHA256",
+        "LAUNCHER_BYTES", "NATIVE_BYTES", "NATIVE_SHA256",
         "RUNTIME_INSTALLER_REL", "RUNTIME_INSTALLER_GIT_BLOB_SHA1",
         "RUNTIME_INSTALLER_BYTES", "RUNTIME_INSTALLER_SHA256", "POLICY_SCHEMA",
         "INSTALL_PARENT", "INSTALL_NAME", "INSTALL_ROOT", "LAUNCHER_TARGET",
@@ -512,7 +540,7 @@ def prove() -> None:
     print("frozen_v1_blob_preserved=true")
     print("frozen_v2_blob_preserved=true")
     print("accepted_installed_payload_identities_preserved=true")
-    print("v4_plan_confirmation_domain_separate=true")
+    print("launcher_v1_to_runtime_head_v2_authority_transition_exact=true")\n    print("v5_plan_confirmation_domain_separate=true")
     print("created_stage_cleanup_exercised=true")
     print("substituted_stage_preserved=true")
     print("unknown_stage_entry_preserved=true")
