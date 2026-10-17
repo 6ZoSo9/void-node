@@ -21,7 +21,7 @@ The candidate proof binds:
 - launcher V2 source
   `ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c`;
 - launcher V2 Git blob
-  `e3fc712709c8c3b56fbe1f7b2dc0d20ba0860dc5`;
+  `86dc09e52402c04fb6e4b30a7fcf695833808ca3`;
 - protected Python installer
   `ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py`;
 - installer Git blob
@@ -71,12 +71,21 @@ V2 still compile-binds:
 - exact apply confirmation
   `INSTALL_ACCEPTED_EPOCH2_DORMANT_BINDER_V3_CREATE_ONLY`.
 
-The production root and Python defaults remain the V2 source defaults:
+The production Python default remains fixed at `/usr/bin/python3`.
+
+The accepted #3436 repair deliberately keeps the launcher's **installed
+pathname contract** equal to the historical V1 path authenticated by the frozen
+Python child:
 
 ```text
-/opt/void-buy-void-epoch2-dormant-binder-installer-first-entry-v2
-/usr/bin/python3
+/opt/void-buy-void-epoch2-dormant-binder-installer-first-entry-v1/bin/
+  void_buy_void_epoch2_dormant_binder_installer_first_entry_v1
 ```
+
+This is pathname/provenance compatibility only: the source marker and runtime
+HEAD contract are V2. The candidate proof requires this exact compatibility
+path in the reviewed C source. It does not authorize replacing an existing V1
+installation or migrating host state.
 
 No fixture root or Python override is used by the production candidate
 derivation.
