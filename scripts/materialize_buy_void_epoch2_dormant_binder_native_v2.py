@@ -176,8 +176,9 @@ def accepted_lock() -> dict:
 
 
 def verify_current_repository() -> None:
-    if run_git(["branch", "--show-current"]) != "main":
-        raise MaterializeError("current_branch_not_main")
+    head = run_git(["rev-parse", "--verify", "HEAD"])
+    if len(head) != 40 or any(ch not in "0123456789abcdef" for ch in head):
+        raise MaterializeError("current_head_invalid")
     if run_git(["status", "--porcelain=v1", "--untracked-files=all"]) != "":
         raise MaterializeError("current_checkout_not_clean")
     run_git(["cat-file", "-e", CANDIDATE_MERGE + "^{commit}"])
