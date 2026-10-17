@@ -385,6 +385,7 @@ def self_test() -> None:
     print("apollyon_xiphos_category_fixed=true")
     print("economic_integration_category_fixed=true")
     print("release_authority=false")
+    print("apply_mode_refused=true")
     print("funds_movement_authorized=false")
 
 
@@ -393,7 +394,20 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--self-test", action="store_true")
     mode.add_argument("--run", action="store_true")
+    mode.add_argument("--apply", action="store_true")
     args = parser.parse_args()
+
+    if args.apply:
+        print(MARKER)
+        print("status=HOLD")
+        print("reason=apply_not_supported")
+        print("read_only=true")
+        print("source_mutation=false")
+        print("host_mutation=false")
+        print("customer_payment_acceptance_authorized=false")
+        print("public_presale_activation_authorized=false")
+        print("funds_movement_authorized=false")
+        return 2
 
     if args.self_test:
         self_test()
