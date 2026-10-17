@@ -1,0 +1,134 @@
+name: Buy VOID Epoch-2 protected bootstrap installed qualification v6
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-protected-bootstrap-installed-qualification-v6-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V6 qualification generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          parent=23d76602bac5b1a0cc6563817afd446eb7f0dbe2
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
+            | sort > "$expected"
+          git diff --name-only "$parent" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = f8e25ef310ef4493dd23baee70eef6db84ae68f9
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = 3f73380677dfe3736d7e74631893142615914768
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md)" = 0ed0ce3aee33f996adde676ae7020cf86b182ee6
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 63e1c973978cfcb67105010e4145f01552673bc3
+
+          git diff --check "$parent" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and adversarial proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py",
+              "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_INSTALLED_QUALIFICATION_V6_SYNTAX_GREEN")
+          PY
+
+          out="$RUNNER_TEMP/v6-installed-qualification-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py | tee "$out"
+
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_INSTALLED_QUALIFICATION_V6_PROOF_GREEN' \
+            'target_blob_bound=true' \
+            'installer_v6_blob_bound=true' \
+            'accepted_bootstrap_v6_lock_bound=true' \
+            'accepted_bootstrap_v6_binary_bound=true' \
+            'source_generation_v3_manifest_bound=true' \
+            'python_and_git_policy_binding_required=true' \
+            'retained_bootstrap_fd_execution_required=true' \
+            'visible_path_swap_rejected_after_retained_fd_execution=true' \
+            'before_middle_after_stability_required=true' \
+            'double_self_test_required=true' \
+            'bootstrap_execution_beyond_self_test=false' \
+            'inner_installer_execution=false' \
+            'protected_installer_apply=false' \
+            'filesystem_write=false' \
+            'credential_access=false' \
+            'signing=false' \
+            'transaction=false' \
+            'rpc_call=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Inert source plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/source-plan.log"
+          python3 -I -B ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py --source-plan | tee "$out"
+
+          for marker in \
+            'mode=source-plan' \
+            'source_only=true' \
+            'host_read=false' \
+            'host_write=false' \
+            'read_only=true' \
+            'double_descriptor_bound_bootstrap_self_test_required=true' \
+            'bootstrap_execution_beyond_self_test=false' \
+            'inner_installer_execution=false' \
+            'protected_installer_apply=false' \
+            'filesystem_write=false' \
+            'credential_access=false' \
+            'signing=false' \
+            'transaction=false' \
+            'rpc_call=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
