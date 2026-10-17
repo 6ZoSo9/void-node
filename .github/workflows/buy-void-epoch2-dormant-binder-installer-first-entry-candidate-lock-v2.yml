@@ -1,0 +1,181 @@
+name: Buy VOID Epoch-2 dormant binder installer first-entry candidate lock v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.yml"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.md"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.yml"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.yml"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.md"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.yml"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V2 lock generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.md' \
+            'ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v2.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json)" = \
+            227c2fa449abf1387925373c706ecd07775d5898
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v2.py)" = \
+            23fe6cd1e777e338ed936c89984f0f25b82ddc2a
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.md)" = \
+            6ebd54d05bf1cd2dde76c4f40ff2256edcd0fc3b
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py)" = \
+            de2f487c625cf96c812cb6d4246d3d036a589e89
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.yml)" = \
+            2bb8366afa1305fbd058745feb27941dafa0e055
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.md)" = \
+            630f8b770e34dced3d7b341a85a33f6313a9bcba
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c)" = \
+            86dc09e52402c04fb6e4b30a7fcf695833808ca3
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = \
+            a6574e2d52f267d4a595c8cad0004d4797fd6f93
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml)" = \
+            4169a50df2b278776e046a8516be92aa3e56cdfc
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
+            f3d6b1559be7490303cf36338c4bfa38fdaa390a
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = \
+            5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py)" = \
+            f97cb8aff642f2f3e138fe8e087eece22223b934
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = \
+            f8ff6fbb855aecafc329cd60622cf3af782745a3
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and inert self-test
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v2.py"
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          relative="scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v2.py"
+          compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_CANDIDATE_LOCK_V2_SYNTAX_GREEN")
+          PY
+          out="$RUNNER_TEMP/first-entry-lock-v2-self.log"
+          python3 -I -B "$proof" --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_CANDIDATE_LOCK_V2_SELF_TEST_GREEN' \
+            'canonical_main_candidate_required=true' \
+            'runtime_expected_head_compile_bound=false' \
+            'runtime_expected_head_strict_lowercase_hex=true' \
+            'runtime_expected_head_forwarded_unchanged=true' \
+            'repository_head_not_embedded_in_launcher=true' \
+            'superseded_v1_lock_install_authority=false' \
+            'candidate_accepted=true' \
+            'protected_install_authorized=false' \
+            'precision_install_authorized=false' \
+            'funds_movement_authorized=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Re-derive canonical V2 candidate and verify lock
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v2.py"
+          out="$RUNNER_TEMP/first-entry-lock-v2-verify.log"
+          python3 -I -B "$proof" --verify | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_CANDIDATE_LOCK_V2_GREEN' \
+            'canonical_main_candidate_rederived=true' \
+            'canonical_hosted_evidence_bound=true' \
+            'three_report_byte_identity_verified=true' \
+            'three_binary_byte_identity_verified=true' \
+            'independent_rederivation_verified=true' \
+            'runtime_head_contract_accepted=true' \
+            'superseded_v1_lock_preserved=true' \
+            'superseded_v1_lock_install_authority=false' \
+            'candidate_accepted=true' \
+            'launcher_binary_identity_accepted=true' \
+            'protected_install_authorized=false' \
+            'precision_install_authorized=false' \
+            'native_or_binder_live_execution_authorized=false' \
+            'funds_movement_authorized=false' \
+            'production_host_evidence_authority=false' \
+            'next_gate=void_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v2'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
