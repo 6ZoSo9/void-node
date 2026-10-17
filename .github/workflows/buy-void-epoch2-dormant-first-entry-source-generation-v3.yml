@@ -376,7 +376,7 @@ jobs:
             'binary_git_blob_sha1=b577d70666f98ac59a75b84b3dab741fe7b93a4b' \
             'manifest_bytes=2382' \
             'manifest_sha256=8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9' \
-            'accepted_lock_id=voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b' \
+            'accepted_lock_id=voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396' \
             'descriptor_independent_candidate_bound=true' \
             'output_leaf_generations_revalidated=true' \
             'output_visible_parent_generation_revalidated=true' \
