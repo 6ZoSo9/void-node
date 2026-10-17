@@ -272,6 +272,24 @@ export function validateApollyonTrainingStartConsumptionRecordV1(input){
   ){
     fail("apollyon_training_start_v1_authorization_slot_record_id_invalid");
   }
+  // Reconstruct the exact reviewed blocked generation from persisted fields.
+  // Its ID cannot be a freely selected label merely because the enclosing
+  // consumption-record ID was recomputed to match.
+  validateApollyonPretrainingAdmissionGenerationV1({
+    marker:VOID_APOLLYON_PRETRAINING_ADMISSION_GENERATION_V1,
+    version:1,
+    admission_blocked:true,
+    automatic_retry_authorized:false,
+    boot_id_sha256:value.trainer_boot_id_sha256,
+    candidate_weight_mutation_performed:false,
+    gid:value.trainer_gid,
+    pid:value.trainer_pid,
+    process_start_time_ticks:value.trainer_process_start_time_ticks,
+    source_identity_sha256:value.trainer_source_identity_sha256,
+    trainer_generation_id:value.trainer_generation_id,
+    training_execution_performed:false,
+    uid:value.trainer_uid,
+  });
   const expectedSlot=trainingStartConsumptionSlotId({
     authorization_slot_id:value.authorization_slot_id,
   });

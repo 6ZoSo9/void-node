@@ -74,7 +74,7 @@ export const PARENT_PROTECTED_WRITER_BLOB_SHA1 =
 export const STORE_SERVICE_CANDIDATE_BLOB_SHA1 =
   "d67ef39c4cd034844fb0862e180de46ed4cd0c88";
 export const PARENT_CONSUMPTION_CONTRACT_BLOB_SHA1 =
-  "4333df6c7918fe9efaada36cac765000eec7948f";
+  "60987b860fb7159d88f4f601b76878e7d8ccca92";
 export const FIXED_CLAIM_STATE_ROOT =
   "/var/lib/void-apollyon-attempt-claim-v2";
 export const FIXED_TRAINING_START_CONSUMPTION_DIRECTORY =
