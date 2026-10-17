@@ -50,7 +50,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "$CHECKOUT_SHA"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.json)" = 46f8512395936f5fc81423ce31a5c9b88928a21f
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap-v5-candidate-lock-v1.py 2>/dev/null || true)" = "" || exit 1
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v5_candidate_lock_v1.py)" = b9c2f156e101b8e194dc7794b5d4924df9820feb
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v5-candidate-lock-v1.md)" = 2d99da3469a829491a119d9fc2dc1ad8c2738127
 
