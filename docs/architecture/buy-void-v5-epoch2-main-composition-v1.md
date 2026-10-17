@@ -2,83 +2,118 @@
 
 **Status: source/test/CI-only integration. Not a production release or an activation gate.**
 
-## Exact source generations
+## Current source generations
 
-This is a two-parent, byte-preserving composition of the verified **combined
-range + receipt-custody V5 enforcement lock** with current canonical
-`main`'s independent Epoch-2 first-entry source additions.
+This branch preserves the reviewed **combined range + receipt-custody V5
+enforcement lock** while carrying forward the canonical Epoch-2 source that has
+continued to land on `main`.
+
+The original two-parent composition remains historical evidence and is not
+rewritten. Two later merge-forward commits add only newer canonical-main
+Epoch-2 paths.
 
 | Generation | Exact identity |
 | --- | --- |
-| V5 proposed lock parent (PR #3398) | `c005ca30ab156427deb7731d596cde52d7a669ac` |
-| Canonical Epoch-2 `main` | `206d3d61e5051704e9fd0c47068bcfe56a15c85f` |
 | Common integration baseline | `adc5a87d0200aa354b03d9910cbfc1cb2d59bb38` |
-| Two-parent composition commit | `38614797be01f2dd7d6d87503874182c5669c22d` |
-| Composed tree | `01b460d46c703b619a43c8747b1dc5537a39019e` |
+| V5 proposed lock parent (#3398) | `c005ca30ab156427deb7731d596cde52d7a669ac` |
+| Initial canonical Epoch-2 main | `206d3d61e5051704e9fd0c47068bcfe56a15c85f` |
+| Initial two-parent composition | `38614797be01f2dd7d6d87503874182c5669c22d` |
+| Initial composed tree | `01b460d46c703b619a43c8747b1dc5537a39019e` |
+| Pre-first-forward composition head | `fd2fa4e0fbe412cdf31aad12b3f28d93761b013a` |
+| Intermediate canonical main (#3400 + #3401) | `9cc49f39e643e6bba667f7cda9dd3ea299860ff4` |
+| First merge-forward | `6a5e8afa27aa91b4f0b577809966eecb9a06e60a` |
+| First merge-forward tree | `94388a64a4d5576630202d2b4a284f56771d785f` |
+| Current canonical main (#3405 included) | `0ea097a3fa43dc95a1a0a5272c61afe570361fc7` |
+| Current composition merge-forward | `7847428a943b328e1b5a130d2fa8009b07d9819e` |
+| Current composition tree | `639c7d8564b8ab9b5e6cfdfd3700bb8bfa2157a3` |
 
-The composition commit's first parent is **exactly** the V5 lock parent;
-its second parent is **exactly** canonical `main`. This adds no runtime or
-deployment authority, changes no preexisting file bytes/modes, and does
-not force-push or rewrite any of the two histories.
+The current merge-forward's first parent is the prior composed generation and
+its second parent is exact canonical main. No force-push or history rewrite is
+used.
 
-**Source-scope proof:**
-- canonical baseline → V5 lock: exactly **60 economic paths**;
-- canonical baseline → newer main: exactly **15 ADD-only Epoch-2 paths**;
-- intersection: **zero**;
-- V5 lock parent → composition: those exact **15 ADD-only** main paths,
-  byte- and mode-identical to their canonical main identities;
-- main → composition: those exact **60** economic paths,
-  byte- and mode-identical to their reviewed lock lineage;
-- this proof/doc/workflow add only three new files on top of the composed tree.
+## Exact source-scope preservation
+
+Relative to the common baseline:
+
+- V5 lock lineage: exactly **60 reviewed economic/source-CI paths**;
+- current canonical main: exactly **26 ADD-only Epoch-2 paths**;
+- economic/Epoch-2 intersection: **zero**;
+- canonical Epoch-2 paths added after the initial 15-path composition:
+  exactly **11**;
+- current composition retains all 60 economic files byte/mode-identical to the
+  V5 lock parent;
+- current composition retains all 26 Epoch-2 files byte/mode-identical to
+  `main@0ea097a3...`;
+- this review modifies only its three composition proof/doc/workflow files after
+  the current merge-forward.
+
+The 11 post-initial canonical paths are the native materializer, protected
+bootstrap source/proof/doc/workflow, and canonical protected-bootstrap candidate
+proof/doc/workflow added through #3400, #3401, and #3405.
 
 ## Enforcement authority preserved, not expanded
 
-The reviewed full selected candidate is PR #3396 at
-`a884c8b69d19523e99da02899ff5fa8ab18e7100` with enforcement set:
+The selected full enforcement candidate remains #3396:
 
-`1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf`
+- candidate head:
+  `a884c8b69d19523e99da02899ff5fa8ab18e7100`;
+- enforcement set:
+  `1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf`;
+- protected inventory:
+  `e7e0625ff47dc4b4c7e0f93e4b75be30d04d9538acc233174c0abc18198b38e3`.
 
-The V5 lock source blob
-`61a9d85d285f9c9d249adf401580822c44c6dac6`
-and tracked candidate projection blob
-`dd849928bc945478a1a8fcf687f374cfca59f4e4`
-are **unchanged**. The source verifier requires the exact **49-row protected
-inventory**, its canonical SHA-256, every tracked Git blob and executable
-mode, source-only V5 accepted identity, and all production authority
-flags unchanged.
+The V5 lock source blob remains
+`61a9d85d285f9c9d249adf401580822c44c6dac6`, and its tracked bounded candidate
+projection remains blob
+`dd849928bc945478a1a8fcf687f374cfca59f4e4`.
 
-The parent V5 lock independently rederives the full candidate in its
-own CI. This composition does **not** claim to repeat that expensive
-derivation; it proves source-identity preservation and independently
-exercises the actual **deployment-receipt planner `--plan`** on the
-composed checkout. The planner must accept the current lock and reject
-any mutation or unexpected path, source or lock identity.
+The composition proof requires the exact 49-row protected inventory and all
+planner-consumed acceptance fields while preserving every production authority
+flag as false.
+
+## Canonical Epoch-2 additions
+
+The composition now includes the canonical source generations for:
+
+- accepted first-entry launcher candidate/lock/materializer/protected installer;
+- accepted dormant-binder native materializer;
+- authenticated protected-installer bootstrap;
+- reproducible protected-bootstrap candidate source gate from #3405.
+
+These are preserved as source identities only. Their presence in the composed
+tree does not imply installation on Precision or authorize protected installer
+apply.
 
 ## Hosted qualification
 
-The focused workflow checks the exact two-parent merge and three-file
-proof scope. It independently typechecks/builds the reviewed economic
-source and runs the unmodified V7 deployment-receipt planner in inert
-`--plan` mode against the V5 accepted lock under a synthetic **CI-only**
-local `main` branch at the exact test HEAD. Temporary receipts live
-outside the checkout and **must not exist afterward**.
+The focused workflow must:
 
-Historical V3/V5 checks are still expected to refuse newer source
-generations. Those failures are not silently made green, skipped or
-altered. The V5 lock source gate remains separately reviewed in draft
-PR #3398. If canonical `main` advances, its additional file delta
-and this composition must be independently reassessed rather than
-blindly treating an earlier head as current.
+1. prove the initial composition and both merge-forward parent/tree identities;
+2. prove the exact 60 + 26 disjoint source closure;
+3. verify every protected V5 source row against the composed checkout;
+4. independently typecheck/build the reviewed economic closure;
+5. invoke the unmodified V7 deployment-receipt installer **only in `--plan`
+   mode** against the V5 accepted lock;
+6. require `PLAN_GREEN` and no receipt creation or repository mutation.
+
+Historical generation-specific workflows may continue to reject this combined
+source tree. Those refusals remain evidence and are not weakened, skipped, or
+repinned merely to make the full wall green.
 
 ## Authority
 
-Even if green, the combined source remains:
-`deployed_artifact_generation_verified=false`,
-`runtime_mount_authority=false`,
-`production_source_finality_authority_ready=false`,
-`public_presale_activation=false`, and
-`funds_movement=false`.
+Even when the focused composition proof is green:
 
-No runtime/service/network action on Precision/Nimo/Xiphos; no payment
-acceptance, signer/key/wallet access, treasury/liquidity transaction, WC
-pool or public presale activation. **KEEP DRAFT. PROTECT THE CORE.**
+```text
+deployed_artifact_generation_verified=false
+runtime_mount_authority=false
+production_source_finality_authority_ready=false
+public_presale_activation=false
+funds_movement=false
+```
+
+No Precision/Nimo/Xiphos runtime or service mutation, no credential/key/wallet
+access, no signing or transaction, no customer payment acceptance, no public
+presale/WC activation, and no treasury/liquidity action is authorized.
+
+**KEEP DRAFT. PROTECT THE CORE.**
