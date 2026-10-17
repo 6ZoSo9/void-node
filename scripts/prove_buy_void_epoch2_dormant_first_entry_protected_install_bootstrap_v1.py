@@ -64,17 +64,19 @@ def run(
     merged = dict(BASE_ENV)
     if env:
         merged.update(env)
-    cp = subprocess.run(
-        argv,
-        cwd=ROOT,
-        stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL,
-        input=input_bytes,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=merged,
-        check=False,
-        timeout=timeout,
-    )
+    kwargs = {
+        "cwd": ROOT,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "env": merged,
+        "check": False,
+        "timeout": timeout,
+    }
+    if input_bytes is None:
+        kwargs["stdin"] = subprocess.DEVNULL
+    else:
+        kwargs["input"] = input_bytes
+    cp = subprocess.run(argv, **kwargs)
     if check and cp.returncode != 0:
         raise AssertionError(
             "command_failed:"
