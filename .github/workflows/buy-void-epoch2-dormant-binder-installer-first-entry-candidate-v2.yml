@@ -1,0 +1,232 @@
+name: Buy VOID Epoch-2 dormant binder installer first-entry candidate v2
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V2 candidate generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.md' \
+            'scripts/prove_buy_void_epoch2_dormant-binder-installer-first-entry-candidate-v2.py' \
+            | sort > "$expected"
+          # Correct the proof path spelling without introducing a hidden fourth path.
+          sed -i 's/dormant-binder/dormant_binder/' "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py)" = \
+            338edc0d63ac1941eb9121b870f5b975da98f7e2
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.md)" = \
+            e0f0ec0fa40b674f84de0a0db13475c71b969be8
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c)" = \
+            e3fc712709c8c3b56fbe1f7b2dc0d20ba0860dc5
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
+            f3d6b1559be7490303cf36338c4bfa38fdaa390a
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = \
+            5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py)" = \
+            5ac4264d7f9bdb394cf5be4490aa1eadd1f929ee
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py)" = \
+            f97cb8aff642f2f3e138fe8e087eece22223b934
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" = \
+            4fdf3f627f407335b9d50800fbbc913d1edae523
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and invariant proof
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py"
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          relative="scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py"
+          compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_CANDIDATE_V2_SYNTAX_GREEN")
+          PY
+          out="$RUNNER_TEMP/first-entry-candidate-v2-self-test.log"
+          python3 -I -B "$proof" --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_CANDIDATE_V2_SELF_TEST_GREEN' \
+            'accepted_lock_v3_bound=true' \
+            'accepted_native_deriver_verified_bytes=true' \
+            'accepted_native_independent_rederivation_required=true' \
+            'launcher_source_exact_head_bound=true' \
+            'installer_source_exact_head_bound=true' \
+            'sealed_launcher_source_required=true' \
+            'root_protected_compiler_and_strip_required=true' \
+            'two_builds_required=true' \
+            'three_hosted_derivations_required=true' \
+            'semantic_report_validation_fail_closed=true' \
+            'expected_head_compile_bound=false' \
+            'runtime_expected_head_strict_lowercase_hex=true' \
+            'runtime_expected_head_forwarded_unchanged=true' \
+            'candidate_accepted=false' \
+            'precision_install_authorized=false' \
+            'native_or_binder_live_execution_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+  derive:
+    name: derive first-entry V2 candidate / ${{ matrix.lane }}
+    needs: source-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [a, b, c]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Derive exact V2 launcher candidate
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/first-entry-candidate-v2"
+          log="$RUNNER_TEMP/first-entry-candidate-v2.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py \
+            --derive-dir "$out" | tee "$log"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_CANDIDATE_V2_DERIVE_GREEN' \
+            'accepted_native_rederived=true' \
+            'two_launcher_builds_byte_identical=true' \
+            'static_no_interp=true' \
+            'semantic_report_validation_fail_closed=true' \
+            'expected_head_compile_bound=false' \
+            'runtime_expected_head_strict_lowercase_hex=true' \
+            'runtime_expected_head_forwarded_unchanged=true' \
+            'readdressed_compile_head_authority_rejected=true' \
+            'readdressed_source_binding_rejected=true' \
+            'readdressed_confirmation_binding_rejected=true' \
+            'readdressed_toolchain_binding_rejected=true' \
+            'candidate_accepted=false' \
+            'precision_install_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$log"
+          done
+          test -s "$out/candidate-v2.json"
+          test -s "$out/installer-first-entry-v2"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-dormant-binder-first-entry-candidate-v2-${{ github.event.pull_request.head.sha || github.sha }}-${{ matrix.lane }}
+          path: ${{ runner.temp }}/first-entry-candidate-v2
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: compare first-entry V2 candidate
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-epoch2-dormant-binder-first-entry-candidate-v2-${{ github.event.pull_request.head.sha || github.sha }}-*
+          path: ${{ runner.temp }}/first-entry-candidates-v2
+          merge-multiple: false
+
+      - name: Require three-run identity and independent rederivation
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/first-entry-candidate-v2-compare.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py \
+            --compare-dir "$RUNNER_TEMP/first-entry-candidates-v2" | tee "$log"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_CANDIDATE_V2_THREE_RUN_GREEN' \
+            'three_run_report_bytes_identical=true' \
+            'three_run_binary_bytes_identical=true' \
+            'comparison_rederived_report=true' \
+            'comparison_rederived_launcher_elf=true' \
+            'accepted_native_rederived=true' \
+            'semantic_report_validation_fail_closed=true' \
+            'candidate_accepted=false' \
+            'precision_install_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$log"
+          done
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
