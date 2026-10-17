@@ -17,7 +17,7 @@ SOURCE_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c"
 )
-SOURCE_BLOB = "c435762e1fc26beeecfcfef93bf839ba408ea8b3"
+SOURCE_BLOB = "243583d4ed0522796b2bbf448abd4e9c28958f50"
 INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
@@ -261,6 +261,13 @@ def replace_root_file(local: Path, target: Path, mode: str = "0444") -> None:
 
 
 source_raw = exact_file(SOURCE_REL, SOURCE_BLOB, 256 * 1024)
+source_text = source_raw.decode("utf-8", "strict")
+if (
+    "send(o,buf+off,(size_t)n-off,MSG_MORE)" not in source_text
+    or "send(o,NULL,0,0)" not in source_text
+    or "bootstrap_hash_finalize_failed" not in source_text
+):
+    raise AssertionError("af_alg_stream_finalization_contract_missing")
 installer_raw = exact_file(INSTALLER_REL, INSTALLER_BLOB, 256 * 1024)
 if len(installer_raw) != INSTALLER_BYTES or sha256(installer_raw) != INSTALLER_SHA256:
     raise AssertionError("merged_installer_identity_mismatch")
@@ -561,6 +568,7 @@ else:
 print(MARKER + "_PROOF_GREEN")
 print("merged_3391_installer_blob_bound=true")
 print("merged_3391_installer_sha256_bound=true")
+print("af_alg_multichunk_sha256_finalization_required=true")
 print("required_compile_generation_macros=true")
 print("production_bootstrap_static=true")
 print("production_bootstrap_no_pt_interp=true")
