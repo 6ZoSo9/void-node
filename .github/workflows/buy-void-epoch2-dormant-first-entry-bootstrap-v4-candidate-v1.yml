@@ -33,10 +33,10 @@ jobs:
           persist-credentials: false
       - name: Exact generation and self-test
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_CHECKOUT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_CHECKOUT_SHA"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v4_candidate_v1.py)" = "a14a7f56b1fb4ee14213fe9094adad14b45aae2f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v4.c)" = c7d2125b59dcbecc1d6aae8818e84cac8ce85da9
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf)" = a484a7d2e1159ebbef3357ec849af92d7f12cff1
