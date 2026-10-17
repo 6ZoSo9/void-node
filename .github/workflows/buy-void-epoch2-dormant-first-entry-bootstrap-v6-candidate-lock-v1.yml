@@ -77,7 +77,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f5b03c6b81016edf21f605099e0ef8976f40e107
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_lock_v1.py)" = 2c6515ea18ab0fefcc63bf137be1c78467494ca4
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_lock_v1.py)" = 45966de5c9cf8077bbd8b9737e0f633759e22f04
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.md)" = ff6a14622b8a85d1805adf3a1af006eac7ade5b5
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = b963ac9ef0b9c8ac685763b3a82375f970ef12df
@@ -105,6 +105,8 @@ jobs:
             'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_CANDIDATE_LOCK_V1_PROOF_GREEN'
             'lock_id=voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b'
             'canonical_main_push_candidate_bound=true'
+            'canonical_candidate_merge_rederived=true'
+            'descriptor_independent_candidate_rederived=true'
             'hosted_three_way_candidate_identity_bound=true'
             'independent_rederivation_bound=true'
             'candidate_report_content_address_bound=true'
