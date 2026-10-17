@@ -2126,6 +2126,7 @@ def proof(*, accepted_bootstrap: Path | None, accepted_launcher: Path | None,
     print("private_git_rejection_cases=" + str(private_count))
     print("source_mtime_ctime_inode_and_bytes_preservation_checked=true")
     print("native_private_git_loose_packed_and_inert_config_exercised=true")
+    print("cruft_mtimes_auxiliary_accepted=true")
     print("native_split_index_without_sharedindex_touch_exercised=true")
     print("native_raw_tree_authentication_and_final_worktree_fence_exercised=true")
     print("native_earlier_file_drift_injected_after_real_pread=true")
