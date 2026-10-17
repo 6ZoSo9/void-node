@@ -17,67 +17,67 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_install_v2r.py"
+    "protected_install_bootstrap_install_v3.py"
 )
-TARGET_BLOB = "f8355b728b4c6870b92b10a0c19f154cf9c2ab51"
+TARGET_BLOB = "21860bce2c1589cead5c0789342871049c2d6055"
 
 LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-first-entry-protected-install-"
-    "bootstrap-candidate-lock-v3.json"
+    "bootstrap-candidate-lock-v4.json"
 )
-LOCK_BLOB = "64c9a42ca1108a9e8f88218c34d53e50668c653e"
+LOCK_BLOB = "57ecc08d465fe2a3c395546d349864312cd08a3f"
 
 MATERIALIZER_REL = (
     "scripts/materialize_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_v2r.py"
+    "protected_install_bootstrap_v3.py"
 )
-MATERIALIZER_BLOB = "f79e52b5d0af99194b0cf89a73ae5bf3285d3840"
+MATERIALIZER_BLOB = "a62dc7c4e7ac4cde63c3473d0040c355aa28508e"
 MATERIALIZER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_materializer_v2r.py"
+    "protected_install_bootstrap_materializer_v3.py"
 )
-MATERIALIZER_PROOF_BLOB = "c66bcd1f1d0d4751de475d5d6c1c98cab1eba31a"
+MATERIALIZER_PROOF_BLOB = "f23a60dcd7ff0c3538cc2fef0929086c169365da"
 
 CANDIDATE_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_candidate_v2.py"
+    "protected_install_bootstrap_candidate_v3.py"
 )
-CANDIDATE_BLOB = "4f9b5a2ca77b3aebc9e70ea835c92155601a1a06"
+CANDIDATE_BLOB = "1c49abf74e464b3d509a33e2fa3f1a9acc42c771"
 
 BOOTSTRAP_SOURCE_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_v2.c"
+    "protected_install_bootstrap_v3.c"
 )
-BOOTSTRAP_SOURCE_BLOB = "19f9baf8d6d707da43dbd0e247667af1a10e46c5"
+BOOTSTRAP_SOURCE_BLOB = "2c3c9ed120cc9949a0528e43be886354aa25da5a"
 
 PROTECTED_INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_"
-    "installer_first_entry_protected_install_v1.py"
+    "installer_first_entry_protected_install_v2.py"
 )
-PROTECTED_INSTALLER_BLOB = "383b84e71b371de65579e4113469e86a59b807ab"
+PROTECTED_INSTALLER_BLOB = "69a018c0eccedf3782055c56725579d02463b05e"
 
 LOCK_ID = (
-    "voidbuye2bootstraplock3_"
-    "690d119c90f5c8c20f429fcc14919b62691f9a1b3bfe2226476267ede993197f"
+    "voidbuye2bootstraplock4_"
+    "6568c1cd0195405d49001fbf6cb9a086364e401f78f3bfcf1d6cbb080947cb67"
 )
-CANDIDATE_MERGE = "344f0abcc57d6f2fbacbb6a57e27009ae9ea7a4b"
-CANDIDATE_TREE = "4085987d856fa303b8bc81087e3b5a207bc8964f"
+CANDIDATE_MERGE = "78875f7379c2dd995e1b545dd0543c934e59907a"
+CANDIDATE_TREE = "a2c1b6b9989ceb11c4fbea3f2fc4ecf64eb50176"
 CANDIDATE_ID = (
-    "voidbuye2bootstrapcand2_"
-    "b71b8757fa64fc36c2df0e95e3812c00eccef114b71e0b854c34ddfd62285def"
+    "voidbuye2bootstrapcand3_"
+    "9e914f52eb3cde5a5fef42fbdf065b375f89fdabb768034b09615861bba67ce3"
 )
 BOOTSTRAP_BYTES = 731_072
 BOOTSTRAP_SHA256 = (
-    "37a6979c274e93fa09860b26664804a9d912201a290db65deb9b4499e39aa276"
+    "904e6b05df45bc9212be7689ea0617ccfbf65d5edf8535a381abcbb588f236cd"
 )
-BOOTSTRAP_GIT_BLOB = "45ca1ed7a6237fccbd6bb0b9d73ef5ff47c72d62"
+BOOTSTRAP_GIT_BLOB = "69e3bf6db7baf614eb0b7d8c5e93aafce0deab46"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
-    "PROTECTED_INSTALL_BOOTSTRAP_INSTALL_V2R"
+    "PROTECTED_INSTALL_BOOTSTRAP_INSTALL_V3"
 )
 
 
@@ -105,7 +105,7 @@ pin(PROTECTED_INSTALLER_REL, PROTECTED_INSTALLER_BLOB)
 source = target_raw.decode("utf-8", "strict")
 compile(source, TARGET_REL, "exec", dont_inherit=True)
 
-target_module = types.ModuleType("protected_bootstrap_install_v2r_fixture")
+target_module = types.ModuleType("protected_bootstrap_install_v3_fixture")
 target_module.__file__ = str(ROOT / TARGET_REL)
 exec(
     compile(source, TARGET_REL, "exec", dont_inherit=True),
@@ -373,7 +373,7 @@ prove_git_fsmonitor_disabled()
 for required in (
     'INSTALL_NAME = (',
     '"void-buy-void-epoch2-dormant-first-entry-"',
-    '"protected-install-bootstrap-v2"',
+    '"protected-install-bootstrap-v3"',
     'POLICY_NAME = "policy-v1.conf"',
     'BOOTSTRAP_NAME = (',
     'BOOTSTRAP_BYTES = 731_072',
@@ -386,6 +386,7 @@ for required in (
     '"runtime_expected_head_strict_lowercase_hex": True',
     '"runtime_expected_head_forwarded_unchanged": True',
     '"canonical_main_candidate_authority": True',
+    '"superseded_v3_lock_install_authority": False',
     '"superseded_v2_lock_install_authority": False',
     'os.O_EXCL',
     'os.O_NOFOLLOW',
@@ -510,6 +511,10 @@ assert lock["candidate_source_head"] == CANDIDATE_MERGE
 assert lock["candidate_source_tree"] == CANDIDATE_TREE
 assert lock["candidate_accepted"] is True
 assert lock["bootstrap_binary_identity_accepted"] is True
+assert lock["canonical_main_candidate_authority"] is True
+assert lock["superseded_v3_lock_install_authority"] is False
+assert lock["superseded_v2_lock_install_authority"] is False
+assert lock["superseded_v1_lock_install_authority"] is False
 assert lock["runtime_head_contract_accepted"] is True
 assert lock["canonical_main_candidate_authority"] is True
 assert lock["superseded_v2_lock_install_authority"] is False
@@ -521,7 +526,7 @@ assert lock["funds_movement_authorized"] is False
 assert (
     lock["next_gate"]
     == "void_buy_void_epoch2_dormant_first_entry_"
-       "protected_install_bootstrap_materializer_v2r"
+       "protected_install_bootstrap_materializer_v3"
 )
 report = lock["candidate_report"]
 assert report["candidate_id"] == CANDIDATE_ID
@@ -534,7 +539,7 @@ assert report["runtime_expected_head_forwarded_unchanged"] is True
 assert report["repository_head_not_embedded_in_bootstrap"] is True
 assert report["fixed_root"] == (
     "/opt/void-buy-void-epoch2-dormant-first-entry-"
-    "protected-install-bootstrap-v2"
+    "protected-install-bootstrap-v3"
 )
 assert report["fixed_python"] == "/usr/bin/python3"
 
@@ -543,10 +548,10 @@ assert "VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_EXPECTED_HEAD" not in bootstrap_so
 for required in (
     "#define POLICY_SCHEMA "
     '"VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_'
-    'PROTECTED_INSTALL_BOOTSTRAP_POLICY_V2"',
+    'PROTECTED_INSTALL_BOOTSTRAP_POLICY_V3"',
     '#define FIXED_SELF VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_ROOT '
     '"/bin/void_buy_void_epoch2_dormant_first_entry_'
-    'protected_install_bootstrap_v2"',
+    'protected_install_bootstrap_v3"',
     '#define FIXED_POLICY VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_ROOT '
     '"/policy-v1.conf"',
     'strncmp(lines[1],"python_sha256=",14)',
@@ -631,7 +636,7 @@ print("bootstrap_source_generation_bound=true")
 print("protected_installer_generation_bound=true")
 print("policy_parser_contract_bound=true")
 print("canonical_v3_lock_bound=true")
-print("canonical_v2r_materializer_bound=true")
+print("canonical_v3_materializer_bound=true")
 print("runtime_head_not_compile_bound=true")
 print("runtime_expected_head_forwarded_unchanged=true")
 print("superseded_v2_lock_install_authority=false")
