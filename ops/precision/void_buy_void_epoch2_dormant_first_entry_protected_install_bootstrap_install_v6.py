@@ -469,15 +469,19 @@ def _verify_file(
     )
 
 
-def _verify_root_generation(policy: bytes, manifest: bytes) -> None:
+def _verify_generation_at(
+    root: pathlib.Path,
+    policy: bytes,
+    manifest: bytes,
+) -> None:
     _trusted_directory(INSTALL_PARENT)
-    _trusted_directory(INSTALL_ROOT, 0o755)
-    entries = sorted(os.listdir(INSTALL_ROOT))
+    _trusted_directory(root, 0o755)
+    entries = sorted(os.listdir(root))
     if entries != sorted((BIN_DIR, MANIFEST_NAME, POLICY_NAME)):
         raise InstallError("installed_root_entries_invalid")
-    bin_path = INSTALL_ROOT / BIN_DIR
+    bin_path = root / BIN_DIR
     _trusted_directory(bin_path, 0o755)
-    if os.listdir(bin_path) != [BOOTSTRAP_NAME]:
+    if sorted(os.listdir(bin_path)) != [BOOTSTRAP_NAME]:
         raise InstallError("installed_bin_entries_invalid")
     _verify_file(
         bin_path / BOOTSTRAP_NAME,
@@ -487,23 +491,27 @@ def _verify_root_generation(policy: bytes, manifest: bytes) -> None:
         expected_mode=0o555,
     )
     _verify_file(
-        INSTALL_ROOT / MANIFEST_NAME,
+        root / MANIFEST_NAME,
         expected_bytes=MANIFEST_BYTES,
         expected_sha256=MANIFEST_SHA256,
         expected_git_blob=MANIFEST_GIT_BLOB_SHA1,
         expected_mode=0o444,
     )
     _verify_file(
-        INSTALL_ROOT / POLICY_NAME,
+        root / POLICY_NAME,
         expected_bytes=len(policy),
         expected_sha256=sha256(policy),
         expected_git_blob=None,
         expected_mode=0o444,
     )
-    if (INSTALL_ROOT / MANIFEST_NAME).read_bytes() != manifest:
+    if (root / MANIFEST_NAME).read_bytes() != manifest:
         raise InstallError("installed_manifest_bytes_mismatch")
-    if (INSTALL_ROOT / POLICY_NAME).read_bytes() != policy:
+    if (root / POLICY_NAME).read_bytes() != policy:
         raise InstallError("installed_policy_bytes_mismatch")
+
+
+def _verify_root_generation(policy: bytes, manifest: bytes) -> None:
+    _verify_generation_at(INSTALL_ROOT, policy, manifest)
 
 
 def protected_state(policy: bytes, manifest: bytes) -> str:
@@ -672,26 +680,46 @@ def _create_file(
         os.close(fd)
 
 
-def _remove_empty_stage(opt_fd: int) -> None:
+def _cleanup_stage(opt_fd: int, expected: os.stat_result) -> None:
+    stage_fd = os.open(
+        STAGE_NAME,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        dir_fd=opt_fd,
+    )
     try:
-        stage_fd = os.open(
+        opened = os.fstat(stage_fd)
+        visible = os.stat(
             STAGE_NAME,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
             dir_fd=opt_fd,
+            follow_symlinks=False,
         )
-    except FileNotFoundError:
-        return
-    try:
+        if not _same_stat(expected, opened) or not _same_stat(opened, visible):
+            raise InstallError("stage_generation_changed_before_cleanup")
         entries = sorted(os.listdir(STAGE_ROOT))
-        if entries:
-            for entry in entries:
-                p = STAGE_ROOT / entry
-                if p.is_dir() and not p.is_symlink():
-                    for child in os.listdir(p):
-                        os.unlink(child, dir_fd=os.open(p, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC))
-                    os.rmdir(p)
-                else:
-                    os.unlink(p)
+        allowed = {BIN_DIR, MANIFEST_NAME, POLICY_NAME}
+        if not set(entries).issubset(allowed):
+            raise InstallError("stage_cleanup_unexpected_entry")
+        if BIN_DIR in entries:
+            bin_fd = os.open(
+                BIN_DIR,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=stage_fd,
+            )
+            try:
+                children = sorted(os.listdir(STAGE_ROOT / BIN_DIR))
+                if not set(children).issubset({BOOTSTRAP_NAME}):
+                    raise InstallError("stage_cleanup_unexpected_bin_entry")
+                if BOOTSTRAP_NAME in children:
+                    os.unlink(BOOTSTRAP_NAME, dir_fd=bin_fd)
+                os.fsync(bin_fd)
+            finally:
+                os.close(bin_fd)
+            os.rmdir(BIN_DIR, dir_fd=stage_fd)
+        for name in (MANIFEST_NAME, POLICY_NAME):
+            try:
+                os.unlink(name, dir_fd=stage_fd)
+            except FileNotFoundError:
+                pass
         os.fsync(stage_fd)
     finally:
         os.close(stage_fd)
@@ -779,6 +807,7 @@ def apply(
         os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
     )
     stage_created = False
+    stage_identity: os.stat_result | None = None
     published = False
     try:
         if _exists(STAGE_ROOT) or _exists(INSTALL_ROOT):
@@ -793,6 +822,7 @@ def apply(
         try:
             os.fchown(stage_fd, 0, 0)
             os.fchmod(stage_fd, 0o755)
+            stage_identity = os.fstat(stage_fd)
             os.mkdir(BIN_DIR, 0o755, dir_fd=stage_fd)
             bin_fd = os.open(
                 BIN_DIR,
@@ -831,12 +861,7 @@ def apply(
             os.close(stage_fd)
 
         # Verify the staged tree using the same exact layout contract as final.
-        old_install_root = INSTALL_ROOT
-        try:
-            globals()["INSTALL_ROOT"] = STAGE_ROOT
-            _verify_root_generation(policy, manifest_raw)
-        finally:
-            globals()["INSTALL_ROOT"] = old_install_root
+        _verify_generation_at(STAGE_ROOT, policy, manifest_raw)
 
         after_bindings = _bindings_snapshot(expected_head)
         if after_bindings != before_bindings:
@@ -869,12 +894,30 @@ def apply(
         _verify_root_generation(policy, manifest_raw)
         if _bindings_snapshot(expected_head) != before_bindings:
             raise PublishedInstallError("post_publication_binding_changed")
-    except BaseException:
-        if stage_created and not published:
+    except BaseException as exc:
+        if published:
+            raise PublishedInstallError(
+                "published_needs_inspection:"
+                + exc.__class__.__name__
+                + ":"
+                + str(exc)
+            ) from exc
+        if stage_created:
+            if stage_identity is None:
+                raise InstallError("stage_identity_missing_during_cleanup") from exc
             try:
-                _remove_empty_stage(opt_fd)
-            except BaseException:
-                pass
+                _cleanup_stage(opt_fd, stage_identity)
+            except BaseException as cleanup_exc:
+                raise InstallError(
+                    "prepublication_failure_and_stage_cleanup_failed:"
+                    + exc.__class__.__name__
+                    + ":"
+                    + str(exc)
+                    + ":cleanup:"
+                    + cleanup_exc.__class__.__name__
+                    + ":"
+                    + str(cleanup_exc)
+                ) from exc
         raise
     finally:
         os.close(opt_fd)
