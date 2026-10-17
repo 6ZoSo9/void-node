@@ -288,12 +288,12 @@ jobs:
 
           test "$(stat -c %s "$bootstrap")" = 874608
           test "$(stat -c %a "$bootstrap")" = 555
-          test "$(sha256sum "$bootstrap" | awk '{print $1}')" = c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b
-          test "$(git hash-object "$bootstrap")" = a91707c3e5803071fc73c3451c9bcb3b774f8b48
+          test "$(sha256sum "$bootstrap" | awk '{print $1}')" = 618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c
+          test "$(git hash-object "$bootstrap")" = b577d70666f98ac59a75b84b3dab741fe7b93a4b
 
           test "$(stat -c %s "$manifest")" = 2382
           test "$(stat -c %a "$manifest")" = 444
-          test "$(sha256sum "$manifest" | awk '{print $1}')" = aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662
+          test "$(sha256sum "$manifest" | awk '{print $1}')" = 8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9
           test "$(git hash-object "$manifest")" = de56bacb30bea0adc418e240cf3fb8d900b061ef
 
           grep -Fx 'artifact_publication_only=true' "$RUNNER_TEMP/materialize.log"
