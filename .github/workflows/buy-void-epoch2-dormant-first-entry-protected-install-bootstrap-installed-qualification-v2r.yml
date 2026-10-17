@@ -1,0 +1,193 @@
+name: Buy VOID Epoch-2 protected-bootstrap installed qualification v2r
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v2r.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v2r.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json"
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2r.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v2r.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v2r.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json"
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2r.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V2R qualification generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v2r.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v2r.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py)" = \
+            3b6efd9a22c43e7d3f8698265ac68920cec08a2f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py)" = \
+            6d056b6bc720e9cb97e703553c045940486c26bb
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v2r.md)" = \
+            a2764531d000c20be2b6ac7e3b005cb1a941fed1
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py)" = \
+            7d7942dfe4b1def5f5a58201080cc30c3a13d3a0
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py)" = \
+            838f1c181cae033541d1bd666fb616ab3b40532f
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json)" = \
+            64c9a42ca1108a9e8f88218c34d53e50668c653e
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py)" = \
+            f79e52b5d0af99194b0cf89a73ae5bf3285d3840
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2r.py)" = \
+            c66bcd1f1d0d4751de475d5d6c1c98cab1eba31a
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c)" = \
+            19f9baf8d6d707da43dbd0e247667af1a10e46c5
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = \
+            383b84e71b371de65579e4113469e86a59b807ab
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py",
+              "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py",
+          ):
+              compile(
+                  Path(relative).read_text("utf-8"),
+                  relative,
+                  "exec",
+                  dont_inherit=True,
+              )
+          print("VOID_BUY_VOID_EPOCH2_PROTECTED_BOOTSTRAP_INSTALLED_QUALIFICATION_V2R_SYNTAX_GREEN")
+          PY
+
+      - name: Prove non-executing canonical V2R qualification
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py"
+          out="$RUNNER_TEMP/protected-bootstrap-installed-qualification-v2r-proof.log"
+          python3 -I -B "$proof" | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_INSTALLED_QUALIFICATION_V2R_PROOF_GREEN' \
+            'target_blob_bound=true' \
+            'protected_bootstrap_install_v2r_source_bound=true' \
+            'protected_bootstrap_install_v2r_proof_bound=true' \
+            'accepted_bootstrap_lock_v3_bound=true' \
+            'materializer_v2r_generation_bound=true' \
+            'materializer_v2r_proof_bound=true' \
+            'bootstrap_source_runtime_head_contract_bound=true' \
+            'protected_installer_source_generation_bound=true' \
+            'read_only_no_mutation_calls=true' \
+            'installed_bootstrap_execution_absent=true' \
+            'protected_installer_apply_absent=true' \
+            'runtime_head_contract_bound=true' \
+            'canonical_main_candidate_authority=true' \
+            'frozen_head_alignment_not_required=true' \
+            'filesystem_write=false' \
+            'service_mutation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Verify source-only qualification plan
+        run: |
+          set -euo pipefail
+          target="ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py"
+          out="$RUNNER_TEMP/protected-bootstrap-installed-qualification-v2r-source-plan.log"
+          python3 -I -B "$target" --source-plan | tee "$out"
+          for marker in \
+            'mode=source-plan' \
+            'source_only=true' \
+            'host_read=false' \
+            'host_write=false' \
+            'read_only=true' \
+            'bootstrap_runtime_head_compile_bound=false' \
+            'runtime_expected_head_strict_lowercase_hex=true' \
+            'runtime_expected_head_forwarded_unchanged=true' \
+            'canonical_main_candidate_authority=true' \
+            'superseded_v2_lock_install_authority=false' \
+            'installed_bootstrap_execution=false' \
+            'protected_installer_apply=false' \
+            'filesystem_write=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'signing=false' \
+            'transaction=false' \
+            'rpc_call=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'wc_void_market_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
