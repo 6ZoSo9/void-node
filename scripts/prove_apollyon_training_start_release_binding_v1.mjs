@@ -43,9 +43,9 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-release-binding-v1.mjs":
-    "b8d7229369e7d74e515955e726e0268bbdf6e513",
+    "01757cbd80c12561218ac4ba0a29e9675e42adec",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "4333df6c7918fe9efaada36cac765000eec7948f",
+    "60987b860fb7159d88f4f601b76878e7d8ccca92",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
     "93582c324ca85aeff56eb61f82b32f1e4c18dfe9",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
@@ -453,9 +453,11 @@ function recomputeReleaseBindingId(value){
 {
   const bad=structuredClone(binding1);
   bad.trainer_pid+=1;
+  // The stricter persisted-consumption validator must reject the mismatched
+  // trainer-generation ID before outer release-binding checks run.
   assert.throws(
     ()=>validateApollyonTrainingStartReleaseBindingV1(bad),
-    /binding_invalid|consumption_record/u,
+    /trainer_generation_id_invalid/u,
   );
 }
 {

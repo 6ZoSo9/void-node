@@ -8,7 +8,7 @@ Status: **source/test-only native candidate**. No Xiphos installation, service, 
 
 Accepted native trainer reader #3381 binds its inherited FD3 to one anonymous read-only Linux pipe generation. It deliberately cannot show that a future releaser owns the matching write end. This candidate supplies a concrete kernel-level construction/cross-process **same-pipe identity proof** for later integration without treating matching inodes or a frame as release authority.
 
-Exact parent: #3381 head `83e94bcf972a4357f79c1529cd41a9f2c9adeffc`. The parent native candidate and its proof remain unchanged.
+Exact parent: #3381 head `8fcfd9330e2e92e8fdc018f35c14f179b9779152`. The parent native candidate and its proof remain unchanged.
 
 ## Kernel evidence
 

@@ -18,9 +18,9 @@ PARENT_SOURCE_REL = "tools/apollyon-training-start-release-binding-v1.mjs"
 PARENT_PROOF_REL = "scripts/prove_apollyon_training_start_release_binding_v1.mjs"
 PARENT_WORKFLOW_REL = ".github/workflows/apollyon-training-start-release-binding-v1.yml"
 
-SOURCE_BLOB = "a6ed9824f780b28e2120db13c5149c093670fc41"
-PARENT_SOURCE_BLOB = "b8d7229369e7d74e515955e726e0268bbdf6e513"
-PARENT_PROOF_BLOB = "7a67f25c40d52574cc4a7bd25604e9ff79367487"
+SOURCE_BLOB = "265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36"
+PARENT_SOURCE_BLOB = "01757cbd80c12561218ac4ba0a29e9675e42adec"
+PARENT_PROOF_BLOB = "38f63789b5e1ff86e9d38f128e841e22d9c7e495"
 PARENT_WORKFLOW_BLOB = "c577da33e31b2c32d8a01e42105c7ced8cab0b4f"
 
 MARKER = "VOID_APOLLYON_TRAINING_START_RELEASE_NATIVE_CANDIDATE_V1"
