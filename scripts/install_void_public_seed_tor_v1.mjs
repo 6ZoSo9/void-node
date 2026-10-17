@@ -46,6 +46,68 @@ function quoteTorrc(value) {
   return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
+export function canonicalNimoP2PIntroductionV1(repoRoot) {
+  const configPath = path.join(
+    repoRoot,
+    "config",
+    "void-public-p2p-bootstrap-introductions-v1.json",
+  );
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  } catch (error) {
+    fail(`canonical P2P introduction config unreadable: ${error?.message || error}`);
+  }
+  if (
+    parsed?.schema !== "void_public_p2p_bootstrap_introductions_v1" ||
+    !Array.isArray(parsed.entries)
+  ) {
+    fail("canonical P2P introduction config schema mismatch");
+  }
+  const matches = parsed.entries.filter(
+    (entry) => entry?.id === "nimo-tor-v3-p2p",
+  );
+  if (matches.length !== 1 || matches[0]?.transport !== "tor_sync_seed") {
+    fail("canonical Nimo Tor P2P introduction missing or ambiguous");
+  }
+  let endpoint;
+  try {
+    endpoint = new URL(String(matches[0].endpoint || ""));
+  } catch {
+    fail("canonical Nimo Tor P2P endpoint is invalid");
+  }
+  if (
+    endpoint.protocol !== "tor:" ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash ||
+    !["", "/"].includes(endpoint.pathname) ||
+    endpoint.port !== "4700"
+  ) {
+    fail("canonical Nimo Tor P2P endpoint contract mismatch");
+  }
+  const onionHostname = validateOnionHostname(endpoint.hostname);
+  const expectedNodeId = String(matches[0].expected_node_id || "");
+  if (!/^[0-9a-f]{32}$/.test(expectedNodeId)) {
+    fail("canonical Nimo Tor P2P expected node ID is invalid");
+  }
+  return Object.freeze({
+    onionHostname,
+    virtualPort: 4700,
+    expectedNodeId,
+  });
+}
+
+export function validateP2POnionIdentityV1(observedOnion, expectedOnion) {
+  const observed = validateOnionHostname(String(observedOnion || ""));
+  const expected = validateOnionHostname(String(expectedOnion || ""));
+  if (observed !== expected) {
+    fail("P2P onion identity does not match canonical Nimo introduction");
+  }
+  return observed;
+}
+
 export function normalizeP2PMappingV1(options = {}) {
   const rawVirtual = options.p2pVirtualPort;
   const rawTarget = options.p2pTargetPort;
@@ -313,7 +375,13 @@ function parseArgs(argv) {
 function normalizedOptions(args) {
   const repoRoot = exactRepository(args.repoRoot, args.expectedHead);
   const p2pMapping = normalizeP2PMappingV1(args);
+  const p2pIntroduction = p2pMapping
+    ? canonicalNimoP2PIntroductionV1(repoRoot)
+    : null;
   if (p2pMapping) {
+    if (p2pIntroduction.virtualPort !== p2pMapping.virtualPort) {
+      fail("P2P mapping virtual port does not match canonical Nimo introduction");
+    }
     if (p2pMapping.virtualPort === args.virtualPort) {
       fail("P2P virtual port must differ from the HTTP seed virtual port");
     }
@@ -363,6 +431,8 @@ function normalizedOptions(args) {
     torVersion,
     p2pVirtualPort: p2pMapping ? p2pMapping.virtualPort : null,
     p2pTargetPort: p2pMapping ? p2pMapping.targetPort : null,
+    p2pExpectedOnion: p2pIntroduction ? p2pIntroduction.onionHostname : null,
+    p2pExpectedNodeId: p2pIntroduction ? p2pIntroduction.expectedNodeId : null,
   };
 }
 
@@ -452,6 +522,15 @@ async function activate(options, rendered) {
     ) {
       fail(`required P2P target is not listening: ${options.p2pTargetPort}`);
     }
+    if (
+      options.p2pExpectedOnion !== null &&
+      fs.existsSync(rendered.paths.hostnameFile)
+    ) {
+      validateP2POnionIdentityV1(
+        fs.readFileSync(rendered.paths.hostnameFile, "utf8").trim(),
+        options.p2pExpectedOnion,
+      );
+    }
     run("systemctl", ["--user", "enable", GATEWAY_UNIT, TOR_UNIT]);
     for (const unit of [GATEWAY_UNIT, TOR_UNIT]) {
       if (!unitIsEnabledV1(unit)) fail(`${unit} did not become enabled`);
@@ -467,6 +546,9 @@ async function activate(options, rendered) {
     }
     if (!fs.existsSync(rendered.paths.hostnameFile)) fail("Tor did not create a v3 onion hostname");
     const onion = validateOnionHostname(fs.readFileSync(rendered.paths.hostnameFile, "utf8").trim());
+    if (options.p2pExpectedOnion !== null) {
+      validateP2POnionIdentityV1(onion, options.p2pExpectedOnion);
+    }
     const output = path.join(
       rendered.paths.qualificationDir,
       `qualification-${options.expectedHead}-${new Date().toISOString().replace(/[-:.]/g, "")}.json`,
@@ -516,6 +598,8 @@ async function main() {
     if (options.p2pVirtualPort !== null) {
       console.log(`p2p_virtual_port=${options.p2pVirtualPort}`);
       console.log(`p2p_target=127.0.0.1:${options.p2pTargetPort}`);
+      console.log(`p2p_expected_onion=${options.p2pExpectedOnion}`);
+      console.log(`p2p_expected_node_id=${options.p2pExpectedNodeId}`);
     }
     console.log("dns_required=false");
     console.log("services_changed=false");
@@ -538,6 +622,8 @@ async function main() {
   if (options.p2pVirtualPort !== null) {
     console.log(`p2p_virtual_port=${options.p2pVirtualPort}`);
     console.log(`p2p_target=127.0.0.1:${options.p2pTargetPort}`);
+    console.log(`p2p_expected_onion=${options.p2pExpectedOnion}`);
+    console.log(`p2p_expected_node_id=${options.p2pExpectedNodeId}`);
   }
   console.log("services_started=false");
   if (options.command === "install") console.log("services_enabled=false");

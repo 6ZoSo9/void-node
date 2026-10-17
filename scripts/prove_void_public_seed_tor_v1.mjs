@@ -11,9 +11,11 @@ import {
   validateObservationV1,
 } from "./qualify_void_public_seed_tor_v1.mjs";
 import {
+  canonicalNimoP2PIntroductionV1,
   managedPathV1,
   normalizeP2PMappingV1,
   renderTorSeedV1,
+  validateP2POnionIdentityV1,
   validateLocalReadyV1,
   writeManagedFileV1,
 } from "./install_void_public_seed_tor_v1.mjs";
@@ -38,6 +40,24 @@ assert.equal(NIMO_P2P_URL.port, "4700");
 assert.equal(
   NIMO_P2P_URL.hostname,
   "6a4r6osb37sp2t6nbx7dpdnq5wfdzdrn5axt7t33kduzuznarqqpnkid.onion",
+);
+const CANONICAL_NIMO_P2P = canonicalNimoP2PIntroductionV1(ROOT);
+assert.equal(CANONICAL_NIMO_P2P.onionHostname, NIMO_P2P_URL.hostname);
+assert.equal(CANONICAL_NIMO_P2P.virtualPort, 4700);
+assert.equal(
+  CANONICAL_NIMO_P2P.expectedNodeId,
+  NIMO_P2P_INTRODUCTION.expected_node_id,
+);
+assert.equal(
+  validateP2POnionIdentityV1(
+    CANONICAL_NIMO_P2P.onionHostname,
+    CANONICAL_NIMO_P2P.onionHostname,
+  ),
+  CANONICAL_NIMO_P2P.onionHostname,
+);
+assert.throws(
+  () => validateP2POnionIdentityV1(onionV3(), CANONICAL_NIMO_P2P.onionHostname),
+  /does not match canonical Nimo introduction/,
 );
 
 function encodeBase32(bytes) {
@@ -378,6 +398,14 @@ try {
   assert.match(exactP2PPlan.stdout, /p2p_hidden_service_mapping_enabled=true/);
   assert.match(exactP2PPlan.stdout, /p2p_virtual_port=4700/);
   assert.match(exactP2PPlan.stdout, /p2p_target=127\.0\.0\.1:4700/);
+  assert.match(
+    exactP2PPlan.stdout,
+    /p2p_expected_onion=6a4r6osb37sp2t6nbx7dpdnq5wfdzdrn5axt7t33kduzuznarqqpnkid\.onion/,
+  );
+  assert.match(
+    exactP2PPlan.stdout,
+    /p2p_expected_node_id=12babb04b0f88de7b74e17d04b343007/,
+  );
 
   const missingTargetPlan = childProcess.spawnSync(
     process.execPath,
@@ -440,6 +468,11 @@ const activateSource = /async function activate[\s\S]*?\n}\n\nasync function mai
 assert.ok(activateSource, "activate source not found");
 assert.match(activateSource, /"enable"/);
 assert.ok(
+  activateSource.indexOf("validateP2POnionIdentityV1") <
+    activateSource.indexOf('run("systemctl", ["--user", "enable"'),
+  "pre-existing P2P onion identity must be verified before service enablement",
+);
+assert.ok(
   activateSource.indexOf("try {") < activateSource.indexOf("fetchReady"),
   "activation cleanup must cover readiness failures",
 );
@@ -483,6 +516,7 @@ console.log("http_seed_mapping_preserved=true");
 console.log("p2p_hidden_service_mapping_opt_in=true");
 console.log("p2p_hidden_service_mapping_exact_4700=true");
 console.log("p2p_introduction_endpoint_bound=true");
+console.log("p2p_activation_onion_identity_bound=true");
 console.log("p2p_target_must_preexist_before_activation=true");
 console.log("socks_proxy_loopback_preflight=true");
 console.log("activation_confirmation_precedes_mutation=true");
