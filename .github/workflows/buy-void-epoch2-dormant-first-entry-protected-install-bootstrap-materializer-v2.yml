@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.py"
-      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2.py"
       - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v2.yml"
       - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json"
@@ -15,7 +15,7 @@ on:
     branches: [main]
     paths:
       - "scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.py"
-      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2.py"
       - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v2.yml"
       - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json"
@@ -62,13 +62,13 @@ jobs:
             '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v2.yml' \
             'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v2.md' \
             'scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.py' \
-            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2.py' \
             | sort > "$expected"
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.py)" = 23c70c1910c41a69e2d5325b55d7020ac038dc93
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v1.py)" = 6baf632dad2efd039bb2b7f07bddb50db89b0b92
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2.py)" = 6baf632dad2efd039bb2b7f07bddb50db89b0b92
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v2.md)" = 72480a7206162ca2998ddbee14ba2ac12947a9fa
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json)" = 90dfe7728fa56c8d41a396399578bd1b8c52c2f4
@@ -89,7 +89,7 @@ jobs:
           from pathlib import Path
           for p in (
               Path("scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.py"),
-              Path("scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v1.py"),
+              Path("scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2.py"),
           ):
               compile(p.read_text("utf-8"),str(p),"exec",dont_inherit=True)
           print("VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_MATERIALIZER_V2_SYNTAX_GREEN")
@@ -97,7 +97,7 @@ jobs:
 
           out="$RUNNER_TEMP/materializer-proof.log"
           python3 -I -B \
-            scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v1.py \
+            scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2.py \
             | tee "$out"
 
           for marker in \
