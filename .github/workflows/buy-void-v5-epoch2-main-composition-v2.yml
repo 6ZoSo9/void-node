@@ -99,8 +99,11 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
-      - name: Install locked dependencies without scripts
-        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install locked dependencies including platform-pinned optional binaries
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --include=optional --no-audit --no-fund
+          test -x node_modules/@esbuild/linux-x64/bin/esbuild
       - name: Build economic closure for exact checkout
         run: |
           set -euo pipefail
