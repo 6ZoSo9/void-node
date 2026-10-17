@@ -13,7 +13,7 @@ This change performs no Precision installation or qualification.
 Qualify the installed V6 dormant first-entry bootstrap root after its
 create-only installation. The qualifier is bound to outer installer Git blob:
 
-`70dd0e0feaebbea08c63d8c19549f928c8d70b7a`.
+`438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84`.
 
 It uses that installer as the canonical definition of the accepted V6 lock,
 fixed protected root, exact three-file layout, accepted ELF, V3 manifest,
@@ -35,8 +35,8 @@ Fixed root:
 | Object | Required identity |
 | --- | --- |
 | Root and `bin/` directory | `0755 root:root`, no substituted generation or extra entry. |
-| `bin/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6` | `0555 root:root`, 874608 bytes; SHA-256 `c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b`; Git blob `a91707c3e5803071fc73c3451c9bcb3b774f8b48`. |
-| `source-generation-v3.conf` | `0444 root:root`, 2382 bytes; SHA-256 `aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`; Git blob `6e0630af72111bd9976dcc38cdcdada1904dd067`. |
+| `bin/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6` | `0555 root:root`, 874608 bytes; SHA-256 `618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c`; Git blob `b577d70666f98ac59a75b84b3dab741fe7b93a4b`. |
+| `source-generation-v3.conf` | `0444 root:root`, 2382 bytes; SHA-256 `8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9`; Git blob `de56bacb30bea0adc418e240cf3fb8d900b061ef`. |
 | `policy-v1.conf` | `0444 root:root`, byte-identical to the five-row V6 policy rederived from the protected targets of `/usr/bin/python3` and `/usr/bin/git`. |
 
 The checkout must be clean exact symbolic `main` at the explicit expected head.
@@ -181,3 +181,7 @@ A GREEN host qualification advances only to:
 That later gate remains separate from inner protected-installer apply.
 
 PROTECT THE CORE.
+
+## Git cruft-pack compatibility
+
+The accepted V6 generation treats `pack-<oid>.mtimes` as non-authoritative cruft-pack metadata under the same regular-file/single-link shape checks as other pack auxiliaries. It is not copied into the private object view and does not grant object authority.
