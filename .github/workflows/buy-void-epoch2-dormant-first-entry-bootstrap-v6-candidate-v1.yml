@@ -34,10 +34,44 @@ jobs:
           persist-credentials: false
       - name: Exact V6 generation and self-test
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
           EXPECTED_CHECKOUT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_CHECKOUT_SHA"
+
+          readonly REVIEWED_PR_BASE="906afc7dc3662af678a625566b9f43d752953785"
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE" = "$REVIEWED_PR_BASE"
+              base="$REVIEWED_PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_CHECKOUT_SHA^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_CHECKOUT_SHA"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_CHECKOUT_SHA" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = 647125f7b36bb4dde62fcfdc17f92e7fe1af2dbf
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md)" = 8db2315064facc7db0d469b338cc91471fe8589f
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = a317d3dce324337f107909bd6e33e98622b3ef09
