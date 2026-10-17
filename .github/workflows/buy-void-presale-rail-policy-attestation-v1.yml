@@ -48,7 +48,7 @@ jobs:
           git diff --no-renames --name-status 1b17ac5668b9b022935b577e15eba534116a9ea0 HEAD -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_rail_policy_attestation_v1.py)" = a29bcc7e0377615dcd54738421758c23dac0bbdb
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_rail_policy_attestation_v1.py)" = fd552c8a23e61ae788cb4b81c04c8766e04096bd
           test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-rail-policy-attestation-v1.md)" = 96d5187a14ca791d58c7ee9c4206e8a0d718f335
           test "$(git rev-parse HEAD:README.md)" = 6b52c555eb7d93b9ea6652d50aa946f6a319d7de
           test "$(git rev-parse HEAD:docs/architecture/buy-void-dual-rail-server-policy-v1.md)" = a8c2300f7f2b1296790bf496e02a997f7126310f
@@ -111,7 +111,8 @@ jobs:
             'customer_payment_acceptance_authorized=false' \
             'public_presale_activation=false' \
             'wc_void_activation=false' \
-            'funds_movement=false'
+            'funds_movement=false' \
+            'status=PAYMENT_RAIL_DOCUMENTATION_RECONCILIATION_HOLD'
           do
             grep -Fx "$marker" "$output"
           done
