@@ -202,6 +202,10 @@ def _git_env() -> dict[str, str]:
         "GIT_NO_REPLACE_OBJECTS": "1",
         "GIT_OPTIONAL_LOCKS": "0",
         "GIT_TERMINAL_PROMPT": "0",
+        # Qualification identity reads must never lazy-fetch missing objects.
+        # Transport denial is the fail-closed fallback for older Git builds.
+        "GIT_NO_LAZY_FETCH": "1",
+        "GIT_ALLOW_PROTOCOL": "",
     }
 
 
@@ -607,6 +611,8 @@ def self_test() -> None:
         + "python_sha256=" + "a" * 64 + "\n"
         + "python_bytes=123456\n"
     ).encode("ascii")
+    assert _git_env()["GIT_NO_LAZY_FETCH"] == "1"
+    assert _git_env()["GIT_ALLOW_PROTOCOL"] == ""
     print(MARKER + "_SELF_TEST_GREEN")
     print("accepted_bootstrap_lock_v3_bound=true")
     print("canonical_main_candidate_authority_required=true")
@@ -617,6 +623,8 @@ def self_test() -> None:
     print("runtime_expected_head_strict_lowercase_hex=true")
     print("runtime_expected_head_forwarded_unchanged=true")
     print("frozen_head_alignment_not_required=true")
+    print("git_lazy_fetch_suppressed=true")
+    print("git_transport_denied=true")
     print("bootstrap_execution=false")
     print("protected_installer_apply=false")
     print("filesystem_write=false")
