@@ -1,0 +1,148 @@
+name: Buy VOID V5 / canonical Epoch-2 native materializer composition V2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v5-epoch2-main-composition-v2.yml"
+      - "docs/architecture/buy-void-v5-epoch2-main-composition-v2.md"
+      - "scripts/prove_buy_void_v5_epoch2_main_composition_v2.py"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-materializer-v1.yml"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-materializer-v1.md"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact current-main V2 generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor c997196f4990a13615665e96a443d7b593754c08 "$EXPECTED_HEAD"
+          test "$(git rev-parse 'c997196f4990a13615665e96a443d7b593754c08^{tree}')" = cee12d1beb53e20c2ea6b12a10fdd6452101e696
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v5_epoch2_main_composition_v2.py)" = d801b6b4c2ac369a54598b15001364daa9f0a9c2
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v5-epoch2-main-composition-v2.md)" = 3d123316a850eee4ff407f6a375cb8981eb6d8de
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v5_epoch2_main_composition_v1.py)" = 7acba5c006281e27a0735944416b54a0a6a0a785
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = 61a9d85d285f9c9d249adf401580822c44c6dac6
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json)" = dd849928bc945478a1a8fcf687f374cfca59f4e4
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py)" = 557eb68453d517d78bb3b6c6d8427df9ed36316f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py)" = 5679f353e8a40fecd0974adcd9dcd95bc708ddb4
+          git diff --check c997196f4990a13615665e96a443d7b593754c08 "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove exact source composition and authority HOLD
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/buy-void-v5-compose-v2-source.log"
+          python3 -I -B scripts/prove_buy_void_v5_epoch2_main_composition_v2.py --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_V5_EPOCH2_MAIN_COMPOSITION_V2_GREEN' \
+            'read_only=true' \
+            'native_materializer_added_paths=4' \
+            'preserved_v1_economic_and_test_paths=63' \
+            'protected_source_rows=49' \
+            'two_parent_v2_composition_verified=true' \
+            'accepted_v5_source_lock_preserved=true' \
+            'deployed_artifact_generation_verified=false' \
+            'runtime_mount_authority=false' \
+            'production_source_finality_authority_ready=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Verify native materializer source in self-test only
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/buy-void-native-materializer-self-test.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_MATERIALIZER_V1_PROOF_GREEN' "$out"
+          grep -Fx 'protected_install_authorized=false' "$out"
+          grep -Fx 'native_or_binder_live_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  inert-planner:
+    needs: [source-proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Install locked dependencies including platform-pinned optional binaries
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --include=optional --no-audit --no-fund
+          test -x node_modules/@esbuild/linux-x64/bin/esbuild
+      - name: Build economic closure for exact checkout
+        run: |
+          set -euo pipefail
+          node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - name: Require V5 lock PLAN_GREEN without mutation
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          git switch -C main "$head"
+          receipt="$RUNNER_TEMP/buy-void-composed-v2-plan-receipt.json"
+          out="$RUNNER_TEMP/buy-void-composed-v2-plan.log"
+          npx --no-install tsx \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --plan \
+            --receipt-path "$receipt" \
+            --expected-commit "$head" \
+            --expected-tree "$tree" \
+            --accepted-enforcement-lock-path \
+              ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json | tee "$out"
+          for marker in \
+            'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1' \
+            'mode=--plan' \
+            'source_mutation=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'wallet_access=false' \
+            'signing=false' \
+            'transaction_broadcast=false' \
+            'chain2050_mutation=false' \
+            'presale_activation=false' \
+            'funds_movement=false' \
+            'accepted_enforcement_set_sha256=1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf' \
+            'filesystem_mutation=false' \
+            'status=PLAN_GREEN'
+          do
+            grep -Fx "$marker" "$out"
+          done
+          test ! -e "$receipt"
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
