@@ -26,8 +26,8 @@ import zlib
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "d98a717efcf8c925cea628cfc618e70da6b617ef"
-MANIFEST_BLOB = "ff9af3c7bc7619522cacb014f1addf90d9a5b615"
+TARGET_BLOB = "ce6930bc1be8239a3171d4922c44b96a50f5778b"
+MANIFEST_BLOB = "ed4bafa88932a81be91c14e4bca71b25362a09c8"
 GIT = "/usr/bin/git"
 MARKER = "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_INSTALLER_V5_GENERATION_PROOF_GREEN"
 MANIFEST_REL = "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
