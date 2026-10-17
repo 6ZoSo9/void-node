@@ -124,11 +124,11 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
-            58ab3eaf57a03c8a5dc8140902b51b1c447fad4f
+            149d4da63a4cd5dc6437e32a25db6d81093d401f
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
-            76f7996e5ea9cc6cccb4c99f0106abec1ca191bb
+            cd32f68b1802dd9143aa39cd79d26a111db3da7e
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md)" = \
-            81eadcdb4f1c0a726ba0ef414e7b98770ba25bc3
+            8b5d88d45cedb7e87379260fa04d7c6ace254248
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = \
             e16b0ce71a4522b21762fa824c96aefb58e3a25b
@@ -189,6 +189,16 @@ jobs:
             'installed_qualification_performed=false' \
             'operation_bound_plan_id=true' \
             'plan_id_artifact_path_sensitive=true' \
+            'plan_body_emitted_complete=true' \
+            'emitted_plan_id_recomputed=true' \
+            'emitted_plan_artifact_inode_sensitive=true' \
+            'raw_checkout_fixture_cases=14' \
+            'historical_git_callback_controls=3' \
+            'repaired_observer_git_callbacks_not_executed=true' \
+            'raw_checkout_index_and_worktree_rejections_verified=true' \
+            'git_fixture_disposable_repository=true' \
+            'git_fixture_temporary_filesystem_write=true' \
+            'git_fixture_host_plan_performed=false' \
             'structured_bootstrap_argv_only=true' \
             'bootstrap_execution_absent=true' \
             'protected_installer_apply_absent=true' \
