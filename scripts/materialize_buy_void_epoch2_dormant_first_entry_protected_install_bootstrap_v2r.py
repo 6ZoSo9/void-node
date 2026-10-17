@@ -509,7 +509,7 @@ def main() -> int:
     print("superseded_v2_lock_install_authority=false")
     print("superseded_v1_lock_install_authority=false")
     print("protected_bootstrap_install_authorized=false")
-    print("next_gate=void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2")
+    print("next_gate=void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r")
     print("protected_installer_apply_authorized=false")
     print("live_execution_authorized=false")
     print("credential_access_authorized=false")
