@@ -90,6 +90,14 @@ for name in (
 ):
     assert name in functions, name
 
+snapshot_dir_source = ast.get_source_segment(source, functions["_snapshot_dir"]) or ""
+snapshot_file_source = ast.get_source_segment(source, functions["_snapshot_file"]) or ""
+for ownership_check in ("before.st_uid != 0", "before.st_gid != 0"):
+    assert ownership_check in snapshot_dir_source, ownership_check
+    assert ownership_check in snapshot_file_source, ownership_check
+assert "stat.S_IMODE(before.st_mode) != 0o755" in snapshot_dir_source
+assert "stat.S_IMODE(before.st_mode) != expected_mode" in snapshot_file_source
+
 # Source-only modes are inert.
 for mode, markers in (
     (
@@ -242,9 +250,26 @@ with tempfile.TemporaryDirectory(prefix="void-e2-first-entry-installed-qual-v1-"
 
     original_loader = module._load_installer
     original_geteuid = module.os.geteuid
+    original_path_lstat = Path.lstat
+    original_fstat = module.os.fstat
+
+    def root_owned_stat(observed):
+        values = list(observed)
+        values[4] = 0
+        values[5] = 0
+        return os.stat_result(values)
+
+    def fixture_lstat(self):
+        return root_owned_stat(original_path_lstat(self))
+
+    def fixture_fstat(fd):
+        return root_owned_stat(original_fstat(fd))
+
     try:
         module._load_installer = lambda: FakeInstaller
         module.os.geteuid = lambda: 0
+        Path.lstat = fixture_lstat
+        module.os.fstat = fixture_fstat
         result = module.collect("a" * 40)
         assert result["installed_identity_green"] is True
         assert result["installed_generation_stable"] is True
@@ -282,10 +307,14 @@ with tempfile.TemporaryDirectory(prefix="void-e2-first-entry-installed-qual-v1-"
     finally:
         module._load_installer = original_loader
         module.os.geteuid = original_geteuid
+        Path.lstat = original_path_lstat
+        module.os.fstat = original_fstat
 
 print(MARKER + "_PROOF_GREEN")
 print("target_blob_bound=true")
 print("installer_v5_blob_bound=true")
+print("production_root_ownership_checks_preserved=true")
+print("fixture_root_metadata_emulated=true")
 print("triple_installed_snapshot_exercised=true")
 print("installed_generation_drift_rejected=true")
 print("temporary_git_metadata_truth_preserved=true")
