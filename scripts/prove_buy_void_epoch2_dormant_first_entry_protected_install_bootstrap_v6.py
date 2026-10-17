@@ -505,8 +505,8 @@ def entry_contract_fixtures(harness: Path, temporary: Path, manifest: bytes) -> 
     plan = ["--installer-plan", "--launcher", "/tmp/fixture-launcher", "--native",
             "/tmp/fixture-native", "--expected-head", head]
     apply = ["--installer-apply", *plan[1:], "--expected-plan-id",
-             "voidbuye2dormantfirstentryinstall4_" + "2" * 64, "--confirm",
-             "INSTALL_ACCEPTED_EPOCH2_DORMANT_FIRST_ENTRY_V4_CREATE_ONLY"]
+             "voidbuye2dormantfirstentryinstall5_" + "2" * 64, "--confirm",
+             "INSTALL_ACCEPTED_EPOCH2_DORMANT_FIRST_ENTRY_V5_CREATE_ONLY"]
     for valid in (plan, apply):
         result = run([str(harness), "request", *valid])
         require(b"native_request_parser_green=true\n" in result.stdout and not result.stderr,
@@ -518,7 +518,7 @@ def entry_contract_fixtures(harness: Path, temporary: Path, manifest: bytes) -> 
                  [*plan[:1], "--native", *plan[2:]], apply[:-1],
                  [*apply[:-1], "WRONG_CONFIRM"],
                  [*apply[:8], "wrong_prefix_" + "2" * 64, *apply[9:]],
-                 [*apply[:8], "voidbuye2dormantfirstentryinstall4_" + "g" * 64, *apply[9:]]]
+                 [*apply[:8], "voidbuye2dormantfirstentryinstall5_" + "g" * 64, *apply[9:]]]
     count = 0
     for index, args in enumerate(malformed):
         expect_hold(harness, ["request", *args], "strict_native_argv_" + str(index))
