@@ -8,6 +8,7 @@ import os
 import pathlib
 import stat
 import subprocess
+import sys
 import types
 from typing import Any
 
@@ -18,7 +19,7 @@ INSTALLER_REL = (
     "protected_install_bootstrap_install_v6.py"
 )
 INSTALLER_SOURCE = ROOT / INSTALLER_REL
-INSTALLER_SOURCE_GIT_BLOB_SHA1 = "c9dd842b620f2ed7c3fdd5876c222a419b6b0c68"
+INSTALLER_SOURCE_GIT_BLOB_SHA1 = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
@@ -48,6 +49,12 @@ REQUIRED_SELF_TEST_LINES = frozenset(
         "funds_movement=false",
     }
 )
+
+
+_GIT_RECEIPT: dict[str, Any] = {
+    "temporary_git_metadata_write_performed": False,
+    "temporary_git_metadata_cleanup_completed": True,
+}
 
 
 class QualifyError(RuntimeError):
@@ -212,22 +219,25 @@ def _snapshot_path(
     return result
 
 
-def _installed_snapshot(installer: Any, expected_head: str) -> dict[str, Any]:
-    checkout = installer.checkout_snapshot(expected_head)
-    lock = installer.accepted_lock(expected_head)
+def _installed_snapshot(
+    installer: Any, expected_head: str, *, repository: Any = None,
+) -> dict[str, Any]:
+    if repository is None:
+        with installer._RepositorySnapshot(expected_head) as owned:
+            return _installed_snapshot(installer, expected_head, repository=owned)
+    checkout = installer.checkout_snapshot(expected_head, repository=repository)
+    lock = installer.accepted_lock(expected_head, repository=repository)
     python = installer._tool_snapshot(
         installer.FIXED_PYTHON,
         installer.MAX_PYTHON_BYTES,
     )
-    git_tool = installer._tool_snapshot(
-        installer.FIXED_GIT,
-        installer.MAX_GIT_BYTES,
-    )
+    git_tool = dict(repository.git_tool)
     policy = installer.build_policy(python, git_tool)
     manifest = installer._git_object(
         expected_head,
         installer.MANIFEST_REL,
         installer.MANIFEST_GIT_BLOB_SHA1,
+        repository=repository,
     )
     state = installer.protected_state(policy, manifest)
     if state != installer.GREEN_STATE:
@@ -395,31 +405,73 @@ def _run_bootstrap_self_test(
     return cp.stdout, "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
+
+def emit_observation_authority() -> None:
+    print(MARKER)
+    print("mode=run")
+    print("authority_boundary=PRE_GIT_OBSERVATION")
+    print("read_only=false")
+    print("temporary_git_metadata_write_required=true")
+    print("temporary_git_metadata_write_authorized=true")
+    print("source_repository_mutation=false")
+    print("source_object_fetch=false")
+    print("repository_config_loaded=false")
+    print("repository_callback_execution=false")
+    print("bootstrap_self_test_execution_possible=true")
+    print("bootstrap_execution_beyond_self_test=false")
+    print("inner_installer_execution=false")
+    print("protected_installer_apply=false")
+    print("protected_filesystem_mutation=false")
+    print("service_mutation=false")
+    print("credential_access=false")
+    print("signing=false")
+    print("transaction=false")
+    print("rpc_call=false")
+    print("funds_movement=false")
+    sys.stdout.flush()
+
+
 def collect(expected_head: str) -> dict[str, Any]:
+    _GIT_RECEIPT.clear()
+    _GIT_RECEIPT.update({
+        "temporary_git_metadata_write_performed": False,
+        "temporary_git_metadata_cleanup_completed": True,
+    })
     if os.geteuid() != 0:
         raise QualifyError("root_required_for_installed_qualification")
     installer = _load_installer()
 
-    before = _installed_snapshot(installer, expected_head)
-    first_output, first_sha = _run_bootstrap_self_test(
-        installer,
-        before["bootstrap"],
-    )
-    middle = _installed_snapshot(installer, expected_head)
-    second_output, second_sha = _run_bootstrap_self_test(
-        installer,
-        middle["bootstrap"],
-    )
-    after = _installed_snapshot(installer, expected_head)
+    emit_observation_authority()
+    try:
+        with installer._RepositorySnapshot(expected_head) as repository:
+            before = _installed_snapshot(installer, expected_head, repository=repository)
+            first_output, first_sha = _run_bootstrap_self_test(
+                installer,
+                before["bootstrap"],
+            )
+            middle = _installed_snapshot(installer, expected_head, repository=repository)
+            second_output, second_sha = _run_bootstrap_self_test(
+                installer,
+                middle["bootstrap"],
+            )
+            after = _installed_snapshot(installer, expected_head, repository=repository)
 
-    if before != middle or middle != after:
-        raise QualifyError("installed_generation_changed_during_qualification")
-    if first_output != second_output or first_sha != second_sha:
-        raise QualifyError("bootstrap_self_test_output_changed")
+            if before != middle or middle != after:
+                raise QualifyError("installed_generation_changed_during_qualification")
+            if first_output != second_output or first_sha != second_sha:
+                raise QualifyError("bootstrap_self_test_output_changed")
+
+    except installer.InstallError as exc:
+        raise QualifyError("installed_repository_observation_failed:" + str(exc)[:1000]) from exc
+    except (OSError, subprocess.SubprocessError, MemoryError) as exc:
+        raise QualifyError("installed_qualification_io_failed:" + type(exc).__name__) from exc
+    finally:
+        _GIT_RECEIPT.clear()
+        _GIT_RECEIPT.update(installer.git_boundary_receipt())
 
     return {
         "version": 6,
-        "read_only": True,
+        "read_only": False,
         "root_execution_required": True,
         "expected_head": expected_head,
         "installer_source_git_blob_sha1": INSTALLER_SOURCE_GIT_BLOB_SHA1,
@@ -452,7 +504,9 @@ def collect(expected_head: str) -> dict[str, Any]:
         "bootstrap_execution_beyond_self_test": False,
         "inner_installer_execution": False,
         "protected_installer_apply": False,
-        "filesystem_write": False,
+        "filesystem_write": _GIT_RECEIPT["temporary_git_metadata_write_performed"],
+        "protected_filesystem_mutation": False,
+        **_GIT_RECEIPT,
         "service_mutation": False,
         "systemd_mutation": False,
         "credential_access": False,
@@ -478,6 +532,9 @@ def plan() -> None:
     print(MARKER)
     print("mode=plan")
     print("root_required_for_run=true")
+    print("run_temporary_git_metadata_write_required=true")
+    print("run_source_repository_mutation=false")
+    print("single_repository_observation_across_both_self_tests_required=true")
     print("installer_source_git_blob_sha1=" + INSTALLER_SOURCE_GIT_BLOB_SHA1)
     print("accepted_lock_id=" + installer.LOCK_ID)
     print("candidate_id=" + installer.CANDIDATE_ID)
@@ -603,6 +660,17 @@ def emit(result: dict[str, Any]) -> None:
         "inner_installer_execution",
         "protected_installer_apply",
         "filesystem_write",
+        "protected_filesystem_mutation",
+        "git_boundary_policy",
+        "temporary_git_metadata_write_required",
+        "temporary_git_metadata_write_performed",
+        "temporary_git_metadata_cleanup_completed",
+        "source_repository_mutation",
+        "source_object_fetch",
+        "repository_config_loaded",
+        "repository_callback_execution",
+        "standalone_git_tool_admission",
+        "native_parent_authority_claimed",
         "service_mutation",
         "systemd_mutation",
         "credential_access",
@@ -654,12 +722,15 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except QualifyError as exc:
+    except (QualifyError, OSError, subprocess.SubprocessError, MemoryError) as exc:
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc))
-        print("read_only=true")
-        print("filesystem_write=false")
+        print("read_only=" + str(not _GIT_RECEIPT["temporary_git_metadata_write_performed"]).lower())
+        print("filesystem_write=" + str(_GIT_RECEIPT["temporary_git_metadata_write_performed"]).lower())
+        print("protected_filesystem_mutation=false")
+        for key, value in _GIT_RECEIPT.items():
+            print(key + "=" + (str(value).lower() if isinstance(value, bool) else str(value)))
         print("bootstrap_self_test_execution_state=unknown_or_partial_if_started")
         print("bootstrap_execution_beyond_self_test=false")
         print("inner_installer_execution=false")
