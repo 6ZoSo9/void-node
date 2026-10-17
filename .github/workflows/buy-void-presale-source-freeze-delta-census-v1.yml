@@ -86,9 +86,9 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py)" = \
-            934ecc700f47e883c6bea0289375a105f6e736c7
+            6854afaa2668339b0735f04862ec931b977b57d2
           test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-delta-census-v1.md)" = \
-            2963bffaad80423d88dd35ca42603e54990508c0
+            0d7262ecbfe1f264d9a9865ec1fc3a1d8078da23
 
           test "$(git rev-parse 5e514e4b6e2151c18cf7459bd7a697287eebbd4c^{tree})" = \
             47a0c6eb9408b97226472d1297115633b0b3d799
@@ -152,6 +152,7 @@ jobs:
             'apollyon_xiphos_category_fixed=true' \
             'economic_integration_category_fixed=true' \
             'release_authority=false' \
+            'apply_mode_refused=true' \
             'funds_movement_authorized=false'
           do
             grep -Fx "$marker" "$out"
@@ -207,10 +208,23 @@ jobs:
       - name: Refuse apply mode
         run: |
           set -euo pipefail
-          if python3 -I -B scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py --apply \
+          set +e
+          python3 -I -B scripts/prove_buy_void_presale_source_freeze_delta_census_v1.py --apply \
             >"$RUNNER_TEMP/apply.out" 2>"$RUNNER_TEMP/apply.err"
-          then
-            echo "unexpected_apply_success" >&2
-            exit 1
-          fi
-          grep -q -- '--apply' "$RUNNER_TEMP/apply.err"
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          test ! -s "$RUNNER_TEMP/apply.err"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_DELTA_CENSUS_V1' \
+            'status=HOLD' \
+            'reason=apply_not_supported' \
+            'read_only=true' \
+            'source_mutation=false' \
+            'host_mutation=false' \
+            'customer_payment_acceptance_authorized=false' \
+            'public_presale_activation_authorized=false' \
+            'funds_movement_authorized=false'
+          do
+            grep -Fx "$marker" "$RUNNER_TEMP/apply.out"
+          done
