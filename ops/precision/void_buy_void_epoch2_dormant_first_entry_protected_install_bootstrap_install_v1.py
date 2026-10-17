@@ -124,6 +124,9 @@ class PublishedInstallError(InstallError):
         self.final_verification_completed = final_verification_completed
         self.original_failure_class = original_failure_class
         self.original_failure_reason = original_failure_reason
+        self.install_parent_close_completed: bool | None = None
+        self.close_failure_class = "none"
+        self.close_failure_reason = "none"
 
 
 def sha256(raw: bytes) -> str:
@@ -813,10 +816,24 @@ def _create_file(
         os.close(fd)
 
 
-def _cleanup_created_stage() -> bool:
+def _cleanup_created_stage(
+    expected_stage_dev: int,
+    expected_stage_ino: int,
+) -> bool:
     if not _exists(STAGE_ROOT):
         return True
     try:
+        stage_st = STAGE_ROOT.lstat()
+        if (
+            not stat.S_ISDIR(stage_st.st_mode)
+            or stat.S_ISLNK(stage_st.st_mode)
+            or stage_st.st_dev != expected_stage_dev
+            or stage_st.st_ino != expected_stage_ino
+            or stage_st.st_uid != 0
+            or stage_st.st_gid != 0
+            or stat.S_IMODE(stage_st.st_mode) != 0o755
+        ):
+            return False
         expected = {
             STAGE_ROOT: {BIN_DIR, POLICY_NAME},
             STAGE_ROOT / BIN_DIR: {BOOTSTRAP_NAME},
@@ -920,6 +937,8 @@ def apply(
         os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
     )
     stage_created = False
+    stage_dev: int | None = None
+    stage_ino: int | None = None
     published = False
     parent_fsync_completed = False
     final_verification_completed = False
@@ -936,6 +955,9 @@ def apply(
         )
         os.fchown(stage_fd, 0, 0)
         os.fchmod(stage_fd, 0o755)
+        stage_identity = os.fstat(stage_fd)
+        stage_dev = stage_identity.st_dev
+        stage_ino = stage_identity.st_ino
         try:
             bin_fd = _mkdir_at(stage_fd, BIN_DIR)
             try:
@@ -986,25 +1008,57 @@ def apply(
     except BaseException as exc:
         if published:
             klass, reason = _bounded_failure(exc)
-            raise PublishedInstallError(
+            failure = PublishedInstallError(
                 "published_install_requires_inspection",
                 phase="post_publication_verification",
                 parent_fsync_completed=parent_fsync_completed,
                 final_verification_completed=final_verification_completed,
                 original_failure_class=klass,
                 original_failure_reason=reason,
-            ) from exc
+            )
+            try:
+                os.close(opt_fd)
+                failure.install_parent_close_completed = True
+            except OSError as close_exc:
+                failure.install_parent_close_completed = False
+                (
+                    failure.close_failure_class,
+                    failure.close_failure_reason,
+                ) = _bounded_failure(close_exc)
+            raise failure from exc
 
         cleanup_green = True
         if stage_created:
-            cleanup_green = _cleanup_created_stage()
+            if stage_dev is None or stage_ino is None:
+                cleanup_green = False
+            else:
+                cleanup_green = _cleanup_created_stage(stage_dev, stage_ino)
         print("prepublication_cleanup_attempted=" + str(stage_created).lower())
         print("prepublication_cleanup_green=" + str(cleanup_green).lower())
+        try:
+            os.close(opt_fd)
+        except OSError as close_exc:
+            raise InstallError("install_parent_close_failed_before_publication") from close_exc
         if not cleanup_green:
             raise InstallError("prepublication_cleanup_failed") from exc
         raise
-    finally:
+
+    try:
         os.close(opt_fd)
+    except OSError as close_exc:
+        klass, reason = _bounded_failure(close_exc)
+        failure = PublishedInstallError(
+            "published_install_close_failed",
+            phase="install_parent_close",
+            parent_fsync_completed=parent_fsync_completed,
+            final_verification_completed=final_verification_completed,
+            original_failure_class=klass,
+            original_failure_reason=reason,
+        )
+        failure.install_parent_close_completed = False
+        failure.close_failure_class = klass
+        failure.close_failure_reason = reason
+        raise failure from close_exc
 
     print(MARKER)
     print("mode=apply")
@@ -1075,8 +1129,10 @@ def self_test() -> None:
     print("operation_bound_plan_id_required=true")
     print("explicit_apply_confirmation_required=true")
     print("prepublication_cleanup_limited_to_created_stage=true")
+    print("prepublication_cleanup_stage_generation_bound=true")
     print("post_publication_rollback=false")
     print("truthful_post_publication_failure_receipt=true")
+    print("post_publication_close_failure_receipt_truthful=true")
     print("bootstrap_execution=false")
     print("protected_installer_apply=false")
     print("credential_access=false")
@@ -1156,6 +1212,18 @@ if __name__ == "__main__":
             )
         )
         print("failure_phase=" + exc.phase)
+        print(
+            "install_parent_close_completed="
+            + (
+                "true"
+                if exc.install_parent_close_completed is True
+                else "false"
+                if exc.install_parent_close_completed is False
+                else "unknown"
+            )
+        )
+        print("close_failure_class=" + exc.close_failure_class)
+        print("close_failure_reason=" + exc.close_failure_reason)
         print("original_failure_class=" + exc.original_failure_class)
         print("original_failure_reason=" + exc.original_failure_reason)
         print("post_publication_rollback=false")
