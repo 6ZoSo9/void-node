@@ -38,6 +38,12 @@ The acceptance lock uses the **post-merge main-push** run, not PR-preview eviden
 All three hosted reports and ELFs are byte-identical. The compare job independently
 rederived the report and ELF.
 
+The lock proof also creates a disposable detached worktree at exact canonical
+candidate merge `02e6e1f7f938d8d7331f32eaca8d2d07c7f7854b`, reruns the
+V6 candidate derivation there, and requires the exact report/ELF byte, SHA-256,
+Git-blob and candidate-ID identities below. This prevents the newer lock branch
+HEAD from becoming implicit candidate build authority.
+
 ## Accepted V6 candidate
 
 Candidate:
@@ -60,7 +66,9 @@ Accepted static bootstrap V6 ELF:
 
 The report additionally binds a sealed memfd build input, compiler logical source
 `stdin`, distinct source descriptor numbers, descriptor-number-independent
-candidate identity, and post-build toolchain revalidation.
+candidate identity, and post-build toolchain revalidation. The lock proof
+rechecks those descriptor-independent fields on the freshly rederived canonical
+report before acceptance.
 
 ## Lock lineage
 
