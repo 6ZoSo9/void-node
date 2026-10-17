@@ -378,6 +378,24 @@ assert.deepEqual(
 {
   const bad=structuredClone(record);
   bad.trainer_pid+=1;
+  // This fixture must represent a SECOND VALID blocked trainer, not a
+  // mismatched generation ID (which the persisted validator now rejects).
+  const trainerMaterial={
+    marker:"VOID_APOLLYON_PRETRAINING_ADMISSION_GENERATION_V1",
+    version:1,
+    admission_blocked:true,
+    automatic_retry_authorized:false,
+    boot_id_sha256:bad.trainer_boot_id_sha256,
+    candidate_weight_mutation_performed:false,
+    gid:bad.trainer_gid,
+    pid:bad.trainer_pid,
+    process_start_time_ticks:bad.trainer_process_start_time_ticks,
+    source_identity_sha256:bad.trainer_source_identity_sha256,
+    training_execution_performed:false,
+    uid:bad.trainer_uid,
+  };
+  bad.trainer_generation_id="apollyon_pretraining_generation_v1:"+
+    sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(trainerMaterial),"utf8"));
   const material=structuredClone(bad);
   delete material.training_start_consumption_id;
   bad.training_start_consumption_id="apollyon_training_start_consumption_v1:"+
