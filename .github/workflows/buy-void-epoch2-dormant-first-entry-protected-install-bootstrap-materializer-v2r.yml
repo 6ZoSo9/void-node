@@ -69,8 +69,8 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py)" = 4879c5c294535869ad162502a7f89e2f2ddcee84
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2r.py)" = 5bc49381844581dfb30a815ff0d1b18e6def85c6
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py)" = f79e52b5d0af99194b0cf89a73ae5bf3285d3840
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2r.py)" = c66bcd1f1d0d4751de475d5d6c1c98cab1eba31a
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v2r.md)" = fb7f45a3fe9d06b588933cedc14c558b935ad926
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json)" = 64c9a42ca1108a9e8f88218c34d53e50668c653e
@@ -167,6 +167,7 @@ jobs:
             'signing_authorized=false' \
             'transaction_authorized=false' \
             'rpc_call_authorized=false' \
+            'next_gate=void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r' \
             'funds_movement=false'
           do
             grep -Fx "$marker" "$log"
@@ -183,7 +184,7 @@ jobs:
 
           mkdir -p "$RUNNER_TEMP/v2r-install-inputs"
           cp -- "$output" "$RUNNER_TEMP/v2r-install-inputs/protected-install-bootstrap-v2"
-          cp -- "$log" "$RUNNER_TEMP/v2r-install-inputs/materialization-v2.log"
+          cp -- "$log" "$RUNNER_TEMP/v2r-install-inputs/materialization-v2r.log"
           sha256sum "$RUNNER_TEMP/v2r-install-inputs/protected-install-bootstrap-v2" \
             > "$RUNNER_TEMP/v2r-install-inputs/SHA256SUMS.txt"
 
