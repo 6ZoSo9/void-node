@@ -11,62 +11,62 @@ ROOT = Path(__file__).resolve().parents[1]
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_"
-    "BOOTSTRAP_INSTALLED_QUALIFICATION_V2R"
+    "BOOTSTRAP_INSTALLED_QUALIFICATION_V3"
 )
 
 TARGET_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_protected_install_"
-    "bootstrap_installed_qualification_v2r.py"
+    "bootstrap_installed_qualification_v3.py"
 )
-TARGET_BLOB = "c6b1236de5eac88dd29ea84ef8b66ccd6e71a043"
+TARGET_BLOB = "a2298dbdbf9928f14963ce8bf77d91f54e349ce9"
 
 INSTALL_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_install_v2r.py"
+    "protected_install_bootstrap_install_v3.py"
 )
-INSTALL_BLOB = "f8355b728b4c6870b92b10a0c19f154cf9c2ab51"
+INSTALL_BLOB = "21860bce2c1589cead5c0789342871049c2d6055"
 INSTALL_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_install_v2r.py"
+    "protected_install_bootstrap_install_v3.py"
 )
-INSTALL_PROOF_BLOB = "bfae4e1c9a3875b07e92c2b4051f31d56510e0ca"
+INSTALL_PROOF_BLOB = "4d3f3bae1b11b7f16d881de08463bd2d9baef088"
 
 LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-first-entry-protected-install-"
-    "bootstrap-candidate-lock-v3.json"
+    "bootstrap-candidate-lock-v4.json"
 )
-LOCK_BLOB = "64c9a42ca1108a9e8f88218c34d53e50668c653e"
+LOCK_BLOB = "57ecc08d465fe2a3c395546d349864312cd08a3f"
 
 MATERIALIZER_REL = (
     "scripts/materialize_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_v2r.py"
+    "protected_install_bootstrap_v3.py"
 )
-MATERIALIZER_BLOB = "f79e52b5d0af99194b0cf89a73ae5bf3285d3840"
+MATERIALIZER_BLOB = "a62dc7c4e7ac4cde63c3473d0040c355aa28508e"
 MATERIALIZER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_materializer_v2r.py"
+    "protected_install_bootstrap_materializer_v3.py"
 )
-MATERIALIZER_PROOF_BLOB = "c66bcd1f1d0d4751de475d5d6c1c98cab1eba31a"
+MATERIALIZER_PROOF_BLOB = "f23a60dcd7ff0c3538cc2fef0929086c169365da"
 
 BOOTSTRAP_SOURCE_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_v2.c"
+    "protected_install_bootstrap_v3.c"
 )
-BOOTSTRAP_SOURCE_BLOB = "19f9baf8d6d707da43dbd0e247667af1a10e46c5"
+BOOTSTRAP_SOURCE_BLOB = "2c3c9ed120cc9949a0528e43be886354aa25da5a"
 
 PROTECTED_INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_"
-    "installer_first_entry_protected_install_v1.py"
+    "installer_first_entry_protected_install_v2.py"
 )
-PROTECTED_INSTALLER_BLOB = "383b84e71b371de65579e4113469e86a59b807ab"
+PROTECTED_INSTALLER_BLOB = "69a018c0eccedf3782055c56725579d02463b05e"
 
-CANDIDATE_MERGE = "344f0abcc57d6f2fbacbb6a57e27009ae9ea7a4b"
-CANDIDATE_TREE = "4085987d856fa303b8bc81087e3b5a207bc8964f"
+CANDIDATE_MERGE = "78875f7379c2dd995e1b545dd0543c934e59907a"
+CANDIDATE_TREE = "a2c1b6b9989ceb11c4fbea3f2fc4ecf64eb50176"
 LOCK_ID = (
     "voidbuye2bootstraplock3_"
     "690d119c90f5c8c20f429fcc14919b62691f9a1b3bfe2226476267ede993197f"
@@ -76,9 +76,9 @@ CANDIDATE_ID = (
     "b71b8757fa64fc36c2df0e95e3812c00eccef114b71e0b854c34ddfd62285def"
 )
 BOOTSTRAP_SHA256 = (
-    "37a6979c274e93fa09860b26664804a9d912201a290db65deb9b4499e39aa276"
+    "904e6b05df45bc9212be7689ea0617ccfbf65d5edf8535a381abcbb588f236cd"
 )
-BOOTSTRAP_GIT_BLOB = "45ca1ed7a6237fccbd6bb0b9d73ef5ff47c72d62"
+BOOTSTRAP_GIT_BLOB = "69e3bf6db7baf614eb0b7d8c5e93aafce0deab46"
 
 
 def git_blob(raw: bytes) -> str:
@@ -118,7 +118,9 @@ for required in (
     '"runtime_expected_head_strict_lowercase_hex": True',
     '"runtime_expected_head_forwarded_unchanged": True',
     '"canonical_main_candidate_authority": True',
+    '"superseded_v3_lock_install_authority": False',
     '"superseded_v2_lock_install_authority": False',
+    '"superseded_v1_lock_install_authority": False',
     '"protected_installer_execution_readiness": True',
     'runtime_head_contract_green=true',
     '"GIT_NO_LAZY_FETCH": "1"',
@@ -126,7 +128,7 @@ for required in (
     '"core.hooksPath=/dev/null"',
     '"core.fsmonitor=false"',
     'next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_',
-    'PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V2R',
+    'PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V3',
     'bootstrap_execution_performed=false',
     'protected_installer_apply_performed=false',
     'filesystem_write=false',
@@ -204,7 +206,9 @@ for required in (
     '"runtime_expected_head_strict_lowercase_hex": True',
     '"runtime_expected_head_forwarded_unchanged": True',
     '"canonical_main_candidate_authority": True',
+    '"superseded_v3_lock_install_authority": False',
     '"superseded_v2_lock_install_authority": False',
+    '"superseded_v1_lock_install_authority": False',
     '"protected_installer_execution_readiness": True',
     '"bootstrap_execution_performed": False',
     '"protected_installer_apply_performed": False',
@@ -215,7 +219,7 @@ assert "expected_head == CANDIDATE_MERGE" not in collect_source
 
 emit_source = ast.get_source_segment(source, functions["emit"]) or ""
 assert 'print("status=GREEN")' in emit_source
-assert "PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V2R" in emit_source
+assert "PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V3" in emit_source
 assert "bootstrap_compile_expected_head_not_current_checkout" not in emit_source
 assert "REQUIRE_BOOTSTRAP_EXPECTED_HEAD_ALIGNMENT" not in emit_source
 
@@ -230,6 +234,7 @@ assert lock["bootstrap_source_identity_bound"] is True
 assert lock["installer_source_identity_bound"] is True
 assert lock["runtime_head_contract_accepted"] is True
 assert lock["canonical_main_candidate_authority"] is True
+assert lock["superseded_v3_lock_install_authority"] is False
 assert lock["superseded_v2_lock_install_authority"] is False
 assert lock["superseded_v1_lock_install_authority"] is False
 assert lock["protected_bootstrap_install_authorized"] is False
@@ -252,7 +257,9 @@ for required in (
     "runtime_expected_head_strict_lowercase_hex",
     "runtime_expected_head_forwarded_unchanged",
     "canonical_main_candidate_authority",
+    "superseded_v3_lock_install_authority",
     "superseded_v2_lock_install_authority",
+    "superseded_v1_lock_install_authority",
     "bootstrap_execution=false",
     "protected_installer_apply=false",
     "prepublication_cleanup_stage_generation_bound=true",
@@ -294,7 +301,9 @@ assert materializer_constant("EXPECTED_BINARY_SHA256") == BOOTSTRAP_SHA256
 assert materializer_constant("EXPECTED_BINARY_GIT_BLOB") == BOOTSTRAP_GIT_BLOB
 for required in (
     '"canonical_main_candidate_authority": True',
+    '"superseded_v3_lock_install_authority": False',
     '"superseded_v2_lock_install_authority": False',
+    '"superseded_v1_lock_install_authority": False',
 ):
     assert required in materializer_source, required
 
@@ -313,8 +322,11 @@ for mode, expected_lines in (
         "--self-test",
         (
             MARKER + "_SELF_TEST_GREEN",
-            "accepted_bootstrap_lock_v3_bound=true",
+            "accepted_bootstrap_lock_v4_bound=true",
             "canonical_main_candidate_authority_required=true",
+            "superseded_v3_lock_install_authority=false",
+            "superseded_v2_lock_install_authority=false",
+            "superseded_v1_lock_install_authority=false",
             "exact_installed_bootstrap_identity_required=true",
             "exact_policy_generation_required=true",
             "exact_protected_installer_source_required=true",
@@ -349,7 +361,9 @@ for mode, expected_lines in (
             "runtime_expected_head_strict_lowercase_hex=true",
             "runtime_expected_head_forwarded_unchanged=true",
             "canonical_main_candidate_authority=true",
+            "superseded_v3_lock_install_authority=false",
             "superseded_v2_lock_install_authority=false",
+            "superseded_v1_lock_install_authority=false",
             "installed_bootstrap_execution=false",
             "protected_installer_apply=false",
             "filesystem_write=false",
@@ -376,12 +390,12 @@ for mode, expected_lines in (
 
 print(MARKER + "_PROOF_GREEN")
 print("target_blob_bound=true")
-print("protected_bootstrap_install_v2r_source_bound=true")
-print("protected_bootstrap_install_v2r_proof_bound=true")
-print("accepted_bootstrap_lock_v3_bound=true")
-print("materializer_v2r_generation_bound=true")
-print("materializer_v2r_constants_semantically_bound=true")
-print("materializer_v2r_proof_bound=true")
+print("protected_bootstrap_install_v3_source_bound=true")
+print("protected_bootstrap_install_v3_proof_bound=true")
+print("accepted_bootstrap_lock_v4_bound=true")
+print("materializer_v3_generation_bound=true")
+print("materializer_v3_constants_semantically_bound=true")
+print("materializer_v3_proof_bound=true")
 print("bootstrap_source_runtime_head_contract_bound=true")
 print("protected_installer_source_generation_bound=true")
 print("read_only_no_mutation_calls=true")
@@ -389,6 +403,9 @@ print("installed_bootstrap_execution_absent=true")
 print("protected_installer_apply_absent=true")
 print("runtime_head_contract_bound=true")
 print("canonical_main_candidate_authority=true")
+print("superseded_v3_lock_install_authority=false")
+print("superseded_v2_lock_install_authority=false")
+print("superseded_v1_lock_install_authority=false")
 print("frozen_head_alignment_not_required=true")
 print("git_lazy_fetch_suppressed=true")
 print("git_transport_denied=true")
