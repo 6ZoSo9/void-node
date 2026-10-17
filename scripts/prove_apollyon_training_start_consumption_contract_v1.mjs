@@ -39,7 +39,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "4333df6c7918fe9efaada36cac765000eec7948f",
+    "60987b860fb7159d88f4f601b76878e7d8ccca92",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -325,6 +325,24 @@ assert.deepEqual(
   validateApollyonTrainingStartConsumptionRecordV1(record),
   record,
 );
+// A persisted trainer-generation ID must match its OWN PID/start/boot/UID/GID
+// and source fields, even after an adversary recomputes the outer record ID.
+for(const corrupt of [
+  bad=>{bad.trainer_generation_id="apollyon_pretraining_generation_v1:"+"0".repeat(64);},
+  bad=>{bad.trainer_pid+=1;},
+]){
+  const bad=structuredClone(record);
+  corrupt(bad);
+  const material=structuredClone(bad);
+  delete material.training_start_consumption_id;
+  bad.training_start_consumption_id="apollyon_training_start_consumption_v1:"+
+    sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(material),"utf8"));
+  assert.throws(
+    ()=>validateApollyonTrainingStartConsumptionRecordV1(bad),
+    /trainer_generation_id_invalid/u,
+  );
+}
+
 assert.deepEqual(
   classifyApollyonTrainingStartConsumptionRecoveryV1({
     training_start_consumption_slot_id:record.training_start_consumption_slot_id,
@@ -360,6 +378,24 @@ assert.deepEqual(
 {
   const bad=structuredClone(record);
   bad.trainer_pid+=1;
+  // This fixture must represent a SECOND VALID blocked trainer, not a
+  // mismatched generation ID (which the persisted validator now rejects).
+  const trainerMaterial={
+    marker:"VOID_APOLLYON_PRETRAINING_ADMISSION_GENERATION_V1",
+    version:1,
+    admission_blocked:true,
+    automatic_retry_authorized:false,
+    boot_id_sha256:bad.trainer_boot_id_sha256,
+    candidate_weight_mutation_performed:false,
+    gid:bad.trainer_gid,
+    pid:bad.trainer_pid,
+    process_start_time_ticks:bad.trainer_process_start_time_ticks,
+    source_identity_sha256:bad.trainer_source_identity_sha256,
+    training_execution_performed:false,
+    uid:bad.trainer_uid,
+  };
+  bad.trainer_generation_id="apollyon_pretraining_generation_v1:"+
+    sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(trainerMaterial),"utf8"));
   const material=structuredClone(bad);
   delete material.training_start_consumption_id;
   bad.training_start_consumption_id="apollyon_training_start_consumption_v1:"+
@@ -728,6 +764,7 @@ console.log("unique_authorization_claim_slot_revalidation_performed=false");
 console.log("training_start_slot_derived_from_authorization_slot=true");
 console.log("authorization_slot_record_id_tamper_rejected=true");
 console.log("persisted_authorization_slot_record_id_forgery_rejected=true");
+console.log("persisted_trainer_generation_identity_rederived=true");
 console.log("alternate_claim_winner_mismatch_rejected=true");
 console.log("forged_authorization_slot_id_rejected=true");
 console.log("protected_namespace_keyed_by_consumption_slot_required=true");

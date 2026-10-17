@@ -85,6 +85,15 @@ Therefore:
 - the full consumption records still differ and the later one collides with an
   already occupied slot instead of obtaining a second start namespace.
 
+## Persisted trainer-generation integrity
+
+The persisted consumption-record validator independently reconstructs the
+canonical blocked pretraining generation from its recorded boot/PID/start,
+UID/GID and source identity plus reviewed inert/no-retry flags. A forged
+`trainer_generation_id` or changed PID fails closed even when the outer
+`training_start_consumption_id` is recomputed consistently. This establishes
+record consistency, not protected-store origin or live trainer release authority.
+
 ## Replay and crash rule
 
 The future implementation must publish create-once **by the
