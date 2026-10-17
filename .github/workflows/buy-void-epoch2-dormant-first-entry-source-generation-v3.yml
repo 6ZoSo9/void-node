@@ -146,9 +146,9 @@ jobs:
           import subprocess
 
           PREDECESSORS = {
-              b'.github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v3.yml': b'1884b2c35a0bb9d3269703ea2eb1fe58105132da',
-              b'docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v3.md': b'3b2ef81a0cc4d3476326ca599157506333d0b23c',
-              b'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py': b'69470265675e353882a5996621abfcf49f38684b',
+              b'.github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v3.yml': b'8d532c61fc1afe66e53b3748205fa53251974887',
+              b'docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v3.md': b'f98e389094e4694bf2840e46d9d7df94888d647c',
+              b'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py': b'ad3ba606056813ae1edc664761a697afcb56236a',
           }
           PATHS = set(PREDECESSORS)
           REPAIR_BASE = "abfc9bca33717cda57448672107f1b8d8b3fdfd0"
