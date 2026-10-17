@@ -48,7 +48,7 @@ Exact changed-path inventory:
 - modified: **28**;
 - deleted from fixed main relative to the freeze: **40**;
 - canonical changed-row SHA-256:
-  `84dad42a352fbca2c8d18236a911ee8de1155351225e11704f309a2e07f09034`.
+  `2aa2a1c6e9a36ffe80af19e28410b56f0c1c0b97fb3dd648bbb0a3a0f2f70fec`.
 
 This larger tree census is intentional. Git hosting compare UIs/APIs may truncate large diffs; they are not the release census authority.
 
@@ -60,7 +60,7 @@ Exactly **43** changed rows match the versioned protected-bootstrap lifecycle:
 
 Canonical category SHA-256:
 
-`942d106df3087f0990af410f959c929f43abff22e30cc4b66e31f43f78f8c16a`.
+`cc503b7ff67a26f4abcfc62e37664365e4d761facfb04a031ad986aef4d9ec8b`.
 
 This category includes the V2 runtime-head bootstrap, canonical V3 lock, V2R materializer/install/qualification, and retained historical V1/V2 generations.
 
@@ -72,7 +72,7 @@ Exactly **82** changed rows are under Apollyon/Xiphos source or CI paths.
 
 Canonical category SHA-256:
 
-`5a0202eca03125a84c19973361ed1fd0b750c4a4a99715605601e5c6d5f60e2b`.
+`eb90b33fcd4973563bb758649387e74dd9163a2de33d68cf6bc1e5a0351a6a34`.
 
 These are explicitly **not auto-adopted** into the presale release candidate merely because they are newer on canonical main.
 
@@ -82,7 +82,7 @@ The remaining exactly **63** rows are economic/integration/release-source differ
 
 Canonical category SHA-256:
 
-`a9ad791a18aea4e58363c5bdfb2b5a9dcb1db661b72145d9ab574db2fc8eddc6`.
+`e2f16b7f22e475075566d4dbf910489c403a5b651481d3a4eb2b802f4030bc99`.
 
 This is crucial: frozen #3409 is a two-parent composition, not simply an old main commit. Current main is **not** a byte-for-byte superset of its reviewed economic/integration tree. Some frozen release paths are modified or absent on current main.
 
