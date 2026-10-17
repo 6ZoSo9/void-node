@@ -8,8 +8,8 @@ on:
       - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v3.py"
       - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v3.py"
       - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v3.py"
-      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
-      - "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
       - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
       - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
   push:
@@ -20,8 +20,8 @@ on:
       - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v3.py"
       - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v3.py"
       - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v3.py"
-      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
-      - "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
       - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
       - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
   workflow_dispatch:
@@ -82,18 +82,18 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v3.py)" = \
-            b5f0a3a79632ea9bbb17c9e3a8cb4771752fca47
+            2bf1f3798943c3eeab0494ec661eca864fae0fd8
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v3.py)" = \
-            aa666b3417a2d9ffbbbcfe8f43dafa4f872d8e60
+            c759e16cab39e001074972b510304d072b9aa450
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v3.md)" = \
-            1a48d42d19cbb052980b289765c17083692b1461
+            e47768dc4bb28d003e86b6e941e0e4c6a3c6aeb0
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v3.py)" = \
             a2298dbdbf9928f14963ce8bf77d91f54e349ce9
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = \
-            f8ff6fbb855aecafc329cd60622cf3af782745a3
-          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py)" = \
-            50e8e7ba06740af830cc3c9df34d0ef7739a7e67
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json)" = \
+            227c2fa449abf1387925373c706ecd07775d5898
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = \
+            611e5d54154e3d3d5d9e7ba6c0374d697ecc3ba7
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = \
             5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
           test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py)" = \
@@ -131,6 +131,7 @@ jobs:
             'target_blob_bound=true' \
             'merged_v3_qualifier_bound=true' \
             'launcher_lock_and_materializer_bound=true' \
+            'launcher_v2_runtime_head_authority_bound=true' \
             'native_lock_and_materializer_bound=true' \
             'read_only_artifact_verification_only=true' \
             'nonroot_plan_required=true' \
