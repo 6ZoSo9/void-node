@@ -292,6 +292,44 @@ def admitted_root_stat(st):
     return types.SimpleNamespace(**{name: getattr(st, name) for name in names}, st_uid=0, st_gid=0)
 
 
+@contextlib.contextmanager
+def admitted_git_fixture_ownership(module, descriptor):
+    """Simulate custody only for this one real, sealed Git executable inode."""
+    original = os.fstat(descriptor)
+    identity = (original.st_dev, original.st_ino)
+
+    def is_git(st):
+        return (st.st_dev, st.st_ino) == identity
+
+    # Production must continue rejecting either wrong ownership field. These
+    # negatives preserve the actual descriptor type, seals, mode and contents.
+    for field in ("st_uid", "st_gid"):
+        def wrong_owner(fd, field=field):
+            observed = os.fstat(fd)
+            if not is_git(observed):
+                return observed
+            changed = admitted_root_stat(observed)
+            setattr(changed, field, 1)
+            return changed
+        with patch.object(module, "os", types.SimpleNamespace(**(vars(module.os) | {"fstat": wrong_owner}))):
+            reason = expect_hold(module, lambda: module._sealed_fd_state(
+                descriptor, mode=0o500, maximum=module.MAX_GIT_BYTES, label="fixture_git"
+            ), "git_fixture_wrong_ownership:" + field)
+        require(reason == "fixture_git_snapshot_metadata_invalid", "production_git_owner_check_not_enforced:" + field)
+
+    def admitted_fstat(fd):
+        observed = os.fstat(fd)
+        return admitted_root_stat(observed) if is_git(observed) else observed
+
+    with patch.object(module, "os", types.SimpleNamespace(**(vars(module.os) | {"fstat": admitted_fstat}))):
+        # A different memfd retains its real owner, including on hosted runners.
+        with sealed_fd(b"unrelated fixture descriptor, never executed\n") as other:
+            observed, actual = module.os.fstat(other), os.fstat(other)
+            require((observed.st_uid, observed.st_gid) == (actual.st_uid, actual.st_gid),
+                    "git_fixture_owner_admission_escaped_exact_inode")
+        yield
+
+
 def forbidden(*args, **kwargs):
     raise AssertionError("component fixture attempted unadmitted filesystem or process access")
 
@@ -1029,7 +1067,7 @@ def prove_git_boundary(module, raw: bytes, generation_fixture) -> None:
             with module._RepositorySnapshot(head) as view:
                 injected_stderr.update(armed=True, delivered=False, fd=None, remaining=65537)
                 try:
-                    with patch.object(module, "os", types.SimpleNamespace(**(vars(os) | {"read": synthetic_stderr_read}))):
+                    with patch.object(module, "os", types.SimpleNamespace(**(vars(module.os) | {"read": synthetic_stderr_read}))):
                         view._run("index")
                 finally:
                     injected_stderr["armed"] = False
@@ -1141,7 +1179,7 @@ def main() -> None:
     spec.loader.exec_module(module)
     manifest_raw, manifest, manifest_cases = prove_manifest_shape(module)
     proof_cases = prove_parent_proof_shape(module, manifest_raw)
-    with sealed_fd(Path(GIT).read_bytes(), executable=True) as git_fd:
+    with sealed_fd(Path(GIT).read_bytes(), executable=True) as git_fd, admitted_git_fixture_ownership(module, git_fd):
         module._BOOTSTRAP_CONTEXT = {"fds": {"git": git_fd}}
         generation_fixture = prove_dependency_generation(module, manifest_raw, manifest)
         prove_git_boundary(module, raw, generation_fixture)
@@ -1184,6 +1222,8 @@ def main() -> None:
     print("source_byte_mtime_ctime_and_inode_preservation_checked=true")
     print("git_child_resource_clamping_and_private_cleanup_holds_exercised=true")
     print("component_native_root_and_interpreter_admission_simulated=true")
+    print("component_git_memfd_ownership_admission_simulated=true")
+    print("production_git_uid_and_gid_rejection_checks_preserved=true")
     for item in (
         "frozen_sources_unchanged", "git_transport_guards_present", "raw_tree_index_file_comparison",
         "clean_fixture_reads_do_not_mutate_repository", "missing_object_fails_without_repository_mutation",
