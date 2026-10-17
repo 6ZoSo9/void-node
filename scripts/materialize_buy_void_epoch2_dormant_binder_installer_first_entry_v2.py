@@ -64,6 +64,8 @@ GIT_ENV = {
     "GIT_NO_REPLACE_OBJECTS": "1",
     "GIT_OPTIONAL_LOCKS": "0",
     "GIT_TERMINAL_PROMPT": "0",
+    "GIT_NO_LAZY_FETCH": "1",
+    "GIT_ALLOW_PROTOCOL": "",
 }
 
 
@@ -117,6 +119,8 @@ def _emit_authority(deriving: bool) -> None:
     ):
         print(name + "=" + str(deriving).lower())
     print("git_fetch_requested=false")
+    print("git_lazy_fetch_disabled=true")
+    print("git_transport_disabled=true")
     print("service_action_authorized=false")
     print("live_launcher_execution_authorized=false")
     print("protected_installer_consumer_bound=false")
@@ -561,6 +565,10 @@ def self_test() -> None:
         raise AssertionError("lock_id_drift")
     if EXPECTED_BINARY_BYTES != 731_072 or len(EXPECTED_BINARY_SHA256) != 64:
         raise AssertionError("accepted_binary_constants_invalid")
+    if GIT_ENV.get("GIT_NO_LAZY_FETCH") != "1":
+        raise AssertionError("git_lazy_fetch_guard_missing")
+    if GIT_ENV.get("GIT_ALLOW_PROTOCOL") != "":
+        raise AssertionError("git_transport_guard_missing")
     source = Path(__file__).read_text(encoding="utf-8")
     for required in (
         "worktree",
@@ -588,6 +596,8 @@ def self_test() -> None:
     print("output_parent_directory_fsync_required=true")
     print("output_visible_parent_and_leaf_binding_required=true")
     print("worktree_cleanup_verification_required=true")
+    print("git_lazy_fetch_disabled=true")
+    print("git_transport_disabled=true")
     print("output_failure_destructive_cleanup=false")
     print("launcher_binary_identity_accepted=true")
     print("protected_install_authorized=false")
