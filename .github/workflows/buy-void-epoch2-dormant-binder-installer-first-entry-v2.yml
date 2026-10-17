@@ -94,9 +94,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c)" = \
             86dc09e52402c04fb6e4b30a7fcf695833808ca3
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = \
-            c72098b6506b080c84e5ac301ead0a95e834df99
+            a6574e2d52f267d4a595c8cad0004d4797fd6f93
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md)" = \
-            6460947889dfd57ac7255756ab3ca7caf004d7b2
+            4529864791f076f235f9fff35a6d8a9645233e30
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
             f3d6b1559be7490303cf36338c4bfa38fdaa390a
 
@@ -151,6 +151,7 @@ jobs:
           python3 -I -B \
             scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py \
             --accepted-native "$RUNNER_TEMP/accepted-native-v3" \
+            --isolate-production-fixture \
             | tee "$out"
 
           for marker in \
@@ -194,6 +195,12 @@ jobs:
             'production_native_or_binder_executed=false' \
             'fixture_bytes_and_mtime_ctime_preserved_during_operations=true' \
             'production_fixture_cleanup_completed=true' \
+            'production_fixture_isolation_requested=true' \
+            'production_fixture_private_mount_pid_namespace_exercised=true' \
+            'production_fixture_private_proc_verified=true' \
+            'production_fixture_original_anchor_metadata_preserved=true' \
+            'production_fixture_private_mount_cleanup_completed=true' \
+            'production_fixture_parent_namespace_and_anchor_recheck_passed=true' \
             'production_default_self_matches_frozen_child_literal=true' \
             'canonical_policy_v1_namespace_preserved=true' \
             'exact_production_child_handoff_exercised=true' \

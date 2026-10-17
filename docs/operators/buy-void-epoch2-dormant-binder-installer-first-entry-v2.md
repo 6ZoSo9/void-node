@@ -157,6 +157,46 @@ and created-file identities, stops and reaps its child processes, and removes
 only its own unchanged fixture entries. This is CI fixture custody, not evidence
 of an installed or running Precision generation.
 
+### Hosted fixture isolation
+
+The hosted workflow explicitly selects `--isolate-production-fixture`. Some
+runner images expose a group/world-writable `/opt`; the fixture must still
+exercise the production requirement for root custody. Only the generated
+production driver enters a private mount and PID namespace with a fresh `/proc`.
+Its exact, digest-bound input bundle is staged under `/tmp`, while the ordinary
+proof, source checkout, materializer, and synthetic cases remain outside.
+
+The driver checks the original `/` custody, physical `/opt` and `/home`
+directories, and absence of every reserved fixture target before it mounts
+fresh, bounded tmpfs filesystems at `/opt` and `/home` in its private view. Both
+new roots have UID/GID 0 and mode `0755`; `/opt` permits the real launcher to
+execute. The production paths, C source, frozen child, UID/GID checks, and
+parent-process validation remain unchanged. No user or hostname namespace is
+created. The driver verifies changed mount/PID namespaces and an unchanged user
+namespace against the manifest-bound caller identities.
+
+The fixture does not change the ownership or permissions of the runner's
+underlying directories. It rechecks their original identity, ownership, mode,
+link count, size, and mtime/ctime, along with the caller's namespace identities,
+after the helper returns. The private mounts isolate the fixed fixture roots;
+inherited filesystems such as `/usr` and `/tmp` are not a complete container or
+filesystem sandbox.
+
+Normal completion requires owned-entry cleanup, process reaping, descriptor
+closure, and successful unmounting of the two fixture filesystems before GREEN.
+The driver retains its 180-second deadline, with a root-owned 210-second hard
+timeout around `unshare` inside the outer 240-second proof deadline. PID-namespace
+teardown bounds surviving descendants if its init driver is killed. A timeout
+or failed cleanup remains HOLD and cannot produce overall GREEN. A handled
+timeout can still report successful cleanup if cleanup actually completed.
+
+Namespace mode requires the kernel capabilities needed to create and mount
+those namespaces. It has no fallback that changes shared anchors or relaxes
+custody. The default direct fixture mode remains available for an already
+qualified disposable environment; its intentional create/remove operations can
+change `/opt` and `/home` directory timestamps. Neither mode supplies Precision
+host evidence or exercises create-only production publication.
+
 ## Adversarial proof
 
 The V2 proof preserves the V1 root-fixture/race suite and additionally requires

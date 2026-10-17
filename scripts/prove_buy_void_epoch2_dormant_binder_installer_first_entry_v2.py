@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import contextlib
 import hashlib
 import inspect
 import json
@@ -56,11 +57,14 @@ FIXTURE_GIT_CONFIG = (
 parser = argparse.ArgumentParser(description="Prove C2 synthetic and exact production-child handoffs")
 parser.add_argument("--accepted-native", required=True, type=pathlib.Path,
                     help="Exact accepted native V3 ELF; read and hash only, never execute")
+parser.add_argument("--isolate-production-fixture", action="store_true",
+                    help="Run only the exact-child fixture in private mount/PID namespaces with fresh /opt and /home")
 arguments = parser.parse_args()
 
 
 def production_fixture_driver() -> None:
     """Root-only disposable fixture driver; never imported by production code."""
+    import ctypes
     import hashlib
     import json
     import os
@@ -78,8 +82,10 @@ def production_fixture_driver() -> None:
     require(os.geteuid() == os.getegid() == 0, "fixture_driver_requires_root")
     require(sys.flags.isolated == 1 and sys.flags.no_site == 1,
             "fixture_driver_requires_isolated_no_site_python")
-    require(len(sys.argv) == 2 and re.fullmatch(r"[0-9a-f]{64}", sys.argv[1]) is not None,
+    require(len(sys.argv) in (2, 3) and re.fullmatch(r"[0-9a-f]{64}", sys.argv[1]) is not None
+            and (len(sys.argv) == 2 or sys.argv[2] == "--isolate-production-fixture"),
             "fixture_manifest_digest_required")
+    isolate = len(sys.argv) == 3
     require(os.uname().nodename != "zoso-Precision-Tower-7810", "precision_host_forbidden")
 
     def digest(raw: bytes) -> str:
@@ -97,6 +103,13 @@ def production_fixture_driver() -> None:
     def directory_binding(observed: os.stat_result) -> tuple[int, ...]:
         return (observed.st_dev, observed.st_ino, observed.st_mode,
                 observed.st_uid, observed.st_gid)
+
+    def namespace_ids() -> dict[str, list[int]]:
+        result = {}
+        for name in ("mnt", "pid", "user", "uts"):
+            observed = os.stat("/proc/self/ns/" + name)
+            result[name] = [observed.st_dev, observed.st_ino]
+        return result
 
     def read_fd(fd: int, size: int) -> bytes:
         result = bytearray()
@@ -137,9 +150,25 @@ def production_fixture_driver() -> None:
         require(0 < manifest_st.st_size <= 65536, "fixture_manifest_size_invalid")
         manifest_raw = input_bytes("production-manifest", manifest_st.st_size, sys.argv[1])
         manifest = json.loads(manifest_raw)
-        require(set(manifest) == {"schema", "head", "payloads", "checkout"}
-                and manifest["schema"] == "runtime_head_v2_exact_child_fixture_v1",
+        require(set(manifest) == {"schema", "head", "payloads", "checkout", "isolate",
+                                  "parent_namespaces", "parent_anchors"}
+                and manifest["schema"] == "runtime_head_v2_exact_child_fixture_v2",
                 "fixture_manifest_schema_invalid")
+        require(type(manifest["isolate"]) is bool and manifest["isolate"] == isolate,
+                "fixture_isolation_argument_binding_invalid")
+        parent_namespaces = manifest["parent_namespaces"]
+        require(isinstance(parent_namespaces, dict)
+                and set(parent_namespaces) == {"mnt", "pid", "user", "uts"}
+                and all(isinstance(value, list) and len(value) == 2
+                        and all(type(item) is int and item > 0 for item in value)
+                        for value in parent_namespaces.values()),
+                "fixture_parent_namespace_binding_invalid")
+        parent_anchors = manifest["parent_anchors"]
+        require(isinstance(parent_anchors, dict) and set(parent_anchors) == {"/", "/opt", "/home"}
+                and all(isinstance(value, list) and len(value) == 9
+                        and all(type(item) is int and item >= 0 for item in value)
+                        for value in parent_anchors.values()),
+                "fixture_parent_anchor_binding_invalid")
         head = manifest["head"]
         require(isinstance(head, str) and re.fullmatch(r"[0-9a-f]{40}", head) is not None,
                 "fixture_head_invalid")
@@ -220,6 +249,8 @@ def production_fixture_driver() -> None:
                 and len(binder) == 39391 and digest(binder) ==
                 "afa31537a93faee0936e7a4bd384598dd150687da7c24276327f0a16f56d1a5e",
                 "fixture_binder_changed")
+        require(set(os.listdir(input_root)) == input_names | {"production-driver.py"},
+                "fixture_input_bundle_not_flat_or_has_unlisted_entries")
     finally:
         os.close(input_root)
 
@@ -228,33 +259,221 @@ def production_fixture_driver() -> None:
     stage_names = ("." + launcher_name + ".stage", "." + pair_name + ".stage")
     nodes: list[dict] = []
     anchors: list[dict] = []
+    original_anchors: list[dict] = []
+    # These are the only mount targets and options admitted by this helper.
+    # /opt must be executable for the actual launcher; /home contains data.
+    mounts = [
+        {"name": "opt", "target": b"/opt", "flags": 2 | 4,
+         "data": b"mode=0755,uid=0,gid=0,size=16777216,nr_inodes=256",
+         "mounted": False, "binding": None, "mount_id": None},
+        {"name": "home", "target": b"/home", "flags": 2 | 4 | 8,
+         "data": b"mode=0755,uid=0,gid=0,size=8388608,nr_inodes=256",
+         "mounted": False, "binding": None, "mount_id": None},
+    ]
+    libc = None
     current_process: subprocess.Popen | None = None
     failure: BaseException | None = None
     cleanup_completed = False
+    owned_cleanup_completed = False
+    private_mount_cleanup_completed = False
+    private_proc_verified = False
     root_fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
 
-    def physical_root_directory(fd: int) -> None:
+    def anchor_diagnostic(path: str, observed: os.stat_result) -> str:
+        return ("path=" + path + " mode=" + format(stat.S_IMODE(observed.st_mode), "04o")
+                + " uid=" + str(observed.st_uid) + " gid=" + str(observed.st_gid))
+
+    def physical_root_directory(fd: int, path: str) -> None:
         observed = os.fstat(fd)
         require(stat.S_ISDIR(observed.st_mode) and observed.st_uid == observed.st_gid == 0
-                and observed.st_mode & 0o022 == 0, "fixture_anchor_custody_invalid")
+                and observed.st_mode & 0o022 == 0,
+                "fixture_anchor_custody_invalid:" + anchor_diagnostic(path, observed))
+
+    def open_original_anchor(name: str) -> dict:
+        visible = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+        print("fixture_original_anchor " + anchor_diagnostic("/" + name, visible), flush=True)
+        require(stat.S_ISDIR(visible.st_mode), "fixture_anchor_not_physical_directory:/" + name)
+        fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                     dir_fd=root_fd)
+        try:
+            require(identity(visible) == identity(os.fstat(fd)) == tuple(parent_anchors["/" + name]),
+                    "fixture_original_anchor_rebound:/" + name)
+            if not isolate:
+                physical_root_directory(fd, "/" + name)
+            value = {"name": name, "fd": fd, "identity": identity(visible),
+                     "binding": directory_binding(visible)}
+            original_anchors.append(value)
+            return value
+        except BaseException:
+            os.close(fd)
+            raise
 
     def open_anchor(name: str) -> dict:
         visible = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
         require(stat.S_ISDIR(visible.st_mode), "fixture_anchor_not_physical_directory")
         fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
                      dir_fd=root_fd)
-        physical_root_directory(fd)
-        require(identity(visible) == identity(os.fstat(fd)), "fixture_anchor_rebound")
-        value = {"name": name, "fd": fd, "binding": directory_binding(visible), "children": set()}
-        anchors.append(value)
-        return value
+        try:
+            physical_root_directory(fd, "/" + name)
+            require(identity(visible) == identity(os.fstat(fd)), "fixture_anchor_rebound")
+            if isolate:
+                require(stat.S_IMODE(visible.st_mode) == 0o755,
+                        "fixture_private_anchor_mode_invalid:/" + name)
+            value = {"name": name, "fd": fd, "binding": directory_binding(visible), "children": set()}
+            anchors.append(value)
+            return value
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def verify_original_anchors(*, visible: bool) -> None:
+        physical_root_directory(root_fd, "/")
+        require(identity(os.fstat(root_fd)) == tuple(parent_anchors["/"]) ==
+                identity(os.stat("/", follow_symlinks=False)), "fixture_original_root_generation_changed")
+        for anchor in original_anchors:
+            expected = anchor["identity"] if isolate else anchor["binding"]
+            observed = os.fstat(anchor["fd"])
+            require((identity(observed) if isolate else directory_binding(observed)) == expected,
+                    "fixture_original_anchor_generation_changed:/" + anchor["name"])
+            if visible:
+                observed = os.stat(anchor["name"], dir_fd=root_fd, follow_symlinks=False)
+                require((identity(observed) if isolate else directory_binding(observed)) == expected,
+                        "fixture_original_anchor_visible_generation_changed:/" + anchor["name"])
 
     def verify_anchors() -> None:
-        physical_root_directory(root_fd)
+        verify_original_anchors(visible=not isolate)
         for anchor in anchors:
             require(directory_binding(os.fstat(anchor["fd"])) == anchor["binding"] ==
                     directory_binding(os.stat(anchor["name"], dir_fd=root_fd, follow_symlinks=False)),
                     "fixture_anchor_generation_changed")
+            if isolate:
+                require(set(os.listdir(anchor["fd"])) == anchor["children"],
+                        "fixture_private_anchor_has_unknown_entries:/" + anchor["name"])
+
+    def mount_table() -> dict[int, list[bytes]]:
+        with open("/proc/self/mountinfo", "rb") as source:
+            raw = source.read(2 * 1024 * 1024 + 1)
+        require(len(raw) <= 2 * 1024 * 1024, "fixture_mount_table_too_large")
+        lines = raw.splitlines()
+        require(0 < len(lines) <= 4096, "fixture_mount_table_count_invalid")
+        result = {}
+        for line in lines:
+            parts = line.split()
+            require(len(parts) >= 10 and b"-" in parts[6:] and parts[0].isdigit(),
+                    "fixture_mount_table_row_invalid")
+            divider = parts.index(b"-", 6)
+            require(divider + 3 < len(parts)
+                    and all(not item.startswith((b"shared:", b"master:", b"propagate_from:"))
+                            for item in parts[6:divider]), "fixture_mount_propagation_not_private")
+            mount_id = int(parts[0])
+            require(mount_id not in result, "fixture_mount_table_duplicate_id")
+            result[mount_id] = parts
+        return result
+
+    def descriptor_mount_id(fd: int) -> int:
+        with open("/proc/self/fdinfo/" + str(fd), "rb") as source:
+            raw = source.read(4097)
+        require(len(raw) <= 4096, "fixture_fdinfo_too_large")
+        matches = re.findall(rb"^mnt_id:\s+([0-9]+)$", raw, re.MULTILINE)
+        require(len(matches) == 1, "fixture_descriptor_mount_id_missing")
+        return int(matches[0])
+
+    def verify_private_mount(record: dict, fd: int) -> None:
+        mount_id = descriptor_mount_id(fd)
+        table = mount_table()
+        require(mount_id in table, "fixture_private_mount_id_missing")
+        parts = table[mount_id]
+        divider = parts.index(b"-", 6)
+        options = set(parts[5].split(b","))
+        require(parts[4] == record["target"] and parts[divider + 1] == b"tmpfs"
+                and {b"rw", b"nosuid", b"nodev"} <= options
+                and (b"noexec" in options) == (record["name"] == "home"),
+                "fixture_private_mount_type_or_flags_invalid")
+        if record["mount_id"] is None:
+            record["mount_id"] = mount_id
+        else:
+            require(record["mount_id"] == mount_id, "fixture_private_mount_generation_changed")
+
+    def verify_namespace_binding() -> None:
+        nonlocal private_proc_verified
+        current = namespace_ids()
+        if not isolate:
+            require(current == parent_namespaces, "fixture_unrequested_namespace_change")
+            return
+        require(current["mnt"] != parent_namespaces["mnt"]
+                and current["pid"] != parent_namespaces["pid"]
+                and current["user"] == parent_namespaces["user"]
+                and current["uts"] == parent_namespaces["uts"],
+                "fixture_private_namespace_binding_invalid")
+        require(os.getpid() == 1 and os.getppid() == 0 and os.readlink("/proc/self") == "1",
+                "fixture_private_pid_proc_binding_invalid")
+        init_pid = os.stat("/proc/1/ns/pid")
+        children_pid = os.stat("/proc/self/ns/pid_for_children")
+        require(current["pid"] == [init_pid.st_dev, init_pid.st_ino]
+                == [children_pid.st_dev, children_pid.st_ino],
+                "fixture_private_proc_namespace_mismatch")
+        proc_fd = os.open("/proc", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            table = mount_table()
+            proc_id = descriptor_mount_id(proc_fd)
+            require(proc_id in table, "fixture_private_proc_mount_missing")
+            parts = table[proc_id]
+            divider = parts.index(b"-", 6)
+            require(parts[4] == b"/proc" and parts[divider + 1] == b"proc",
+                    "fixture_private_proc_mount_invalid")
+        finally:
+            os.close(proc_fd)
+        private_proc_verified = True
+
+    def mount_private_anchor(record: dict) -> dict:
+        require(isolate and libc is not None and not record["mounted"],
+                "fixture_private_mount_not_admitted")
+        # Record successful mount state before a handled signal can interrupt.
+        previous = signal.pthread_sigmask(signal.SIG_BLOCK,
+                                          {signal.SIGTERM, signal.SIGINT, signal.SIGALRM})
+        try:
+            result = libc.mount(b"tmpfs", record["target"], b"tmpfs",
+                                record["flags"], ctypes.c_char_p(record["data"]))
+            if result == 0:
+                record["mounted"] = True
+            else:
+                raise RuntimeError("fixture_private_mount_failed:" + record["name"]
+                                   + ":errno=" + str(ctypes.get_errno()))
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+        anchor = open_anchor(record["name"])
+        record["binding"] = anchor["binding"]
+        require(not os.listdir(anchor["fd"]), "fixture_private_anchor_not_empty")
+        verify_private_mount(record, anchor["fd"])
+        return anchor
+
+    def unmount_private_anchor(record: dict) -> None:
+        require(isolate and libc is not None and record["mounted"]
+                and record["binding"] is not None and record["mount_id"] is not None,
+                "fixture_private_unmount_not_bound")
+        fd = os.open(record["target"], os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            require(directory_binding(os.fstat(fd)) == record["binding"]
+                    and not os.listdir(fd), "fixture_private_unmount_generation_changed")
+            verify_private_mount(record, fd)
+        finally:
+            os.close(fd)
+        # No descriptor or cwd inside either fresh mount survives to umount.
+        previous = signal.pthread_sigmask(signal.SIG_BLOCK,
+                                          {signal.SIGTERM, signal.SIGINT, signal.SIGALRM})
+        try:
+            result = libc.umount2(record["target"], 0)
+            if result == 0:
+                record["mounted"] = False
+            else:
+                raise RuntimeError("fixture_private_unmount_failed:" + record["name"]
+                                   + ":errno=" + str(ctypes.get_errno()))
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+        original = next(anchor for anchor in original_anchors if anchor["name"] == record["name"])
+        require(identity(os.stat(record["name"], dir_fd=root_fd, follow_symlinks=False))
+                == identity(os.fstat(original["fd"])) == original["identity"],
+                "fixture_original_anchor_not_restored:/" + record["name"])
 
     def absent(parent: dict, name: str) -> None:
         try:
@@ -387,14 +606,38 @@ def production_fixture_driver() -> None:
     print("existing_installation_replacement_authorized=false", flush=True)
     print("production_native_or_binder_execution_authorized=false", flush=True)
     print("fixture_network_contact=false", flush=True)
+    print("production_fixture_isolation_requested=" + str(isolate).lower(), flush=True)
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
     signal.signal(signal.SIGALRM, interrupted)
     signal.alarm(180)
     try:
-        physical_root_directory(root_fd)
-        opt, home = open_anchor("opt"), open_anchor("home")
-        # Every fixed target is absent before the first fixed-path mutation.
+        # The complete flat bundle is in memory before /home can be hidden.
+        # No host checkout cwd is carried into either of the private mounts.
+        os.chdir("/")
+        print("fixture_original_anchor " + anchor_diagnostic("/", os.fstat(root_fd)), flush=True)
+        physical_root_directory(root_fd, "/")
+        original_opt, original_home = open_original_anchor("opt"), open_original_anchor("home")
+        verify_original_anchors(visible=True)
+        # Check the original host view before the first mount or fixed-path
+        # creation. A present path, including a dangling symlink, is refusal.
+        for name in (launcher_name, pair_name, *stage_names,
+                     "void-buy-void-epoch2-dormant-binder-installer-first-entry-v2"):
+            absent(original_opt, name)
+        absent(original_home, "zoso")
+        verify_namespace_binding()
+        if isolate:
+            libc = ctypes.CDLL(None, use_errno=True)
+            libc.mount.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,
+                                   ctypes.c_ulong, ctypes.c_void_p]
+            libc.mount.restype = ctypes.c_int
+            libc.umount2.argtypes = [ctypes.c_char_p, ctypes.c_int]
+            libc.umount2.restype = ctypes.c_int
+            for record in mounts:
+                mount_private_anchor(record)
+            opt, home = anchors
+        else:
+            opt, home = open_anchor("opt"), open_anchor("home")
         for name in (launcher_name, pair_name, *stage_names,
                      "void-buy-void-epoch2-dormant-binder-installer-first-entry-v2"):
             absent(opt, name)
@@ -493,21 +736,68 @@ def production_fixture_driver() -> None:
                              "void-buy-void-epoch2-dormant-binder-installer-first-entry-v2"):
                     absent(anchors[0], name)
                 absent(anchors[1], "zoso")
-            cleanup_completed = True
+            owned_cleanup_completed = True
         except BaseException as exc:
             print("production_fixture_cleanup_refused=true", file=sys.stderr)
             failure = failure or exc
         finally:
+            fresh_fds_closed = True
             for node in reversed(nodes):
                 if node["fd"] >= 0:
-                    os.close(node["fd"])
+                    try:
+                        os.close(node["fd"])
+                    except BaseException as exc:
+                        fresh_fds_closed = False
+                        failure = failure or exc
+                    finally:
+                        node["fd"] = -1
             for anchor in reversed(anchors):
-                os.close(anchor["fd"])
-            os.close(root_fd)
+                try:
+                    os.close(anchor["fd"])
+                except BaseException as exc:
+                    fresh_fds_closed = False
+                    failure = failure or exc
+                finally:
+                    anchor["fd"] = -1
+            try:
+                require(current_process is None and owned_cleanup_completed and fresh_fds_closed,
+                        "fixture_private_unmount_refused_before_owned_cleanup")
+                if isolate:
+                    for record in reversed(mounts):
+                        if record["mounted"]:
+                            unmount_private_anchor(record)
+                    require(not any(record["mounted"] for record in mounts),
+                            "fixture_private_mount_cleanup_incomplete")
+                    private_mount_cleanup_completed = True
+                verify_original_anchors(visible=True)
+                if len(original_anchors) == 2:
+                    for name in (launcher_name, pair_name, *stage_names,
+                                 "void-buy-void-epoch2-dormant-binder-installer-first-entry-v2"):
+                        absent(original_anchors[0], name)
+                    absent(original_anchors[1], "zoso")
+                verify_namespace_binding()
+                cleanup_completed = True
+            except BaseException as exc:
+                print("production_fixture_anchor_or_mount_cleanup_refused=true", file=sys.stderr)
+                failure = failure or exc
+            finally:
+                for anchor in reversed(original_anchors):
+                    try:
+                        os.close(anchor["fd"])
+                    except BaseException as exc:
+                        cleanup_completed = False
+                        failure = failure or exc
+                try:
+                    os.close(root_fd)
+                except BaseException as exc:
+                    cleanup_completed = False
+                    failure = failure or exc
     if failure is not None:
         print("REAL_PRODUCTION_CHILD_HANDOFF_HOLD reason=" + type(failure).__name__ + ":" + str(failure)[:800],
               file=sys.stderr)
         print("production_fixture_cleanup_completed=" + str(cleanup_completed).lower(), file=sys.stderr)
+        print("production_fixture_private_mount_cleanup_completed="
+              + str(private_mount_cleanup_completed).lower(), file=sys.stderr)
         raise SystemExit(2)
     print("REAL_PRODUCTION_CHILD_HANDOFF_GREEN")
     print("production_child_exact_blob=f3d6b1559be7490303cf36338c4bfa38fdaa390a")
@@ -521,6 +811,9 @@ def production_fixture_driver() -> None:
     print("production_native_or_binder_executed=false")
     print("fixture_bytes_and_mtime_ctime_preserved_during_operations=true")
     print("production_fixture_cleanup_completed=true")
+    print("production_fixture_private_mount_pid_namespace_exercised=" + str(isolate).lower())
+    print("production_fixture_private_proc_verified=" + str(private_proc_verified).lower())
+    print("production_fixture_private_mount_cleanup_completed=" + str(private_mount_cleanup_completed).lower())
 
 def git_blob(raw: bytes) -> str:
     return hashlib.sha1(
@@ -537,6 +830,7 @@ def run(
     env: dict[str, str] | None = None,
     input_text: str | None = None,
     timeout: int = 60,
+    cwd: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     merged = os.environ.copy()
     if env:
@@ -553,6 +847,7 @@ def run(
         env=merged,
         check=False,
         timeout=timeout,
+        cwd=cwd,
     )
     if check and result.returncode != 0:
         raise AssertionError(
@@ -1356,8 +1651,10 @@ with tempfile.TemporaryDirectory(
 
 # The exact production child is a separate positive from the adversarial
 # synthetic child above. No production constant or validator is replaced.
-with tempfile.TemporaryDirectory(prefix="void-e2-real-runtime-child-proof-") as td:
+with tempfile.TemporaryDirectory(prefix="void-e2-real-runtime-child-proof-", dir="/tmp") as td:
     temp = pathlib.Path(td)
+    bundle = temp / "production-bundle"
+    bundle.mkdir(mode=0o700)
     default_binary = temp / "default-launcher"
     compile_candidate(output=default_binary, fixture_root=None,
                       installer_raw=production_installer_raw, native_raw=accepted_native_raw)
@@ -1406,7 +1703,7 @@ with tempfile.TemporaryDirectory(prefix="void-e2-real-runtime-child-proof-") as 
     for role, raw in (("launcher", default_binary.read_bytes()), ("installer", production_installer_raw),
                       ("native", accepted_native_raw), ("policy", policy_raw)):
         basename = "input-" + role
-        write_local(temp / basename, raw, 0o444)
+        write_local(bundle / basename, raw, 0o444)
         payloads[role] = {"file": basename, "bytes": len(raw), "sha256": sha256(raw)}
     rows = []
     for index, path in enumerate(sorted(git_checkout.rglob("*"))):
@@ -1418,40 +1715,153 @@ with tempfile.TemporaryDirectory(prefix="void-e2-real-runtime-child-proof-") as 
             assert stat.S_ISREG(observed.st_mode) and observed.st_nlink == 1
             raw = read_bound_input(path)
             basename = "checkout-input-" + str(index)
-            write_local(temp / basename, raw, 0o444)
+            write_local(bundle / basename, raw, 0o444)
             rows.append({"path": relative, "kind": "file", "file": basename,
                          "bytes": len(raw), "sha256": sha256(raw)})
-    manifest_raw = json.dumps({
-        "schema": "runtime_head_v2_exact_child_fixture_v1", "head": real_head,
-        "payloads": payloads, "checkout": rows,
-    }, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
-    write_local(temp / "production-manifest", manifest_raw, 0o444)
-    driver = temp / "production-driver.py"
-    write_local(driver, (inspect.getsource(production_fixture_driver)
-                         + "\nproduction_fixture_driver()\n").encode("utf-8"), 0o444)
-    print("production_child_fixture_fixed_path_creation_authorized=true", flush=True)
-    print("production_child_fixture_requires_all_fixed_paths_absent=true", flush=True)
-    print("production_child_fixture_native_or_binder_execution_authorized=false", flush=True)
-    production_argv = ["/usr/bin/python3", "-I", "-S", "-B", str(driver), sha256(manifest_raw)]
-    if os.geteuid() != 0 or os.getegid() != 0:
-        production_argv = ["sudo", "-n", *production_argv]
-    production = run(production_argv, timeout=240)
-    assert not production.stderr, production.stderr
-    for fact in (
-        "REAL_PRODUCTION_CHILD_HANDOFF_GREEN",
-        "production_child_parent_validator_unchanged=true",
-        "production_c_default_path_exercised=true",
-        "production_retained_regular_installer_fd_exercised=true",
-        "production_child_ready_plan_exercised=true",
-        "production_child_wrong_runtime_head_rejected=true",
-        "production_child_already_green_apply_exercised=true",
-        "production_child_publication_performed=false",
-        "production_native_or_binder_executed=false",
-        "fixture_bytes_and_mtime_ctime_preserved_during_operations=true",
-        "production_fixture_cleanup_completed=true",
-    ):
-        assert fact in production.stdout.splitlines(), fact
-    print(production.stdout, end="")
+    parent_reserved_paths = (
+        ("/opt", "void-buy-void-epoch2-dormant-binder-installer-first-entry-v1"),
+        ("/opt", "void-buy-void-epoch2-dormant-v3r-binding-v2"),
+        ("/opt", ".void-buy-void-epoch2-dormant-binder-installer-first-entry-v1.stage"),
+        ("/opt", ".void-buy-void-epoch2-dormant-v3r-binding-v2.stage"),
+        ("/opt", "void-buy-void-epoch2-dormant-binder-installer-first-entry-v2"),
+        ("/home", "zoso"),
+    )
+
+    def parent_namespace_ids() -> dict[str, list[int]]:
+        result = {}
+        for name in ("mnt", "pid", "user", "uts"):
+            observed = os.stat("/proc/self/ns/" + name)
+            result[name] = [observed.st_dev, observed.st_ino]
+        return result
+
+    def parent_anchor_identity(observed: os.stat_result) -> list[int]:
+        return [getattr(observed, field) for field in (
+            "st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",
+            "st_size", "st_mtime_ns", "st_ctime_ns",
+        )]
+
+    def root_owned_tool(path: str) -> None:
+        logical = pathlib.Path(path)
+        resolved = logical.resolve(strict=True)
+        for directory in set(logical.parents) | set(resolved.parents):
+            observed = directory.lstat()
+            assert (stat.S_ISDIR(observed.st_mode) and observed.st_uid == observed.st_gid == 0
+                    and observed.st_mode & 0o022 == 0), "fixture_tool_parent_custody_invalid:" + str(directory)
+        link = logical.lstat()
+        assert (link.st_uid == link.st_gid == 0
+                and (stat.S_ISREG(link.st_mode) or stat.S_ISLNK(link.st_mode))), "fixture_tool_path_invalid:" + path
+        observed = resolved.lstat()
+        assert (stat.S_ISREG(observed.st_mode) and observed.st_uid == observed.st_gid == 0
+                and observed.st_mode & 0o022 == 0 and observed.st_mode & stat.S_IXUSR), \
+            "fixture_tool_custody_invalid:" + path
+
+    with contextlib.ExitStack() as parent_descriptors:
+        parent_fds = {}
+        parent_anchors = {}
+        parent_namespaces = parent_namespace_ids()
+        for path in ("/", "/opt", "/home"):
+            fd = os.open(path if path == "/" else path[1:],
+                         os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                         dir_fd=None if path == "/" else parent_fds["/"])
+            parent_descriptors.callback(os.close, fd)
+            parent_fds[path] = fd
+            opened = os.fstat(fd)
+            visible = os.stat(path if path == "/" else path[1:],
+                              dir_fd=None if path == "/" else parent_fds["/"], follow_symlinks=False)
+            diagnostic = ("path=" + path + " mode=" + format(stat.S_IMODE(opened.st_mode), "04o")
+                          + " uid=" + str(opened.st_uid) + " gid=" + str(opened.st_gid))
+            print("production_fixture_parent_anchor " + diagnostic, flush=True)
+            assert stat.S_ISDIR(opened.st_mode) and parent_anchor_identity(opened) == parent_anchor_identity(visible), \
+                "fixture_parent_anchor_not_physical_or_rebound:" + diagnostic
+            if path == "/" or not arguments.isolate_production_fixture:
+                assert (opened.st_uid == opened.st_gid == 0 and opened.st_mode & 0o022 == 0), \
+                    "fixture_parent_anchor_custody_invalid:" + diagnostic
+            parent_anchors[path] = parent_anchor_identity(opened)
+
+        def parent_fixed_paths_absent() -> None:
+            for path, name in parent_reserved_paths:
+                try:
+                    os.stat(name, dir_fd=parent_fds[path], follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
+                raise AssertionError("fixture_parent_fixed_path_present:" + path + "/" + name)
+
+        def parent_recheck(*, full_metadata: bool) -> None:
+            assert parent_namespace_ids() == parent_namespaces, "fixture_parent_namespace_changed"
+            for path, fd in parent_fds.items():
+                opened = parent_anchor_identity(os.fstat(fd))
+                visible = parent_anchor_identity(os.stat(
+                    path if path == "/" else path[1:],
+                    dir_fd=None if path == "/" else parent_fds["/"], follow_symlinks=False))
+                # The default local fixture legitimately changes /opt and
+                # /home directory timestamps as its own names come and go.
+                compared = 9 if full_metadata or path == "/" else 5
+                assert opened[:compared] == visible[:compared] == parent_anchors[path][:compared], \
+                    "fixture_parent_anchor_generation_changed:" + path
+            parent_fixed_paths_absent()
+
+        parent_recheck(full_metadata=True)
+        manifest_raw = json.dumps({
+            "schema": "runtime_head_v2_exact_child_fixture_v2", "head": real_head,
+            "payloads": payloads, "checkout": rows, "isolate": arguments.isolate_production_fixture,
+            "parent_namespaces": parent_namespaces, "parent_anchors": parent_anchors,
+        }, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+        write_local(bundle / "production-manifest", manifest_raw, 0o444)
+        driver = bundle / "production-driver.py"
+        write_local(driver, (inspect.getsource(production_fixture_driver)
+                             + "\nproduction_fixture_driver()\n").encode("utf-8"), 0o444)
+        print("production_child_fixture_fixed_path_creation_authorized=true", flush=True)
+        print("production_child_fixture_requires_all_fixed_paths_absent=true", flush=True)
+        print("production_child_fixture_native_or_binder_execution_authorized=false", flush=True)
+        print("production_fixture_private_mount_pid_namespace_creation_authorized="
+              + str(arguments.isolate_production_fixture).lower(), flush=True)
+        print("production_fixture_private_tmpfs_mount_creation_authorized="
+              + str(arguments.isolate_production_fixture).lower(), flush=True)
+        production_argv = ["/usr/bin/python3", "-I", "-S", "-B", str(driver), sha256(manifest_raw)]
+        root_owned_tool("/usr/bin/python3")
+        if arguments.isolate_production_fixture:
+            root_owned_tool("/usr/bin/timeout")
+            root_owned_tool("/usr/bin/unshare")
+            production_argv = [
+                "/usr/bin/timeout", "--signal=KILL", "210s", "/usr/bin/unshare",
+                "--mount", "--pid", "--fork", "--mount-proc", "--propagation", "private",
+                "--kill-child=KILL", "--", *production_argv, "--isolate-production-fixture",
+            ]
+        if os.geteuid() != 0 or os.getegid() != 0:
+            root_owned_tool("/usr/bin/sudo")
+            production_argv = ["/usr/bin/sudo", "-n", *production_argv]
+        parent_recheck(full_metadata=True)
+        try:
+            production = run(production_argv, timeout=240, cwd="/")
+        finally:
+            # This runs on success, refusal and timeout. In isolated mode all
+            # original metadata, including mtime/ctime, must be identical.
+            parent_recheck(full_metadata=arguments.isolate_production_fixture)
+        assert not production.stderr, production.stderr
+        for fact in (
+            "REAL_PRODUCTION_CHILD_HANDOFF_GREEN",
+            "production_child_parent_validator_unchanged=true",
+            "production_c_default_path_exercised=true",
+            "production_retained_regular_installer_fd_exercised=true",
+            "production_child_ready_plan_exercised=true",
+            "production_child_wrong_runtime_head_rejected=true",
+            "production_child_already_green_apply_exercised=true",
+            "production_child_publication_performed=false",
+            "production_native_or_binder_executed=false",
+            "fixture_bytes_and_mtime_ctime_preserved_during_operations=true",
+            "production_fixture_cleanup_completed=true",
+            "production_fixture_isolation_requested=" + str(arguments.isolate_production_fixture).lower(),
+            "production_fixture_private_mount_pid_namespace_exercised="
+            + str(arguments.isolate_production_fixture).lower(),
+            "production_fixture_private_proc_verified=" + str(arguments.isolate_production_fixture).lower(),
+            "production_fixture_private_mount_cleanup_completed="
+            + str(arguments.isolate_production_fixture).lower(),
+        ):
+            assert fact in production.stdout.splitlines(), fact
+        print(production.stdout, end="")
+        print("production_fixture_parent_namespace_and_anchor_recheck_passed=true")
+        if arguments.isolate_production_fixture:
+            print("production_fixture_original_anchor_metadata_preserved=true")
     assert read_bound_input(PRODUCTION_INSTALLER, expected_blob=PRODUCTION_INSTALLER_BLOB) == production_installer_raw
     assert read_bound_input(ROOT / LOCK_REL, expected_blob=LOCK_BLOB) == production_lock_raw
     assert read_bound_input(ROOT / BINDER_REL, expected_blob=BINDER_BLOB) == production_binder_raw
