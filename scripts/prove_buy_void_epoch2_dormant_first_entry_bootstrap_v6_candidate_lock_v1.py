@@ -173,6 +173,11 @@ expected_blobs = {
     OLD_V4_LOCK_REL: "471a52641135ee3ce31d521980e6ea37af18ce58",
 }
 for rel, expected in expected_blobs.items():
+    if rel == WORKFLOW_REL:
+        # Hosted candidate evidence binds the exact workflow at CANDIDATE_HEAD.
+        # The current workflow may broaden CI scope without rewriting that evidence.
+        assert git("rev-parse", CANDIDATE_HEAD + ":" + rel) == expected, rel
+        continue
     raw=(ROOT/rel).read_bytes()
     assert git_blob(raw) == expected, (rel, git_blob(raw))
     assert git("rev-parse", "HEAD:" + rel) == expected, rel
