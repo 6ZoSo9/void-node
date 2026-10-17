@@ -77,7 +77,7 @@ EXPECTED = {
     ),
     "lock_id": (
         "voidbuye2bootstraplock2_"
-        "8524098b733e02451e307a8814fb593bbce9f6239f1e45ecda1563efb95e3ce7"
+        "01dc714bb754ede30ce187fdfedfc9b5c585ba5593e8c1ec15c6752ed92c191c"
     ),
 }
 
@@ -211,11 +211,16 @@ def validate_lock() -> dict:
         "bootstrap_binary_identity_accepted": True,
         "bootstrap_source_identity_bound": True,
         "installer_source_identity_bound": True,
-        "runtime_expected_head_not_compile_bound": True,
-        "runtime_expected_head_contract_accepted": True,
+        "candidate_merge": EXPECTED["candidate_source_head"],
+        "superseded_v1_lock_id": (
+            "voidbuye2bootstraplock1_"
+            "4f11418d278908c99cc3b2de622112321600c3f3704f8919e893a2d7011b1b23"
+        ),
+        "superseded_v1_lock_install_authority": False,
+        "runtime_head_contract_accepted": True,
         "next_gate": (
             "void_buy_void_epoch2_dormant_first_entry_protected_install_"
-            "bootstrap_install_v2"
+            "bootstrap_materializer_v2"
         ),
     }
     for key, value in required.items():
@@ -438,7 +443,9 @@ def self_test() -> None:
     print("candidate_report_identity_bound=true")
     print("bootstrap_binary_identity_bound=true")
     print("runtime_expected_head_not_compile_bound=true")
-    print("runtime_expected_head_contract_accepted=true")
+    print("runtime_head_contract_accepted=true")
+    print("canonical_main_candidate_accepted=true")
+    print("superseded_v1_lock_install_authority=false")
     print("candidate_source_blobs_bound=true")
     print("candidate_accepted=true")
     print("bootstrap_binary_identity_accepted=true")
@@ -474,7 +481,9 @@ def main() -> int:
     print("candidate_report_bytes_exact=true")
     print("bootstrap_binary_bytes_exact=true")
     print("runtime_expected_head_not_compile_bound=true")
-    print("runtime_expected_head_contract_accepted=true")
+    print("runtime_head_contract_accepted=true")
+    print("canonical_main_candidate_accepted=true")
+    print("superseded_v1_lock_install_authority=false")
     print("candidate_accepted=true")
     print("bootstrap_binary_identity_accepted=true")
     print("protected_bootstrap_install_authorized=false")
