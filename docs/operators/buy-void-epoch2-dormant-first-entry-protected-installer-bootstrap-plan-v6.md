@@ -18,7 +18,7 @@ already occurred.
 
 The plan binds:
 
-- exact current checkout HEAD/tree and clean `main`;
+- exact current checkout HEAD/tree and raw tracked bytes on clean `main`;
 - merged V6 qualifier source Git blob
   `f8e25ef310ef4493dd23baee70eef6db84ae68f9`;
 - V6 protected-bootstrap installer source Git blob
@@ -125,6 +125,41 @@ The planner only emits this argv as JSON. It never executes it.
 
 Changing the checkout generation or either artifact pathname/identity changes
 the content-addressed plan ID.
+
+The receipt emits the complete canonical body as `plan_body_json`. A consumer
+parses that field, canonicalizes it with sorted keys, compact separators and
+ASCII JSON escaping, then checks that `voidbuye2protectedbootstrapplan6_` plus
+its SHA-256 equals `plan_id`. This includes the checkout tree and observed
+artifact metadata; the argv and qualification-contract projections alone are
+not the hash preimage. A matching ID proves content binding, not authorization
+or installed-host evidence. The later executor must freshly verify its inputs.
+
+## Read-only checkout observation
+
+The planner compares the complete raw HEAD tree and stage-zero index maps, then
+hashes each tracked worktree entry directly. It does not use `git status` or
+filtered diffs to establish cleanliness. Repository-configured filesystem
+monitors and content filters therefore cannot run through those observations
+or make different physical bytes appear accepted.
+
+Ordinary regular files, executable files and symbolic-link contents have exact
+Git type, executable-bit and blob checks. Unmerged entries, sparse or
+skip-worktree entries, assume-unchanged entries, unsupported modes and differing
+raw content hold the plan. Filter- or line-ending-normalized worktrees must still
+match the raw committed bytes. The existing standard-ignore policy for
+untracked files is preserved.
+The checkout and its `.git` directory must be physical directories; linked
+worktree metadata files and symlinked parents hold the plan. Reads are limited
+to 30,000 tracked entries, 16 MiB per regular file, 256 MiB total tracked content,
+and 1,024 retained directories. Git output is capped at 8 MiB per observation
+with a 20-second deadline.
+Bounded descriptor reads and generation rechecks detect changes during the
+observation; they do not make a caller-owned checkout immutable afterward.
+
+The focused proof uses private Git repositories and inert callback markers to
+exercise normal and adversarial observations, and checks that the complete
+emitted plan body round-trips to its ID. It does not execute the installed
+qualifier, bootstrap or protected installer.
 
 ## Authority boundary
 
