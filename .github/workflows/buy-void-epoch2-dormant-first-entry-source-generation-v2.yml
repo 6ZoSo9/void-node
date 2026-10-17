@@ -11,6 +11,8 @@ on:
       - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py"
       - "docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
   pull_request:
     paths:
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py"
@@ -21,47 +23,172 @@ on:
       - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py"
       - "docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  smoke:
+  prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Python V4 syntax
+
+      - name: Bind exact successor scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          python3 -I -S -B - <<'PY'
-          from pathlib import Path
-          p=Path("ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py")
-          compile(p.read_text("utf-8"),str(p),"exec",dont_inherit=True,optimize=0)
-          print("VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_INSTALLER_V4_SYNTAX_GREEN")
-          PY
-      - name: Native V5 strict compile and inert self-test
+          parent=a5ae17389c1cd7645920d146c51e99758c8fc338
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c' \
+            'ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py' \
+            | sort > "$expected"
+          git diff --name-only "$parent" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py)" = \
+            763865f3eae1b8f92ea2dba1ec0cbaec6e7dc6ba
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c)" = \
+            83a323b3430c397d2806ad88c2075e4ad427db9d
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf)" = \
+            14bd75433f8c79d7e15c999501b6eb5224553802
+
+          # Frozen predecessor/payload identities remain unchanged.
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = \
+            f8ff6fbb855aecafc329cd60622cf3af782745a3
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
+            f3d6b1559be7490303cf36338c4bfa38fdaa390a
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v3.py)" = \
+            242eac04da6e17d32e9a9baa9b57f572cabda7a8
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v4.c)" = \
+            c7d2125b59dcbecc1d6aae8818e84cac8ce85da9
+
+          git diff --check "$parent" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove inner V4 generation and repository witness
         run: |
           set -euo pipefail
-          cc="$(command -v gcc || command -v cc)"
-          src=ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c
-          out="$RUNNER_TEMP/bootstrap-v5"
-          "$cc" -std=c11 -O2 -Wall -Wextra -Werror -Wformat=2 -Wshadow \
-            -DVOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_MANIFEST_SHA256='"0000000000000000000000000000000000000000000000000000000000000000"' \
-            -DVOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_MANIFEST_BYTES=2380 \
-            "$src" -o "$out"
-          "$out" --self-test | tee "$RUNNER_TEMP/self-test.log"
-          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_V5_SELF_TEST_GREEN' "$RUNNER_TEMP/self-test.log"
-          grep -Fx 'private_git_metadata_required=true' "$RUNNER_TEMP/self-test.log"
-          grep -Fx 'sealed_private_index_required=true' "$RUNNER_TEMP/self-test.log"
-          grep -Fx 'split_index_rejected=true' "$RUNNER_TEMP/self-test.log"
-          grep -Fx 'strict_git_fsck_before_after_required=true' "$RUNNER_TEMP/self-test.log"
-          grep -Fx 'raw_commit_root_tree_sha1_reverified=true' "$RUNNER_TEMP/self-test.log"
-          grep -Fx 'tracked_worktree_double_hash_required=true' "$RUNNER_TEMP/self-test.log"
-          grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/self-test.log"
-          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/self-test.log"
+          out="$RUNNER_TEMP/v4-generation.log"
+          python3 -I -S -B \
+            scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py \
+            | tee "$out"
+          markers=(
+            VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_INSTALLER_V4_GENERATION_PROOF_GREEN
+            source_generation_v2_exact=true
+            manifest_rows_35=true
+            parent_proof_descriptor_roles_13=true
+            private_fixed_git_metadata=true
+            sealed_private_index=true
+            split_index_rejected_without_shared_index_touch=true
+            raw_tree_object_identity_recomputed=true
+            tracked_file_final_recheck=true
+            retained_sealed_git_executable_required=true
+            source_repository_configuration_not_authority=true
+            temporary_git_metadata_write_truthful=true
+            protected_state_mutation=false
+            network_access=false
+            git_fetch=false
+            credential_access=false
+            signing=false
+            transaction=false
+            funds_movement=false
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
+      - name: Preserve V4 create-only terminal semantics
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v4-terminal.log"
+          python3 -I -S -B \
+            scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py \
+            | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROTECTED_INSTALL_V4_TERMINAL_PROOF_GREEN' "$out"
+          grep -Fx 'v4_plan_confirmation_domain_separate=true' "$out"
+          grep -Fx 'post_publication_rollback=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+
+      - name: Prove native V5 witness and static pre-entry
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v5-native.log"
+          python3 -I -S -B \
+            scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py \
+            | tee "$out"
+          markers=(
+            VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V5_PROOF_GREEN
+            native_v5_source_identity_exact=true
+            manifest_v2_identity_exact=true
+            static_native_self_test_green=true
+            static_no_pt_interp=true
+            private_git_metadata_exercised=true
+            sealed_private_index_exercised=true
+            split_index_rejected_without_touch=true
+            strict_fsck_false_tree_rejected=true
+            raw_commit_root_tree_hashing_bound=true
+            tracked_worktree_double_hash_bound=true
+            temporary_repository_cleanup_proven=true
+            parent_proof_roles_13_preserved=true
+            protected_install_authorized=false
+            credential_access=false
+            signing=false
+            transaction=false
+            funds_movement=false
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
+      - name: Inert V4 source plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/source-plan.log"
+          python3 -I -S -B \
+            ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py \
+            --source-plan | tee "$out"
+          markers=(
+            VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROTECTED_INSTALL_V4
+            mode=source-plan
+            source_only=true
+            host_read=false
+            host_write=false
+            private_repository_witness_required_for_plan=true
+            plan_temporary_git_metadata_write_required=true
+            plan_network_access=false
+            plan_git_fetch=false
+            create_only=true
+            launcher_execution_authorized=false
+            native_execution_authorized=false
+            binder_execution_authorized=false
+            credential_access_authorized=false
+            private_key_access_authorized=false
+            signing_authorized=false
+            transaction_authorized=false
+            rpc_call_authorized=false
+            payment_acceptance_authorized=false
+            public_presale_activation_authorized=false
+            wc_void_market_activation_authorized=false
+            treasury_liquidity_action_authorized=false
+            funds_movement_authorized=false
+            production_host_evidence_authority=false
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
       - run: git diff --check
