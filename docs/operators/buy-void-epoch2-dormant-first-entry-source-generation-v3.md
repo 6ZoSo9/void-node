@@ -21,12 +21,12 @@ Manifest:
 
 Exact identity:
 
-- Git blob: `ff9af3c7bc7619522cacb014f1addf90d9a5b615`
+- Git blob: `ed4bafa88932a81be91c14e4bca71b25362a09c8`
 - bytes: `2382`
 - SHA-256:
-  `161e99a4dd6d7b855de9457e708c5a356602a1c96f25b0202a3222f57324649e`
+  `1bd11e1fca93f037354e44d00b98a59bc3aee40fbe7674f811c31c8617f7a73b`
 - source-generation ID:
-  `voidbuye2dormantsourcegen3_161e99a4dd6d7b855de9457e708c5a356602a1c96f25b0202a3222f57324649e`
+  `voidbuye2dormantsourcegen3_1bd11e1fca93f037354e44d00b98a59bc3aee40fbe7674f811c31c8617f7a73b`
 
 ## Current application sources
 
@@ -34,10 +34,10 @@ Inner installer V5:
 
 - path:
   `ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py`
-- Git blob: `d98a717efcf8c925cea628cfc618e70da6b617ef`
+- Git blob: `ce6930bc1be8239a3171d4922c44b96a50f5778b`
 - bytes: `127528`
 - SHA-256:
-  `9e96a7fe63902716e54a76931ebfd090f735ca412e8f49e59cb8ac45b9654302`
+  `c9fbb7ce1c1788b52837635243c6393fc731ef12a7217cc9155d6ff86bd97bfb`
 
 Native bootstrap V6:
 
