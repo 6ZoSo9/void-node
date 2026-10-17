@@ -171,10 +171,10 @@ jobs:
           test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c | cut -d" " -f1)" = 100644
           test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c | cut -d" " -f1)" = 100644
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json)" = 227c2fa449abf1387925373c706ecd07775d5898
-          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = 16c0c8aef7451cc849ad1dc0a0f69698e6d471bd
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v2.py)" = 010e15799671f14130024eb413437d3cd203dead
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.md)" = 617ee83a4b0977d4eccd09af685ffebf484a455a
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.yml)" = 7ac3d233d730738dc05690e9d8bba0786ff07532
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = 609cde180490f4f5f53ed7e34d73b95f22313bcd
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v2.py)" = e9143ecb30afbf40a852370a62278721c509c064
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.md)" = 4c6056ce520c9ae8d687df100c5cec3edb7b6563
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.yml)" = 6000b4891fc361e7d2a22ff44247f71e05ebc89c
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = f8ff6fbb855aecafc329cd60622cf3af782745a3
           test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json | cut -d" " -f1)" = 100644
           test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json | cut -d" " -f1)" = 100644
