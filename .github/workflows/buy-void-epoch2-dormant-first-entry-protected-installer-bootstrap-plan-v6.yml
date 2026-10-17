@@ -126,7 +126,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
             149d4da63a4cd5dc6437e32a25db6d81093d401f
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
-            0a22ab4488f31d140c634976d5096cf2a6aa630e
+            cd32f68b1802dd9143aa39cd79d26a111db3da7e
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md)" = \
             8b5d88d45cedb7e87379260fa04d7c6ace254248
 

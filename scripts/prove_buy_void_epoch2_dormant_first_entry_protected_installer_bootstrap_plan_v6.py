@@ -248,6 +248,10 @@ def prove_raw_checkout(module, predecessor_raw: bytes) -> list[str]:
                 path.chmod(0o755 if name == "executable.sh" else 0o644)
             (repo / "link").unlink(missing_ok=True)
             (repo / "link").symlink_to("payload.txt")
+            # Rebind the fixture index stat cache after deterministic worktree restoration.
+            # This prevents successful sparse-checkout setup from inheriting stale stat metadata
+            # from earlier adversarial cases while keeping content/filter callbacks disabled.
+            fixture_git(repo, "update-index", "--refresh")
 
         def check(name: str, *, accept: bool) -> None:
             before_marks = marks()
