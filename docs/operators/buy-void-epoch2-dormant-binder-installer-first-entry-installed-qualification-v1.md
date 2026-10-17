@@ -90,8 +90,15 @@ cleanup causes HOLD.
 
 ## Authority boundary
 
-A GREEN receipt establishes production-host evidence for this installed
-generation only. It does not authorize privileged payload execution.
+A GREEN receipt establishes installed-generation evidence only. It does not
+establish designated-host or production-host identity, and it does not
+authorize privileged payload execution.
+
+On a GREEN live qualification:
+`installed_generation_evidence_authority=true`.
+
+Production/designated-host authority remains a separate gate and stays false
+here.
 
 Always false:
 
@@ -113,6 +120,7 @@ public_presale_activation=false
 wc_void_market_activation=false
 treasury_liquidity_action=false
 funds_movement=false
+production_host_evidence_authority=false
 privileged_execution_authorized=false
 ```
 
