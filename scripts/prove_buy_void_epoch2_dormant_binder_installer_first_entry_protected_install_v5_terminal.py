@@ -372,7 +372,7 @@ def prove() -> None:
     successor = load(V5)
     assert blob(V2.read_bytes()) == V2_BLOB, "frozen V2 changed"
     assert successor.MARKER.endswith("PROTECTED_INSTALL_V5")
-    assert successor.PLAN_PREFIX == "voidbuye2dormantfirstentryinstall4_"
+    assert successor.PLAN_PREFIX == "voidbuye2dormantfirstentryinstall5_"
     assert successor.CONFIRM_TOKEN == "INSTALL_ACCEPTED_EPOCH2_DORMANT_FIRST_ENTRY_V5_CREATE_ONLY"
     for name in (
         "LOCK_REL", "LOCK_GIT_BLOB_SHA1", "LOCK_ID", "CANDIDATE_ID",
