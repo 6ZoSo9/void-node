@@ -1,4 +1,4 @@
-name: Buy VOID Epoch-2 dormant binder installer first-entry candidate v1
+name: Buy VOID Epoch-2 dormant binder installer first-entry candidate v2
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
       - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
-      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py"
       - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
   push:
@@ -21,7 +21,7 @@ on:
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
       - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
-      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py"
       - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
   workflow_dispatch:
@@ -107,7 +107,7 @@ jobs:
             f3d6b1559be7490303cf36338c4bfa38fdaa390a
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = \
             5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py)" = \
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py)" = \
             5ac4264d7f9bdb394cf5be4490aa1eadd1f929ee
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py)" = \
             f97cb8aff642f2f3e138fe8e087eece22223b934
