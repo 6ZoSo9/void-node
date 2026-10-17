@@ -230,7 +230,7 @@ def validate_lock() -> dict:
     required = {
         "schema": (
             "void_buy_void_epoch2_dormant_first_entry_protected_install_"
-            "bootstrap_candidate_lock_v3"
+            "bootstrap_candidate_lock_v4"
         ),
         "marker": MARKER,
         "version": 4,
@@ -497,7 +497,9 @@ def self_test() -> None:
     print("bootstrap_binary_identity_accepted=true")
     print("runtime_head_contract_accepted=true")
     print("canonical_main_candidate_authority=true")
-    print("superseded_v3_lock_preserved=true")\n    print("superseded_v3_lock_install_authority=false")\n    print("superseded_v2_lock_preserved=true")
+    print("superseded_v3_lock_preserved=true")
+    print("superseded_v3_lock_install_authority=false")
+    print("superseded_v2_lock_preserved=true")
     print("superseded_v2_lock_install_authority=false")
     print("superseded_v1_lock_install_authority=false")
     print("protected_bootstrap_install_authorized=false")
@@ -535,7 +537,9 @@ def main() -> int:
     print("bootstrap_binary_identity_accepted=true")
     print("runtime_head_contract_accepted=true")
     print("canonical_main_candidate_authority=true")
-    print("superseded_v3_lock_preserved=true")\n    print("superseded_v3_lock_install_authority=false")\n    print("superseded_v2_lock_preserved=true")
+    print("superseded_v3_lock_preserved=true")
+    print("superseded_v3_lock_install_authority=false")
+    print("superseded_v2_lock_preserved=true")
     print("superseded_v2_lock_install_authority=false")
     print("superseded_v1_lock_install_authority=false")
     print("protected_bootstrap_install_authorized=false")
