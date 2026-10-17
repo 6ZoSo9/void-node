@@ -17,41 +17,41 @@ GIT = pathlib.Path("/usr/bin/git")
 LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-first-entry-protected-install-"
-    "bootstrap-candidate-lock-v3.json"
+    "bootstrap-candidate-lock-v4.json"
 )
-LOCK_BLOB = "64c9a42ca1108a9e8f88218c34d53e50668c653e"
+LOCK_BLOB = "57ecc08d465fe2a3c395546d349864312cd08a3f"
 LOCK_ID = (
-    "voidbuye2bootstraplock3_"
-    "690d119c90f5c8c20f429fcc14919b62691f9a1b3bfe2226476267ede993197f"
+    "voidbuye2bootstraplock4_"
+    "6568c1cd0195405d49001fbf6cb9a086364e401f78f3bfcf1d6cbb080947cb67"
 )
 
-CANDIDATE_MERGE = "344f0abcc57d6f2fbacbb6a57e27009ae9ea7a4b"
-CANDIDATE_TREE = "4085987d856fa303b8bc81087e3b5a207bc8964f"
+CANDIDATE_MERGE = "78875f7379c2dd995e1b545dd0543c934e59907a"
+CANDIDATE_TREE = "a2c1b6b9989ceb11c4fbea3f2fc4ecf64eb50176"
 CANDIDATE_REL = (
     "scripts/"
     "prove_buy_void_epoch2_dormant_first_entry_protected_install_"
-    "bootstrap_candidate_v2.py"
+    "bootstrap_candidate_v3.py"
 )
-CANDIDATE_BLOB = "4f9b5a2ca77b3aebc9e70ea835c92155601a1a06"
+CANDIDATE_BLOB = "1c49abf74e464b3d509a33e2fa3f1a9acc42c771"
 
 EXPECTED_REPORT_BYTES = 4_789
 EXPECTED_REPORT_SHA256 = (
-    "2ca03a4d7e609076df740a7590abfae572101ef7bf78feacf11240e309a43ee4"
+    "90f70f1dbabd71bc97860608a3650331b1ed6efb007c64f2257e4523e2362050"
 )
-EXPECTED_REPORT_GIT_BLOB = "fbaab61d0e169516a49c5c07feeceba1a7204e83"
+EXPECTED_REPORT_GIT_BLOB = "a94f63689f7a1e1ca63cd3051aec84cf89b74d46"
 EXPECTED_CANDIDATE_ID = (
-    "voidbuye2bootstrapcand2_"
-    "b71b8757fa64fc36c2df0e95e3812c00eccef114b71e0b854c34ddfd62285def"
+    "voidbuye2bootstrapcand3_"
+    "9e914f52eb3cde5a5fef42fbdf065b375f89fdabb768034b09615861bba67ce3"
 )
 EXPECTED_BINARY_BYTES = 731_072
 EXPECTED_BINARY_SHA256 = (
-    "37a6979c274e93fa09860b26664804a9d912201a290db65deb9b4499e39aa276"
+    "904e6b05df45bc9212be7689ea0617ccfbf65d5edf8535a381abcbb588f236cd"
 )
-EXPECTED_BINARY_GIT_BLOB = "45ca1ed7a6237fccbd6bb0b9d73ef5ff47c72d62"
+EXPECTED_BINARY_GIT_BLOB = "69e3bf6db7baf614eb0b7d8c5e93aafce0deab46"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_"
-    "BOOTSTRAP_MATERIALIZER_V2R"
+    "BOOTSTRAP_MATERIALIZER_V3"
 )
 
 CLEAN_ENV = {
@@ -155,13 +155,13 @@ def accepted_lock() -> dict:
     required = {
         "schema": (
             "void_buy_void_epoch2_dormant_first_entry_protected_install_"
-            "bootstrap_candidate_lock_v3"
+            "bootstrap_candidate_lock_v4"
         ),
         "marker": (
             "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_"
-            "BOOTSTRAP_CANDIDATE_LOCK_V3"
+            "BOOTSTRAP_CANDIDATE_LOCK_V4"
         ),
-        "version": 3,
+        "version": 4,
         "lock_id": LOCK_ID,
         "candidate_source_head": CANDIDATE_MERGE,
         "candidate_source_tree": CANDIDATE_TREE,
@@ -171,9 +171,10 @@ def accepted_lock() -> dict:
         "installer_source_identity_bound": True,
         "runtime_head_contract_accepted": True,
         "canonical_main_candidate_authority": True,
+        "superseded_v3_lock_install_authority": False,
         "superseded_v2_lock_install_authority": False,
         "superseded_v1_lock_install_authority": False,
-        "candidate_merge": "344f0abcc57d6f2fbacbb6a57e27009ae9ea7a4b",
+        "candidate_merge": "78875f7379c2dd995e1b545dd0543c934e59907a",
         "protected_bootstrap_install_authorized": False,
         "protected_installer_apply_authorized": False,
         "live_execution_authorized": False,
@@ -190,7 +191,7 @@ def accepted_lock() -> dict:
         "production_host_evidence_authority": False,
         "next_gate": (
             "void_buy_void_epoch2_dormant_first_entry_protected_install_"
-            "bootstrap_materializer_v2r"
+            "bootstrap_materializer_v3"
         ),
     }
     for key, expected in required.items():
@@ -268,7 +269,7 @@ def load_candidate_module(worktree: pathlib.Path):
     raw = stable_file(source_path, 2 * 1024 * 1024, "candidate_source")
     if git_blob_sha1(raw) != CANDIDATE_BLOB:
         raise MaterializeError("candidate_source_blob_mismatch")
-    module = types.ModuleType("void_e2_protected_bootstrap_candidate_v2_materialized")
+    module = types.ModuleType("void_e2_protected_bootstrap_candidate_v3_materialized")
     module.__file__ = os.fspath(source_path)
     module.__package__ = ""
     code = compile(raw, os.fspath(source_path), "exec", dont_inherit=True)
@@ -463,6 +464,7 @@ def self_test() -> None:
     print("bootstrap_binary_identity_accepted=true")
     print("runtime_head_contract_accepted=true")
     print("canonical_main_candidate_authority=true")
+    print("superseded_v3_lock_install_authority=false")
     print("superseded_v2_lock_install_authority=false")
     print("superseded_v1_lock_install_authority=false")
     print("create_only_output_required=true")
@@ -509,7 +511,7 @@ def main() -> int:
     print("superseded_v2_lock_install_authority=false")
     print("superseded_v1_lock_install_authority=false")
     print("protected_bootstrap_install_authorized=false")
-    print("next_gate=void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r")
+    print("next_gate=void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v3")
     print("protected_installer_apply_authorized=false")
     print("live_execution_authorized=false")
     print("credential_access_authorized=false")
