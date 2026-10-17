@@ -50,7 +50,7 @@ EXPECTED = {
     "candidate_source_tree": "4085987d856fa303b8bc81087e3b5a207bc8964f",
     "candidate_id": (
         "voidbuye2bootstrapcand2_"
-        "a8acbc7a61ed1a5a59a29529b678e1473c044584a663bcdb1174756c29c71eb5"
+        "b71b8757fa64fc36c2df0e95e3812c00eccef114b71e0b854c34ddfd62285def"
     ),
     "candidate_report_bytes": 4789,
     "candidate_report_sha256": (
@@ -76,8 +76,8 @@ EXPECTED = {
         "e80b68e19d1498d57cffe2cd05a15cb22a6c2f1acb639175e2be2a2f1c18c9ef"
     ),
     "lock_id": (
-        "voidbuye2bootstraplock2_"
-        "7a306d22914d51844489688ab33152d98c8ea1d30b0eb887d8e1adfe883c7170"
+        "voidbuye2bootstraplock3_"
+        "690d119c90f5c8c20f429fcc14919b62691f9a1b3bfe2226476267ede993197f"
     ),
 }
 
