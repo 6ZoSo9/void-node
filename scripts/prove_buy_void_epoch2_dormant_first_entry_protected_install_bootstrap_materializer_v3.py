@@ -10,22 +10,22 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = (
     ROOT / "scripts/"
     "materialize_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_v2r.py"
+    "protected_install_bootstrap_v3.py"
 )
 LOCK = (
     ROOT / "ops/security/"
     "buy-void-epoch2-dormant-first-entry-protected-install-"
-    "bootstrap-candidate-lock-v3.json"
+    "bootstrap-candidate-lock-v4.json"
 )
 CANDIDATE = (
     ROOT / "scripts/"
     "prove_buy_void_epoch2_dormant_first_entry_protected_install_"
-    "bootstrap_candidate_v2.py"
+    "bootstrap_candidate_v3.py"
 )
 
-TARGET_BLOB = "f79e52b5d0af99194b0cf89a73ae5bf3285d3840"
-LOCK_BLOB = "64c9a42ca1108a9e8f88218c34d53e50668c653e"
-CANDIDATE_BLOB = "4f9b5a2ca77b3aebc9e70ea835c92155601a1a06"
+TARGET_BLOB = "3ad78490a993d4509b53d1b442841db685dd344f"
+LOCK_BLOB = "57ecc08d465fe2a3c395546d349864312cd08a3f"
+CANDIDATE_BLOB = "1c49abf74e464b3d509a33e2fa3f1a9acc42c771"
 
 
 def git_blob(raw: bytes) -> str:
@@ -45,15 +45,15 @@ assert git_blob(candidate_raw) == CANDIDATE_BLOB
 source = target_raw.decode("utf-8")
 for required in (
     'MARKER = (',
-    '"BOOTSTRAP_MATERIALIZER_V2R"',
-    'CANDIDATE_MERGE = "344f0abcc57d6f2fbacbb6a57e27009ae9ea7a4b"',
-    'CANDIDATE_BLOB = "4f9b5a2ca77b3aebc9e70ea835c92155601a1a06"',
+    '"BOOTSTRAP_MATERIALIZER_V3"',
+    'CANDIDATE_MERGE = "78875f7379c2dd995e1b545dd0543c934e59907a"',
+    'CANDIDATE_BLOB = "1c49abf74e464b3d509a33e2fa3f1a9acc42c771"',
     'EXPECTED_REPORT_BYTES = 4_789',
-    '"2ca03a4d7e609076df740a7590abfae572101ef7bf78feacf11240e309a43ee4"',
-    '"b71b8757fa64fc36c2df0e95e3812c00eccef114b71e0b854c34ddfd62285def"',
+    '"90f70f1dbabd71bc97860608a3650331b1ed6efb007c64f2257e4523e2362050"',
+    '"9e914f52eb3cde5a5fef42fbdf065b375f89fdabb768034b09615861bba67ce3"',
     'EXPECTED_BINARY_BYTES = 731_072',
-    '"37a6979c274e93fa09860b26664804a9d912201a290db65deb9b4499e39aa276"',
-    'EXPECTED_BINARY_GIT_BLOB = "45ca1ed7a6237fccbd6bb0b9d73ef5ff47c72d62"',
+    '"904e6b05df45bc9212be7689ea0617ccfbf65d5edf8535a381abcbb588f236cd"',
+    'EXPECTED_BINARY_GIT_BLOB = "69e3bf6db7baf614eb0b7d8c5e93aafce0deab46"',
     '"worktree"',
     '"add"',
     '"--detach"',
@@ -65,12 +65,13 @@ for required in (
     'output_failure_destructive_cleanup=false',
     'runtime_head_contract_accepted=true',
     'canonical_main_candidate_authority=true',
+    'superseded_v3_lock_install_authority=false',
     'superseded_v2_lock_install_authority=false',
     'superseded_v1_lock_install_authority=false',
     'protected_bootstrap_install_authorized=false',
     'protected_installer_apply_authorized=false',
     'live_execution_authorized=false',
-    'next_gate=void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r',
+    'next_gate=void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v3',
     'funds_movement=false',
 ):
     assert required in source, required
@@ -119,7 +120,7 @@ cp = subprocess.run(
 assert cp.returncode == 0, cp.stderr
 assert cp.stderr == ""
 for line in (
-    "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_MATERIALIZER_V2R_SELF_TEST_GREEN",
+    "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_MATERIALIZER_V3_SELF_TEST_GREEN",
     "accepted_lock_bound=true",
     "candidate_merge_frozen=true",
     "candidate_source_blob_bound=true",
@@ -127,6 +128,7 @@ for line in (
     "bootstrap_binary_identity_accepted=true",
     "runtime_head_contract_accepted=true",
     "canonical_main_candidate_authority=true",
+    "superseded_v3_lock_install_authority=false",
     "superseded_v2_lock_install_authority=false",
     "superseded_v1_lock_install_authority=false",
     "create_only_output_required=true",
@@ -144,7 +146,7 @@ for line in (
 
 print(
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_"
-    "BOOTSTRAP_MATERIALIZER_V2R_PROOF_GREEN"
+    "BOOTSTRAP_MATERIALIZER_V3_PROOF_GREEN"
 )
 print("materializer_blob_bound=true")
 print("accepted_lock_blob_bound=true")
@@ -154,6 +156,7 @@ print("candidate_report_identity_required=true")
 print("accepted_bootstrap_identity_required=true")
 print("runtime_head_contract_required=true")
 print("canonical_main_candidate_authority=true")
+print("superseded_v3_lock_install_authority=false")
 print("superseded_v2_lock_install_authority=false")
 print("superseded_v1_lock_install_authority=false")
 print("detached_worktree_derivation_required=true")
