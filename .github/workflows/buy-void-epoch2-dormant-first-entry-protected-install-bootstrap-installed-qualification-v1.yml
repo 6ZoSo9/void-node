@@ -84,12 +84,12 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v1.py)" = \
             95b06692ff041054f6ef593197e6aa447574555f
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v1.py)" = \
-            8b27d42ca789a3885e7e93e193c62c2c7af7df17
+            9f9c619c53dff011fa4fb9a1350576c59e28b9cd
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v1.md)" = \
-            c342a13b31526c4ef0774da38e91501323ba97fd
+            8c58149ead8fac9f68f0ebaa7006e1378bad870d
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v1.py)" = \
-            eea423b5a6d556b5dec91365a4da39b83b9507ec
+            df3c27c57e0d413c7487189f1ddf6c141004d67c
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v1.json)" = \
             a96dee99c89ef386a6cbd05609b8f4a764caada8
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c)" = \
