@@ -73,7 +73,7 @@ jobs:
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json)" = 64c9a42ca1108a9e8f88218c34d53e50668c653e
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json)" = 90dfe7728fa56c8d41a396399578bd1b8c52c2f4
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v3.py)" = e55616103976cbcea0240000d78a6de3d904b42f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v3.py)" = a58d215b9cf4bba83e12bf5dc689726c0460a70c
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.md)" = 376034d01ebd959ed844da0c26423884074c1e53
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py)" = 4f9b5a2ca77b3aebc9e70ea835c92155601a1a06
