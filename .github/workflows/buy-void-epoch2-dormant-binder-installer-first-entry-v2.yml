@@ -5,6 +5,10 @@ on:
     paths:
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
       - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
       - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml"
@@ -13,6 +17,10 @@ on:
     paths:
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
       - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
       - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml"
@@ -20,6 +28,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: epoch2-runtime-head-first-entry-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   prove:
@@ -47,7 +59,7 @@ jobs:
           case "$EVENT_NAME" in
             pull_request)
               test -n "$PR_BASE"
-              base="$PR_BASE"
+              base="$(git merge-base "$PR_BASE" "$EXPECTED_HEAD")"
               ;;
             push)
               test -n "$PUSH_BEFORE"
@@ -55,36 +67,80 @@ jobs:
               base="$PUSH_BEFORE"
               ;;
             workflow_dispatch)
-              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              base=""
               ;;
             *)
               echo "unsupported_event=$EVENT_NAME" >&2
               exit 1
               ;;
           esac
-          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
-
-          expected="$RUNNER_TEMP/expected-scope.txt"
-          actual="$RUNNER_TEMP/actual-scope.txt"
-          printf '%s\n' \
-            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml' \
-            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md' \
-            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c' \
-            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py' \
-            | sort > "$expected"
-          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
-          diff -u "$expected" "$actual"
+          if test -n "$base"; then
+            git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+            expected="$RUNNER_TEMP/expected-scope.txt"
+            actual="$RUNNER_TEMP/actual-scope.txt"
+            printf '%s\n' \
+              'A	.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml' \
+              'A	docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md' \
+              'A	ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c' \
+              'A	scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py' \
+              | sort > "$expected"
+            git diff --no-renames --name-status "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+            diff -u "$expected" "$actual"
+            git diff --check "$base" "$EXPECTED_HEAD"
+          else
+            echo "scope_event_comparison=not_applicable_manual_replay"
+          fi
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c)" = \
-            e3fc712709c8c3b56fbe1f7b2dc0d20ba0860dc5
+            86dc09e52402c04fb6e4b30a7fcf695833808ca3
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = \
-            f2d6b6d1e638695ac66570d7c7a10aaf05afe08c
+            a6574e2d52f267d4a595c8cad0004d4797fd6f93
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md)" = \
-            eaf5c9eeee3e297dec93fb95d4ed860a1ac265ee
+            4529864791f076f235f9fff35a6d8a9645233e30
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
             f3d6b1559be7490303cf36338c4bfa38fdaa390a
 
-          git diff --check "$base" "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c)" = \
+            5f1195d0c0a328be4334ad5b7f6e32b150776cab
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" = \
+            9c29eb4716077e459b9154f39d0f30cf2e56729f
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = \
+            5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py)" = \
+            557eb68453d517d78bb3b6c6d8427df9ed36316f
+          for path in \
+            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py' \
+            'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs' \
+            'ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json' \
+            'scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py'
+          do
+            test "$(git ls-tree HEAD -- "$path" | cut -d' ' -f1)" = 100644
+          done
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Reproduce the accepted native input from frozen source
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/runtime-head-native-materializer.log"
+          python3 -I -B scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py \
+            --derive "$RUNNER_TEMP/accepted-native-v3" | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_MATERIALIZER_V1_DERIVE_GREEN' \
+            'candidate_report_sha256=f21445a333a2c05d132692c29aa929a1de727d6f6f35ce2edac600a7cccfa4a2' \
+            'native_binary_bytes=726976' \
+            'native_binary_sha256=ca078f3a81191847d5b0b75de99e4d8f7e389fd051afdb76338f28e157ae5a7c' \
+            'native_binary_identity_accepted=true' \
+            'protected_install_authorized=false' \
+            'native_or_binder_live_execution_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Prove runtime-head privileged first entry
@@ -94,6 +150,8 @@ jobs:
           out="$RUNNER_TEMP/dormant-binder-installer-first-entry-v2.log"
           python3 -I -B \
             scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py \
+            --accepted-native "$RUNNER_TEMP/accepted-native-v3" \
+            --isolate-production-fixture \
             | tee "$out"
 
           for marker in \
@@ -125,6 +183,28 @@ jobs:
             'ld_preload_cannot_reach_static_preentry_or_python_child=true' \
             'pythonpath_dynamic_control_executes=true' \
             'caller_python_environment_cannot_reach_child=true' \
+            'REAL_PRODUCTION_CHILD_HANDOFF_GREEN' \
+            'production_child_exact_blob=f3d6b1559be7490303cf36338c4bfa38fdaa390a' \
+            'production_child_parent_validator_unchanged=true' \
+            'production_c_default_path_exercised=true' \
+            'production_retained_regular_installer_fd_exercised=true' \
+            'production_child_ready_plan_exercised=true' \
+            'production_child_wrong_runtime_head_rejected=true' \
+            'production_child_already_green_apply_exercised=true' \
+            'production_child_publication_performed=false' \
+            'production_native_or_binder_executed=false' \
+            'fixture_bytes_and_mtime_ctime_preserved_during_operations=true' \
+            'production_fixture_cleanup_completed=true' \
+            'production_fixture_isolation_requested=true' \
+            'production_fixture_private_mount_pid_namespace_exercised=true' \
+            'production_fixture_private_proc_verified=true' \
+            'production_fixture_original_anchor_metadata_preserved=true' \
+            'production_fixture_private_mount_cleanup_completed=true' \
+            'production_fixture_parent_namespace_and_anchor_recheck_passed=true' \
+            'production_default_self_matches_frozen_child_literal=true' \
+            'canonical_policy_v1_namespace_preserved=true' \
+            'exact_production_child_handoff_exercised=true' \
+            'production_child_create_only_publication_exercised=false' \
             'protected_install_authorized=false' \
             'precision_apply_performed=false' \
             'credential_content_access=false' \
