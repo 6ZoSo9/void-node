@@ -57,6 +57,31 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TRAINING_UNIT="void-apollyon-training-bus-isolation-v1.service";
 const TRAINING_ENTRYPOINT=
   "/opt/void-apollyon-training-v1/apollyon_candidate_training_entrypoint_v1";
+const TRAINING_PREENTRY=
+  "/opt/void-apollyon-training-bus-isolation-v1/apollyon_training_bus_isolation_preentry_v1";
+const TRAINING_UNIT_PATH=
+  "/etc/systemd/system/void-apollyon-training-bus-isolation-v1.service";
+const TRAINING_UNIT_BLOB_SHA1="62fbabe1cf7ae0d940f5d96e19b06282f841267b";
+const TRAINING_PREENTRY_BYTES=17352;
+const TRAINING_PREENTRY_SHA256=
+  "6e2885ceddf83bc9bf4636768ce6f046ab357268b0959cfa71bcbb766909cb47";
+const TRAINING_ENTRYPOINT_BYTES=17384;
+const TRAINING_ENTRYPOINT_SHA256=
+  "7a1ec91b612998824e37aa0f8522a94d7ceffe9f4f21e0702fe0a0d5ca5bdd9a";
+const REVIEWED_SYSTEMD_UNIT_ROOTS=Object.freeze([
+  "/etc/systemd/system.control",
+  "/run/systemd/system.control",
+  "/run/systemd/transient",
+  "/run/systemd/generator.early",
+  "/etc/systemd/system",
+  "/etc/systemd/system.attached",
+  "/run/systemd/system",
+  "/run/systemd/system.attached",
+  "/run/systemd/generator",
+  "/usr/local/lib/systemd/system",
+  "/usr/lib/systemd/system",
+  "/run/systemd/generator.late",
+]);
 const ISOLATION_OBSERVER_REL=
   "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py";
 const CUSTODY_LAUNCHER_V2_BLOB_SHA1=
@@ -161,6 +186,63 @@ function rootOwnedPinnedBlob(pathname,expected,code){
     return identity(after);
   }finally{fs.closeSync(fd);}
 }
+function rootOwnedPinnedExecutableSha256(
+  pathname,expectedBytes,expectedSha256,code
+){
+  const file=exactAbs(pathname,code);
+  assertNoSymlinkAncestors(file,code);
+  assertRootProtectedAncestors(file,code);
+  if(fs.realpathSync.native(file)!==file)fail(code);
+  const before=fs.lstatSync(file,{bigint:true});
+  if(
+    !before.isFile()||before.isSymbolicLink()||before.uid!==0n||before.gid!==0n||
+    before.nlink!==1n||Number(before.mode&0o777n)!==0o755||
+    before.size!==BigInt(expectedBytes)
+  )fail(code);
+  const fd=fs.openSync(
+    file,fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0)
+  );
+  try{
+    const opened=fs.fstatSync(fd,{bigint:true});
+    const bytes=fs.readFileSync(fd);
+    const after=fs.fstatSync(fd,{bigint:true});
+    const visible=fs.lstatSync(file,{bigint:true});
+    if(
+      !sameIdentity(identity(before),identity(opened))||
+      !sameIdentity(identity(opened),identity(after))||
+      !sameIdentity(identity(after),identity(visible))||
+      bytes.length!==expectedBytes||sha256(bytes)!==expectedSha256
+    )fail(code);
+    return identity(after);
+  }finally{fs.closeSync(fd);}
+}
+function rootOwnedPinnedUnit(pathname,expectedBlob,code){
+  const file=exactAbs(pathname,code);
+  assertNoSymlinkAncestors(file,code);
+  assertRootProtectedAncestors(file,code);
+  if(fs.realpathSync.native(file)!==file)fail(code);
+  const before=fs.lstatSync(file,{bigint:true});
+  if(
+    !before.isFile()||before.isSymbolicLink()||before.uid!==0n||before.gid!==0n||
+    before.nlink!==1n||Number(before.mode&0o777n)!==0o644
+  )fail(code);
+  const fd=fs.openSync(
+    file,fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0)
+  );
+  try{
+    const opened=fs.fstatSync(fd,{bigint:true});
+    const bytes=fs.readFileSync(fd);
+    const after=fs.fstatSync(fd,{bigint:true});
+    const visible=fs.lstatSync(file,{bigint:true});
+    if(
+      !sameIdentity(identity(before),identity(opened))||
+      !sameIdentity(identity(opened),identity(after))||
+      !sameIdentity(identity(after),identity(visible))||
+      gitBlobSha1(bytes)!==expectedBlob
+    )fail(code);
+    return identity(after);
+  }finally{fs.closeSync(fd);}
+}
 function openPinnedDirectory(directory,expectedMode,code){
   const target=exactAbs(directory,code);
   assertNoSymlinkAncestors(target,code);
@@ -208,13 +290,26 @@ function socketIdentity(socketPath){
 function assertSocketStable(socketPath,expected){
   if(!sameIdentity(socketIdentity(socketPath),expected))fail("apollyon_live_runner_socket_drift");
 }
-function processStartTicks(pid){
-  const text=fs.readFileSync("/proc/"+String(pid)+"/stat","utf8");
+function processStartTicksFromText(text){
   const close=text.lastIndexOf(")");
   if(close<0)fail("apollyon_live_runner_proc_stat_invalid");
   const fields=text.slice(close+2).trim().split(/\s+/u);
-  if(fields.length<20||!/^[1-9][0-9]*$/u.test(fields[19]))fail("apollyon_live_runner_proc_stat_invalid");
+  if(fields.length<20||!/^[1-9][0-9]*$/u.test(fields[19])){
+    fail("apollyon_live_runner_proc_stat_invalid");
+  }
   return fields[19];
+}
+function processStartTicks(pid){
+  return processStartTicksFromText(
+    fs.readFileSync("/proc/"+String(pid)+"/stat","utf8"),
+  );
+}
+function processGenerationPresent(pid,startTicks){
+  try{return processStartTicks(pid)===startTicks;}
+  catch(error){
+    if(error?.code==="ENOENT"||error?.code==="ESRCH")return false;
+    throw error;
+  }
 }
 function runSystemctl(args,check=true){
   const result=spawnSync("/usr/bin/systemctl",args,{
@@ -227,9 +322,221 @@ function runSystemctl(args,check=true){
 function systemdValue(unit,property){
   return String(runSystemctl(["show",unit,"--property="+property,"--value"]).stdout??"").trim();
 }
+function systemdProperties(unit,names){
+  const args=["show",unit,"--no-pager"];
+  for(const name of names)args.push("-p",name);
+  const result=runSystemctl(args);
+  const props={};
+  for(const line of String(result.stdout??"").split("\n").filter(Boolean)){
+    const index=line.indexOf("=");
+    if(index<=0)fail("apollyon_live_runner_systemd_property_invalid");
+    const key=line.slice(0,index),value=line.slice(index+1);
+    if(!names.includes(key)||Object.hasOwn(props,key)){
+      fail("apollyon_live_runner_systemd_property_invalid");
+    }
+    props[key]=value;
+  }
+  if(Object.keys(props).length!==names.length){
+    fail("apollyon_live_runner_systemd_property_invalid");
+  }
+  return Object.freeze(props);
+}
+function managerValue(property){
+  return String(
+    runSystemctl(["show","--property="+property,"--value"]).stdout??""
+  ).trim();
+}
+function parseExecProperty(raw,label){
+  const value=String(raw??"").trim();
+  if(value==="")return [];
+  const bodies=[];
+  let depth=0,start=null;
+  for(let index=0;index<value.length;index+=1){
+    const ch=value[index];
+    if(ch==="{"){
+      if(depth===0)start=index+1;
+      depth+=1;
+    }else if(ch==="}"){
+      if(depth===0)fail("apollyon_live_runner_exec_shape_invalid:"+label);
+      depth-=1;
+      if(depth===0){
+        if(start===null)fail("apollyon_live_runner_exec_shape_invalid:"+label);
+        bodies.push(value.slice(start,index));
+        start=null;
+      }
+    }else if(depth===0&&!/\s/u.test(ch)){
+      fail("apollyon_live_runner_exec_shape_invalid:"+label);
+    }
+  }
+  if(depth!==0||start!==null||bodies.length===0){
+    fail("apollyon_live_runner_exec_shape_invalid:"+label);
+  }
+  return bodies.map((body)=>{
+    const fields={};
+    for(const partRaw of body.split(" ; ")){
+      const part=partRaw.trim(),equal=part.indexOf("=");
+      if(equal<=0)fail("apollyon_live_runner_exec_field_invalid:"+label);
+      const key=part.slice(0,equal).trim(),field=part.slice(equal+1).trim();
+      if(Object.hasOwn(fields,key)){
+        fail("apollyon_live_runner_exec_field_invalid:"+label);
+      }
+      fields[key]=field;
+    }
+    if(
+      !fields.path||fields["argv[]"]===undefined||
+      fields.ignore_errors!=="no"
+    )fail("apollyon_live_runner_exec_field_invalid:"+label);
+    const argv=fields["argv[]"].split(/\s+/u).filter(Boolean);
+    if(argv.length!==1||argv[0]!==fields.path){
+      fail("apollyon_live_runner_exec_argv_invalid:"+label);
+    }
+    return Object.freeze(argv);
+  });
+}
+function effectiveSystemdUnitRoots(){
+  const raw=managerValue("UnitPath");
+  const tokens=raw.split(/\s+/u).filter(Boolean);
+  if(tokens.length===0)fail("apollyon_live_runner_systemd_unit_path_invalid");
+  const reviewed=new Map(
+    REVIEWED_SYSTEMD_UNIT_ROOTS.map((root,index)=>[root,index])
+  );
+  const roots=[],indexes=[];
+  for(const token of tokens){
+    if(!reviewed.has(token)){
+      fail("apollyon_live_runner_systemd_unit_path_unreviewed");
+    }
+    if(!path.isAbsolute(token)||path.resolve(token)!==token||roots.includes(token)){
+      fail("apollyon_live_runner_systemd_unit_path_invalid");
+    }
+    roots.push(token);indexes.push(reviewed.get(token));
+  }
+  for(let i=1;i<indexes.length;i+=1){
+    if(indexes[i]<=indexes[i-1]){
+      fail("apollyon_live_runner_systemd_unit_path_precedence_invalid");
+    }
+  }
+  return Object.freeze(roots);
+}
+function assertNoTrainingDependencyDirectories(roots){
+  for(const root of roots){
+    let rootSt;
+    try{rootSt=fs.lstatSync(root);}
+    catch(error){
+      if(error?.code==="ENOENT")continue;
+      throw error;
+    }
+    if(!rootSt.isDirectory()||rootSt.isSymbolicLink()){
+      fail("apollyon_live_runner_systemd_unit_root_invalid");
+    }
+    for(const suffix of [".wants",".requires"]){
+      const directory=path.join(root,TRAINING_UNIT+suffix);
+      let st;
+      try{st=fs.lstatSync(directory);}
+      catch(error){
+        if(error?.code==="ENOENT")continue;
+        throw error;
+      }
+      if(!st.isDirectory()||st.isSymbolicLink()){
+        fail("apollyon_live_runner_dependency_directory_invalid");
+      }
+      if(fs.readdirSync(directory).length!==0){
+        fail("apollyon_live_runner_unreviewed_dependency_entry");
+      }
+    }
+  }
+}
+function verifyTrainingStartBoundary(){
+  rootOwnedPinnedUnit(
+    TRAINING_UNIT_PATH,TRAINING_UNIT_BLOB_SHA1,
+    "apollyon_live_runner_training_unit_invalid",
+  );
+  rootOwnedPinnedExecutableSha256(
+    TRAINING_PREENTRY,TRAINING_PREENTRY_BYTES,TRAINING_PREENTRY_SHA256,
+    "apollyon_live_runner_training_preentry_invalid",
+  );
+  rootOwnedPinnedExecutableSha256(
+    TRAINING_ENTRYPOINT,TRAINING_ENTRYPOINT_BYTES,TRAINING_ENTRYPOINT_SHA256,
+    "apollyon_live_runner_training_entrypoint_invalid",
+  );
+  const props=systemdProperties(TRAINING_UNIT,[
+    "FragmentPath","DropInPaths","NeedDaemonReload","ExecStart",
+  ]);
+  if(props.FragmentPath!==TRAINING_UNIT_PATH){
+    fail("apollyon_live_runner_training_fragment_invalid");
+  }
+  if(props.DropInPaths!==""){
+    fail("apollyon_live_runner_training_dropins_present");
+  }
+  if(props.NeedDaemonReload!=="no"){
+    fail("apollyon_live_runner_training_needs_daemon_reload");
+  }
+  const commands=parseExecProperty(props.ExecStart,"ExecStart");
+  if(
+    commands.length!==1||commands[0].length!==1||
+    commands[0][0]!==TRAINING_PREENTRY
+  )fail("apollyon_live_runner_training_execstart_invalid");
+  assertNoTrainingDependencyDirectories(effectiveSystemdUnitRoots());
+  requireTrainingServiceDormant(
+    trainingServiceState(),
+    "apollyon_live_runner_training_service_not_exactly_dormant",
+  );
+}
 function serviceEnabled(unit){
   const r=runSystemctl(["is-enabled",unit],false);
   return String(r.stdout??"").trim()==="enabled";
+}
+const TRAINING_STATE_PROPERTIES=Object.freeze([
+  "LoadState","ActiveState","SubState","MainPID","UnitFileState",
+]);
+function trainingServiceState(){
+  const args=["show",TRAINING_UNIT,"--no-pager"];
+  for(const name of TRAINING_STATE_PROPERTIES)args.push("-p",name);
+  const result=runSystemctl(args);
+  const state={};
+  for(const line of String(result.stdout??"").split("\n").filter(Boolean)){
+    const index=line.indexOf("=");
+    if(index<=0)fail("apollyon_live_runner_training_state_invalid");
+    const key=line.slice(0,index),value=line.slice(index+1);
+    if(!TRAINING_STATE_PROPERTIES.includes(key)||Object.hasOwn(state,key)){
+      fail("apollyon_live_runner_training_state_invalid");
+    }
+    state[key]=value;
+  }
+  if(Object.keys(state).length!==TRAINING_STATE_PROPERTIES.length){
+    fail("apollyon_live_runner_training_state_invalid");
+  }
+  return Object.freeze(state);
+}
+function trainingServiceExactlyDormant(state){
+  return (
+    state?.LoadState==="loaded"&&state.ActiveState==="inactive"&&
+    state.SubState==="dead"&&state.MainPID==="0"&&
+    state.UnitFileState==="static"
+  );
+}
+function requireTrainingServiceDormant(state,code){
+  if(!trainingServiceExactlyDormant(state))fail(code);
+  return state;
+}
+function waitTrainingServiceDormant(generation){
+  const deadline=Date.now()+5000;
+  while(Date.now()<deadline){
+    const state=trainingServiceState();
+    const generationPresent=(
+      generation!==null&&
+      processGenerationPresent(generation.pid,generation.start_time_ticks)
+    );
+    if(trainingServiceExactlyDormant(state)&&!generationPresent)return state;
+  }
+  fail("apollyon_live_runner_training_stop_transition_unproven");
+}
+function stopTrainingAndAttest(generation){
+  try{runSystemctl(["stop",TRAINING_UNIT],false);}
+  catch{
+    // Client outcome is not cleanup authority. Exact manager/process
+    // postconditions below decide whether cleanup is proven.
+  }
+  return waitTrainingServiceDormant(generation);
 }
 function waitTrainingEntrypoint(){
   const deadline=Date.now()+5000;
@@ -350,7 +657,10 @@ function loaderEnvironmentHash(pid){
   const bytes=fs.readFileSync("/proc/"+String(pid)+"/environ");
   if(bytes.length>1024*1024)fail("apollyon_live_runner_custody_environment_invalid");
   const entries=bytes.toString("utf8").split("\0").filter(Boolean);
-  for(const name of ["NODE_OPTIONS","NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH"]){
+  for(const name of [
+    "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
+    "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
+  ]){
     if(entries.some((e)=>e.startsWith(name+"=")&&e!==name+"=")){
       fail("apollyon_live_runner_custody_loader_environment_forbidden");
     }
@@ -468,15 +778,38 @@ function parseCli(argv){
 }
 function selfTest(){
   const sample="123 (entry v1) S "+Array.from({length:39},(_,i)=>String(i+1)).join(" ");
-  const close=sample.lastIndexOf(")");
-  const fields=sample.slice(close+2).trim().split(/\s+/u);
-  if(fields[19]!=="19")fail("apollyon_live_runner_self_test_stat");
+  if(processStartTicksFromText(sample)!=="19"){
+    fail("apollyon_live_runner_self_test_stat");
+  }
+  const dormant={
+    LoadState:"loaded",ActiveState:"inactive",SubState:"dead",
+    MainPID:"0",UnitFileState:"static",
+  };
+  if(!trainingServiceExactlyDormant(dormant)){
+    fail("apollyon_live_runner_self_test_dormant");
+  }
+  for(const [key,value] of [
+    ["LoadState","not-found"],["ActiveState","active"],
+    ["ActiveState","deactivating"],["ActiveState","failed"],
+    ["SubState","stop-sigterm"],["MainPID","4242"],
+    ["UnitFileState","enabled"],
+  ]){
+    if(trainingServiceExactlyDormant({...dormant,[key]:value})){
+      fail("apollyon_live_runner_self_test_noncanonical_dormant");
+    }
+  }
   if(VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_AUTHORITY_V2.durable_attempt_claim!==false){
     fail("apollyon_live_runner_self_test_authority");
   }
   process.stdout.write(VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2+"_SELF_TEST=GREEN\n");
   process.stdout.write("live_worktree_invocation_supported=false\n");
   process.stdout.write("training_service_start_stop=true\n");
+  process.stdout.write("training_start_attempt_cleanup_required=true\n");
+  process.stdout.write("training_first_instruction_boundary_required=true\n");
+  process.stdout.write("training_effective_unit_path_bound=true\n");
+  process.stdout.write("training_service_exact_dormancy_required=true\n");
+  process.stdout.write("training_generation_absence_required=true\n");
+  process.stdout.write("custody_loader_environment_seven_name_boundary=true\n");
   process.stdout.write("current_v2_raw_observation_count=2\n");
   process.stdout.write("custody_service_action=false\n");
   process.stdout.write("durable_attempt_claim=false\n");
@@ -488,15 +821,13 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
      "VOID_APOLLYON_LIVE_SESSION_PRIVATE_CLOSURE_V2"){
     fail("apollyon_live_runner_private_closure_required");
   }
-  if(serviceEnabled(TRAINING_UNIT))fail("apollyon_live_runner_training_service_enabled");
-  if(systemdValue(TRAINING_UNIT,"ActiveState")==="active"){
-    fail("apollyon_live_runner_training_service_already_active");
-  }
+  verifyTrainingStartBoundary();
 
   const stateRoot=openPinnedDirectory(config.state_root,0o700,"apollyon_live_runner_state_root_invalid");
   let consumed=null;
   let prepared=null;
-  let trainingStarted=false;
+  let trainingStartAttempted=false;
+  let training=null;
   try{
     consumed=openPinnedDirectory(
       path.join(config.state_root,"consumed"),0o700,
@@ -505,9 +836,10 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
     const socketBefore=socketIdentity(config.socket_path);
     const custodyBefore=custodyServiceIdentity(config);
 
+    verifyTrainingStartBoundary();
+    trainingStartAttempted=true;
     runSystemctl(["start",TRAINING_UNIT]);
-    trainingStarted=true;
-    const training=waitTrainingEntrypoint();
+    training=waitTrainingEntrypoint();
 
     const isolation=runIsolationObserver(training.pid);
     if(
@@ -608,26 +940,40 @@ export async function runApollyonLiveCustodySourceSessionRunnerV2(config){
       funds_movement_performed:false,
     });
   }finally{
-    if(prepared!==null)cleanupApollyonReviewedExecutionTreeV2(prepared);
-    if(trainingStarted)runSystemctl(["stop",TRAINING_UNIT],false);
-    closePinned(consumed);
-    closePinned(stateRoot);
+    try{
+      if(trainingStartAttempted){
+        stopTrainingAndAttest(training);
+      }
+    }finally{
+      try{
+        if(prepared!==null)cleanupApollyonReviewedExecutionTreeV2(prepared);
+      }finally{
+        try{closePinned(consumed);}
+        finally{closePinned(stateRoot);}
+      }
+    }
   }
 }
 async function main(){
   const config=parseCli(process.argv.slice(2));
   if(config.self_test){selfTest();return;}
   const result=await runApollyonLiveCustodySourceSessionRunnerV2(config);
-  if(systemdValue(TRAINING_UNIT,"ActiveState")==="active"){
-    fail("apollyon_live_runner_training_service_failed_to_stop");
-  }
-  if(serviceEnabled(TRAINING_UNIT)){
-    fail("apollyon_live_runner_training_service_became_enabled");
+  verifyTrainingStartBoundary();
+  requireTrainingServiceDormant(
+    trainingServiceState(),
+    "apollyon_live_runner_training_service_failed_to_stop",
+  );
+  if(processGenerationPresent(
+    result.training_pid,result.training_process_start_time_ticks
+  )){
+    fail("apollyon_live_runner_training_generation_still_present");
   }
   process.stdout.write(canonical({
     ...result,
     status:"live_source_session_binding_complete_training_service_stopped",
     training_service_active_after:false,
+    training_service_exact_dormant_after:true,
+    training_generation_absent_after:true,
   })+"\n");
 }
 if(process.argv[1]&&fileURLToPath(import.meta.url)===path.resolve(process.argv[1])){

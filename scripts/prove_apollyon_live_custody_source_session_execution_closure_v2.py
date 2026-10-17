@@ -20,7 +20,7 @@ def git_blob(path:Path)->str:
 
 expected={
     "tools/apollyon-live-custody-source-session-runner-v2.mjs":
-        "01ad6bba68aa7614716ee579f00cb3b7f6904900",
+        "8c2c92055ab05c074653cee971e095934b5cb85c",
     "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
         "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
@@ -72,6 +72,16 @@ for required in (
     "custody_service_action_performed:false",
     "durable_attempt_claim_performed:false",
     "training_execution_performed:false",
+    "trainingServiceExactlyDormant",
+    "function waitTrainingServiceDormant(generation)",
+    "return waitTrainingServiceDormant(generation);",
+    "apollyon_live_runner_training_generation_still_present",
+    "custody_loader_environment_seven_name_boundary=true",
+    "trainingStartAttempted=true",
+    "stopTrainingAndAttest(training)",
+    "verifyTrainingStartBoundary();",
+    "apollyon_live_runner_training_execstart_invalid",
+    "apollyon_live_runner_unreviewed_dependency_entry",
 ):
     assert required in runner, required
 
@@ -85,6 +95,20 @@ for forbidden in (
 ):
     assert forbidden not in runner, forbidden
 
+stop_fn=runner.index("function stopTrainingAndAttest(generation)")
+stop_call=runner.index('runSystemctl(["stop",TRAINING_UNIT],false)',stop_fn)
+dormant_wait=runner.index("return waitTrainingServiceDormant(generation);",stop_call)
+runner_finally=runner.index("}finally{",runner.index("export async function runApollyonLiveCustodySourceSessionRunnerV2"))
+cleanup_call=runner.index("stopTrainingAndAttest(training);",runner_finally)
+main_fn=runner.index("async function main()")
+post_run_boundary=runner.index("verifyTrainingStartBoundary();",main_fn)
+post_run_dormant=runner.index("requireTrainingServiceDormant(",post_run_boundary)
+generation_absence=runner.index("processGenerationPresent(",post_run_dormant)
+success_output=runner.index("process.stdout.write(canonical({",generation_absence)
+assert stop_fn<stop_call<dormant_wait
+assert runner_finally<cleanup_call
+assert main_fn<post_run_boundary<post_run_dormant<generation_absence<success_output
+
 subprocess.run(
     ["node","--check",str(RUNNER)],
     check=True,
@@ -97,6 +121,12 @@ runner_test=subprocess.run(
     stderr=subprocess.PIPE,
 )
 assert "VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_RUNNER_V2_SELF_TEST=GREEN" in runner_test.stdout
+assert "training_start_attempt_cleanup_required=true" in runner_test.stdout
+assert "training_first_instruction_boundary_required=true" in runner_test.stdout
+assert "training_effective_unit_path_bound=true" in runner_test.stdout
+assert "training_service_exact_dormancy_required=true" in runner_test.stdout
+assert "training_generation_absence_required=true" in runner_test.stdout
+assert "custody_loader_environment_seven_name_boundary=true" in runner_test.stdout
 
 subprocess.run(
     ["python3","-m","py_compile",str(LAUNCHER)],
@@ -130,6 +160,8 @@ print("complete_reviewed_closure_bound=true")
 print("native_preentry_source_green=true")
 print("installed_launcher_source_green=true")
 print("runner_source_green=true")
+print("training_stop_then_dormancy_order_bound=true")
+print("final_success_requires_second_dormancy_and_generation_absence=true")
 print("live_worktree_invocation_supported=false")
 print("durable_attempt_claim=false")
 print("training_execution=false")
