@@ -18,20 +18,90 @@ const PORT = Number(process.env.ATTACH_PORT || 4310);
 const DATA_DIR = process.env.DATA_DIR || "data";
 
 export const ATTACH_BLOCK_RANGE_MAX_SPAN = 250;
+export const ATTACH_BLOCK_RANGE_ERROR_CODE_V1 = "VOID_BLOCK_RANGE_INVALID_V1";
+
+export type AttachBlockRangeErrorV1 = {
+  ok: false;
+  error: "bad range";
+  code: typeof ATTACH_BLOCK_RANGE_ERROR_CODE_V1;
+  reason: "invalid_bounds" | "range_span_exceeds_limit";
+  max_heights: number;
+  recovery: { from: number; to: number };
+  aliases: { from: ["from", "start"]; to: ["to", "end"] };
+};
+
+function normalizeAttachBlockRangeBoundV1(
+  raw: unknown,
+  fallback: number,
+): number | null {
+  if (raw === undefined) return fallback;
+  if (typeof raw === "number") {
+    return Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
+  }
+  if (
+    typeof raw !== "string" ||
+    !/^(?:0|[1-9][0-9]*)$/u.test(raw)
+  ) {
+    return null;
+  }
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+export function attachBlockRangeErrorV1(
+  fromRaw: unknown,
+  toRaw: unknown,
+  head: number,
+): AttachBlockRangeErrorV1 {
+  const from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
+  const to = normalizeAttachBlockRangeBoundV1(toRaw, head);
+  const validHead = Number.isSafeInteger(head) && head >= -1;
+  const validFrom = from !== null;
+  const boundedTo =
+    validHead && to !== null ? Math.min(to, head) : Number.NaN;
+  const reason =
+    validHead &&
+    from !== null &&
+    to !== null &&
+    to >= from &&
+    boundedTo >= from &&
+    boundedTo - from >= ATTACH_BLOCK_RANGE_MAX_SPAN
+      ? "range_span_exceeds_limit"
+      : "invalid_bounds";
+
+  const recoveryFrom = validFrom ? from : 0;
+  const recoveryCeiling =
+    recoveryFrom <=
+    Number.MAX_SAFE_INTEGER - (ATTACH_BLOCK_RANGE_MAX_SPAN - 1)
+      ? recoveryFrom + ATTACH_BLOCK_RANGE_MAX_SPAN - 1
+      : recoveryFrom;
+  const recoveryTo = validHead
+    ? Math.min(head, recoveryCeiling)
+    : recoveryCeiling;
+
+  return {
+    ok: false,
+    error: "bad range",
+    code: ATTACH_BLOCK_RANGE_ERROR_CODE_V1,
+    reason,
+    max_heights: ATTACH_BLOCK_RANGE_MAX_SPAN,
+    recovery: { from: recoveryFrom, to: recoveryTo },
+    aliases: { from: ["from", "start"], to: ["to", "end"] },
+  };
+}
 
 export function parseAttachBlockRange(
   fromRaw: unknown,
   toRaw: unknown,
   head: number,
 ): { from: number; to: number } | null {
-  const from = Number(fromRaw ?? 0);
-  const to = Number(toRaw ?? head);
+  const from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
+  const to = normalizeAttachBlockRangeBoundV1(toRaw, head);
   if (
     !Number.isSafeInteger(head) ||
     head < -1 ||
-    !Number.isSafeInteger(from) ||
-    !Number.isSafeInteger(to) ||
-    from < 0 ||
+    from === null ||
+    to === null ||
     to < from
   ) {
     return null;
@@ -63,13 +133,14 @@ export function startAttachServer(opts?: { port?: number; dataDir?: string }) {
   });
 
   app.get("/blocks/range", (req, res) => {
-    const range = parseAttachBlockRange(
-      req.query.from,
-      req.query.to,
-      store.loadHeadNumber(),
-    );
+    const head = store.loadHeadNumber();
+    const fromRaw = req.query.from ?? req.query.start;
+    const toRaw = req.query.to ?? req.query.end;
+    const range = parseAttachBlockRange(fromRaw, toRaw, head);
     if (!range) {
-      return res.status(400).json({ ok: false, error: "bad range" });
+      return res.status(400).json(
+        attachBlockRangeErrorV1(fromRaw, toRaw, head),
+      );
     }
     const out: any[] = [];
     for (let n = range.from; n <= range.to; n++) {
