@@ -192,7 +192,7 @@ def derive() -> tuple[dict,bytes]:
             st=run([str(a),"--self-test"])
             if st.returncode or st.stderr:
                 raise AssertionError("candidate self-test failed")
-            if b"VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_V5_SELF_TEST_GREEN" not in st.stdout:
+            if b"VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_V6_SELF_TEST_GREEN" not in st.stdout:
                 raise AssertionError("candidate self-test marker missing")
             if MANIFEST_SHA256.encode() not in st.stdout or str(MANIFEST_BYTES).encode() not in st.stdout:
                 raise AssertionError("candidate self-test manifest binding missing")
@@ -215,7 +215,7 @@ def derive() -> tuple[dict,bytes]:
         "source_generation_id":SOURCE_GENERATION_ID,
         "bootstrap_source":{"path":SOURCE_REL,"git_blob_sha1":SOURCE_BLOB,"bytes":SOURCE_BYTES,"sha256":SOURCE_SHA256},
         "manifest":{"path":MANIFEST_REL,"git_blob_sha1":MANIFEST_BLOB,"bytes":MANIFEST_BYTES,"sha256":MANIFEST_SHA256},
-        "build_input":{"kind":"sealed_memfd","required_seal_mask":REQUIRED_SEALS,"checkout_path_is_not_build_authority":False},
+        "build_input":{"kind":"sealed_memfd","required_seal_mask":REQUIRED_SEALS,"checkout_path_is_not_build_authority":True},
         "toolchain":{
             **tools_before,
             "compiler_version_line":compiler_version,
@@ -261,6 +261,8 @@ def validate(report: dict) -> None:
         raise AssertionError("candidate id binding invalid")
     if report["source_generation_id"]!=SOURCE_GENERATION_ID:
         raise AssertionError("source generation invalid")
+    if report.get("build_input",{}).get("checkout_path_is_not_build_authority") is not True:
+        raise AssertionError("checkout build authority claim invalid")
     if report["binary"]["bytes"]<MIN_BINARY_BYTES or not HEX64.fullmatch(report["binary"]["sha256"]):
         raise AssertionError("binary identity invalid")
     for key,val in report["authority"].items():
@@ -281,6 +283,7 @@ def derive_dir(out: Path) -> None:
     print("native_binary_sha256="+report["binary"]["sha256"])
     print("native_binary_bytes="+str(report["binary"]["bytes"]))
     print("sealed_source_snapshot=true")
+    print("checkout_path_is_not_build_authority=true")
     print("toolchain_revalidated_after_build=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
@@ -307,6 +310,7 @@ def compare_dir(root: Path) -> None:
     print("three_report_bytes_identical=true")
     print("three_binary_bytes_identical=true")
     print("independent_rederivation_verified=true")
+    print("checkout_path_is_not_build_authority=true")
     print("candidate_id="+hosted["candidate_id"])
     print("native_binary_sha256="+hosted["binary"]["sha256"])
     print("native_binary_bytes="+str(hosted["binary"]["bytes"]))
@@ -329,6 +333,7 @@ def self_test() -> None:
     print(MARKER+"_SELF_TEST_GREEN")
     print("exact_source_generation_bound=true")
     print("sealed_source_snapshot_required=true")
+    print("checkout_path_is_not_build_authority=true")
     print("three_hosted_derivations_required=true")
     print("independent_rederivation_required=true")
     print("candidate_accepted=false")
