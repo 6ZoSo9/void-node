@@ -46,19 +46,19 @@ BOOTSTRAP_GIT_BLOB = "69e3bf6db7baf614eb0b7d8c5e93aafce0deab46"
 LAUNCHER_LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-binder-installer-first-entry-"
-    "candidate-lock-v1.json"
+    "candidate-lock-v2.json"
 )
-LAUNCHER_LOCK_BLOB = "f8ff6fbb855aecafc329cd60622cf3af782745a3"
+LAUNCHER_LOCK_BLOB = "227c2fa449abf1387925373c706ecd07775d5898"
 LAUNCHER_MATERIALIZER_REL = (
     "scripts/materialize_buy_void_epoch2_dormant_binder_"
-    "installer_first_entry_v1.py"
+    "installer_first_entry_v2.py"
 )
-LAUNCHER_MATERIALIZER_BLOB = "50e8e7ba06740af830cc3c9df34d0ef7739a7e67"
+LAUNCHER_MATERIALIZER_BLOB = "611e5d54154e3d3d5d9e7ba6c0374d697ecc3ba7"
 LAUNCHER_BYTES = 731_072
 LAUNCHER_SHA256 = (
-    "4fbf67bff503cead931b59e4364d66ccf2f2d6c0ee40182b6f9498cf96e8f51a"
+    "4e54056d22a084c1649ddbce3ef1933513bebbd11de7fa76b26d7b636a262a28"
 )
-LAUNCHER_GIT_BLOB = "eb66ce5313a8c0b01639ebec79564111d55163c4"
+LAUNCHER_GIT_BLOB = "798907b18c73ee2cc1dea0fe05b36f27ab4137a7"
 
 NATIVE_LOCK_REL = (
     "ops/security/"
