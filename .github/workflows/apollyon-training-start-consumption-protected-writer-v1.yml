@@ -1,0 +1,81 @@
+name: Apollyon training-start protected consumption writer v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
+      - "scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs"
+      - "docs/security/apollyon-training-start-consumption-protected-writer-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml"
+      - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
+      - "scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs"
+      - "docs/security/apollyon-training-start-consumption-protected-writer-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml"
+      - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prove protected consumption writer
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-training-start-consumption-protected-writer-v1.mjs
+          node --check scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs
+          node scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              BASE="$PR_BASE"
+              ;;
+            push)
+              test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"
+              BASE="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              BASE="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
