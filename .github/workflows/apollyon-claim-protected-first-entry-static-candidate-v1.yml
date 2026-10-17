@@ -100,9 +100,9 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
-            b5192a2bcf56717f5296619038b9c9bd66105cc0
+            b1f87514956f944aa85b8d483963aa93663643b8
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
-            b31455bc0eeeabea3b8a3e52007cfab4695f11ac
+            ad6857d310fd1f4e25d7f379db9bae9f55c1f9f2
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = \
             0859444e40fab93b7ab8af9b388e15dc3a818641
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_v1.py)" = \
@@ -156,6 +156,10 @@ jobs:
             'readdressed_binary_drift_rejected=true' \
             'readdressed_authority_overclaim_rejected=true' \
             'readdressed_next_gate_drift_rejected=true' \
+            'forged_non_elf_bytes_rejected=true' \
+            'forged_mutated_elf_rebuild_mismatch_rejected=true' \
+            'validator_reinspected_supplied_binary=true' \
+            'validator_independent_rebuild_byte_identical=true' \
             'candidate_accepted=false' \
             'protected_install_authorized=false' \
             'protected_expected_source_origin_proven=false' \
@@ -180,6 +184,8 @@ jobs:
           grep -Fx 'VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_V1_DERIVE_GREEN' \
             "$RUNNER_TEMP/apollyon-static-candidate-derive.log"
           grep -Fx 'three_builds_byte_identical=true' "$RUNNER_TEMP/apollyon-static-candidate-derive.log"
+          grep -Fx 'validator_reinspected_supplied_binary=true' "$RUNNER_TEMP/apollyon-static-candidate-derive.log"
+          grep -Fx 'validator_independent_rebuild_byte_identical=true' "$RUNNER_TEMP/apollyon-static-candidate-derive.log"
           grep -Fx 'candidate_accepted=false' "$RUNNER_TEMP/apollyon-static-candidate-derive.log"
           grep -Fx 'protected_install_authorized=false' "$RUNNER_TEMP/apollyon-static-candidate-derive.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/apollyon-static-candidate-derive.log"
