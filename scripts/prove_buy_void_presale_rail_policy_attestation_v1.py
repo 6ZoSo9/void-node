@@ -21,6 +21,8 @@ EXPECTED = tuple(sorted((
 )))
 SOURCE_BLOBS = {
     "README.md": "6b52c555eb7d93b9ea6652d50aa946f6a319d7de",
+    "scripts/lib/void_buy_void_dual_rail_server_policy_contract_v1.mjs":
+        "fbdfc69b23ea2c7a81ed83e0a327af37a94fc552",
     "docs/architecture/buy-void-dual-rail-server-policy-v1.md":
         "a8c2300f7f2b1296790bf496e02a997f7126310f",
     "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md":
@@ -109,6 +111,7 @@ def prove() -> None:
 
     readme = texts["README.md"]
     dual = texts["docs/architecture/buy-void-dual-rail-server-policy-v1.md"]
+    contract = texts["scripts/lib/void_buy_void_dual_rail_server_policy_contract_v1.mjs"]
     wc = texts["docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"]
     legacy = texts["docs/architecture/buy-void-presale-source-freeze-candidate-v1.md"]
     host = texts["docs/operators/buy-void-precision-source-freeze-host-metadata-census-v1.md"]
@@ -118,6 +121,18 @@ def prove() -> None:
     require("source-allowlisted to native USDC on Ethereum mainnet (chain ID `1`) "
             "and Base mainnet (chain ID `8453`) only" in readme,
             "current_approved_rails_not_source_documented")
+    for exact in (
+        'source_chain: "base"',
+        'evm_chain_id: "8453"',
+        'source_chain: "ethereum"',
+        'evm_chain_id: "1"',
+        'canonical_presale_max_void: "10000000"',
+        'rate_void_units_numerator: "2"',
+        'rate_void_units_denominator: "1"',
+        'accepted_payment_asset: "USDC"',
+        'public_presale_activation: false',
+    ):
+        require(exact in contract, "dual_rail_executable_contract_missing:" + exact)
     require("BTC/VOID remains post-presale and separately launch-gated" in readme,
             "post_presale_market_not_separated")
     require("No fixed WC-to-VOID redemption or conversion ratio exists" in readme,
@@ -169,6 +184,7 @@ def main() -> None:
     prove()
     print(MARKER + "_GREEN")
     print("read_only=true")
+    print("reviewed_dual_rail_source_contract_bound=true")
     print("presale_payment_asset=native_USDC")
     print("presale_source_chains=ethereum_1,base_8453")
     print("presale_void_per_usdc=2")
