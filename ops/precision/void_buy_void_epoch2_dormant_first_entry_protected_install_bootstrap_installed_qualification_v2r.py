@@ -617,7 +617,7 @@ def self_test() -> None:
     ).encode("ascii")
     assert _git_env()["GIT_NO_LAZY_FETCH"] == "1"
     assert _git_env()["GIT_ALLOW_PROTOCOL"] == ""
-    source = Path(__file__).read_text("utf-8")
+    source = pathlib.Path(__file__).read_text("utf-8")
     assert '"core.hooksPath=/dev/null"' in source
     assert '"core.fsmonitor=false"' in source
     print(MARKER + "_SELF_TEST_GREEN")
