@@ -1,12 +1,23 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const html = readFileSync(
   resolve(ROOT, "public/public-node/connect/index.html"),
+  "utf8",
+);
+const workflow = readFileSync(
+  resolve(ROOT, ".github/workflows/void-public-node-connect-focus-v1.yml"),
   "utf8",
 );
 const compact = html.replace(/\s+/gu, " ");
@@ -32,8 +43,103 @@ assert.doesNotMatch(html, /<script\b|<form\b|<input\b/iu);
 assert.match(html, /This is not validator admission/);
 assert.match(html, /Public-safe node connection guidance only/);
 
+assert.ok(
+  workflow.includes('merge_base="$(git merge-base "$BASE" "$HEAD")"'),
+  "workflow must derive the common ancestor from the moving base tip",
+);
+assert.ok(
+  workflow.includes('git diff --check "$merge_base" "$HEAD"'),
+  "workflow must run hygiene from the common ancestor",
+);
+assert.ok(
+  !workflow.includes('git merge-base --is-ancestor "$BASE" "$HEAD"'),
+  "workflow must not require the moving base tip to be an ancestor",
+);
+
+const fixture = mkdtempSync(
+  resolve(tmpdir(), "void-public-node-focus-moving-base-"),
+);
+const gitEnv = {
+  ...process.env,
+  HOME: fixture,
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+};
+
+function git(...args) {
+  const result = spawnSync(
+    "/usr/bin/git",
+    ["-C", fixture, ...args],
+    {
+      encoding: "utf8",
+      env: gitEnv,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `git ${args.join(" ")} failed: ${result.stderr}`,
+  );
+  return result.stdout.trim();
+}
+
+try {
+  git("init", "--initial-branch=main");
+  git("config", "user.name", "VOID Focus Proof");
+  git("config", "user.email", "void-focus-proof@example.invalid");
+
+  writeFileSync(resolve(fixture, "base.txt"), "base\n", "utf8");
+  git("add", "--", "base.txt");
+  git("commit", "-m", "base");
+  const commonBase = git("rev-parse", "HEAD");
+
+  git("switch", "-c", "candidate");
+  writeFileSync(resolve(fixture, "focus.txt"), "focus repair\n", "utf8");
+  git("add", "--", "focus.txt");
+  git("commit", "-m", "candidate");
+  const candidateHead = git("rev-parse", "HEAD");
+
+  git("switch", "main");
+  writeFileSync(resolve(fixture, "advance.txt"), "independent base advance\n", "utf8");
+  git("add", "--", "advance.txt");
+  git("commit", "-m", "advance base");
+  const movedBase = git("rev-parse", "HEAD");
+
+  const staleAncestorCheck = spawnSync(
+    "/usr/bin/git",
+    [
+      "-C",
+      fixture,
+      "merge-base",
+      "--is-ancestor",
+      movedBase,
+      candidateHead,
+    ],
+    {
+      encoding: "utf8",
+      env: gitEnv,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  assert.equal(
+    staleAncestorCheck.status,
+    1,
+    "fixture must reproduce a disjoint moving base tip",
+  );
+
+  const mergeBase = git("merge-base", movedBase, candidateHead);
+  assert.equal(mergeBase, commonBase);
+  git("diff", "--check", mergeBase, candidateHead);
+} finally {
+  rmSync(fixture, { recursive: true, force: true });
+}
+
 console.log("VOID_PUBLIC_NODE_CONNECT_FOCUS_V1_PROOF_GREEN");
 console.log("explicit_keyboard_focus_indicator=true");
 console.log("focus_not_removed=true");
 console.log("public_resource_links=2");
+console.log("moving_base_merge_base_hygiene=true");
+console.log("disjoint_base_advance_regression=true");
 console.log("runtime_or_network_mutation=false");
