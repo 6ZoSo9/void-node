@@ -19,19 +19,19 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_protected_install_"
     "bootstrap_installed_qualification_v2r.py"
 )
-TARGET_BLOB = "faaa62fc96023dcd9aa46454068a865f428e720b"
+TARGET_BLOB = "2aca2b16adb8c9e1d4a7a584b5f73637f96f09f1"
 
 INSTALL_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v2r.py"
 )
-INSTALL_BLOB = "883186eb5e6f4d7cee94370f0ee74ef908ec058b"
+INSTALL_BLOB = "f8355b728b4c6870b92b10a0c19f154cf9c2ab51"
 INSTALL_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v2r.py"
 )
-INSTALL_PROOF_BLOB = "f2b27b0e1a643c3dc4baa241d44508da75d77dd6"
+INSTALL_PROOF_BLOB = "bfae4e1c9a3875b07e92c2b4051f31d56510e0ca"
 
 LOCK_REL = (
     "ops/security/"
@@ -123,6 +123,8 @@ for required in (
     'runtime_head_contract_green=true',
     '"GIT_NO_LAZY_FETCH": "1"',
     '"GIT_ALLOW_PROTOCOL": ""',
+    '"core.hooksPath=/dev/null"',
+    '"core.fsmonitor=false"',
     'next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_',
     'PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V2R',
     'bootstrap_execution_performed=false',
@@ -300,6 +302,8 @@ for mode, expected_lines in (
             "frozen_head_alignment_not_required=true",
             "git_lazy_fetch_suppressed=true",
             "git_transport_denied=true",
+            "git_hooks_disabled=true",
+            "git_fsmonitor_disabled=true",
             "bootstrap_execution=false",
             "protected_installer_apply=false",
             "filesystem_write=false",
@@ -365,6 +369,8 @@ print("canonical_main_candidate_authority=true")
 print("frozen_head_alignment_not_required=true")
 print("git_lazy_fetch_suppressed=true")
 print("git_transport_denied=true")
+print("git_hooks_disabled=true")
+print("git_fsmonitor_disabled=true")
 print("filesystem_write=false")
 print("service_mutation=false")
 print("credential_access=false")
