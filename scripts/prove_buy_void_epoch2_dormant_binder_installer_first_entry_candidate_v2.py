@@ -23,7 +23,7 @@ LAUNCHER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
 )
-LAUNCHER_BLOB = "e3fc712709c8c3b56fbe1f7b2dc0d20ba0860dc5"
+LAUNCHER_BLOB = "86dc09e52402c04fb6e4b30a7fcf695833808ca3"
 INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
@@ -1040,6 +1040,13 @@ def self_test() -> None:
     launcher_source = launcher.decode("utf-8", "strict")
     if "VOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_EXPECTED_HEAD" in launcher_source:
         raise AssertionError("compile_time_expected_head_still_present")
+    if (
+        '#define VOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_ROOT "/opt/void-buy-void-epoch2-dormant-binder-installer-first-entry-v1"'
+        not in launcher_source
+        or '#define FIXED_SELF VOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_ROOT "/bin/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1"'
+        not in launcher_source
+    ):
+        raise AssertionError("frozen_child_launcher_path_compatibility_missing")
     for required in (
         "rederive_accepted_native()",
         "sealed_source(launcher_raw)",
@@ -1068,6 +1075,7 @@ def self_test() -> None:
     print("runtime_expected_head_compile_bound=false")
     print("runtime_expected_head_strict_lowercase_hex=true")
     print("runtime_expected_head_forwarded_unchanged=true")
+    print("frozen_child_launcher_path_compatible=true")
     print("repository_head_not_embedded_in_launcher=true")
     print("semantic_report_validation_fail_closed=true")
     print("candidate_accepted=false")
