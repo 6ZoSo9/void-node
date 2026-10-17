@@ -4,8 +4,13 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 from pathlib import Path
+import shlex
+import stat
 import subprocess
+import tempfile
+import types
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -14,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v2r.py"
 )
-TARGET_BLOB = "7d7942dfe4b1def5f5a58201080cc30c3a13d3a0"
+TARGET_BLOB = "883186eb5e6f4d7cee94370f0ee74ef908ec058b"
 
 LOCK_REL = (
     "ops/security/"
@@ -100,6 +105,177 @@ pin(PROTECTED_INSTALLER_REL, PROTECTED_INSTALLER_BLOB)
 source = target_raw.decode("utf-8", "strict")
 compile(source, TARGET_REL, "exec", dont_inherit=True)
 
+target_module = types.ModuleType("protected_bootstrap_install_v2r_fixture")
+target_module.__file__ = str(ROOT / TARGET_REL)
+exec(
+    compile(source, TARGET_REL, "exec", dont_inherit=True),
+    target_module.__dict__,
+)
+assert target_module._git_env()["GIT_NO_LAZY_FETCH"] == "1"
+assert target_module._git_env()["GIT_ALLOW_PROTOCOL"] == ""
+
+
+def repo_snapshot(root: Path) -> dict[str, tuple[object, ...]]:
+    result: dict[str, tuple[object, ...]] = {}
+    for item in [root, *sorted(root.rglob("*"))]:
+        info = item.lstat()
+        kind = stat.S_IFMT(info.st_mode)
+        payload: object | None
+        if stat.S_ISREG(info.st_mode):
+            payload = item.read_bytes()
+        elif stat.S_ISLNK(info.st_mode):
+            payload = os.readlink(item)
+        else:
+            payload = None
+        result[str(item.relative_to(root))] = (
+            kind,
+            stat.S_IMODE(info.st_mode),
+            payload,
+        )
+    return result
+
+
+def prove_git_lazy_fetch_blocked() -> None:
+    setup_env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/nonexistent",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_SYSTEM": "/dev/null",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ALLOW_PROTOCOL": "file",
+        "GIT_AUTHOR_NAME": "Synthetic fixture",
+        "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "Synthetic fixture",
+        "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+        "GIT_AUTHOR_DATE": "2000-01-01T00:00:00Z",
+        "GIT_COMMITTER_DATE": "2000-01-01T00:00:00Z",
+    }
+
+    def git(*args: object, data: bytes | None = None) -> str:
+        cp = subprocess.run(
+            ["/usr/bin/git", *map(str, args)],
+            input=data,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=setup_env,
+            check=False,
+            timeout=10,
+        )
+        assert cp.returncode == 0, cp.stderr.decode("utf-8", "replace")
+        return cp.stdout.decode("utf-8", "strict").strip()
+
+    with tempfile.TemporaryDirectory(
+        prefix="void-e2-bootstrap-install-git-proof-"
+    ) as directory:
+        task = Path(directory)
+        remote = task / "synthetic-remote.git"
+        git("init", "--bare", remote)
+        blob = git(
+            "-C", remote, "hash-object", "-w", "--stdin",
+            data=b"fixture lock\n",
+        )
+        tree = git(
+            "-C", remote, "mktree",
+            data=f"100644 blob {blob}\tlock.json\n".encode("utf-8"),
+        )
+        commit = git(
+            "-C", remote, "commit-tree", tree,
+            data=b"fixture commit\n",
+        )
+        git("-C", remote, "update-ref", "refs/heads/main", commit)
+
+        def promisor_fixture(name: str) -> tuple[Path, Path]:
+            checkout = task / name
+            calls = task / (name + "-upload-pack-calls.txt")
+            helper = task / (name + "-upload-pack.sh")
+            helper.write_text(
+                "#!/bin/sh\n"
+                + "printf 'called\\n' >> "
+                + shlex.quote(str(calls))
+                + "\n"
+                + 'exec /usr/bin/git upload-pack "$@"\n',
+                encoding="utf-8",
+            )
+            helper.chmod(0o700)
+            git("init", checkout)
+            for key, value in {
+                "remote.origin.url": str(remote),
+                "remote.origin.promisor": "true",
+                "remote.origin.partialclonefilter": "blob:none",
+                "remote.origin.uploadpack": str(helper),
+                "protocol.file.allow": "always",
+            }.items():
+                git("-C", checkout, "config", key, value)
+            return checkout, calls
+
+        # Positive control: without either guard, the same object read performs
+        # an implicit promisor fetch and mutates the checkout object database.
+        checkout, calls = promisor_fixture("positive-control")
+        before = repo_snapshot(checkout)
+        positive_env = dict(target_module._git_env())
+        positive_env.pop("GIT_NO_LAZY_FETCH", None)
+        positive_env.pop("GIT_ALLOW_PROTOCOL", None)
+        cp = subprocess.run(
+            [
+                "/usr/bin/git", "--no-replace-objects",
+                "-C", str(checkout),
+                "show", commit + ":lock.json",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=positive_env,
+            check=False,
+            timeout=10,
+        )
+        assert cp.returncode == 0, cp.stderr.decode("utf-8", "replace")
+        assert cp.stdout == b"fixture lock\n"
+        assert calls.exists() and calls.read_text("utf-8").splitlines()
+        assert repo_snapshot(checkout) != before
+
+        # Full production guards: no transport helper and no checkout mutation.
+        checkout, calls = promisor_fixture("both-guards")
+        target_module.FIXED_CHECKOUT = checkout
+        before = repo_snapshot(checkout)
+        try:
+            target_module._git(["show", commit + ":lock.json"])
+        except target_module.InstallError:
+            pass
+        else:
+            raise AssertionError("lazy_fetch_unexpectedly_succeeded")
+        assert not calls.exists()
+        assert repo_snapshot(checkout) == before
+
+        # Fallback independently: even if an older Git ignores/does not support
+        # lazy-fetch suppression, empty GIT_ALLOW_PROTOCOL still denies transport.
+        checkout, calls = promisor_fixture("protocol-fallback")
+        target_module.FIXED_CHECKOUT = checkout
+        original_git_env = target_module._git_env
+        guarded = dict(original_git_env())
+        guarded.pop("GIT_NO_LAZY_FETCH", None)
+        target_module._git_env = lambda: dict(guarded)
+        before = repo_snapshot(checkout)
+        try:
+            try:
+                target_module._git(["show", commit + ":lock.json"])
+            except target_module.InstallError:
+                pass
+            else:
+                raise AssertionError("transport_fallback_unexpectedly_succeeded")
+        finally:
+            target_module._git_env = original_git_env
+        assert not calls.exists()
+        assert repo_snapshot(checkout) == before
+
+
+prove_git_lazy_fetch_blocked()
+
 for required in (
     'INSTALL_NAME = (',
     '"void-buy-void-epoch2-dormant-first-entry-"',
@@ -126,6 +302,8 @@ for required in (
     'python_isolated_mode_required',
     'explicit_create_only_confirmation_required',
     'expected_plan_id_mismatch',
+    '"GIT_NO_LAZY_FETCH": "1"',
+    '"GIT_ALLOW_PROTOCOL": ""',
     'bootstrap_input_generation_changed_before_publication',
     'prepublication_cleanup_limited_to_created_stage=true',
     'prepublication_cleanup_stage_generation_bound=true',
@@ -367,6 +545,10 @@ print("initial_stage_cleanup_gap_absent=true")
 print("stage_cleanup_generation_bound=true")
 print("post_publication_close_failure_receipt_truthful=true")
 print("bootstrap_input_revalidated_before_publication=true")
+print("git_lazy_fetch_positive_control_reproduced=true")
+print("git_lazy_fetch_suppressed=true")
+print("git_transport_denial_fallback=true")
+print("plan_git_repository_unchanged_on_missing_object=true")
 print("bootstrap_execution_absent=true")
 print("protected_installer_apply_absent=true")
 print("post_publication_rollback=false")
