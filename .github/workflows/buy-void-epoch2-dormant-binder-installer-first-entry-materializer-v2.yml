@@ -95,6 +95,11 @@ jobs:
                   raise SystemExit("unsupported_event")
               if not re.fullmatch(r"[0-9a-f]{40}", base) or base == "0" * 40:
                   raise SystemExit("invalid_scope_base")
+              if event == "pull_request":
+                  merge_bases = git("merge-base", "--all", base, head).splitlines()
+                  if len(merge_bases) != 1 or not re.fullmatch(rb"[0-9a-f]{40}", merge_bases[0]):
+                      raise SystemExit("scope_merge_base_not_unique")
+                  base = merge_bases[0].decode("ascii")
               git("merge-base", "--is-ancestor", base, head)
               raw = git("diff", "--raw", "--no-abbrev", "--no-renames", "-z", base, head, "--")
               fields = raw.split(b"\0")
@@ -122,11 +127,11 @@ jobs:
           PY
 
           test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = \
-            16c0c8aef7451cc849ad1dc0a0f69698e6d471bd
+            609cde180490f4f5f53ed7e34d73b95f22313bcd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v2.py)" = \
-            010e15799671f14130024eb413437d3cd203dead
+            e9143ecb30afbf40a852370a62278721c509c064
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.md)" = \
-            617ee83a4b0977d4eccd09af685ffebf484a455a
+            4c6056ce520c9ae8d687df100c5cec3edb7b6563
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json)" = \
             227c2fa449abf1387925373c706ecd07775d5898
@@ -240,6 +245,8 @@ jobs:
           for marker in \
             'temporary_filesystem_write_authorized=true' \
             'git_worktree_mutation_authorized=true' \
+            'materializer_git_lazy_fetch_disabled=true' \
+            'materializer_git_transport_disabled=true' \
             'candidate_derivation_processes_authorized=true' \
             'launcher_self_test_execution_authorized=true' \
             'create_only_output_authorized=true' \

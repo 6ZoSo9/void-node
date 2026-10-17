@@ -5,10 +5,11 @@ Marker:
 
 Status: **source/CI artifact publication only**.
 
-This four-file repair of the merged V2 materializer makes cleanup and output
-publication checks explicit, corrects completion receipts and supports manual
-replay. The accepted lock, candidate commit, report and launcher bytes remain
-unchanged.
+This follow-up to the merged V2 materializer repair corrects PR scope validation
+after the base branch advances and scopes Git guard receipts to the materializer's
+own Git calls. Cleanup, output publication and manual replay behavior remain as
+documented below. The accepted lock, candidate commit, report and launcher bytes
+remain unchanged.
 
 ## Purpose
 
@@ -102,8 +103,17 @@ The materializer emits its temporary-write and helper-execution authority before
 starting derivation. A successful cleanup receipt reports completed removal;
 cleanup failure causes HOLD and does not claim that temporary state was removed.
 
-`--self-test` checks the accepted lock and fixed source bindings. It reports
-derivation, output readback, synchronization and cleanup as required capabilities;
+The materializer passes `GIT_NO_LAZY_FETCH=1` and an empty `GIT_ALLOW_PROTOCOL`
+to its own Git subprocesses. Its `materializer_git_lazy_fetch_disabled=true` and
+`materializer_git_transport_disabled=true` receipts report that limited scope.
+The exact accepted candidate helper and nested native candidate helpers construct
+their own subprocess `ENV` mappings, which do not inherit these two values from
+the materializer. Their frozen sources remain unchanged. These receipts do not
+verify network isolation across the complete derivation.
+
+`--self-test` checks the accepted lock, fixed source bindings and these
+materializer Git settings. It reports derivation, output readback, synchronization
+and cleanup as required capabilities;
 it does not report those operations as completed. It performs no candidate build
 or output creation. `--derive ABSENT_OUTPUT` authorizes the temporary worktree,
 compiler/helper processes, inert launcher self-tests and create-only output.
@@ -146,7 +156,7 @@ facts.
 The proof binds:
 
 - materializer Git blob
-  `3556931d9e14a5181d5ced96df6c89a2ade4284e`;
+  `609cde180490f4f5f53ed7e34d73b95f22313bcd`;
 - V2 lock blob
   `227c2fa449abf1387925373c706ecd07775d5898`;
 - V2 candidate proof
@@ -166,10 +176,12 @@ this materializer does not run the privileged production-child source proof.
 
 ## CI release scope and manual replay
 
-Pull-request and main-push qualification use their event's base commit and
-require exactly the four existing materializer paths to be modified, with both
-old and new Git modes `100644`. The event base is separate from the fixed
-candidate reproduction commit.
+Pull-request qualification validates the event's base commit, resolves its unique
+common ancestor with the exact PR head and checks that diff. Main-push
+qualification uses the event's literal `before` commit and requires it to be an
+ancestor of the pushed head. Both require exactly the four existing materializer
+paths to be modified, with both old and new Git modes `100644`. These source-scope
+commits are separate from the fixed candidate reproduction commit.
 
 Manual dispatch replays the exact pinned materializer and accepted dependency
 state. It checks the four materializer tree-entry modes, exact source/proof/doc
