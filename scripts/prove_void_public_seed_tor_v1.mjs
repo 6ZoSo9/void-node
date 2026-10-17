@@ -22,6 +22,23 @@ const MARKER = "VOID_PUBLIC_SEED_TOR_V1_PROOF";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const QUALIFIER_CLI = path.join(ROOT, "scripts", "qualify_void_public_seed_tor_v1.mjs");
 const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
+const P2P_INTRODUCTIONS = JSON.parse(
+  fs.readFileSync(
+    path.join(ROOT, "config", "void-public-p2p-bootstrap-introductions-v1.json"),
+    "utf8",
+  ),
+);
+const NIMO_P2P_INTRODUCTION = P2P_INTRODUCTIONS.entries.find(
+  (entry) => entry.id === "nimo-tor-v3-p2p",
+);
+assert.ok(NIMO_P2P_INTRODUCTION, "canonical Nimo Tor P2P introduction missing");
+const NIMO_P2P_URL = new URL(NIMO_P2P_INTRODUCTION.endpoint);
+assert.equal(NIMO_P2P_URL.protocol, "tor:");
+assert.equal(NIMO_P2P_URL.port, "4700");
+assert.equal(
+  NIMO_P2P_URL.hostname,
+  "6a4r6osb37sp2t6nbx7dpdnq5wfdzdrn5axt7t33kduzuznarqqpnkid.onion",
+);
 
 function encodeBase32(bytes) {
   let acc = 0; let bits = 0; let output = "";
@@ -465,6 +482,7 @@ console.log("onion_identity_persistent=true");
 console.log("http_seed_mapping_preserved=true");
 console.log("p2p_hidden_service_mapping_opt_in=true");
 console.log("p2p_hidden_service_mapping_exact_4700=true");
+console.log("p2p_introduction_endpoint_bound=true");
 console.log("p2p_target_must_preexist_before_activation=true");
 console.log("socks_proxy_loopback_preflight=true");
 console.log("activation_confirmation_precedes_mutation=true");
