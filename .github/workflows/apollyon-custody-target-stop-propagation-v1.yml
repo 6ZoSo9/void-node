@@ -1,0 +1,56 @@
+name: Apollyon custody target stop propagation v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/void-apollyon-authorization-custody-v1.target"
+      - "ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
+      - "scripts/prove_apollyon_custody_deployment_manifest_v1.mjs"
+      - "ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py"
+      - "scripts/prove_apollyon_live_custody_source_session_create_only_install_v1.py"
+      - "ops/xiphos/apollyon-custody-target-stop-propagation-update-v1.json"
+      - "ops/xiphos/apollyon_custody_target_stop_propagation_update_v1.py"
+      - "scripts/prove_apollyon_custody_target_stop_propagation_update_v1.py"
+      - "docs/security/apollyon-custody-target-stop-propagation-v1.md"
+      - ".github/workflows/apollyon-custody-target-stop-propagation-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prove stop-only target control
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/apollyon-custody-target-stop-propagation-v1.txt"
+          python3 -I -B scripts/prove_apollyon_custody_target_stop_propagation_update_v1.py | tee "$proof"
+          grep -Fx 'VOID_APOLLYON_CUSTODY_TARGET_STOP_PROPAGATION_UPDATE_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'reload_failure_resume_supported=true' "$proof"
+          grep -Fx 'new_exact_stale_manager_reload_only=true' "$proof"
+          grep -Fx 'reload_only_target_file_rewrite=false' "$proof"
+          grep -Fx 'target_revalidated_before_and_after_manager_recheck=true' "$proof"
+          grep -Fx 'ambiguous_loaded_contract_fails_closed=true' "$proof"
+          grep -Fx 'extra_loaded_wants_fails_closed=true' "$proof"
+          grep -Fx 'service_action=false' "$proof"
+          grep -Fx 'target_action=false' "$proof"
+          grep -Fx 'training_execution=false' "$proof"
+          grep -Fx 'durable_attempt_claim=false' "$proof"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
