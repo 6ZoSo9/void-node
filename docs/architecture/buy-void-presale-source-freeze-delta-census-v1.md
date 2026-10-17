@@ -124,6 +124,8 @@ production_host_evidence_authority=false
 
 No Precision/Nimo/Xiphos host inspection, service mutation, credential/key access, signing, RPC/transaction, payment acceptance, presale/WC activation, treasury action or funds movement occurs.
 
+The command surface includes an explicit negative `--apply` control. It always returns HOLD with `reason=apply_not_supported`; it cannot mutate source or hosts.
+
 Next release-source step, if separately approved, is a **new versioned source-freeze composition review**, not modification of #3409.
 
 **PROTECT THE CORE.**
