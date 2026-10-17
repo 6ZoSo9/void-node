@@ -13,13 +13,13 @@ import types
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
-TARGET_BLOB = "f8e25ef310ef4493dd23baee70eef6db84ae68f9"
+TARGET_BLOB = "e16b0ce71a4522b21762fa824c96aefb58e3a25b"
 INSTALLER = ROOT / (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v6.py"
 )
-INSTALLER_BLOB = "63e1c973978cfcb67105010e4145f01552673bc3"
+INSTALLER_BLOB = "c9dd842b620f2ed7c3fdd5876c222a419b6b0c68"
 
 
 def blob(raw: bytes) -> str:
@@ -36,7 +36,7 @@ assert blob(INSTALLER.read_bytes()) == INSTALLER_BLOB
 
 for required in (
     "PROTECTED_INSTALL_BOOTSTRAP_INSTALLED_QUALIFICATION_V6",
-    'INSTALLER_SOURCE_GIT_BLOB_SHA1 = "63e1c973978cfcb67105010e4145f01552673bc3"',
+    'INSTALLER_SOURCE_GIT_BLOB_SHA1 = "c9dd842b620f2ed7c3fdd5876c222a419b6b0c68"',
     "double_descriptor_bound_bootstrap_self_test_required=true",
     "before_middle_after_stability_required=true",
     "python_and_git_policy_binding_required=true",

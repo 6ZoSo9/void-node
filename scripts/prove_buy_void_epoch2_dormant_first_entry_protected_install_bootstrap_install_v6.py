@@ -9,7 +9,7 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
-TARGET_BLOB = "63e1c973978cfcb67105010e4145f01552673bc3"
+TARGET_BLOB = "c9dd842b620f2ed7c3fdd5876c222a419b6b0c68"
 
 LOCK = ROOT / "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
 LOCK_BLOB = "f5b03c6b81016edf21f605099e0ef8976f40e107"
@@ -95,6 +95,194 @@ spec = importlib.util.spec_from_file_location("v6_install", TARGET)
 assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+
+
+def prove_tool_snapshot_alias_handling(module):
+    import os as host_os
+    import stat as host_stat
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    cases = []
+    payload = b"fixture-python-executable\n"
+    fixed = pathlib.Path("/fixture/python3")
+    linked_target = pathlib.Path("/fixture/python3.12")
+    retargeted_path = pathlib.Path("/fixture/python3.13")
+
+    def metadata(mode, *, ino=30, uid=0, gid=0, size=None):
+        return SimpleNamespace(
+            st_mode=mode,
+            st_dev=1,
+            st_ino=ino,
+            st_uid=uid,
+            st_gid=gid,
+            st_nlink=1,
+            st_size=len(payload) if size is None else size,
+            st_mtime_ns=100,
+            st_ctime_ns=100,
+        )
+
+    def run_case(
+        name, *, linked=False, alias_changes=None, target_changes=None,
+        ancestor_changes=None, retarget=None, expected_error=None
+    ):
+        alias = metadata(
+            host_stat.S_IFLNK | 0o777, ino=20, size=len("python3.12")
+        ) if linked else metadata(host_stat.S_IFREG | 0o555)
+        target = metadata(host_stat.S_IFREG | 0o555) if linked else alias
+        for key, value in (alias_changes or {}).items():
+            setattr(alias, key, value)
+        for key, value in (target_changes or {}).items():
+            setattr(target, key, value)
+        root = metadata(host_stat.S_IFDIR | 0o755, ino=1, size=4096)
+        ancestor = metadata(host_stat.S_IFDIR | 0o755, ino=2, size=4096)
+        for key, value in (ancestor_changes or {}).items():
+            setattr(ancestor, key, value)
+        canonical = linked_target if linked else fixed
+        visible = {"/": root, "/fixture": ancestor, str(fixed): alias}
+        visible[str(canonical)] = target
+        state = {"offset": 0, "opened": 0, "closed": 0, "retargeted": False}
+        fixture_fd = 71
+
+        def fake_lstat(path):
+            path = str(path)
+            assert path in visible, (name, "unexpected_metadata_path", path)
+            return visible[path]
+
+        def fake_realpath(path):
+            if pathlib.Path(path) == fixed:
+                if state["retargeted"] and retarget == "realpath":
+                    return str(retargeted_path)
+                return str(canonical)
+            assert pathlib.Path(path) == canonical, (name, "unexpected_realpath", str(path))
+            return str(canonical)
+
+        def fake_open(path, flags):
+            assert str(path) == str(canonical), (name, "unexpected_open", str(path))
+            assert flags == (
+                host_os.O_RDONLY | host_os.O_CLOEXEC | host_os.O_NOFOLLOW
+            ), (name, "unexpected_open_flags", flags)
+            state["opened"] += 1
+            assert state["opened"] == 1, (name, "multiple_opens")
+            return fixture_fd
+
+        def fake_fstat(fd):
+            assert fd == fixture_fd, (name, "unexpected_fstat_fd", fd)
+            return target
+
+        def fake_read(fd, count):
+            assert fd == fixture_fd, (name, "unexpected_read_fd", fd)
+            chunk = payload[state["offset"]:state["offset"] + count]
+            state["offset"] += len(chunk)
+            if chunk and retarget and not state["retargeted"]:
+                state["retargeted"] = True
+                if retarget == "alias_metadata":
+                    visible[str(fixed)] = SimpleNamespace(
+                        **{**vars(alias), "st_ino": alias.st_ino + 1}
+                    )
+            return chunk
+
+        def fake_close(fd):
+            assert fd == fixture_fd, (name, "unexpected_close_fd", fd)
+            state["closed"] += 1
+
+        # Replace this imported module's os namespace, not the process-wide os
+        # module, so an unintended operation cannot fall through to a host path.
+        fixture_os = SimpleNamespace(
+            path=SimpleNamespace(realpath=fake_realpath),
+            open=fake_open,
+            fstat=fake_fstat,
+            read=fake_read,
+            close=fake_close,
+            O_RDONLY=host_os.O_RDONLY,
+            O_CLOEXEC=host_os.O_CLOEXEC,
+            O_NOFOLLOW=host_os.O_NOFOLLOW,
+        )
+        with (
+            patch.object(module, "os", fixture_os),
+            patch.object(module.pathlib.Path, "lstat", fake_lstat),
+        ):
+            try:
+                observed = module._tool_snapshot(fixed, 1024)
+            except module.InstallError as exc:
+                assert expected_error is not None, (
+                    name, "unexpected_rejection", str(exc)
+                )
+                assert str(exc) == expected_error + ":" + str(
+                    pathlib.Path("/fixture")
+                    if expected_error == "trusted_directory_invalid"
+                    else fixed
+                ), (name, str(exc))
+            else:
+                assert expected_error is None, (name, "unexpected_acceptance")
+                assert observed == {
+                    "fixed": str(fixed),
+                    "realpath": str(canonical),
+                    "bytes": len(payload),
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                    "uid": 0,
+                    "gid": 0,
+                    "mode": format(host_stat.S_IMODE(target.st_mode), "04o"),
+                }, (name, observed)
+                assert state["offset"] == len(payload), (name, "incomplete_hash")
+        assert state["opened"] == state["closed"], (name, "descriptor_leak")
+        if expected_error in {"tool_alias_invalid", "tool_target_invalid", "trusted_directory_invalid"}:
+            assert state["opened"] == 0, (name, "rejection_after_open")
+        else:
+            assert state["opened"] == 1, (name, "snapshot_not_exercised")
+        cases.append(name)
+
+    run_case("root_regular_0555")
+    run_case("root_regular_0755", alias_changes={"st_mode": host_stat.S_IFREG | 0o755})
+    run_case("root_symlink_0777", linked=True)
+    for linked in (False, True):
+        for field in ("st_uid", "st_gid"):
+            run_case(
+                "untrusted_alias_" + str(linked) + "_" + field,
+                linked=linked, alias_changes={field: 1000},
+                expected_error="tool_alias_invalid",
+            )
+    for mode in (host_stat.S_IFDIR | 0o755, host_stat.S_IFIFO | 0o600):
+        run_case(
+            "wrong_alias_type_" + str(mode),
+            alias_changes={"st_mode": mode}, expected_error="tool_alias_invalid",
+        )
+    for writable in (0o020, 0o002):
+        run_case(
+            "writable_regular_alias_" + str(writable),
+            alias_changes={"st_mode": host_stat.S_IFREG | 0o755 | writable},
+            expected_error="tool_alias_invalid",
+        )
+    for field in ("st_uid", "st_gid"):
+        run_case(
+            "untrusted_target_" + field, linked=True,
+            target_changes={field: 1000}, expected_error="tool_target_invalid",
+        )
+    for mode in (
+        host_stat.S_IFREG | 0o644,
+        host_stat.S_IFREG | 0o775,
+        host_stat.S_IFREG | 0o757,
+        host_stat.S_IFLNK | 0o777,
+    ):
+        run_case(
+            "invalid_target_mode_" + str(mode), linked=True,
+            target_changes={"st_mode": mode}, expected_error="tool_target_invalid",
+        )
+    run_case(
+        "writable_target_ancestry", linked=True,
+        ancestor_changes={"st_mode": host_stat.S_IFDIR | 0o775},
+        expected_error="trusted_directory_invalid",
+    )
+    for retarget in ("alias_metadata", "realpath"):
+        run_case(
+            "symlink_retarget_during_read_" + retarget, linked=True,
+            retarget=retarget, expected_error="tool_alias_changed",
+        )
+
+    return len(cases)
+
+
+tool_alias_cases = prove_tool_snapshot_alias_handling(module)
 
 assert module.build_policy(
     {"sha256": "1" * 64, "bytes": 123},
@@ -194,6 +382,10 @@ print("accepted_bootstrap_v6_lock_bound=true")
 print("source_generation_v3_manifest_bound=true")
 print("accepted_bootstrap_v6_binary_bound=true")
 print("python_and_git_host_policy_bound=true")
+print("tool_alias_regression_cases=" + str(tool_alias_cases))
+print("root_owned_python_symlink_accepted=true")
+print("unsafe_tool_aliases_and_targets_rejected=true")
+print("tool_alias_generation_drift_rejected=true")
 print("wrong_confirmation_precedes_host_reads=true")
 print("single_rename_noreplace_publication=true")
 print("generation_bound_stage_cleanup_required=true")

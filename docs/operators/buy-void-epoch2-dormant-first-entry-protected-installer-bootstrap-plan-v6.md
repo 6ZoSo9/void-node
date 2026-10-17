@@ -20,9 +20,9 @@ The plan binds:
 
 - exact current checkout HEAD/tree and clean `main`;
 - merged V6 qualifier source Git blob
-  `f8e25ef310ef4493dd23baee70eef6db84ae68f9`;
+  `e16b0ce71a4522b21762fa824c96aefb58e3a25b`;
 - V6 protected-bootstrap installer source Git blob
-  `63e1c973978cfcb67105010e4145f01552673bc3`;
+  `c9dd842b620f2ed7c3fdd5876c222a419b6b0c68`;
 - accepted runtime-head launcher lock V2 and canonical launcher materializer;
 - accepted dormant-binder native lock V3 and native materializer;
 - exact launcher and native artifact bytes supplied to the planner;
@@ -168,8 +168,9 @@ contract; duplicate shadow functions and unreachable duplicate entry guards
 are forbidden by the focused AST proof.
 
 The focused workflow binds the current reviewed planner/proof/document
-Git blobs. A PR against current `main` may touch only this planner,
-its proof, documentation, and focused workflow; post-merge `push` and
+Git blobs. A PR against current `main` may touch only the reviewed V6
+installer, installed qualifier, planner, and their proofs, documentation,
+and focused workflows; post-merge `push` and
 `workflow_dispatch` validate exact current blobs and full diff hygiene
 without incorrectly requiring the historical four-path initial ADD-only diff.
 
