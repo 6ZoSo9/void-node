@@ -196,7 +196,7 @@ jobs:
               '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml': '4169a50df2b278776e046a8516be92aa3e56cdfc',
               '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.yml': '2dbab4551cfa48d5c9a0abe48b374aa5603fe9ce',
               '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml': 'e352eae2dd442ea328af190c6653adf078b74207',
-              '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml': 'bbb68444f207e866f767e3ac8edd7fee5443d738',
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml': '92d6f09ec21ab9ecabc3c9077b69e0787a90fb4e',
               'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-v2.md': '630f8b770e34dced3d7b341a85a33f6313a9bcba',
               'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.md': '4c6056ce520c9ae8d687df100c5cec3edb7b6563',
               'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.md': '4ca83fa0cb1a86a78e7957b9999778eccb5b1e88',
