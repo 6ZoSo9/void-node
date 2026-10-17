@@ -94,7 +94,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json)" = \
             227c2fa449abf1387925373c706ecd07775d5898
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v2.py)" = \
-            23fe6cd1e777e338ed936c89984f0f25b82ddc2a
+            15c0dbed623d46e6c0dff9a0598687b1d8fb5bbe
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.md)" = \
             6ebd54d05bf1cd2dde76c4f40ff2256edcd0fc3b
 
