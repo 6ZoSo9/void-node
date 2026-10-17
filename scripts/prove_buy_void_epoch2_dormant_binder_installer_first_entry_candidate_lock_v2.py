@@ -112,8 +112,8 @@ EXPECTED_SCOPE = tuple(sorted((
     "buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.md",
     LOCK_REL,
     "scripts/"
-    "prove_buy_void_epoch2_dormant-binder-installer-first-entry-candidate-lock-v2.py"
-    .replace("dormant-binder", "dormant_binder")
+    "prove_buy_void_epoch2_dormant_binder_"
+    "installer_first_entry_candidate_lock_v2.py"
 )))
 
 ENV = {
