@@ -129,7 +129,7 @@ A future host `--plan` or `--run` requires `--expected-head` and performs
 only:
 
 - Git identity/status reads with `GIT_NO_LAZY_FETCH=1` and empty
-  `GIT_ALLOW_PROTOCOL`, so missing objects cannot be fetched;
+  `GIT_ALLOW_PROTOCOL`, so missing objects cannot be fetched; repo-local hooks and fsmonitor helpers are also disabled;
 - root-owned directory/file metadata reads;
 - stable descriptor reads;
 - SHA-256/Git-blob checks;
@@ -153,9 +153,9 @@ That is still a separate authorization and is not #3391 apply authority.
 This generation binds:
 
 - #3425 V2R install source:
-  `883186eb5e6f4d7cee94370f0ee74ef908ec058b`;
+  `f8355b728b4c6870b92b10a0c19f154cf9c2ab51`;
 - #3425 V2R install proof:
-  `f2b27b0e1a643c3dc4baa241d44508da75d77dd6`;
+  `bfae4e1c9a3875b07e92c2b4051f31d56510e0ca`;
 - canonical V2R materializer:
   `f79e52b5d0af99194b0cf89a73ae5bf3285d3840`;
 - V2R materializer proof:
@@ -165,9 +165,9 @@ This generation binds:
 - #3391 source:
   `383b84e71b371de65579e4113469e86a59b807ab`;
 - qualification source:
-  `faaa62fc96023dcd9aa46454068a865f428e720b`;
+  `2aca2b16adb8c9e1d4a7a584b5f73637f96f09f1`;
 - qualification proof:
-  `4caf9f2335d6537ab1a439f0e905b641161bd3a3`.
+  `dd03e18ef3d1e423a79468b9726beb0403d5556e`.
 
 ## Authority
 
