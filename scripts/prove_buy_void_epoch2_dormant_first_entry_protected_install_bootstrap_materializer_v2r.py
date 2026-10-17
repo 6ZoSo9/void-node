@@ -145,7 +145,7 @@ for line in (
 
 print(
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_"
-    "BOOTSTRAP_MATERIALIZER_V2_PROOF_GREEN"
+    "BOOTSTRAP_MATERIALIZER_V2R_PROOF_GREEN"
 )
 print("materializer_blob_bound=true")
 print("accepted_lock_blob_bound=true")
