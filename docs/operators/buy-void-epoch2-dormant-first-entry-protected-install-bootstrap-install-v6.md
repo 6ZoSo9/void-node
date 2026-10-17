@@ -49,6 +49,12 @@ A real Precision plan resolves and snapshots the exact root-custodied targets of
 - `/usr/bin/python3`;
 - `/usr/bin/git`.
 
+An ordinary root-owned Python symlink is accepted with its normal Linux
+mode `0777`. The writable-mode rejection applies to regular aliases and to
+the resolved executable, whose root ownership, protected ancestry, executable
+mode, descriptor generation and bytes are still checked. Alias replacement
+or target retargeting during the snapshot remains a HOLD.
+
 It then constructs exactly:
 
 ```text

@@ -13,7 +13,7 @@ authorized create-only installation.
 
 The qualifier is bound to the merged V6 installer source Git blob:
 
-`63e1c973978cfcb67105010e4145f01552673bc3`.
+`c9dd842b620f2ed7c3fdd5876c222a419b6b0c68`.
 
 It uses that installer as the canonical definition of:
 
