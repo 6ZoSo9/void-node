@@ -26,7 +26,7 @@ MATERIALIZER_REL = (
     "scripts/materialize_buy_void_epoch2_dormant_binder_"
     "installer_first_entry_v2.py"
 )
-MATERIALIZER_BLOB = "3556931d9e14a5181d5ced96df6c89a2ade4284e"
+MATERIALIZER_BLOB = "16c0c8aef7451cc849ad1dc0a0f69698e6d471bd"
 LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-binder-installer-first-entry-"
