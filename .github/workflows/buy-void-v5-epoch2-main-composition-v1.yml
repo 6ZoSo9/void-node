@@ -1,0 +1,171 @@
+name: Buy VOID V5 enforcement / Epoch-2 canonical composition v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v5-epoch2-main-composition-v1.yml"
+      - "docs/architecture/buy-void-v5-epoch2-main-composition-v1.md"
+      - "scripts/prove_buy_void_v5_epoch2_main_composition_v1.py"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-*.yml"
+      - "scripts/*buy_void_epoch2_dormant_binder_installer_first_entry*.py"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-materializer-v1.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-v1.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v1.yml"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-materializer-v1.md"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-v1.md"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v1.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v1.py"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-v5-epoch2-main-composition-v1.yml"
+      - "docs/architecture/buy-void-v5-epoch2-main-composition-v1.md"
+      - "scripts/prove_buy_void_v5_epoch2_main_composition_v1.py"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-*.yml"
+      - "scripts/*buy_void_epoch2_dormant_binder_installer_first_entry*.py"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-materializer-v1.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-v1.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v1.yml"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-materializer-v1.md"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-v1.md"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v1.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v1.py"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V5 and canonical Epoch-2 source
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 38614797be01f2dd7d6d87503874182c5669c22d "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 7847428a943b328e1b5a130d2fa8009b07d9819e "$EXPECTED_HEAD"
+          test "$(git rev-parse '38614797be01f2dd7d6d87503874182c5669c22d^{tree}')" = 01b460d46c703b619a43c8747b1dc5537a39019e
+          test "$(git rev-parse '7847428a943b328e1b5a130d2fa8009b07d9819e^{tree}')" = 639c7d8564b8ab9b5e6cfdfd3700bb8bfa2157a3
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v5_epoch2_main_composition_v1.py)" = 649d97626922c03dd70d70d0ef7d2a1f7ec8b37b
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v5-epoch2-main-composition-v1.md)" = 8deffaca9f2bae6bb3520ca5232341b4edabb6a6
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = 61a9d85d285f9c9d249adf401580822c44c6dac6
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json)" = dd849928bc945478a1a8fcf687f374cfca59f4e4
+          git diff --check 7847428a943b328e1b5a130d2fa8009b07d9819e "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove two-parent source identity without mutation
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/buy-void-v5-epoch2-compose.log"
+          python3 -I -B scripts/prove_buy_void_v5_epoch2_main_composition_v1.py --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_V5_EPOCH2_MAIN_COMPOSITION_V1_GREEN' \
+            'read_only=true' \
+            'canonical_epoch2_added_paths=26' \
+            'post_initial_main_added_paths=11' \
+            'preserved_economic_paths=60' \
+            'protected_source_rows=49' \
+            'initial_two_parent_composition_preserved=true' \
+            'exact_merge_forward_composition_verified=true' \
+            'accepted_v5_lock_identity_preserved=true' \
+            'deployed_artifact_generation_verified=false' \
+            'runtime_mount_authority=false' \
+            'production_source_finality_authority_ready=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  inert-planner:
+    needs: [source-proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build economic closure
+        run: |
+          set -euo pipefail
+          node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - name: Check V5 lock with inert receipt planner
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          git switch -C main "$head"
+          receipt="$RUNNER_TEMP/void-buy-v5-composed-inert-receipt.json"
+          out="$RUNNER_TEMP/void-buy-v5-composed-inert-plan.log"
+          npx --no-install tsx \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --plan \
+            --receipt-path "$receipt" \
+            --expected-commit "$head" \
+            --expected-tree "$tree" \
+            --accepted-enforcement-lock-path \
+              ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json | tee "$out"
+          for marker in \
+            'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1' \
+            'mode=--plan' \
+            'source_mutation=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'wallet_access=false' \
+            'signing=false' \
+            'transaction_broadcast=false' \
+            'chain2050_mutation=false' \
+            'presale_activation=false' \
+            'funds_movement=false' \
+            'accepted_enforcement_set_sha256=1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf' \
+            'filesystem_mutation=false' \
+            'status=PLAN_GREEN'
+          do
+            grep -Fx "$marker" "$out"
+          done
+          test ! -e "$receipt"
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
