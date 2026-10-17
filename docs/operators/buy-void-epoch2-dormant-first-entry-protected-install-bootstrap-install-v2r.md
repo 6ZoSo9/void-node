@@ -142,9 +142,13 @@ A future host plan requires:
 - root-protected Git and Python generations;
 - Git identity reads run with `GIT_NO_LAZY_FETCH=1` plus an empty
   `GIT_ALLOW_PROTOCOL`, so a missing promisor object cannot contact a remote
-  or write fetched objects into the checkout.
+  or write fetched objects into the checkout;
+- Git is also invoked with `core.fsmonitor=false` and
+  `core.hooksPath=/dev/null`, so repository-local fsmonitor/hook configuration
+  cannot execute caller-controlled code during a root apply preflight.
 
-Plan is read-only: missing local Git objects HOLD instead of being fetched.
+Plan is read-only: missing local Git objects HOLD instead of being fetched, and
+repository-local Git hooks are not execution authority.
 It returns an operation-bound
 `voidbuye2bootstrapinstall2r_<sha256>` ID.
 
@@ -203,6 +207,11 @@ repository: the unguarded positive control must invoke its upload-pack helper
 and mutate the object database, while the production Git environment must make
 zero helper calls and leave the fixture repository unchanged. A second fixture
 drops `GIT_NO_LAZY_FETCH` and proves transport denial independently.
+
+A separate repository fixture configures a real local `core.fsmonitor` helper.
+Ordinary `git status` must invoke that helper as the positive control; the
+production installer Git wrapper must not invoke it and must leave the checkout
+byte-for-byte unchanged.
 
 ## Authority
 
