@@ -14,7 +14,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v1.py"
 )
-TARGET_BLOB = "eea423b5a6d556b5dec91365a4da39b83b9507ec"
+TARGET_BLOB = "df3c27c57e0d413c7487189f1ddf6c141004d67c"
 
 LOCK_REL = (
     "ops/security/"
@@ -123,7 +123,10 @@ for required in (
     'expected_plan_id_mismatch',
     'bootstrap_input_generation_changed_before_publication',
     'prepublication_cleanup_limited_to_created_stage=true',
+    'prepublication_cleanup_stage_generation_bound=true',
     'post_publication_rollback=false',
+    'truthful_post_publication_failure_receipt=true',
+    'post_publication_close_failure_receipt_truthful=true',
     'bootstrap_execution=false',
     'protected_installer_apply=false',
     'funds_movement=false',
@@ -171,7 +174,13 @@ assert "_verify_root_generation(INSTALL_ROOT, policy=policy)" in apply_source
 assert "_renameat2(opt_fd, STAGE_NAME, INSTALL_NAME, RENAME_NOREPLACE)" in apply_source
 assert "published = True" in apply_source
 assert "PublishedInstallError(" in apply_source
-assert "_cleanup_created_stage()" in apply_source
+assert "_cleanup_created_stage(stage_dev, stage_ino)" in apply_source
+assert "stage_dev = stage_identity.st_dev" in apply_source
+assert "stage_ino = stage_identity.st_ino" in apply_source
+assert '"published_install_close_failed"' in apply_source
+assert 'phase="install_parent_close"' in apply_source
+assert "failure.install_parent_close_completed = False" in apply_source
+assert "finally:\n        os.close(opt_fd)" not in apply_source
 assert "subprocess." not in apply_source
 
 create_source = ast.get_source_segment(source, functions["_create_file"]) or ""
@@ -189,6 +198,10 @@ cleanup_source = (
 )
 assert "STAGE_ROOT" in cleanup_source
 assert "INSTALL_ROOT" not in cleanup_source
+assert "expected_stage_dev" in cleanup_source
+assert "expected_stage_ino" in cleanup_source
+assert "stage_st.st_dev != expected_stage_dev" in cleanup_source
+assert "stage_st.st_ino != expected_stage_ino" in cleanup_source
 assert "shutil." not in cleanup_source
 
 secure_source = (
@@ -320,6 +333,8 @@ print("policy_parser_contract_bound=true")
 print("create_only_stage_publication_required=true")
 print("rename_noreplace_required=true")
 print("initial_stage_cleanup_gap_absent=true")
+print("stage_cleanup_generation_bound=true")
+print("post_publication_close_failure_receipt_truthful=true")
 print("bootstrap_input_revalidated_before_publication=true")
 print("bootstrap_execution_absent=true")
 print("protected_installer_apply_absent=true")
