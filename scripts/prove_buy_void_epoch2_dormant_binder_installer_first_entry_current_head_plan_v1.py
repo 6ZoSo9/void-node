@@ -15,13 +15,13 @@ TARGET_REL = (
     "current_head_plan_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "a319893d1424ea926825df686bd7fdaef786637f"
+TARGET_BLOB = "68123f707de514b33872b5623b3e587704fddfb6"
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_"
     "installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "a03e5879c91bb86fa68897ba6bb4b5e87519a0c6"
+QUALIFIER_BLOB = "474e525cd54cc99b745d1e3aa62d66dac47ca785"
 INSTALLER_BLOB = "ce6930bc1be8239a3171d4922c44b96a50f5778b"
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_"
@@ -62,6 +62,8 @@ for required in (
     '"binder_execution": False',
     '"credential_access": False',
     '"funds_movement": False',
+    '"production_host_evidence_authority": False',
+    '"installed_generation_evidence_authority": True',
 ):
     assert required in source, required
 
@@ -207,7 +209,8 @@ def qualification(head: str) -> dict:
         "wc_void_market_activation": False,
         "treasury_liquidity_action": False,
         "funds_movement": False,
-        "production_host_evidence_authority": True,
+        "production_host_evidence_authority": False,
+        "installed_generation_evidence_authority": True,
         "installed": {
             "expected_head": head,
             "lock_id": module.LOCK_ID,
@@ -264,7 +267,8 @@ try:
     assert body["binder_execution"] is False
     assert body["credential_access"] is False
     assert body["funds_movement"] is False
-    assert body["production_host_evidence_authority"] is True
+    assert body["production_host_evidence_authority"] is False
+    assert body["installed_generation_evidence_authority"] is True
     assert body["privileged_execution_authorized"] is False
 
     # Qualification authority cannot be weakened or silently reclassified.
@@ -282,6 +286,36 @@ try:
         assert str(exc) == "qualification_field_mismatch:credential_access"
     else:
         raise AssertionError("qualification_authority_drift_accepted")
+
+    class BadHostAuthorityQualifier(FakeQualifier):
+        @staticmethod
+        def collect(head: str):
+            result = qualification(head)
+            result["production_host_evidence_authority"] = True
+            return result
+
+    module.load_qualifier = lambda: BadHostAuthorityQualifier
+    try:
+        module.collect_plan(EXPECTED_HEAD)
+    except module.PlanError as exc:
+        assert str(exc) == "qualification_field_mismatch:production_host_evidence_authority"
+    else:
+        raise AssertionError("production_host_authority_elevation_accepted")
+
+    class MissingInstalledAuthorityQualifier(FakeQualifier):
+        @staticmethod
+        def collect(head: str):
+            result = qualification(head)
+            result["installed_generation_evidence_authority"] = False
+            return result
+
+    module.load_qualifier = lambda: MissingInstalledAuthorityQualifier
+    try:
+        module.collect_plan(EXPECTED_HEAD)
+    except module.PlanError as exc:
+        assert str(exc) == "qualification_field_mismatch:installed_generation_evidence_authority"
+    else:
+        raise AssertionError("missing_installed_generation_authority_accepted")
 
     module.load_qualifier = lambda: FakeQualifier
     module.os.geteuid = lambda: 1000
@@ -301,6 +335,8 @@ print("qualifier_blob_bound=true")
 print("installer_blob_bound=true")
 print("installed_qualification_contract_exercised=true")
 print("qualification_authority_drift_rejected=true")
+print("production_host_authority_elevation_rejected=true")
+print("installed_generation_authority_required=true")
 print("installed_launcher_identity_bound=true")
 print("current_head_plan_id_deterministic=true")
 print("current_head_plan_id_head_sensitive=true")
