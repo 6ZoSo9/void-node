@@ -508,6 +508,7 @@ def collect(expected_head: str) -> dict[str, Any]:
         "runtime_expected_head_strict_lowercase_hex": True,
         "runtime_expected_head_forwarded_unchanged": True,
         "canonical_main_candidate_authority": True,
+        "superseded_v3_lock_install_authority": False,
         "superseded_v2_lock_install_authority": False,
         "superseded_v1_lock_install_authority": False,
         "installed": installed,
@@ -592,6 +593,7 @@ def source_plan() -> None:
     print("canonical_main_candidate_authority=true")
     print("superseded_v3_lock_install_authority=false")
     print("superseded_v2_lock_install_authority=false")
+    print("superseded_v1_lock_install_authority=false")
     print("installed_bootstrap_execution=false")
     print("protected_installer_apply=false")
     print("filesystem_write=false")
@@ -624,8 +626,11 @@ def self_test() -> None:
     assert '"core.hooksPath=/dev/null"' in source
     assert '"core.fsmonitor=false"' in source
     print(MARKER + "_SELF_TEST_GREEN")
-    print("accepted_bootstrap_lock_v3_bound=true")
+    print("accepted_bootstrap_lock_v4_bound=true")
     print("canonical_main_candidate_authority_required=true")
+    print("superseded_v3_lock_install_authority=false")
+    print("superseded_v2_lock_install_authority=false")
+    print("superseded_v1_lock_install_authority=false")
     print("exact_installed_bootstrap_identity_required=true")
     print("exact_policy_generation_required=true")
     print("exact_protected_installer_source_required=true")
