@@ -88,7 +88,6 @@ jobs:
             5347246d7aec42377a366058c5156f3d7e8cc2d9
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = \
             f5b03c6b81016edf21f605099e0ef8976f40e107
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry-bootstrap-v6-candidate-v1.py 2>/dev/null || true)" = "" || true
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = \
             b963ac9ef0b9c8ac685763b3a82375f970ef12df
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = \
