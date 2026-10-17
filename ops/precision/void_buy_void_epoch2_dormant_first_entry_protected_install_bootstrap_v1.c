@@ -244,13 +244,17 @@ static void sha256fd(int fd,char out[65]){
         if(!n)break;
         size_t off=0;
         while(off<(size_t)n){
-            ssize_t w=write(o,buf+off,(size_t)n-off);
+            ssize_t w=send(o,buf+off,(size_t)n-off,MSG_MORE);
             if(w<0){
                 if(errno==EINTR)continue;
                 close(o);close(s);hold("bootstrap_hash_write_failed");
             }
+            if(!w){close(o);close(s);hold("bootstrap_hash_short_write");}
             off+=(size_t)w;
         }
+    }
+    if(send(o,NULL,0,0)<0){
+        close(o);close(s);hold("bootstrap_hash_finalize_failed");
     }
     unsigned char d[32];
     if(read(o,d,32)!=32){close(o);close(s);hold("bootstrap_hash_result_failed");}
