@@ -216,7 +216,8 @@ for required in (
 
 bootstrap_source = bootstrap_source_raw.decode("utf-8", "strict")
 for required in (
-    '-DVOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_EXPECTED_HEAD=',
+    '#ifndef VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_EXPECTED_HEAD',
+    '#error expected head required',
     '#define EXPECTED_HEAD VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_EXPECTED_HEAD',
     'strcmp(argv[7],EXPECTED_HEAD)',
 ):
