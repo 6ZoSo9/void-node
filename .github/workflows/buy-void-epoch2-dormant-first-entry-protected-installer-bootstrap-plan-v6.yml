@@ -71,12 +71,13 @@ jobs:
           case "$EVENT_NAME" in
             pull_request)
               test -n "$PR_BASE"
-              base="$(git merge-base "$PR_BASE" "$EXPECTED_HEAD")"
-              test "$base" = "$source_base"
+              git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
+              base="$PR_BASE"
               ;;
             push)
               test -n "$PUSH_BEFORE"
               test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              git merge-base --is-ancestor "$PUSH_BEFORE" "$EXPECTED_HEAD"
               base="$PUSH_BEFORE"
               ;;
             workflow_dispatch)
@@ -88,23 +89,33 @@ jobs:
               ;;
           esac
 
-          expected="$RUNNER_TEMP/expected-scope.txt"
-          actual="$RUNNER_TEMP/actual-scope.txt"
-          printf '%s\n' \
-            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.yml' \
-            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md' \
-            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
-            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
-            | sort > "$expected"
-          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
-          diff -u "$expected" "$actual"
+          # PRs may repair a subset of the four reviewed planner-owned paths
+          # after the original ADD-only merge. Push/dispatch can contain
+          # unrelated main changes, but all reviewed blob pins still bind.
+          if test "$EVENT_NAME" = pull_request; then
+            allowed="$RUNNER_TEMP/allowed-planner-paths.txt"
+            actual="$RUNNER_TEMP/actual-planner-paths.txt"
+            printf '%s\n' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.yml' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md' \
+              'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
+              | LC_ALL=C sort > "$allowed"
+            git diff --name-only "$base" "$EXPECTED_HEAD" -- | LC_ALL=C sort > "$actual"
+            test -s "$actual"
+            unexpected="$(LC_ALL=C comm -23 "$actual" "$allowed")"
+            if test -n "$unexpected"; then
+              echo "unexpected_planner_source_paths=$unexpected" >&2
+              exit 1
+            fi
+          fi
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
-            a6ee24fe7ad41ad7aa0baffa7d20210e06c8e4f2
+            1ca8fa8b6e4248830979fa69f076775710260d31
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
-            c6aa26e8c233d5eab3dc65bb1572cf4253e2457c
+            fd882824a245913c5ecc81f5876330b84b3ae549
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md)" = \
-            fa01e87c8bde2faf027c2160cfb4e47ee1b08eed
+            976a8295df1904d3ba0ca5eab288f9afff5068ff
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = \
             f8e25ef310ef4493dd23baee70eef6db84ae68f9
@@ -151,6 +162,8 @@ jobs:
 
           for marker in \
             'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V6_PROOF_GREEN' \
+            'single_main_entrypoint_and_guard=true' \
+            'canonical_missing_arguments_hold=true' \
             'target_blob_bound=true' \
             'merged_v6_qualifier_bound=true' \
             'v6_installer_blob_bound=true' \
