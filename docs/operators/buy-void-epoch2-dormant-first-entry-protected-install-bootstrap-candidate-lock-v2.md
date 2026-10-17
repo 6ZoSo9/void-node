@@ -84,10 +84,16 @@ Repository HEAD is authenticated later at invocation time by V2 plus the sealed
 
 ## Lock identity
 
-`voidbuye2bootstraplock2_8524098b733e02451e307a8814fb593bbce9f6239f1e45ecda1563efb95e3ce7`
+`voidbuye2bootstraplock2_01dc714bb754ede30ce187fdfedfc9b5c585ba5593e8c1ec15c6752ed92c191c`
 
 The suffix is SHA-256 over canonical JSON of the complete lock body excluding
 the `lock_id` field.
+
+The frozen-head V1 lock remains historical evidence only:
+
+`voidbuye2bootstraplock1_4f11418d278908c99cc3b2de622112321600c3f3704f8919e893a2d7011b1b23`.
+
+It has no V2 installation authority.
 
 ## Authority boundary
 
@@ -98,8 +104,9 @@ candidate_accepted=true
 bootstrap_binary_identity_accepted=true
 bootstrap_source_identity_bound=true
 installer_source_identity_bound=true
-runtime_expected_head_not_compile_bound=true
-runtime_expected_head_contract_accepted=true
+runtime_head_contract_accepted=true
+canonical_main_candidate_accepted=true
+superseded_v1_lock_install_authority=false
 protected_bootstrap_install_authorized=false
 protected_installer_apply_authorized=false
 live_execution_authorized=false
@@ -123,6 +130,6 @@ is authorized.
 
 Next gate:
 
-`void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2`.
+`void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v2`.
 
 **PROTECT THE CORE.**
