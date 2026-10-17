@@ -126,7 +126,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v2.py)" = \
             b4cdb0a5d0dbc912d2b8ef73cbaecaa57ffebc14
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.md)" = \
-            6b97a3a10c5df53b7f9547c9912af80603f784a9
+            617ee83a4b0977d4eccd09af685ffebf484a455a
 
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json)" = \
             227c2fa449abf1387925373c706ecd07775d5898
@@ -280,4 +280,3 @@ jobs:
             ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json
           if-no-files-found: error
           retention-days: 7
-
