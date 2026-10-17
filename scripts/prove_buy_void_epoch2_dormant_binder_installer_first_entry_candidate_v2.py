@@ -24,6 +24,14 @@ LAUNCHER_REL = (
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
 )
 LAUNCHER_BLOB = "86dc09e52402c04fb6e4b30a7fcf695833808ca3"
+LAUNCHER_PROOF_REL = (
+    "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
+)
+LAUNCHER_PROOF_BLOB = "a6574e2d52f267d4a595c8cad0004d4797fd6f93"
+LAUNCHER_WORKFLOW_REL = (
+    ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml"
+)
+LAUNCHER_WORKFLOW_BLOB = "4169a50df2b278776e046a8516be92aa3e56cdfc"
 INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
@@ -489,6 +497,12 @@ def candidate_material(report: dict) -> dict:
 def derive() -> tuple[dict, bytes]:
     head, tree = repository_identity()
     launcher_raw = stable_file(LAUNCHER_REL, MAX_SOURCE_BYTES, LAUNCHER_BLOB)
+    launcher_proof_raw = stable_file(
+        LAUNCHER_PROOF_REL, 4 * 1024 * 1024, LAUNCHER_PROOF_BLOB
+    )
+    launcher_workflow_raw = stable_file(
+        LAUNCHER_WORKFLOW_REL, 512 * 1024, LAUNCHER_WORKFLOW_BLOB
+    )
     installer_raw = stable_file(INSTALLER_REL, MAX_INSTALLER_BYTES, INSTALLER_BLOB)
     self_raw = stable_file(SELF_REL, 2 * 1024 * 1024)
     native_raw, native = rederive_accepted_native()
@@ -538,6 +552,14 @@ def derive() -> tuple[dict, bytes]:
             "launcher_source_git_blob_sha1": LAUNCHER_BLOB,
             "launcher_source_bytes": len(launcher_raw),
             "launcher_source_sha256": sha256(launcher_raw),
+            "launcher_proof_path": LAUNCHER_PROOF_REL,
+            "launcher_proof_git_blob_sha1": LAUNCHER_PROOF_BLOB,
+            "launcher_proof_bytes": len(launcher_proof_raw),
+            "launcher_proof_sha256": sha256(launcher_proof_raw),
+            "launcher_workflow_path": LAUNCHER_WORKFLOW_REL,
+            "launcher_workflow_git_blob_sha1": LAUNCHER_WORKFLOW_BLOB,
+            "launcher_workflow_bytes": len(launcher_workflow_raw),
+            "launcher_workflow_sha256": sha256(launcher_workflow_raw),
             "installer_source_path": INSTALLER_REL,
             "installer_source_git_blob_sha1": INSTALLER_BLOB,
             "installer_source_bytes": len(installer_raw),
@@ -719,6 +741,12 @@ def validate(report: dict, binary: bytes) -> None:
         raise AssertionError("candidate_repository_generation_invalid")
 
     launcher_raw = stable_file(LAUNCHER_REL, MAX_SOURCE_BYTES, LAUNCHER_BLOB)
+    launcher_proof_raw = stable_file(
+        LAUNCHER_PROOF_REL, 4 * 1024 * 1024, LAUNCHER_PROOF_BLOB
+    )
+    launcher_workflow_raw = stable_file(
+        LAUNCHER_WORKFLOW_REL, 512 * 1024, LAUNCHER_WORKFLOW_BLOB
+    )
     installer_raw = stable_file(INSTALLER_REL, MAX_INSTALLER_BYTES, INSTALLER_BLOB)
     proof_raw = stable_file(SELF_REL, 2 * 1024 * 1024)
     source = _exact_keys(
@@ -733,6 +761,14 @@ def validate(report: dict, binary: bytes) -> None:
             "launcher_source_git_blob_sha1",
             "launcher_source_path",
             "launcher_source_sha256",
+            "launcher_proof_bytes",
+            "launcher_proof_git_blob_sha1",
+            "launcher_proof_path",
+            "launcher_proof_sha256",
+            "launcher_workflow_bytes",
+            "launcher_workflow_git_blob_sha1",
+            "launcher_workflow_path",
+            "launcher_workflow_sha256",
         },
         "candidate_source_generation",
     )
@@ -742,6 +778,14 @@ def validate(report: dict, binary: bytes) -> None:
         or source.get("launcher_source_git_blob_sha1") != LAUNCHER_BLOB
         or source.get("launcher_source_bytes") != len(launcher_raw)
         or source.get("launcher_source_sha256") != sha256(launcher_raw)
+        or source.get("launcher_proof_path") != LAUNCHER_PROOF_REL
+        or source.get("launcher_proof_git_blob_sha1") != LAUNCHER_PROOF_BLOB
+        or source.get("launcher_proof_bytes") != len(launcher_proof_raw)
+        or source.get("launcher_proof_sha256") != sha256(launcher_proof_raw)
+        or source.get("launcher_workflow_path") != LAUNCHER_WORKFLOW_REL
+        or source.get("launcher_workflow_git_blob_sha1") != LAUNCHER_WORKFLOW_BLOB
+        or source.get("launcher_workflow_bytes") != len(launcher_workflow_raw)
+        or source.get("launcher_workflow_sha256") != sha256(launcher_workflow_raw)
         or source.get("installer_source_path") != INSTALLER_REL
         or source.get("installer_source_git_blob_sha1") != INSTALLER_BLOB
         or source.get("installer_source_bytes") != len(installer_raw)
@@ -1022,6 +1066,8 @@ def compare_dir(root: Path) -> None:
 
 def self_test() -> None:
     launcher = stable_file(LAUNCHER_REL, MAX_SOURCE_BYTES, LAUNCHER_BLOB)
+    stable_file(LAUNCHER_PROOF_REL, 4 * 1024 * 1024, LAUNCHER_PROOF_BLOB)
+    stable_file(LAUNCHER_WORKFLOW_REL, 512 * 1024, LAUNCHER_WORKFLOW_BLOB)
     installer = stable_file(INSTALLER_REL, MAX_INSTALLER_BYTES, INSTALLER_BLOB)
     lock = accepted_lock()
     deriver, helper = load_native_deriver()
@@ -1067,6 +1113,8 @@ def self_test() -> None:
     print("accepted_native_deriver_verified_bytes=true")
     print("accepted_native_independent_rederivation_required=true")
     print("launcher_source_exact_head_bound=true")
+    print("launcher_source_proof_generation_bound=true")
+    print("launcher_source_workflow_generation_bound=true")
     print("installer_source_exact_head_bound=true")
     print("sealed_launcher_source_required=true")
     print("root_protected_compiler_and_strip_required=true")
