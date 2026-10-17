@@ -132,12 +132,17 @@ The create-only publication protocol is:
 9. fsync `/opt`;
 10. verify the final installed tree and source/tool generations.
 
-If a prepublication failure occurs, cleanup is limited to a stage that this
-invocation actually created. Unknown extra stage entries cause cleanup to fail
-closed instead of deleting them.
+If a prepublication failure occurs, cleanup is limited to the exact stage
+directory generation created by this invocation. The installer records the
+created stage device/inode and refuses cleanup if the visible stage root no
+longer names that generation. Unknown extra stage entries likewise fail closed
+instead of being deleted.
 
 After publication there is **no rollback**. Any postpublication verification
-failure emits a truthful `published_needs_inspection` receipt.
+failure emits a truthful `published_needs_inspection` receipt. Failure while
+closing the retained `/opt` parent descriptor after successful publication is
+also publication-aware and reports `failure_phase=install_parent_close`
+instead of escaping as a raw exception or regressing to `publication=false`.
 
 ## Deliberate non-execution
 
