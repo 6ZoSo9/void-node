@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_protected_install_"
     "bootstrap_installed_qualification_v2r.py"
 )
-TARGET_BLOB = "2aca2b16adb8c9e1d4a7a584b5f73637f96f09f1"
+TARGET_BLOB = "c6b1236de5eac88dd29ea84ef8b66ccd6e71a043"
 
 INSTALL_REL = (
     "ops/precision/"
