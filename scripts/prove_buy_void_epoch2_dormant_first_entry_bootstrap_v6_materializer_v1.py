@@ -15,13 +15,13 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 MAT_REL="scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py"
 MAT=ROOT/MAT_REL
-MAT_BLOB="376c7e491544dc2a4b31e8122e43feea287dcb8d"
+MAT_BLOB="c5d083cbf276f59f888aeb79b874bac4480f1506"
 LOCK_REL="ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
-LOCK_BLOB="f5b03c6b81016edf21f605099e0ef8976f40e107"
+LOCK_BLOB="f2ce1364dd776bfbf1aa1ef59ce999cb46037b73"
 CANDIDATE_REL="scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py"
-CANDIDATE_BLOB="b963ac9ef0b9c8ac685763b3a82375f970ef12df"
+CANDIDATE_BLOB="e4e8ca7f5ca3fbc935821ce6d607751fcd653658"
 MANIFEST_REL="ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
-MANIFEST_BLOB="6e0630af72111bd9976dcc38cdcdada1904dd067"
+MANIFEST_BLOB="de56bacb30bea0adc418e240cf3fb8d900b061ef"
 
 def git_blob(raw:bytes)->str:
     return hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
@@ -169,10 +169,10 @@ with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-v6-materializer-proof
     assert binary1==binary2
     assert manifest1==manifest2
     assert len(binary1)==874608
-    assert hashlib.sha256(binary1).hexdigest()=="c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
-    assert git_blob(binary1)=="a91707c3e5803071fc73c3451c9bcb3b774f8b48"
+    assert hashlib.sha256(binary1).hexdigest()=="618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
+    assert git_blob(binary1)=="b577d70666f98ac59a75b84b3dab741fe7b93a4b"
     assert len(manifest1)==2382
-    assert hashlib.sha256(manifest1).hexdigest()=="aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662"
+    assert hashlib.sha256(manifest1).hexdigest()=="8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9"
     module.write_dir(one,binary1,manifest1)
     module.write_dir(two,binary2,manifest2)
     for name in (module.BOOTSTRAP_NAME,module.MANIFEST_NAME,module.SUMS_NAME):
