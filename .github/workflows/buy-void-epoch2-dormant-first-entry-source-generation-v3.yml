@@ -184,7 +184,7 @@ jobs:
           test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_generation.py | cut -d" " -f1)" = 100644
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_terminal.py)" = 6411aa291657a23425f77e7a8f6f81b7e6b3b8f2
           test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_terminal.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py)" = 093717f8a7d276c0e4b58698caa94fa07daeecd5
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py)" = 69470265675e353882a5996621abfcf49f38684b
           test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py | cut -d" " -f1)" = 100644
           test "$(git ls-tree HEAD -- .github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v3.yml | cut -d" " -f1)" = 100644
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
