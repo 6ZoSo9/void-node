@@ -11,7 +11,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 MAT_REL="scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py"
 MAT=ROOT/MAT_REL
-MAT_BLOB="f8694a622621f36e8da60464741d66a2f27da37c"
+MAT_BLOB="3a937c756a91ad2565897f1ae5d881f9fa2f41c6"
 LOCK_REL="ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
 LOCK_BLOB="f5b03c6b81016edf21f605099e0ef8976f40e107"
 CANDIDATE_REL="scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py"
@@ -68,6 +68,7 @@ for line in (
   "accepted_bootstrap_v6_lock_bound=true",
   "candidate_tool_verified_before_execution=true",
   "source_generation_manifest_bound=true",
+  "inner_installer_generation_bound=true",
   "candidate_binary_identity_accepted=true",
   "descriptor_independent_candidate_bound=true",
   "accepted_binary_git_blob_bound=true",
@@ -83,6 +84,7 @@ print("materializer_blob_bound=true")
 print("accepted_bootstrap_v6_lock_bound=true")
 print("candidate_tool_blob_bound=true")
 print("source_generation_manifest_bound=true")
+print("inner_installer_generation_bound=true")
 print("two_materializations_byte_identical=true")
 print("descriptor_independent_candidate_bound=true")
 print("accepted_binary_git_blob_sha1=a91707c3e5803071fc73c3451c9bcb3b774f8b48")
