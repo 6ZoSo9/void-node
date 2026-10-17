@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK_REL = "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
@@ -26,6 +28,28 @@ CANDIDATE_TREE = "3d77c814e8dbde6d88e824f1b90667d69a39eeaf"
 SUPERSEDED_V5_LOCK = "voidbuye2dormantbootstraplock2_f2e419eb1643989a4b881b2d817ff097eff9d68d6d763a933d624301a93930e3"
 SUPERSEDED_V4_LOCK = "voidbuye2dormantbootstraplock1_ffd5e877b4bf594b7af4eac3f03fd7b846686949febcae54318ef08ee5793796"
 
+EXPECTED_REPORT_BYTES = 2745
+EXPECTED_REPORT_SHA256 = "f081e70836f9e6862c6ee207ff2ef1cbad6d36e043b70286443fc9101705912d"
+EXPECTED_REPORT_GIT_BLOB = "1929d4ea5ba5b91f8330c9c8a86c368795245b3a"
+EXPECTED_CANDIDATE_ID = "voidbuye2dormantbootstrapcand3_13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062"
+EXPECTED_BINARY_BYTES = 874608
+EXPECTED_BINARY_SHA256 = "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
+EXPECTED_BINARY_GIT_BLOB = "a91707c3e5803071fc73c3451c9bcb3b774f8b48"
+
+ENV = {
+    "PATH": "/usr/bin:/bin",
+    "HOME": "/tmp",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_NO_REPLACE_OBJECTS": "1",
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+}
+
 def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
 
@@ -44,18 +68,7 @@ def git(*args: str) -> str:
         text=True,
         check=False,
         timeout=20,
-        env={
-            "PATH": "/usr/bin:/bin",
-            "HOME": "/tmp",
-            "LANG": "C",
-            "LC_ALL": "C",
-            "GIT_CONFIG_NOSYSTEM": "1",
-            "GIT_CONFIG_GLOBAL": "/dev/null",
-            "GIT_CONFIG_SYSTEM": "/dev/null",
-            "GIT_NO_REPLACE_OBJECTS": "1",
-            "GIT_OPTIONAL_LOCKS": "0",
-            "GIT_TERMINAL_PROMPT": "0",
-        },
+        env=ENV,
     )
     if cp.returncode != 0 or cp.stderr:
         raise AssertionError("git_failed:" + ":".join(args))
@@ -175,6 +188,109 @@ for key in (
 
 assert lock["next_gate"] == "void_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1"
 
+
+def direct_file(path: Path, maximum: int) -> bytes:
+    st = path.lstat()
+    if not path.is_file():
+        raise AssertionError("candidate_output_not_regular:" + path.name)
+    raw = path.read_bytes()
+    if len(raw) < 1 or len(raw) > maximum or len(raw) != st.st_size:
+        raise AssertionError("candidate_output_size_invalid:" + path.name)
+    return raw
+
+
+def rederive_candidate_at_merge() -> None:
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-v6-lock-") as td:
+        temp = Path(td)
+        worktree = temp / "candidate-worktree"
+        output = temp / "candidate-output"
+        added = False
+        try:
+            add = subprocess.run(
+                [
+                    "/usr/bin/git", "-C", str(ROOT), "worktree", "add",
+                    "--detach", str(worktree), CANDIDATE_HEAD,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=ENV,
+                check=False,
+                timeout=60,
+            )
+            if add.returncode != 0:
+                raise AssertionError(
+                    "candidate_worktree_add_failed:"
+                    + add.stderr.decode("utf-8", "replace")[-2000:]
+                )
+            added = True
+            candidate = worktree / CANDIDATE_REL
+            derive = subprocess.run(
+                [
+                    "/usr/bin/python3", "-I", "-B", str(candidate),
+                    "--derive-dir", str(output),
+                ],
+                cwd=worktree,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=ENV,
+                check=False,
+                timeout=180,
+            )
+            if derive.returncode != 0:
+                raise AssertionError(
+                    "canonical_candidate_rederive_failed:"
+                    + derive.stderr.decode("utf-8", "replace")[-3000:]
+                )
+
+            report_raw = direct_file(output / "candidate-v1.json", 128 * 1024)
+            binary_raw = direct_file(output / "bootstrap-v6", 2 * 1024 * 1024)
+            if (
+                len(report_raw) != EXPECTED_REPORT_BYTES
+                or sha256(report_raw) != EXPECTED_REPORT_SHA256
+                or git_blob(report_raw) != EXPECTED_REPORT_GIT_BLOB
+            ):
+                raise AssertionError("canonical_candidate_report_identity_mismatch")
+            if (
+                len(binary_raw) != EXPECTED_BINARY_BYTES
+                or sha256(binary_raw) != EXPECTED_BINARY_SHA256
+                or git_blob(binary_raw) != EXPECTED_BINARY_GIT_BLOB
+            ):
+                raise AssertionError("canonical_candidate_binary_identity_mismatch")
+
+            report_value = json.loads(report_raw)
+            if report_value.get("candidate_id") != EXPECTED_CANDIDATE_ID:
+                raise AssertionError("canonical_candidate_id_mismatch")
+            build_input = report_value.get("build_input")
+            binary = report_value.get("binary")
+            if (
+                not isinstance(build_input, dict)
+                or build_input.get("compiler_logical_source_name") != "stdin"
+                or build_input.get("distinct_source_fd_numbers_exercised") is not True
+                or build_input.get("descriptor_number_not_candidate_identity") is not True
+                or not isinstance(binary, dict)
+                or binary.get("distinct_source_fd_builds_byte_identical") is not True
+            ):
+                raise AssertionError("descriptor_independent_candidate_contract_missing")
+        finally:
+            if added:
+                subprocess.run(
+                    [
+                        "/usr/bin/git", "-C", str(ROOT), "worktree", "remove",
+                        "--force", str(worktree),
+                    ],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    env=ENV,
+                    check=False,
+                    timeout=60,
+                )
+
+
+rederive_candidate_at_merge()
+
 cp=subprocess.run(
     ["/usr/bin/python3","-I","-B",str(CANDIDATE),"--self-test"],
     cwd=ROOT, stdin=subprocess.DEVNULL,
@@ -200,6 +316,8 @@ for line in (
 print(MARKER + "_PROOF_GREEN")
 print("lock_id=" + LOCK_ID)
 print("canonical_main_push_candidate_bound=true")
+print("canonical_candidate_merge_rederived=true")
+print("descriptor_independent_candidate_rederived=true")
 print("hosted_three_way_candidate_identity_bound=true")
 print("independent_rederivation_bound=true")
 print("candidate_report_content_address_bound=true")
