@@ -2,12 +2,17 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
+import re
+import shlex
 import stat
 import subprocess
+import tempfile
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +23,8 @@ TARGET_REL = (
     "protected_installer_bootstrap_plan_v6.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "58ab3eaf57a03c8a5dc8140902b51b1c447fad4f"
+TARGET_BLOB = "149d4da63a4cd5dc6437e32a25db6d81093d401f"
+PREDECESSOR_BLOB = "a6ee24fe7ad41ad7aa0baffa7d20210e06c8e4f2"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -139,6 +145,268 @@ def pin(relative: str, expected: str) -> bytes:
     return raw
 
 
+def fixture_git(root: Path, *args: str, data: bytes | None = None) -> bytes:
+    """Only local plumbing/setup for the proof's disposable repository."""
+    env = {
+        "PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LANG": "C", "LC_ALL": "C",
+        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0",
+        "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": "",
+        "GIT_AUTHOR_NAME": "Inert proof fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "Inert proof fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+    kwargs = {"input": data} if data is not None else {"stdin": subprocess.DEVNULL}
+    cp = subprocess.run(
+        ["/usr/bin/git", "--no-pager", "-C", str(root),
+         "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
+         "-c", "core.untrackedCache=false", "-c", "gc.auto=0", *args],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, timeout=15,
+        check=False, **kwargs,
+    )
+    assert cp.returncode == 0 and not cp.stderr, (args, cp.returncode, cp.stderr[:1000])
+    assert len(cp.stdout) <= 2 * 1024 * 1024
+    return cp.stdout
+
+
+def historical_observer(raw: bytes, root: Path):
+    """Authenticate/extract only the predecessor's actual Git observation code."""
+    assert git_blob(raw) == PREDECESSOR_BLOB
+    selected = []
+    for node in ast.parse(raw).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id in {"GIT_ENV", "HEX40"}
+            for target in node.targets
+        ):
+            selected.append(node)
+        elif isinstance(node, ast.ClassDef) and node.name == "PlanError":
+            selected.append(node)
+        elif isinstance(node, ast.FunctionDef) and node.name in {"git", "checkout_snapshot"}:
+            selected.append(node)
+    assert len(selected) == 5
+    observer = types.ModuleType("authenticated_predecessor_git_observer")
+    observer.__dict__.update({"ROOT": root, "Path": Path, "re": re, "subprocess": subprocess})
+    exec(compile(ast.Module(body=selected, type_ignores=[]), PREDECESSOR_BLOB, "exec"), observer.__dict__)
+    return observer
+
+
+def prove_raw_checkout(module, predecessor_raw: bytes) -> list[str]:
+    """Real private Git; callbacks write inert markers, never accepted executables."""
+    cases: list[str] = []
+    original_root = module.ROOT
+    with tempfile.TemporaryDirectory(prefix="void-e2-v6-plan-git-") as temporary:
+        private = Path(temporary)
+        repo = private / "repo"
+        repo.mkdir()
+        template = private / "empty-template"
+        template.mkdir()
+        fixture_git(repo, "init", "-q", "--initial-branch=main", "--template=" + str(template))
+        (repo / ".git/info").mkdir(exist_ok=True)
+        accepted = b"ACCEPTED\n"
+        altered = b"ALTERED_PRIVATE_INERT_CONTENT\n"
+        files = {
+            ".gitignore": b"ignored-output\n",
+            "payload.txt": accepted,
+            "executable.sh": b"#!/bin/sh\nexit 0\n",
+            "included/data.txt": b"included\n",
+            "excluded/data.txt": b"excluded\n",
+        }
+        for name, content in files.items():
+            path = repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+        (repo / "executable.sh").chmod(0o755)
+        (repo / "link").symlink_to("payload.txt")
+        fixture_git(repo, "add", "--", *files, "link")
+        fixture_git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "inert fixture")
+        head = fixture_git(repo, "rev-parse", "HEAD").decode().strip()
+        tree_id = fixture_git(repo, "rev-parse", "HEAD^{tree}").decode().strip()
+        expected = {"head": head, "tree": tree_id, "branch": "main"}
+        baseline_index = (repo / ".git/index").read_bytes()
+        base_config = (
+            "[core]\nrepositoryFormatVersion = 0\nbare = false\nfileMode = true\n"
+            "logAllRefUpdates = false\nfsmonitor = false\nhooksPath = /dev/null\n"
+        )
+        config = repo / ".git/config"
+        attributes = repo / ".git/info/attributes"
+        marker = private / "callback-marker"
+        old = historical_observer(predecessor_raw, repo)
+        module.ROOT = repo
+
+        def marks() -> list[str]:
+            return marker.read_text().splitlines() if marker.exists() else []
+
+        def reset() -> None:
+            config.write_text(base_config)
+            (repo / ".git/index").write_bytes(baseline_index)
+            for path in (attributes, repo / ".git/info/sparse-checkout", repo / "untracked", repo / "ignored-output"):
+                path.unlink(missing_ok=True)
+            for name, content in files.items():
+                path = repo / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+                path.chmod(0o755 if name == "executable.sh" else 0o644)
+            (repo / "link").unlink(missing_ok=True)
+            (repo / "link").symlink_to("payload.txt")
+
+        def check(name: str, *, accept: bool) -> None:
+            before_marks = marks()
+            before_index = (repo / ".git/index").read_bytes()
+            try:
+                actual = module.checkout_snapshot(head)
+            except module.PlanError:
+                assert not accept, name
+            else:
+                assert accept, (name, actual)
+                assert set(actual) == {"head", "tree", "branch", "generation_sha256"}, (name, actual)
+                assert {key: actual[key] for key in expected} == expected, (name, actual)
+                assert re.fullmatch(r"[0-9a-f]{64}", actual["generation_sha256"]), name
+            assert marks() == before_marks, (name, "callback executed")
+            assert (repo / ".git/index").read_bytes() == before_index, (name, "index mutated")
+            cases.append(name)
+
+        def historical_control(kind: str) -> None:
+            before = marks()
+            try:
+                observed = old.checkout_snapshot(head)
+            except old.PlanError as exc:
+                raise AssertionError((kind, str(exc), old.git(
+                    "status", "--porcelain=v1", "--untracked-files=all",
+                ))) from exc
+            assert observed == expected
+            delta = marks()[len(before):]
+            assert delta and set(delta) == {kind}, (kind, delta)
+
+        try:
+            reset()
+            check("normal_raw_clean_executable_and_symlink", accept=True)
+            fsmonitor = private / "inert-fsmonitor.sh"
+            fsmonitor.write_text(
+                "#!/bin/sh\nprintf 'fsmonitor\\n' >> " + shlex.quote(str(marker))
+                + "\nprintf 'fixture-token\\000'\n"
+            )
+            fsmonitor.chmod(0o755)
+            fixture_git(repo, "config", "core.fsmonitor", shlex.quote(str(fsmonitor)))
+            historical_control("fsmonitor")
+            check("configured_fsmonitor_not_executed", accept=True)
+
+            reset()
+            (repo / "payload.txt").write_bytes(altered)
+            check("changed_raw_bytes", accept=False)
+            clean = private / "inert-clean.py"
+            clean.write_text(
+                "import sys\nfrom pathlib import Path\nsys.stdin.buffer.read()\n"
+                "with Path(" + repr(str(marker)) + ").open('a') as marker: marker.write('clean\\n')\n"
+                "sys.stdout.buffer.write(" + repr(accepted) + ")\n"
+            )
+            attributes.write_text("payload.txt filter=proofmask\n")
+            fixture_git(repo, "config", "filter.proofmask.required", "true")
+            fixture_git(repo, "config", "filter.proofmask.clean", shlex.join([
+                "/usr/bin/python3", "-I", "-S", "-B", str(clean),
+            ]))
+            # Clear the payload's cached stat data so Git must compare converted
+            # content; otherwise its size shortcut can skip the historical bug.
+            fixture_git(repo, "update-index", "--cacheinfo", "100644," + git_blob(accepted) + ",payload.txt")
+            historical_control("clean")
+            check("clean_filter_false_clean_rejected", accept=False)
+
+            process = private / "inert-process.py"
+            process.write_text(
+                "import sys\nfrom pathlib import Path\nsource=sys.stdin.buffer\nout=sys.stdout.buffer\n"
+                "def group():\n"
+                " result=[]\n"
+                " for _ in range(32):\n"
+                "  header=source.read(4)\n"
+                "  if not header: return None\n"
+                "  assert len(header)==4\n"
+                "  n=int(header,16)\n"
+                "  if n==0: return result\n"
+                "  assert 4<=n<=65520\n"
+                "  item=source.read(n-4);assert len(item)==n-4\n"
+                "  result.append(item)\n"
+                " raise AssertionError('too many packets')\n"
+                "def send(items):\n"
+                " for item in items: out.write(format(len(item)+4,'04x').encode()+item)\n"
+                " out.write(b'0000');out.flush()\n"
+                "assert group()==[b'git-filter-client\\n',b'version=2\\n']\n"
+                "send([b'git-filter-server\\n',b'version=2\\n'])\n"
+                "assert b'capability=clean\\n' in group()\n"
+                "send([b'capability=clean\\n'])\n"
+                "for _ in range(8):\n"
+                " headers=group()\n"
+                " if headers is None: break\n"
+                " assert b'command=clean\\n' in headers and group() is not None\n"
+                " with Path(" + repr(str(marker)) + ").open('a') as marker: marker.write('process\\n')\n"
+                " send([b'status=success\\n']);send([" + repr(accepted) + "]);send([])\n"
+            )
+            fixture_git(repo, "config", "filter.proofmask.process", shlex.join([
+                "/usr/bin/python3", "-I", "-S", "-B", str(process),
+            ]))
+            fixture_git(repo, "update-index", "--cacheinfo", "100644," + git_blob(accepted) + ",payload.txt")
+            historical_control("process")
+            check("process_filter_false_clean_rejected", accept=False)
+
+            reset()
+            changed_oid = fixture_git(repo, "hash-object", "-w", "--stdin", data=altered).decode().strip()
+            fixture_git(repo, "update-index", "--cacheinfo", "100644," + changed_oid + ",payload.txt")
+            check("staged_index_delta", accept=False)
+            for flag, name in (("--assume-unchanged", "assume_unchanged"), ("--skip-worktree", "skip_worktree")):
+                reset()
+                fixture_git(repo, "update-index", flag, "--", "payload.txt")
+                check(name, accept=False)
+            reset()
+            accepted_oid = git_blob(accepted)
+            unmerged = (
+                "0 " + "0" * 40 + "\tpayload.txt\n"
+                + "100644 " + accepted_oid + " 1\tpayload.txt\n"
+                + "100644 " + changed_oid + " 2\tpayload.txt\n"
+            ).encode()
+            fixture_git(repo, "update-index", "--index-info", data=unmerged)
+            check("unmerged_index", accept=False)
+            reset()
+            fixture_git(repo, "sparse-checkout", "set", "--cone", "--sparse-index", "included")
+            sparse = fixture_git(repo, "ls-files", "--stage", "--sparse", "-z")
+            assert any(row.startswith(b"040000 ") for row in sparse.split(b"\0")), sparse
+            check("sparse_directory_index", accept=False)
+            reset()
+            config.write_text(base_config + "fileMode = false\n")
+            (repo / "executable.sh").chmod(0o644)
+            check("executable_mode_change_despite_config", accept=False)
+            reset()
+            (repo / "link").unlink()
+            (repo / "link").symlink_to("executable.sh")
+            check("symlink_text_change", accept=False)
+            reset()
+            (repo / "untracked").write_bytes(b"inert\n")
+            check("ordinary_untracked_file", accept=False)
+            reset()
+            (repo / "ignored-output").write_bytes(b"inert\n")
+            check("standard_ignored_untracked_file", accept=True)
+        finally:
+            module.ROOT = original_root
+    assert not private.exists()
+    assert len(cases) == 14, cases
+    return cases
+
+
+def emitted_plan(module, result: dict[str, object]) -> dict[str, str]:
+    """Round-trip the actual emitted preimage, not a separately built projection."""
+    stream = io.StringIO()
+    with contextlib.redirect_stdout(stream):
+        module.emit_plan(result)
+    rows = [line.split("=", 1) for line in stream.getvalue().splitlines() if "=" in line]
+    fields = dict(rows)
+    assert len(fields) == len(rows), "duplicate emitted keys"
+    body = json.loads(fields["plan_body_json"])
+    assert body == result["body"]
+    assert fields["plan_body_json"] == module.canonical(body).decode("ascii")
+    assert fields["plan_id"] == module.PLAN_PREFIX + module.sha256(module.canonical(body))
+    assert fields["plan_id"] == result["plan_id"]
+    assert json.loads(fields["bootstrap_argv_json"]) == body["bootstrap_argv"]
+    assert json.loads(fields["qualification_contract_json"]) == body["qualification_contract"]
+    return fields
+
+
 target_raw = pin(TARGET_REL, TARGET_BLOB)
 for relative, expected in (
     (QUALIFIER_REL, QUALIFIER_BLOB),
@@ -174,6 +442,7 @@ for required in (
     '"filesystem_write": False',
     "qualification_contract_json=",
     "bootstrap_argv_json=",
+    "plan_body_json=",
 ):
     assert required in source, required
 
@@ -181,7 +450,6 @@ for forbidden in (
     "qualifier.collect(",
     "--installer-apply",
     "sudo",
-    "subprocess.Popen",
     "os.system(",
     "os.execv",
     "os.execve",
@@ -219,10 +487,14 @@ assert tree.body[-1] is main_guards[0], "entry_guard_not_terminal"
 functions = {node.name: node for node in function_nodes}
 for name in (
     "git",
+    "git_bytes",
     "repository_blob",
     "stable_artifact",
     "_safe_tool",
     "checkout_snapshot",
+    "_parse_tree",
+    "_parse_index",
+    "plan_id_for_body",
     "load_qualifier",
     "source_dependencies",
     "collect_plan",
@@ -232,7 +504,7 @@ for name in (
 ):
     assert name in functions, name
 
-run_calls: list[str] = []
+process_calls: list[tuple[str, str]] = []
 for name, fn in functions.items():
     for node in ast.walk(fn):
         if (
@@ -240,10 +512,10 @@ for name, fn in functions.items():
             and isinstance(node.func, ast.Attribute)
             and isinstance(node.func.value, ast.Name)
             and node.func.value.id == "subprocess"
-            and node.func.attr == "run"
+            and node.func.attr in {"run", "Popen", "call", "check_call", "check_output"}
         ):
-            run_calls.append(name)
-assert run_calls == ["git"], run_calls
+            process_calls.append((name, node.func.attr))
+assert process_calls == [("git_bytes", "Popen")], process_calls
 
 module = types.ModuleType("void_e2_bootstrap_plan_v6_verified")
 module.__file__ = str(TARGET)
@@ -252,6 +524,12 @@ exec(
     compile(target_raw, TARGET_REL, "exec", dont_inherit=True, optimize=0),
     module.__dict__,
 )
+
+# These tests call only actual observers in a private repository. The current
+# process UID is immaterial here; the existing controlled collect_plan mocks
+# below independently retain the nonroot admission regression.
+predecessor_raw = fixture_git(ROOT, "cat-file", "blob", PREDECESSOR_BLOB)
+raw_checkout_cases = prove_raw_checkout(module, predecessor_raw)
 
 # Source-only surfaces execute with no host qualification or bootstrap action.
 for mode, expected_lines in (
@@ -399,12 +677,15 @@ try:
         "head": head,
         "tree": "b" * 40,
         "branch": "main",
+        "generation_sha256": "c" * 64,
     }
     module.source_dependencies = lambda: {
         "launcher_lock": {"lock_id": EXPECTED_LAUNCHER_LOCK_ID},
         "native_lock": {"lock_id": "native"},
     }
     module.load_qualifier = lambda: fake_qualifier
+
+    artifact_inode = 2
 
     def fake_artifact(
         path: Path,
@@ -423,7 +704,7 @@ try:
             "uid": 1000,
             "gid": 1000,
             "dev": 1,
-            "ino": 2 if label == "accepted_launcher" else 3,
+            "ino": artifact_inode if label == "accepted_launcher" else 3,
         }
 
     module.stable_artifact = fake_artifact
@@ -482,6 +763,18 @@ try:
         EXPECTED_HEAD,
     ]
 
+    emitted = emitted_plan(module, result)
+    artifact_inode = 4
+    changed_inode = module.collect_plan(launcher, native, EXPECTED_HEAD)
+    changed_emission = emitted_plan(module, changed_inode)
+    assert changed_inode["plan_id"] != result["plan_id"]
+    assert changed_emission["plan_body_json"] != emitted["plan_body_json"]
+    assert json.loads(changed_emission["plan_body_json"])["accepted_launcher"]["ino"] == 4
+    assert json.loads(emitted["plan_body_json"])["accepted_launcher"]["ino"] == 2
+    assert changed_emission["bootstrap_argv_json"] == emitted["bootstrap_argv_json"]
+    assert changed_emission["qualification_contract_json"] == emitted["qualification_contract_json"]
+    artifact_inode = 2
+
     changed_path = module.collect_plan(
         Path("/tmp/accepted-launcher-2"),
         native,
@@ -519,6 +812,16 @@ print("qualification_descriptor_bound_source_execution_required=true")
 print("installed_qualification_performed=false")
 print("operation_bound_plan_id=true")
 print("plan_id_artifact_path_sensitive=true")
+print("plan_body_emitted_complete=true")
+print("emitted_plan_id_recomputed=true")
+print("emitted_plan_artifact_inode_sensitive=true")
+print("raw_checkout_fixture_cases=" + str(len(raw_checkout_cases)))
+print("historical_git_callback_controls=3")
+print("repaired_observer_git_callbacks_not_executed=true")
+print("raw_checkout_index_and_worktree_rejections_verified=true")
+print("git_fixture_disposable_repository=true")
+print("git_fixture_temporary_filesystem_write=true")
+print("git_fixture_host_plan_performed=false")
 print("structured_bootstrap_argv_only=true")
 print("bootstrap_execution_absent=true")
 print("protected_installer_apply_absent=true")
