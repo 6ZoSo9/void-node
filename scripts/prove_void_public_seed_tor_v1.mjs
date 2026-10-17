@@ -41,7 +41,12 @@ assert.equal(
   NIMO_P2P_URL.hostname,
   "6a4r6osb37sp2t6nbx7dpdnq5wfdzdrn5axt7t33kduzuznarqqpnkid.onion",
 );
-const CANONICAL_NIMO_P2P = canonicalNimoP2PIntroductionV1(ROOT);
+const CURRENT_HEAD = childProcess.spawnSync(
+  "/usr/bin/git",
+  ["-C", ROOT, "rev-parse", "HEAD"],
+  { encoding: "utf8" },
+).stdout.trim();
+const CANONICAL_NIMO_P2P = canonicalNimoP2PIntroductionV1(ROOT, CURRENT_HEAD);
 assert.equal(CANONICAL_NIMO_P2P.onionHostname, NIMO_P2P_URL.hostname);
 assert.equal(CANONICAL_NIMO_P2P.virtualPort, 4700);
 assert.equal(
@@ -59,6 +64,32 @@ assert.throws(
   () => validateP2POnionIdentityV1(onionV3(), CANONICAL_NIMO_P2P.onionHostname),
   /does not match canonical Nimo introduction/,
 );
+
+function gitFixtureV1(root, args, { env = {} } = {}) {
+  const result = childProcess.spawnSync(
+    "/usr/bin/git",
+    ["-C", root, ...args],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        PATH: "/usr/bin:/bin",
+        HOME: "/nonexistent",
+        LANG: "C",
+        LC_ALL: "C",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_SYSTEM: "/dev/null",
+        GIT_NO_REPLACE_OBJECTS: "1",
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_TERMINAL_PROMPT: "0",
+        ...env,
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr || "fixture Git failed");
+  return result.stdout.trim();
+}
 
 function encodeBase32(bytes) {
   let acc = 0; let bits = 0; let output = "";
@@ -308,6 +339,66 @@ try {
   if (outsideRoot) fs.rmSync(outsideRoot, { recursive: true, force: true });
 }
 
+const gitAuthorityRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-tor-p2p-git-authority-"),
+);
+try {
+  const configDir = path.join(gitAuthorityRoot, "config");
+  fs.mkdirSync(configDir);
+  const configPath = path.join(
+    configDir,
+    "void-public-p2p-bootstrap-introductions-v1.json",
+  );
+  const committedOnion = CANONICAL_NIMO_P2P.onionHostname;
+  const substitutedOnion = onionV3();
+  assert.notEqual(substitutedOnion, committedOnion);
+  const fixtureConfig = (onionHostname) => ({
+    schema: "void_public_p2p_bootstrap_introductions_v1",
+    entries: [{
+      id: "nimo-tor-v3-p2p",
+      transport: "tor_sync_seed",
+      endpoint: `tor://${onionHostname}:4700`,
+      expected_node_id: "12babb04b0f88de7b74e17d04b343007",
+    }],
+  });
+  fs.writeFileSync(configPath, JSON.stringify(fixtureConfig(committedOnion)) + "\n");
+  gitFixtureV1(gitAuthorityRoot, ["init", "-q"]);
+  gitFixtureV1(gitAuthorityRoot, ["add", "config/void-public-p2p-bootstrap-introductions-v1.json"]);
+  gitFixtureV1(gitAuthorityRoot, [
+    "-c", "user.name=VOID Proof",
+    "-c", "user.email=void-proof@example.invalid",
+    "-c", "commit.gpgSign=false",
+    "commit", "-q", "-m", "fixture",
+  ]);
+  const fixtureHead = gitFixtureV1(gitAuthorityRoot, ["rev-parse", "HEAD"]);
+  assert.equal(
+    canonicalNimoP2PIntroductionV1(gitAuthorityRoot, fixtureHead).onionHostname,
+    committedOnion,
+  );
+  fs.writeFileSync(configPath, JSON.stringify(fixtureConfig(substitutedOnion)) + "\n");
+  gitFixtureV1(gitAuthorityRoot, [
+    "update-index", "--assume-unchanged",
+    "config/void-public-p2p-bootstrap-introductions-v1.json",
+  ]);
+  assert.equal(
+    gitFixtureV1(gitAuthorityRoot, ["status", "--porcelain=v1", "--untracked-files=all"]),
+    "",
+    "assume-unchanged adversary must appear clean to status",
+  );
+  assert.equal(
+    JSON.parse(fs.readFileSync(configPath, "utf8")).entries[0].endpoint,
+    `tor://${substitutedOnion}:4700`,
+  );
+  assert.equal(
+    canonicalNimoP2PIntroductionV1(gitAuthorityRoot, fixtureHead).onionHostname,
+    committedOnion,
+    "canonical onion authority must come from the exact Git object",
+  );
+  console.log("[PASS] hidden worktree drift cannot substitute canonical P2P onion");
+} finally {
+  fs.rmSync(gitAuthorityRoot, { recursive: true, force: true });
+}
+
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "void-tor-seed-proof-"));
 try {
   const fakeTor = path.join(temporary, "tor");
@@ -516,6 +607,8 @@ console.log("http_seed_mapping_preserved=true");
 console.log("p2p_hidden_service_mapping_opt_in=true");
 console.log("p2p_hidden_service_mapping_exact_4700=true");
 console.log("p2p_introduction_endpoint_bound=true");
+console.log("p2p_introduction_exact_git_object_bound=true");
+console.log("p2p_hidden_worktree_drift_rejected=true");
 console.log("p2p_activation_onion_identity_bound=true");
 console.log("p2p_target_must_preexist_before_activation=true");
 console.log("socks_proxy_loopback_preflight=true");

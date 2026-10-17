@@ -46,17 +46,72 @@ function quoteTorrc(value) {
   return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-export function canonicalNimoP2PIntroductionV1(repoRoot) {
-  const configPath = path.join(
-    repoRoot,
-    "config",
-    "void-public-p2p-bootstrap-introductions-v1.json",
+function hardenedGitV1(repoRoot, args, code, { binary = false } = {}) {
+  const result = childProcess.spawnSync(
+    "/usr/bin/git",
+    [
+      "--no-replace-objects",
+      "-c", "core.hooksPath=/dev/null",
+      "-c", "core.attributesFile=/dev/null",
+      "-c", "core.fsmonitor=false",
+      "-c", "core.untrackedCache=false",
+      "-c", "core.preloadIndex=false",
+      "-c", "submodule.recurse=false",
+      ...args,
+    ],
+    {
+      cwd: repoRoot,
+      encoding: binary ? null : "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 20_000,
+      maxBuffer: 1024 * 1024,
+      env: {
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+        GIT_NO_REPLACE_OBJECTS: "1",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_SYSTEM: "/dev/null",
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_TERMINAL_PROMPT: "0",
+        HOME: "/nonexistent",
+      },
+    },
   );
+  if (result.status !== 0) fail(code);
+  return result.stdout;
+}
+
+export function canonicalNimoP2PIntroductionV1(repoRoot, expectedHead) {
+  if (!/^[0-9a-f]{40}$/.test(String(expectedHead || ""))) {
+    fail("canonical P2P introduction expected head invalid");
+  }
+  const relative = "config/void-public-p2p-bootstrap-introductions-v1.json";
+  const blob = String(
+    hardenedGitV1(
+      repoRoot,
+      ["rev-parse", `${expectedHead}:${relative}`],
+      "canonical P2P introduction Git blob unavailable",
+    ),
+  ).trim();
+  if (!/^[0-9a-f]{40}$/.test(blob)) {
+    fail("canonical P2P introduction Git blob invalid");
+  }
+  const raw = hardenedGitV1(
+    repoRoot,
+    ["cat-file", "blob", blob],
+    "canonical P2P introduction Git blob read failed",
+    { binary: true },
+  );
+  if (!Buffer.isBuffer(raw) || raw.length < 2 || raw.length > 64 * 1024) {
+    fail("canonical P2P introduction Git blob size invalid");
+  }
   let parsed;
   try {
-    parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    parsed = JSON.parse(raw.toString("utf8"));
   } catch (error) {
-    fail(`canonical P2P introduction config unreadable: ${error?.message || error}`);
+    fail(`canonical P2P introduction Git object invalid: ${error?.message || error}`);
   }
   if (
     parsed?.schema !== "void_public_p2p_bootstrap_introductions_v1" ||
@@ -376,7 +431,7 @@ function normalizedOptions(args) {
   const repoRoot = exactRepository(args.repoRoot, args.expectedHead);
   const p2pMapping = normalizeP2PMappingV1(args);
   const p2pIntroduction = p2pMapping
-    ? canonicalNimoP2PIntroductionV1(repoRoot)
+    ? canonicalNimoP2PIntroductionV1(repoRoot, args.expectedHead)
     : null;
   if (p2pMapping) {
     if (p2pIntroduction.virtualPort !== p2pMapping.virtualPort) {
