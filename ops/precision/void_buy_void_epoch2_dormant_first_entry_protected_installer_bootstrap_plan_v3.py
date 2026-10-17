@@ -60,6 +60,15 @@ LAUNCHER_SHA256 = (
 )
 LAUNCHER_GIT_BLOB = "798907b18c73ee2cc1dea0fe05b36f27ab4137a7"
 
+LAUNCHER_LOCK_ID = (
+    "voidbuye2dormantfirstentrylock2_"
+    "89b8e50609c148f844a64b7566f919a32ef9f1a863318f1cc891bd3ee6539543"
+)
+LAUNCHER_CANDIDATE_ID = (
+    "voidbuye2dormantfirstentrycand2_"
+    "b9c71a294db1259f8dc599aec82a246170eea75c941180e39aab23c52885e70b"
+)
+
 NATIVE_LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
@@ -282,11 +291,57 @@ def load_qualifier():
     return module
 
 
-def source_dependencies() -> None:
-    repository_blob(LAUNCHER_LOCK_REL, LAUNCHER_LOCK_BLOB)
+def source_dependencies() -> dict[str, Any]:
+    launcher_lock_raw = repository_blob(LAUNCHER_LOCK_REL, LAUNCHER_LOCK_BLOB)
     repository_blob(LAUNCHER_MATERIALIZER_REL, LAUNCHER_MATERIALIZER_BLOB)
     repository_blob(NATIVE_LOCK_REL, NATIVE_LOCK_BLOB)
     repository_blob(NATIVE_MATERIALIZER_REL, NATIVE_MATERIALIZER_BLOB)
+
+    try:
+        launcher_lock = json.loads(launcher_lock_raw.decode("utf-8", "strict"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PlanError("launcher_lock_json_invalid") from exc
+    if not isinstance(launcher_lock, dict):
+        raise PlanError("launcher_lock_shape_invalid")
+
+    required = {
+        "lock_id": LAUNCHER_LOCK_ID,
+        "candidate_accepted": True,
+        "launcher_binary_identity_accepted": True,
+        "runtime_head_contract_accepted": True,
+        "canonical_main_candidate_authority": True,
+        "superseded_v1_lock_install_authority": False,
+        "protected_install_authorized": False,
+        "precision_install_authorized": False,
+        "native_or_binder_live_execution_authorized": False,
+        "funds_movement_authorized": False,
+        "next_gate":
+            "void_buy_void_epoch2_dormant_binder_"
+            "installer_first_entry_materializer_v2",
+    }
+    for key, expected in required.items():
+        if launcher_lock.get(key) != expected:
+            raise PlanError("launcher_lock_field_mismatch:" + key)
+
+    report = launcher_lock.get("candidate_report")
+    if not isinstance(report, dict):
+        raise PlanError("launcher_lock_candidate_report_missing")
+    checks = {
+        "candidate_id": LAUNCHER_CANDIDATE_ID,
+        "launcher_binary_bytes": LAUNCHER_BYTES,
+        "launcher_binary_sha256": LAUNCHER_SHA256,
+        "launcher_binary_git_blob_sha1": LAUNCHER_GIT_BLOB,
+        "runtime_expected_head_compile_bound": False,
+        "runtime_expected_head_strict_lowercase_hex": True,
+        "runtime_expected_head_forwarded_unchanged": True,
+        "repository_head_not_embedded_in_launcher": True,
+        "frozen_child_launcher_path_compatible": True,
+    }
+    for key, expected in checks.items():
+        if report.get(key) != expected:
+            raise PlanError("launcher_lock_candidate_field_mismatch:" + key)
+
+    return launcher_lock
 
 
 def collect_plan(
@@ -299,7 +354,7 @@ def collect_plan(
     if HEX40.fullmatch(expected_head) is None:
         raise PlanError("expected_head_invalid")
 
-    source_dependencies()
+    launcher_lock = source_dependencies()
     qualifier = load_qualifier()
     try:
         qualification = qualifier.collect(expected_head)
@@ -381,6 +436,10 @@ def collect_plan(
         "qualifier_git_blob_sha1": QUALIFIER_BLOB,
         "installed_bootstrap": installed,
         "accepted_launcher": launcher_info,
+        "accepted_launcher_lock_id": LAUNCHER_LOCK_ID,
+        "accepted_launcher_candidate_id": LAUNCHER_CANDIDATE_ID,
+        "launcher_runtime_head_contract_accepted": True,
+        "launcher_superseded_v1_lock_install_authority": False,
         "accepted_native": native_info,
         "bootstrap_argv": argv,
         "bootstrap_execution_performed": False,
@@ -414,6 +473,10 @@ def emit_plan(result: dict[str, Any]) -> None:
     print("qualifier_git_blob_sha1=" + QUALIFIER_BLOB)
     print("installed_bootstrap_identity_green=true")
     print("accepted_launcher_identity_green=true")
+    print("accepted_launcher_lock_id=" + LAUNCHER_LOCK_ID)
+    print("accepted_launcher_candidate_id=" + LAUNCHER_CANDIDATE_ID)
+    print("launcher_runtime_head_contract_accepted=true")
+    print("launcher_superseded_v1_lock_install_authority=false")
     print("accepted_native_identity_green=true")
     print("bootstrap_runtime_head_compile_bound=false")
     print("runtime_expected_head_forwarded_unchanged=true")
@@ -453,6 +516,10 @@ def source_plan() -> None:
     print("host_write=false")
     print("qualifier_git_blob_sha1=" + QUALIFIER_BLOB)
     print("launcher_lock_git_blob_sha1=" + LAUNCHER_LOCK_BLOB)
+    print("accepted_launcher_lock_id=" + LAUNCHER_LOCK_ID)
+    print("accepted_launcher_candidate_id=" + LAUNCHER_CANDIDATE_ID)
+    print("launcher_runtime_head_contract_accepted=true")
+    print("launcher_superseded_v1_lock_install_authority=false")
     print("native_lock_git_blob_sha1=" + NATIVE_LOCK_BLOB)
     print("bootstrap_path=" + str(BOOTSTRAP_PATH))
     print("superseded_v3_lock_install_authority=false")
@@ -490,6 +557,9 @@ def self_test() -> None:
     print("nonroot_plan_required=true")
     print("merged_v3_qualifier_bound=true")
     print("accepted_launcher_materializer_bound=true")
+    print("accepted_launcher_lock_v2_bound=true")
+    print("launcher_runtime_head_contract_accepted=true")
+    print("launcher_superseded_v1_lock_install_authority=false")
     print("accepted_native_materializer_bound=true")
     print("strict_runtime_head_required=true")
     print("superseded_v3_lock_install_authority=false")
