@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
+import types
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py"
@@ -26,13 +26,19 @@ def git_blob(raw: bytes) -> str:
 raw = TARGET.read_bytes()
 assert git_blob(raw) == TARGET_BLOB
 
-spec = importlib.util.spec_from_file_location(
-    "apollyon_static_candidate_v1_verified",
-    TARGET,
+module = types.ModuleType("apollyon_static_candidate_v1_verified")
+module.__file__ = str(TARGET)
+module.__package__ = None
+exec(
+    compile(
+        raw.decode("utf-8", "strict"),
+        TARGET_REL,
+        "exec",
+        dont_inherit=True,
+        optimize=0,
+    ),
+    module.__dict__,
 )
-assert spec and spec.loader
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
 
 module.self_test()
 
@@ -140,6 +146,7 @@ for forbidden in (
 
 print("VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_V1_PROOF_GREEN")
 print("candidate_tool_blob_bound=true")
+print("candidate_tool_executed_from_verified_bytes=true")
 print("accepted_parent_bound=true")
 print("predecessor_proof_blob_bound=true")
 print("two_full_derivations_byte_identical=true")
