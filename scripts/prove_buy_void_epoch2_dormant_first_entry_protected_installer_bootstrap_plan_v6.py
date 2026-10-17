@@ -23,7 +23,7 @@ TARGET_REL = (
     "protected_installer_bootstrap_plan_v6.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "149d4da63a4cd5dc6437e32a25db6d81093d401f"
+TARGET_BLOB = "9c99f29b0342761a6ae2621c94e00f303e336984"
 PREDECESSOR_BLOB = "58ab3eaf57a03c8a5dc8140902b51b1c447fad4f"
 
 QUALIFIER_REL = (
@@ -31,13 +31,13 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_installed_qualification_v6.py"
 )
-QUALIFIER_BLOB = "e16b0ce71a4522b21762fa824c96aefb58e3a25b"
+QUALIFIER_BLOB = "975fb5444da297f94a73cad1f5f6e4ddff953574"
 INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v6.py"
 )
-INSTALLER_BLOB = "c9dd842b620f2ed7c3fdd5876c222a419b6b0c68"
+INSTALLER_BLOB = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
 LAUNCHER_LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-binder-installer-first-entry-"
@@ -411,7 +411,115 @@ def emitted_plan(module, result: dict[str, object]) -> dict[str, str]:
     return fields
 
 
+def prove_qualification_contract(
+    contract: dict[str, object], qualifier_raw: bytes, installer_raw: bytes,
+) -> int:
+    """Compare the actual collector/receipt with simulated host admission and I/O."""
+    qualifier = types.ModuleType("void_e2_qualification_contract_fixture")
+    qualifier.__file__ = str(ROOT / QUALIFIER_REL)
+    installer = types.ModuleType("void_e2_installer_contract_fixture")
+    installer.__file__ = str(ROOT / INSTALLER_REL)
+    for loaded, raw, relative in (
+        (qualifier, qualifier_raw, QUALIFIER_REL),
+        (installer, installer_raw, INSTALLER_REL),
+    ):
+        exec(compile(raw, relative, "exec", dont_inherit=True, optimize=0), loaded.__dict__)
+    assert qualifier.INSTALLER_SOURCE_GIT_BLOB_SHA1 == INSTALLER_BLOB
+    qualifier.os = types.SimpleNamespace(geteuid=lambda: 0)
+    qualifier._load_installer = lambda: installer
+    required = contract["required_result"]
+    events: list[str] = []
+
+    class Reader:
+        def __init__(self, head: str):
+            assert head == EXPECTED_HEAD
+
+        def __enter__(self):
+            installer._GIT_PRIVATE_ACTIVE = 1
+            installer._GIT_PRIVATE_MUTATION_PERFORMED = True
+            events.append("reader_enter")
+            return self
+
+        def __exit__(self, kind, value, traceback):
+            installer._GIT_PRIVATE_ACTIVE = 0
+            installer._GIT_PRIVATE_CLEANUP_FAILED = cleanup_failure
+            events.append("reader_exit")
+            if cleanup_failure:
+                raise installer.InstallError("fixture_private_cleanup_failed")
+
+    def installed_snapshot(actual_installer, head, *, repository):
+        assert actual_installer is installer and head == EXPECTED_HEAD
+        assert isinstance(repository, Reader)
+        assert installer._GIT_PRIVATE_ACTIVE == 1
+        events.append("installed_snapshot")
+        return {
+            "bootstrap": {"fixture": True},
+            "protected_state": installer.GREEN_STATE,
+            "policy_sha256": "3" * 64,
+            "policy_bytes": 100,
+            "python": {"sha256": "1" * 64, "bytes": 123},
+            "git_tool": {"sha256": "2" * 64, "bytes": 456},
+        }
+
+    def bootstrap_self_test(actual_installer, bootstrap):
+        assert actual_installer is installer and bootstrap == {"fixture": True}
+        assert installer._GIT_PRIVATE_ACTIVE == 1
+        events.append("bootstrap_self_test")
+        output = "inert simulated bootstrap self-test\n"
+        return output, "sha256:" + hashlib.sha256(output.encode("ascii")).hexdigest()
+
+    installer._RepositorySnapshot = Reader
+    qualifier._installed_snapshot = installed_snapshot
+    qualifier._run_bootstrap_self_test = bootstrap_self_test
+    for cleanup_failure in (False, True):
+        events.clear()
+        installer._GIT_PRIVATE_ACTIVE = 0
+        installer._GIT_PRIVATE_MUTATION_PERFORMED = False
+        installer._GIT_PRIVATE_CLEANUP_FAILED = False
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream):
+            try:
+                actual = qualifier.collect(EXPECTED_HEAD)
+            except qualifier.QualifyError as exc:
+                assert cleanup_failure
+                assert str(exc) == (
+                    "installed_repository_observation_failed:fixture_private_cleanup_failed"
+                )
+            else:
+                assert not cleanup_failure, "cleanup failure produced a qualifying result"
+                assert installer._GIT_PRIVATE_ACTIVE == 0
+                for key, expected in required.items():
+                    assert type(actual[key]) is type(expected), key
+                    assert actual[key] == expected, key
+                qualifier.emit(actual)
+                emitted = [
+                    line.removeprefix("result_json=")
+                    for line in stream.getvalue().splitlines()
+                    if line.startswith("result_json=")
+                ]
+                assert len(emitted) == 1
+                assert json.loads(emitted[0]) == actual
+        assert events == [
+            "reader_enter", "installed_snapshot", "bootstrap_self_test",
+            "installed_snapshot", "bootstrap_self_test", "installed_snapshot",
+            "reader_exit",
+        ]
+        assert qualifier._GIT_RECEIPT == installer.git_boundary_receipt()
+        assert qualifier._GIT_RECEIPT["temporary_git_metadata_write_performed"] is True
+        assert qualifier._GIT_RECEIPT["temporary_git_metadata_cleanup_completed"] is not cleanup_failure
+        for key in (
+            "source_repository_mutation", "source_object_fetch",
+            "repository_config_loaded", "repository_callback_execution",
+            "native_parent_authority_claimed",
+        ):
+            assert required[key] is False and qualifier._GIT_RECEIPT[key] is False, key
+        if cleanup_failure:
+            assert "result_json=" not in stream.getvalue()
+    return 2
+
+
 target_raw = pin(TARGET_REL, TARGET_BLOB)
+pinned_dependencies: dict[str, bytes] = {}
 for relative, expected in (
     (QUALIFIER_REL, QUALIFIER_BLOB),
     (INSTALLER_REL, INSTALLER_BLOB),
@@ -420,7 +528,7 @@ for relative, expected in (
     (NATIVE_LOCK_REL, NATIVE_LOCK_BLOB),
     (NATIVE_MATERIALIZER_REL, NATIVE_MATERIALIZER_BLOB),
 ):
-    pin(relative, expected)
+    pinned_dependencies[relative] = pin(relative, expected)
 
 source = target_raw.decode("utf-8", "strict")
 compile(source, TARGET_REL, "exec", dont_inherit=True, optimize=0)
@@ -748,12 +856,18 @@ try:
     assert q["qualifier_git_blob_sha1"] == QUALIFIER_BLOB
     assert q["qualifier_installer_git_blob_sha1"] == INSTALLER_BLOB
     assert q["root_execution_required"] is True
-    assert q["read_only_required"] is True
+    assert q["read_only_required"] is False
+    assert q["temporary_git_metadata_write_required"] is True
+    assert q["temporary_git_metadata_cleanup_required"] is True
     assert q["descriptor_bound_source_execution_required"] is True
     assert q["required_result"]["installed_identity_green"] is True
     assert q["required_result"]["bootstrap_self_test_count"] == 2
     assert q["required_result"]["bootstrap_execution_beyond_self_test"] is False
-    assert q["required_result"]["filesystem_write"] is False
+    assert q["required_result"]["read_only"] is False
+    assert q["required_result"]["filesystem_write"] is True
+    assert q["required_result"]["protected_filesystem_mutation"] is False
+    assert q["required_result"]["temporary_git_metadata_write_performed"] is True
+    assert q["required_result"]["temporary_git_metadata_cleanup_completed"] is True
 
     expected_bootstrap = str(FakeInstaller.INSTALL_ROOT / FakeInstaller.BIN_DIR / FakeInstaller.BOOTSTRAP_NAME)
     assert body["bootstrap_argv"] == [
@@ -801,6 +915,10 @@ finally:
     module._safe_tool = orig_tool
     module.os.geteuid = orig_geteuid
 
+qualification_contract_cases = prove_qualification_contract(
+    q, pinned_dependencies[QUALIFIER_REL], pinned_dependencies[INSTALLER_REL],
+)
+
 print(MARKER + "_PROOF_GREEN")
 print("single_main_entrypoint_and_guard=true")
 print("canonical_missing_arguments_hold=true")
@@ -813,6 +931,12 @@ print("native_lock_and_materializer_bound=true")
 print("nonroot_plan_required=true")
 print("root_qualification_kept_separate=true")
 print("qualification_descriptor_bound_source_execution_required=true")
+print("qualification_contract_collector_cases=" + str(qualification_contract_cases))
+print("qualification_contract_matches_collector_result=true")
+print("qualification_contract_matches_emitted_result=true")
+print("qualification_contract_cleanup_failure_rejected=true")
+print("qualification_contract_fixture_host_admission_simulated=true")
+print("qualification_contract_actual_installed_qualification=false")
 print("installed_qualification_performed=false")
 print("operation_bound_plan_id=true")
 print("plan_id_artifact_path_sensitive=true")

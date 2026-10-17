@@ -20,9 +20,9 @@ The plan binds:
 
 - exact current checkout HEAD/tree and raw tracked bytes on clean `main`;
 - merged V6 qualifier source Git blob
-  `e16b0ce71a4522b21762fa824c96aefb58e3a25b`;
+  `975fb5444da297f94a73cad1f5f6e4ddff953574`;
 - V6 protected-bootstrap installer source Git blob
-  `c9dd842b620f2ed7c3fdd5876c222a419b6b0c68`;
+  `70dd0e0feaebbea08c63d8c19549f928c8d70b7a`;
 - accepted runtime-head launcher lock V2 and canonical launcher materializer;
 - accepted dormant-binder native lock V3 and native materializer;
 - exact launcher and native artifact bytes supplied to the planner;
@@ -33,13 +33,14 @@ The plan binds:
 
 ## Why V6 does not call the qualifier directly
 
-Merged V6 installed qualification is deliberately a root-required read-only
-host check. This planner is deliberately non-root and no-sudo.
+V6 installed qualification requires root and writes private temporary Git
+metadata during checkout observation. Successful qualification requires that
+metadata to be cleaned up. This planner remains non-root and read-only.
 
 The planner therefore does **not** bypass or monkeypatch the qualifier's root
 gate. It authenticates the exact qualifier generation and freezes a
 `qualification_contract` describing the result that must be obtained by a
-later separately authorized read-only executor.
+later separately authorized qualification executor.
 
 The required qualification includes:
 
@@ -49,9 +50,21 @@ The required qualification includes:
 - exact checkout generation;
 - two descriptor-bound bootstrap self-tests with stable output;
 - exact bootstrap and source-generation manifest identities;
-- all bootstrap execution beyond self-test, inner installer apply, filesystem
-  write, service/systemd mutation, credential/key/signing, transaction/payment,
-  presale/WC activation, treasury/liquidity and funds authority false.
+- private Git metadata writes and completed cleanup, with `read_only=false`
+  and `filesystem_write=true` in the qualification result;
+- the `private_metadata_pinned_objects_raw_checkout_outer_v6` Git boundary,
+  standalone Git tool admission, and no source-repository mutation, object
+  fetch, repository configuration loading, or repository callback execution;
+- all protected filesystem mutation, bootstrap execution beyond self-test,
+  inner installer apply, service/systemd mutation, credential/key/signing,
+  transaction/payment, presale/WC activation, treasury/liquidity and funds
+  authority false.
+
+The planner's own `read_only=true` and `filesystem_write=false` receipt is
+unchanged. Its complete `qualification_contract_json` requires the later
+qualifier's actual result to declare the temporary writes and their cleanup;
+an interrupted or failed cleanup cannot satisfy that contract. The qualifier
+emits its complete result as `result_json` for that comparison.
 
 The later executor must authenticate the exact qualifier source bytes before any
 root Python source executes. This plan records
@@ -158,12 +171,20 @@ observation; they do not make a caller-owned checkout immutable afterward.
 
 The focused proof uses private Git repositories and inert callback markers to
 exercise normal and adversarial observations, and checks that the complete
-emitted plan body round-trips to its ID. It does not execute the installed
-qualifier, bootstrap or protected installer.
+emitted plan body round-trips to its ID. Two additional cases call the
+authenticated qualifier collector and emitter with simulated root admission,
+repository observation, installed snapshots and inert bootstrap self-tests.
+They compare the actual result and complete `result_json` against the planner
+contract and check that private cleanup failure produces no qualifying result.
+The actual installer receipt supplies the cleanup and forbidden callback facts.
+These source fixtures do not perform installed-host qualification or execute
+the installed bootstrap or protected installer.
 
 ## Authority boundary
 
-The source and its focused proof keep all of these false:
+The planner's operational receipt keeps all of these false. The proof's
+disposable Git fixture writes and simulated qualification are separately
+declared in its receipt.
 
 ```text
 installed_qualification_performed=false
@@ -188,9 +209,9 @@ production_host_evidence_authority=false
 No Precision host mutation, bootstrap execution, credential access, payment,
 presale/WC activation or funds movement is authorized by this source gate.
 
-Next action after source acceptance is a **separately authorized read-only V6
-qualification + plan execution evidence step**, still with protected installer
-apply disabled.
+Next action after source acceptance is a **separately authorized V6 qualification
+and plan execution evidence step** that includes the declared private temporary
+Git metadata writes and cleanup, still with protected installer apply disabled.
 
 **PROTECT THE CORE.**
 
@@ -209,6 +230,7 @@ and focused workflows; post-merge `push` and
 `workflow_dispatch` validate exact current blobs and full diff hygiene
 without incorrectly requiring the historical four-path initial ADD-only diff.
 
-This is a source/proof repair only. It does not execute the installed
-qualifier, the bootstrap, or the protected installer; credential access,
-payment acceptance, presale/WC activation, and funds movement remain false.
+This is a source/proof repair only. Its collector fixture does not perform
+installed-host qualification or execute the installed bootstrap or protected
+installer; credential access, payment acceptance, presale/WC activation, and
+funds movement remain false.

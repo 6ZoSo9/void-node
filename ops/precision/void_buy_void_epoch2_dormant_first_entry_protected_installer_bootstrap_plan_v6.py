@@ -31,7 +31,7 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_protected_install_"
     "bootstrap_installed_qualification_v6.py"
 )
-QUALIFIER_BLOB = "e16b0ce71a4522b21762fa824c96aefb58e3a25b"
+QUALIFIER_BLOB = "975fb5444da297f94a73cad1f5f6e4ddff953574"
 
 BOOTSTRAP_PATH = Path(
     "/opt/void-buy-void-epoch2-dormant-first-entry-"
@@ -776,7 +776,7 @@ def load_qualifier():
     ):
         raise PlanError("qualifier_marker_mismatch")
     if getattr(module, "INSTALLER_SOURCE_GIT_BLOB_SHA1", "") != (
-        "c9dd842b620f2ed7c3fdd5876c222a419b6b0c68"
+        "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
     ):
         raise PlanError("qualifier_installer_blob_mismatch")
     return module
@@ -924,16 +924,18 @@ def collect_plan(
         "qualifier_source_path": str(ROOT / QUALIFIER_REL),
         "qualifier_git_blob_sha1": QUALIFIER_BLOB,
         "qualifier_installer_git_blob_sha1":
-            "c9dd842b620f2ed7c3fdd5876c222a419b6b0c68",
+            "70dd0e0feaebbea08c63d8c19549f928c8d70b7a",
         "expected_head": expected_head,
         "root_execution_required": True,
-        "read_only_required": True,
+        "read_only_required": False,
+        "temporary_git_metadata_write_required": True,
+        "temporary_git_metadata_cleanup_required": True,
         "descriptor_bound_source_execution_required": True,
         "interpreter": python_info,
         "git_tool": git_info,
         "required_result": {
             "version": 6,
-            "read_only": True,
+            "read_only": False,
             "expected_head": expected_head,
             "accepted_lock_id": expected_bootstrap["lock_id"],
             "candidate_id": expected_bootstrap["candidate_id"],
@@ -956,7 +958,19 @@ def collect_plan(
             "bootstrap_execution_beyond_self_test": False,
             "inner_installer_execution": False,
             "protected_installer_apply": False,
-            "filesystem_write": False,
+            "filesystem_write": True,
+            "protected_filesystem_mutation": False,
+            "git_boundary_policy":
+                "private_metadata_pinned_objects_raw_checkout_outer_v6",
+            "temporary_git_metadata_write_required": True,
+            "temporary_git_metadata_write_performed": True,
+            "temporary_git_metadata_cleanup_completed": True,
+            "source_repository_mutation": False,
+            "source_object_fetch": False,
+            "repository_config_loaded": False,
+            "repository_callback_execution": False,
+            "standalone_git_tool_admission": True,
+            "native_parent_authority_claimed": False,
             "service_mutation": False,
             "systemd_mutation": False,
             "credential_access": False,
