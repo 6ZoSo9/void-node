@@ -92,13 +92,26 @@ The candidate ID prefix is:
 `apollyon_claim_protected_first_entry_static_candidate_v1:`.
 
 Validation re-derives the source, repository, candidate-tool and toolchain
-fields. Re-addressed source/toolchain/binary/authority/next-gate drift is
-rejected.
+fields. It does not trust the report's ELF booleans: the supplied binary bytes
+are written to a private validation path and re-inspected with `readelf` for
+ELF x86-64 EXEC, no `PT_INTERP` and no dynamic `NEEDED`. The production
+fixed-self string is checked in the supplied bytes.
+
+Validation then performs an independent production-default rebuild from the
+current exact pinned source/toolchain generation and requires byte-for-byte
+identity with the supplied binary. A report whose candidate ID and binary
+hashes have been recomputed around arbitrary non-ELF bytes or a mutated ELF
+therefore still fails closed.
+
+Re-addressed source/toolchain/binary/authority/next-gate drift is rejected.
 
 ## Hosted artifact
 
 The focused workflow publishes only the derived candidate report and static ELF
-as a short-retention review artifact after all proofs pass.
+as a short-retention review artifact after all proofs pass. The proof explicitly
+re-addresses a non-ELF payload and a one-byte-mutated ELF with internally
+consistent report hashes; validation must reject the former during byte
+inspection and the latter because the independent rebuild differs.
 
 That artifact is evidence for a later, separately reviewed candidate acceptance
 lock. Artifact publication is **not** candidate acceptance and grants no host
