@@ -68,12 +68,12 @@ PROTECTED_INSTALLER_BLOB = "69a018c0eccedf3782055c56725579d02463b05e"
 CANDIDATE_MERGE = "78875f7379c2dd995e1b545dd0543c934e59907a"
 CANDIDATE_TREE = "a2c1b6b9989ceb11c4fbea3f2fc4ecf64eb50176"
 LOCK_ID = (
-    "voidbuye2bootstraplock3_"
-    "690d119c90f5c8c20f429fcc14919b62691f9a1b3bfe2226476267ede993197f"
+    "voidbuye2bootstraplock4_"
+    "6568c1cd0195405d49001fbf6cb9a086364e401f78f3bfcf1d6cbb080947cb67"
 )
 CANDIDATE_ID = (
-    "voidbuye2bootstrapcand2_"
-    "b71b8757fa64fc36c2df0e95e3812c00eccef114b71e0b854c34ddfd62285def"
+    "voidbuye2bootstrapcand3_"
+    "9e914f52eb3cde5a5fef42fbdf065b375f89fdabb768034b09615861bba67ce3"
 )
 BOOTSTRAP_SHA256 = (
     "904e6b05df45bc9212be7689ea0617ccfbf65d5edf8535a381abcbb588f236cd"
@@ -252,7 +252,7 @@ assert report["repository_head_not_embedded_in_bootstrap"] is True
 
 install_source = install_raw.decode("utf-8", "strict")
 for required in (
-    "PROTECTED_BOOTSTRAP_INSTALLED_READ_ONLY_QUALIFICATION_V2R",
+    "PROTECTED_BOOTSTRAP_INSTALLED_READ_ONLY_QUALIFICATION_V3",
     "bootstrap_runtime_head_compile_bound",
     "runtime_expected_head_strict_lowercase_hex",
     "runtime_expected_head_forwarded_unchanged",
