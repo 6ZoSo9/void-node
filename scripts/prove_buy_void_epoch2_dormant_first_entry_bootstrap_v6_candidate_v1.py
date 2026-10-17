@@ -133,20 +133,41 @@ def tool_identity(path: str) -> dict:
     return {"path":str(real),"bytes":len(raw),"sha256":sha256(raw),"mode":stat.S_IMODE(st.st_mode),"uid":st.st_uid,"gid":st.st_gid}
 
 
-def run(argv: list[str], *, pass_fds: tuple[int,...]=(), timeout: int=60) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(argv,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-                          check=False,timeout=timeout,env=ENV,pass_fds=pass_fds)
+def run(
+    argv: list[str],
+    *,
+    pass_fds: tuple[int,...]=(),
+    stdin_fd: int | None=None,
+    timeout: int=60,
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        argv,
+        stdin=subprocess.DEVNULL if stdin_fd is None else stdin_fd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=timeout,
+        env=ENV,
+        pass_fds=pass_fds,
+    )
 
 
-def compile_args(cc: str, source: str, output: Path) -> list[str]:
+def compile_args(cc: str, output: Path) -> list[str]:
     return [
         cc,"-std=c11","-O2","-Wall","-Wextra","-Werror","-Wformat=2","-Wshadow",
         "-fstack-protector-strong","-D_FORTIFY_SOURCE=2","-static",
         "-Wl,-z,relro,-z,now,-z,noexecstack",
         '-DVOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_MANIFEST_SHA256="' + MANIFEST_SHA256 + '"',
         "-DVOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_MANIFEST_BYTES=" + str(MANIFEST_BYTES),
-        "-x","c",source,"-o",str(output),
+        "-x","c","-","-o",str(output),
     ]
+
+
+def compile_from_sealed_stdin(cc: str, source_fd: int, output: Path) -> None:
+    os.lseek(source_fd,0,os.SEEK_SET)
+    cp=run(compile_args(cc,output),stdin_fd=source_fd)
+    if cp.returncode or cp.stdout or cp.stderr:
+        raise AssertionError("candidate compile failed")
 
 
 def derive() -> tuple[dict,bytes]:
@@ -168,19 +189,19 @@ def derive() -> tuple[dict,bytes]:
     if dumpmachine.returncode or dumpversion.returncode or dumpmachine.stderr or dumpversion.stderr:
         raise AssertionError("compiler identity query failed")
 
-    fd=create_sealed(source)
+    fd_a=create_sealed(source)
+    fd_b=create_sealed(source)
     try:
-        source_arg=f"/proc/self/fd/{fd}"
+        if fd_a == fd_b:
+            raise AssertionError("distinct sealed source descriptors required")
         with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-v6-candidate-") as td:
             td=Path(td)
             a=td/"bootstrap-a"; b=td/"bootstrap-b"
-            for out in (a,b):
-                cp=run(compile_args(cc,source_arg,out),pass_fds=(fd,))
-                if cp.returncode or cp.stdout or cp.stderr:
-                    raise AssertionError("candidate compile failed")
+            compile_from_sealed_stdin(cc,fd_a,a)
+            compile_from_sealed_stdin(cc,fd_b,b)
             ba=a.read_bytes(); bb=b.read_bytes()
             if ba!=bb:
-                raise AssertionError("candidate builds differ")
+                raise AssertionError("candidate builds differ across distinct source descriptors")
             if len(ba)<MIN_BINARY_BYTES or len(ba)>MAX_BINARY_BYTES or not ba.startswith(b"\x7fELF"):
                 raise AssertionError("candidate ELF invalid")
             ph=run([readelf,"-lW",str(a)])
@@ -199,7 +220,8 @@ def derive() -> tuple[dict,bytes]:
             binary=ba
             self_test_sha=sha256(st.stdout)
     finally:
-        os.close(fd)
+        os.close(fd_b)
+        os.close(fd_a)
 
     tools_after={"compiler":tool_identity(cc),"readelf":tool_identity(readelf)}
     if tools_after!=tools_before:
@@ -215,7 +237,14 @@ def derive() -> tuple[dict,bytes]:
         "source_generation_id":SOURCE_GENERATION_ID,
         "bootstrap_source":{"path":SOURCE_REL,"git_blob_sha1":SOURCE_BLOB,"bytes":SOURCE_BYTES,"sha256":SOURCE_SHA256},
         "manifest":{"path":MANIFEST_REL,"git_blob_sha1":MANIFEST_BLOB,"bytes":MANIFEST_BYTES,"sha256":MANIFEST_SHA256},
-        "build_input":{"kind":"sealed_memfd","required_seal_mask":REQUIRED_SEALS,"checkout_path_is_not_build_authority":True},
+        "build_input":{
+            "kind":"sealed_memfd",
+            "required_seal_mask":REQUIRED_SEALS,
+            "checkout_path_is_not_build_authority":True,
+            "compiler_logical_source_name":"stdin",
+            "distinct_source_fd_numbers_exercised":True,
+            "descriptor_number_not_candidate_identity":True,
+        },
         "toolchain":{
             **tools_before,
             "compiler_version_line":compiler_version,
@@ -231,7 +260,9 @@ def derive() -> tuple[dict,bytes]:
         },
         "binary":{
             "bytes":len(binary),"sha256":sha256(binary),"elf_magic_verified":True,
-            "static_no_interp":True,"two_builds_byte_identical":True,
+            "static_no_interp":True,
+            "two_builds_byte_identical":True,
+            "distinct_source_fd_builds_byte_identical":True,
         },
         "self_test":{"green":True,"stdout_sha256":self_test_sha,"stderr_empty":True},
         "authority":{
@@ -261,9 +292,23 @@ def validate(report: dict) -> None:
         raise AssertionError("candidate id binding invalid")
     if report["source_generation_id"]!=SOURCE_GENERATION_ID:
         raise AssertionError("source generation invalid")
-    if report.get("build_input",{}).get("checkout_path_is_not_build_authority") is not True:
-        raise AssertionError("checkout build authority claim invalid")
-    if report["binary"]["bytes"]<MIN_BINARY_BYTES or not HEX64.fullmatch(report["binary"]["sha256"]):
+    build_input=report.get("build_input",{})
+    if (
+        build_input.get("kind")!="sealed_memfd"
+        or build_input.get("required_seal_mask")!=REQUIRED_SEALS
+        or build_input.get("checkout_path_is_not_build_authority") is not True
+        or build_input.get("compiler_logical_source_name")!="stdin"
+        or build_input.get("distinct_source_fd_numbers_exercised") is not True
+        or build_input.get("descriptor_number_not_candidate_identity") is not True
+    ):
+        raise AssertionError("build input identity claim invalid")
+    binary=report.get("binary",{})
+    if (
+        binary.get("bytes",0)<MIN_BINARY_BYTES
+        or not HEX64.fullmatch(str(binary.get("sha256","")))
+        or binary.get("two_builds_byte_identical") is not True
+        or binary.get("distinct_source_fd_builds_byte_identical") is not True
+    ):
         raise AssertionError("binary identity invalid")
     for key,val in report["authority"].items():
         if key in ("source_only_candidate","candidate_report_filesystem_write"):
@@ -284,6 +329,10 @@ def derive_dir(out: Path) -> None:
     print("native_binary_bytes="+str(report["binary"]["bytes"]))
     print("sealed_source_snapshot=true")
     print("checkout_path_is_not_build_authority=true")
+    print("compiler_logical_source_name=stdin")
+    print("distinct_source_fd_numbers_exercised=true")
+    print("distinct_source_fd_builds_byte_identical=true")
+    print("descriptor_number_not_candidate_identity=true")
     print("toolchain_revalidated_after_build=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
@@ -311,6 +360,10 @@ def compare_dir(root: Path) -> None:
     print("three_binary_bytes_identical=true")
     print("independent_rederivation_verified=true")
     print("checkout_path_is_not_build_authority=true")
+    print("compiler_logical_source_name=stdin")
+    print("distinct_source_fd_numbers_exercised=true")
+    print("distinct_source_fd_builds_byte_identical=true")
+    print("descriptor_number_not_candidate_identity=true")
     print("candidate_id="+hosted["candidate_id"])
     print("native_binary_sha256="+hosted["binary"]["sha256"])
     print("native_binary_bytes="+str(hosted["binary"]["bytes"]))
@@ -322,18 +375,27 @@ def compare_dir(root: Path) -> None:
 def self_test() -> None:
     source=read_exact(ROOT/SOURCE_REL,size=SOURCE_BYTES,digest=SOURCE_SHA256,blob=SOURCE_BLOB)
     manifest=read_exact(ROOT/MANIFEST_REL,size=MANIFEST_BYTES,digest=MANIFEST_SHA256,blob=MANIFEST_BLOB)
-    fd=create_sealed(source)
+    fd_a=create_sealed(source)
+    fd_b=create_sealed(source)
     try:
-        if fcntl.fcntl(fd,F_GET_SEALS)&REQUIRED_SEALS != REQUIRED_SEALS:
+        if fd_a == fd_b:
+            raise AssertionError("distinct descriptor self-test failed")
+        if fcntl.fcntl(fd_a,F_GET_SEALS)&REQUIRED_SEALS != REQUIRED_SEALS:
             raise AssertionError("seal self-test failed")
+        if fcntl.fcntl(fd_b,F_GET_SEALS)&REQUIRED_SEALS != REQUIRED_SEALS:
+            raise AssertionError("second seal self-test failed")
     finally:
-        os.close(fd)
+        os.close(fd_b)
+        os.close(fd_a)
     if sha256(manifest)!=MANIFEST_SHA256:
         raise AssertionError("manifest self-test failed")
     print(MARKER+"_SELF_TEST_GREEN")
     print("exact_source_generation_bound=true")
     print("sealed_source_snapshot_required=true")
     print("checkout_path_is_not_build_authority=true")
+    print("compiler_logical_source_name=stdin")
+    print("distinct_source_fd_numbers_required=true")
+    print("descriptor_number_not_candidate_identity=true")
     print("three_hosted_derivations_required=true")
     print("independent_rederivation_required=true")
     print("candidate_accepted=false")
