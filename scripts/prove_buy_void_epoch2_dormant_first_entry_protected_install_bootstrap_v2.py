@@ -276,6 +276,22 @@ for required in (
 installer_raw = exact_file(INSTALLER_REL, INSTALLER_BLOB, 256 * 1024)
 if len(installer_raw) != INSTALLER_BYTES or sha256(installer_raw) != INSTALLER_SHA256:
     raise AssertionError("merged_installer_identity_mismatch")
+installer_text = installer_raw.decode("utf-8", "strict")
+for required in (
+    "def checkout_snapshot(expected_head: str)",
+    'head = _git(["rev-parse", "--verify", "HEAD^{commit}"]).decode().strip()',
+    'branch = _git(["symbolic-ref", "--short", "-q", "HEAD"]).decode().strip()',
+    'status = _git(["status", "--porcelain=v1", "--untracked-files=all"])',
+    "if head != expected_head:",
+    'raise InstallError("checkout_head_mismatch")',
+    'if branch != "main":',
+    'raise InstallError("checkout_branch_not_main")',
+    'if status != b"":',
+    'raise InstallError("checkout_not_clean")',
+    "accepted_lock(expected_head)",
+):
+    if required not in installer_text:
+        raise AssertionError("authenticated_child_checkout_contract_missing:" + required)
 
 head = git(["rev-parse", "--verify", "HEAD"])
 if len(head) != 40:
@@ -613,6 +629,7 @@ print("exact_installer_snapshot_compile_bound=true")
 print("compile_time_expected_head_required=false")
 print("runtime_expected_head_strict_hex_required=true")
 print("runtime_expected_head_forwarded_to_authenticated_child=true")
+print("authenticated_child_checkout_head_contract_bound=true")
 print("alternate_runtime_expected_head_forwarded=true")
 print("malformed_runtime_expected_head_rejected_prechild=true")
 print("sealed_installer_memfd_required=true")
