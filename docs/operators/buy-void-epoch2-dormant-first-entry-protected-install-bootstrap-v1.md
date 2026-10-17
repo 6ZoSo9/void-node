@@ -154,7 +154,7 @@ The inner #3391 receipt alone is not privileged-first-entry authority.
 
 The focused proof:
 - binds this exact native source Git blob
-  `c435762e1fc26beeecfcfef93bf839ba408ea8b3`;
+  `243583d4ed0522796b2bbf448abd4e9c28958f50`;
 - binds exact merged #3391 blob `383b84e71b371de65579e4113469e86a59b807ab`;
 - requires compilation to fail when generation macros are absent;
 - compiles a production-shaped static binary and requires no `PT_INTERP` or
