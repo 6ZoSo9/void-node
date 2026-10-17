@@ -325,7 +325,7 @@ with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-proof-") as td:
         + str(os.getpid())
     )
     fixture_installer_local = temp / "fixture-installer.py"
-    marker = fixture_root / "child-started"
+    marker = temp / "child-started"
     fixture_source = f"""#!/usr/bin/env python3
 import argparse
 import os
