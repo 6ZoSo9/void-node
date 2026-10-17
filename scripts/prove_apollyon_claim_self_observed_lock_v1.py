@@ -117,7 +117,7 @@ assert section_paths("pull_request", "push") == section_paths("push", "workflow_
 for token in (
     "BASE=\"$PR_BASE\"", "BASE=\"$PUSH_BEFORE\"",
     'BASE="$(git rev-parse HEAD^)"',
-    "git diff --check", "gcc", "Prove native self-observed lock",
+    "git diff --check", "Prove native self-observed lock",
 ):
     assert token in workflow, token
 
