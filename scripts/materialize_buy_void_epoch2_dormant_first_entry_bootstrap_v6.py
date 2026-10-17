@@ -163,7 +163,30 @@ def derive_material()->tuple[bytes,bytes]:
         raise MaterializeError("materialized_binary_git_blob_mismatch")
     return binary,manifest_raw
 
-def write_file(parent_fd:int,name:str,raw:bytes,mode:int)->None:
+def file_generation(st:os.stat_result)->tuple[int,...]:
+    return tuple(getattr(st,field) for field in (
+        "st_dev","st_ino","st_mode","st_uid","st_gid","st_nlink",
+        "st_size","st_mtime_ns","st_ctime_ns",
+    ))
+
+def verify_file(fd:int,name:str,raw:bytes,mode:int)->os.stat_result:
+    before=os.fstat(fd)
+    if not stat.S_ISREG(before.st_mode) or before.st_nlink!=1 or stat.S_IMODE(before.st_mode)!=mode or before.st_size!=len(raw):
+        raise MaterializeError("output_metadata_invalid:"+name)
+    os.lseek(fd,0,os.SEEK_SET)
+    out=bytearray()
+    while len(out)<len(raw):
+        chunk=os.read(fd,min(1024*1024,len(raw)-len(out)))
+        if not chunk: raise MaterializeError("output_short_read:"+name)
+        out.extend(chunk)
+    if os.read(fd,1) or bytes(out)!=raw:
+        raise MaterializeError("output_readback_mismatch:"+name)
+    after=os.fstat(fd)
+    if file_generation(before)!=file_generation(after):
+        raise MaterializeError("output_file_changed:"+name)
+    return after
+
+def write_file(parent_fd:int,name:str,raw:bytes,mode:int)->tuple[int,os.stat_result]:
     try:
         fd=os.open(name,os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_CLOEXEC|os.O_NOFOLLOW,mode,dir_fd=parent_fd)
     except FileExistsError as exc:
@@ -175,21 +198,12 @@ def write_file(parent_fd:int,name:str,raw:bytes,mode:int)->None:
             if n<=0: raise MaterializeError("output_short_write:"+name)
             offset+=n
         os.fchmod(fd,mode); os.fsync(fd)
-        st=os.fstat(fd)
-        if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1 or stat.S_IMODE(st.st_mode)!=mode or st.st_size!=len(raw):
-            raise MaterializeError("output_metadata_invalid:"+name)
-        os.lseek(fd,0,os.SEEK_SET)
-        out=bytearray()
-        while len(out)<len(raw):
-            chunk=os.read(fd,min(1024*1024,len(raw)-len(out)))
-            if not chunk: raise MaterializeError("output_short_read:"+name)
-            out.extend(chunk)
-        if os.read(fd,1) or bytes(out)!=raw:
-            raise MaterializeError("output_readback_mismatch:"+name)
-    finally:
+        return fd,verify_file(fd,name,raw,mode)
+    except BaseException:
         os.close(fd)
+        raise
 
-def write_dir(output:Path,binary:bytes,manifest:bytes)->None:
+def write_dir(output:Path,binary:bytes,manifest:bytes)->Path:
     output=Path(os.path.abspath(os.fspath(output)))
     parent=output.parent
     before=parent.lstat()
@@ -197,6 +211,7 @@ def write_dir(output:Path,binary:bytes,manifest:bytes)->None:
         raise MaterializeError("output_parent_invalid")
     parent_fd=os.open(parent,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
     out_fd=None
+    files=[]
     try:
         opened=os.fstat(parent_fd)
         if (opened.st_dev,opened.st_ino)!=(before.st_dev,before.st_ino):
@@ -206,19 +221,41 @@ def write_dir(output:Path,binary:bytes,manifest:bytes)->None:
         except FileExistsError as exc:
             raise MaterializeError("output_directory_exists") from exc
         out_fd=os.open(output.name,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW,dir_fd=parent_fd)
-        write_file(out_fd,BOOTSTRAP_NAME,binary,0o555)
-        write_file(out_fd,MANIFEST_NAME,manifest,0o444)
+        opened_out=os.fstat(out_fd)
         sums=(
             EXPECTED_BINARY_SHA256+"  "+BOOTSTRAP_NAME+"\n"+
             MANIFEST_SHA256+"  "+MANIFEST_NAME+"\n"
         ).encode("ascii")
-        write_file(out_fd,SUMS_NAME,sums,0o444)
+        for name,raw,mode in (
+            (BOOTSTRAP_NAME,binary,0o555),
+            (MANIFEST_NAME,manifest,0o444),
+            (SUMS_NAME,sums,0o444),
+        ):
+            fd,created=write_file(out_fd,name,raw,mode)
+            files.append((name,raw,mode,fd,created))
         os.fsync(out_fd); os.fsync(parent_fd)
+        # These are final observations of caller-owned paths, not future immutability.
+        for name,raw,mode,fd,created in files:
+            checked=verify_file(fd,name,raw,mode)
+            if file_generation(checked)!=file_generation(created):
+                raise MaterializeError("output_file_changed:"+name)
+            visible=os.stat(name,dir_fd=out_fd,follow_symlinks=False)
+            if file_generation(visible)!=file_generation(checked):
+                raise MaterializeError("output_file_generation_changed:"+name)
         visible=os.stat(output.name,dir_fd=parent_fd,follow_symlinks=False)
-        opened_out=os.fstat(out_fd)
-        if (visible.st_dev,visible.st_ino)!=(opened_out.st_dev,opened_out.st_ino):
+        if not stat.S_ISDIR(visible.st_mode) or (visible.st_dev,visible.st_ino)!=(opened_out.st_dev,opened_out.st_ino):
             raise MaterializeError("output_directory_generation_changed")
+        visible_parent=parent.lstat()
+        if not stat.S_ISDIR(visible_parent.st_mode) or (visible_parent.st_dev,visible_parent.st_ino)!=(opened.st_dev,opened.st_ino):
+            raise MaterializeError("output_visible_parent_generation_changed")
+        visible_output=output.lstat()
+        if not stat.S_ISDIR(visible_output.st_mode) or (visible_output.st_dev,visible_output.st_ino)!=(opened_out.st_dev,opened_out.st_ino):
+            raise MaterializeError("output_requested_path_generation_changed")
+        return output
+    except OSError as exc:
+        raise MaterializeError("output_publication_failed") from exc
     finally:
+        for _,_,_,fd,_ in files: os.close(fd)
         if out_fd is not None: os.close(out_fd)
         os.close(parent_fd)
 
@@ -235,6 +272,9 @@ def self_test()->None:
     print("candidate_binary_identity_accepted=true")
     print("descriptor_independent_candidate_bound=true")
     print("accepted_binary_git_blob_bound=true")
+    print("output_leaf_generation_revalidation_required=true")
+    print("output_visible_parent_generation_revalidation_required=true")
+    print("output_requested_path_generation_revalidation_required=true")
     print("artifact_publication_only=true")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
@@ -253,9 +293,9 @@ def main()->int:
     if args.self_test:
         self_test(); return 0
     binary,manifest=derive_material()
-    write_dir(Path(args.derive_dir),binary,manifest)
+    output=write_dir(Path(args.derive_dir),binary,manifest)
     print(MARKER+"_DERIVE_GREEN")
-    print("output="+os.fspath(Path(args.derive_dir).resolve()))
+    print("output="+os.fspath(output))
     print("binary_bytes="+str(len(binary)))
     print("binary_sha256="+sha256(binary))
     print("binary_git_blob_sha1="+git_blob(binary))
@@ -264,6 +304,9 @@ def main()->int:
     print("manifest_sha256="+sha256(manifest))
     print("accepted_lock_id="+LOCK_ID)
     print("candidate_id="+EXPECTED_CANDIDATE_ID)
+    print("output_leaf_generations_revalidated=true")
+    print("output_visible_parent_generation_revalidated=true")
+    print("output_requested_path_generation_revalidated=true")
     print("artifact_publication_only=true")
     print("protected_install_authorized=false")
     print("live_execution_authorized=false")
