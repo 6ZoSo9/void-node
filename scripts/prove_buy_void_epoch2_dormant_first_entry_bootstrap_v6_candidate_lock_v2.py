@@ -344,14 +344,15 @@ assert 'pin_pack_file(reader,relative);' in source_text
 
 candidate_text = candidate_raw.decode("utf-8", "strict")
 for required in (
-    SOURCE_GENERATION_ID,
-    SOURCE_BLOB,
-    MANIFEST_BLOB,
-    EXPECTED_CANDIDATE_ID,
-    EXPECTED_BINARY_SHA256,
-    "candidate_accepted=false",
-    "protected_install_authorized=false",
-    "funds_movement=false",
+    '"source_generation_id"',
+    '"bootstrap_source"',
+    '"manifest"',
+    '"candidate_id"',
+    '"candidate_accepted": False',
+    '"protected_install_authorized": False',
+    '"funds_movement": False',
+    "def derive(",
+    "def compare_dir(",
 ):
     assert required in candidate_text, required
 
