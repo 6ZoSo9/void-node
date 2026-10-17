@@ -1,0 +1,40 @@
+name: VOID public node connect focus v1
+
+on:
+  pull_request:
+    paths:
+      - "public/public-node/connect/index.html"
+      - "scripts/prove_void_public_node_connect_focus_v1.mjs"
+      - ".github/workflows/void-public-node-connect-focus-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove keyboard focus contract
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_public_node_connect_focus_v1.mjs
+          node scripts/prove_void_public_node_connect_focus_v1.mjs
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
