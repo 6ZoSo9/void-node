@@ -3,7 +3,7 @@ name: Buy VOID Epoch-2 protected-bootstrap materializer v3
 on:
   pull_request:
     paths:
-      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py"
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.py"
       - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v3.py"
       - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v3.md"
       - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v3.yml"
@@ -16,7 +16,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py"
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.py"
       - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v3.py"
       - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v3.md"
       - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v3.yml"
@@ -64,13 +64,13 @@ jobs:
           printf '%s\n' \
             '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v3.yml' \
             'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v3.md' \
-            'scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py' \
+            'scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.py' \
             'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v3.py' \
             | sort > "$expected"
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py)" = a62dc7c4e7ac4cde63c3473d0040c355aa28508e
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.py)" = a62dc7c4e7ac4cde63c3473d0040c355aa28508e
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v3.py)" = f23a60dcd7ff0c3538cc2fef0929086c169365da
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-materializer-v3.md)" = 1a0819831ce975c06a5c07da2e24ece26f7124b6
 
@@ -93,7 +93,7 @@ jobs:
           python3 -I -B - <<'PY'
           from pathlib import Path
           for p in (
-              Path("scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py"),
+              Path("scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.py"),
               Path("scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_materializer_v3.py"),
           ):
               compile(p.read_text("utf-8"),str(p),"exec",dont_inherit=True)
@@ -142,7 +142,7 @@ jobs:
           log="$RUNNER_TEMP/protected-bootstrap-materialize.log"
 
           python3 -I -B \
-            scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2r.py \
+            scripts/materialize_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.py \
             --derive "$output" | tee "$log"
 
           for marker in \
@@ -188,7 +188,7 @@ jobs:
 
           mkdir -p "$RUNNER_TEMP/v3-install-inputs"
           cp -- "$output" "$RUNNER_TEMP/v3-install-inputs/protected-install-bootstrap-v3"
-          cp -- "$log" "$RUNNER_TEMP/v3-install-inputs/materialization-v2r.log"
+          cp -- "$log" "$RUNNER_TEMP/v3-install-inputs/materialization-v3.log"
           sha256sum "$RUNNER_TEMP/v3-install-inputs/protected-install-bootstrap-v3" \
             > "$RUNNER_TEMP/v3-install-inputs/SHA256SUMS.txt"
 
