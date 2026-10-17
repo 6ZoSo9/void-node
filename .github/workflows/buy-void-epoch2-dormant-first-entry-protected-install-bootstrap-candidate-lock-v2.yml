@@ -69,9 +69,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json)" = e8d513b9635e96764301f3d6965167b623fc5a71
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v2.py)" = 570a2ab4e22f97a1ecd41bbd5c9b784e8d9311cd
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.md)" = 878a79b45781399e0b5f31b3266941af738634a8
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json)" = 989458c9a782ca41d77592651d483ed45a093606
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v2.py)" = be4628ce28cb682bd66656256c54511de9a99c77
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.md)" = e8faa4c10e112c8d9c6d5650f1b0d2f102bd2aa4
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py)" = 4f9b5a2ca77b3aebc9e70ea835c92155601a1a06
           test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.yml)" = 46488e048565b79676de05732ee58a35badfd395
@@ -107,7 +107,9 @@ jobs:
             'candidate_report_identity_bound=true' \
             'bootstrap_binary_identity_bound=true' \
             'runtime_expected_head_not_compile_bound=true' \
-            'runtime_expected_head_contract_accepted=true' \
+            'runtime_head_contract_accepted=true' \
+            'canonical_main_candidate_accepted=true' \
+            'superseded_v1_lock_install_authority=false' \
             'candidate_source_blobs_bound=true' \
             'candidate_accepted=true' \
             'bootstrap_binary_identity_accepted=true' \
@@ -167,7 +169,9 @@ jobs:
             'candidate_report_bytes_exact=true' \
             'bootstrap_binary_bytes_exact=true' \
             'runtime_expected_head_not_compile_bound=true' \
-            'runtime_expected_head_contract_accepted=true' \
+            'runtime_head_contract_accepted=true' \
+            'canonical_main_candidate_accepted=true' \
+            'superseded_v1_lock_install_authority=false' \
             'candidate_accepted=true' \
             'bootstrap_binary_identity_accepted=true' \
             'protected_bootstrap_install_authorized=false' \
