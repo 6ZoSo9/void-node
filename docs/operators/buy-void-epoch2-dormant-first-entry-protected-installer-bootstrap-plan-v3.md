@@ -58,13 +58,29 @@ Accepted identity:
 
 ## Accepted launcher input
 
+Canonical launcher V2 authority:
+
+- lock ID:
+  `voidbuye2dormantfirstentrylock2_89b8e50609c148f844a64b7566f919a32ef9f1a863318f1cc891bd3ee6539543`;
+- candidate ID:
+  `voidbuye2dormantfirstentrycand2_b9c71a294db1259f8dc599aec82a246170eea75c941180e39aab23c52885e70b`;
+- `runtime_head_contract_accepted=true`;
+- `canonical_main_candidate_authority=true`;
+- `superseded_v1_lock_install_authority=false`;
+- `runtime_expected_head_compile_bound=false`;
+- strict lowercase runtime-head admission;
+- unchanged runtime-head forwarding;
+- repository HEAD absent from the launcher ELF;
+- frozen-child launcher pathname compatibility preserved.
+
+
 Accepted launcher lock Git blob:
 
-`f8ff6fbb855aecafc329cd60622cf3af782745a3`.
+`227c2fa449abf1387925373c706ecd07775d5898`.
 
 Reviewed materializer Git blob:
 
-`50e8e7ba06740af830cc3c9df34d0ef7739a7e67`.
+`611e5d54154e3d3d5d9e7ba6c0374d697ecc3ba7`.
 
 Required launcher file:
 
@@ -73,9 +89,9 @@ Required launcher file:
 - mode `0555`;
 - bytes `731072`;
 - SHA-256
-  `4fbf67bff503cead931b59e4364d66ccf2f2d6c0ee40182b6f9498cf96e8f51a`;
+  `4e54056d22a084c1649ddbce3ef1933513bebbd11de7fa76b26d7b636a262a28`;
 - Git-blob identity
-  `eb66ce5313a8c0b01639ebec79564111d55163c4`.
+  `798907b18c73ee2cc1dea0fe05b36f27ab4137a7`.
 
 ## Accepted native input
 
@@ -98,6 +114,12 @@ Required native file:
 
 The later repaired installer independently verifies the accepted native
 generation again.
+
+The V3 plan additionally parses the launcher V2 acceptance lock itself. A file
+with the expected lock blob is not enough: the lock must assert canonical V2
+candidate authority, the runtime-head contract, exact launcher ELF identity,
+and historical V1 install authority false before any argv is emitted.
+
 
 ## Structured future argv
 
@@ -134,9 +156,9 @@ This generation binds:
 - V3 installed qualifier:
   `a2298dbdbf9928f14963ce8bf77d91f54e349ce9`;
 - launcher lock:
-  `f8ff6fbb855aecafc329cd60622cf3af782745a3`;
+  `227c2fa449abf1387925373c706ecd07775d5898`;
 - launcher materializer:
-  `50e8e7ba06740af830cc3c9df34d0ef7739a7e67`;
+  `611e5d54154e3d3d5d9e7ba6c0374d697ecc3ba7`;
 - native lock V3:
   `5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1`;
 - native materializer V2:
