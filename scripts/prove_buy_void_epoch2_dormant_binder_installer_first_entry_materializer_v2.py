@@ -82,8 +82,10 @@ compile(source, MATERIALIZER_REL, "exec", dont_inherit=True)
 
 for required in (
     'LOCK_BLOB = "' + LOCK_BLOB + '"',
-    LOCK_ID,
-    CANDIDATE_ID,
+    "voidbuye2dormantfirstentrylock2_",
+    "89b8e50609c148f844a64b7566f919a32ef9f1a863318f1cc891bd3ee6539543",
+    "voidbuye2dormantfirstentrycand2_",
+    "b9c71a294db1259f8dc599aec82a246170eea75c941180e39aab23c52885e70b",
     'CANDIDATE_BLOB = "' + CANDIDATE_BLOB + '"',
     'EXPECTED_REPORT_BYTES = 6131',
     EXPECTED_REPORT_SHA256,
