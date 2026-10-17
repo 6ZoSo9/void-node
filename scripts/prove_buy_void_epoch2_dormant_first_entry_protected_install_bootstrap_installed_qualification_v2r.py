@@ -19,19 +19,19 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_protected_install_"
     "bootstrap_installed_qualification_v2r.py"
 )
-TARGET_BLOB = "3b6efd9a22c43e7d3f8698265ac68920cec08a2f"
+TARGET_BLOB = "faaa62fc96023dcd9aa46454068a865f428e720b"
 
 INSTALL_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v2r.py"
 )
-INSTALL_BLOB = "7d7942dfe4b1def5f5a58201080cc30c3a13d3a0"
+INSTALL_BLOB = "883186eb5e6f4d7cee94370f0ee74ef908ec058b"
 INSTALL_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v2r.py"
 )
-INSTALL_PROOF_BLOB = "838f1c181cae033541d1bd666fb616ab3b40532f"
+INSTALL_PROOF_BLOB = "f2b27b0e1a643c3dc4baa241d44508da75d77dd6"
 
 LOCK_REL = (
     "ops/security/"
@@ -121,6 +121,8 @@ for required in (
     '"superseded_v2_lock_install_authority": False',
     '"protected_installer_execution_readiness": True',
     'runtime_head_contract_green=true',
+    '"GIT_NO_LAZY_FETCH": "1"',
+    '"GIT_ALLOW_PROTOCOL": ""',
     'next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_',
     'PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V2R',
     'bootstrap_execution_performed=false',
@@ -296,6 +298,8 @@ for mode, expected_lines in (
             "runtime_expected_head_strict_lowercase_hex=true",
             "runtime_expected_head_forwarded_unchanged=true",
             "frozen_head_alignment_not_required=true",
+            "git_lazy_fetch_suppressed=true",
+            "git_transport_denied=true",
             "bootstrap_execution=false",
             "protected_installer_apply=false",
             "filesystem_write=false",
@@ -359,6 +363,8 @@ print("protected_installer_apply_absent=true")
 print("runtime_head_contract_bound=true")
 print("canonical_main_candidate_authority=true")
 print("frozen_head_alignment_not_required=true")
+print("git_lazy_fetch_suppressed=true")
+print("git_transport_denied=true")
 print("filesystem_write=false")
 print("service_mutation=false")
 print("credential_access=false")
