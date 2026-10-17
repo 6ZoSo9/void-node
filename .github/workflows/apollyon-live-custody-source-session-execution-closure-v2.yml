@@ -1,0 +1,41 @@
+name: Apollyon live custody source session execution closure v2
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
+      - "scripts/prove_apollyon_live_custody_source_session_execution_closure_v2.py"
+      - "docs/security/apollyon-live-custody-source-session-execution-closure-v2.md"
+      - ".github/workflows/apollyon-live-custody-source-session-execution-closure-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prove complete execution closure
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_apollyon_live_custody_source_session_execution_closure_v2.py
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"

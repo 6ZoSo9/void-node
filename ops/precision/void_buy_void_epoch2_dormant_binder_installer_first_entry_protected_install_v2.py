@@ -13,8 +13,6 @@ import subprocess
 import sys
 from typing import Any
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-
 LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
@@ -54,6 +52,8 @@ MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_"
     "INSTALLER_FIRST_ENTRY_PROTECTED_INSTALL_V2"
 )
+# V2 repairs the installer, not the accepted installed launcher/native payload.
+# Keep the payload namespace and policy schema compatible with the frozen lock.
 POLICY_SCHEMA = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_POLICY_V1"
 )
@@ -255,6 +255,14 @@ def _tool_snapshot(
     }
 
 
+MAX_GIT_READ_OUTPUT_BYTES = 64 * 1024 * 1024
+MAX_TRACKED_ENTRIES = 200_000
+MAX_TRACKED_PATH_BYTES = 4096
+MAX_TRACKED_FILE_BYTES = 256 * 1024 * 1024
+MAX_TRACKED_TOTAL_BYTES = 4 * 1024 * 1024 * 1024
+TRACKED_MODES = {b"100644", b"100755", b"120000"}
+
+
 def _git_env() -> dict[str, str]:
     return {
         "PATH": "/usr/bin:/bin",
@@ -268,6 +276,12 @@ def _git_env() -> dict[str, str]:
         "GIT_NO_REPLACE_OBJECTS": "1",
         "GIT_OPTIONAL_LOCKS": "0",
         "GIT_TERMINAL_PROMPT": "0",
+        # The empty protocol allowlist is the Git 2.43-compatible transport
+        # boundary. NO_LAZY_FETCH is additional protection on newer Git.
+        "GIT_ALLOW_PROTOCOL": "",
+        "GIT_PROTOCOL_FROM_USER": "0",
+        "GIT_NO_LAZY_FETCH": "1",
+        "GIT_ATTR_NOSYSTEM": "1",
     }
 
 
@@ -277,16 +291,39 @@ def _git(args: list[str]) -> bytes:
         executable=True,
         maximum_bytes=64 * 1024 * 1024,
     )
+    settings = (
+        "safe.directory=" + str(FIXED_CHECKOUT),
+        "core.bare=false",
+        "core.fsmonitor=false",
+        "core.hooksPath=/dev/null",
+        "core.attributesFile=/dev/null",
+        "core.excludesFile=/dev/null",
+        "core.untrackedCache=false",
+        "core.preloadIndex=false",
+        "core.ignoreCase=false",
+        "core.fileMode=true",
+        "core.commitGraph=false",
+        "submodule.recurse=false",
+        "protocol.allow=never",
+        "gc.auto=0",
+        "maintenance.auto=false",
+        "fetch.writeCommitGraph=false",
+    )
+    argv = [
+        git_tool["path"],
+        "--no-pager",
+        "--no-replace-objects",
+        "--no-optional-locks",
+        "-C",
+        str(FIXED_CHECKOUT),
+        "--git-dir=" + str(FIXED_CHECKOUT / ".git"),
+        "--work-tree=" + str(FIXED_CHECKOUT),
+    ]
+    for setting in settings:
+        argv.extend(("-c", setting))
+    argv.extend(args)
     cp = subprocess.run(
-        [
-            git_tool["path"],
-            "--no-replace-objects",
-            "-C",
-            str(FIXED_CHECKOUT),
-            "-c",
-            "safe.directory=" + str(FIXED_CHECKOUT),
-            *args,
-        ],
+        argv,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -295,36 +332,244 @@ def _git(args: list[str]) -> bytes:
         timeout=20,
     )
     if cp.returncode != 0:
-        raise InstallError(
-            "git_command_failed:"
-            + str(cp.returncode)
-            + ":"
-            + cp.stderr.decode("utf-8", "replace")[-1000:]
-        )
+        # Do not echo arbitrary repository configuration diagnostics, which
+        # can contain include paths or values unrelated to this operation.
+        raise InstallError("git_command_failed:" + str(cp.returncode))
+    if len(cp.stdout) > MAX_GIT_READ_OUTPUT_BYTES:
+        raise InstallError("git_read_output_too_large")
     return cp.stdout
+
+
+def _nul_records(raw: bytes, label: str) -> list[bytes]:
+    if len(raw) > MAX_GIT_READ_OUTPUT_BYTES:
+        raise InstallError(label + "_too_large")
+    if not raw:
+        return []
+    if not raw.endswith(b"\0"):
+        raise InstallError(label + "_termination_invalid")
+    records = raw[:-1].split(b"\0")
+    if len(records) > MAX_TRACKED_ENTRIES or any(not r for r in records):
+        raise InstallError(label + "_record_count_invalid")
+    return records
+
+
+def _tracked_parts(path: bytes) -> tuple[bytes, ...]:
+    parts = tuple(path.split(b"/"))
+    if (
+        not path
+        or len(path) > MAX_TRACKED_PATH_BYTES
+        or b"\0" in path
+        or any(part in (b"", b".", b"..", b".git") for part in parts)
+    ):
+        raise InstallError("checkout_tracked_path_invalid")
+    return parts
+
+
+def _tracked_listing(
+    raw: bytes,
+    *,
+    from_index: bool,
+) -> dict[bytes, tuple[bytes, str]]:
+    entries: dict[bytes, tuple[bytes, str]] = {}
+    label = "checkout_index" if from_index else "checkout_tree"
+    for record in _nul_records(raw, label):
+        header, sep, path = record.partition(b"\t")
+        if sep != b"\t":
+            raise InstallError(label + "_entry_invalid")
+        _tracked_parts(path)
+        fields = header.split(b" ")
+        if from_index:
+            # -v exposes assume-unchanged as lowercase and skip-worktree as
+            # S. --sparse exposes sparse-directory entries without expanding
+            # them. Accept only ordinary, fully materialized stage-0 files.
+            if len(fields) != 4 or fields[0] != b"H" or fields[3] != b"0":
+                raise InstallError("checkout_index_flags_or_stage_unsupported")
+            mode, oid_bytes = fields[1], fields[2]
+        else:
+            if len(fields) != 3 or fields[1] != b"blob":
+                raise InstallError("checkout_tree_entry_type_unsupported")
+            mode, oid_bytes = fields[0], fields[2]
+        try:
+            oid = oid_bytes.decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise InstallError(label + "_object_invalid") from exc
+        if mode not in TRACKED_MODES or HEX40.fullmatch(oid) is None:
+            raise InstallError(label + "_mode_or_object_unsupported")
+        if path in entries:
+            raise InstallError(label + "_duplicate_path")
+        entries[path] = (mode, oid)
+    return entries
+
+
+def _open_fixed_checkout() -> int:
+    # Walk from / so no ancestor of the fixed checkout can be a symlink.
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+    fd = os.open(b"/", flags)
+    try:
+        for part in FIXED_CHECKOUT.parts[1:]:
+            child = os.open(os.fsencode(part), flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        # This version deliberately supports a physical .git directory only.
+        # A gitfile or .git symlink must not redirect the fixed checkout.
+        git_fd = os.open(b".git", flags, dir_fd=fd)
+        os.close(git_fd)
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _tracked_blob_snapshot(
+    root_fd: int,
+    path: bytes,
+    *,
+    mode: bytes,
+    expected_oid: str,
+    remaining_budget: int,
+) -> int:
+    parts = _tracked_parts(path)
+    parent_fd = os.dup(root_fd)
+    directory_fds = [parent_fd]
+    directory_bindings: list[tuple[int, bytes, int, os.stat_result]] = []
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+    try:
+        for part in parts[:-1]:
+            before_dir = os.stat(part, dir_fd=parent_fd, follow_symlinks=False)
+            child_fd = os.open(part, flags, dir_fd=parent_fd)
+            directory_fds.append(child_fd)
+            if not _same_stat(before_dir, os.fstat(child_fd)):
+                raise InstallError("checkout_tracked_directory_rebound")
+            directory_bindings.append((parent_fd, part, child_fd, before_dir))
+            parent_fd = child_fd
+        leaf = parts[-1]
+        before = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+        if before.st_size < 0 or before.st_size > min(
+            MAX_TRACKED_FILE_BYTES, remaining_budget
+        ):
+            raise InstallError("checkout_tracked_read_budget_exceeded")
+        if mode == b"120000":
+            if not stat.S_ISLNK(before.st_mode):
+                raise InstallError("checkout_tracked_symlink_type_mismatch")
+            # A bytes path returns the raw link text, without opening the
+            # target, even for an absolute or out-of-checkout target.
+            raw = os.readlink(leaf, dir_fd=parent_fd)
+            if not isinstance(raw, bytes) or len(raw) != before.st_size:
+                raise InstallError("checkout_tracked_symlink_size_changed")
+            actual_oid = git_blob_sha1(raw)
+        else:
+            if not stat.S_ISREG(before.st_mode):
+                raise InstallError("checkout_tracked_regular_type_mismatch")
+            # Git records the owner execute bit, not full POSIX permissions.
+            if bool(before.st_mode & stat.S_IXUSR) != (mode == b"100755"):
+                raise InstallError("checkout_tracked_executable_bit_mismatch")
+            fd = os.open(
+                leaf,
+                os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+                dir_fd=parent_fd,
+            )
+            try:
+                opened = os.fstat(fd)
+                if not stat.S_ISREG(opened.st_mode) or not _same_stat(before, opened):
+                    raise InstallError("checkout_tracked_file_rebound")
+                digest = hashlib.sha1(
+                    b"blob " + str(opened.st_size).encode("ascii") + b"\0"
+                )
+                remaining = opened.st_size
+                while remaining:
+                    chunk = os.read(fd, min(MAX_READ_CHUNK, remaining))
+                    if not chunk:
+                        raise InstallError("checkout_tracked_file_short_read")
+                    digest.update(chunk)
+                    remaining -= len(chunk)
+                if os.read(fd, 1):
+                    raise InstallError("checkout_tracked_file_grew")
+                if not _same_stat(opened, os.fstat(fd)):
+                    raise InstallError("checkout_tracked_file_changed")
+                actual_oid = digest.hexdigest()
+            finally:
+                os.close(fd)
+        if not _same_stat(
+            before, os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+        ):
+            raise InstallError("checkout_tracked_file_changed")
+        if actual_oid != expected_oid:
+            raise InstallError("checkout_tracked_raw_blob_mismatch")
+        for directory_parent, name, child_fd, initial in directory_bindings:
+            if (
+                not _same_stat(initial, os.fstat(child_fd))
+                or not _same_stat(
+                    initial,
+                    os.stat(name, dir_fd=directory_parent, follow_symlinks=False),
+                )
+            ):
+                raise InstallError("checkout_tracked_directory_changed")
+        return before.st_size
+    except OSError as exc:
+        raise InstallError("checkout_tracked_path_read_failed") from exc
+    finally:
+        for fd in reversed(directory_fds):
+            os.close(fd)
 
 
 def checkout_snapshot(expected_head: str) -> dict[str, Any]:
     if HEX40.fullmatch(expected_head) is None:
         raise InstallError("expected_head_invalid")
-    head = _git(["rev-parse", "--verify", "HEAD^{commit}"]).decode().strip()
-    tree = _git(["rev-parse", "--verify", "HEAD^{tree}"]).decode().strip()
-    branch = _git(["symbolic-ref", "--short", "-q", "HEAD"]).decode().strip()
-    status = _git(["status", "--porcelain=v1", "--untracked-files=all"])
-    if head != expected_head:
-        raise InstallError("checkout_head_mismatch")
-    if branch != "main":
-        raise InstallError("checkout_branch_not_main")
-    if status != b"":
-        raise InstallError("checkout_not_clean")
-    if HEX40.fullmatch(tree) is None:
-        raise InstallError("checkout_tree_invalid")
-    return {
-        "head": head,
-        "tree": tree,
-        "branch": branch,
-        "clean": True,
-    }
+    try:
+        root_fd = _open_fixed_checkout()
+    except OSError as exc:
+        raise InstallError("checkout_physical_directory_required") from exc
+    try:
+        root_before = os.fstat(root_fd)
+        head = _git(["rev-parse", "--verify", "HEAD^{commit}"]).decode("ascii").strip()
+        if head != expected_head:
+            raise InstallError("checkout_head_mismatch")
+        branch_ref = _git(["symbolic-ref", "-q", "HEAD"])
+        if branch_ref != b"refs/heads/main\n":
+            raise InstallError("checkout_branch_not_main")
+        tree = _git([
+            "rev-parse", "--verify", expected_head + "^{tree}"
+        ]).decode("ascii").strip()
+        if HEX40.fullmatch(tree) is None:
+            raise InstallError("checkout_tree_invalid")
+
+        tree_entries = _tracked_listing(
+            _git(["ls-tree", "-r", "--full-tree", "-z", expected_head]),
+            from_index=False,
+        )
+        index_args = ["ls-files", "--stage", "-v", "-z", "--full-name", "--sparse"]
+        index_raw = _git(index_args)
+        index_entries = _tracked_listing(index_raw, from_index=True)
+        if index_entries != tree_entries:
+            raise InstallError("checkout_index_tree_mismatch")
+
+        total_bytes = 0
+        for path, (mode, oid) in tree_entries.items():
+            total_bytes += _tracked_blob_snapshot(
+                root_fd,
+                path,
+                mode=mode,
+                expected_oid=oid,
+                remaining_budget=MAX_TRACKED_TOTAL_BYTES - total_bytes,
+            )
+
+        if _git(["ls-files", "--others", "--exclude-standard", "-z", "--full-name"]):
+            raise InstallError("checkout_untracked_files_present")
+        if _git(index_args) != index_raw:
+            raise InstallError("checkout_index_changed_during_snapshot")
+        if (
+            _git(["rev-parse", "--verify", "HEAD^{commit}"]) != (expected_head + "\n").encode("ascii")
+            or _git(["symbolic-ref", "-q", "HEAD"]) != branch_ref
+        ):
+            raise InstallError("checkout_generation_changed_during_snapshot")
+        if (
+            not _same_stat(root_before, os.fstat(root_fd))
+            or not _same_stat(root_before, FIXED_CHECKOUT.lstat())
+        ):
+            raise InstallError("checkout_root_changed_during_snapshot")
+        return {"head": head, "tree": tree, "branch": "main", "clean": True}
+    finally:
+        os.close(root_fd)
 
 
 def _git_object(
@@ -335,7 +580,8 @@ def _git_object(
     expected_bytes: int | None = None,
     expected_sha256: str | None = None,
 ) -> bytes:
-    raw = _git(["show", expected_head + ":" + relative])
+    # No --filters or --textconv; this operation returns raw blob content.
+    raw = _git(["cat-file", "blob", expected_head + ":" + relative])
     if git_blob_sha1(raw) != expected_blob:
         raise InstallError("git_object_blob_mismatch:" + relative)
     if expected_bytes is not None and len(raw) != expected_bytes:
@@ -638,7 +884,7 @@ def collect_plan(
     body = {
         "schema":
             "void_buy_void_epoch2_dormant_binder_installer_first_entry_install_plan_v2",
-        "version": 1,
+        "version": 2,
         "lock_id": LOCK_ID,
         "candidate_id": CANDIDATE_ID,
         "expected_head": expected_head,
@@ -759,7 +1005,7 @@ def plan(
         print("already_installed=false")
         print(
             "next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_"
-            "CREATE_ONLY_PROTECTED_INSTALL_V1"
+            "CREATE_ONLY_PROTECTED_INSTALL_V2"
         )
 
 
@@ -843,63 +1089,130 @@ def _create_file(
         os.close(fd)
 
 
-def _cleanup_stage(
+def _cleanup_created_stage(
+    parent_fd: int,
     expected_stage_dev: int,
     expected_stage_ino: int,
 ) -> bool:
-    if not _exists(STAGE_ROOT):
-        return True
-    try:
-        stage_st = STAGE_ROOT.lstat()
+    """Remove only the created stage generation through retained descriptors."""
+    expected = {
+        (): {BIN_DIR, INPUT_DIR, POLICY_NAME, SOURCE_DIR},
+        (BIN_DIR,): {LAUNCHER_NAME},
+        (INPUT_DIR,): {NATIVE_NAME},
+        (SOURCE_DIR,): {OPS_DIR},
+        (SOURCE_DIR, OPS_DIR): {PRECISION_DIR},
+        (SOURCE_DIR, OPS_DIR, PRECISION_DIR): {RUNTIME_INSTALLER_NAME},
+    }
+    directories: dict[tuple[str, ...], int] = {}
+    identities: dict[tuple[str, ...], tuple[int, int]] = {}
+    files: list[tuple[tuple[str, ...], str, os.stat_result]] = []
+
+    def directory_identity(st: os.stat_result) -> tuple[int, int]:
         if (
-            not stat.S_ISDIR(stage_st.st_mode)
-            or stat.S_ISLNK(stage_st.st_mode)
-            or stage_st.st_dev != expected_stage_dev
-            or stage_st.st_ino != expected_stage_ino
-            or stage_st.st_uid != 0
-            or stage_st.st_gid != 0
-            or stat.S_IMODE(stage_st.st_mode) != 0o755
+            not stat.S_ISDIR(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or stat.S_IMODE(st.st_mode) != 0o755
         ):
+            raise InstallError("cleanup_directory_not_protected")
+        return st.st_dev, st.st_ino
+
+    def visible_directory_identity(relative: tuple[str, ...]) -> tuple[int, int]:
+        fd = parent_fd if not relative else directories[relative[:-1]]
+        name = STAGE_NAME if not relative else relative[-1]
+        return directory_identity(os.stat(name, dir_fd=fd, follow_symlinks=False))
+
+    def generations_match() -> bool:
+        return all(
+            visible_directory_identity(relative) == identity
+            and set(os.listdir(directories[relative])) <= expected[relative]
+            for relative, identity in identities.items()
+        )
+
+    def cleanup() -> bool:
+        try:
+            visible = visible_directory_identity(())
+        except FileNotFoundError:
+            return True
+        if visible != (expected_stage_dev, expected_stage_ino):
             return False
-        expected = {
-            STAGE_ROOT: {BIN_DIR, INPUT_DIR, POLICY_NAME, SOURCE_DIR},
-            STAGE_ROOT / BIN_DIR: {LAUNCHER_NAME},
-            STAGE_ROOT / INPUT_DIR: {NATIVE_NAME},
-            STAGE_ROOT / SOURCE_DIR: {OPS_DIR},
-            STAGE_ROOT / SOURCE_DIR / OPS_DIR: {PRECISION_DIR},
-            STAGE_ROOT / SOURCE_DIR / OPS_DIR / PRECISION_DIR:
-                {RUNTIME_INSTALLER_NAME},
-        }
-        for directory, names in expected.items():
-            if directory.exists() and set(os.listdir(directory)) - names:
+
+        for relative in expected:
+            if relative and relative[:-1] not in directories:
+                continue
+            fd = parent_fd if not relative else directories[relative[:-1]]
+            name = STAGE_NAME if not relative else relative[-1]
+            try:
+                before = visible_directory_identity(relative)
+            except FileNotFoundError:
+                if not relative:
+                    return False
+                continue
+            opened = os.open(
+                name,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=fd,
+            )
+            directories[relative] = opened
+            identity = directory_identity(os.fstat(opened))
+            if identity != before or (not relative and identity != visible):
                 return False
+            identities[relative] = identity
 
-        for file_path in (
-            STAGE_ROOT / BIN_DIR / LAUNCHER_NAME,
-            STAGE_ROOT / INPUT_DIR / NATIVE_NAME,
-            STAGE_ROOT / SOURCE_DIR / OPS_DIR / PRECISION_DIR / RUNTIME_INSTALLER_NAME,
-            STAGE_ROOT / POLICY_NAME,
-        ):
-            try:
-                file_path.unlink()
-            except FileNotFoundError:
-                pass
+        # Complete preflight precedes every deletion. Partial creation is valid;
+        # unknown names, symlinks, special files and hardlinks are not.
+        for relative, fd in directories.items():
+            entries = set(os.listdir(fd))
+            if entries - expected[relative]:
+                return False
+            for name in entries:
+                child = relative + (name,)
+                if child in expected:
+                    if child not in directories:
+                        return False
+                    continue
+                observed = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                if (
+                    not stat.S_ISREG(observed.st_mode)
+                    or observed.st_uid != 0
+                    or observed.st_gid != 0
+                    or observed.st_nlink != 1
+                    or (observed.st_mode & 0o022) != 0
+                ):
+                    return False
+                files.append((relative, name, observed))
 
-        for directory in (
-            STAGE_ROOT / SOURCE_DIR / OPS_DIR / PRECISION_DIR,
-            STAGE_ROOT / SOURCE_DIR / OPS_DIR,
-            STAGE_ROOT / SOURCE_DIR,
-            STAGE_ROOT / INPUT_DIR,
-            STAGE_ROOT / BIN_DIR,
-            STAGE_ROOT,
-        ):
+        for relative, name, observed in files:
+            if not generations_match():
+                return False
+            if not _same_stat(
+                observed,
+                os.stat(name, dir_fd=directories[relative], follow_symlinks=False),
+            ):
+                return False
+            os.unlink(name, dir_fd=directories[relative])
+
+        for relative in reversed(tuple(directories)):
+            if not generations_match():
+                return False
+            fd = parent_fd if not relative else directories[relative[:-1]]
+            name = STAGE_NAME if not relative else relative[-1]
+            os.rmdir(name, dir_fd=fd)
+            del identities[relative]
+        return True
+
+    result = False
+    try:
+        result = cleanup()
+    except (OSError, InstallError):
+        result = False
+    finally:
+        for fd in reversed(tuple(directories.values())):
             try:
-                directory.rmdir()
-            except FileNotFoundError:
-                pass
-        return not _exists(STAGE_ROOT)
-    except OSError:
-        return False
+                os.close(fd)
+            except OSError:
+                result = False
+    return result
 
 
 def _require_secure_apply_context() -> None:
@@ -987,12 +1300,19 @@ def apply(
         if _exists(STAGE_ROOT) or _exists(INSTALL_ROOT):
             raise InstallError("install_root_or_stage_already_present")
 
-        stage_fd = _mkdir_at(opt_fd, STAGE_NAME)
+        os.mkdir(STAGE_NAME, 0o755, dir_fd=opt_fd)
         stage_created = True
-        stage_identity = os.fstat(stage_fd)
-        stage_dev = stage_identity.st_dev
-        stage_ino = stage_identity.st_ino
+        stage_fd = os.open(
+            STAGE_NAME,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=opt_fd,
+        )
         try:
+            stage_identity = os.fstat(stage_fd)
+            stage_dev = stage_identity.st_dev
+            stage_ino = stage_identity.st_ino
+            os.fchown(stage_fd, 0, 0)
+            os.fchmod(stage_fd, 0o755)
             bin_fd = _mkdir_at(stage_fd, BIN_DIR)
             input_fd = _mkdir_at(stage_fd, INPUT_DIR)
             source_fd = _mkdir_at(stage_fd, SOURCE_DIR)
@@ -1078,7 +1398,7 @@ def apply(
             try:
                 os.close(opt_fd)
                 failure.install_parent_close_completed = True
-            except OSError as close_exc:
+            except BaseException as close_exc:
                 failure.install_parent_close_completed = False
                 (
                     failure.close_failure_class,
@@ -1092,12 +1412,12 @@ def apply(
             if stage_dev is None or stage_ino is None:
                 cleanup_green = False
             else:
-                cleanup_green = _cleanup_stage(stage_dev, stage_ino)
+                cleanup_green = _cleanup_created_stage(opt_fd, stage_dev, stage_ino)
         print("prepublication_cleanup_attempted=" + str(cleanup_attempted).lower())
         print("prepublication_cleanup_green=" + str(cleanup_green).lower())
         try:
             os.close(opt_fd)
-        except OSError as close_exc:
+        except BaseException as close_exc:
             raise InstallError("install_parent_close_failed_before_publication") from close_exc
         if not cleanup_green:
             raise InstallError("prepublication_cleanup_failed") from exc
@@ -1105,7 +1425,7 @@ def apply(
 
     try:
         os.close(opt_fd)
-    except OSError as close_exc:
+    except BaseException as close_exc:
         klass, reason = _bounded_failure(close_exc)
         failure = PublishedInstallError(
             "published_install_close_failed",
@@ -1131,6 +1451,7 @@ def apply(
     print("publication_state=create_only_rename_noreplace_verified")
     print("final_state_verified=true")
     print("parent_fsync_completed=true")
+    print("install_parent_close_completed=true")
     print("launcher_sha256=" + LAUNCHER_SHA256)
     print("launcher_bytes=" + str(LAUNCHER_BYTES))
     print("native_sha256=" + NATIVE_SHA256)
@@ -1198,8 +1519,8 @@ def self_test() -> None:
     print("operation_bound_plan_id_required=true")
     print("explicit_apply_confirmation_required=true")
     print("prepublication_cleanup_required=true")
-    print("cleanup_only_if_stage_created_by_invocation=true")
     print("prepublication_cleanup_stage_generation_bound=true")
+    print("prepublication_cleanup_descriptor_relative=true")
     print("post_publication_rollback=false")
     print("truthful_post_publication_failure_receipt=true")
     print("post_publication_close_failure_receipt_truthful=true")
@@ -1256,9 +1577,9 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
+def entrypoint() -> int:
     try:
-        raise SystemExit(main())
+        return main()
     except PublishedInstallError as exc:
         print(MARKER)
         print("status=HOLD")
@@ -1310,7 +1631,7 @@ if __name__ == "__main__":
         print("transaction=false")
         print("rpc_call=false")
         print("funds_movement=false")
-        raise SystemExit(2)
+        return 2
     except InstallError as exc:
         print(MARKER)
         print("status=HOLD")
@@ -1325,4 +1646,8 @@ if __name__ == "__main__":
         print("transaction=false")
         print("rpc_call=false")
         print("funds_movement=false")
-        raise SystemExit(2)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(entrypoint())

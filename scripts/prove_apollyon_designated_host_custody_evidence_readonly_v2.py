@@ -59,7 +59,7 @@ for value in [
  "all_training_uid_threads_capability_free","training_uid_thread_count",
  "training_uid_thread_sets_stable","thread_inventory_sha256",
  "training_uid_process_set_stable","training_uid_processes",
- "REVIEWED_SYSTEMD_PACKAGE_VERSIONS=('255.4-1ubuntu8.11',)",
+ "REVIEWED_SYSTEMD_PACKAGE_VERSIONS=('255.4-1ubuntu8.11','255.4-1ubuntu8.18')",
  "parse_systemd_bus_owner_pid","GetConnectionUnixProcessID",
  "systemd_bus_owner_pid_is_pid1","reviewed_systemd_package_version",
  "runtime_can_control_service':control['runtime_can_control_service']","--training-pid",
@@ -107,6 +107,14 @@ assert installed['installed_systemd_major']==255
 assert installed['installed_systemd_package_version']=='255.4-1ubuntu8.11'
 assert running['running_systemd_manager_major']==255
 assert running['running_systemd_manager_version']=='255.4-1ubuntu8.11'
+
+installed_current=mod.parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.18)')
+running_current=mod.parse_running_systemd_manager_version('s "255.4-1ubuntu8.18"')
+assert installed_current['installed_systemd_major']==255
+assert installed_current['installed_systemd_package_version']=='255.4-1ubuntu8.18'
+assert installed_current['reviewed_systemd_package_version']=='255.4-1ubuntu8.18'
+assert running_current['running_systemd_manager_major']==255
+assert running_current['running_systemd_manager_version']=='255.4-1ubuntu8.18'
 assert owner['systemd_bus_owner_pid']==1
 assert owner['systemd_bus_owner_pid_is_pid1'] is True
 assert mod.parse_busctl_unique_names(
@@ -395,7 +403,7 @@ assert bus_evidence['actual_system_bus_sender_set_stable'] is True
 assert bus_evidence['actual_system_bus_senders'][0]['subject_type']=='system-bus-name'
 assert len(bus_calls)==1+len(mod.SYSTEMD_MANAGE_UNIT_VERBS)+len(mod.SYSTEMD_GLOBAL_CONTROL_ACTIONS)
 assert all(name==':1.42' for _,name,_ in bus_calls)
-assert mod.REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11',)
+assert mod.REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11','255.4-1ubuntu8.18')
 try:
  mod.parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.12)')
 except mod.Hold:
@@ -459,7 +467,7 @@ print('training_username_forward_reverse_double_snapshot=true')
 print('training_username_post_authorization_recheck=true')
 print('training_uid_process_set_stability_required=true')
 print('systemd_bus_owner_pid_is_pid1_required=true')
-print('reviewed_systemd_package_version=255.4-1ubuntu8.11')
+print('reviewed_systemd_package_versions=255.4-1ubuntu8.11,255.4-1ubuntu8.18')
 print('live_host_qualification_performed=false')
 print('host_mutation=false')
 print('service_action=false')
