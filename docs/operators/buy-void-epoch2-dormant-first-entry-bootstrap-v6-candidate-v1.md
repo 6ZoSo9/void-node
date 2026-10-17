@@ -24,12 +24,18 @@ The candidate binds:
   `aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`;
 - the exact static V6 compile contract exercised by the merged V3/V6 source proof;
 - a sealed `memfd` source snapshot used as compiler input;
+- a stable compiler logical source name via `-x c -` and sealed-source stdin,
+  so incidental inherited descriptor numbers are not embedded into the ELF;
+- two simultaneously open sealed source descriptors with distinct FD numbers,
+  required to produce byte-identical candidate ELFs;
 - protected compiler/readelf identities and post-build tool revalidation;
 - exact V6 self-test output identity;
 - static ELF/no-interpreter/no-`NEEDED` checks.
 
 The mutable checkout source pathname is not compiler input after the sealed source
-snapshot is created.
+snapshot is created. The sealed source descriptor number is also not candidate
+identity: the proof compiles identical reviewed bytes from two distinct retained
+FD numbers through compiler stdin and requires exact ELF byte identity.
 
 ## Hosted derivation
 
@@ -39,7 +45,10 @@ Three independent Ubuntu 24.04 jobs each derive:
 - `bootstrap-v6` static ELF.
 
 The compare job requires all three reports and all three ELF files to be
-byte-identical, then independently rederives both a fourth time.
+byte-identical, then independently rederives both a fourth time. Each derivation
+also proves `compiler_logical_source_name=stdin`,
+`distinct_source_fd_numbers_exercised=true`, and
+`descriptor_number_not_candidate_identity=true`.
 
 The candidate ID is:
 
