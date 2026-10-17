@@ -29,6 +29,7 @@ LOCK_ID = (
 
 CANDIDATE_MERGE = "3a38da1e53ac52374aae4182d24ad4c245dfe504"
 CANDIDATE_TREE = "4a25e5cb001667920b1b5715679c7cce99bd68fe"
+LOCK_BASE = "c39cb83038174dc37967b9c29c624a9dcc4e1db7"
 
 CANDIDATE_REL = (
     "scripts/"
@@ -226,6 +227,7 @@ def direct(path: Path, maximum: int) -> bytes:
 
 def verify_repository() -> None:
     git(["merge-base", "--is-ancestor", CANDIDATE_MERGE, "HEAD"])
+    git(["merge-base", "--is-ancestor", LOCK_BASE, "HEAD"])
     if git(["rev-parse", CANDIDATE_MERGE + "^{tree}"]) != CANDIDATE_TREE:
         raise AssertionError("candidate_tree_drift")
 
@@ -251,7 +253,7 @@ def verify_repository() -> None:
 
     changed = tuple(sorted(
         line for line in
-        git(["diff", "--name-only", CANDIDATE_MERGE, "HEAD", "--"]).splitlines()
+        git(["diff", "--name-only", LOCK_BASE, "HEAD", "--"]).splitlines()
         if line
     ))
     if changed != EXPECTED_SCOPE:
