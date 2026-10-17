@@ -80,6 +80,8 @@ for required in (
     'LAUNCHER_BYTES = 731_072',
     'NATIVE_BYTES = 726_976',
     'runtime_expected_head_forwarded_unchanged',
+    'voidbuye2bootstraplock4_',
+    'voidbuye2bootstrapcand3_',
     'superseded_v3_lock_install_authority',
     'superseded_v2_lock_install_authority',
     'superseded_v1_lock_install_authority',
