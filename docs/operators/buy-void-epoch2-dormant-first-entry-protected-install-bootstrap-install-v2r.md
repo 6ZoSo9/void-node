@@ -139,9 +139,13 @@ A future host plan requires:
 - trusted `/opt`;
 - no staging root;
 - absent final root or exact already-installed generation;
-- root-protected Git and Python generations.
+- root-protected Git and Python generations;
+- Git identity reads run with `GIT_NO_LAZY_FETCH=1` plus an empty
+  `GIT_ALLOW_PROTOCOL`, so a missing promisor object cannot contact a remote
+  or write fetched objects into the checkout.
 
-Plan is read-only and returns an operation-bound
+Plan is read-only: missing local Git objects HOLD instead of being fetched.
+It returns an operation-bound
 `voidbuye2bootstrapinstall2r_<sha256>` ID.
 
 ## Apply boundary
@@ -194,7 +198,11 @@ This gate never launches:
 - services or systemd.
 
 Hosted CI runs only source syntax/invariant checks, `--self-test`, and
-`--source-plan`.
+`--source-plan`. The focused proof also uses a synthetic local promisor
+repository: the unguarded positive control must invoke its upload-pack helper
+and mutate the object database, while the production Git environment must make
+zero helper calls and leave the fixture repository unchanged. A second fixture
+drops `GIT_NO_LAZY_FETCH` and proves transport denial independently.
 
 ## Authority
 
