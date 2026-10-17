@@ -44,6 +44,9 @@ jobs:
 
       - name: Bind exact V6 materializer generation
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -51,26 +54,35 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$lock_head" "$EXPECTED_HEAD"
 
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
           printf '%s\n' \
             '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.yml' \
             'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md' \
             'scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py' \
             'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py' \
             | sort > "$expected"
-          git diff --name-only "$lock_head" "$EXPECTED_HEAD" -- | sort > "$actual"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py)" = 3a937c756a91ad2565897f1ae5d881f9fa2f41c6
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py)" = 58ae5cb2c3c4f47aa56744e4202c0b45db1416ef
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md)" = 0d141b39670de03cba791504d1d27ee56f588db5
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py)" = 376c7e491544dc2a4b31e8122e43feea287dcb8d
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py)" = 66638b84cc0c2fff81ada8b39b09ca70c6346a6a
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md)" = def059df9de41f2add66d1381a5a562039deec0e
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f5b03c6b81016edf21f605099e0ef8976f40e107
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = b963ac9ef0b9c8ac685763b3a82375f970ef12df
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = a317d3dce324337f107909bd6e33e98622b3ef09
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = 6e0630af72111bd9976dcc38cdcdada1904dd067
 
-          git diff --check "$lock_head" "$EXPECTED_HEAD"
+          git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Syntax and independent materializer proof
@@ -103,6 +115,18 @@ jobs:
             'manifest_bytes=2382' \
             'manifest_sha256=aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662' \
             'create_only_output_replay_rejected=true' \
+            'output_leaf_generation_revalidation_required=true' \
+            'output_visible_parent_generation_revalidation_required=true' \
+            'output_requested_path_generation_revalidation_required=true' \
+            'publication_fixture_cases=4' \
+            'publication_normal_control_verified=true' \
+            'publication_parent_relocation_rejected=true' \
+            'publication_leaf_replacement_rejected=true' \
+            'publication_final_leaf_name_check_exercised=true' \
+            'publication_descriptors_closed_on_success_and_failure=true' \
+            'publication_rebound_entries_preserved=true' \
+            'publication_fixture_candidate_bytes_supplied_inertly=true' \
+            'publication_fixture_native_execution=false' \
             'artifact_publication_only=true' \
             'protected_install_authorized=false' \
             'live_execution_authorized=false' \
@@ -146,6 +170,9 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_MATERIALIZER_V1_DERIVE_GREEN' "$receipt"
           grep -Fx 'binary_git_blob_sha1=a91707c3e5803071fc73c3451c9bcb3b774f8b48' "$receipt"
           grep -Fx 'descriptor_independent_candidate_bound=true' "$receipt"
+          grep -Fx 'output_leaf_generations_revalidated=true' "$receipt"
+          grep -Fx 'output_visible_parent_generation_revalidated=true' "$receipt"
+          grep -Fx 'output_requested_path_generation_revalidated=true' "$receipt"
           grep -Fx 'artifact_publication_only=true' "$receipt"
           grep -Fx 'protected_install_authorized=false' "$receipt"
           grep -Fx 'live_execution_authorized=false' "$receipt"

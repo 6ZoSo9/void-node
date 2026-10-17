@@ -42,6 +42,9 @@ jobs:
 
       - name: Bind exact V6 bootstrap installer generation
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -49,25 +52,34 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
 
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
           printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml' \
             '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.yml' \
-            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.md' \
-            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
-            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md' \
+            'scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py' \
             | sort > "$expected"
-          git diff --name-only "$parent" "$EXPECTED_HEAD" -- | sort > "$actual"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 63e1c973978cfcb67105010e4145f01552673bc3
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = cb229523f260dbb50620c062556d725efebe4e8d
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.md)" = 38cc160e19c1bcf593a648ec13c0a395be423822
-          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py)" = 3a937c756a91ad2565897f1ae5d881f9fa2f41c6
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py)" = 376c7e491544dc2a4b31e8122e43feea287dcb8d
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f5b03c6b81016edf21f605099e0ef8976f40e107
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = 6e0630af72111bd9976dcc38cdcdada1904dd067
 
-          git diff --check "$parent" "$EXPECTED_HEAD"
+          git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Syntax and independent installer proof

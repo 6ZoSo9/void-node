@@ -59,6 +59,10 @@ Hosted CI publishes:
 - SHA256SUMS;
 - materializer receipt.
 
+Before reporting `DERIVE_GREEN`, the materializer revalidates the original absolute output path against the retained parent and output directory descriptors. It keeps each created artifact descriptor open while checking that the corresponding visible name still identifies that file, with the expected metadata, bytes, and mode. A detected parent relocation, directory replacement, or leaf substitution fails the command before a success receipt. A HOLD does not recursively remove the output directory, so a replacement tree is left for inspection.
+
+These checks describe consistency at the publication observation points. They do not prevent another process with access to the caller-owned output from changing it after the final check. The returned output path is the verified absolute path; the receiving installer still needs a fresh byte and identity check.
+
 The artifact is a handoff convenience only. A future host installer must independently verify every byte, the source-generation V3 identity, and the accepted V6 lock before publication.
 
 ## Authority
