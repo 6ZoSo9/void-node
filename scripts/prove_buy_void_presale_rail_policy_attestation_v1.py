@@ -183,6 +183,7 @@ def main() -> None:
     print("public_presale_activation=false")
     print("wc_void_activation=false")
     print("funds_movement=false")
+    print("status=PAYMENT_RAIL_DOCUMENTATION_RECONCILIATION_HOLD")
 
 if __name__ == "__main__":
     main()
