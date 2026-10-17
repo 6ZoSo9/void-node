@@ -92,7 +92,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py)" = \
             474e525cd54cc99b745d1e3aa62d66dac47ca785
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py)" = \
-            732f16d30b0376c441d6cbfe915df8a81e668150
+            1474696bd4e60065dda5ae39ad54d1c2244ab935
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.md)" = \
             d082e8aceb78c14e81d3790a972657b75264f82f
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py)" = \
