@@ -31,7 +31,7 @@ Accepted bootstrap ELF:
 
 ## Frozen derivation
 
-The materializer requires the V2 acceptance lock on the current clean checkout,
+The materializer requires the canonical V3 acceptance lock on the current clean checkout,
 then rederives from the frozen candidate source head
 `344f0abcc57d6f2fbacbb6a57e27009ae9ea7a4b`, exact tree
 `4085987d856fa303b8bc81087e3b5a207bc8964f`.
