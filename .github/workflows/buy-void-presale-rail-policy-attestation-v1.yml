@@ -1,0 +1,131 @@
+name: Buy VOID presale payment rail policy attestation v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-rail-policy-attestation-v1.yml"
+      - "docs/architecture/buy-void-presale-rail-policy-attestation-v1.md"
+      - "scripts/prove_buy_void_presale_rail_policy_attestation_v1.py"
+      - "README.md"
+      - "scripts/lib/void_buy_void_dual_rail_server_policy_contract_v1.mjs"
+      - "docs/architecture/buy-void-dual-rail-server-policy-v1.md"
+      - "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
+      - "docs/architecture/buy-void-presale-source-freeze-candidate-v1.md"
+      - "docs/operators/buy-void-precision-source-freeze-host-metadata-census-v1.md"
+      - "ops/security/buy-void-presale-source-freeze-candidate-v1.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  exact-source-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact reviewed freeze and additive erratum scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 1b17ac5668b9b022935b577e15eba534116a9ea0 "$EXPECTED_HEAD"
+          git merge-base --is-ancestor bfdff02472c57439721ebed0a94498c691c68a9c "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-additions.txt"
+          actual="$RUNNER_TEMP/actual-additions.txt"
+          printf 'A\t%s\n' \
+            '.github/workflows/buy-void-presale-rail-policy-attestation-v1.yml' \
+            'docs/architecture/buy-void-presale-rail-policy-attestation-v1.md' \
+            'scripts/prove_buy_void_presale_rail_policy_attestation_v1.py' \
+            | sort > "$expected"
+          git diff --no-renames --name-status 1b17ac5668b9b022935b577e15eba534116a9ea0 HEAD -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_rail_policy_attestation_v1.py)" = 19425d025b9961c70d95d50c48909ec32116a76e
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-rail-policy-attestation-v1.md)" = 62178f5231295f7712993fef66cae4364e508393
+          test "$(git rev-parse HEAD:README.md)" = 6b52c555eb7d93b9ea6652d50aa946f6a319d7de
+          test "$(git rev-parse HEAD:scripts/lib/void_buy_void_dual_rail_server_policy_contract_v1.mjs)" = fbdfc69b23ea2c7a81ed83e0a327af37a94fc552
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-dual-rail-server-policy-v1.md)" = a8c2300f7f2b1296790bf496e02a997f7126310f
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-candidate-v1.md)" = 599203e3edb9deb39d7df6b0fd662373eee7ea30
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v1.json)" = 91d2d7877bc3066e3030337576ca2dddeb55bfc8
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = 61a9d85d285f9c9d249adf401580822c44c6dac6
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v1.py)" = e82feb591d3dfab838e0aeb597efab3f2b5866a3
+          git diff --check 1b17ac5668b9b022935b577e15eba534116a9ea0 HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Enforce read-only attestation source shape
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import ast
+          from pathlib import Path
+          proof = Path("scripts/prove_buy_void_presale_rail_policy_attestation_v1.py")
+          tree = ast.parse(proof.read_text("utf-8"))
+          allowed = {"__future__", "hashlib", "json", "pathlib", "re", "stat", "subprocess", "sys"}
+          forbidden_attrs = {"write_text", "write_bytes", "unlink", "rmtree", "mkdir",
+                             "makedirs", "chmod", "chown", "replace", "rename",
+                             "connect", "urlopen", "Popen", "system", "fork", "execve"}
+          imports = set()
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Import):
+                  imports.update(alias.name.split(".")[0] for alias in node.names)
+              elif isinstance(node, ast.ImportFrom):
+                  imports.add((node.module or "").split(".")[0])
+              elif isinstance(node, ast.Call):
+                  if isinstance(node.func, ast.Attribute):
+                      assert node.func.attr not in forbidden_attrs, node.func.attr
+          assert imports <= allowed, imports - allowed
+          source = proof.read_text("utf-8")
+          assert '("rev-parse", "merge-base", "diff", "status", "ls-tree")' in source
+          assert 'read_only=true' in source
+          assert 'frozen_btc_only_presale_statement_historical_incorrect=true' in source
+          assert 'customer_payment_acceptance_authorized=false' in source
+          print("VOID_BUY_VOID_PRESALE_RAIL_POLICY_AST_GUARD_GREEN")
+          PY
+
+      - name: Check source-only dual-rail contract syntax
+        run: node --check scripts/lib/void_buy_void_dual_rail_server_policy_contract_v1.mjs
+
+      - name: Qualify corrected presale rail and explicit HOLD
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_presale_rail_policy_attestation_v1.py"
+          output="$RUNNER_TEMP/presale-rail-source-only.log"
+          python3 -I -B "$proof" --self-test | tee "$output"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_RAIL_POLICY_ATTESTATION_V1_GREEN' \
+            'read_only=true' \
+            'reviewed_dual_rail_source_contract_bound=true' \
+            'presale_payment_asset=native_USDC' \
+            'presale_source_chains=ethereum_1,base_8453' \
+            'presale_void_per_usdc=2' \
+            'presale_inventory_void=10000000' \
+            'btc_void_market_post_presale=true' \
+            'presale_wc_void_launch_coupled=true' \
+            'wc_void_price_market_determined=true' \
+            'frozen_btc_only_presale_statement_historical_incorrect=true' \
+            'freeze_manifest_rewritten=false' \
+            'source_snapshot_auto_advance=false' \
+            'customer_payment_acceptance_authorized=false' \
+            'public_presale_activation=false' \
+            'wc_void_activation=false' \
+            'funds_movement=false' \
+            'status=PAYMENT_RAIL_DOCUMENTATION_RECONCILIATION_HOLD'
+          do
+            grep -Fx "$marker" "$output"
+          done
+          if python3 -I -B "$proof" --apply > "$RUNNER_TEMP/forbidden-apply.log" 2>&1; then
+            echo "UNEXPECTED_POLICY_APPLY_ACCEPTED" >&2
+            exit 1
+          fi
+          grep -F 'AssertionError: unsupported_mode' "$RUNNER_TEMP/forbidden-apply.log"
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
