@@ -15,54 +15,54 @@ from typing import Any
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
-    "PROTECTED_INSTALL_BOOTSTRAP_INSTALL_V2R"
+    "PROTECTED_INSTALL_BOOTSTRAP_INSTALL_V3"
 )
 PLAN_SCHEMA = (
     "void_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_install_plan_v2r"
+    "protected_install_bootstrap_install_plan_v3"
 )
 POLICY_SCHEMA = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
-    "PROTECTED_INSTALL_BOOTSTRAP_POLICY_V2"
+    "PROTECTED_INSTALL_BOOTSTRAP_POLICY_V3"
 )
 CONFIRM_TOKEN = (
     "INSTALL_ACCEPTED_EPOCH2_DORMANT_FIRST_ENTRY_"
-    "PROTECTED_BOOTSTRAP_V2R_CREATE_ONLY"
+    "PROTECTED_BOOTSTRAP_V3_CREATE_ONLY"
 )
-PLAN_PREFIX = "voidbuye2bootstrapinstall2r_"
+PLAN_PREFIX = "voidbuye2bootstrapinstall3_"
 
 LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-first-entry-protected-install-"
-    "bootstrap-candidate-lock-v3.json"
+    "bootstrap-candidate-lock-v4.json"
 )
-LOCK_GIT_BLOB_SHA1 = "64c9a42ca1108a9e8f88218c34d53e50668c653e"
+LOCK_GIT_BLOB_SHA1 = "57ecc08d465fe2a3c395546d349864312cd08a3f"
 LOCK_ID = (
-    "voidbuye2bootstraplock3_"
-    "690d119c90f5c8c20f429fcc14919b62691f9a1b3bfe2226476267ede993197f"
+    "voidbuye2bootstraplock4_"
+    "6568c1cd0195405d49001fbf6cb9a086364e401f78f3bfcf1d6cbb080947cb67"
 )
-CANDIDATE_MERGE = "344f0abcc57d6f2fbacbb6a57e27009ae9ea7a4b"
-CANDIDATE_TREE = "4085987d856fa303b8bc81087e3b5a207bc8964f"
+CANDIDATE_MERGE = "78875f7379c2dd995e1b545dd0543c934e59907a"
+CANDIDATE_TREE = "a2c1b6b9989ceb11c4fbea3f2fc4ecf64eb50176"
 CANDIDATE_ID = (
-    "voidbuye2bootstrapcand2_"
-    "b71b8757fa64fc36c2df0e95e3812c00eccef114b71e0b854c34ddfd62285def"
+    "voidbuye2bootstrapcand3_"
+    "9e914f52eb3cde5a5fef42fbdf065b375f89fdabb768034b09615861bba67ce3"
 )
 
-BOOTSTRAP_SOURCE_BLOB = "19f9baf8d6d707da43dbd0e247667af1a10e46c5"
-BOOTSTRAP_SOURCE_BYTES = 19_450
+BOOTSTRAP_SOURCE_BLOB = "2c3c9ed120cc9949a0528e43be886354aa25da5a"
+BOOTSTRAP_SOURCE_BYTES = 19_765
 BOOTSTRAP_SOURCE_SHA256 = (
-    "8f013230fc6a0874d8843ab895f22cec8f5baeceb6c15fb6b7d97fc5b50081e3"
+    "06c805fd24a777716c2ec78ed24b9116019ac29ae3adc42ba14b13f32d507d4e"
 )
-PROTECTED_INSTALLER_BLOB = "383b84e71b371de65579e4113469e86a59b807ab"
-PROTECTED_INSTALLER_BYTES = 42_054
+PROTECTED_INSTALLER_BLOB = "69a018c0eccedf3782055c56725579d02463b05e"
+PROTECTED_INSTALLER_BYTES = 58_454
 PROTECTED_INSTALLER_SHA256 = (
-    "e80b68e19d1498d57cffe2cd05a15cb22a6c2f1acb639175e2be2a2f1c18c9ef"
+    "6db5c9520af7070056acfd854d79219053fbcb561f63e7530423974ddd80562a"
 )
 BOOTSTRAP_BYTES = 731_072
 BOOTSTRAP_SHA256 = (
-    "37a6979c274e93fa09860b26664804a9d912201a290db65deb9b4499e39aa276"
+    "904e6b05df45bc9212be7689ea0617ccfbf65d5edf8535a381abcbb588f236cd"
 )
-BOOTSTRAP_GIT_BLOB_SHA1 = "45ca1ed7a6237fccbd6bb0b9d73ef5ff47c72d62"
+BOOTSTRAP_GIT_BLOB_SHA1 = "69e3bf6db7baf614eb0b7d8c5e93aafce0deab46"
 
 FIXED_CHECKOUT = pathlib.Path("/home/zoso/dev/void-node")
 FIXED_GIT = pathlib.Path("/usr/bin/git")
@@ -70,7 +70,7 @@ FIXED_PYTHON = pathlib.Path("/usr/bin/python3")
 INSTALL_PARENT = pathlib.Path("/opt")
 INSTALL_NAME = (
     "void-buy-void-epoch2-dormant-first-entry-"
-    "protected-install-bootstrap-v2"
+    "protected-install-bootstrap-v3"
 )
 INSTALL_ROOT = INSTALL_PARENT / INSTALL_NAME
 STAGE_NAME = "." + INSTALL_NAME + ".stage"
@@ -78,7 +78,7 @@ STAGE_ROOT = INSTALL_PARENT / STAGE_NAME
 BIN_DIR = "bin"
 BOOTSTRAP_NAME = (
     "void_buy_void_epoch2_dormant_first_entry_"
-    "protected_install_bootstrap_v2"
+    "protected_install_bootstrap_v3"
 )
 POLICY_NAME = "policy-v1.conf"
 BOOTSTRAP_TARGET = INSTALL_ROOT / BIN_DIR / BOOTSTRAP_NAME
@@ -355,11 +355,11 @@ def accepted_lock(expected_head: str) -> dict[str, Any]:
     required = {
         "schema":
             "void_buy_void_epoch2_dormant_first_entry_"
-            "protected_install_bootstrap_candidate_lock_v3",
+            "protected_install_bootstrap_candidate_lock_v4",
         "marker":
             "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
-            "PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_LOCK_V3",
-        "version": 3,
+            "PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_LOCK_V4",
+        "version": 4,
         "repository": "6ZoSo9/void-node",
         "candidate_source_head": CANDIDATE_MERGE,
         "candidate_source_tree": CANDIDATE_TREE,
@@ -370,6 +370,12 @@ def accepted_lock(expected_head: str) -> dict[str, Any]:
         "installer_source_identity_bound": True,
         "runtime_head_contract_accepted": True,
         "canonical_main_candidate_authority": True,
+        "superseded_v3_lock_id":
+            "voidbuye2bootstraplock3_"
+            "690d119c90f5c8c20f429fcc14919b62691f9a1b3bfe2226476267ede993197f",
+        "superseded_v3_lock_git_blob_sha1":
+            "64c9a42ca1108a9e8f88218c34d53e50668c653e",
+        "superseded_v3_lock_install_authority": False,
         "superseded_v2_lock_id":
             "voidbuye2bootstraplock2_"
             "7a306d22914d51844489688ab33152d98c8ea1d30b0eb887d8e1adfe883c7170",
@@ -394,7 +400,7 @@ def accepted_lock(expected_head: str) -> dict[str, Any]:
         "production_host_evidence_authority": False,
         "next_gate":
             "void_buy_void_epoch2_dormant_first_entry_"
-            "protected_install_bootstrap_materializer_v2r",
+            "protected_install_bootstrap_materializer_v3",
         "lock_id": LOCK_ID,
     }
     for key, expected in required.items():
@@ -407,16 +413,16 @@ def accepted_lock(expected_head: str) -> dict[str, Any]:
     expected_report = {
         "bytes": 4789,
         "sha256":
-            "2ca03a4d7e609076df740a7590abfae572101ef7bf78feacf11240e309a43ee4",
+            "90f70f1dbabd71bc97860608a3650331b1ed6efb007c64f2257e4523e2362050",
         "git_blob_sha1":
-            "fbaab61d0e169516a49c5c07feeceba1a7204e83",
+            "a94f63689f7a1e1ca63cd3051aec84cf89b74d46",
         "candidate_id": CANDIDATE_ID,
         "candidate_proof_git_blob_sha1":
-            "4f9b5a2ca77b3aebc9e70ea835c92155601a1a06",
+            "1c49abf74e464b3d509a33e2fa3f1a9acc42c771",
         "candidate_workflow_git_blob_sha1":
-            "46488e048565b79676de05732ee58a35badfd395",
+            "2e48100a85dfd629aeef6cef532bbdcb6ce7b37d",
         "candidate_doc_git_blob_sha1":
-            "b5580a5be7d28ea915f16d0d2fd1e952ddb0018a",
+            "81752a785713754ea80d83e7b1d440ade14f8d6b",
         "bootstrap_source_git_blob_sha1": BOOTSTRAP_SOURCE_BLOB,
         "bootstrap_source_bytes": BOOTSTRAP_SOURCE_BYTES,
         "bootstrap_source_sha256": BOOTSTRAP_SOURCE_SHA256,
@@ -424,12 +430,12 @@ def accepted_lock(expected_head: str) -> dict[str, Any]:
         "installer_source_bytes": PROTECTED_INSTALLER_BYTES,
         "installer_source_sha256": PROTECTED_INSTALLER_SHA256,
         "compile_confirmation":
-            "INSTALL_ACCEPTED_EPOCH2_DORMANT_FIRST_ENTRY_V1_CREATE_ONLY",
+            "INSTALL_ACCEPTED_EPOCH2_DORMANT_FIRST_ENTRY_V2_CREATE_ONLY",
         "fixed_root": str(INSTALL_ROOT),
         "fixed_installer":
             "/home/zoso/dev/void-node/ops/precision/"
             "void_buy_void_epoch2_dormant_binder_"
-            "installer_first_entry_protected_install_v1.py",
+            "installer_first_entry_protected_install_v2.py",
         "fixed_python": str(FIXED_PYTHON),
         "runtime_expected_head_compile_bound": False,
         "runtime_expected_head_strict_lowercase_hex": True,
@@ -710,6 +716,7 @@ def source_plan() -> None:
     print("runtime_expected_head_strict_lowercase_hex=true")
     print("runtime_expected_head_forwarded_unchanged=true")
     print("canonical_main_candidate_authority=true")
+    print("superseded_v3_lock_install_authority=false")
     print("superseded_v2_lock_install_authority=false")
     print("install_root=" + str(INSTALL_ROOT))
     print("create_only=true")
@@ -747,6 +754,7 @@ def plan(bootstrap: pathlib.Path, expected_head: str) -> None:
     print("runtime_expected_head_strict_lowercase_hex=true")
     print("runtime_expected_head_forwarded_unchanged=true")
     print("canonical_main_candidate_authority=true")
+    print("superseded_v3_lock_install_authority=false")
     print("superseded_v2_lock_install_authority=false")
     print("python_generation_bound=true")
     print("policy_sha256=" + str(body["policy_sha256"]))
@@ -772,13 +780,13 @@ def plan(bootstrap: pathlib.Path, expected_head: str) -> None:
         print("already_installed=true")
         print(
             "next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_"
-            "PROTECTED_BOOTSTRAP_INSTALLED_READ_ONLY_QUALIFICATION_V2R"
+            "PROTECTED_BOOTSTRAP_INSTALLED_READ_ONLY_QUALIFICATION_V3"
         )
     else:
         print("already_installed=false")
         print(
             "next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_"
-            "PROTECTED_BOOTSTRAP_CREATE_ONLY_INSTALL_V2R"
+            "PROTECTED_BOOTSTRAP_CREATE_ONLY_INSTALL_V3"
         )
 
 
@@ -1138,7 +1146,7 @@ def apply(
     print("funds_movement=false")
     print(
         "next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_"
-        "PROTECTED_BOOTSTRAP_INSTALLED_READ_ONLY_QUALIFICATION_V2R"
+        "PROTECTED_BOOTSTRAP_INSTALLED_READ_ONLY_QUALIFICATION_V3"
     )
 
 
@@ -1147,7 +1155,7 @@ def self_test() -> None:
     assert len(BOOTSTRAP_GIT_BLOB_SHA1) == 40
     assert len(CANDIDATE_MERGE) == 40
     assert len(CANDIDATE_TREE) == 40
-    assert PLAN_PREFIX == "voidbuye2bootstrapinstall2r_"
+    assert PLAN_PREFIX == "voidbuye2bootstrapinstall3_"
     body = {
         "lock_id": LOCK_ID,
         "candidate_id": CANDIDATE_ID,
@@ -1172,6 +1180,7 @@ def self_test() -> None:
     print("runtime_expected_head_strict_lowercase_hex=true")
     print("runtime_expected_head_forwarded_unchanged=true")
     print("canonical_main_candidate_authority=true")
+    print("superseded_v3_lock_install_authority=false")
     print("superseded_v2_lock_install_authority=false")
     print("root_python_policy_binding_required=true")
     print("create_only=true")
