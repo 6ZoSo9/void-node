@@ -345,7 +345,8 @@ def collect(expected_head: str) -> dict[str, Any]:
         "wc_void_market_activation": False,
         "treasury_liquidity_action": False,
         "funds_movement": False,
-        "production_host_evidence_authority": True,
+        "production_host_evidence_authority": False,
+        "installed_generation_evidence_authority": True,
         "installed": before,
         "next_gate": "non_executing_current_head_plan",
         "privileged_execution_authorized": False,
@@ -392,6 +393,7 @@ def emit(result: dict[str, Any]) -> None:
         "treasury_liquidity_action",
         "funds_movement",
         "production_host_evidence_authority",
+        "installed_generation_evidence_authority",
         "next_gate",
         "privileged_execution_authorized",
     ):
@@ -424,6 +426,8 @@ def source_plan() -> None:
     print("transaction=false")
     print("rpc_call=false")
     print("funds_movement=false")
+    print("production_host_evidence_authority=false")
+    print("installed_generation_evidence_authority=false")
     print("privileged_execution_authorized=false")
 
 
@@ -441,6 +445,8 @@ def self_test() -> None:
     print("repository_worktree_write=false")
     print("credential_access=false")
     print("funds_movement=false")
+    print("production_host_evidence_authority=false")
+    print("installed_generation_evidence_authority=false")
     print("privileged_execution_authorized=false")
 
 
@@ -491,5 +497,6 @@ if __name__ == "__main__":
         print("treasury_liquidity_action=false")
         print("funds_movement=false")
         print("production_host_evidence_authority=false")
+        print("installed_generation_evidence_authority=false")
         print("privileged_execution_authorized=false")
         raise SystemExit(2)
