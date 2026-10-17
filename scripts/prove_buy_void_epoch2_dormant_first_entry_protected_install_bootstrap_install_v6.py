@@ -19,12 +19,12 @@ import types
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
-TARGET_BLOB = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
+TARGET_BLOB = "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84"
 
 LOCK = ROOT / "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
-LOCK_BLOB = "f5b03c6b81016edf21f605099e0ef8976f40e107"
+LOCK_BLOB = "f2ce1364dd776bfbf1aa1ef59ce999cb46037b73"
 MANIFEST = ROOT / "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
-MANIFEST_BLOB = "6e0630af72111bd9976dcc38cdcdada1904dd067"
+MANIFEST_BLOB = "de56bacb30bea0adc418e240cf3fb8d900b061ef"
 
 
 def blob(raw: bytes) -> str:
@@ -46,12 +46,12 @@ for required in (
     '"PROTECTED_INSTALL_BOOTSTRAP_POLICY_V6"',
     'PLAN_PREFIX = "voidbuye2bootstrapinstall6_"',
     '"PROTECTED_BOOTSTRAP_V6_CREATE_ONLY"',
-    'LOCK_GIT_BLOB_SHA1 = "f5b03c6b81016edf21f605099e0ef8976f40e107"',
-    '"5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"',
-    '"13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062"',
-    '"aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662"',
-    '"c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"',
-    '"a91707c3e5803071fc73c3451c9bcb3b774f8b48"',
+    'LOCK_GIT_BLOB_SHA1 = "f2ce1364dd776bfbf1aa1ef59ce999cb46037b73"',
+    '"4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396"',
+    '"1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2"',
+    '"8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9"',
+    '"618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"',
+    '"b577d70666f98ac59a75b84b3dab741fe7b93a4b"',
     '"python_sha256="',
     '"git_sha256="',
     '"source-generation-v3.conf"',
