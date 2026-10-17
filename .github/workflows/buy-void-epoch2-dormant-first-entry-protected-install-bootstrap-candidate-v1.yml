@@ -82,7 +82,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v1.py)" = d1417455330837c4d584f7bf36f932a869c903cb
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v1.md)" = f662cd0873c64af76b44b0fff16aed9d33cb0110
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v1.md)" = a7d4af84c6c21f5d6e4d894c130f7d4965885a96
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c)" = 243583d4ed0522796b2bbf448abd4e9c28958f50
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = 383b84e71b371de65579e4113469e86a59b807ab
           git diff --check "$base" "$EXPECTED_HEAD"
