@@ -28,7 +28,7 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_"
     "installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "a03e5879c91bb86fa68897ba6bb4b5e87519a0c6"
+QUALIFIER_BLOB = "474e525cd54cc99b745d1e3aa62d66dac47ca785"
 INSTALLER_BLOB = "ce6930bc1be8239a3171d4922c44b96a50f5778b"
 
 LOCK_ID = (
@@ -189,7 +189,8 @@ def _require_qualification(result: dict[str, Any], expected_head: str) -> None:
         "wc_void_market_activation": False,
         "treasury_liquidity_action": False,
         "funds_movement": False,
-        "production_host_evidence_authority": True,
+        "production_host_evidence_authority": False,
+        "installed_generation_evidence_authority": True,
         "next_gate": "non_executing_current_head_plan",
         "privileged_execution_authorized": False,
     }
@@ -289,7 +290,8 @@ def collect_plan(expected_head: str) -> dict[str, Any]:
         "wc_void_market_activation": False,
         "treasury_liquidity_action": False,
         "funds_movement": False,
-        "production_host_evidence_authority": True,
+        "production_host_evidence_authority": False,
+        "installed_generation_evidence_authority": True,
         "privileged_execution_authorized": False,
     }
     plan_id = PLAN_PREFIX + sha256(canonical(body))
@@ -331,7 +333,8 @@ def emit_plan(result: dict[str, Any]) -> None:
     print("wc_void_market_activation=false")
     print("treasury_liquidity_action=false")
     print("funds_movement=false")
-    print("production_host_evidence_authority=true")
+    print("production_host_evidence_authority=false")
+    print("installed_generation_evidence_authority=true")
     print("privileged_execution_authorized=false")
     print("future_argv_json=" + json.dumps(body["future_argv"], separators=(",", ":")))
     print("plan_body_json=" + canonical(body).decode("ascii"))
@@ -357,6 +360,8 @@ def source_plan() -> None:
     print("binder_execution=false")
     print("credential_access=false")
     print("funds_movement=false")
+    print("production_host_evidence_authority=false")
+    print("installed_generation_evidence_authority=false")
     print("privileged_execution_authorized=false")
 
 
@@ -380,6 +385,8 @@ def self_test() -> None:
     print("binder_execution=false")
     print("credential_access=false")
     print("funds_movement=false")
+    print("production_host_evidence_authority=false")
+    print("installed_generation_evidence_authority=false")
     print("privileged_execution_authorized=false")
 
 
@@ -431,5 +438,6 @@ if __name__ == "__main__":
         print("treasury_liquidity_action=false")
         print("funds_movement=false")
         print("production_host_evidence_authority=false")
+        print("installed_generation_evidence_authority=false")
         print("privileged_execution_authorized=false")
         raise SystemExit(2)
