@@ -183,7 +183,7 @@ jobs:
 
           self="$RUNNER_TEMP/protected-bootstrap-self-test.log"
           "$output" --self-test | tee "$self"
-          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_V2_SELF_TEST_GREEN' "$self"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_V3_SELF_TEST_GREEN' "$self"
           grep -Fx 'protected_install_authorized=false' "$self"
 
           mkdir -p "$RUNNER_TEMP/v3-install-inputs"
