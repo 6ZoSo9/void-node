@@ -4,20 +4,30 @@ on:
   pull_request:
     paths:
       - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.yml"
       - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.md"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.md"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py"
-      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py"
   push:
     branches: [main]
     paths:
       - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.yml"
       - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.md"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.md"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py"
-      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py"
   workflow_dispatch:
 
 permissions:
@@ -46,7 +56,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          source_base=2a41b15cbb4e371a43d63b5bd6dcbba26eee17f3
+          source_base=25ee6b9bd41daf4c7b8472c57f90ee960e756aa7
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$source_base" "$EXPECTED_HEAD"
 
@@ -77,9 +87,13 @@ jobs:
             actual="$RUNNER_TEMP/actual.txt"
             printf '%s\n' \
               '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.yml' \
               'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.md' \
+              'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.md' \
               'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py' \
+              'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py' \
               'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py' \
+              'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py' \
               | LC_ALL=C sort > "$allowed"
             git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | LC_ALL=C sort > "$actual"
             test -s "$actual"
@@ -91,16 +105,24 @@ jobs:
             fi
           fi
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py)" = \
-            963b3b08c366731afc7d0aa73d9a2ab55c4be7a4
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py)" = \
-            5ef8a1785425814b65860bb2f6366caea65efa06
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.md)" = \
-            92035a9fe251609ac840ca494e4628ff3e712af8
+            ac2d1da333447be23bf054a7f5fb079f91da33c4
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.md)" = \
+            af28252f6b2665c48b4cfa2283d680e7f525e539
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py)" = \
+            9751c7120f4cb587c9c11993bcf3e09da18e6712
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py)" = \
-            474e525cd54cc99b745d1e3aa62d66dac47ca785
+            5ef5c8768bc2fceb4658613e0e911733bfccdef2
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py)" = \
             ce6930bc1be8239a3171d4922c44b96a50f5778b
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = \
+            70dd0e0feaebbea08c63d8c19549f928c8d70b7a
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json)" = \
+            227c2fa449abf1387925373c706ecd07775d5898
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py)" = \
+            f94e4a17721f555157c984b178545d5249f89712
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py)" = \
+            bafacf866c5b84a5941b8147765b783e97c10cd9
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -128,6 +150,9 @@ jobs:
             'installed_qualification_contract_exercised=true' \
             'stale_qualification_authority_rejected=true' \
             'qualification_authority_drift_rejected=true' \
+            'repository_observer_contract_required=true' \
+            'repository_observer_receipt_drift_rejected=true' \
+            'qualification_receipt_types_strict=true' \
             'installed_launcher_identity_bound=true' \
             'current_head_plan_id_deterministic=true' \
             'current_head_plan_id_head_sensitive=true' \

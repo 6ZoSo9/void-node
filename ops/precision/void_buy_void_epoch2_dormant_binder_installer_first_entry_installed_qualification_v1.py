@@ -18,6 +18,15 @@ INSTALLER_REL = (
 )
 INSTALLER_SOURCE = ROOT / INSTALLER_REL
 INSTALLER_SOURCE_GIT_BLOB_SHA1 = "ce6930bc1be8239a3171d4922c44b96a50f5778b"
+REPOSITORY_OBSERVER_REL = (
+    "ops/precision/"
+    "void_buy_void_epoch2_dormant_first_entry_"
+    "protected_install_bootstrap_install_v6.py"
+)
+REPOSITORY_OBSERVER_SOURCE = ROOT / REPOSITORY_OBSERVER_REL
+REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1 = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
+ACCEPTED_LOCK_BYTES = 4548
+ACCEPTED_LOCK_SHA256 = "7c4c207fb01d9bb4d8f6ab72b458464bf258373c7601e40e7a8e2719e3b4630a"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_"
@@ -25,6 +34,11 @@ MARKER = (
 )
 MAX_INSTALLER_SOURCE_BYTES = 2 * 1024 * 1024
 MAX_FILE_BYTES = 4 * 1024 * 1024
+
+_GIT_RECEIPT: dict[str, Any] = {
+    "temporary_git_metadata_write_performed": False,
+    "temporary_git_metadata_cleanup_completed": True,
+}
 
 
 class QualifyError(RuntimeError):
@@ -110,7 +124,7 @@ def _load_installer():
     ):
         raise QualifyError("installer_marker_mismatch")
     for name in (
-        "checkout_snapshot", "accepted_lock", "python_snapshot", "build_policy",
+        "python_snapshot", "build_policy", "LOCK_REL", "LOCK_GIT_BLOB_SHA1",
         "protected_state", "INSTALL_ROOT", "GREEN_STATE", "LOCK_ID",
         "CANDIDATE_ID", "LAUNCHER_TARGET", "NATIVE_TARGET",
         "RUNTIME_INSTALLER_TARGET", "POLICY_TARGET",
@@ -118,6 +132,107 @@ def _load_installer():
         if not hasattr(module, name):
             raise QualifyError("installer_contract_missing:" + name)
     return module
+
+
+def _load_repository_observer():
+    try:
+        raw = _direct_source_bytes(REPOSITORY_OBSERVER_SOURCE)
+    except QualifyError as exc:
+        raise QualifyError("repository_observer_source_read_failed:" + str(exc)) from exc
+    if git_blob_sha1(raw) != REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1:
+        raise QualifyError("repository_observer_source_blob_mismatch")
+    module = types.ModuleType("void_e2_standalone_repository_observer_verified")
+    module.__file__ = str(REPOSITORY_OBSERVER_SOURCE)
+    module.__package__ = ""
+    try:
+        code = compile(
+            raw, str(REPOSITORY_OBSERVER_SOURCE), "exec", dont_inherit=True, optimize=0
+        )
+        exec(code, module.__dict__)
+    except Exception as exc:
+        raise QualifyError("verified_repository_observer_source_execution_failed") from exc
+    if getattr(module, "MARKER", "") != (
+        "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
+        "PROTECTED_INSTALL_BOOTSTRAP_INSTALL_V6"
+    ):
+        raise QualifyError("repository_observer_marker_mismatch")
+    for name in ("_RepositorySnapshot", "git_boundary_receipt"):
+        if not callable(getattr(module, name, None)):
+            raise QualifyError("repository_observer_contract_missing:" + name)
+    return module
+
+
+def _accepted_lock(installer: Any, repository: Any) -> dict[str, Any]:
+    # Observe the accepted immutable lock through the standalone Git witness.
+    # The V5 operational loader requires native-parent source descriptors and
+    # is deliberately not enabled or replaced for this read-only qualification.
+    raw = repository.blob(
+        installer.LOCK_REL,
+        expected_blob=installer.LOCK_GIT_BLOB_SHA1,
+        expected_bytes=ACCEPTED_LOCK_BYTES,
+        expected_sha256=ACCEPTED_LOCK_SHA256,
+    )
+    try:
+        value = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise QualifyError("accepted_lock_json_invalid") from exc
+    required = {
+        "schema":
+            "void_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_lock_v2",
+        "marker":
+            "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_CANDIDATE_LOCK_V2",
+        "version": 2,
+        "repository": "6ZoSo9/void-node",
+        "candidate_accepted": True,
+        "launcher_binary_identity_accepted": True,
+        "runtime_head_contract_accepted": True,
+        "canonical_main_candidate_authority": True,
+        "superseded_v1_lock_install_authority": False,
+        "protected_install_authorized": False,
+        "precision_install_authorized": False,
+        "native_or_binder_live_execution_authorized": False,
+        "credential_access_authorized": False,
+        "private_key_access_authorized": False,
+        "signing_authorized": False,
+        "transaction_authorized": False,
+        "payment_acceptance_authorized": False,
+        "public_presale_activation_authorized": False,
+        "wc_void_market_activation_authorized": False,
+        "treasury_liquidity_action_authorized": False,
+        "funds_movement_authorized": False,
+        "production_host_evidence_authority": False,
+        "next_gate":
+            "void_buy_void_epoch2_dormant_binder_installer_first_entry_materializer_v2",
+        "lock_id": installer.LOCK_ID,
+    }
+    if not isinstance(value, dict):
+        raise QualifyError("accepted_lock_shape_invalid")
+    for key, expected in required.items():
+        if type(value.get(key)) is not type(expected) or value.get(key) != expected:
+            raise QualifyError("accepted_lock_field_mismatch:" + key)
+    report = value.get("candidate_report")
+    if not isinstance(report, dict):
+        raise QualifyError("accepted_lock_candidate_missing")
+    checks = {
+        "candidate_id": installer.CANDIDATE_ID,
+        "launcher_binary_sha256": installer.LAUNCHER_SHA256,
+        "launcher_binary_bytes": installer.LAUNCHER_BYTES,
+        "accepted_native_binary_sha256": installer.NATIVE_SHA256,
+        "accepted_native_binary_bytes": installer.NATIVE_BYTES,
+        "installer_source_git_blob_sha1": installer.RUNTIME_INSTALLER_GIT_BLOB_SHA1,
+        "installer_source_sha256": installer.RUNTIME_INSTALLER_SHA256,
+        "installer_source_bytes": installer.RUNTIME_INSTALLER_BYTES,
+        "compile_bound_confirmation": "INSTALL_ACCEPTED_EPOCH2_DORMANT_BINDER_V3_CREATE_ONLY",
+        "runtime_expected_head_compile_bound": False,
+        "runtime_expected_head_strict_lowercase_hex": True,
+        "runtime_expected_head_forwarded_unchanged": True,
+        "repository_head_not_embedded_in_launcher": True,
+        "frozen_child_launcher_path_compatible": True,
+    }
+    for key, expected in checks.items():
+        if type(report.get(key)) is not type(expected) or report.get(key) != expected:
+            raise QualifyError("accepted_lock_candidate_field_mismatch:" + key)
+    return value
 
 
 def _record(st: os.stat_result) -> dict[str, Any]:
@@ -219,10 +334,14 @@ def _snapshot_file(
     return result
 
 
-def _installed_snapshot(installer: Any, expected_head: str) -> dict[str, Any]:
+def _installed_snapshot(
+    installer: Any, expected_head: str, *, repository: Any,
+) -> dict[str, Any]:
     try:
-        checkout = installer.checkout_snapshot(expected_head)
-        lock = installer.accepted_lock(expected_head)
+        if repository.expected_head != expected_head or repository._closed:
+            raise QualifyError("repository_witness_head_or_lifetime_mismatch")
+        checkout = repository.checkout()
+        lock = _accepted_lock(installer, repository)
         python = installer.python_snapshot()
         policy = installer.build_policy(python)
         state = installer.protected_state(policy)
@@ -284,6 +403,7 @@ def _installed_snapshot(installer: Any, expected_head: str) -> dict[str, Any]:
         "lock_id": lock.get("lock_id"),
         "candidate_id": installer.CANDIDATE_ID,
         "python": python,
+        "git_tool": dict(repository.git_tool),
         "policy_sha256": sha256(policy),
         "policy_bytes": len(policy),
         "protected_state": state,
@@ -293,22 +413,48 @@ def _installed_snapshot(installer: Any, expected_head: str) -> dict[str, Any]:
 
 
 def collect(expected_head: str) -> dict[str, Any]:
+    _GIT_RECEIPT.clear()
+    _GIT_RECEIPT.update({
+        "temporary_git_metadata_write_performed": False,
+        "temporary_git_metadata_cleanup_completed": True,
+    })
     if os.geteuid() != 0:
         raise QualifyError("root_required_for_installed_qualification")
     if not isinstance(expected_head, str) or not re_fullmatch_hex40(expected_head):
         raise QualifyError("expected_head_invalid")
 
-    installer = _load_installer()
-    before = _installed_snapshot(installer, expected_head)
-    middle = _installed_snapshot(installer, expected_head)
-    after = _installed_snapshot(installer, expected_head)
-    if before != middle or middle != after:
-        raise QualifyError("installed_generation_changed_during_qualification")
+    observer = None
+    try:
+        try:
+            installer = _load_installer()
+            observer = _load_repository_observer()
+            with observer._RepositorySnapshot(expected_head) as repository:
+                # Bind both already-verified helper modules to this same HEAD.
+                repository.blob(
+                    INSTALLER_REL, expected_blob=INSTALLER_SOURCE_GIT_BLOB_SHA1,
+                )
+                repository.blob(
+                    REPOSITORY_OBSERVER_REL,
+                    expected_blob=REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1,
+                )
+                before = _installed_snapshot(installer, expected_head, repository=repository)
+                middle = _installed_snapshot(installer, expected_head, repository=repository)
+                after = _installed_snapshot(installer, expected_head, repository=repository)
+                if before != middle or middle != after:
+                    raise QualifyError("installed_generation_changed_during_qualification")
+        finally:
+            if observer is not None:
+                _GIT_RECEIPT.clear()
+                _GIT_RECEIPT.update(observer.git_boundary_receipt())
+    except QualifyError:
+        raise
+    except BaseException as exc:
+        reason = str(exc).replace("\n", " ").replace("\r", " ")[:512]
+        raise QualifyError(
+            "standalone_repository_observation_hold:" + type(exc).__name__ + ":" + reason
+        ) from exc
 
-    private_active = int(getattr(installer, "_GIT_PRIVATE_ACTIVE", 0))
-    cleanup_failed = bool(getattr(installer, "_GIT_PRIVATE_CLEANUP_FAILED", False))
-    private_write = bool(getattr(installer, "_GIT_PRIVATE_MUTATION_PERFORMED", False))
-    if private_active != 0 or cleanup_failed:
+    if _GIT_RECEIPT.get("temporary_git_metadata_cleanup_completed") is not True:
         raise QualifyError("temporary_git_metadata_cleanup_incomplete")
 
     return {
@@ -317,17 +463,18 @@ def collect(expected_head: str) -> dict[str, Any]:
         "root_execution_required": True,
         "expected_head": expected_head,
         "installer_source_git_blob_sha1": INSTALLER_SOURCE_GIT_BLOB_SHA1,
+        "repository_observer_source_git_blob_sha1": REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1,
         "accepted_lock_id": before["lock_id"],
         "candidate_id": before["candidate_id"],
         "protected_state": before["protected_state"],
         "installed_identity_green": True,
         "checkout_generation_bound": True,
         "python_generation_bound": True,
+        "git_generation_bound": True,
         "policy_generation_green": True,
         "installed_generation_stable": True,
         "triple_snapshot_required": True,
-        "temporary_git_metadata_write_performed": private_write,
-        "temporary_git_metadata_cleanup_completed": True,
+        **_GIT_RECEIPT,
         "protected_root_write": False,
         "repository_worktree_write": False,
         "launcher_execution": False,
@@ -364,17 +511,27 @@ def emit(result: dict[str, Any]) -> None:
         "root_execution_required",
         "expected_head",
         "installer_source_git_blob_sha1",
+        "repository_observer_source_git_blob_sha1",
         "accepted_lock_id",
         "candidate_id",
         "protected_state",
         "installed_identity_green",
         "checkout_generation_bound",
         "python_generation_bound",
+        "git_generation_bound",
         "policy_generation_green",
         "installed_generation_stable",
         "triple_snapshot_required",
         "temporary_git_metadata_write_performed",
         "temporary_git_metadata_cleanup_completed",
+        "git_boundary_policy",
+        "temporary_git_metadata_write_required",
+        "source_repository_mutation",
+        "source_object_fetch",
+        "repository_config_loaded",
+        "repository_callback_execution",
+        "standalone_git_tool_admission",
+        "native_parent_authority_claimed",
         "protected_root_write",
         "repository_worktree_write",
         "launcher_execution",
@@ -412,6 +569,9 @@ def source_plan() -> None:
     print("host_read=false")
     print("host_write=false")
     print("installer_source_git_blob_sha1=" + INSTALLER_SOURCE_GIT_BLOB_SHA1)
+    print("repository_observer_source_git_blob_sha1=" + REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1)
+    print("standalone_repository_observer_required=true")
+    print("native_parent_authority_claimed=false")
     print("root_required_for_run=true")
     print("triple_snapshot_required=true")
     print("temporary_git_metadata_write_possible_on_run=true")
@@ -436,8 +596,11 @@ def self_test() -> None:
     assert not re_fullmatch_hex40("A" * 40)
     assert not re_fullmatch_hex40("a" * 39)
     assert INSTALLER_SOURCE_GIT_BLOB_SHA1 == "ce6930bc1be8239a3171d4922c44b96a50f5778b"
+    assert REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1 == "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
     print(MARKER + "_SELF_TEST_GREEN")
     print("exact_installer_generation_bound=true")
+    print("exact_repository_observer_generation_bound=true")
+    print("native_parent_authority_claimed=false")
     print("triple_snapshot_required=true")
     print("installed_payload_execution_absent=true")
     print("temporary_git_metadata_truthful=true")
@@ -478,6 +641,8 @@ if __name__ == "__main__":
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc))
+        for key, value in _GIT_RECEIPT.items():
+            print(key + "=" + (str(value).lower() if isinstance(value, bool) else str(value)))
         print("read_only_installed_state=true")
         print("protected_root_write=false")
         print("repository_worktree_write=false")

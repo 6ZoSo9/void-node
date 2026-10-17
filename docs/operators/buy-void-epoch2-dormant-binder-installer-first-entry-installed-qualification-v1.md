@@ -20,6 +20,17 @@ The qualifier is bound to the exact V5 installer source Git blob:
 
 `ce6930bc1be8239a3171d4922c44b96a50f5778b`.
 
+Checkout and accepted-lock observation use the standalone repository witness
+from the exact outer V6 installer Git blob:
+
+`70dd0e0feaebbea08c63d8c19549f928c8d70b7a`.
+
+Both modules are authenticated before use. The frozen V5 installer continues
+to define the installed byte identities, Python generation, policy and
+protected-tree checks. Its native-parent-only checkout and lock entrypoints
+are not called by this standalone qualifier, and its private bootstrap context
+is never fabricated or assigned.
+
 ## Installed namespace
 
 The qualifier requires the fixed root:
@@ -56,20 +67,32 @@ A live qualification requires root and an explicit lowercase 40-hex
 For that exact clean `main` generation it verifies:
 
 - checkout generation;
+- retained Git tool generation;
 - accepted V2 launcher lock/candidate identity;
 - exact root-custodied Python generation;
 - policy bytes rederived from that Python generation;
 - complete protected first-entry tree and file identities.
 
-The V5 hardened Git reader may create private temporary metadata while
-authenticating the checkout and Git objects. The qualification reports that
-truth explicitly. It requires all such private metadata to be cleaned before
-returning GREEN.
+One standalone outer V6 repository witness remains open across all three
+installed-state snapshots. It observes the exact clean checkout, reads the V2
+accepted lock by its fixed Git blob identity, and binds the authenticated V5
+and observer source generations. Accepted-lock fields retain the frozen V5
+schema and candidate requirements. The witness checks its retained source,
+index, worktree, Git tool and descriptor generations on exit.
+
+This Git reader creates private temporary metadata. It loads no repository
+configuration, executes no repository callbacks and performs no source-object
+fetch. Successful cleanup and final generation revalidation are required
+before GREEN is emitted. Failure output retains the actual private-write and
+cleanup result.
 
 Accordingly:
 
-- `temporary_git_metadata_write_performed` may be true;
+- `temporary_git_metadata_write_required=true`;
+- `temporary_git_metadata_write_performed=true` on a completed qualification;
 - `temporary_git_metadata_cleanup_completed` must be true;
+- `standalone_git_tool_admission=true`;
+- `native_parent_authority_claimed=false`;
 - `protected_root_write=false`;
 - `repository_worktree_write=false`.
 
@@ -87,6 +110,19 @@ all three observations.
 Any installed-path replacement, mode change, extra entry, policy drift, Python
 generation drift, checkout drift, staging root, or incomplete temporary Git
 cleanup causes HOLD.
+
+## Integration proof
+
+The focused proof keeps the disposable installed-tree unit cases and also
+loads the real qualifier, frozen V5 module, standalone V6 Git observer and
+accepted V2 lock. In an isolated Git checkout, the real contracts must advance
+past Git and lock validation to the expected absent-installation HOLD. The
+same boundary is exercised through the actual current-head planner. Source,
+lock or checkout drift must be rejected and private metadata must be cleaned.
+
+That integration fixture does not install or execute production payloads and
+does not claim a GREEN installed host. The installed-tree unit fixtures remain
+explicitly synthetic.
 
 ## Authority boundary
 

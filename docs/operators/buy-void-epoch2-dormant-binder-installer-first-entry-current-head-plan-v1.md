@@ -8,9 +8,9 @@ Status: **root/read-only qualification plus non-executing current-head plan; pri
 
 ## Purpose
 
-This gate follows the installed qualification introduced by #3474 and the
-authority correction merged in #3475. It re-runs the exact read-only installed
-qualification for an explicit current HEAD, binds
+This gate consumes the repaired installed qualifier, including its standalone
+repository observation and the authority correction merged in #3475. It
+re-runs the exact read-only installed qualification for an explicit current HEAD, binds
 the exact installed launcher generation into a content-addressed plan, and emits
 only the future privileged installer-plan argv.
 
@@ -21,11 +21,19 @@ and binder remain unexecuted.
 
 The planner authenticates the exact installed qualifier Git blob:
 
-`474e525cd54cc99b745d1e3aa62d66dac47ca785`.
+`5ef5c8768bc2fceb4658613e0e911733bfccdef2`.
 
 That qualifier is in turn bound to frozen V5 installer blob:
 
 `ce6930bc1be8239a3171d4922c44b96a50f5778b`.
+
+Its standalone repository observer is bound to outer V6 installer blob:
+
+`70dd0e0feaebbea08c63d8c19549f928c8d70b7a`.
+
+The planner verifies that observer declaration and requires the same identity
+in the qualification receipt. It does not accept a native-parent authority
+claim from the standalone observer.
 
 The accepted launcher remains:
 
@@ -46,6 +54,7 @@ Plan mode requires root because it executes the read-only installed qualifier on
 the current host. The qualifier must prove:
 
 - clean exact `main` at the explicit lowercase 40-hex expected HEAD;
+- exact standalone observer source and retained Git tool generation;
 - accepted launcher lock/candidate identity;
 - complete protected first-entry generation GREEN and stable across three
   snapshots;
@@ -59,9 +68,17 @@ the current host. The qualifier must prove:
 - credential/key/signing/transaction/RPC/payment/presale/WC/treasury/funds
   authority false.
 
-The V5 hardened Git observer may create private temporary Git metadata while
-qualifying the checkout. The plan reports whether that occurred and requires
-cleanup to complete before emitting a plan.
+The qualifier retains one standalone V6 Git observation across all three
+snapshots. Its temporary private metadata write and completed cleanup are
+required. Repository configuration loading, callback execution, source-object
+fetch and source-repository mutation must all remain false. The planner
+validates the exact types as well as the values of these receipt fields.
+
+Focused verification includes a real qualifier/observer/accepted-lock
+integration that reaches the expected absent-installation HOLD through this
+planner. Synthetic installed-generation unit cases separately cover valid
+plan emission and receipt drift. Neither fixture establishes an installed
+operator host.
 
 ## Content-addressed plan
 
