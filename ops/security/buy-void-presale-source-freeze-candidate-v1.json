@@ -1,0 +1,65 @@
+{
+  "schema": "void_buy_void_presale_source_freeze_candidate_v1",
+  "marker": "VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_CANDIDATE_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "purpose": "fixed_source_candidate_for_review_not_release_authority",
+  "source_snapshot": {
+    "composed_commit": "5e514e4b6e2151c18cf7459bd7a697287eebbd4c",
+    "composed_tree": "47a0c6eb9408b97226472d1297115633b0b3d799",
+    "economic_first_parent": "ae1db243066db8c99d778245526c0f5a023444fd",
+    "canonical_main_second_parent": "f77e586807a7a6bdd92324138fe6bf2b50903835",
+    "reviewed_economic_paths_preserved": 63,
+    "canonical_bootstrap_lock_paths_added": 4,
+    "exact_source_snapshot_fixed": true,
+    "auto_adopt_new_main_commits": false,
+    "later_main_changes_require_separate_review": true
+  },
+  "reviewed_v5_source_enforcement": {
+    "candidate_head": "a884c8b69d19523e99da02899ff5fa8ab18e7100",
+    "candidate_enforcement_set_sha256": "1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf",
+    "candidate_json_sha256": "c712aaeeb6ca4b1d7547542f6542c9e58c37291e73662bf4822f9df7a55af50b",
+    "accepted_lock_path": "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json",
+    "accepted_lock_git_blob_sha1": "61a9d85d285f9c9d249adf401580822c44c6dac6",
+    "candidate_projection_path": "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json",
+    "candidate_projection_git_blob_sha1": "dd849928bc945478a1a8fcf687f374cfca59f4e4",
+    "protected_inventory_canonical_sha256": "e7e0625ff47dc4b4c7e0f93e4b75be30d04d9538acc233174c0abc18198b38e3",
+    "protected_source_count": 49,
+    "accepted_source_identity_only": true
+  },
+  "canonical_bootstrap_lock_additions": [
+    {
+      "path": ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v1.yml",
+      "git_blob_sha1": "120c4e9a8967c34413a1738abeeb8ea3d75c59ca",
+      "git_mode": "100644"
+    },
+    {
+      "path": "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v1.md",
+      "git_blob_sha1": "5f99657424077c527076d8092ca98d54307326e3",
+      "git_mode": "100644"
+    },
+    {
+      "path": "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v1.json",
+      "git_blob_sha1": "a96dee99c89ef386a6cbd05609b8f4a764caada8",
+      "git_mode": "100644"
+    },
+    {
+      "path": "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v1.py",
+      "git_blob_sha1": "3b665808b28666d8e413063c8bd2a68e4a59b3d7",
+      "git_mode": "100644"
+    }
+  ],
+  "release_gate": {
+    "btc_void_presale_and_wc_void_pool_coupled": true,
+    "host_install_qualified": false,
+    "live_runtime_evidence_qualified": false,
+    "customer_payment_acceptance_authorized": false,
+    "source_finality_runtime_authority_ready": false,
+    "public_presale_activation": false,
+    "wc_void_activation": false,
+    "wallet_or_signing_authority": false,
+    "transaction_submission_authorized": false,
+    "treasury_or_liquidity_action_authorized": false,
+    "funds_movement": false
+  }
+}

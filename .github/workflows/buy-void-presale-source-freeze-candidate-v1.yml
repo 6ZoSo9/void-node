@@ -1,0 +1,165 @@
+name: Buy VOID frozen source candidate v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-source-freeze-candidate-v1.yml"
+      - "docs/architecture/buy-void-presale-source-freeze-candidate-v1.md"
+      - "ops/security/buy-void-presale-source-freeze-candidate-v1.json"
+      - "scripts/prove_buy_void_presale_source_freeze_candidate_v1.py"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5-lock-projection-v1.json"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v1.json"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact two-parent source candidate
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 5e514e4b6e2151c18cf7459bd7a697287eebbd4c "$EXPECTED_HEAD"
+          test "$(git rev-parse '5e514e4b6e2151c18cf7459bd7a697287eebbd4c^{tree}')" = 47a0c6eb9408b97226472d1297115633b0b3d799
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v1.json)" = 91d2d7877bc3066e3030337576ca2dddeb55bfc8
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v1.py)" = 31fe4e06b390f19a0cbccc065a69f5f7afd410e0
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-candidate-v1.md)" = 599203e3edb9deb39d7df6b0fd662373eee7ea30
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = 61a9d85d285f9c9d249adf401580822c44c6dac6
+          git diff --check 5e514e4b6e2151c18cf7459bd7a697287eebbd4c HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Require frozen source identities and explicit HOLD
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/freeze-source-v1.log"
+          python3 -I -B scripts/prove_buy_void_presale_source_freeze_candidate_v1.py --self-test | tee "$out"
+          for line in \
+            'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_CANDIDATE_V1_GREEN' \
+            'read_only=true' \
+            'source_snapshot_fixed=true' \
+            'auto_adopt_new_main_commits=false' \
+            'reviewed_economic_paths_preserved=63' \
+            'canonical_bootstrap_lock_paths_preserved=4' \
+            'protected_v5_source_rows=49' \
+            'candidate_enforcement_identity_accepted=true' \
+            'host_install_qualified=false' \
+            'customer_payment_acceptance_authorized=false' \
+            'public_presale_activation=false' \
+            'wc_void_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$line" "$out"
+          done
+          if python3 -I -B scripts/prove_buy_void_presale_source_freeze_candidate_v1.py --apply > "$RUNNER_TEMP/forbidden-apply.log" 2>&1; then
+            echo 'UNEXPECTED_APPLY_ACCEPTED' >&2
+            exit 1
+          fi
+          grep -F 'AssertionError: unsupported_mode' "$RUNNER_TEMP/forbidden-apply.log"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  inert-planner:
+    needs: [source-proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install only pinned dependencies with optional Linux binary
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --include=optional --no-audit --no-fund
+          test -x node_modules/@esbuild/linux-x64/bin/esbuild
+      - name: Build exact reviewed economics
+        run: |
+          set -euo pipefail
+          node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - name: Prove V5 source-lock planner only, no receipt
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          git switch -C main "$head"
+          receipt="$RUNNER_TEMP/void-freeze-v1-inert-receipt.json"
+          out="$RUNNER_TEMP/freeze-plan-node-${{ matrix.node }}.log"
+          npx --no-install tsx \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --plan --receipt-path "$receipt" \
+            --expected-commit "$head" --expected-tree "$tree" \
+            --accepted-enforcement-lock-path \
+              ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json | tee "$out"
+          for line in \
+            'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1' \
+            'mode=--plan' \
+            'source_mutation=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'wallet_access=false' \
+            'signing=false' \
+            'transaction_broadcast=false' \
+            'chain2050_mutation=false' \
+            'presale_activation=false' \
+            'funds_movement=false' \
+            'accepted_enforcement_set_sha256=1e31da2afad65e3d1417a4c0f1c8fd9fee903fc3c75af1b93d1db6e2b31f80bf' \
+            'filesystem_mutation=false' \
+            'status=PLAN_GREEN'
+          do
+            grep -Fx "$line" "$out"
+          done
+          test ! -e "$receipt"
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-source-freeze-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/freeze-plan-node-${{ matrix.node }}.log
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    needs: [inert-planner]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-source-freeze-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/plans
+      - name: Compare all inert receipt plans byte-for-byte
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "$RUNNER_TEMP/plans/freeze-plan-node-$node.log"
+          done
+          cmp "$RUNNER_TEMP/plans/freeze-plan-node-22.log" "$RUNNER_TEMP/plans/freeze-plan-node-24.log"
+          cmp "$RUNNER_TEMP/plans/freeze-plan-node-22.log" "$RUNNER_TEMP/plans/freeze-plan-node-26.log"
+          grep -Fx 'status=PLAN_GREEN' "$RUNNER_TEMP/plans/freeze-plan-node-22.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/plans/freeze-plan-node-22.log"
+          echo 'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_CANDIDATE_V1_CROSS_NODE_GREEN'
