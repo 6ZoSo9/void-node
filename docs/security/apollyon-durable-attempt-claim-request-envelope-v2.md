@@ -20,8 +20,8 @@ This gate closes that wire-level ambiguity before
 
 The closure declares and the proof re-hashes these exact dependencies:
 
-- #3276 accepted repaired candidate head `68cbfbdd7a025e7a69403c9d072b0cbf70ceed0e`;
-- #3276 candidate blob `d67ef39c4cd034844fb0862e180de46ed4cd0c88`;
+- #3276 accepted repaired candidate head `c83ca7aa7324d040fe0a2fecddeebd7b04689148`;
+- #3276 candidate blob `87019ae1245a2054407dd47835b0b7a891d4d9a2`;
 - #3233 store-contract blob `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
 - V1 canonicalizer blob `f97fafb0148527ae3a954e2752faef8c7fc9e88e`.
 
@@ -108,3 +108,13 @@ Next gate after source/CI acceptance:
 `apollyon_durable_attempt_claim_store_service_source_implementation_v2`.
 
 PROTECT THE CORE.
+
+## Current merged source dependency
+
+The accepted #3276 service-source candidate is reviewed at `c83ca7aa7324d040fe0a2fecddeebd7b04689148`,
+with exact source Git blob `87019ae1245a2054407dd47835b0b7a891d4d9a2`; it is preserved as the second
+parent of canonical merge `a5f3668b422715cae203af5f3c46fd5e11b44bde`.
+The rebind updates only source dependency identity, not request marker/version,
+canonical six-key wire schema, UTF-8-plus-LF framing, or publish SHA-256 logic.
+No protected origin, Xiphos/host read, socket/service action, claim publication,
+training admission, signing, transaction or funds authority follows.

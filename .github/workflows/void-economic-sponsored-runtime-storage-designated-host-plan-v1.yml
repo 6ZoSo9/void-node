@@ -1,0 +1,108 @@
+name: VOID sponsored runtime storage designated-host plan v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v1.py"
+      - "scripts/prove_void_economic_sponsored_runtime_storage_designated_host_plan_v1.py"
+      - "docs/operators/economic-sponsored-runtime-storage-designated-host-plan-v1.md"
+      - ".github/workflows/void-economic-sponsored-runtime-storage-designated-host-plan-v1.yml"
+      - "ops/mainnet0/economic-sponsored-runtime-storage-production-selection-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v1.py"
+      - "scripts/prove_void_economic_sponsored_runtime_storage_designated_host_plan_v1.py"
+      - "docs/operators/economic-sponsored-runtime-storage-designated-host-plan-v1.md"
+      - ".github/workflows/void-economic-sponsored-runtime-storage-designated-host-plan-v1.yml"
+      - "ops/mainnet0/economic-sponsored-runtime-storage-production-selection-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact source generation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v1.py)" =             "90fbe18958d9d4a8f1739bcb22c4a9c8d611b108"
+          test "$(git rev-parse HEAD:scripts/prove_void_economic_sponsored_runtime_storage_designated_host_plan_v1.py)" =             "cc268f0213bc703ac8df0c6f5534c8a0f08bf7b2"
+          test "$(git rev-parse HEAD:ops/mainnet0/economic-sponsored-runtime-storage-production-selection-v1.json)" =             "2d609f5fdcd10be767ad5518bc3188dff45d1fea"
+
+      - name: Syntax check without bytecode writes
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v1.py",
+              "scripts/prove_void_economic_sponsored_runtime_storage_designated_host_plan_v1.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_SPONSORED_RUNTIME_STORAGE_DESIGNATED_HOST_PLAN_V1_SYNTAX_GREEN")
+          PY
+
+      - name: Run deterministic self-test
+        run: |
+          set -euo pipefail
+          python3 -I -B             ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v1.py             --self-test | tee "$RUNNER_TEMP/host-plan-self.log"
+          grep -Fx             'VOID_ECONOMIC_SPONSORED_RUNTIME_STORAGE_DESIGNATED_HOST_PLAN_V1_SELF_TEST_GREEN'             "$RUNNER_TEMP/host-plan-self.log"
+
+      - name: Prove exact read-only planner source
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/host-plan-proof.log"
+          python3 -I -B             scripts/prove_void_economic_sponsored_runtime_storage_designated_host_plan_v1.py |
+            tee "$out"
+          markers=(
+            "VOID_ECONOMIC_SPONSORED_RUNTIME_STORAGE_DESIGNATED_HOST_PLAN_V1_PROOF_GREEN"
+            "selection_blob_bound=true"
+            "precision_hostname_bound=true"
+            "precision_machine_id_bound=true"
+            "operator_uid_bound=true"
+            "nss_account_collision_check_required=true"
+            "login_defs_system_range_bound=true"
+            "highest_free_shared_uid_gid_required=true"
+            "candidate_nss_resolution_rejected=true"
+            "systemd_unit_collision_scan_required=true"
+            "selected_storage_path_absence_required=true"
+            "trusted_root_parent_ancestry_required=true"
+            "repository_main_clean_expected_head_required=true"
+            "process_environment_access=false"
+            "external_network_calls=false"
+            "host_mutation=false"
+            "filesystem_mutation=false"
+            "systemd_mutation=false"
+            "runtime_account_creation_authorized=false"
+            "storage_provisioning_authorized=false"
+            "production_runtime_uid_gid_selected=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove inert source plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/host-source-plan.log"
+          python3 -I -B             ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v1.py             --source-plan | tee "$out"
+          grep -Fx 'host_read=false' "$out"
+          grep -Fx 'host_mutation=false' "$out"
+          grep -Fx 'production_runtime_uid_gid_selected=false' "$out"
+          grep -Fx 'runtime_account_creation_authorized=false' "$out"
+          grep -Fx 'storage_provisioning_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+          grep -Fx 'next_action=RUN_READ_ONLY_DESIGNATED_HOST_PLAN' "$out"
+
+      - run: git diff --check
