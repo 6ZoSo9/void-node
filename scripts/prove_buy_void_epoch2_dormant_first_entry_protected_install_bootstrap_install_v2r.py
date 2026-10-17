@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v2r.py"
 )
-TARGET_BLOB = "883186eb5e6f4d7cee94370f0ee74ef908ec058b"
+TARGET_BLOB = "f8355b728b4c6870b92b10a0c19f154cf9c2ab51"
 
 LOCK_REL = (
     "ops/security/"
@@ -276,6 +276,100 @@ def prove_git_lazy_fetch_blocked() -> None:
 
 prove_git_lazy_fetch_blocked()
 
+
+def prove_git_fsmonitor_disabled() -> None:
+    setup_env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/nonexistent",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_SYSTEM": "/dev/null",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_NO_LAZY_FETCH": "1",
+        "GIT_ALLOW_PROTOCOL": "",
+        "GIT_AUTHOR_NAME": "Synthetic fixture",
+        "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "Synthetic fixture",
+        "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+
+    def git(*args: object, cwd: Path) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(
+            ["/usr/bin/git", *map(str, args)],
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=setup_env,
+            check=False,
+            timeout=10,
+        )
+
+    with tempfile.TemporaryDirectory(
+        prefix="void-e2-bootstrap-install-fsmonitor-proof-"
+    ) as directory:
+        task = Path(directory)
+
+        def fixture(name: str) -> tuple[Path, Path]:
+            checkout = task / name
+            checkout.mkdir()
+            cp = git("init", ".", cwd=checkout)
+            assert cp.returncode == 0, cp.stderr.decode("utf-8", "replace")
+            (checkout / "tracked.txt").write_text("fixture\n", encoding="utf-8")
+            cp = git("add", "tracked.txt", cwd=checkout)
+            assert cp.returncode == 0, cp.stderr.decode("utf-8", "replace")
+            cp = git(
+                "-c", "user.name=Synthetic fixture",
+                "-c", "user.email=fixture@example.invalid",
+                "commit", "-m", "fixture",
+                cwd=checkout,
+            )
+            assert cp.returncode == 0, cp.stderr.decode("utf-8", "replace")
+            calls = task / (name + "-fsmonitor-calls.txt")
+            hook = task / (name + "-fsmonitor.sh")
+            hook.write_text(
+                "#!/bin/sh\n"
+                + "printf 'called\\n' >> "
+                + shlex.quote(str(calls))
+                + "\n"
+                + "exit 1\n",
+                encoding="utf-8",
+            )
+            hook.chmod(0o700)
+            cp = git("config", "core.fsmonitor", str(hook), cwd=checkout)
+            assert cp.returncode == 0, cp.stderr.decode("utf-8", "replace")
+            return checkout, calls
+
+        # Positive control: ordinary status honors repo-local core.fsmonitor and
+        # executes the configured helper.
+        checkout, calls = fixture("positive-control")
+        cp = git(
+            "-c", "safe.directory=" + str(checkout),
+            "status", "--porcelain=v1", "--untracked-files=all",
+            cwd=checkout,
+        )
+        assert cp.returncode == 0, cp.stderr.decode("utf-8", "replace")
+        assert calls.exists() and calls.read_text("utf-8").splitlines()
+
+        # Production command-line overrides must suppress the local helper.
+        checkout, calls = fixture("production-guard")
+        target_module.FIXED_CHECKOUT = checkout
+        before = repo_snapshot(checkout)
+        status = target_module._git(
+            ["status", "--porcelain=v1", "--untracked-files=all"]
+        )
+        assert status == b""
+        assert not calls.exists()
+        assert repo_snapshot(checkout) == before
+
+
+prove_git_fsmonitor_disabled()
+
 for required in (
     'INSTALL_NAME = (',
     '"void-buy-void-epoch2-dormant-first-entry-"',
@@ -304,6 +398,8 @@ for required in (
     'expected_plan_id_mismatch',
     '"GIT_NO_LAZY_FETCH": "1"',
     '"GIT_ALLOW_PROTOCOL": ""',
+    '"core.hooksPath=/dev/null"',
+    '"core.fsmonitor=false"',
     'bootstrap_input_generation_changed_before_publication',
     'prepublication_cleanup_limited_to_created_stage=true',
     'prepublication_cleanup_stage_generation_bound=true',
@@ -549,6 +645,9 @@ print("git_lazy_fetch_positive_control_reproduced=true")
 print("git_lazy_fetch_suppressed=true")
 print("git_transport_denial_fallback=true")
 print("plan_git_repository_unchanged_on_missing_object=true")
+print("git_fsmonitor_positive_control_reproduced=true")
+print("git_fsmonitor_disabled=true")
+print("git_local_hook_execution_suppressed=true")
 print("bootstrap_execution_absent=true")
 print("protected_installer_apply_absent=true")
 print("post_publication_rollback=false")
