@@ -242,7 +242,7 @@ jobs:
               'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py': 'e4e8ca7f5ca3fbc935821ce6d607751fcd653658',
               'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py': '8e9c8e57cf254fd0ab8e8cc2c8a3a6778d19e73d',
               'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py': '32f58b97ca2564bccd95dbcf07ccd033aa68133e',
-              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py': '3bece20d88582bfc7f096f077f9966d9de758108',
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py': 'ad652e699ac2df5fd6cabd0a188480a97d830e76',
           }
 
           def git(*args):
@@ -461,6 +461,7 @@ jobs:
             'native_tool_and_payload_rejection_fixtures=6' \
             'native_checkout_rejection_fixtures=22' \
             'private_git_rejection_cases=6' \
+            'cruft_mtimes_auxiliary_accepted=true' \
             'all_component_native_holds_prechild=true' \
             'native_private_proof_schema_consumed_by_inner_parser=true' \
             'native_actual_child_resource_clamps_and_parent_limits_preserved=true' \
