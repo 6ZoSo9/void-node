@@ -11,11 +11,11 @@ runtime authority.
 ## Exact parent
 
 This candidate is stacked on accepted #3351 exact head
-`67bb0224e86aedc337610a1e2aaf8b7fd57b7f7b`.
+`66d16e8af59c844192f1bb1362c2044a35e8c603`.
 
 It binds exact #3351 release-binding source Git blob:
 
-`b8d7229369e7d74e515955e726e0268bbdf6e513`.
+`01757cbd80c12561218ac4ba0a29e9675e42adec`.
 
 The parent contract remains authoritative for the 64-byte release-frame domain,
 trainer/releaser policy requirements, unique authorization→claim winner lineage,
