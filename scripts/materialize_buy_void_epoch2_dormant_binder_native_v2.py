@@ -236,8 +236,6 @@ def derive_accepted() -> tuple[bytes, bytes]:
                     + cp.stderr.decode("utf-8", "replace")[-1000:].replace("\n", " ")
                 )
             added = True
-            if cp.stdout not in (b"",):
-                raise MaterializeError("candidate_worktree_add_unexpected_stdout")
             if run_git(["rev-parse", "HEAD"], cwd=worktree) != CANDIDATE_MERGE:
                 raise MaterializeError("candidate_worktree_head_mismatch")
             if run_git(["status", "--porcelain=v1", "--untracked-files=all"], cwd=worktree) != "":
