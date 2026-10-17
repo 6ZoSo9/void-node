@@ -45,8 +45,8 @@ jobs:
           git diff --name-only "$parent" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py)" = 13e7529dc1c37568a46d7fa78d30f73b00ea5d9d
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py)" = 00ad525fe528e0743d003d8f66c215897a945c7a
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py)" = 575553c90fb8df1a8a56e8e9d5edf6fc7989b723
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_materializer_v1.py)" = a66ae833ddc621ace70f70c99b24395dcaf7eb00
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-native-materializer-v1.md)" = 3d926b8069b4d751a94e95cca26e7d5643b2a280
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = 5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py)" = f97cb8aff642f2f3e138fe8e087eece22223b934
