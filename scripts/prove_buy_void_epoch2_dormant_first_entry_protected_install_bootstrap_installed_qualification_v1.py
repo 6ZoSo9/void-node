@@ -21,7 +21,7 @@ INSTALL_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v1.py"
 )
-INSTALL_BLOB = "eea423b5a6d556b5dec91365a4da39b83b9507ec"
+INSTALL_BLOB = "df3c27c57e0d413c7487189f1ddf6c141004d67c"
 
 LOCK_REL = (
     "ops/security/"
@@ -204,6 +204,13 @@ for required in (
     "PROTECTED_BOOTSTRAP_INSTALLED_READ_ONLY_QUALIFICATION_V1",
     "bootstrap_execution=false",
     "protected_installer_apply=false",
+    "prepublication_cleanup_stage_generation_bound=true",
+    "post_publication_close_failure_receipt_truthful=true",
+    "stage_dev = stage_identity.st_dev",
+    "stage_ino = stage_identity.st_ino",
+    "_cleanup_created_stage(stage_dev, stage_ino)",
+    '"published_install_close_failed"',
+    'phase="install_parent_close"',
 ):
     assert required in install_source, required
 
