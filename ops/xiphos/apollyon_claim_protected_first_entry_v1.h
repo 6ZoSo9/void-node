@@ -16,6 +16,8 @@ struct apollyon_claim_protected_first_entry_v1 {
   int expected_executable_fd_derived_internally;
   int expected_cmdline_derived_internally;
   int visible_generation_revalidated_after_lock;
+  int fixed_path_expected_source_bound;
+  int static_first_instruction_proven;
   int protected_expected_source_origin_proven;
   int protected_parent_origin_proven;
   int xiphos_host_qualification_performed;
@@ -35,7 +37,9 @@ struct apollyon_claim_protected_first_entry_v1 {
  * On any failure after irreversible seccomp restrictions may have begun, the
  * caller MUST discard the process and never retry it as claim authority.
  *
- * Success proves only protected expected-source origin for THIS fixed entry.
+ * Success proves the fixed-path expected-source binding for THIS entry.
+ * Full protected_expected_source_origin remains false until a later accepted
+ * static candidate/lock gate proves no loader-before-main ambiguity.
  * It does not prove parent-process origin, Xiphos installation/qualification,
  * AF_UNIX peer authority, durable claim publication, training or funds action.
  */
