@@ -88,9 +88,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py)" = \
             2aca2b16adb8c9e1d4a7a584b5f73637f96f09f1
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v2r.py)" = \
-            dd03e18ef3d1e423a79468b9726beb0403d5556e
+            208546836514dced8b5a89a42a4cef726ed6837a
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v2r.md)" = \
-            5a29d998624a5c04f1c0fe243c92c745dc58d068
+            d31c25beee04dc0ab8793e02706b7b1798d87c9e
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r.py)" = \
             f8355b728b4c6870b92b10a0c19f154cf9c2ab51
@@ -141,6 +141,7 @@ jobs:
             'protected_bootstrap_install_v2r_proof_bound=true' \
             'accepted_bootstrap_lock_v3_bound=true' \
             'materializer_v2r_generation_bound=true' \
+            'materializer_v2r_constants_semantically_bound=true' \
             'materializer_v2r_proof_bound=true' \
             'bootstrap_source_runtime_head_contract_bound=true' \
             'protected_installer_source_generation_bound=true' \
