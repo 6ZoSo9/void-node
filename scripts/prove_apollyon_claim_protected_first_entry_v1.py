@@ -151,7 +151,7 @@ for required in (
     assert required in harness, required
 
 for required in (
-    "reproducible static candidate",
+    "apollyon_claim_protected_first_entry_static_candidate_v1",
     "static_first_instruction_proven=false",
     "protected_expected_source_origin_proven=false",
     "No #3459 or ancestor source blob is modified.",
