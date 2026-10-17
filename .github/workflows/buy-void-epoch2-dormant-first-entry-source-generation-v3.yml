@@ -96,7 +96,26 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           case "$EVENT_NAME" in
-            pull_request) base="$(git merge-base "$PR_BASE" "$EXPECTED_HEAD")" ;;
+            pull_request)
+              base="$PR_BASE"
+              cursor="$EXPECTED_HEAD"
+              while test "$cursor" != "$base"; do
+                parent_line="$(git rev-list --parents -n 1 "$cursor")"
+                parent_count="$(awk '{print NF-1}' <<<"$parent_line")"
+                if test "$parent_count" -gt 1; then
+                  candidate_base="$(git rev-parse "$cursor^1")"
+                  if git merge-base --is-ancestor "$PR_BASE" "$candidate_base"; then
+                    base="$candidate_base"
+                    break
+                  fi
+                fi
+                next="$(git rev-parse "$cursor^1")"
+                if ! git merge-base --is-ancestor "$PR_BASE" "$next"; then
+                  break
+                fi
+                cursor="$next"
+              done
+              ;;
             push)
               base="$PUSH_BEFORE"
               test -n "$base"
