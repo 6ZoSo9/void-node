@@ -32,7 +32,7 @@ Accepted ELF:
 
 The materializer does not compile from current-main source.
 
-It requires the accepted V3 lock on the current clean main checkout, then:
+It requires the accepted V3 lock on the current clean checkout, then:
 
 1. proves accepted candidate merge
    `2b76758851d550e8cbd5fc71412e4b85cfaa8791` is an ancestor;
