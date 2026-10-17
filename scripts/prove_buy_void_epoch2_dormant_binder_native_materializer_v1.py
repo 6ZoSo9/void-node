@@ -11,7 +11,7 @@ TARGET = ROOT / "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py
 LOCK = ROOT / "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
 CANDIDATE = ROOT / "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
 
-TARGET_BLOB = "c2bd803216daa4616adbf580c203400e57c316c3"
+TARGET_BLOB = "13e7529dc1c37568a46d7fa78d30f73b00ea5d9d"
 LOCK_BLOB = "5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1"
 CANDIDATE_BLOB = "f97cb8aff642f2f3e138fe8e087eece22223b934"
 
