@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
-#include <dirent.h>
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -13,7 +13,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -24,7 +23,7 @@
 #define MARKER "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_V5"
 #define MANIFEST_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_SOURCE_GENERATION_V2"
 #define POLICY_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_POLICY_V5"
-#define PROOF_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PARENT_PROOF_V1"
+#define PROOF_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PARENT_PROOF_V2"
 #define PROOF_ENV "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PARENT_PROOF_FD"
 #define GENERATION_PREFIX "voidbuye2dormantsourcegen2_"
 #define PLAN_PREFIX "voidbuye2dormantfirstentryinstall4_"
@@ -54,14 +53,14 @@
 #define ACCEPTED_LAUNCHER_BYTES 731072U
 #define ACCEPTED_NATIVE_SHA256 "ca078f3a81191847d5b0b75de99e4d8f7e389fd051afdb76338f28e157ae5a7c"
 #define ACCEPTED_NATIVE_BYTES 726976U
-#ifndef VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V5_MANIFEST_SHA256
+#ifndef VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_MANIFEST_SHA256
 #error manifest sha required
 #endif
-#ifndef VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V5_MANIFEST_BYTES
+#ifndef VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_MANIFEST_BYTES
 #error manifest bytes required
 #endif
-#define MANIFEST_SHA256 VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V5_MANIFEST_SHA256
-#define MANIFEST_BYTES VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V5_MANIFEST_BYTES
+#define MANIFEST_SHA256 VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_MANIFEST_SHA256
+#define MANIFEST_BYTES VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_MANIFEST_BYTES
 #define MAX_MANIFEST_BYTES 16384U
 #define MAX_POLICY_BYTES 1024U
 #define MAX_PROOF_BYTES 8192U
@@ -70,24 +69,11 @@
 #define MAX_PYTHON_BYTES (512U * 1024U * 1024U)
 #define MAX_GIT_BYTES (64U * 1024U * 1024U)
 #define MAX_GIT_OUTPUT (64U * 1024U * 1024U)
-#define MAX_TRACKED_ENTRIES 100000U
-#define MAX_TRACKED_FILE_BYTES (512U * 1024U * 1024U)
+#define MAX_TRACKED_ENTRIES 200000U
+#define MAX_TRACKED_FILE_BYTES (256U * 1024U * 1024U)
 #define MAX_TRACKED_TOTAL_BYTES UINT64_C(4294967296)
-#define GIT_BOUNDARY_POLICY "private_metadata_pinned_objects_raw_checkout_v4"
-#define MAX_INDEX_BYTES (64U * 1024U * 1024U)
-#define MAX_PATH_AGGREGATE (64U * 1024U * 1024U)
-#define MAX_LOOSE_BYTES (256U * 1024U * 1024U)
-#define MAX_LOOSE_TOTAL UINT64_C(536870912)
-#define MAX_PACK_PAIRS 128U
-#define MAX_PACK_FILE UINT64_C(8589934592)
-#define MAX_PACK_TOTAL UINT64_C(34359738368)
-#define MAX_TREE_DEPTH 32U
-#define MAX_TREE_BYTES (64U * 1024U * 1024U)
-#define MAX_COMMIT_BYTES (1024U * 1024U)
-#define MAX_OBSERVATIONS (4U * MAX_TRACKED_ENTRIES + 1024U)
-#define OBSERVATION_SLOTS (1U << 20)
-#define MAX_OBJECT_BATCH 64U
 #define REQUIRED_SEALS (F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE)
+#define MAX_REPO_INDEX_BYTES MAX_GIT_OUTPUT
 
 typedef enum { OP_NONE=0, OP_PLAN=1, OP_APPLY=2 } operation_v4;
 typedef struct {
@@ -116,7 +102,6 @@ static const char *const role_names[R_COUNT] = {
     "proof", "manifest", "installer", "bootstrap_source", "lock", "runtime_installer",
     "launcher", "native", "policy", "python", "git", "checkout", "git_dir"
 };
-struct private_git_v5;
 typedef struct {
     request_v4 request;
     manifest_v4 manifest;
@@ -127,31 +112,45 @@ typedef struct {
     struct stat checkout_identity, git_dir_identity;
     char checkout_path[PATH_MAX], tree[41], policy_sha256[65];
     size_t policy_bytes;
-    struct private_git_v5 *reader;
+    int repo_index_source_fd, repo_index_fd, repo_objects_fd;
+    struct stat repo_index_source_identity, repo_objects_identity;
+    char repo_index_sha256[65], repo_private_path[PATH_MAX];
+    bool repo_witness_active;
 } context_v4;
 typedef struct { unsigned char *data; size_t size; } bytes_v4;
 typedef struct { char *path; char mode[7], oid[41]; } entry_v4;
 typedef struct { entry_v4 *entries; size_t count; } listing_v4;
 static operation_v4 receipt_op=OP_NONE;
 static bool installer_child_created=false;
-static bool temporary_git_write_started=false;
-static bool temporary_git_cleanup_complete=true;
-static bool private_cleanup(void);
-static int64_t monotonic_millis(void);
-static void witness_progress(void);
+static char repository_cleanup_path[PATH_MAX];
+
+static bool repository_temp_cleanup(void) {
+    if (!repository_cleanup_path[0]) return true;
+    char path[PATH_MAX];
+    bool green=true;
+    const char *leaves[]={"refs/heads/main","refs/heads","refs","HEAD","config"};
+    for (size_t i=0;i<sizeof(leaves)/sizeof(leaves[0]);i++) {
+        int n=snprintf(path,sizeof(path),"%s/%s",repository_cleanup_path,leaves[i]);
+        if (n<0 || (size_t)n>=sizeof(path)) { green=false; continue; }
+        if (i==1 || i==2) {
+            if (rmdir(path) && errno!=ENOENT) green=false;
+        } else {
+            if (unlink(path) && errno!=ENOENT) green=false;
+        }
+    }
+    if (rmdir(repository_cleanup_path) && errno!=ENOENT) green=false;
+    repository_cleanup_path[0]=0;
+    return green;
+}
 
 static void hold(const char *reason) {
-    bool cleaned=private_cleanup();
-    temporary_git_cleanup_complete=temporary_git_cleanup_complete && cleaned;
+    bool repository_cleanup_green=repository_temp_cleanup();
     fprintf(stderr, "%s_HOLD reason=%s\n", MARKER, reason);
+    fprintf(stderr, "temporary_repository_cleanup_green=%s\n", repository_cleanup_green ? "true" : "false");
     fprintf(stderr, "installer_python_started=%s\n", installer_child_created ? "true" : "false");
     if (installer_child_created && receipt_op==OP_APPLY)
         fprintf(stderr, "installer_apply_state=unknown_or_partial_if_child_created\n");
     else fprintf(stderr, "installer_apply_performed=false\n");
-    if (temporary_git_write_started)
-        fprintf(stderr,"filesystem_write=true\ntemporary_git_metadata_mutation_performed=true\n"
-            "temporary_git_metadata_cleanup_complete=%s\nsource_repository_mutation=false\nsource_object_fetch=false\n",
-            temporary_git_cleanup_complete ? "true" : "false");
     fprintf(stderr, "privileged_first_entry_authenticated=false\ncredential_access=false\n"
         "private_key_access=false\nsigning=false\ntransaction=false\npayment_acceptance=false\n"
         "public_presale_activation=false\nwc_void_market_activation=false\nfunds_movement=false\n");
@@ -401,12 +400,20 @@ static void hash_bytes(const unsigned char *raw, size_t size, bool blob, char *o
     if (blob) { char prefix[64]; int n=snprintf(prefix,sizeof(prefix),"blob %zu",size); hash_update(&hash,(unsigned char *)prefix,(size_t)n+1); }
     hash_update(&hash,raw,size); hash_end(&hash,out);
 }
+static void hash_git_object(const char *type, const unsigned char *raw, size_t size, char out[41]) {
+    hash_v4 hash=hash_begin("sha1",20);
+    char prefix[64];
+    int n=snprintf(prefix,sizeof(prefix),"%s %zu",type,size);
+    if (n<=0 || (size_t)n+1U>sizeof(prefix)) hold("bootstrap_git_object_hash_prefix_invalid");
+    hash_update(&hash,(unsigned char *)prefix,(size_t)n+1U);
+    hash_update(&hash,raw,size);
+    hash_end(&hash,out);
+}
 static void hash_fd(int fd, size_t size, bool blob, char *out) {
     hash_v4 hash=hash_begin(blob?"sha1":"sha256",blob?20:32);
     if (blob) { char prefix[64]; int n=snprintf(prefix,sizeof(prefix),"blob %zu",size); hash_update(&hash,(unsigned char *)prefix,(size_t)n+1); }
     unsigned char buffer[65536]; size_t offset=0;
     while (offset<size) {
-        witness_progress();
         size_t want=size-offset; if (want>sizeof(buffer)) want=sizeof(buffer);
         ssize_t count=pread(fd,buffer,want,(off_t)offset);
         if (count<0 && errno==EINTR) continue;
@@ -424,7 +431,6 @@ static bytes_v4 read_fd(int fd, size_t maximum) {
     if (!result.data) hold("bootstrap_read_allocation_failed");
     size_t offset=0;
     while (offset<result.size) {
-        witness_progress();
         ssize_t n=pread(fd,result.data+offset,result.size-offset,(off_t)offset);
         if (n<0 && errno==EINTR) continue;
         if (n<=0) hold("bootstrap_read_short");
@@ -552,6 +558,7 @@ static void init_context(context_v4 *ctx) {
     memset(ctx,0,sizeof(*ctx));
     for (size_t i=0;i<R_COUNT;i++) ctx->fds[i]=-1;
     ctx->self.fd=ctx->manifest_input.fd=ctx->policy_input.fd=-1;
+    ctx->repo_index_source_fd=ctx->repo_index_fd=ctx->repo_objects_fd=-1;
     ctx->python.target.fd=ctx->git.target.fd=-1;
     for (size_t i=0;i<4;i++) ctx->sources[i].fd=-1;
     for (size_t i=0;i<2;i++) ctx->candidates[i].fd=-1;
@@ -584,7 +591,7 @@ static int optional_directory(int parent, const char *name) {
 }
 static void verify_local_object_store(const context_v4 *ctx) {
     int git=ctx->fds[R_GIT_DIR];
-    require_absent(git,"commondir"); require_absent(git,"shallow");
+    require_absent(git,"commondir"); require_absent(git,"shallow"); require_absent(git,"gitdir");
     int objects=optional_directory(git,"objects");
     if (objects<0) hold("bootstrap_git_object_directory_required");
     int info=optional_directory(objects,"info");
@@ -604,607 +611,122 @@ static void recheckout(const context_v4 *ctx) {
         !sameid(&root,&visible_root) || !sameid(&git,&visible_git)) hold("bootstrap_checkout_directory_changed");
     close(git_now); close(now); verify_local_object_store(ctx);
 }
-
-
-/* Each witness owns a private Git directory. Source paths are observed through
- * retained checkout descriptors; no repository configuration enters Git. */
-typedef struct {
-    int root_role;
-    char *relative;
-    struct stat identity;
-    bool exists;
-} observation_v5;
-typedef struct private_git_v5 {
-    const context_v4 *owner;
-    int temporary_parent, directory, index;
-    int pack_fds[2U * MAX_PACK_PAIRS];
-    struct stat pack_identity[2U * MAX_PACK_PAIRS];
-    size_t pack_count;
-    char path[PATH_MAX], name[NAME_MAX+1];
-    struct stat directory_identity;
-    bool created;
-    observation_v5 *observations;
-    size_t count, capacity, path_bytes;
-    size_t *slots;
-    uint64_t loose_bytes, pack_bytes;
-    size_t object_entries;
-    int64_t deadline;
-} private_git_v5;
-static private_git_v5 *active_private=NULL;
-
-static void witness_deadline(const private_git_v5 *reader) {
-    if (monotonic_millis()>=reader->deadline) hold("bootstrap_repository_witness_timeout");
+static bytes_v4 read_at_bounded(int parent, const char *name, size_t maximum, int *retained, struct stat *identity) {
+    struct stat before,opened,visible,after;
+    if (fstatat(parent,name,&before,AT_SYMLINK_NOFOLLOW) || !S_ISREG(before.st_mode) ||
+        before.st_size<=0 || (uintmax_t)before.st_size>maximum)
+        hold("bootstrap_repository_input_invalid");
+    int fd=openat(parent,name,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+    if (fd<0 || fstat(fd,&opened) || fstatat(parent,name,&visible,AT_SYMLINK_NOFOLLOW) ||
+        !sameid(&before,&opened) || !sameid(&opened,&visible))
+        hold("bootstrap_repository_input_rebound");
+    bytes_v4 raw=read_fd(fd,maximum);
+    if (fstat(fd,&after) || !sameid(&opened,&after)) hold("bootstrap_repository_input_changed");
+    if (identity) *identity=opened;
+    if (retained) *retained=fd; else close(fd);
+    return raw;
 }
-static void witness_progress(void) {
-    if (active_private) witness_deadline(active_private);
-}
-static uint64_t observation_hash(int role, const char *path) {
-    uint64_t value=UINT64_C(1469598103934665603)^(uint64_t)role;
-    for (const unsigned char *p=(const unsigned char *)path;*p;p++) {
-        value^=*p; value*=UINT64_C(1099511628211);
-    }
-    return value;
-}
-static void observe_path(private_git_v5 *reader, int role, const char *relative,
-                         const struct stat *identity, bool exists) {
-    witness_deadline(reader);
-    if ((role!=R_CHECKOUT && role!=R_GIT_DIR) || (*relative && !clean_path(relative,false)))
-        hold("bootstrap_observation_path_invalid");
-    size_t slot=(size_t)(observation_hash(role,relative)&(OBSERVATION_SLOTS-1U));
-    while (reader->slots[slot]) {
-        observation_v5 *prior=&reader->observations[reader->slots[slot]-1U];
-        if (prior->root_role==role && !strcmp(prior->relative,relative)) {
-            if (prior->exists!=exists || (exists && !sameid(&prior->identity,identity)))
-                hold("bootstrap_repository_observation_changed");
-            return;
-        }
-        slot=(slot+1U)&(OBSERVATION_SLOTS-1U);
-    }
-    size_t length=strlen(relative)+1U;
-    if (reader->count>=MAX_OBSERVATIONS || length>MAX_PATH_AGGREGATE-reader->path_bytes)
-        hold("bootstrap_repository_observation_limit");
-    if (reader->count==reader->capacity) {
-        size_t capacity=reader->capacity?reader->capacity*2U:256U;
-        if (capacity>MAX_OBSERVATIONS) capacity=MAX_OBSERVATIONS;
-        observation_v5 *grown=realloc(reader->observations,capacity*sizeof(*grown));
-        if (!grown) hold("bootstrap_observation_allocation_failed");
-        reader->observations=grown; reader->capacity=capacity;
-    }
-    char *copy=strdup(relative);
-    if (!copy) hold("bootstrap_observation_path_allocation_failed");
-    observation_v5 *entry=&reader->observations[reader->count];
-    *entry=(observation_v5){.root_role=role,.relative=copy,.exists=exists};
-    if (exists) entry->identity=*identity;
-    reader->slots[slot]=++reader->count; reader->path_bytes+=length;
-}
-/* Opens only physical parents. When recording, every intermediate directory
- * becomes part of the same first-observation fence as the leaf. */
-static int relative_parent(private_git_v5 *reader, int root, int role,
-                           const char *relative, char leaf[NAME_MAX+1], bool record) {
-    if (!clean_path(relative,false)) hold("bootstrap_relative_source_path_invalid");
-    char copy[PATH_MAX],prefix[PATH_MAX]="";
-    snprintf(copy,sizeof(copy),"%s",relative);
-    int current=fcntl(root,F_DUPFD_CLOEXEC,3);
-    if (current<0) hold("bootstrap_relative_root_unavailable");
-    struct stat initial;
-    if (fstat(current,&initial) || !S_ISDIR(initial.st_mode)) hold("bootstrap_relative_root_invalid");
-    if (record) observe_path(reader,role,"",&initial,true);
-    char *part=copy;
-    for (char *slash=strchr(part,'/');slash;slash=strchr(part,'/')) {
-        *slash=0;
-        struct stat before,opened,visible;
-        if (fstatat(current,part,&before,AT_SYMLINK_NOFOLLOW) || !S_ISDIR(before.st_mode))
-            hold("bootstrap_relative_parent_not_physical");
-        int next=openat(current,part,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
-        if (next<0 || fstat(next,&opened) || fstatat(current,part,&visible,AT_SYMLINK_NOFOLLOW) ||
-            !sameid(&before,&opened) || !sameid(&opened,&visible))
-            hold("bootstrap_relative_parent_rebound");
-        size_t used=strlen(prefix),size=strlen(part);
-        if (used+size+2U>sizeof(prefix)) hold("bootstrap_relative_parent_path_limit");
-        if (used) prefix[used++]='/';
-        memcpy(prefix+used,part,size+1U);
-        if (record) observe_path(reader,role,prefix,&opened,true);
-        close(current); current=next; part=slash+1;
-    }
-    size_t leaf_size=strlen(part);
-    if (!leaf_size || leaf_size>NAME_MAX) hold("bootstrap_relative_leaf_invalid");
-    memcpy(leaf,part,leaf_size+1U);
-    return current;
-}
-static bool source_file(private_git_v5 *reader, const char *relative, uint64_t maximum,
-                        bool optional, int *retained, struct stat *identity) {
-    char leaf[NAME_MAX+1];
-    int parent=relative_parent(reader,reader->owner->fds[R_GIT_DIR],R_GIT_DIR,relative,leaf,true);
-    struct stat before,opened,visible;
-    if (fstatat(parent,leaf,&before,AT_SYMLINK_NOFOLLOW)) {
-        if (optional && errno==ENOENT) {
-            observe_path(reader,R_GIT_DIR,relative,NULL,false);
-            close(parent); *retained=-1; return false;
-        }
-        hold("bootstrap_git_source_file_unavailable");
-    }
-    if (!S_ISREG(before.st_mode) || before.st_nlink!=1 || before.st_size<0 ||
-        (uintmax_t)before.st_size>maximum) hold("bootstrap_git_source_file_metadata_invalid");
-    int fd=openat(parent,leaf,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
-    if (fd<0 || fstat(fd,&opened) || fstatat(parent,leaf,&visible,AT_SYMLINK_NOFOLLOW) ||
-        !sameid(&before,&opened) || !sameid(&opened,&visible)) hold("bootstrap_git_source_file_rebound");
-    observe_path(reader,R_GIT_DIR,relative,&opened,true);
-    close(parent); *retained=fd; *identity=opened; return true;
-}
-static bytes_v4 source_bytes(private_git_v5 *reader, const char *relative, size_t maximum,
-                             bool optional, bool *present) {
-    int fd=-1; struct stat identity,after;
-    *present=source_file(reader,relative,maximum,optional,&fd,&identity);
-    if (!*present) return (bytes_v4){0};
-    bytes_v4 result;
-    if (!identity.st_size) {
-        result=(bytes_v4){.data=calloc(1,1),.size=0};
-        if (!result.data) hold("bootstrap_git_empty_source_allocation_failed");
-    } else result=read_fd(fd,maximum);
-    if (fstat(fd,&after) || !sameid(&identity,&after)) hold("bootstrap_git_source_changed_during_read");
-    close(fd); return result;
-}
-static int private_parent_fd(private_git_v5 *reader, const char *relative, char leaf[NAME_MAX+1]) {
-    return relative_parent(reader,reader->directory,R_GIT_DIR,relative,leaf,false);
-}
-static void private_mkdir(private_git_v5 *reader, const char *relative) {
-    char leaf[NAME_MAX+1]; int parent=private_parent_fd(reader,relative,leaf);
-    if (mkdirat(parent,leaf,0700)) hold("bootstrap_private_directory_create_failed");
-    close(parent);
-}
-static int private_file_create(private_git_v5 *reader, const char *relative) {
-    char leaf[NAME_MAX+1]; int parent=private_parent_fd(reader,relative,leaf);
-    int fd=openat(parent,leaf,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC|O_NOFOLLOW,0600);
-    close(parent);
-    if (fd<0) hold("bootstrap_private_file_create_failed");
-    return fd;
-}
-static void private_file(private_git_v5 *reader, const char *relative,
-                         const unsigned char *raw, size_t size) {
-    int fd=private_file_create(reader,relative);
+static void private_write_file(const char *path, const unsigned char *raw, size_t size) {
+    int fd=open(path,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC|O_NOFOLLOW,0600);
+    if (fd<0) hold("bootstrap_repository_private_file_create_failed");
     write_all(fd,raw,size);
-    if (fchmod(fd,0400) || close(fd)) hold("bootstrap_private_file_close_failed");
+    if (close(fd)) hold("bootstrap_repository_private_file_close_failed");
 }
-static bool cleanup_directory(int fd, size_t *entries, unsigned depth) {
-    if (depth>8U) return false;
-    int copy=fcntl(fd,F_DUPFD_CLOEXEC,3);
-    if (copy<0) return false;
-    DIR *directory=fdopendir(copy);
-    if (!directory) { close(copy); return false; }
-    bool complete=true;
+static void reject_split_index(const context_v4 *ctx) {
+    int copy=fcntl(ctx->fds[R_GIT_DIR],F_DUPFD_CLOEXEC,3);
+    if (copy<0) hold("bootstrap_repository_git_dir_dup_failed");
+    DIR *dir=fdopendir(copy);
+    if (!dir) { close(copy); hold("bootstrap_repository_git_dir_scan_failed"); }
+    errno=0;
     for (;;) {
-        errno=0; struct dirent *entry=readdir(directory);
-        if (!entry) { if (errno) complete=false; break; }
-        if (!strcmp(entry->d_name,".") || !strcmp(entry->d_name,"..")) continue;
-        if (++*entries>MAX_OBSERVATIONS) { complete=false; break; }
-        struct stat before,opened,visible;
-        if (fstatat(fd,entry->d_name,&before,AT_SYMLINK_NOFOLLOW) || before.st_uid!=geteuid()) {
-            complete=false; continue;
+        struct dirent *entry=readdir(dir);
+        if (!entry) break;
+        if (!strncmp(entry->d_name,"sharedindex.",12)) {
+            const char *suffix=entry->d_name+12;
+            if (strlen(suffix)==40 && hexn(suffix,40)) {
+                closedir(dir);
+                hold("bootstrap_repository_split_index_unsupported");
+            }
         }
-        if (S_ISDIR(before.st_mode)) {
-            int child=openat(fd,entry->d_name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
-            if (child<0) { complete=false; continue; }
-            bool safe=!fstat(child,&opened) && opened.st_dev==before.st_dev && opened.st_ino==before.st_ino;
-            bool removed=safe && cleanup_directory(child,entries,depth+1U);
-            close(child);
-            if (!removed || fstatat(fd,entry->d_name,&visible,AT_SYMLINK_NOFOLLOW) ||
-                visible.st_dev!=before.st_dev || visible.st_ino!=before.st_ino ||
-                unlinkat(fd,entry->d_name,AT_REMOVEDIR)) complete=false;
-        } else if (unlinkat(fd,entry->d_name,0)) complete=false;
-    }
-    if (closedir(directory)) complete=false;
-    return complete;
-}
-static bool private_cleanup(void) {
-    private_git_v5 *reader=active_private;
-    if (!reader) return true;
-    active_private=NULL;
-    bool complete=true;
-    if (reader->index>=0 && close(reader->index)) complete=false;
-    for (size_t i=0;i<reader->pack_count;i++) if (close(reader->pack_fds[i])) complete=false;
-    if (reader->created) {
-        struct stat visible,opened;
-        bool same=reader->temporary_parent>=0 && reader->directory>=0 &&
-            !fstat(reader->directory,&opened) &&
-            !fstatat(reader->temporary_parent,reader->name,&visible,AT_SYMLINK_NOFOLLOW) &&
-            S_ISDIR(visible.st_mode) && visible.st_uid==geteuid() &&
-            visible.st_dev==reader->directory_identity.st_dev &&
-            visible.st_ino==reader->directory_identity.st_ino &&
-            opened.st_dev==visible.st_dev && opened.st_ino==visible.st_ino;
-        size_t entries=0;
-        if (!same || !cleanup_directory(reader->directory,&entries,0) ||
-            unlinkat(reader->temporary_parent,reader->name,AT_REMOVEDIR)) complete=false;
-    }
-    if (reader->directory>=0 && close(reader->directory)) complete=false;
-    if (reader->temporary_parent>=0 && close(reader->temporary_parent)) complete=false;
-    for (size_t i=0;i<reader->count;i++) free(reader->observations[i].relative);
-    free(reader->observations); free(reader->slots); free(reader);
-    return complete;
-}
-static void private_fence(private_git_v5 *reader) {
-    recheckout(reader->owner);
-    for (size_t i=0;i<reader->count;i++) {
-        witness_deadline(reader);
-        observation_v5 *entry=&reader->observations[i];
-        struct stat current;
-        int root=reader->owner->fds[entry->root_role];
-        if (!*entry->relative) {
-            if (fstat(root,&current) || !sameid(&entry->identity,&current))
-                hold("bootstrap_repository_final_observation_changed");
-            continue;
+        if (!strcmp(entry->d_name,"index.lock")) {
+            closedir(dir);
+            hold("bootstrap_repository_index_lock_present");
         }
-        char leaf[NAME_MAX+1];
-        int parent=relative_parent(reader,root,entry->root_role,entry->relative,leaf,false);
-        int result=fstatat(parent,leaf,&current,AT_SYMLINK_NOFOLLOW);
-        int error=errno;
-        close(parent);
-        if (entry->exists ? result!=0 || !sameid(&entry->identity,&current) : result==0 || error!=ENOENT)
-            hold("bootstrap_repository_final_observation_changed");
     }
-    for (size_t i=0;i<reader->pack_count;i++) {
-        struct stat st;
-        if (fstat(reader->pack_fds[i],&st) || !sameid(&reader->pack_identity[i],&st))
-            hold("bootstrap_repository_pack_descriptor_changed");
-    }
-    recheckout(reader->owner);
+    if (errno) { closedir(dir); hold("bootstrap_repository_git_dir_scan_failed"); }
+    closedir(dir);
 }
-static uint32_t read_be32(const unsigned char *raw) {
-    return ((uint32_t)raw[0]<<24)|((uint32_t)raw[1]<<16)|((uint32_t)raw[2]<<8)|(uint32_t)raw[3];
-}
-static void raw_sha1(const unsigned char *raw, size_t size, char digest[41]) {
-    hash_v4 state=hash_begin("sha1",20); hash_update(&state,raw,size); hash_end(&state,digest);
-}
-static void raw_oid_hex(const unsigned char *raw, char out[41]) {
-    static const char alphabet[]="0123456789abcdef";
-    for (size_t i=0;i<20;i++) { out[2*i]=alphabet[raw[i]>>4]; out[2*i+1]=alphabet[raw[i]&15]; }
-    out[40]=0;
-}
-static void verify_reference_snapshot(private_git_v5 *reader, const char *expected) {
-    bool present;
-    bytes_v4 head=source_bytes(reader,"HEAD",4096,false,&present);
-    static const char literal[]="ref: refs/heads/main\n";
-    if (head.size!=sizeof(literal)-1 || memcmp(head.data,literal,sizeof(literal)-1))
+static void source_head_main_exact(const context_v4 *ctx) {
+    bytes_v4 head=read_at_bounded(ctx->fds[R_GIT_DIR],"HEAD",256,NULL,NULL);
+    static const char expected_head_ref[]="ref: refs/heads/main\n";
+    if (head.size!=sizeof(expected_head_ref)-1U || memcmp(head.data,expected_head_ref,head.size))
         hold("bootstrap_checkout_branch_not_main");
     free(head.data);
-    /* Parent directories are physical even when the final loose ref is absent. */
-    bytes_v4 ref=source_bytes(reader,"refs/heads/main",4096,true,&present);
-    char actual[41]="";
-    if (present) {
-        if (ref.size!=41 || ref.data[40]!='\n') hold("bootstrap_checkout_main_reference_invalid");
-        memcpy(actual,ref.data,40); free(ref.data);
-    } else {
-        bytes_v4 packed=source_bytes(reader,"packed-refs",MAX_INDEX_BYTES,false,&present);
-        size_t offset=0; bool found=false;
-        while (offset<packed.size) {
-            unsigned char *line=packed.data+offset;
-            unsigned char *end=memchr(line,'\n',packed.size-offset);
-            if (!end) hold("bootstrap_packed_references_framing_invalid");
-            size_t size=(size_t)(end-line);
-            if (memchr(line,0,size) || memchr(line,'\r',size)) hold("bootstrap_packed_references_invalid");
-            if (size && line[0]=='#') { offset+=(size+1U); continue; }
-            if (size==41 && line[0]=='^') {
-                char peeled[41]; memcpy(peeled,line+1,40); peeled[40]=0;
-                if (!hexn(peeled,40)) hold("bootstrap_packed_references_invalid");
-            } else {
-                if (size<42 || line[40]!=' ') hold("bootstrap_packed_references_invalid");
-                char oid[41]; memcpy(oid,line,40); oid[40]=0;
-                if (!hexn(oid,40)) hold("bootstrap_packed_references_invalid");
-                if (size==56 && !memcmp(line+41,"refs/heads/main",15)) {
-                    if (found) hold("bootstrap_packed_main_reference_duplicate");
-                    memcpy(actual,oid,41); found=true;
-                }
-            }
-            offset+=size+1U;
-        }
-        free(packed.data);
-        if (!found) hold("bootstrap_checkout_main_reference_missing");
-    }
-    if (!hexn(actual,40) || strcmp(actual,expected)) hold("bootstrap_checkout_head_mismatch");
+    int refs=optional_directory(ctx->fds[R_GIT_DIR],"refs");
+    if (refs<0) hold("bootstrap_repository_refs_directory_required");
+    int heads=optional_directory(refs,"heads");
+    if (heads<0) { close(refs); hold("bootstrap_repository_heads_directory_required"); }
+    bytes_v4 main=read_at_bounded(heads,"main",128,NULL,NULL);
+    char expected[42]; int n=snprintf(expected,sizeof(expected),"%s\n",ctx->request.expected_head);
+    if (n!=41 || main.size!=41 || memcmp(main.data,expected,41))
+        hold("bootstrap_checkout_head_mismatch");
+    free(main.data); close(heads); close(refs);
 }
-static void private_index_snapshot(private_git_v5 *reader) {
-    bool present; bytes_v4 raw=source_bytes(reader,"index",MAX_INDEX_BYTES,false,&present);
-    if (raw.size<32 || memcmp(raw.data,"DIRC",4) || read_be32(raw.data+4)!=2U)
-        hold("bootstrap_git_index_version_unsupported");
-    char expected[41],actual[41]; raw_oid_hex(raw.data+raw.size-20,expected);
-    raw_sha1(raw.data,raw.size-20,actual);
-    if (strcmp(expected,actual)) hold("bootstrap_git_index_checksum_invalid");
-    size_t count=read_be32(raw.data+8),offset=12,end=raw.size-20,path_bytes=0;
-    if (count>MAX_TRACKED_ENTRIES) hold("bootstrap_git_index_entry_limit");
-    char previous[PATH_MAX]="";
-    for (size_t i=0;i<count;i++) {
-        witness_deadline(reader);
-        size_t start=offset;
-        if (end-offset<63) hold("bootstrap_git_index_entry_truncated");
-        uint32_t mode=read_be32(raw.data+offset+24);
-        unsigned flags=((unsigned)raw.data[offset+60]<<8)|(unsigned)raw.data[offset+61];
-        if (flags&0xf000U) hold("bootstrap_git_index_flags_or_stage_unsupported");
-        if (mode!=0100644U && mode!=0100755U && mode!=0120000U)
-            hold("bootstrap_git_index_mode_unsupported");
-        unsigned char *name=raw.data+offset+62;
-        unsigned char *zero=memchr(name,0,end-(offset+62));
-        if (!zero) hold("bootstrap_git_index_path_unterminated");
-        size_t length=(size_t)(zero-name);
-        if (!length || length>=PATH_MAX || length>MAX_PATH_AGGREGATE-path_bytes ||
-            (flags&0xfffU)!=(length<0xfffU?length:0xfffU))
-            hold("bootstrap_git_index_path_invalid");
-        char path[PATH_MAX]; memcpy(path,name,length); path[length]=0;
-        if (!tracked_path(path) || (i && strcmp(previous,path)>=0))
-            hold("bootstrap_git_index_path_order_invalid");
-        snprintf(previous,sizeof(previous),"%s",path); path_bytes+=length;
-        size_t entry_size=(62U+length+1U+7U)&~(size_t)7U;
-        if (entry_size>end-start) hold("bootstrap_git_index_padding_truncated");
-        for (size_t j=62U+length;j<entry_size;j++) if (raw.data[start+j])
-            hold("bootstrap_git_index_padding_invalid");
-        offset=start+entry_size;
-    }
-    size_t entries_end=offset,extension_count=0;
-    unsigned char extension_names[64][4];
-    while (offset<end) {
-        if (end-offset<8) hold("bootstrap_git_index_extension_truncated");
-        if (extension_count>=64U) hold("bootstrap_git_index_extension_count_limit");
-        for (size_t i=0;i<extension_count;i++)
-            if (!memcmp(extension_names[i],raw.data+offset,4)) hold("bootstrap_git_index_extension_duplicate");
-        memcpy(extension_names[extension_count++],raw.data+offset,4);
-        unsigned char first=raw.data[offset];
-        size_t size=read_be32(raw.data+offset+4);
-        if (first<'A' || first>'Z') hold("bootstrap_git_index_mandatory_extension_unsupported");
-        if (size>end-offset-8) hold("bootstrap_git_index_extension_size_invalid");
-        offset+=8U+size;
-    }
-    /* Drop optional cached extensions; Git receives only this sealed ordinary index. */
-    raw_sha1(raw.data,entries_end,actual);
-    unsigned char checksum[20];
-    for (size_t i=0;i<20;i++) {
-        unsigned a=(unsigned)(actual[2*i]<='9'?actual[2*i]-'0':actual[2*i]-'a'+10);
-        unsigned b=(unsigned)(actual[2*i+1]<='9'?actual[2*i+1]-'0':actual[2*i+1]-'a'+10);
-        checksum[i]=(unsigned char)((a<<4)|b);
-    }
-    int writer=memfd_create("void-e2-private-index-v4",MFD_CLOEXEC|MFD_ALLOW_SEALING);
-    if (writer<0) hold("bootstrap_private_index_create_failed");
-    write_all(writer,raw.data,entries_end); write_all(writer,checksum,sizeof(checksum));
-    seal_writer(writer,0400); reader->index=readonly_memfd(writer);
-    close(writer); free(raw.data);
+static void repository_index_snapshot(context_v4 *ctx) {
+    reject_split_index(ctx);
+    bytes_v4 index=read_at_bounded(ctx->fds[R_GIT_DIR],"index",MAX_REPO_INDEX_BYTES,
+                                   &ctx->repo_index_source_fd,&ctx->repo_index_source_identity);
+    hash_bytes(index.data,index.size,false,ctx->repo_index_sha256);
+    int writer=memfd_create("void-e2-repository-index-v5",MFD_CLOEXEC|MFD_ALLOW_SEALING);
+    if (writer<0) hold("bootstrap_repository_index_snapshot_create_failed");
+    write_all(writer,index.data,index.size); free(index.data);
+    seal_writer(writer,0400);
+    ctx->repo_index_fd=readonly_memfd(writer); close(writer);
 }
-
-
-static int source_directory(private_git_v5 *reader, const char *relative) {
-    char leaf[NAME_MAX+1];
-    int parent=relative_parent(reader,reader->owner->fds[R_GIT_DIR],R_GIT_DIR,relative,leaf,true);
-    struct stat before,opened,visible;
-    if (fstatat(parent,leaf,&before,AT_SYMLINK_NOFOLLOW) || !S_ISDIR(before.st_mode))
-        hold("bootstrap_git_source_directory_not_physical");
-    int fd=openat(parent,leaf,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
-    if (fd<0 || fstat(fd,&opened) || fstatat(parent,leaf,&visible,AT_SYMLINK_NOFOLLOW) ||
-        !sameid(&before,&opened) || !sameid(&opened,&visible))
-        hold("bootstrap_git_source_directory_rebound");
-    close(parent); observe_path(reader,R_GIT_DIR,relative,&opened,true); return fd;
-}
-static DIR *source_scan(private_git_v5 *reader, const char *relative) {
-    int fd=source_directory(reader,relative);
-    DIR *directory=fdopendir(fd);
-    if (!directory) { close(fd); hold("bootstrap_git_source_directory_scan_failed"); }
-    return directory;
-}
-static struct dirent *source_next(private_git_v5 *reader, DIR *directory) {
-    for (;;) {
-        witness_deadline(reader); errno=0;
-        struct dirent *entry=readdir(directory);
-        if (!entry) { if (errno) hold("bootstrap_git_source_directory_read_failed"); return NULL; }
-        if (!strcmp(entry->d_name,".") || !strcmp(entry->d_name,"..")) continue;
-        if (++reader->object_entries>MAX_TRACKED_ENTRIES) hold("bootstrap_git_object_entry_limit");
-        return entry;
-    }
-}
-static void copy_loose_object(private_git_v5 *reader, const char *relative) {
-    int source=-1; struct stat identity,after;
-    (void)source_file(reader,relative,MAX_LOOSE_BYTES,false,&source,&identity);
-    if (identity.st_size<=0 || (uint64_t)identity.st_size>MAX_LOOSE_TOTAL-reader->loose_bytes)
-        hold("bootstrap_git_loose_object_bytes_limit");
-    reader->loose_bytes+=(uint64_t)identity.st_size;
-    int target=private_file_create(reader,relative);
-    unsigned char buffer[65536]; size_t offset=0,size=(size_t)identity.st_size;
-    while (offset<size) {
-        witness_deadline(reader);
-        size_t want=size-offset; if (want>sizeof(buffer)) want=sizeof(buffer);
-        ssize_t count=pread(source,buffer,want,(off_t)offset);
-        if (count<0 && errno==EINTR) continue;
-        if (count<=0) hold("bootstrap_git_loose_object_short_read");
-        write_all(target,buffer,(size_t)count); offset+=(size_t)count;
-    }
-    if (pread(source,buffer,1,(off_t)size)!=0 || fstat(source,&after) || !sameid(&identity,&after))
-        hold("bootstrap_git_loose_object_generation_changed");
-    if (close(source) || fchmod(target,0400) || close(target))
-        hold("bootstrap_git_loose_snapshot_close_failed");
-}
-typedef struct { char stem[46]; bool pack,idx; } pack_pair_v5;
-static void pin_pack_file(private_git_v5 *reader, const char *relative) {
-    if (reader->pack_count>=2U*MAX_PACK_PAIRS) hold("bootstrap_git_pack_descriptor_limit");
-    int fd=-1; struct stat identity;
-    size_t length=strlen(relative);
-    uint64_t maximum=length>4U && !strcmp(relative+length-4U,".idx") ? MAX_LOOSE_BYTES : MAX_PACK_FILE;
-    (void)source_file(reader,relative,maximum,false,&fd,&identity);
-    if (identity.st_size<=0 || (uint64_t)identity.st_size>MAX_PACK_TOTAL-reader->pack_bytes)
-        hold("bootstrap_git_pack_bytes_limit");
-    reader->pack_bytes+=(uint64_t)identity.st_size;
-    reader->pack_fds[reader->pack_count]=fd;
-    reader->pack_identity[reader->pack_count++]=identity;
-    char leaf[NAME_MAX+1],target[64];
-    int parent=private_parent_fd(reader,relative,leaf);
-    snprintf(target,sizeof(target),"/proc/self/fd/%d",fd);
-    if (symlinkat(target,parent,leaf)) hold("bootstrap_git_private_pack_link_failed");
-    close(parent);
-}
-static void snapshot_pack_directory(private_git_v5 *reader) {
-    DIR *directory=source_scan(reader,"objects/pack");
-    pack_pair_v5 pairs[MAX_PACK_PAIRS]; memset(pairs,0,sizeof(pairs)); size_t count=0;
-    struct dirent *entry;
-    while ((entry=source_next(reader,directory))!=NULL) {
-        const char *name=entry->d_name;
-        if (!strcmp(name,"multi-pack-index") || !strcmp(name,"multi-pack-index.d")) {
-            /* These caches are never installed into the private object view. */
-            struct stat identity;
-            if (fstatat(dirfd(directory),name,&identity,AT_SYMLINK_NOFOLLOW) ||
-                (!S_ISREG(identity.st_mode) && !S_ISDIR(identity.st_mode)))
-                hold("bootstrap_git_pack_auxiliary_type_invalid");
-            continue;
-        }
-        size_t length=strlen(name);
-        char oid[41]="";
-        if (length>=45) { memcpy(oid,name+5,40); oid[40]=0; }
-        if (length<49 || memcmp(name,"pack-",5) || !hexn(oid,40))
-            hold("bootstrap_git_pack_name_unsupported");
-        const char *suffix=name+45;
-        if (!strcmp(suffix,".promisor")) hold("bootstrap_git_promisor_storage_unsupported");
-        bool pack=!strcmp(suffix,".pack"),index=!strcmp(suffix,".idx");
-        if (!pack && !index) {
-            if (strcmp(suffix,".rev") && strcmp(suffix,".bitmap") && strcmp(suffix,".keep"))
-                hold("bootstrap_git_pack_auxiliary_unsupported");
-            struct stat identity;
-            if (fstatat(dirfd(directory),name,&identity,AT_SYMLINK_NOFOLLOW) ||
-                !S_ISREG(identity.st_mode) || identity.st_nlink!=1)
-                hold("bootstrap_git_pack_auxiliary_type_invalid");
-            continue;
-        }
-        char stem[46]; memcpy(stem,name,45); stem[45]=0;
-        size_t i=0; while (i<count && strcmp(pairs[i].stem,stem)) i++;
-        if (i==count) {
-            if (count>=MAX_PACK_PAIRS) hold("bootstrap_git_pack_pair_limit");
-            snprintf(pairs[count++].stem,sizeof(pairs[0].stem),"%s",stem);
-        }
-        if (pack ? pairs[i].pack : pairs[i].idx) hold("bootstrap_git_pack_pair_duplicate");
-        if (pack) pairs[i].pack=true; else pairs[i].idx=true;
-        char relative[PATH_MAX]; snprintf(relative,sizeof(relative),"objects/pack/%s",name);
-        pin_pack_file(reader,relative);
-    }
-    if (closedir(directory)) hold("bootstrap_git_pack_scan_close_failed");
-    for (size_t i=0;i<count;i++) if (!pairs[i].pack || !pairs[i].idx)
-        hold("bootstrap_git_pack_pair_incomplete");
-}
-static void private_object_snapshot(private_git_v5 *reader) {
-    DIR *objects=source_scan(reader,"objects");
-    bool saw_pack=false;
-    struct dirent *entry;
-    while ((entry=source_next(reader,objects))!=NULL) {
-        if (!strcmp(entry->d_name,"info")) {
-            int fd=source_directory(reader,"objects/info"); close(fd); continue;
-        }
-        if (!strcmp(entry->d_name,"pack")) {
-            if (saw_pack) hold("bootstrap_git_pack_directory_duplicate");
-            saw_pack=true; snapshot_pack_directory(reader); continue;
-        }
-        if (!hexn(entry->d_name,2)) hold("bootstrap_git_object_directory_name_unsupported");
-        char relative[PATH_MAX]; snprintf(relative,sizeof(relative),"objects/%s",entry->d_name);
-        private_mkdir(reader,relative);
-        DIR *loose=source_scan(reader,relative);
-        struct dirent *object;
-        while ((object=source_next(reader,loose))!=NULL) {
-            if (!hexn(object->d_name,38)) hold("bootstrap_git_loose_object_name_unsupported");
-            char path[PATH_MAX]; snprintf(path,sizeof(path),"objects/%s/%s",entry->d_name,object->d_name);
-            copy_loose_object(reader,path);
-        }
-        if (closedir(loose)) hold("bootstrap_git_loose_scan_close_failed");
-    }
-    if (closedir(objects)) hold("bootstrap_git_object_scan_close_failed");
-}
-static void observe_absent_guard(private_git_v5 *reader, const char *relative) {
-    char leaf[NAME_MAX+1];
-    int parent=relative_parent(reader,reader->owner->fds[R_GIT_DIR],R_GIT_DIR,relative,leaf,true);
-    struct stat identity;
-    if (!fstatat(parent,leaf,&identity,AT_SYMLINK_NOFOLLOW) || errno!=ENOENT)
-        hold("bootstrap_git_external_object_store_unsupported");
-    close(parent); observe_path(reader,R_GIT_DIR,relative,NULL,false);
-}
-static bool observe_optional_guard_directory(private_git_v5 *reader, const char *relative) {
-    char leaf[NAME_MAX+1];
-    int parent=relative_parent(reader,reader->owner->fds[R_GIT_DIR],R_GIT_DIR,relative,leaf,true);
-    struct stat identity;
-    int result=fstatat(parent,leaf,&identity,AT_SYMLINK_NOFOLLOW),error=errno;
-    close(parent);
-    if (result) {
-        if (error!=ENOENT) hold("bootstrap_git_guard_directory_unavailable");
-        observe_path(reader,R_GIT_DIR,relative,NULL,false); return false;
-    }
-    if (!S_ISDIR(identity.st_mode)) hold("bootstrap_git_guard_directory_not_physical");
-    int fd=source_directory(reader,relative); close(fd); return true;
-}
-static void observe_redirect_guards(private_git_v5 *reader) {
-    observe_absent_guard(reader,"commondir"); observe_absent_guard(reader,"shallow");
-    if (observe_optional_guard_directory(reader,"objects/info")) {
-        observe_absent_guard(reader,"objects/info/alternates");
-        observe_absent_guard(reader,"objects/info/http-alternates");
-    }
-    if (observe_optional_guard_directory(reader,"info")) {
-        observe_absent_guard(reader,"info/grafts");
-        bool present;
-        bytes_v4 exclude=source_bytes(reader,"info/exclude",MAX_INDEX_BYTES,true,&present);
-        if (present) { private_file(reader,"info/exclude",exclude.data,exclude.size); free(exclude.data); }
-    }
-}
-static void private_begin(context_v4 *ctx) {
-    if (ctx->reader || active_private) hold("bootstrap_private_reader_already_active");
-    /* This receipt precedes every temporary directory/file acquisition. */
-    printf("git_boundary_policy=%s\n",GIT_BOUNDARY_POLICY);
-    puts("temporary_git_metadata_write_authorized=true");
-    puts("temporary_git_metadata_mutation_possible=true");
-    puts("source_repository_mutation=false");
-    puts("source_object_fetch=false");
-    if (fflush(stdout)) hold("bootstrap_private_authority_receipt_failed");
-    private_git_v5 *reader=calloc(1,sizeof(*reader));
-    if (!reader) hold("bootstrap_private_reader_allocation_failed");
-    reader->owner=ctx; reader->directory=reader->temporary_parent=reader->index=-1;
-    reader->deadline=monotonic_millis()+180000;
-    ctx->reader=reader; active_private=reader;
-    reader->slots=calloc(OBSERVATION_SLOTS,sizeof(*reader->slots));
-    if (!reader->slots) hold("bootstrap_private_observation_table_allocation_failed");
-    reader->temporary_parent=open("/tmp",O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
-    struct stat parent;
-    if (reader->temporary_parent<0 || fstat(reader->temporary_parent,&parent) ||
-        !S_ISDIR(parent.st_mode) || parent.st_uid!=0 || parent.st_gid!=0 ||
-        ((parent.st_mode&0022) && !(parent.st_mode&S_ISVTX)))
-        hold("bootstrap_private_temporary_parent_invalid");
-    snprintf(reader->path,sizeof(reader->path),"/tmp/void-e2-native-git-v5-XXXXXX");
-    if (!mkdtemp(reader->path)) hold("bootstrap_private_directory_unavailable");
-    reader->created=true; temporary_git_write_started=true;
-    snprintf(reader->name,sizeof(reader->name),"%s",strrchr(reader->path,'/')+1);
-    reader->directory=openat(reader->temporary_parent,reader->name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
-    struct stat visible;
-    if (reader->directory<0 || fstat(reader->directory,&reader->directory_identity) ||
-        fstatat(reader->temporary_parent,reader->name,&visible,AT_SYMLINK_NOFOLLOW) ||
-        !sameid(&reader->directory_identity,&visible) || visible.st_uid!=geteuid() ||
-        (visible.st_mode&07777)!=0700) hold("bootstrap_private_directory_identity_invalid");
-    private_mkdir(reader,"refs"); private_mkdir(reader,"refs/heads");
-    private_mkdir(reader,"objects"); private_mkdir(reader,"objects/info"); private_mkdir(reader,"objects/pack");
+static void repository_private_metadata(context_v4 *ctx) {
+    char pattern[]="/tmp/void-e2-git-witness-v5-XXXXXX";
+    char *created=mkdtemp(pattern);
+    if (!created || chmod(created,0700)) hold("bootstrap_repository_private_dir_create_failed");
+    snprintf(ctx->repo_private_path,sizeof(ctx->repo_private_path),"%s",created);
+    snprintf(repository_cleanup_path,sizeof(repository_cleanup_path),"%s",created);
+    char refs[PATH_MAX],heads[PATH_MAX],path[PATH_MAX];
+    int n=snprintf(refs,sizeof(refs),"%s/refs",created);
+    if (n<0 || (size_t)n>=sizeof(refs)) hold("bootstrap_repository_private_path_overflow");
+    n=snprintf(heads,sizeof(heads),"%s/refs/heads",created);
+    if (n<0 || (size_t)n>=sizeof(heads)) hold("bootstrap_repository_private_path_overflow");
+    if (mkdir(refs,0700) || mkdir(heads,0700)) hold("bootstrap_repository_private_refs_create_failed");
+    n=snprintf(path,sizeof(path),"%s/HEAD",created);
+    if (n<0 || (size_t)n>=sizeof(path)) hold("bootstrap_repository_private_path_overflow");
+    static const unsigned char head_value[]="ref: refs/heads/main\n";
+    private_write_file(path,head_value,sizeof(head_value)-1U);
+    char mainraw[42]; n=snprintf(mainraw,sizeof(mainraw),"%s\n",ctx->request.expected_head);
+    if (n!=41) hold("bootstrap_repository_private_head_invalid");
+    n=snprintf(path,sizeof(path),"%s/refs/heads/main",created);
+    if (n<0 || (size_t)n>=sizeof(path)) hold("bootstrap_repository_private_path_overflow");
+    private_write_file(path,(unsigned char *)mainraw,41);
     static const unsigned char config[]=
-        "[core]\nrepositoryFormatVersion = 0\nbare = false\nfsmonitor = false\n"
-        "hooksPath = /dev/null\nattributesFile = /dev/null\nexcludesFile = /dev/null\n"
-        "untrackedCache = false\nsplitIndex = false\npreloadIndex = false\nignoreCase = false\n"
-        "fileMode = true\ncommitGraph = false\npackedGitWindowSize = 16m\npackedGitLimit = 256m\n"
-        "[index]\nthreads = 1\n[pack]\nthreads = 1\nwriteReverseIndex = false\n"
-        "[protocol]\nallow = never\n[gc]\nauto = 0\n[maintenance]\nauto = false\n";
-    private_file(reader,"config",config,sizeof(config)-1);
-    private_mkdir(reader,"info"); observe_redirect_guards(reader);
-    verify_reference_snapshot(reader,ctx->request.expected_head);
-    private_index_snapshot(reader);
-    static const unsigned char head[]="ref: refs/heads/main\n";
-    private_file(reader,"HEAD",head,sizeof(head)-1);
-    char ref[42]; snprintf(ref,sizeof(ref),"%s\n",ctx->request.expected_head);
-    private_file(reader,"refs/heads/main",(unsigned char *)ref,41);
-    private_object_snapshot(reader); private_fence(reader);
+        "[core]\nrepositoryFormatVersion = 0\nbare = false\nfileMode = true\n"
+        "logAllRefUpdates = false\nfsmonitor = false\nhooksPath = /dev/null\n"
+        "attributesFile = /dev/null\nexcludesFile = /dev/null\nuntrackedCache = false\n"
+        "splitIndex = false\nautocrlf = false\n[gc]\nauto = 0\n[maintenance]\nauto = false\n";
+    n=snprintf(path,sizeof(path),"%s/config",created);
+    if (n<0 || (size_t)n>=sizeof(path)) hold("bootstrap_repository_private_path_overflow");
+    private_write_file(path,config,sizeof(config)-1U);
 }
-static void private_end(context_v4 *ctx) {
-    if (!ctx->reader || ctx->reader!=active_private) hold("bootstrap_private_reader_identity_invalid");
-    private_fence(ctx->reader);
-    bool complete=private_cleanup(); ctx->reader=NULL;
-    temporary_git_cleanup_complete=temporary_git_cleanup_complete && complete;
-    puts("filesystem_write=true");
-    puts("temporary_git_metadata_mutation_performed=true");
-    printf("temporary_git_metadata_cleanup_complete=%s\n",complete?"true":"false");
-    if (!complete) hold("bootstrap_private_metadata_cleanup_incomplete");
+static void repository_witness_begin(context_v4 *ctx) {
+    if (ctx->repo_witness_active) hold("bootstrap_repository_witness_already_active");
+    recheckout(ctx); source_head_main_exact(ctx); repository_index_snapshot(ctx);
+    ctx->repo_objects_fd=openat(ctx->fds[R_GIT_DIR],"objects",O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
+    if (ctx->repo_objects_fd<0 || fstat(ctx->repo_objects_fd,&ctx->repo_objects_identity))
+        hold("bootstrap_repository_objects_unavailable");
+    repository_private_metadata(ctx);
+    ctx->repo_witness_active=true;
 }
-
-/* The Git process is a bounded data reader, never an installer child. */
+static void git_inherit_fd_or_exit(int fd) {
+    int flags=fcntl(fd,F_GETFD);
+    if (flags<0 || fcntl(fd,F_SETFD,flags&~FD_CLOEXEC)) _exit(125);
+}
 static void require_waitable_children(void) {
-    /* The unreaped child PID must remain reserved until this parent waits. */
     struct sigaction disposition;
     if (sigaction(SIGCHLD,NULL,&disposition) || disposition.sa_handler!=SIG_DFL ||
         (disposition.sa_flags&SA_NOCLDWAIT)) hold("bootstrap_waitable_children_required");
@@ -1225,75 +747,28 @@ static void stop_git(pid_t pid) {
         if (poll(NULL,0,10)<0 && errno!=EINTR) hold("bootstrap_git_termination_poll_failed");
     }
 }
-typedef enum { GIT_OBJECTS_V5, GIT_INDEX_V5, GIT_UNTRACKED_V5 } git_operation_v5;
-static bool git_child_limits(void) {
-    static const struct { int resource; rlim_t maximum; } bounds[]={
-        {RLIMIT_AS,(rlim_t)UINT64_C(2147483648)},{RLIMIT_CPU,(rlim_t)20},{RLIMIT_CORE,(rlim_t)0}
-    };
-    for (size_t i=0;i<sizeof(bounds)/sizeof(bounds[0]);i++) {
-        struct rlimit inherited;
-        if (getrlimit(bounds[i].resource,&inherited)) return false;
-        rlim_t maximum=bounds[i].maximum;
-        if (inherited.rlim_cur!=RLIM_INFINITY && inherited.rlim_cur<maximum) maximum=inherited.rlim_cur;
-        if (inherited.rlim_max!=RLIM_INFINITY && inherited.rlim_max<maximum) maximum=inherited.rlim_max;
-        struct rlimit bounded={.rlim_cur=maximum,.rlim_max=maximum};
-        if (setrlimit(bounds[i].resource,&bounded)) return false;
-    }
-    return true;
-}
-static bool git_inherited_descriptor(int fd) {
-    int flags=fcntl(fd,F_GETFD);
-    return flags>=0 && fcntl(fd,F_SETFD,flags&~FD_CLOEXEC)==0;
-}
-static bytes_v4 git_capture(const context_v4 *ctx, git_operation_v5 operation,
-                            const char *const *oids, size_t oid_count, size_t maximum) {
-    private_git_v5 *reader=ctx->reader;
-    if (ctx->fds[R_GIT]<3 || !reader || reader!=active_private || reader->owner!=ctx ||
-        reader->index<3 || !maximum || maximum>MAX_GIT_OUTPUT)
+static bytes_v4 git_capture(const context_v4 *ctx, const char *const *command, size_t maximum) {
+    if (!ctx->repo_witness_active || ctx->fds[R_GIT]<3 || ctx->repo_index_fd<3 ||
+        ctx->repo_objects_fd<3 || !ctx->repo_private_path[0] ||
+        !maximum || maximum>MAX_GIT_OUTPUT)
         hold("bootstrap_git_capture_contract_invalid");
-    witness_deadline(reader); recheckout(ctx);
-    static const char *const object_args[]={"cat-file","--batch",NULL};
-    static const char *const index_args[]={"ls-files","--stage","-v","-z","--full-name","--sparse",NULL};
-    static const char *const untracked_args[]={
-        "ls-files","--others","--exclude-standard","-z","--full-name","--exclude=/.git/",NULL
-    };
-    const char *const *command=NULL;
-    int request_fd=-1;
-    if (operation==GIT_OBJECTS_V5) {
-        if (!oids || !oid_count || oid_count>MAX_OBJECT_BATCH) hold("bootstrap_git_object_request_invalid");
-        char request[MAX_OBJECT_BATCH*41U]; size_t size=0;
-        for (size_t i=0;i<oid_count;i++) {
-            if (!hexn(oids[i],40)) hold("bootstrap_git_object_request_invalid");
-            memcpy(request+size,oids[i],40); request[size+40]='\n'; size+=41;
-        }
-        int writer=memfd_create("void-e2-private-object-request-v4",MFD_CLOEXEC|MFD_ALLOW_SEALING);
-        if (writer<0) hold("bootstrap_git_request_snapshot_failed");
-        write_all(writer,(unsigned char *)request,size); seal_writer(writer,0400);
-        request_fd=readonly_memfd(writer); close(writer); command=object_args;
-    } else {
-        if (oids || oid_count) hold("bootstrap_git_unexpected_object_request");
-        if (operation==GIT_INDEX_V5) command=index_args;
-        else if (operation==GIT_UNTRACKED_V5) command=untracked_args;
-        else hold("bootstrap_git_operation_not_allowed");
-    }
     char git_dir[PATH_MAX+16],work_tree[PATH_MAX+16],safe[PATH_MAX+32];
-    char directory_env[PATH_MAX+16],index_env[96],objects_env[PATH_MAX+32];
-    if (snprintf(git_dir,sizeof(git_dir),"--git-dir=%s",reader->path)>=(int)sizeof(git_dir) ||
+    char index_env[96],objects_env[96];
+    if (snprintf(git_dir,sizeof(git_dir),"--git-dir=%s",ctx->repo_private_path)>=(int)sizeof(git_dir) ||
         snprintf(work_tree,sizeof(work_tree),"--work-tree=%s",ctx->checkout_path)>=(int)sizeof(work_tree) ||
         snprintf(safe,sizeof(safe),"safe.directory=%s",ctx->checkout_path)>=(int)sizeof(safe) ||
-        snprintf(directory_env,sizeof(directory_env),"GIT_DIR=%s",reader->path)>=(int)sizeof(directory_env) ||
-        snprintf(index_env,sizeof(index_env),"GIT_INDEX_FILE=/proc/self/fd/%d",reader->index)>=(int)sizeof(index_env) ||
-        snprintf(objects_env,sizeof(objects_env),"GIT_OBJECT_DIRECTORY=%s/objects",reader->path)>=(int)sizeof(objects_env))
+        snprintf(index_env,sizeof(index_env),"GIT_INDEX_FILE=/proc/self/fd/%d",ctx->repo_index_fd)>=(int)sizeof(index_env) ||
+        snprintf(objects_env,sizeof(objects_env),"GIT_OBJECT_DIRECTORY=/proc/self/fd/%d",ctx->repo_objects_fd)>=(int)sizeof(objects_env))
         hold("bootstrap_git_path_overflow");
     char *args[100]; size_t n=0;
     args[n++]=(char *)FIXED_GIT; args[n++]="--no-pager"; args[n++]="--no-replace-objects";
-    args[n++]="--no-optional-locks"; args[n++]="-C"; args[n++]=(char *)ctx->checkout_path;
-    args[n++]=git_dir; args[n++]=work_tree; args[n++]="-c"; args[n++]=safe;
+    args[n++]="--no-optional-locks"; args[n++]=(char *)git_dir; args[n++]=(char *)work_tree;
+    args[n++]="-c"; args[n++]=(char *)safe;
     static const char *const settings[]={
         "core.bare=false","core.fsmonitor=false","core.hooksPath=/dev/null","core.attributesFile=/dev/null",
         "core.excludesFile=/dev/null","core.untrackedCache=false","core.preloadIndex=false","core.ignoreCase=false",
         "core.fileMode=true","core.commitGraph=false","submodule.recurse=false","protocol.allow=never",
-        "gc.auto=0","maintenance.auto=false","fetch.writeCommitGraph=false","core.splitIndex=false"
+        "gc.auto=0","maintenance.auto=false","fetch.writeCommitGraph=false"
     };
     for (size_t i=0;i<sizeof(settings)/sizeof(settings[0]);i++) { args[n++]="-c"; args[n++]=(char *)settings[i]; }
     for (size_t i=0;command[i];i++) {
@@ -1304,33 +779,27 @@ static bytes_v4 git_capture(const context_v4 *ctx, git_operation_v5 operation,
     char *const env[]={"PATH=/usr/bin:/bin","HOME=/nonexistent","LANG=C","LC_ALL=C","TZ=UTC",
         "GIT_CONFIG_NOSYSTEM=1","GIT_CONFIG_GLOBAL=/dev/null","GIT_CONFIG_SYSTEM=/dev/null",
         "GIT_NO_REPLACE_OBJECTS=1","GIT_OPTIONAL_LOCKS=0","GIT_TERMINAL_PROMPT=0","GIT_ALLOW_PROTOCOL=",
-        "GIT_PROTOCOL_FROM_USER=0","GIT_NO_LAZY_FETCH=1","GIT_ATTR_NOSYSTEM=1",
-        directory_env,index_env,objects_env,NULL};
+        "GIT_PROTOCOL_FROM_USER=0","GIT_NO_LAZY_FETCH=1","GIT_ATTR_NOSYSTEM=1",index_env,objects_env,NULL};
     require_waitable_children();
     int output[2]; if (pipe2(output,O_CLOEXEC)) hold("bootstrap_git_pipe_failed");
     pid_t pid=fork();
     if (pid<0) hold("bootstrap_git_fork_failed");
     if (pid==0) {
-        if (setpgid(0,0) || !git_child_limits()) _exit(121);
+        if (setpgid(0,0)) _exit(121);
         int nullfd=open(FIXED_DEVNULL,O_RDWR|O_CLOEXEC|O_NOFOLLOW);
-        int input=request_fd>=0?request_fd:nullfd;
-        if (nullfd<0 || dup2(input,STDIN_FILENO)<0 || dup2(output[1],STDOUT_FILENO)<0 ||
+        if (nullfd<0 || dup2(nullfd,STDIN_FILENO)<0 || dup2(output[1],STDOUT_FILENO)<0 ||
             dup2(nullfd,STDERR_FILENO)<0) _exit(122);
-        /* Only the immutable private index and retained pack/idx view survive
-         * exec; all thirteen application roles remain closed to this Git child. */
-        if (close_range(3,~0U,CLOSE_RANGE_CLOEXEC) || !git_inherited_descriptor(reader->index)) _exit(123);
-        for (size_t i=0;i<reader->pack_count;i++)
-            if (!git_inherited_descriptor(reader->pack_fds[i])) _exit(123);
+        if (close_range(3,~0U,CLOSE_RANGE_CLOEXEC)) _exit(123);
+        git_inherit_fd_or_exit(ctx->repo_index_fd);
+        git_inherit_fd_or_exit(ctx->repo_objects_fd);
         fexecve(ctx->fds[R_GIT],args,env); _exit(124);
     }
-    if (request_fd>=0) close(request_fd);
     close(output[1]); (void)setpgid(pid,pid);
     int flags=fcntl(output[0],F_GETFL);
     if (flags<0 || fcntl(output[0],F_SETFL,flags|O_NONBLOCK)) { stop_git(pid); hold("bootstrap_git_pipe_flags_failed"); }
     bytes_v4 result={.data=malloc(maximum+1),.size=0};
     if (!result.data) { stop_git(pid); hold("bootstrap_git_output_allocation_failed"); }
     int status=0; bool eof=false,finished=false; int64_t deadline=monotonic_millis()+20000;
-    if (reader->deadline<deadline) deadline=reader->deadline;
     while (!eof || !finished) {
         if (monotonic_millis()>=deadline) { stop_git(pid); hold("bootstrap_git_timeout"); }
         if (!eof) {
@@ -1346,7 +815,6 @@ static bytes_v4 git_capture(const context_v4 *ctx, git_operation_v5 operation,
                 if (monotonic_millis()>=deadline) { stop_git(pid); hold("bootstrap_git_timeout"); }
             }
         }
-        /* Keep the unreaped child PID reserved through every pipe error path. */
         if (!finished && eof) {
             pid_t waited=waitpid(pid,&status,WNOHANG);
             if (waited==pid) finished=true;
@@ -1360,52 +828,60 @@ static bytes_v4 git_capture(const context_v4 *ctx, git_operation_v5 operation,
     }
     close(output[0]); result.data[result.size]=0;
     if (!WIFEXITED(status) || WEXITSTATUS(status)!=0) hold("bootstrap_git_command_failed");
-    witness_deadline(reader); recheckout(ctx); return result;
+    return result;
 }
-/* Full hexadecimal object requests are private, closed data. Authenticate every
- * raw body before any commit/tree structure can acquire checkout authority. */
-static bytes_v4 object_batch(const context_v4 *ctx, const char *const *oids,
-                              size_t count, const char *kind, size_t object_maximum,
-                              bytes_v4 *parts) {
-    if (!count || count>MAX_OBJECT_BATCH || !parts ||
-        (!strcmp(kind,"commit") && object_maximum!=MAX_COMMIT_BYTES) ||
-        (!strcmp(kind,"tree") && object_maximum!=MAX_TREE_BYTES) ||
-        (!strcmp(kind,"blob") && object_maximum>MAX_SOURCE_BYTES) ||
-        (strcmp(kind,"commit") && strcmp(kind,"tree") && strcmp(kind,"blob")))
-        hold("bootstrap_git_object_kind_invalid");
-    size_t maximum=MAX_GIT_OUTPUT,framing=count*98U;
-    if (object_maximum<=(MAX_GIT_OUTPUT-framing)/count) maximum=object_maximum*count+framing;
-    bytes_v4 raw=git_capture(ctx,GIT_OBJECTS_V5,oids,count,maximum);
-    size_t offset=0,kind_size=strlen(kind);
-    for (size_t i=0;i<count;i++) {
-        if (offset>=raw.size) hold("bootstrap_git_object_batch_truncated");
-        unsigned char *start=raw.data+offset;
-        unsigned char *end=memchr(start,'\n',raw.size-offset);
-        size_t header=end?(size_t)(end-start):0;
-        if (!end || header<43U+kind_size || header>96U || memcmp(start,oids[i],40) || start[40]!=' ' ||
-            memcmp(start+41,kind,kind_size) || start[41+kind_size]!=' ')
-            hold("bootstrap_git_object_header_invalid");
-        size_t number_start=42U+kind_size,number_size=header-number_start;
-        if (!number_size || number_size>20U) hold("bootstrap_git_object_size_invalid");
-        char number[21]; memcpy(number,start+number_start,number_size); number[number_size]=0;
-        size_t size=0;
-        if (strcmp(number,"0") && !decsz(number,object_maximum,&size)) hold("bootstrap_git_object_size_invalid");
-        size_t body_offset=offset+header+1U;
-        if (body_offset>raw.size || size>=raw.size-body_offset || raw.data[body_offset+size]!='\n')
-            hold("bootstrap_git_object_body_truncated");
-        unsigned char *body=raw.data+body_offset;
-        char prefix[96],digest[41];
-        int length=snprintf(prefix,sizeof(prefix),"%s %zu",kind,size);
-        if (length<0 || (size_t)length>=sizeof(prefix)) hold("bootstrap_git_object_prefix_invalid");
-        hash_v4 hash=hash_begin("sha1",20);
-        hash_update(&hash,(unsigned char *)prefix,(size_t)length+1U);
-        hash_update(&hash,body,size); hash_end(&hash,digest);
-        if (strcmp(digest,oids[i])) hold("bootstrap_git_raw_object_hash_mismatch");
-        parts[i]=(bytes_v4){.data=body,.size=size}; offset=body_offset+size+1U;
-    }
-    if (offset!=raw.size) hold("bootstrap_git_object_batch_extra_bytes");
-    return raw;
+static void repository_source_index_recheck(context_v4 *ctx) {
+    struct stat current,visible;
+    if (fstat(ctx->repo_index_source_fd,&current) ||
+        fstatat(ctx->fds[R_GIT_DIR],"index",&visible,AT_SYMLINK_NOFOLLOW) ||
+        !sameid(&ctx->repo_index_source_identity,&current) ||
+        !sameid(&current,&visible))
+        hold("bootstrap_repository_index_changed");
+    char digest[65]; hash_fd(ctx->repo_index_source_fd,(size_t)current.st_size,false,digest);
+    if (strcmp(digest,ctx->repo_index_sha256)) hold("bootstrap_repository_index_changed");
 }
+static void repository_witness_recheck(context_v4 *ctx) {
+    source_head_main_exact(ctx); reject_split_index(ctx); repository_source_index_recheck(ctx);
+    struct stat objects;
+    if (fstat(ctx->repo_objects_fd,&objects) || !sameid(&ctx->repo_objects_identity,&objects))
+        hold("bootstrap_repository_objects_directory_changed");
+    recheckout(ctx);
+}
+static void repository_witness_end(context_v4 *ctx) {
+    if (!ctx->repo_witness_active) hold("bootstrap_repository_witness_not_active");
+    repository_witness_recheck(ctx);
+    if (ctx->repo_index_source_fd>=0) close(ctx->repo_index_source_fd);
+    if (ctx->repo_index_fd>=0) close(ctx->repo_index_fd);
+    if (ctx->repo_objects_fd>=0) close(ctx->repo_objects_fd);
+    ctx->repo_index_source_fd=ctx->repo_index_fd=ctx->repo_objects_fd=-1;
+    ctx->repo_witness_active=false;
+    if (!repository_temp_cleanup()) hold("bootstrap_repository_private_cleanup_failed");
+    ctx->repo_private_path[0]=0;
+}
+static void verify_repository_objects(const context_v4 *ctx) {
+    const char *const args[]={"fsck","--strict","--no-reflogs","--no-progress","--no-dangling",ctx->request.expected_head,NULL};
+    bytes_v4 raw=git_capture(ctx,args,MAX_GIT_OUTPUT);
+    if (raw.size) hold("bootstrap_repository_fsck_unexpected_stdout");
+    free(raw.data);
+}
+static void verify_raw_head_tree(context_v4 *ctx) {
+    const char *const commit_args[]={"cat-file","commit",ctx->request.expected_head,NULL};
+    bytes_v4 commit=git_capture(ctx,commit_args,1024U*1024U);
+    char observed[41]; hash_git_object("commit",commit.data,commit.size,observed);
+    if (strcmp(observed,ctx->request.expected_head)) hold("bootstrap_repository_commit_identity_invalid");
+    unsigned char *line=memchr(commit.data,'\n',commit.size);
+    if (!line || (size_t)(line-commit.data)!=45U || memcmp(commit.data,"tree ",5))
+        hold("bootstrap_repository_commit_tree_invalid");
+    char tree_oid[41]; memcpy(tree_oid,commit.data+5,40); tree_oid[40]=0;
+    if (!hexn(tree_oid,40)) hold("bootstrap_repository_commit_tree_invalid");
+    memcpy(ctx->tree,tree_oid,41); free(commit.data);
+    const char *const tree_args[]={"cat-file","tree",ctx->tree,NULL};
+    bytes_v4 tree=git_capture(ctx,tree_args,MAX_GIT_OUTPUT);
+    hash_git_object("tree",tree.data,tree.size,observed);
+    if (strcmp(observed,ctx->tree)) hold("bootstrap_repository_root_tree_identity_invalid");
+    free(tree.data);
+}
+
 static int entry_compare(const void *left, const void *right) {
     return strcmp(((const entry_v4 *)left)->path,((const entry_v4 *)right)->path);
 }
@@ -1455,7 +931,6 @@ static void free_listing(listing_v4 *listing) {
 }
 typedef struct { int fd; char *name; struct stat identity; } directory_link_v4;
 static size_t verify_tracked_blob(const context_v4 *ctx, const entry_v4 *entry, uint64_t budget) {
-    if (!ctx->reader || ctx->reader!=active_private) hold("bootstrap_tracked_witness_required");
     char path[PATH_MAX]; snprintf(path,sizeof(path),"%s",entry->path);
     size_t links=1;
     for (const char *p=path;*p;p++) if (*p=='/') links++;
@@ -1463,7 +938,6 @@ static size_t verify_tracked_blob(const context_v4 *ctx, const entry_v4 *entry, 
     if (!parents) hold("bootstrap_tracked_directory_allocation_failed");
     parents[0].fd=fcntl(ctx->fds[R_CHECKOUT],F_DUPFD_CLOEXEC,3);
     if (parents[0].fd<0 || fstat(parents[0].fd,&parents[0].identity)) hold("bootstrap_tracked_root_unavailable");
-    observe_path(ctx->reader,R_CHECKOUT,"",&parents[0].identity,true);
     size_t used=1; char *leaf=path;
     for (char *slash=strchr(leaf,'/');slash;slash=strchr(leaf,'/')) {
         *slash=0; int parent=parents[used-1].fd; struct stat before,opened,visible;
@@ -1473,16 +947,12 @@ static size_t verify_tracked_blob(const context_v4 *ctx, const entry_v4 *entry, 
         if (child<0 || fstat(child,&opened) || fstatat(parent,leaf,&visible,AT_SYMLINK_NOFOLLOW) ||
             !sameid(&before,&opened) || !sameid(&opened,&visible)) hold("bootstrap_tracked_directory_rebound");
         parents[used++]=(directory_link_v4){.fd=child,.name=leaf,.identity=opened}; leaf=slash+1;
-        char prefix[PATH_MAX]; size_t prefix_size=(size_t)(slash-path);
-        memcpy(prefix,entry->path,prefix_size); prefix[prefix_size]=0;
-        observe_path(ctx->reader,R_CHECKOUT,prefix,&opened,true);
     }
     int parent=parents[used-1].fd; struct stat before,after; char actual[41];
     if (fstatat(parent,leaf,&before,AT_SYMLINK_NOFOLLOW) || before.st_size<0 ||
         (uintmax_t)before.st_size>MAX_TRACKED_FILE_BYTES || (uintmax_t)before.st_size>budget)
         hold("bootstrap_tracked_read_budget_or_metadata_invalid");
     size_t size=(size_t)before.st_size;
-    observe_path(ctx->reader,R_CHECKOUT,entry->path,&before,true);
     if (!strcmp(entry->mode,"120000")) {
         if (!S_ISLNK(before.st_mode)) hold("bootstrap_tracked_symlink_type_mismatch");
         unsigned char *raw=malloc(size+1);
@@ -1513,161 +983,78 @@ static size_t verify_tracked_blob(const context_v4 *ctx, const entry_v4 *entry, 
     for (size_t i=used;i>0;i--) close(parents[i-1].fd);
     free(parents); return size;
 }
-typedef struct { char oid[41]; char *prefix; unsigned depth; } tree_request_v5;
-static int name_compare(const void *left, const void *right) {
-    return strcmp(*(char *const *)left,*(char *const *)right);
+static void require_bytes(bytes_v4 raw, const char *expected, const char *reason) {
+    size_t size=strlen(expected);
+    if (raw.size!=size || memcmp(raw.data,expected,size)) hold(reason);
 }
-static void append_tree_entry(listing_v4 *tree, size_t *capacity, const char *path,
-                               const char *mode, const char *oid) {
-    if (tree->count>=MAX_TRACKED_ENTRIES) hold("bootstrap_git_tree_entry_limit");
-    if (tree->count==*capacity) {
-        size_t grown=*capacity?*capacity*2U:256U;
-        if (grown>MAX_TRACKED_ENTRIES) grown=MAX_TRACKED_ENTRIES;
-        entry_v4 *entries=realloc(tree->entries,grown*sizeof(*entries));
-        if (!entries) hold("bootstrap_git_tree_allocation_failed");
-        tree->entries=entries; *capacity=grown;
-    }
-    entry_v4 *entry=&tree->entries[tree->count++];
-    memset(entry,0,sizeof(*entry)); entry->path=strdup(path);
-    if (!entry->path) hold("bootstrap_git_tree_path_allocation_failed");
-    snprintf(entry->mode,sizeof(entry->mode),"%s",mode); memcpy(entry->oid,oid,41);
-}
-static void append_tree_request(tree_request_v5 **queue, size_t *count, size_t *capacity,
-                                const char *path, const char *oid, unsigned depth) {
-    if (depth>=MAX_TREE_DEPTH || *count>MAX_TRACKED_ENTRIES) hold("bootstrap_git_tree_depth_or_count_limit");
-    if (*count==*capacity) {
-        size_t grown=*capacity?*capacity*2U:256U;
-        if (grown>MAX_TRACKED_ENTRIES+1U) grown=MAX_TRACKED_ENTRIES+1U;
-        tree_request_v5 *entries=realloc(*queue,grown*sizeof(*entries));
-        if (!entries) hold("bootstrap_git_tree_queue_allocation_failed");
-        *queue=entries; *capacity=grown;
-    }
-    tree_request_v5 *entry=&(*queue)[(*count)++];
-    memcpy(entry->oid,oid,41); entry->depth=depth; entry->prefix=strdup(path);
-    if (!entry->prefix) hold("bootstrap_git_tree_path_allocation_failed");
-}
-static listing_v4 authenticated_tree(context_v4 *ctx) {
-    const char *commit_oid[]={ctx->request.expected_head}; bytes_v4 commit;
-    bytes_v4 commit_raw=object_batch(ctx,commit_oid,1,"commit",MAX_COMMIT_BYTES,&commit);
-    if (commit.size<46U || memcmp(commit.data,"tree ",5) || commit.data[45]!='\n')
-        hold("bootstrap_checkout_commit_tree_invalid");
-    memcpy(ctx->tree,commit.data+5,40); ctx->tree[40]=0;
-    if (!hexn(ctx->tree,40)) hold("bootstrap_checkout_commit_tree_invalid");
-    free(commit_raw.data);
-    listing_v4 result={0}; size_t leaf_capacity=0;
-    tree_request_v5 *queue=NULL; size_t queued=0,capacity=0,done=0;
-    append_tree_request(&queue,&queued,&capacity,"",ctx->tree,0);
-    size_t members=0,total_bytes=0,total_paths=0;
-    while (done<queued) {
-        witness_deadline(ctx->reader);
-        size_t count=queued-done; if (count>MAX_OBJECT_BATCH) count=MAX_OBJECT_BATCH;
-        const char *oids[MAX_OBJECT_BATCH];
-        bytes_v4 parts[MAX_OBJECT_BATCH];
-        for (size_t i=0;i<count;i++) oids[i]=queue[done+i].oid;
-        bytes_v4 raw=object_batch(ctx,oids,count,"tree",MAX_TREE_BYTES,parts);
-        for (size_t i=0;i<count;i++) {
-            /* Appending children can realloc the queue; retain this row by value. */
-            tree_request_v5 parent=queue[done+i];
-            bytes_v4 body=parts[i]; size_t offset=0;
-            if (body.size>MAX_TREE_BYTES-total_bytes) hold("bootstrap_git_tree_bytes_limit");
-            total_bytes+=body.size;
-            char previous_key[NAME_MAX+2]="";
-            char **names=NULL; size_t named=0,name_capacity=0;
-            while (offset<body.size) {
-                witness_deadline(ctx->reader);
-                if (++members>MAX_TRACKED_ENTRIES) hold("bootstrap_git_tree_member_limit");
-                unsigned char *start=body.data+offset;
-                unsigned char *space=memchr(start,' ',body.size-offset);
-                size_t mode_size=space?(size_t)(space-start):0;
-                if (!space || (mode_size!=5U && mode_size!=6U)) hold("bootstrap_git_raw_tree_mode_invalid");
-                char mode[7]; memcpy(mode,start,mode_size); mode[mode_size]=0;
-                bool directory=!strcmp(mode,"40000");
-                if (!directory && !tracked_mode(mode)) hold("bootstrap_git_tree_type_unsupported");
-                unsigned char *name=space+1;
-                size_t name_offset=(size_t)(name-body.data);
-                unsigned char *zero=memchr(name,0,body.size-name_offset);
-                size_t name_size=zero?(size_t)(zero-name):0;
-                if (!zero || !name_size || name_size>NAME_MAX || memchr(name,'/',name_size) ||
-                    (name_size==1U && name[0]=='.') || (name_size==2U && !memcmp(name,"..",2)) ||
-                    (name_size==4U && !memcmp(name,".git",4)))
-                    hold("bootstrap_git_raw_tree_name_invalid");
-                size_t oid_offset=(size_t)(zero-body.data)+1U;
-                if (oid_offset>body.size || body.size-oid_offset<20U) hold("bootstrap_git_raw_tree_oid_truncated");
-                char key[NAME_MAX+2]; memcpy(key,name,name_size);
-                key[name_size]=directory?'/':0; key[name_size+(directory?1U:0U)]=0;
-                if (named && strcmp(previous_key,key)>=0) hold("bootstrap_git_raw_tree_order_invalid");
-                snprintf(previous_key,sizeof(previous_key),"%s",key);
-                if (named==name_capacity) {
-                    size_t grown=name_capacity?name_capacity*2U:64U;
-                    if (grown>MAX_TRACKED_ENTRIES) grown=MAX_TRACKED_ENTRIES;
-                    char **grown_names=realloc(names,grown*sizeof(*grown_names));
-                    if (!grown_names) hold("bootstrap_git_tree_names_allocation_failed");
-                    names=grown_names; name_capacity=grown;
-                }
-                names[named++]=(char *)name;
-                char path[PATH_MAX],oid[41];
-                int length=snprintf(path,sizeof(path),"%s%s%s",parent.prefix,*parent.prefix?"/":"",(char *)name);
-                if (length<0 || (size_t)length>=sizeof(path) || !tracked_path(path) ||
-                    (size_t)length+1U>MAX_PATH_AGGREGATE-total_paths)
-                    hold("bootstrap_git_tree_path_limit");
-                total_paths+=(size_t)length+1U;
-                raw_oid_hex(body.data+oid_offset,oid);
-                if (directory) append_tree_request(&queue,&queued,&capacity,path,oid,parent.depth+1U);
-                else append_tree_entry(&result,&leaf_capacity,path,mode,oid);
-                offset=oid_offset+20U;
-            }
-            if (named>1U) qsort(names,named,sizeof(*names),name_compare);
-            for (size_t k=1;k<named;k++) if (!strcmp(names[k-1],names[k]))
-                hold("bootstrap_git_raw_tree_duplicate_name");
-            free(names);
-        }
-        free(raw.data); done+=count;
-    }
-    for (size_t i=0;i<queued;i++) free(queue[i].prefix);
-    free(queue);
-    if (result.count>1U) qsort(result.entries,result.count,sizeof(*result.entries),entry_compare);
-    for (size_t i=1;i<result.count;i++) if (!strcmp(result.entries[i-1].path,result.entries[i].path))
-        hold("bootstrap_git_tree_duplicate_path");
-    return result;
+static void verify_head_branch(const context_v4 *ctx) {
+    char head[42]; snprintf(head,sizeof(head),"%s\n",ctx->request.expected_head);
+    const char *const head_args[]={"rev-parse","--verify","HEAD^{commit}",NULL};
+    bytes_v4 raw=git_capture(ctx,head_args,128); require_bytes(raw,head,"bootstrap_checkout_head_mismatch"); free(raw.data);
+    const char *const branch_args[]={"symbolic-ref","-q","HEAD",NULL};
+    raw=git_capture(ctx,branch_args,128); require_bytes(raw,"refs/heads/main\n","bootstrap_checkout_branch_not_main"); free(raw.data);
 }
 static void verify_bound_blob(const context_v4 *ctx, const listing_v4 *tree, const source_v4 *source) {
     entry_v4 key={.path=(char *)source->rel};
     const entry_v4 *entry=tree->count?bsearch(&key,tree->entries,tree->count,sizeof(*tree->entries),entry_compare):NULL;
     if (!entry || strcmp(entry->mode,"100644") || strcmp(entry->oid,source->blob))
         hold("bootstrap_bound_source_tree_identity_mismatch");
-    const char *oids[]={source->blob}; bytes_v4 body;
-    bytes_v4 raw=object_batch(ctx,oids,1,"blob",source->bytes,&body); char digest[65];
-    if (body.size!=source->bytes) hold("bootstrap_bound_source_size_mismatch");
-    hash_bytes(body.data,body.size,false,digest);
-    if (strcmp(digest,source->sha256)) hold("bootstrap_bound_source_digest_mismatch");
+    const char *const args[]={"cat-file","blob",source->blob,NULL};
+    bytes_v4 raw=git_capture(ctx,args,source->bytes); char blob[41],digest[65];
+    if (raw.size!=source->bytes) hold("bootstrap_bound_source_size_mismatch");
+    hash_bytes(raw.data,raw.size,true,blob); hash_bytes(raw.data,raw.size,false,digest);
+    if (strcmp(blob,source->blob) || strcmp(digest,source->sha256)) hold("bootstrap_bound_source_digest_mismatch");
     free(raw.data);
 }
-/* This complete native pre-installer gate retains its witness until private_end.
- * The final fence therefore follows the caller's later parent/input validation. */
 static void verify_checkout(context_v4 *ctx) {
     if (!hexn(ctx->request.expected_head,40)) hold("bootstrap_expected_head_invalid");
-    recheckout(ctx); private_begin(ctx);
-    listing_v4 tree=authenticated_tree(ctx);
-    bytes_v4 index_raw=git_capture(ctx,GIT_INDEX_V5,NULL,0,MAX_GIT_OUTPUT);
-    listing_v4 index=parse_listing(index_raw,true);
+    repository_witness_begin(ctx);
+    repository_witness_recheck(ctx);
+    verify_head_branch(ctx);
+    verify_repository_objects(ctx);
+    verify_raw_head_tree(ctx);
+
+    const char *const list_args[]={"ls-tree","-r","--full-tree","-z",ctx->request.expected_head,NULL};
+    const char *const index_args[]={"ls-files","--stage","-v","-z","--full-name","--sparse",NULL};
+    bytes_v4 tree_raw=git_capture(ctx,list_args,MAX_GIT_OUTPUT);
+    bytes_v4 index_raw=git_capture(ctx,index_args,MAX_GIT_OUTPUT);
+    listing_v4 tree=parse_listing(tree_raw,false),index=parse_listing(index_raw,true);
     if (tree.count!=index.count) hold("bootstrap_checkout_index_tree_mismatch");
     for (size_t i=0;i<tree.count;i++)
         if (strcmp(tree.entries[i].path,index.entries[i].path) || strcmp(tree.entries[i].mode,index.entries[i].mode) ||
             strcmp(tree.entries[i].oid,index.entries[i].oid)) hold("bootstrap_checkout_index_tree_mismatch");
+
     uint64_t total=0;
-    for (size_t i=0;i<tree.count;i++) {
-        witness_deadline(ctx->reader);
+    for (size_t i=0;i<tree.count;i++)
         total+=verify_tracked_blob(ctx,&tree.entries[i],MAX_TRACKED_TOTAL_BYTES-total);
-    }
+
     for (size_t i=0;i<4;i++) verify_bound_blob(ctx,&tree,&ctx->manifest.sources[i]);
     source_v4 manifest_source={.rel=MANIFEST_REL,.bytes=ctx->manifest.bytes};
-    memcpy(manifest_source.blob,ctx->manifest.blob,41); memcpy(manifest_source.sha256,ctx->manifest.sha256,65);
+    memcpy(manifest_source.blob,ctx->manifest.blob,41);
+    memcpy(manifest_source.sha256,ctx->manifest.sha256,65);
     verify_bound_blob(ctx,&tree,&manifest_source);
-    bytes_v4 raw=git_capture(ctx,GIT_UNTRACKED_V5,NULL,0,MAX_GIT_OUTPUT);
+
+    const char *const others_args[]={"ls-files","--others","--exclude-standard","-z","--full-name",NULL};
+    bytes_v4 raw=git_capture(ctx,others_args,MAX_GIT_OUTPUT);
     if (raw.size) hold("bootstrap_checkout_untracked_files_present");
     free(raw.data);
-    free(index_raw.data); free_listing(&tree); free_listing(&index);
-    private_fence(ctx->reader);
+    raw=git_capture(ctx,index_args,MAX_GIT_OUTPUT);
+    if (raw.size!=index_raw.size || memcmp(raw.data,index_raw.data,raw.size))
+        hold("bootstrap_checkout_private_index_changed");
+    free(raw.data);
+
+    total=0;
+    for (size_t i=0;i<tree.count;i++)
+        total+=verify_tracked_blob(ctx,&tree.entries[i],MAX_TRACKED_TOTAL_BYTES-total);
+
+    verify_repository_objects(ctx);
+    char first_tree[41]; memcpy(first_tree,ctx->tree,41);
+    verify_raw_head_tree(ctx);
+    if (strcmp(first_tree,ctx->tree)) hold("bootstrap_repository_tree_changed");
+    verify_head_branch(ctx);
+    repository_witness_end(ctx);
+
+    free(tree_raw.data); free(index_raw.data); free_listing(&tree); free_listing(&index);
 }
 
 static bool planid(const char *value) {
@@ -1785,7 +1172,7 @@ static size_t parent_start_ticks(void) {
     return result;
 }
 static void create_private_proof(context_v4 *ctx) {
-    int writer=memfd_create("void-e2-private-parent-proof-v1",MFD_CLOEXEC|MFD_ALLOW_SEALING);
+    int writer=memfd_create("void-e2-private-parent-proof-v2",MFD_CLOEXEC|MFD_ALLOW_SEALING);
     if (writer<0) hold("bootstrap_parent_proof_create_failed");
     ctx->fds[R_PROOF]=readonly_memfd(writer);
     char proof[MAX_PROOF_BYTES+1];
@@ -1818,7 +1205,6 @@ static void inherited_descriptor(int fd) {
 static int run_installer(context_v4 *ctx) {
     require_devnull(); revalidate_inputs(ctx);
     require_waitable_children();
-    private_end(ctx);
     pid_t child=fork();
     if (child<0) hold("bootstrap_installer_fork_failed");
     installer_child_created=true;
@@ -1872,6 +1258,13 @@ static int selftest(void) {
     puts("runtime_expected_head_strict_hex_required=true");
     puts("runtime_expected_head_forwarded_to_authenticated_child=true");
     puts("native_raw_checkout_gate_before_installer_child=true");
+    puts("private_git_metadata_required=true");
+    puts("sealed_private_index_required=true");
+    puts("split_index_rejected=true");
+    puts("strict_git_fsck_before_after_required=true");
+    puts("raw_commit_root_tree_sha1_reverified=true");
+    puts("tracked_worktree_double_hash_required=true");
+    puts("temporary_repository_cleanup_required=true");
     puts("sealed_input_and_tool_memfds_required=true");
     puts("private_live_native_parent_proof_required=true");
     puts("fixed_python_and_git_host_policy_bound=true");
@@ -1896,7 +1289,7 @@ int main(int argc, char **argv) {
     revalidate_inputs(&ctx);
     create_private_proof(&ctx);
     int status=run_installer(&ctx);
-    revalidate_inputs(&ctx); verify_checkout(&ctx); revalidate_inputs(&ctx); private_end(&ctx);
+    revalidate_inputs(&ctx); verify_checkout(&ctx); revalidate_inputs(&ctx);
     close_context(&ctx);
     if (!WIFEXITED(status) || WEXITSTATUS(status)!=0) hold("bootstrap_installer_child_failed");
     printf("%s_GREEN\n",MARKER);

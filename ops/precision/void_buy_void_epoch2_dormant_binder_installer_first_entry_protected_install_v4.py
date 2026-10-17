@@ -58,7 +58,7 @@ MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_"
     "INSTALLER_FIRST_ENTRY_PROTECTED_INSTALL_V4"
 )
-# V4 authenticates this installer operation and its complete source generation.
+# V4 repairs the repository witness while preserving the authenticated parent and terminal contract.
 # Keep the payload namespace and policy schema compatible with the frozen lock.
 POLICY_SCHEMA = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_POLICY_V1"
@@ -124,7 +124,7 @@ MANIFEST_SCHEMA = "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_SOURCE_GENERATION_V2
 HOST_POLICY_SCHEMA = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_POLICY_V5"
 )
-PARENT_PROOF_SCHEMA = "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PARENT_PROOF_V1"
+PARENT_PROOF_SCHEMA = "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PARENT_PROOF_V2"
 PARENT_PROOF_ENV = "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PARENT_PROOF_FD"
 SOURCE_GENERATION_PREFIX = "voidbuye2dormantsourcegen2_"
 LOCK_BYTES = 3_939
@@ -805,72 +805,140 @@ def _require_bootstrap_context(
     return context
 
 
-def _reject_git_store_redirects(git_fd: int) -> None:
-    def reject_present(parent_fd: int, name: bytes) -> None:
-        try:
-            os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-        except FileNotFoundError:
-            return
-        raise InstallError("checkout_git_store_redirect_unsupported")
+MAX_GIT_READ_OUTPUT_BYTES = 64 * 1024 * 1024
+MAX_GIT_ERROR_OUTPUT_BYTES = 64 * 1024
+GIT_READ_TIMEOUT_SECONDS = 20
+MAX_TRACKED_ENTRIES = 200_000
+MAX_TRACKED_PATH_BYTES = 4096
+MAX_TRACKED_FILE_BYTES = 256 * 1024 * 1024
+MAX_TRACKED_TOTAL_BYTES = 4 * 1024 * 1024 * 1024
+TRACKED_MODES = {b"100644", b"100755", b"120000"}
 
-    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
-    for name in (b"commondir", b"shallow"):
-        reject_present(git_fd, name)
-    objects_fd = os.open(b"objects", flags, dir_fd=git_fd)
+
+def _git_env() -> dict[str, str]:
+    return {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/nonexistent",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_SYSTEM": "/dev/null",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_TERMINAL_PROMPT": "0",
+        # The empty protocol allowlist is the Git 2.43-compatible transport
+        # boundary. NO_LAZY_FETCH is additional protection on newer Git.
+        "GIT_ALLOW_PROTOCOL": "",
+        "GIT_PROTOCOL_FROM_USER": "0",
+        "GIT_NO_LAZY_FETCH": "1",
+        "GIT_ATTR_NOSYSTEM": "1",
+    }
+
+
+def _bounded_git_read(argv: list[str], git_fd: int) -> bytes:
+    deadline = time.monotonic() + GIT_READ_TIMEOUT_SECONDS
+    process = subprocess.Popen(
+        argv,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=_git_env(),
+        pass_fds=(git_fd,),
+        start_new_session=True,
+    )
+    output = bytearray()
+    error_bytes = 0
+    assert process.stdout is not None and process.stderr is not None
     try:
-        for directory, forbidden in (
-            (b"info", (b"alternates", b"http-alternates")),
-            (b"pack", ()),
-        ):
+        with selectors.DefaultSelector() as ready:
+            for stream, label in ((process.stdout, "stdout"), (process.stderr, "stderr")):
+                os.set_blocking(stream.fileno(), False)
+                ready.register(stream, selectors.EVENT_READ, label)
+            while ready.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise InstallError("git_read_timeout")
+                for key, _ in ready.select(remaining):
+                    budget = (
+                        MAX_GIT_READ_OUTPUT_BYTES - len(output)
+                        if key.data == "stdout"
+                        else MAX_GIT_ERROR_OUTPUT_BYTES - error_bytes
+                    )
+                    try:
+                        chunk = os.read(key.fd, min(64 * 1024, budget + 1))
+                    except BlockingIOError:
+                        continue
+                    if not chunk:
+                        ready.unregister(key.fileobj)
+                        continue
+                    if len(chunk) > budget:
+                        raise InstallError("git_" + key.data + "_output_too_large")
+                    if key.data == "stdout":
+                        output.extend(chunk)
+                    else:
+                        # Repository diagnostics can contain unrelated paths or
+                        # config values. Bound their volume without retaining it.
+                        error_bytes += len(chunk)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise InstallError("git_read_timeout")
             try:
-                child_fd = os.open(directory, flags, dir_fd=objects_fd)
-            except FileNotFoundError:
-                continue
-            try:
-                for name in forbidden:
-                    reject_present(child_fd, name)
-            finally:
-                os.close(child_fd)
-    finally:
-        os.close(objects_fd)
-    try:
-        info_fd = os.open(b"info", flags, dir_fd=git_fd)
-    except FileNotFoundError:
-        return
-    try:
-        reject_present(info_fd, b"grafts")
-    finally:
-        os.close(info_fd)
-
-
-def _open_fixed_checkout() -> int:
-    # Walk from / so no ancestor of the fixed checkout can be a symlink.
-    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
-    fd = os.open(b"/", flags)
-    try:
-        for part in FIXED_CHECKOUT.parts[1:]:
-            child = os.open(os.fsencode(part), flags, dir_fd=fd)
-            os.close(fd)
-            fd = child
-        # This version deliberately supports a physical .git directory only.
-        # A gitfile or .git symlink must not redirect the fixed checkout.
-        git_fd = os.open(b".git", flags, dir_fd=fd)
-        try:
-            _reject_git_store_redirects(git_fd)
-        finally:
-            os.close(git_fd)
-        return fd
+                result = process.wait(timeout=remaining)
+            except subprocess.TimeoutExpired as exc:
+                raise InstallError("git_read_timeout") from exc
+        if result != 0:
+            raise InstallError("git_command_failed:" + str(result))
+        return bytes(output)
     except BaseException:
-        os.close(fd)
+        # On an unfinished read the unreaped child PID anchors this process
+        # group. Never signal a numeric PID after wait() has released it.
+        if process.returncode is None:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired as exc:
+                raise InstallError("git_process_termination_incomplete") from exc
         raise
+    finally:
+        process.stdout.close()
+        process.stderr.close()
+
+
+def _authenticated_repository_git_fd() -> int:
+    context = _BOOTSTRAP_CONTEXT
+    if context is None or "fds" not in context or "git" not in context["fds"]:
+        raise InstallError("authenticated_retained_git_required")
+    git_fd = context["fds"]["git"]
+    if not isinstance(git_fd, int) or git_fd <= 2:
+        raise InstallError("retained_git_descriptor_invalid")
+    required_seals = (
+        fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK
+        | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE
+    )
+    try:
+        state = os.fstat(git_fd)
+        seals = fcntl.fcntl(git_fd, fcntl.F_GET_SEALS)
+    except OSError as exc:
+        raise InstallError("retained_git_descriptor_unavailable") from exc
+    if (
+        not stat.S_ISREG(state.st_mode)
+        or stat.S_IMODE(state.st_mode) != 0o500
+        or state.st_nlink != 0
+        or seals & required_seals != required_seals
+    ):
+        raise InstallError("retained_git_descriptor_not_sealed_executable")
+    return git_fd
 
 
 GIT_BOUNDARY_POLICY = "private_metadata_pinned_objects_raw_checkout_v4"
 GIT_MAX_ENTRIES = 100_000
 GIT_MAX_LIST_BYTES = 64 * 1024 * 1024
 GIT_MAX_PATH_BYTES = 4096
-GIT_MAX_TREE_DEPTH = 32
-GIT_OBJECT_BATCH_SIZE = 64
 GIT_MAX_LOOSE_FILE_BYTES = 256 * 1024 * 1024
 GIT_MAX_LOOSE_TOTAL_BYTES = 512 * 1024 * 1024
 GIT_MAX_TRACKED_FILE_BYTES = 512 * 1024 * 1024
@@ -879,16 +947,13 @@ GIT_MAX_PACK_PAIRS = 128
 GIT_MAX_PACK_BYTES = 8 * 1024 * 1024 * 1024
 GIT_MAX_PACK_TOTAL_BYTES = 32 * 1024 * 1024 * 1024
 GIT_WITNESS_SECONDS = 180
-GIT_COMMAND_SECONDS = 20
+GIT_COMMAND_SECONDS = 60
 GIT_CHILD_ADDRESS_SPACE_BYTES = 2 * 1024 * 1024 * 1024
-GIT_CHILD_CPU_SECONDS = 20
+GIT_CHILD_CPU_SECONDS = 60
 # Stable Linux fcntl ABI, including Python builds that omit the symbolic names.
 GIT_F_ADD_SEALS = 1033
 GIT_F_GET_SEALS = 1034
 GIT_INDEX_SEALS = 0x0001 | 0x0002 | 0x0004 | 0x0008
-_GIT_PRIVATE_ACTIVE = 0
-_GIT_PRIVATE_MUTATION_PERFORMED = False
-_GIT_PRIVATE_CLEANUP_FAILED = False
 GIT_PRIVATE_CONFIG = (
     b"[core]\n"
     b"repositoryFormatVersion = 0\n"
@@ -902,10 +967,6 @@ GIT_PRIVATE_CONFIG = (
     b"untrackedCache = false\n"
     b"splitIndex = false\n"
     b"autocrlf = false\n"
-    b"packedGitWindowSize = 16m\n"
-    b"packedGitLimit = 256m\n"
-    b"[index]\nthreads = 1\n"
-    b"[pack]\nthreads = 1\n"
     b"[gc]\nauto = 0\n"
     b"[maintenance]\nauto = false\n"
 )
@@ -916,7 +977,6 @@ def _git_child_limits() -> None:
     for which, configured in (
         (resource.RLIMIT_AS, GIT_CHILD_ADDRESS_SPACE_BYTES),
         (resource.RLIMIT_CPU, GIT_CHILD_CPU_SECONDS),
-        (resource.RLIMIT_CORE, 0),
     ):
         soft, hard = resource.getrlimit(which)
         target = configured
@@ -943,48 +1003,12 @@ class _RepositorySnapshot:
         self._work_files: dict[bytes, os.stat_result] = {}
         self._work_dirs: dict[bytes, os.stat_result] = {}
         self._temporary: Any = None
-        self._private_started = False
         self._closed = False
+        self.git_exec_fd = -1
         self.tree = ""
         self.entries: dict[bytes, tuple[bytes, str]] = {}
         self._entry_path_bytes = 0
         self._tracked_bytes = 0
-
-    def _retain_git_execution(self) -> None:
-        # The native parent authenticates this sealed executable against its
-        # retained host policy. Own a duplicate; never execute a pathname or
-        # close a descriptor belonging to the inherited 13-role protocol.
-        context = _BOOTSTRAP_CONTEXT
-        if context is None or not isinstance(context.get("fds"), dict):
-            raise InstallError("authenticated_retained_git_required")
-        source_fd = context["fds"].get("git")
-        if not isinstance(source_fd, int) or isinstance(source_fd, bool) or source_fd <= 2:
-            raise InstallError("retained_git_descriptor_invalid")
-        before = _sealed_fd_state(
-            source_fd, mode=0o500, maximum=MAX_GIT_BYTES, label="retained_git",
-        )
-        duplicate = fcntl.fcntl(source_fd, fcntl.F_DUPFD_CLOEXEC, 3)
-        self._fds.append(duplicate)
-        self._pass_fds.append(duplicate)
-        if not _same_stat(before, os.fstat(duplicate)):
-            raise InstallError("retained_git_descriptor_rebound")
-        self._git_context = context
-        self._git_source_fd = source_fd
-        self._git_execution_fd = duplicate
-        self._git_execution_state = before
-
-    def _check_git_execution(self) -> None:
-        if (
-            _BOOTSTRAP_CONTEXT is not self._git_context
-            or self._git_context["fds"].get("git") != self._git_source_fd
-        ):
-            raise InstallError("retained_git_context_changed")
-        for descriptor in (self._git_source_fd, self._git_execution_fd):
-            current = _sealed_fd_state(
-                descriptor, mode=0o500, maximum=MAX_GIT_BYTES, label="retained_git",
-            )
-            if not _same_stat(self._git_execution_state, current):
-                raise InstallError("retained_git_descriptor_changed")
 
     def _time(self) -> None:
         if time.monotonic() >= self.deadline:
@@ -1107,73 +1131,20 @@ class _RepositorySnapshot:
             os.close(fd)
 
     def _index_snapshot(self, raw: bytes) -> None:
-        global _GIT_PRIVATE_ACTIVE, _GIT_PRIVATE_MUTATION_PERFORMED
         if len(raw) < 32 or raw[:4] != b"DIRC":
             raise InstallError("repository_index_invalid")
-        if int.from_bytes(raw[4:8], "big") != 2:
+        if int.from_bytes(raw[4:8], "big") not in (2, 3, 4):
             raise InstallError("repository_index_version_unsupported")
-        count = int.from_bytes(raw[8:12], "big")
-        if count > GIT_MAX_ENTRIES:
+        if int.from_bytes(raw[8:12], "big") > GIT_MAX_ENTRIES:
             raise InstallError("repository_index_entry_limit")
         if hashlib.sha1(raw[:-20]).digest() != raw[-20:]:
             raise InstallError("repository_index_checksum_invalid")
-        # Git receives only ordinary stage-zero v2 entries. Parsing before
-        # execution prevents split-index shared-file reads and timestamp writes;
-        # dropping optional extensions also excludes cached fsmonitor/untracked
-        # state. The original index is retained solely as a read-only witness.
-        cursor = 12
-        limit = len(raw) - 20
-        previous = b""
-        for _ in range(count):
-            self._time()
-            start = cursor
-            if start + 62 >= limit:
-                raise InstallError("repository_index_entry_invalid")
-            flags = int.from_bytes(raw[start + 60:start + 62], "big")
-            if flags & 0xF000:
-                raise InstallError("repository_index_flags_unsupported")
-            mode = int.from_bytes(raw[start + 24:start + 28], "big")
-            if mode not in (0o100644, 0o100755, 0o120000):
-                raise InstallError("repository_index_mode_unsupported")
-            end = raw.find(b"\0", start + 62, min(limit, start + 62 + GIT_MAX_PATH_BYTES + 1))
-            if end < 0:
-                raise InstallError("repository_index_path_invalid")
-            path = raw[start + 62:end]
-            self._path(path)
-            if path <= previous or flags & 0x0FFF != min(len(path), 0x0FFF):
-                raise InstallError("repository_index_path_order_or_length_invalid")
-            previous = path
-            cursor = start + ((end + 1 - start + 7) // 8) * 8
-            if cursor > limit or any(raw[end:cursor]):
-                raise InstallError("repository_index_padding_invalid")
-        entries_end = cursor
-        extensions: set[bytes] = set()
-        while cursor < limit:
-            self._time()
-            if cursor + 8 > limit:
-                raise InstallError("repository_index_extension_invalid")
-            signature = raw[cursor:cursor + 4]
-            size = int.from_bytes(raw[cursor + 4:cursor + 8], "big")
-            if (
-                not 65 <= signature[0] <= 90 or signature in extensions
-                or len(extensions) >= 64
-            ):
-                raise InstallError("repository_index_extension_unsupported")
-            extensions.add(signature)
-            cursor += 8 + size
-            if cursor > limit:
-                raise InstallError("repository_index_extension_invalid")
-        normalized = raw[:entries_end]
-        normalized += hashlib.sha1(normalized).digest()
-        self._private_started = True
-        _GIT_PRIVATE_ACTIVE += 1
-        fd = os.memfd_create("void-installer-index-v4",
+        fd = os.memfd_create("void-installer-index-v3",
                              flags=os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
-        _GIT_PRIVATE_MUTATION_PERFORMED = True
         self._fds.append(fd)
         self._pass_fds.append(fd)
         os.fchmod(fd, 0o600)
-        self._write_all(fd, normalized)
+        self._write_all(fd, raw)
         os.lseek(fd, 0, os.SEEK_SET)
         fcntl.fcntl(fd, GIT_F_ADD_SEALS, GIT_INDEX_SEALS)
         if fcntl.fcntl(fd, GIT_F_GET_SEALS) & GIT_INDEX_SEALS != GIT_INDEX_SEALS:
@@ -1279,7 +1250,7 @@ class _RepositorySnapshot:
             if match is not None:
                 pairs.setdefault(match[1], set()).add(match[2])
             elif (
-                re.fullmatch(r"pack-[0-9a-f]{40}\.(rev|bitmap|keep|mtimes)", name)
+                re.fullmatch(r"pack-[0-9a-f]{40}\.(rev|bitmap|promisor|keep|mtimes)", name)
                 is None
                 and name != "multi-pack-index"
                 and re.fullmatch(r"multi-pack-index-[0-9a-f]{40}\.(bitmap|rev)", name) is None
@@ -1300,7 +1271,6 @@ class _RepositorySnapshot:
 
     def __enter__(self) -> "_RepositorySnapshot":
         try:
-            self._retain_git_execution()
             root = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
             self._fds.append(root)
             checkout = pathlib.Path(FIXED_CHECKOUT)
@@ -1314,19 +1284,17 @@ class _RepositorySnapshot:
             self.checkout_fd = current
             self._pass_fds.append(current)
             self.git_fd = self._directory(current, ".git")
-            for role, local in (("checkout", current), ("git_dir", self.git_fd)):
-                inherited = self._git_context["fds"].get(role)
-                if inherited is not None and not _same_stat(os.fstat(inherited), os.fstat(local)):
-                    raise InstallError("retained_checkout_directory_rebound:" + role)
-            for name in ("commondir", "gitdir", "shallow", "reftable"):
+            for name in ("commondir", "gitdir", "shallow", "reftable", "index.lock"):
                 self._absent(self.git_fd, name)
+            for name in self._names(self.git_fd, GIT_MAX_ENTRIES):
+                if re.fullmatch(r"sharedindex\.[0-9a-f]{40}", name):
+                    raise InstallError("repository_split_index_unsupported")
             self._reference_snapshot()
             index_raw = self._read_source(self.git_fd, "index", GIT_MAX_LIST_BYTES)
             self._index_snapshot(index_raw)
             excludes = b""
             if self._lstat(self.git_fd, "info") is not None:
                 info = self._directory(self.git_fd, "info")
-                self._absent(info, "grafts")
                 if self._lstat(info, "exclude") is not None:
                     excludes = self._read_source(info, "exclude", GIT_MAX_LIST_BYTES)
                 else:
@@ -1344,7 +1312,10 @@ class _RepositorySnapshot:
             self._private_file("config", GIT_PRIVATE_CONFIG)
             self._private_file("info/exclude", excludes)
             self._objects_snapshot()
-            self._check_git_execution()
+            self.git_exec_fd = _authenticated_repository_git_fd()
+            if self.git_exec_fd in self._pass_fds:
+                raise InstallError("repository_git_descriptor_alias")
+            self._pass_fds.append(self.git_exec_fd)
             self._load_tree()
             return self
         except BaseException as exc:
@@ -1375,7 +1346,6 @@ class _RepositorySnapshot:
             "GIT_TERMINAL_PROMPT": "0",
             "GIT_NO_LAZY_FETCH": "1",
             "GIT_ALLOW_PROTOCOL": "",
-            "GIT_PROTOCOL_FROM_USER": "0",
             "GIT_PAGER": "",
         }
 
@@ -1384,7 +1354,6 @@ class _RepositorySnapshot:
         maximum: int = GIT_MAX_LIST_BYTES
     ) -> bytes:
         self._time()
-        self._check_git_execution()
         input_raw = b""
         if operation == "objects":
             if (
@@ -1402,25 +1371,22 @@ class _RepositorySnapshot:
         else:
             raise InstallError("repository_git_operation_rejected")
         stop = min(self.deadline, time.monotonic() + GIT_COMMAND_SECONDS)
+        process = subprocess.Popen(
+            ["/proc/self/fd/" + str(self.git_exec_fd), "--no-pager", "--no-replace-objects", *args],
+            cwd="/proc/self/fd/" + str(self.checkout_fd),
+            stdin=subprocess.PIPE if input_raw else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=self._environment(),
+            close_fds=True,
+            pass_fds=tuple(self._pass_fds),
+            preexec_fn=_git_child_limits,
+        )
         output = bytearray()
         error_bytes = 0
         offset = 0
         selector = selectors.DefaultSelector()
-        process: subprocess.Popen[bytes] | None = None
         try:
-            process = subprocess.Popen(
-                ["/proc/self/fd/" + str(self._git_execution_fd),
-                 "--no-pager", "--no-replace-objects", *args],
-                cwd="/proc/self/fd/" + str(self.checkout_fd),
-                stdin=subprocess.PIPE if input_raw else subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                env=self._environment(),
-                close_fds=True,
-                pass_fds=tuple(self._pass_fds),
-                start_new_session=True,
-                preexec_fn=_git_child_limits,
-            )
             assert process.stdout is not None and process.stderr is not None
             for stream, label in ((process.stdout, "stdout"), (process.stderr, "stderr")):
                 os.set_blocking(stream.fileno(), False)
@@ -1473,26 +1439,13 @@ class _RepositorySnapshot:
         except subprocess.TimeoutExpired as exc:
             raise InstallError("repository_git_deadline_exceeded") from exc
         finally:
-            try:
-                selector.close()
-            finally:
-                try:
-                    # Keep the unreaped child PID reserved until its group has
-                    # been stopped. poll() would release that reservation.
-                    if process is not None and process.returncode is None:
-                        try:
-                            os.killpg(process.pid, signal.SIGKILL)
-                        except ProcessLookupError:
-                            pass
-                        try:
-                            process.wait(timeout=2)
-                        except subprocess.TimeoutExpired as exc:
-                            raise InstallError("repository_git_termination_incomplete") from exc
-                finally:
-                    if process is not None:
-                        for stream in (process.stdin, process.stdout, process.stderr):
-                            if stream is not None:
-                                stream.close()
+            selector.close()
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
 
     def _objects(self, kind: bytes, ids: list[str], maximum: int) -> dict[str, bytes]:
         output = self._run("objects", object_ids=ids, maximum=maximum)
@@ -1543,19 +1496,14 @@ class _RepositorySnapshot:
         total_trees = 0
         total_members = 0
         total_bytes = 0
-        for _ in range(GIT_MAX_TREE_DEPTH):
+        for _ in range(64):
             if not pending:
                 return
             ids = sorted({oid for _, oid in pending})
-            objects: dict[str, bytes] = {}
-            for offset in range(0, len(ids), GIT_OBJECT_BATCH_SIZE):
-                batch = self._objects(
-                    b"tree", ids[offset:offset + GIT_OBJECT_BATCH_SIZE], GIT_MAX_LIST_BYTES,
-                )
-                total_bytes += sum(len(raw) for raw in batch.values())
-                if total_bytes > GIT_MAX_LIST_BYTES:
-                    raise InstallError("repository_tree_bytes_limit")
-                objects.update(batch)
+            objects = self._objects(b"tree", ids, GIT_MAX_LIST_BYTES)
+            total_bytes += sum(len(raw) for raw in objects.values())
+            if total_bytes > GIT_MAX_LIST_BYTES:
+                raise InstallError("repository_tree_bytes_limit")
             following: list[tuple[bytes, str]] = []
             for prefix, oid in pending:
                 self._time()
@@ -1600,8 +1548,7 @@ class _RepositorySnapshot:
                     else:
                         raise InstallError("repository_tree_mode_unsupported")
             pending = following
-        if pending:
-            raise InstallError("repository_tree_depth_limit")
+        raise InstallError("repository_tree_depth_limit")
 
     def _work_parent(self, relative: bytes) -> tuple[int, bytes, list[int]]:
         self._path(relative)
@@ -1644,9 +1591,6 @@ class _RepositorySnapshot:
             before = self._lstat(parent, name)
             if before is None:
                 raise InstallError("checkout_tracked_file_missing")
-            previous = self._work_files.get(relative)
-            if previous is not None and not _same_stat(previous, before):
-                raise InstallError("checkout_tracked_generation_changed")
             if mode == b"120000":
                 if not stat.S_ISLNK(before.st_mode):
                     raise InstallError("checkout_tracked_file_type_invalid")
@@ -1686,7 +1630,7 @@ class _RepositorySnapshot:
                 raise InstallError("checkout_tracked_file_changed")
             if actual != expected:
                 raise InstallError("checkout_raw_worktree_bytes_mismatch")
-            self._work_files.setdefault(relative, before)
+            self._work_files[relative] = before
         finally:
             if fd >= 0:
                 os.close(fd)
@@ -1752,7 +1696,6 @@ class _RepositorySnapshot:
         return raw
 
     def _recheck(self) -> None:
-        self._check_git_execution()
         for parent, name, fd, before, strict in self._directory_checks:
             self._time()
             opened = os.fstat(fd)
@@ -1781,9 +1724,10 @@ class _RepositorySnapshot:
             finally:
                 for fd in reversed(directories):
                     os.close(fd)
+        if _authenticated_repository_git_fd() != self.git_exec_fd:
+            raise InstallError("repository_git_tool_changed")
 
     def _close(self) -> None:
-        global _GIT_PRIVATE_ACTIVE, _GIT_PRIVATE_CLEANUP_FAILED
         if self._closed:
             return
         self._closed = True
@@ -1800,11 +1744,7 @@ class _RepositorySnapshot:
                 if failure is None:
                     failure = exc
         self._fds.clear()
-        if self._private_started:
-            _GIT_PRIVATE_ACTIVE -= 1
-            self._private_started = False
         if failure is not None:
-            _GIT_PRIVATE_CLEANUP_FAILED = True
             raise InstallError("repository_private_cleanup_failed") from failure
 
     def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> bool:
@@ -1825,32 +1765,9 @@ class _RepositorySnapshot:
 
 
 def checkout_snapshot(expected_head: str) -> dict[str, Any]:
-    with _RepositorySnapshot(expected_head) as witness:
-        return witness.checkout()
+    with _RepositorySnapshot(expected_head) as snapshot:
+        return snapshot.checkout()
 
-
-def _read_git_object(
-    expected_head: str,
-    relative: str,
-    *,
-    expected_blob: str,
-    expected_bytes: int | None = None,
-    expected_sha256: str | None = None,
-    witness: _RepositorySnapshot | None = None,
-) -> bytes:
-    if witness is None:
-        with _RepositorySnapshot(expected_head) as owned:
-            return _read_git_object(
-                expected_head, relative, expected_blob=expected_blob,
-                expected_bytes=expected_bytes, expected_sha256=expected_sha256,
-                witness=owned,
-            )
-    if witness.expected_head != expected_head:
-        raise InstallError("git_object_witness_head_mismatch")
-    return witness.blob(
-        relative, expected_blob=expected_blob,
-        expected_bytes=expected_bytes, expected_sha256=expected_sha256,
-    )
 
 
 def _verify_source_generation_dependencies(
@@ -1858,26 +1775,10 @@ def _verify_source_generation_dependencies(
     manifest: dict[str, str],
     sources: dict[str, bytes],
     expected_head: str,
-    *,
-    witness: _RepositorySnapshot | None = None,
 ) -> dict[str, Any]:
-    """Check one generation using private temporary Git metadata.
-
-    The caller supplies authenticated immutable bytes. This helper grants no
-    installer authority; operational callers separately require a live native
-    proof and policy-bound descriptors. All source observations remain retained
-    until the surrounding witness exits, including after later dependency reads.
-    """
-    if witness is None:
-        with _RepositorySnapshot(expected_head) as owned:
-            return _verify_source_generation_dependencies(
-                manifest_raw, manifest, sources, expected_head, witness=owned,
-            )
-    if witness.expected_head != expected_head:
-        raise InstallError("source_generation_witness_head_mismatch")
+    """Verify one retained repository witness across all generation checks."""
     if parse_source_manifest(manifest_raw) != manifest or set(sources) != set(SOURCE_ROLES):
         raise InstallError("source_generation_membership_invalid")
-    checkout = witness.checkout()
     expected_files = [(MANIFEST_REL, manifest_raw, git_blob_sha1(manifest_raw))]
     for role in SOURCE_ROLES:
         raw = sources[role]
@@ -1890,21 +1791,23 @@ def _verify_source_generation_dependencies(
             raise InstallError("source_generation_snapshot_mismatch:" + role)
         expected_files.append((manifest[role + "_rel"], raw, manifest[role + "_blob_sha1"]))
 
-    for relative, expected_raw, expected_blob in expected_files:
-        # Source tuples are ordinary non-executable blobs in the authenticated
-        # full tree. Operational bytes still come from the sealed source roles.
-        path = relative.encode("ascii")
-        if witness.entries.get(path) != (b"100644", expected_blob):
-            raise InstallError("source_generation_tree_entry_mismatch:" + relative)
-        raw = _read_git_object(
-            expected_head, relative, expected_blob=expected_blob,
-            expected_bytes=len(expected_raw), expected_sha256=sha256(expected_raw),
-            witness=witness,
-        )
-        if raw != expected_raw:
-            raise InstallError("source_generation_git_bytes_mismatch:" + relative)
-        witness._worktree_file(path, b"100644", expected_blob)
-    return checkout
+    with _RepositorySnapshot(expected_head) as snapshot:
+        checkout = snapshot.checkout()
+        for relative, expected_raw, expected_blob in expected_files:
+            path = relative.encode("ascii")
+            entry = snapshot.entries.get(path)
+            if entry != (b"100644", expected_blob):
+                raise InstallError("source_generation_tree_entry_mismatch:" + relative)
+            raw = snapshot.blob(
+                relative,
+                expected_blob=expected_blob,
+                expected_bytes=len(expected_raw),
+                expected_sha256=sha256(expected_raw),
+            )
+            if raw != expected_raw:
+                raise InstallError("source_generation_git_bytes_mismatch:" + relative)
+        # __exit__ performs the final retained repository/worktree observation pass.
+        return checkout
 
 
 def _remember_visible_generation(
@@ -1971,26 +1874,24 @@ def _revalidate_authenticated_generation(
         retained = context["sources"][role] if role in SOURCE_ROLES else context["payloads"][role]
         if raw != retained or len(raw) != int(manifest[role + "_bytes"]) or sha256(raw) != manifest[role + "_sha256"]:
             raise InstallError("authenticated_source_or_payload_changed:" + role)
-    with _RepositorySnapshot(expected_head) as witness:
-        checkout = _verify_source_generation_dependencies(
-            context["manifest_raw"], manifest, context["sources"], expected_head,
-            witness=witness,
-        )
-        if checkout["tree"] != proof["expected_tree"]:
-            raise InstallError("authenticated_runtime_tree_mismatch")
-        _validate_parent_and_descriptors(context)
-        # The context's final source/worktree fence runs after the last native
-        # parent validation. Stable identities alone enter the reusable plan.
-        return {
-            "checkout": checkout,
-            "git_tool": tools["git"],
-            "python": tools["python"],
-            "host_policy_sha256": proof["host_policy_sha256"],
-            "host_policy_bytes": int(proof["host_policy_bytes"]),
-            "source_generation_id": proof["source_generation_id"],
-            "manifest_sha256": proof["manifest_sha256"],
-            "manifest_bytes": int(proof["manifest_bytes"]),
-        }
+    checkout = _verify_source_generation_dependencies(
+        context["manifest_raw"], manifest, context["sources"], expected_head,
+    )
+    if checkout["tree"] != proof["expected_tree"]:
+        raise InstallError("authenticated_runtime_tree_mismatch")
+    _validate_parent_and_descriptors(context)
+    # These content and stable tool-policy identities can enter a reusable plan.
+    # PID, start time, FD numbers, inodes and stat timestamps stay private.
+    return {
+        "checkout": checkout,
+        "git_tool": tools["git"],
+        "python": tools["python"],
+        "host_policy_sha256": proof["host_policy_sha256"],
+        "host_policy_bytes": int(proof["host_policy_bytes"]),
+        "source_generation_id": proof["source_generation_id"],
+        "manifest_sha256": proof["manifest_sha256"],
+        "manifest_bytes": int(proof["manifest_bytes"]),
+    }
 
 
 def _git_object(
@@ -2302,10 +2203,6 @@ def collect_plan(
         "host_policy_sha256": generation["host_policy_sha256"],
         "host_policy_bytes": generation["host_policy_bytes"],
         "trusted_os_runtime": MANIFEST_FIXED_VALUES["trusted_os_runtime"],
-        "git_boundary_policy": GIT_BOUNDARY_POLICY,
-        "temporary_git_metadata_write_required": True,
-        "source_repository_mutation_authorized": False,
-        "source_object_fetch_authorized": False,
         "checkout": checkout,
         "git_tool": git_tool,
         "python": python,
@@ -2355,6 +2252,10 @@ def source_plan() -> None:
     print("source_only=true")
     print("host_read=false")
     print("host_write=false")
+    print("private_repository_witness_required_for_plan=true")
+    print("plan_temporary_git_metadata_write_required=true")
+    print("plan_network_access=false")
+    print("plan_git_fetch=false")
     print("accepted_lock_id=" + LOCK_ID)
     print("candidate_id=" + CANDIDATE_ID)
     print("install_root=" + str(INSTALL_ROOT))
@@ -2387,7 +2288,12 @@ def plan(
     print(MARKER)
     print("mode=plan")
     print("read_only=false")
-    _emit_git_boundary_receipt()
+    print("temporary_filesystem_write=true")
+    print("temporary_filesystem_write_scope=private_git_metadata_under_tmp")
+    print("temporary_repository_metadata_cleanup_required=true")
+    print("protected_state_mutation=false")
+    print("network_access=false")
+    print("git_fetch=false")
     print("plan_id=" + result["plan_id"])
     print("accepted_lock_id=" + LOCK_ID)
     print("candidate_id=" + CANDIDATE_ID)
@@ -2407,7 +2313,7 @@ def plan(
     print("create_only=true")
     print("rename_noreplace_required=true")
     print("filesystem_write=true")
-    print("protected_state_mutation=false")
+    print("filesystem_write_limited_to_temporary_private_git_metadata=true")
     print("launcher_execution_authorized=false")
     print("native_execution_authorized=false")
     print("binder_execution_authorized=false")
@@ -2650,65 +2556,12 @@ def _require_secure_apply_context() -> None:
         raise InstallError("forbidden_apply_environment:" + ",".join(present))
 
 
-def _emit_git_boundary_facts() -> None:
-    print("git_boundary_policy=" + GIT_BOUNDARY_POLICY)
-    print("temporary_git_metadata_write_required=true")
-    print("temporary_git_metadata_write_authorized=true")
-    print("temporary_git_metadata_mutation_possible=true")
-    print("source_repository_mutation=false")
-    print("source_object_fetch=false")
-    print("repository_config_loaded=false")
-    print("repository_callback_execution=false")
-
-
-def _emit_git_boundary_receipt() -> None:
-    _emit_git_boundary_facts()
-    print(
-        "temporary_git_metadata_write_performed="
-        + ("true" if _GIT_PRIVATE_MUTATION_PERFORMED else "false")
-    )
-    print(
-        "temporary_git_metadata_cleanup_completed="
-        + ("true" if _GIT_PRIVATE_ACTIVE == 0 and not _GIT_PRIVATE_CLEANUP_FAILED else "false")
-    )
-
-
-def _emit_git_boundary_authority(operation: str) -> None:
-    # Authentication itself creates the private index/object view, before plan
-    # or apply is entered. Flush this authority receipt before that first write.
-    print(MARKER)
-    print("mode=" + operation)
-    print("authority_boundary=PRE_GIT_OBSERVATION")
-    print("read_only=false")
-    print("filesystem_mutation_possible=true")
-    _emit_git_boundary_facts()
-    print("protected_state_mutation_at_observation_boundary=false")
-    if operation == "plan":
-        print("protected_state_mutation=false")
-    print("service_action=false")
-    print("launcher_execution=false")
-    print("native_execution=false")
-    print("binder_execution=false")
-    print("credential_access=false")
-    print("private_key_access=false")
-    print("signing=false")
-    print("transaction=false")
-    print("rpc_call=false")
-    print("payment_acceptance=false")
-    print("public_presale_activation=false")
-    print("wc_void_market_activation=false")
-    print("treasury_liquidity_action=false")
-    print("funds_movement=false")
-    sys.stdout.flush()
-
-
 def emit_operation_authority() -> None:
     print(MARKER)
     print("mode=apply")
     print("authority_boundary=PRE_MUTATION")
     print("filesystem_mutation_possible=true")
-    print("protected_state_mutation_performed_at_pre_mutation_boundary=false")
-    _emit_git_boundary_receipt()
+    print("filesystem_mutation_performed_at_pre_mutation_boundary=false")
     print("create_only=true")
     print("launcher_execution=false")
     print("native_execution=false")
@@ -2754,7 +2607,6 @@ def apply(
         print(MARKER)
         print("mode=apply")
         print("status=ALREADY_GREEN")
-        _emit_git_boundary_receipt()
         print("protected_install_performed=false")
         print("launcher_execution=false")
         print("native_execution=false")
@@ -2926,7 +2778,6 @@ def apply(
     print(MARKER)
     print("mode=apply")
     print("status=GREEN")
-    _emit_git_boundary_receipt()
     print("accepted_lock_id=" + LOCK_ID)
     print("candidate_id=" + CANDIDATE_ID)
     print("plan_id=" + expected_plan_id)
@@ -2982,6 +2833,7 @@ def self_test() -> None:
         "confirm": CONFIRM_TOKEN,
     }
     assert PLAN_PREFIX.startswith("voidbuye2dormantfirstentryinstall4_")
+    assert GIT_BOUNDARY_POLICY == "private_metadata_pinned_objects_raw_checkout_v4"
     assert len(sha256(canonical_json(body))) == 64
     policy = build_policy(
         {
@@ -3053,7 +2905,6 @@ def main() -> int:
     if args.plan:
         if args.expected_plan_id or args.confirm:
             raise InstallError("plan_apply_arguments_forbidden")
-        _emit_git_boundary_authority("plan")
         _activate_bootstrap_context(
             "installer_plan", args.expected_head, "none", launcher, native,
         )
@@ -3062,7 +2913,6 @@ def main() -> int:
 
     if not args.expected_plan_id:
         raise InstallError("expected_plan_id_required")
-    _emit_git_boundary_authority("apply")
     _activate_bootstrap_context(
         "installer_apply", args.expected_head, args.expected_plan_id, launcher, native,
     )
@@ -3083,7 +2933,6 @@ def entrypoint() -> int:
         print(MARKER)
         print("status=HOLD")
         print("receipt_boundary=FINAL_FAILURE_RECEIPT")
-        _emit_git_boundary_receipt()
         print("publication=true")
         print("publication_state=published_needs_inspection")
         print(
@@ -3136,7 +2985,6 @@ def entrypoint() -> int:
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc))
-        _emit_git_boundary_receipt()
         print("publication=false")
         print("launcher_execution=false")
         print("native_execution=false")

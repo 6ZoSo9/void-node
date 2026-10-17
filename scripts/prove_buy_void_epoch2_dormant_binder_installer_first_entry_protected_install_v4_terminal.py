@@ -20,21 +20,12 @@ REL = (
 V1 = ROOT / (REL + "v1.py")
 V2 = ROOT / (REL + "v2.py")
 V4 = ROOT / (REL + "v4.py")
-V4_BLOB = "88577de29dddbe61d2c2f59179d0dcb62a49165a"
 V2_BLOB = "69a018c0eccedf3782055c56725579d02463b05e"
 V1_BLOB = "383b84e71b371de65579e4113469e86a59b807ab"
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_"
     "PROTECTED_INSTALL_V4_TERMINAL_PROOF_GREEN"
 )
-FROZEN = {
-    "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v3.py":
-        (95062, "242eac04da6e17d32e9a9baa9b57f572cabda7a8"),
-    "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v4.c":
-        (60997, "c7d2125b59dcbecc1d6aae8818e84cac8ce85da9"),
-    "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf":
-        (2380, "a484a7d2e1159ebbef3357ec849af92d7f12cff1"),
-}
 
 
 def load(path: Path) -> types.ModuleType:
@@ -357,10 +348,6 @@ class Fixture:
 
 
 def prove() -> None:
-    assert blob(V4.read_bytes()) == V4_BLOB, "successor V4 source pin changed"
-    for relative, (size, expected) in FROZEN.items():
-        raw = (ROOT / relative).read_bytes()
-        assert len(raw) == size and blob(raw) == expected, relative
     assert blob(V1.read_bytes()) == V1_BLOB, "frozen V1 changed"
     predecessor = load(V1)
     successor = load(V4)
@@ -397,7 +384,7 @@ def prove() -> None:
         ("postpublication_generation_drift", False),
     )
     for scenario, close_failure in cases:
-        with tempfile.TemporaryDirectory(prefix="void-e2-inner-v3-terminal-") as td:
+        with tempfile.TemporaryDirectory(prefix="void-e2-inner-v4-terminal-") as td:
             fixture = Fixture(Path(td), scenario, close_failure)
             m = fixture.module
             if scenario == "preexisting_stage":

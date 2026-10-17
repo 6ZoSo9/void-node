@@ -1,66 +1,37 @@
-name: Buy VOID Epoch-2 first-entry source generation V2
+name: Buy VOID Epoch-2 dormant first-entry source generation v2
 
 on:
+  push:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
   pull_request:
     paths:
-      - ".github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml"
-      - "docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md"
       - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py"
       - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c"
       - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf"
       - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py"
       - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py"
       - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v3.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.c"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v4.c"
-      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v4.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf"
-      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2_terminal.py"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml"
       - "docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf"
-      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py"
-      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py"
-      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v3.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.c"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v4.c"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml"
       - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v4.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf"
-      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2_terminal.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: epoch2-first-entry-source-generation-v2-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  source-generation:
+  prove:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -70,108 +41,160 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Bind exact event scope and preserved generations
+      - name: Bind exact successor scope
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
+          parent=a5ae17389c1cd7645920d146c51e99758c8fc338
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          case "$EVENT_NAME" in
-            pull_request) base="$(git merge-base "$PR_BASE" "$EXPECTED_HEAD")" ;;
-            push)
-              base="$PUSH_BEFORE"
-              test -n "$base"
-              test "$base" != 0000000000000000000000000000000000000000
-              ;;
-            workflow_dispatch) base="" ;;
-            *) exit 1 ;;
-          esac
-          if test -n "$base"; then
-            git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
-            expected="$RUNNER_TEMP/epoch2-generation-v2-expected-scope.txt"
-            actual="$RUNNER_TEMP/epoch2-generation-v2-actual-scope.txt"
-            printf '%s\n' \
-              'A	.github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml' \
-              'A	docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md' \
-              'A	ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py' \
-              'A	ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c' \
-              'A	ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf' \
-              'A	scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py' \
-              'A	scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py' \
-              'A	scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py' \
-              | sort > "$expected"
-            git diff --name-status "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
-            diff -u "$expected" "$actual"
-            git diff --check "$base" "$EXPECTED_HEAD"
-          else
-            echo "scope_event_comparison=not_applicable_manual_replay"
-          fi
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md)" = 4af65a4a1e1d64cb25bae6fa7da64b14bfb2002f
-          test "$(git ls-tree HEAD -- docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = 383b84e71b371de65579e4113469e86a59b807ab
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2.py)" = 69a018c0eccedf3782055c56725579d02463b05e
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v3.py)" = 242eac04da6e17d32e9a9baa9b57f572cabda7a8
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v3.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py)" = 88577de29dddbe61d2c2f59179d0dcb62a49165a
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = f3d6b1559be7490303cf36338c4bfa38fdaa390a
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c)" = 243583d4ed0522796b2bbf448abd4e9c28958f50
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v1.c | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c)" = 19f9baf8d6d707da43dbd0e247667af1a10e46c5
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.c)" = 2c3c9ed120cc9949a0528e43be886354aa25da5a
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v3.c | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v4.c)" = c7d2125b59dcbecc1d6aae8818e84cac8ce85da9
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v4.c | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c)" = 81fc960f1cec597b01875ed944b25e5b6574d34d
-          test "$(git ls-tree HEAD -- ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = f8ff6fbb855aecafc329cd60622cf3af782745a3
-          test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json)" = 471a52641135ee3ce31d521980e6ea37af18ce58
-          test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json)" = 64c9a42ca1108a9e8f88218c34d53e50668c653e
-          test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v4.json)" = 57ecc08d465fe2a3c395546d349864312cd08a3f
-          test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v4.json | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf)" = a484a7d2e1159ebbef3357ec849af92d7f12cff1
-          test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf)" = 782f747cda24a214c64e8ec3f49b6791bbb62f97
-          test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2_terminal.py)" = 7b2ddaeddf844d98aa4eb7006ee371ea6a455f57
-          test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2_terminal.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py)" = ffa111fbe6bca7306e57e044fc88a26b1da7a334
-          test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py)" = c7cd7a3ed91486ee1272f051634ed00c4f8ca79d
-          test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py)" = 32f58b97ca2564bccd95dbcf07ccd033aa68133e
-          test "$(git ls-tree HEAD -- scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py | cut -d" " -f1)" = 100644
-          test "$(git ls-tree HEAD -- .github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml | cut -d" " -f1)" = 100644
+          git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c' \
+            'ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py' \
+            | sort > "$expected"
+          git diff --name-only "$parent" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py)" = \
+            763865f3eae1b8f92ea2dba1ec0cbaec6e7dc6ba
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c)" = \
+            83a323b3430c397d2806ad88c2075e4ad427db9d
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf)" = \
+            14bd75433f8c79d7e15c999501b6eb5224553802
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py)" = \
+            4dfac06e6e155eaec13365a99dbb2cd10fe615b8
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v2.md)" = \
+            f9684c128d7fc0b6421984be43d8dc23f6194a41
+
+          # Frozen predecessor/payload identities remain unchanged.
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = \
+            f8ff6fbb855aecafc329cd60622cf3af782745a3
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
+            f3d6b1559be7490303cf36338c4bfa38fdaa390a
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v3.py)" = \
+            242eac04da6e17d32e9a9baa9b57f572cabda7a8
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v4.c)" = \
+            c7d2125b59dcbecc1d6aae8818e84cac8ce85da9
+
+          git diff --check "$parent" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
-      - name: Syntax and complete focused proofs
+      - name: Prove inner V4 generation and repository witness
         run: |
           set -euo pipefail
-          /usr/bin/python3 -I -S -B - <<'PY'
-          from pathlib import Path
-          for relative in (
-              "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py",
-              "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py",
-              "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py",
-              "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py",
-          ):
-              compile(Path(relative).read_bytes(), relative, "exec", dont_inherit=True)
-          print("VOID_EPOCH2_FIRST_ENTRY_SOURCE_GENERATION_V2_SYNTAX_GREEN")
-          PY
-          /usr/bin/python3 -I -S -B scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py
-          /usr/bin/python3 -I -S -B scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py
-          /usr/bin/python3 -I -S -B scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py
-          /usr/bin/python3 -I -S -B ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py --self-test
-          /usr/bin/python3 -I -S -B ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py --source-plan
-          git diff --check
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          out="$RUNNER_TEMP/v4-generation.log"
+          python3 -I -S -B \
+            scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py \
+            | tee "$out"
+          markers=(
+            VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_INSTALLER_V4_GENERATION_PROOF_GREEN
+            source_generation_v2_exact=true
+            manifest_rows_35=true
+            parent_proof_descriptor_roles_13=true
+            private_fixed_git_metadata=true
+            sealed_private_index=true
+            split_index_rejected_without_shared_index_touch=true
+            raw_tree_object_identity_recomputed=true
+            tracked_file_final_recheck=true
+            retained_sealed_git_executable_required=true
+            operational_source_accessor_requires_authenticated_descriptors=true
+            raw_repository_snapshot_blob_verified=true
+            source_repository_configuration_not_authority=true
+            temporary_git_metadata_write_truthful=true
+            protected_state_mutation=false
+            network_access=false
+            git_fetch=false
+            credential_access=false
+            signing=false
+            transaction=false
+            funds_movement=false
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
+      - name: Preserve V4 create-only terminal semantics
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v4-terminal.log"
+          python3 -I -S -B \
+            scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py \
+            | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROTECTED_INSTALL_V4_TERMINAL_PROOF_GREEN' "$out"
+          grep -Fx 'v4_plan_confirmation_domain_separate=true' "$out"
+          grep -Fx 'post_publication_rollback=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+
+      - name: Prove native V5 witness and static pre-entry
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v5-native.log"
+          python3 -I -S -B \
+            scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py \
+            | tee "$out"
+          markers=(
+            VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V5_PROOF_GREEN
+            native_v5_source_identity_exact=true
+            manifest_v2_identity_exact=true
+            static_native_self_test_green=true
+            static_no_pt_interp=true
+            private_git_metadata_exercised=true
+            sealed_private_index_exercised=true
+            split_index_rejected_without_touch=true
+            strict_fsck_false_tree_rejected=true
+            raw_commit_root_tree_hashing_bound=true
+            tracked_worktree_double_hash_bound=true
+            temporary_repository_cleanup_proven=true
+            parent_proof_roles_13_preserved=true
+            protected_install_authorized=false
+            credential_access=false
+            signing=false
+            transaction=false
+            funds_movement=false
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
+      - name: Inert V4 source plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/source-plan.log"
+          python3 -I -S -B \
+            ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py \
+            --source-plan | tee "$out"
+          markers=(
+            VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROTECTED_INSTALL_V4
+            mode=source-plan
+            source_only=true
+            host_read=false
+            host_write=false
+            private_repository_witness_required_for_plan=true
+            plan_temporary_git_metadata_write_required=true
+            plan_network_access=false
+            plan_git_fetch=false
+            create_only=true
+            launcher_execution_authorized=false
+            native_execution_authorized=false
+            binder_execution_authorized=false
+            credential_access_authorized=false
+            private_key_access_authorized=false
+            signing_authorized=false
+            transaction_authorized=false
+            rpc_call_authorized=false
+            payment_acceptance_authorized=false
+            public_presale_activation_authorized=false
+            wc_void_market_activation_authorized=false
+            treasury_liquidity_action_authorized=false
+            funds_movement_authorized=false
+            production_host_evidence_authority=false
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
+      - run: git diff --check

@@ -1,232 +1,170 @@
-# Epoch-2 first-entry source generation V2
+# Buy VOID Epoch-2 dormant first-entry source generation V2
 
-Marker: `VOID_EPOCH2_DORMANT_FIRST_ENTRY_SOURCE_GENERATION_V2`
+Marker family:
+- `VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_PROTECTED_INSTALL_V4`
+- `VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_V5`
+
+Status: **source/test/CI only**. This generation is not an accepted native
+candidate, is not installed on Precision, and grants no production authority.
 
 ## Purpose
 
-This generation repairs the repository witness used by the native bootstrap and
-its Python installer. It derives from the canonical inner V3 / bootstrap V4
-manifest and private-parent implementation introduced in #3439. The resulting
-pair is inner installer V4 and native bootstrap V5, with a new closed manifest.
+V2 is the canonical successor to the V1/V3/V4 generation merged in #3439.
+It preserves that generation's closed 35-row application manifest, 13-role
+private parent proof, sealed source/tool descriptors, authenticated native
+parent, create-only publication and terminal receipt model while repairing the
+repository witness defects reproduced after merge.
 
-The earlier draft of #3442 predated #3439 and must not replace that canonical
-implementation. Its history remains inspectable. The final repair preserves the
-accepted V3/V4 source, manifest, candidate and lock bytes, including #3443's
-exact bootstrap acceptance. A changed source generation requires its own binary
-derivation and acceptance; it does not alter the meaning of an earlier lock.
+The repaired generation is deliberately additive:
 
-## Defects addressed
+- inner installer:
+  `ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py`;
+- native bootstrap:
+  `ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c`;
+- manifest:
+  `ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf`.
 
-The canonical generation authenticated its operational application bytes, but
-its repository witness still used the live Git metadata directory. Focused
-component fixtures reproduced three distinct problems:
+Historical V1/V3/V4 source remains immutable evidence.
 
-| Boundary | Previous observation | Repaired requirement |
-| --- | --- | --- |
-| Source metadata | Reading a split index could refresh shared-index mtime. | Git receives a private immutable index and private configuration; unsupported source-index forms cause HOLD before Git reads them. |
-| Commit and tree identity | A corrupted unrelated tree could be stored under a false object ID and accepted through Git's flattened listing. | Hash the raw commit and every traversed tree, and derive tracked membership from that authenticated hierarchy. |
-| Earlier tracked files | A file checked early could change while later files were being checked. | Preserve its first observed generation and recheck recorded file and directory identities at the end of the complete witness. |
+## Exact V2 source identity
 
-The original reproductions kept all four inherited operational source snapshots
-exact. They demonstrated incomplete checkout provenance and a source metadata
-write, not substitution of the manifest-bound application code. Persistent
-bound-source drift was already caught by the later dependency pass. This repair
-retains that dependency check and closes the reproduced witness gaps in both
-readers, including the native gate before Python starts.
+The manifest has exactly 35 ordered ASCII rows.
 
-## Preserved application authority
+- manifest bytes: `2381`;
+- manifest SHA-256:
+  `70280a4ae4d228b2a2c98712d64e09241df95584cb12d39311776252c985241e`;
+- source-generation ID:
+  `voidbuye2dormantsourcegen2_70280a4ae4d228b2a2c98712d64e09241df95584cb12d39311776252c985241e`.
 
-The manifest remains a closed, ordered, 35-row ASCII contract. It binds four
-source paths by Git blob SHA-1, byte count and SHA-256; the two accepted payload
-identities; fixed checkout and installation paths; and policy, proof and
-operation namespaces. The accepted payload lock and runtime-installer source
-remain the exact frozen inputs of the preceding generation.
+Inner V4:
 
-The native bootstrap authenticates the manifest and host policy, retains
-application and tool inputs, and verifies the checkout before creating an
-installer child. The Python child authenticates its live native parent, the
-sealed private proof, the request and all thirteen descriptor roles:
+- Git blob: `763865f3eae1b8f92ea2dba1ec0cbaec6e7dc6ba`;
+- bytes: `120323`;
+- SHA-256:
+  `bdfb8bc87f4c2b15af69a0e2eccbffa570d5913383e269166760966ff924fac1`.
 
-`proof`, `manifest`, `installer`, `bootstrap_source`, `lock`,
-`runtime_installer`, `launcher`, `native`, `policy`, `python`, `git`,
-`checkout`, and `git_dir`.
+Native V5 source:
 
-The private-parent proof schema remains V1. Descriptor names or numbers alone
-do not establish authority. Parent PID/start identity, executable custody,
-descriptor correspondence, seals and exact contents are checked together.
+- Git blob: `83a323b3430c397d2806ad88c2075e4ad427db9d`;
+- bytes: `72690`;
+- SHA-256:
+  `8abe5f6a51365f0edbd127235f0425fff56e63db9ab7fdddab9020e28decca88`.
 
-Operational Python `_git_object` continues to return only the four inherited
-manifest-authenticated source snapshots. The repository reader serves checkout
-and dependency revalidation. It does not become an alternative source of
-operative application code. Both native and Python Git subprocesses execute the
-retained sealed Git executable; they do not reopen the visible Git pathname.
+The accepted dormant-binder first-entry lock, frozen runtime installer, launcher
+payload and native payload identities remain unchanged from V1.
 
-Create-only publication, stage-generation cleanup and publication-aware terminal
-receipts remain in force. A postpublication failure preserves the published
-root for inspection. Verification failure never authorizes deletion of an
-unidentified or substituted stage.
+## Repository witness repair
 
-## Private repository witness
+### Private Git presentation
 
-Each native or Python verification scope constructs its own private Git view.
-No additional inherited descriptor role is introduced. The live native-parent
-and retained-input checks continue around the witness and at mutation and
-publication boundaries.
+Both V4 and V5 reject caller repository configuration as authority.
 
-Source HEAD, the `main` reference and the index are captured through physical,
-no-follow reads and bound to their observed generations. The private metadata
-contains fixed configuration and an immutable index. It does not copy source
-`config`, `config.worktree`, include directives, hooks, alternate-object
-metadata, or helper configuration. Unsupported or inconsistent index metadata
-causes HOLD; validation does not repair or refresh the source index.
+The Python witness snapshots repository metadata into a bounded private Git
+view. The native witness creates private `HEAD`, `refs/heads/main` and
+configuration, copies the source index into a sealed memfd, and exposes only the
+retained physical object-directory descriptor to the authenticated Git
+executable.
 
-The private object view uses bounded copies of physical loose objects and
-validated pack/index descriptors. Its object-info namespace is empty. Source
-alternates, HTTP alternates, grafts, shallow metadata, common-directory
-redirection and physical-path substitutions are rejected. Source objects and
-their containing directories are checked again before releasing the witness.
+No fetch, remote helper or network protocol is available.
 
-Only the fixed repository-read commands are available. Their environment
-disables transports, lazy fetch, replacement objects, optional locks, hooks and
-automatic maintenance. Output, elapsed time, memory and CPU use are bounded.
-Timeout/error cleanup terminates and reaps the Git process while preserving its
-PID until signaling is complete. Stricter inherited resource limits remain
-effective.
+### Split index
 
-The readers authenticate the raw commit and the complete tree hierarchy before
-using them as a tracked-file map. They compare that map with the private index
-and hash worktree regular-file bytes and symlink text directly. Owner-executable
-mode is checked using Git's tracked mode semantics. Content filters, textconv
-and normalized worktree content do not supply evidence.
+Source `sharedindex.<40hex>` generations are rejected. The source shared-index
+file is not opened by the private witness, so qualification cannot silently
+change its metadata while claiming read-only source observation.
 
-Recorded path observations are retained through the entire checkout and
-manifest/source dependency pass. Repeated reads must match the first
-observation; they cannot silently replace it with a newer generation. A final
-anchored pass detects earlier-file changes during later verification.
+### Object identity
 
-This is a drift-detection witness, not an atomic snapshot of a writable
-filesystem. Serial observations cannot prove that no file changed after its
-last observation. The authenticated application snapshots are the operative
-inputs, and the remaining root-custodied OS boundary still includes the Linux
-loader, Python standard library/native extensions and libc.
+The Python witness keeps two intentionally separate object-access boundaries.
 
-## Temporary-write and operation reporting
+The operational `_git_object()` accessor is **not** a generic repository reader:
+it accepts only the closed inherited source set authenticated by the native
+bootstrap and therefore requires the retained `_BOOTSTRAP_CONTEXT["sources"]`
+descriptor generation. An arbitrary repository path without that inherited
+source context must fail with
+`authenticated_source_descriptors_required`.
 
-Operational verification creates and removes private temporary Git metadata.
-The native entry reports that authority before creating the private view. The
-Python operational entry reports it before `_activate_bootstrap_context`, which
-itself performs generation verification. Reporting only inside `plan` would
-be too late.
+Generic raw repository-witness tests instead use the retained
+`_RepositorySnapshot.blob()` path. That primitive authenticates tree membership,
+object identity, exact bytes and SHA-256 through the private Git witness without
+granting those bytes operational source authority. The focused generation proof
+requires both sides of this split and verifies the fixture repository remains
+byte/metadata unchanged.
 
-These private scratch writes are distinct from source-checkout mutation and
-protected installation. A plan may create private metadata while performing no
-protected installation. Inert `--self-test` and `--source-plan` do not establish
-native-parent authority or perform a production plan/apply.
+Native V5 runs strict Git object verification before and after its worktree
+pass and independently recomputes the requested commit and root-tree SHA-1 from
+their raw object bodies. A valid compressed object stored beneath a false object
+ID therefore cannot inherit that ID as authority.
 
-Normal and failure paths attempt to close retained private descriptors and remove
-their private metadata. A cleanup failure produces HOLD and may leave private
-metadata for inspection. Private directories have mode `0700`; Python uses the standard
-library's descriptor-relative removal, and cleanup failure produces HOLD rather
-than a successful cleanup claim. This custody boundary assumes the trusted root
-principal does not substitute its own private temporary directory. Source reads
-may have ordinary filesystem access-time effects; metadata regressions compare
-mutation-relevant identities, including mtime and ctime, rather than treating
-access-time updates as installation writes.
+### Tracked worktree final observation
 
-## Supported repository form and bounds
+Every tracked worktree entry is raw-hashed against the committed blob before
+bound application-source checks. Native V5 repeats the complete bounded tracked
+worktree hash after those later checks. Python V4 retains worktree observations
+and rejects generation drift during its final witness recheck.
 
-Both readers admit an ordinary SHA-1 Git repository with a physical `.git`
-directory, branch `main`, and a checksum-valid version-2 index containing only
-ordinary stage-zero entries. Split indexes, other index versions, extended
-entry flags, assume-unchanged/staged entries, and mandatory extensions produce
-HOLD before Git reads the private index. Optional index extensions are parsed
-for framing and removed from the private copy. The source index is not rewritten.
+This detects persistent drift across the verification window; it does not claim
+an atomic freeze against change-and-restore by a privileged/root-equivalent
+actor.
 
-Raw worktree bytes must match the authenticated blobs. Filter-normalized, LFS,
-or CRLF-only clean worktrees are outside this contract; ignored files remain
-outside its clean-source assertion. A packed `main` reference is supported, and
-pack/index pairs remain pinned through the witness. These are deliberate
-admission limits for an installer, rather than a promise to support every Git
-repository feature.
+## Temporary filesystem truth
 
-| Resource | Maximum |
-| --- | ---: |
-| Tracked entries and loose objects | 100,000 each |
-| Tree depth / individual tracked path | 32 levels / 4,096 bytes |
-| Index, Git stdout, aggregate tree bytes or aggregate paths | 64 MiB each |
-| One tracked file / total tracked reads | 512 MiB / 4 GiB |
-| One loose object / total loose-object copies | 256 MiB / 512 MiB |
-| Pack/index pairs / one pack / total packed bytes | 128 / 8 GiB / 32 GiB |
-| One Git command / complete witness | 20 seconds / 180 seconds |
-| Git child address space / CPU / core dump | 2 GiB / 20 seconds / 0 bytes |
+The repaired plan is **not** filesystem-read-only.
 
-The operating system may impose stricter limits. A limit breach causes HOLD;
-there is no automatic fetch, repair, garbage collection or index conversion.
+The private Python/Native Git witnesses may create bounded temporary metadata
+under `/tmp`. Those paths contain repository metadata only, not credentials,
+wallets, private keys or payment contents. They are cleanup-bound and grant no
+protected-state authority.
 
-## Identity and compatibility
+The operational plan therefore reports:
 
-| Contract | This generation |
-| --- | --- |
-| Inner source | `ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4.py` |
-| Native source | `ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.c` |
-| Manifest | `ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v2.conf` |
-| Generation ID | `voidbuye2dormantsourcegen2_` followed by SHA-256 of the exact manifest bytes |
-| Operation plan prefix | `voidbuye2dormantfirstentryinstall4_` |
-| Apply confirmation | `INSTALL_ACCEPTED_EPOCH2_DORMANT_FIRST_ENTRY_V4_CREATE_ONLY` |
-| Host policy | `VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_POLICY_V5` |
-| Parent proof | Existing `VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PARENT_PROOF_V1` |
-| Installed payload root and policy | Frozen V1 payload namespace and policy schema |
+- temporary filesystem write: true;
+- scope: private Git metadata under `/tmp`;
+- protected-state mutation: false;
+- Git fetch/network: false.
 
-The native compiler receives the exact manifest digest and length through
-`VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V5_MANIFEST_SHA256` and
-`VOID_E2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V5_MANIFEST_BYTES`. Neither source
-contains the final ELF digest or the manifest's own digest. This keeps the
-binding acyclic: source bytes, then manifest bytes, then compiled ELF.
+This is separate from a later create-only protected installation under
+`/opt`.
 
-A runtime HEAD remains operation evidence. An unrelated main commit can change
-the requested operation plan without changing the immutable application
-generation. Automatic adoption of different accepted payloads is not included.
-In particular, this source repair does not advance the separately owned
-runtime-head launcher V2 acceptance and installation lane.
+## Preserved operational boundary
 
-## Focused verification
+The parent proof still has exactly 13 roles:
 
-Run from a disposable checkout containing the exact generation files:
+`proof, manifest, installer, bootstrap_source, lock, runtime_installer,
+launcher, native, policy, python, git, checkout, git_dir`.
 
-```bash
-/usr/bin/python3 -I -S -B scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py
-/usr/bin/python3 -I -S -B scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py
-/usr/bin/python3 -I -S -B scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v5.py
-```
+V4/V5 preserve:
 
-The generation proof exercises the closed manifest, thirteen-role parent
-contract, sealed operational source access and actual Python repository
-witness. The terminal suite preserves the sixteen canonical scenarios. The
-native proof compiles the actual C source and exercises its real verification
-helpers in disposable repositories, alongside static build and inert self-test
-checks. The new cases cover split-index metadata, raw tree corruption, earlier
-tracked-file drift and private configuration/object-store boundaries.
+- root-custodied sealed Python and Git execution;
+- exact runtime HEAD as operation evidence;
+- closed source-generation membership;
+- exact plan ID and confirmation domain;
+- pre-mutation and pre-publication parent/source/tool revalidation;
+- create-only `renameat2(RENAME_NOREPLACE)` publication;
+- no rollback deletion after possible publication;
+- truthful post-publication `published_needs_inspection` receipts.
 
-No executable Git filter or configured helper is installed by these fixtures.
-Native include-C fixtures call the real helpers with explicit fixture admission;
-they do not invoke production `main` or establish a privileged live-parent
-handoff. Python fixtures that substitute admission or filesystem roots report
-that limit. A source proof does not qualify Precision.
+## Authority
 
-The workflow binds the exact event head, the intended eight-path addition,
-seven non-workflow successor blob identities, and fourteen frozen source/lock
-identities and their modes. Manual workflow replay verifies the pinned state
-without claiming an event-diff comparison. Hosted CI must qualify the completed
-successor head; the earlier #3442 green local result does not qualify it.
+This source generation does not authorize or perform:
 
-## Next lifecycle gate
+- Precision protected installation;
+- dormant binder live execution;
+- credential/private-key access;
+- signing;
+- RPC or transaction construction/submission/broadcast;
+- payment acceptance;
+- public presale or WC/VOID activation;
+- treasury/liquidity action;
+- funds movement.
 
-Source verification and a merge are not installation. The repaired generation
-requires its own reproducible binary candidate and exact acceptance, followed
-by a reviewed materializer and host-policy installation contract. The original
-Precision census still provides no evidence that this source has been fetched,
-installed or executed on that host.
+## Next gate
 
-Credential access, service changes, wallet/signing, transaction/RPC operations,
-payment acceptance, Work Credit mutation, presale/WC activation, treasury and
-funds movement remain outside this source repair.
+After exact-head CI is GREEN, derive a reproducible static native V5 candidate
+from this exact manifest/source generation, accept that candidate in a new
+versioned lock, and materialize its exact install inputs.
+
+Only after those source gates may a separately authorized Precision host-policy
+plan and protected installation be considered.
+
+PROTECT THE CORE.
