@@ -341,6 +341,13 @@ def candidate_material(report: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate(report: dict[str, Any], binary: bytes) -> None:
+    expected_keys = {
+        "marker", "version", "repository", "predecessor", "candidate_tool",
+        "source_generation", "compile_contract", "toolchain", "binary",
+        "candidate_semantics", "authority", "next_gate", "candidate_id",
+    }
+    if set(report) != expected_keys:
+        hold("candidate_report_keys_invalid")
     if report.get("marker") != MARKER or report.get("version") != 1:
         hold("candidate_report_identity_invalid")
     expected_id = (
@@ -349,20 +356,63 @@ def validate(report: dict[str, Any], binary: bytes) -> None:
     )
     if report.get("candidate_id") != expected_id:
         hold("candidate_id_invalid")
-    if report.get("repository", {}).get("accepted_parent") != PARENT_HEAD:
-        hold("candidate_parent_invalid")
-    if report.get("predecessor", {}).get("proof_git_blob_sha1") != PREDECESSOR_PROOF_BLOB:
+
+    if report.get("repository") != repository_lineage():
+        hold("candidate_repository_generation_invalid")
+
+    predecessor = report.get("predecessor", {})
+    if predecessor != {
+        "proof_path": PREDECESSOR_PROOF_REL,
+        "proof_git_blob_sha1": PREDECESSOR_PROOF_BLOB,
+        "protected_first_entry_source_accepted": True,
+        "static_first_instruction_predecessor_hold_preserved": True,
+    }:
         hold("predecessor_proof_binding_invalid")
+
+    self_raw = stable_file(SELF_REL)
+    if report.get("candidate_tool") != {
+        "path": SELF_REL,
+        "git_blob_sha1": git_blob(self_raw),
+        "bytes": len(self_raw),
+        "sha256": sha256(self_raw),
+    }:
+        hold("candidate_tool_binding_invalid")
+
+    if report.get("source_generation") != source_generation():
+        hold("candidate_source_generation_invalid")
+
     compiled = report.get("compile_contract", {})
-    if (
-        compiled.get("fixed_self") != FIXED_SELF
-        or compiled.get("required_uid") != 0
-        or compiled.get("required_gid") != 0
-        or compiled.get("production_defaults_used") is not True
-        or compiled.get("compile_flags") != COMPILE_FLAGS
-        or compiled.get("link_flags") != LINK_FLAGS
-    ):
+    if compiled != {
+        "fixed_self": FIXED_SELF,
+        "required_uid": 0,
+        "required_gid": 0,
+        "production_defaults_used": True,
+        "compile_flags": COMPILE_FLAGS,
+        "link_flags": LINK_FLAGS,
+        "compile_time_test_overrides": False,
+    }:
         hold("compile_contract_invalid")
+
+    version = run(["/usr/bin/gcc", "--version"])
+    machine = run(["/usr/bin/gcc", "-dumpmachine"])
+    fullversion = run(["/usr/bin/gcc", "-dumpfullversion", "-dumpversion"])
+    if (
+        version.returncode != 0 or version.stderr
+        or machine.returncode != 0 or machine.stderr
+        or fullversion.returncode != 0 or fullversion.stderr
+    ):
+        hold("compiler_identity_query_failed")
+    expected_toolchain = {
+        "gcc": tool_identity("/usr/bin/gcc"),
+        "readelf": tool_identity("/usr/bin/readelf"),
+        "gcc_version_line": version.stdout.decode("utf-8", "strict").splitlines()[0],
+        "gcc_dumpmachine": machine.stdout.decode("ascii", "strict").strip(),
+        "gcc_dumpversion": fullversion.stdout.decode("ascii", "strict").strip(),
+        "toolchain_revalidated_after_build": True,
+    }
+    if report.get("toolchain") != expected_toolchain:
+        hold("candidate_toolchain_generation_invalid")
+
     observed = report.get("binary", {})
     if (
         observed.get("bytes") != len(binary)
@@ -376,9 +426,21 @@ def validate(report: dict[str, Any], binary: bytes) -> None:
         or observed.get("production_fixed_self_embedded") is not True
     ):
         hold("candidate_binary_identity_invalid")
-    authority = report.get("authority")
-    if authority != AUTHORITY:
+
+    if report.get("candidate_semantics") != {
+        "static_first_instruction_candidate_evidence": True,
+        "binary_identity_acceptance_required_next": True,
+        "protected_install_and_host_qualification_required_next": True,
+        "protected_expected_source_origin_proven": False,
+    }:
+        hold("candidate_semantics_invalid")
+
+    if report.get("authority") != AUTHORITY:
         hold("candidate_authority_invalid")
+    if report.get("next_gate") != (
+        "apollyon_claim_protected_first_entry_static_candidate_lock_v1"
+    ):
+        hold("candidate_next_gate_invalid")
 
 
 def derive() -> tuple[dict[str, Any], bytes]:
