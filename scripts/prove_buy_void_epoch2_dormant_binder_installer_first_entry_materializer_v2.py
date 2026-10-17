@@ -79,20 +79,32 @@ pin(LAUNCHER_REL, LAUNCHER_BLOB)
 pin(RUNTIME_CHILD_REL, RUNTIME_CHILD_BLOB)
 
 source = materializer_raw.decode("utf-8", "strict")
-compile(source, MATERIALIZER_REL, "exec", dont_inherit=True)
+tree = ast.parse(source, MATERIALIZER_REL)
+compile(tree, MATERIALIZER_REL, "exec", dont_inherit=True)
+
+
+def assigned_literal(name: str):
+    values = []
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+            values.append(ast.literal_eval(node.value))
+    assert len(values) == 1, name
+    return values[0]
+
+
+assert assigned_literal("LOCK_BLOB") == LOCK_BLOB
+assert assigned_literal("LOCK_ID") == LOCK_ID
+assert assigned_literal("CANDIDATE_BLOB") == CANDIDATE_BLOB
+assert assigned_literal("EXPECTED_CANDIDATE_ID") == CANDIDATE_ID
+assert assigned_literal("EXPECTED_REPORT_BYTES") == 6131
+assert assigned_literal("EXPECTED_REPORT_SHA256") == EXPECTED_REPORT_SHA256
+assert assigned_literal("EXPECTED_BINARY_BYTES") == EXPECTED_BYTES
+assert assigned_literal("EXPECTED_BINARY_SHA256") == EXPECTED_SHA256
+assert assigned_literal("EXPECTED_BINARY_GIT_BLOB_SHA1") == EXPECTED_GIT_BLOB
 
 for required in (
-    'LOCK_BLOB = "' + LOCK_BLOB + '"',
-    "voidbuye2dormantfirstentrylock2_",
-    "89b8e50609c148f844a64b7566f919a32ef9f1a863318f1cc891bd3ee6539543",
-    "voidbuye2dormantfirstentrycand2_",
-    "b9c71a294db1259f8dc599aec82a246170eea75c941180e39aab23c52885e70b",
-    'CANDIDATE_BLOB = "' + CANDIDATE_BLOB + '"',
-    'EXPECTED_REPORT_BYTES = 6131',
-    EXPECTED_REPORT_SHA256,
-    'EXPECTED_BINARY_BYTES = 731_072',
-    EXPECTED_SHA256,
-    EXPECTED_GIT_BLOB,
     '"candidate_lock_v2"',
     '"CANDIDATE_LOCK_V2"',
     '"version": 2',
