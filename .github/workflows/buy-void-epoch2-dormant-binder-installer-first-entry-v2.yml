@@ -1,0 +1,161 @@
+name: Buy VOID Epoch-2 dormant binder installer first entry v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V2 source generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c)" = \
+            e3fc712709c8c3b56fbe1f7b2dc0d20ba0860dc5
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = \
+            f2d6b6d1e638695ac66570d7c7a10aaf05afe08c
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v2.md)" = \
+            eaf5c9eeee3e297dec93fb95d4ed860a1ac265ee
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = \
+            f3d6b1559be7490303cf36338c4bfa38fdaa390a
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove runtime-head privileged first entry
+        run: |
+          set -euo pipefail
+          sudo -n true
+          out="$RUNNER_TEMP/dormant-binder-installer-first-entry-v2.log"
+          python3 -I -B \
+            scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py \
+            | tee "$out"
+
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V2_PROOF_GREEN' \
+            'static_native_first_instruction=true' \
+            'generation_macros_required_no_defaults=true' \
+            'runtime_expected_head_compile_bound=false' \
+            'runtime_expected_head_strict_lowercase_hex=true' \
+            'runtime_expected_head_forwarded_unchanged=true' \
+            'missing_runtime_head_rejected_before_child=true' \
+            'uppercase_runtime_head_rejected_before_child=true' \
+            'short_runtime_head_rejected_before_child=true' \
+            'stale_candidate_lock_promoted=false' \
+            'caller_stdin_python_rejected_before_child=true' \
+            'wrong_confirmation_rejected_before_child=true' \
+            'installer_source_generation_bound_before_python=true' \
+            'native_candidate_generation_bound_before_python=true' \
+            'python_generation_bound_before_payload=true' \
+            'retained_installer_descriptor_execution=true' \
+            'post_child_generation_revalidation=true' \
+            'native_candidate_descriptor_passed_to_installer=true' \
+            'private_parent_proof_pipe_exercised=true' \
+            'parent_pid_start_executable_generation_bound=true' \
+            'running_python_generation_bound=true' \
+            'expected_plan_id_forwarded_for_apply=true' \
+            'mid_child_native_path_substitution_consumes_retained_fd=true' \
+            'abnormal_apply_receipt_conservative=true' \
+            'ld_preload_dynamic_control_executes=true' \
+            'ld_preload_cannot_reach_static_preentry_or_python_child=true' \
+            'pythonpath_dynamic_control_executes=true' \
+            'caller_python_environment_cannot_reach_child=true' \
+            'protected_install_authorized=false' \
+            'precision_apply_performed=false' \
+            'credential_content_access=false' \
+            'signing=false' \
+            'transaction=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'wc_void_market_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Verify inert V2 self-test
+        run: |
+          set -euo pipefail
+          cc -O2 -std=c11 -Wall -Wextra -Werror -static \
+            -DVOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_INSTALLER_SHA256='"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' \
+            -DVOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_INSTALLER_BYTES=1U \
+            -DVOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_NATIVE_SHA256='"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"' \
+            -DVOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_NATIVE_BYTES=1U \
+            -DVOID_E2_DORMANT_BINDER_INSTALLER_ENTRY_APPLY_CONFIRM='"INSTALL_ACCEPTED_EPOCH2_DORMANT_BINDER_V3_CREATE_ONLY"' \
+            ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c \
+            -o "$RUNNER_TEMP/first-entry-v2"
+
+          out="$RUNNER_TEMP/first-entry-v2-self.log"
+          "$RUNNER_TEMP/first-entry-v2" --self-test | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_INSTALLER_FIRST_ENTRY_V2_SELF_TEST_GREEN' "$out"
+          grep -Fx 'expected_head_compile_bound=false' "$out"
+          grep -Fx 'runtime_expected_head_strict_lowercase_hex=true' "$out"
+          grep -Fx 'runtime_expected_head_forwarded_unchanged=true' "$out"
+          grep -Fx 'protected_install_authorized=false' "$out"
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
