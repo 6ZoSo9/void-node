@@ -131,8 +131,8 @@ for forbidden in (
     "systemctl",
     "sudo",
     "/etc/systemd",
-    "attempt_claim_performed": True",
-    "training_execution_performed": True",
+    '"durable_attempt_claim_performed": True',
+    '"training_execution_performed": True',
     "eth_send",
     "crypto.sign",
 ):
