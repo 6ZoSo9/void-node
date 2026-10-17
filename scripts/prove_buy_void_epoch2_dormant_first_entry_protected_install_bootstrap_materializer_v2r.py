@@ -23,7 +23,7 @@ CANDIDATE = (
     "bootstrap_candidate_v2.py"
 )
 
-TARGET_BLOB = "4879c5c294535869ad162502a7f89e2f2ddcee84"
+TARGET_BLOB = "f79e52b5d0af99194b0cf89a73ae5bf3285d3840"
 LOCK_BLOB = "64c9a42ca1108a9e8f88218c34d53e50668c653e"
 CANDIDATE_BLOB = "4f9b5a2ca77b3aebc9e70ea835c92155601a1a06"
 
@@ -70,6 +70,7 @@ for required in (
     'protected_bootstrap_install_authorized=false',
     'protected_installer_apply_authorized=false',
     'live_execution_authorized=false',
+    'next_gate=void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v2r',
     'funds_movement=false',
 ):
     assert required in source, required
