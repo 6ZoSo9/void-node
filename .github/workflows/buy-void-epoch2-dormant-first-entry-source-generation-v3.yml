@@ -28,7 +28,7 @@ on:
       - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.yml"
       - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v2.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json"
       - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json"
       - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v4.json"
       - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf"
@@ -61,7 +61,7 @@ on:
       - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.md"
       - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-materializer-v2.yml"
       - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json"
-      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v2.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json"
       - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json"
       - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v4.json"
       - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v1.conf"
@@ -159,8 +159,8 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json)" = f8ff6fbb855aecafc329cd60622cf3af782745a3
           test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v1.json | cut -d" " -f1)" = 100644
           test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json | cut -d" " -f1)" = 100644
-          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v2.json)" = 471a52641135ee3ce31d521980e6ea37af18ce58
-          test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v2.json | cut -d" " -f1)" = 100644
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json)" = 471a52641135ee3ce31d521980e6ea37af18ce58
+          test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json | cut -d" " -f1)" = 100644
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json)" = 64c9a42ca1108a9e8f88218c34d53e50668c653e
           test "$(git ls-tree HEAD -- ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v3.json | cut -d" " -f1)" = 100644
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v4.json)" = 57ecc08d465fe2a3c395546d349864312cd08a3f
