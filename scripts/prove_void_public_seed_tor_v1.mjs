@@ -12,6 +12,7 @@ import {
 } from "./qualify_void_public_seed_tor_v1.mjs";
 import {
   managedPathV1,
+  normalizeP2PMappingV1,
   renderTorSeedV1,
   validateLocalReadyV1,
   writeManagedFileV1,
@@ -273,7 +274,11 @@ try {
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "void-tor-seed-proof-"));
 try {
   const fakeTor = path.join(temporary, "tor");
-  fs.writeFileSync(fakeTor, "#!/usr/bin/env bash\nexit 0\n", { mode: 0o700 });
+  fs.writeFileSync(
+    fakeTor,
+    "#!/usr/bin/env bash\nprintf 'Tor version 0.4.8.0.\\n'\n",
+    { mode: 0o700 },
+  );
   const options = {
     repoRoot: ROOT,
     nodePath: process.execPath,
@@ -289,6 +294,37 @@ try {
   assert.match(rendered.torrc, /SocksPort 127\.0\.0\.1:19051 IsolateSOCKSAuth/);
   assert.match(rendered.torrc, /HiddenServiceVersion 3/);
   assert.match(rendered.torrc, /HiddenServicePort 80 127\.0\.0\.1:4111/);
+  assert.equal(
+    (rendered.torrc.match(/^HiddenServicePort /gm) || []).length,
+    1,
+    "default render must preserve the historical HTTP-only mapping",
+  );
+  assert.equal(normalizeP2PMappingV1({}), null);
+  assert.deepEqual(
+    normalizeP2PMappingV1({ p2pVirtualPort: 4700, p2pTargetPort: 4700 }),
+    { virtualPort: 4700, targetPort: 4700 },
+  );
+  assert.throws(
+    () => normalizeP2PMappingV1({ p2pVirtualPort: 4700 }),
+    /supplied together/,
+  );
+  assert.throws(
+    () => normalizeP2PMappingV1({ p2pVirtualPort: 4701, p2pTargetPort: 4701 }),
+    /must be exact 4700/,
+  );
+  const p2pRendered = renderTorSeedV1({
+    ...options,
+    p2pVirtualPort: 4700,
+    p2pTargetPort: 4700,
+  });
+  assert.match(p2pRendered.torrc, /HiddenServicePort 80 127\.0\.0\.1:4111/);
+  assert.match(p2pRendered.torrc, /HiddenServicePort 4700 127\.0\.0\.1:4700/);
+  assert.equal(
+    (p2pRendered.torrc.match(/^HiddenServicePort /gm) || []).length,
+    2,
+    "P2P render must add exactly one mapping without replacing HTTP",
+  );
+  assert.doesNotMatch(p2pRendered.torrc, /DNSPort|TransPort|0\.0\.0\.0|100\./);
   assert.doesNotMatch(rendered.torrc, /DNSPort|TransPort|0\.0\.0\.0|100\./);
   const combined = `${rendered.gatewayUnit}\n${rendered.torUnit}`;
   assert.doesNotMatch(combined, /WorkingDirectory=|cloudflare|tailscale|--token|0\.0\.0\.0/iu);
@@ -302,6 +338,61 @@ try {
     const verified = childProcess.spawnSync("systemd-analyze", ["verify", gateway, tor], { encoding: "utf8" });
     assert.equal(verified.status, 0, verified.stderr || verified.stdout);
   }
+  const installerCli = path.join(ROOT, "scripts", "install_void_public_seed_tor_v1.mjs");
+  const repositoryHead = childProcess.spawnSync(
+    "git",
+    ["-C", ROOT, "rev-parse", "HEAD"],
+    { encoding: "utf8" },
+  ).stdout.trim();
+  const exactP2PPlan = childProcess.spawnSync(
+    process.execPath,
+    [
+      installerCli,
+      "plan",
+      "--repo-root", ROOT,
+      "--expected-head", repositoryHead,
+      "--tor", fakeTor,
+      "--p2p-virtual-port", "4700",
+      "--p2p-target-port", "4700",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(exactP2PPlan.status, 0, exactP2PPlan.stderr || exactP2PPlan.stdout);
+  assert.match(exactP2PPlan.stdout, /p2p_hidden_service_mapping_enabled=true/);
+  assert.match(exactP2PPlan.stdout, /p2p_virtual_port=4700/);
+  assert.match(exactP2PPlan.stdout, /p2p_target=127\.0\.0\.1:4700/);
+
+  const missingTargetPlan = childProcess.spawnSync(
+    process.execPath,
+    [
+      installerCli,
+      "plan",
+      "--repo-root", ROOT,
+      "--expected-head", repositoryHead,
+      "--tor", fakeTor,
+      "--p2p-virtual-port", "4700",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.notEqual(missingTargetPlan.status, 0);
+  assert.match(missingTargetPlan.stderr, /supplied together/);
+
+  const wrongP2PPlan = childProcess.spawnSync(
+    process.execPath,
+    [
+      installerCli,
+      "plan",
+      "--repo-root", ROOT,
+      "--expected-head", repositoryHead,
+      "--tor", fakeTor,
+      "--p2p-virtual-port", "4701",
+      "--p2p-target-port", "4701",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.notEqual(wrongP2PPlan.status, 0);
+  assert.match(wrongP2PPlan.stderr, /must be exact 4700/);
+  console.log("[PASS] exact optional P2P hidden-service mapping contract");
   console.log("[PASS] Tor v3 loopback-only systemd render");
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });
@@ -371,6 +462,10 @@ console.log("[PASS] qualifier CLI entrypoint executes main");
 console.log(`${MARKER}_GREEN`);
 console.log("tor_v3=true");
 console.log("onion_identity_persistent=true");
+console.log("http_seed_mapping_preserved=true");
+console.log("p2p_hidden_service_mapping_opt_in=true");
+console.log("p2p_hidden_service_mapping_exact_4700=true");
+console.log("p2p_target_must_preexist_before_activation=true");
 console.log("socks_proxy_loopback_preflight=true");
 console.log("activation_confirmation_precedes_mutation=true");
 console.log("activation_cleanup_covers_prestart_failures=true");

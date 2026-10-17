@@ -46,6 +46,31 @@ function quoteTorrc(value) {
   return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
+export function normalizeP2PMappingV1(options = {}) {
+  const rawVirtual = options.p2pVirtualPort;
+  const rawTarget = options.p2pTargetPort;
+  const virtualMissing = rawVirtual === undefined || rawVirtual === null;
+  const targetMissing = rawTarget === undefined || rawTarget === null;
+  if (virtualMissing && targetMissing) return null;
+  if (virtualMissing !== targetMissing) {
+    fail("P2P virtual and target ports must be supplied together");
+  }
+  const virtualPort = Number(rawVirtual);
+  const targetPort = Number(rawTarget);
+  for (const [label, value] of [
+    ["P2P virtual port", virtualPort],
+    ["P2P target port", targetPort],
+  ]) {
+    if (!Number.isInteger(value) || value < 1 || value > 65535) {
+      fail(`${label} is invalid`);
+    }
+  }
+  if (virtualPort !== 4700 || targetPort !== 4700) {
+    fail("P2P hidden-service mapping must be exact 4700 -> 127.0.0.1:4700");
+  }
+  return Object.freeze({ virtualPort, targetPort });
+}
+
 function exactRepository(repoRoot, expectedHead) {
   const root = fs.realpathSync(path.resolve(repoRoot));
   if (!/^[0-9a-f]{40}$/.test(expectedHead)) fail("expected head must be 40 lowercase hexadecimal characters");
@@ -173,6 +198,7 @@ function disableAutoStartV1({ stop = false } = {}) {
 }
 
 export function renderTorSeedV1(options) {
+  const p2pMapping = normalizeP2PMappingV1(options);
   const repoRoot = path.resolve(options.repoRoot);
   const nodePath = path.resolve(options.nodePath);
   const torPath = path.resolve(options.torPath);
@@ -195,6 +221,9 @@ export function renderTorSeedV1(options) {
     `HiddenServiceDir ${quoteTorrc(hiddenService)}`,
     "HiddenServiceVersion 3",
     `HiddenServicePort ${options.virtualPort} 127.0.0.1:${options.gatewayPort}`,
+    ...(p2pMapping
+      ? [`HiddenServicePort ${p2pMapping.virtualPort} 127.0.0.1:${p2pMapping.targetPort}`]
+      : []),
     "",
   ].join("\n");
   const gatewayUnit = [
@@ -259,7 +288,14 @@ export function renderTorSeedV1(options) {
 
 function parseArgs(argv) {
   const command = argv.shift() || "plan";
-  const values = { command, gatewayPort: 4111, socksPort: 19051, virtualPort: 80 };
+  const values = {
+    command,
+    gatewayPort: 4111,
+    socksPort: 19051,
+    virtualPort: 80,
+    p2pVirtualPort: null,
+    p2pTargetPort: null,
+  };
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index];
     const value = argv[index + 1];
@@ -276,6 +312,18 @@ function parseArgs(argv) {
 
 function normalizedOptions(args) {
   const repoRoot = exactRepository(args.repoRoot, args.expectedHead);
+  const p2pMapping = normalizeP2PMappingV1(args);
+  if (p2pMapping) {
+    if (p2pMapping.virtualPort === args.virtualPort) {
+      fail("P2P virtual port must differ from the HTTP seed virtual port");
+    }
+    if (
+      p2pMapping.targetPort === args.gatewayPort ||
+      p2pMapping.targetPort === args.socksPort
+    ) {
+      fail("P2P target port must differ from the gateway and SOCKS ports");
+    }
+  }
   const defaults = {
     configRoot: path.join(os.homedir(), ".config", "void", "tor-public-seed-v1"),
     dataRoot: path.join(os.homedir(), ".local", "share", "void", "tor-public-seed-v1"),
@@ -313,6 +361,8 @@ function normalizedOptions(args) {
     nodePath,
     torPath,
     torVersion,
+    p2pVirtualPort: p2pMapping ? p2pMapping.virtualPort : null,
+    p2pTargetPort: p2pMapping ? p2pMapping.targetPort : null,
   };
 }
 
@@ -396,6 +446,12 @@ async function activate(options, rendered) {
     for (const port of [options.gatewayPort, options.socksPort]) {
       if (!(await portAvailable(port))) fail(`required loopback port is occupied: ${port}`);
     }
+    if (
+      options.p2pTargetPort !== null &&
+      (await portAvailable(options.p2pTargetPort))
+    ) {
+      fail(`required P2P target is not listening: ${options.p2pTargetPort}`);
+    }
     run("systemctl", ["--user", "enable", GATEWAY_UNIT, TOR_UNIT]);
     for (const unit of [GATEWAY_UNIT, TOR_UNIT]) {
       if (!unitIsEnabledV1(unit)) fail(`${unit} did not become enabled`);
@@ -456,6 +512,11 @@ async function main() {
     console.log(`config_root=${options.configRoot}`);
     console.log(`data_root=${options.dataRoot}`);
     console.log(`state_root=${options.stateRoot}`);
+    console.log(`p2p_hidden_service_mapping_enabled=${options.p2pVirtualPort !== null}`);
+    if (options.p2pVirtualPort !== null) {
+      console.log(`p2p_virtual_port=${options.p2pVirtualPort}`);
+      console.log(`p2p_target=127.0.0.1:${options.p2pTargetPort}`);
+    }
     console.log("dns_required=false");
     console.log("services_changed=false");
     return;
@@ -473,6 +534,11 @@ async function main() {
   console.log(`tor_unit=${path.join(unitDir, TOR_UNIT)}`);
   console.log(`identity_dir=${rendered.paths.hiddenService}`);
   console.log("identity_preserved=true");
+  console.log(`p2p_hidden_service_mapping_enabled=${options.p2pVirtualPort !== null}`);
+  if (options.p2pVirtualPort !== null) {
+    console.log(`p2p_virtual_port=${options.p2pVirtualPort}`);
+    console.log(`p2p_target=127.0.0.1:${options.p2pTargetPort}`);
+  }
   console.log("services_started=false");
   if (options.command === "install") console.log("services_enabled=false");
   if (options.command === "activate") await activate(options, rendered);
