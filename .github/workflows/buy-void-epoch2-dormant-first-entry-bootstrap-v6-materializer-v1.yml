@@ -1,0 +1,163 @@
+name: Buy VOID Epoch-2 dormant first-entry bootstrap V6 materializer v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+      - "scripts/prove_buy_void_epoch2_dormant_first-entry-bootstrap-v6-candidate-v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+      - "scripts/prove_buy_void_epoch2_dormant_first-entry-bootstrap-v6-candidate-v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V6 materializer generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          lock_head=a6f5879c2b672deb52f7a36c395dd3fbd2aa0bbc
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$lock_head" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md' \
+            'scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$lock_head" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py)" = 3a937c756a91ad2565897f1ae5d881f9fa2f41c6
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py)" = ad7aaf4eb2fa45a262dcfe7b5a78182b6f1cd182
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md)" = 8fc13c7a01d239c64caf777e6c54876223e541b3
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f5b03c6b81016edf21f605099e0ef8976f40e107
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = b963ac9ef0b9c8ac685763b3a82375f970ef12df
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = a317d3dce324337f107909bd6e33e98622b3ef09
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = 6e0630af72111bd9976dcc38cdcdada1904dd067
+
+          git diff --check "$lock_head" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and independent materializer proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py",
+              "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_MATERIALIZER_SYNTAX_GREEN")
+          PY
+
+          out="$RUNNER_TEMP/materializer-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py | tee "$out"
+
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_MATERIALIZER_V1_PROOF_GREEN' \
+            'materializer_blob_bound=true' \
+            'accepted_bootstrap_v6_lock_bound=true' \
+            'candidate_tool_blob_bound=true' \
+            'source_generation_manifest_bound=true' \
+            'two_materializations_byte_identical=true' \
+            'descriptor_independent_candidate_bound=true' \
+            'accepted_binary_git_blob_sha1=a91707c3e5803071fc73c3451c9bcb3b774f8b48' \
+            'accepted_binary_bytes=874608' \
+            'accepted_binary_sha256=c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b' \
+            'manifest_bytes=2382' \
+            'manifest_sha256=aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662' \
+            'create_only_output_replay_rejected=true' \
+            'artifact_publication_only=true' \
+            'protected_install_authorized=false' \
+            'live_execution_authorized=false' \
+            'credential_access_authorized=false' \
+            'signing_authorized=false' \
+            'transaction_authorized=false' \
+            'rpc_call_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Materialize exact accepted V6 install inputs
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/bootstrap-v6-install-inputs"
+          receipt="$RUNNER_TEMP/epoch2-dormant-first-entry-bootstrap-v6-materialize.log"
+
+          python3 -I -B scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py --derive-dir "$out" | tee "$receipt"
+
+          bootstrap="$out/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6"
+          manifest="$out/source-generation-v3.conf"
+
+          test "$(stat -c %s "$bootstrap")" = 874608
+          test "$(stat -c %a "$bootstrap")" = 555
+          test "$(sha256sum "$bootstrap" | awk '{print $1}')" = c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b
+          test "$(git hash-object "$bootstrap")" = a91707c3e5803071fc73c3451c9bcb3b774f8b48
+
+          test "$(stat -c %s "$manifest")" = 2382
+          test "$(stat -c %a "$manifest")" = 444
+          test "$(sha256sum "$manifest" | awk '{print $1}')" = aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662
+
+          readelf -lW "$bootstrap" > "$RUNNER_TEMP/readelf.txt"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/readelf.txt"; then
+            echo materialized_bootstrap_has_dynamic_interpreter >&2
+            exit 1
+          fi
+
+          cp "$receipt" "$out/epoch2-dormant-first-entry-bootstrap-v6-materialize.log"
+
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_MATERIALIZER_V1_DERIVE_GREEN' "$receipt"
+          grep -Fx 'binary_git_blob_sha1=a91707c3e5803071fc73c3451c9bcb3b774f8b48' "$receipt"
+          grep -Fx 'descriptor_independent_candidate_bound=true' "$receipt"
+          grep -Fx 'artifact_publication_only=true' "$receipt"
+          grep -Fx 'protected_install_authorized=false' "$receipt"
+          grep -Fx 'live_execution_authorized=false' "$receipt"
+          grep -Fx 'funds_movement=false' "$receipt"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-dormant-first-entry-bootstrap-v6-install-inputs-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/bootstrap-v6-install-inputs
+          if-no-files-found: error
+          retention-days: 7
+
+      - run: |
+          set -euo pipefail
+          git diff --check
