@@ -1,0 +1,192 @@
+# Buy VOID presale receipt/live-process host evidence V2
+
+Marker:
+`VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2`.
+
+Status: **source/CI-only repair; no Precision host collection is authorized or
+performed by this source gate**.
+
+## Purpose
+
+V2 repairs the exact lane-1 failure observed during the separately authorized
+Precision presale host-evidence retry.
+
+The reviewed V1 collector authenticated `/run/user/1000` and its user-bus socket,
+but invoked:
+
+```text
+/usr/bin/systemctl --user show void-node-live.service ...
+```
+
+from the root collector process. Precision returned:
+
+```text
+Failed to connect to bus: Operation not permitted
+```
+
+The read-only identity diagnostic then established:
+
+```text
+root_direct_valid=false
+setpriv_identity_green=true
+setpriv_user_valid=true
+runuser_user_valid=true
+setpriv_runuser_fields_equal=true
+diagnosis=root_peer_credentials_rejected_runtime_identity_drop_required
+```
+
+The same diagnostic proved the accepted numeric identity-drop contract:
+
+```text
+euid=1000
+egid=1000
+groups=[]
+CapInh=0
+CapPrm=0
+CapEff=0
+CapBnd=0
+CapAmb=0
+NoNewPrivs=1
+```
+
+V2 changes only the user-systemd metadata-query boundary. Root remains required
+for the protected receipt, selector, process, and source-custody observations
+inherited from V1.
+
+## Exact parent
+
+V2 is stacked on the exact final V1 generation:
+
+```text
+parent_pr=#3510
+parent_head=bd761f3725d2ad9ccda66819308a62cb45b39fca
+parent_source_blob=ba69d46ffa6f7d178de447b469b578fa8e87ea3b
+parent_proof_blob=350354779caac35d7442b1315826b8b0c27463e2
+```
+
+The future V2 host process descriptor-reads both exact parent files from the
+root-custodied materialized generation, verifies their raw Git blobs, imports
+V1 only after the adapter is installed, and revalidates both file generations
+after collection.
+
+## Runtime-user systemd adapter
+
+V2 temporarily synchronizes a narrowly scoped replacement for Node's built-in
+`spawnSync` export before importing exact V1.
+
+Only this exact V1 invocation is intercepted:
+
+```text
+command=/usr/bin/systemctl
+args=
+  --user
+  show
+  void-node-live.service
+  --property=ActiveState
+  --property=MainPID
+  --property=InvocationID
+  --property=WorkingDirectory
+  --property=NeedDaemonReload
+  --no-pager
+encoding=utf8
+stdio=ignore,pipe,pipe
+timeout=10000
+```
+
+The environment must contain exactly:
+
+```text
+PATH=/usr/bin:/bin
+HOME=/nonexistent
+LANG=C
+LC_ALL=C
+XDG_RUNTIME_DIR=/run/user/<uid>
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus
+```
+
+The adapter executes the query through root-custodied retained descriptors for
+`/usr/bin/setpriv` and `/usr/bin/systemctl` with:
+
+```text
+--reuid=<runtime uid>
+--regid=<runtime gid>
+--clear-groups
+--no-new-privs
+--inh-caps=-all
+--ambient-caps=-all
+--bounding-set=-all
+```
+
+Every non-systemctl `spawnSync` call passes through unchanged. The built-in
+export is restored in `finally` after either success or failure, and nested
+patch activation is rejected.
+
+## Working-directory canonicalization
+
+The diagnostic reported:
+
+```text
+WorkingDirectory=/opt/void-node-live/current
+```
+
+V1 compares that systemd field against `realpath(/proc/<pid>/cwd)`. The process
+cwd resolves to the retained release directory, not the `current` symlink.
+
+V2 therefore canonicalizes only the returned `WorkingDirectory` field after:
+
+1. requiring an absolute canonical input spelling;
+2. verifying every parent directory is root-owned and not group/other-writable;
+3. verifying the visible leaf is a root-owned directory or symlink;
+4. resolving the target through `realpath`;
+5. verifying the resolved directory and all ancestors are root-custodied; and
+6. reobserving the visible leaf and resolved target generation.
+
+All other systemctl fields are passed through exactly. V2 requires exactly three
+successful systemd queries, matching the exact pinned V1 collection sequence.
+
+## Inherited evidence contract
+
+After the query adapter is installed, exact V1 remains the execution engine.
+V2 requires V1's complete positive evidence contract, including:
+
+- authenticated deployment receipt verification;
+- retained deployment-receipt descriptor custody;
+- same-live-process selector generation verification;
+- installed live-process receipt exact-byte equality;
+- source-custody requalification;
+- pre/post process and systemd generation stability; and
+- terminal selector verification after the final receipt read.
+
+V2 also rejects any V1 result that changes the negative authority contract.
+
+## Authority
+
+Even a future GREEN V2 host receipt keeps false:
+
+```text
+process_environment_read_performed
+filesystem_write_performed
+network_contact_performed
+receipt_publication_performed
+receipt_retirement_performed
+service_mutation_performed
+credential_access
+wallet_or_signer_access
+signing
+transaction_submission
+payment_acceptance
+public_presale_activation
+wc_void_market_activation
+treasury_or_liquidity_action
+funds_movement
+production_host_evidence_authority
+```
+
+This source gate does not run Precision, restart a service, reload systemd,
+read process environment, access credentials or keys, accept payment, activate
+the presale/WC market, execute the custody rollback challenge, mutate storage,
+or move funds.
+
+A future Precision retry remains separately operation-bound.
+
+**PROTECT THE CORE.**

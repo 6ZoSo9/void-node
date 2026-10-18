@@ -1,0 +1,165 @@
+name: Buy VOID presale receipt live-process host evidence v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-receipt-live-process-host-evidence-v2.yml"
+      - "docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md"
+      - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts"
+      - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts"
+      - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+      - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-receipt-live-process-host-evidence-v2.yml"
+      - "docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md"
+      - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts"
+      - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts"
+      - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+      - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Bind exact lane-1 V2 repair generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_PARENT: bd761f3725d2ad9ccda66819308a62cb45b39fca
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE" = "$EXPECTED_PARENT"
+              base="$PR_BASE"
+              ;;
+            workflow_dispatch)
+              base="$EXPECTED_PARENT"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-receipt-live-process-host-evidence-v2.yml' \
+            'docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md' \
+            'ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts' \
+            'scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = a68ec39cb5da6eaf097cef0cce5cadc9dfe2a84e
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = b78d82f11cba8e134273c9eee2c35922e10e1900
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md)" = cb866314053a2b82de27144abaa165a896873e69
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = ba69d46ffa6f7d178de447b469b578fa8e87ea3b
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 350354779caac35d7442b1315826b8b0c27463e2
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove runtime-user systemd identity repair
+        run: |
+          set -euo pipefail
+          npm run typecheck
+
+          proof="$RUNNER_TEMP/receipt-live-process-host-evidence-v2-proof.log"
+          npx tsx scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts |
+            tee "$proof"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2_PROOF_GREEN' \
+            'exact_parent_v1_source_blob_bound=true' \
+            'exact_parent_v1_proof_blob_bound=true' \
+            'diagnosed_root_peer_credential_failure_repaired=true' \
+            'systemctl_query_exact_shape_required=true' \
+            'systemctl_environment_exact_shape_required=true' \
+            'systemd_working_directory_root_custody_required=true' \
+            'systemd_working_directory_symlink_canonicalized=true' \
+            'numeric_runtime_uid_gid_drop_required=true' \
+            'supplementary_groups_cleared=true' \
+            'no_new_privileges_required=true' \
+            'inheritable_permitted_effective_bounding_ambient_caps_cleared=true' \
+            'setpriv_descriptor_execution_required=true' \
+            'systemctl_descriptor_execution_required=true' \
+            'builtin_spawn_sync_patch_reaches_named_import=true' \
+            'builtin_spawn_sync_patch_restored_after_success=true' \
+            'builtin_spawn_sync_patch_restored_after_failure=true' \
+            'nested_patch_rejected=true' \
+            'non_systemctl_spawn_sync_passthrough=true' \
+            'parent_v1_positive_evidence_contract_inherited=true' \
+            'parent_v1_negative_authority_contract_inherited=true' \
+            'process_environment_read_performed=false' \
+            'filesystem_write_performed=false' \
+            'service_mutation_performed=false' \
+            'credential_access=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false' \
+            'production_host_evidence_authority=false'
+          do
+            grep -Fx "$marker" "$proof"
+          done
+
+          self="$RUNNER_TEMP/receipt-live-process-host-evidence-v2-self-test.log"
+          npx tsx ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts --self-test |
+            tee "$self"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2_SELF_TEST_GREEN' \
+            'parent_v1_source_and_proof_bound=true' \
+            'root_direct_user_bus_query_replaced=true' \
+            'numeric_runtime_uid_gid_drop_required=true' \
+            'supplementary_groups_cleared=true' \
+            'no_new_privileges_required=true' \
+            'all_capability_sets_cleared=true' \
+            'setpriv_and_systemctl_descriptor_execution_required=true' \
+            'systemd_working_directory_root_custody_required=true' \
+            'systemd_working_directory_canonicalization_required=true' \
+            'builtin_spawn_sync_patch_scoped_and_restored=true' \
+            'non_systemctl_spawn_sync_passthrough_required=true' \
+            'filesystem_write_performed=false' \
+            'service_mutation_performed=false' \
+            'credential_access=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false' \
+            'production_host_evidence_authority=false'
+          do
+            grep -Fx "$marker" "$self"
+          done
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
