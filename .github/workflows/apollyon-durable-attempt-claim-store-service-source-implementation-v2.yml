@@ -95,11 +95,11 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            dce36dbb5676d2776ad6f36313a6bd2b8656ab2d
+            78242e51f5b332d9057bf17d3842328ffd300b65
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            978cee26fc8071f3caf48283c2c68607aa193961
+            3586da4600f9d7540e7d5decc18bc77046a1c058
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            87a0b1cd5536ab7e55453ec404692e0c2abfb712
+            fb8e93e750133d02d3489268724372ea822c00a6
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
             93582c324ca85aeff56eb61f82b32f1e4c18dfe9
@@ -148,6 +148,7 @@ jobs:
             'retained_root_identity_bound=true' \
             'active_and_immutable_generation_cross_bound=true' \
             'slot_before_claim_durable_order_proven=true' \
+            'private_pending_readwrite_same_descriptor_verification=true' \
             'private_pending_fsync_link_directory_fsync_proven=true' \
             'exact_final_reread_proven=true' \
             'exact_replay_idempotent=true' \
