@@ -171,3 +171,36 @@ the subcommand, then separately injects both an `OSError` spawn failure and
 `subprocess.TimeoutExpired` and requires those normalized HOLD reasons.
 
 No host execution authority changes.
+
+
+## Delegated root execution isolation
+
+A future `--run` is accepted only under Python isolated/safe-path mode. The
+wrapper refuses the collection before checkout or qualifier access if
+`sys.flags.isolated != 1`, safe-path mode is absent, or any active
+`sys.path` entry resolves inside the fixed checkout. This prevents
+checkout-local Python modules from satisfying absolute imports when the exact
+qualifier and installer source are executed in memory.
+
+The exact V5 qualifier source remains byte-identical. Before its
+`collect(expected_head)` call can load the exact protected installer, the
+wrapper replaces only the qualifier's installer-loader boundary with a reviewed
+guard. The returned exact installer module must expose the reviewed
+`CLEAN_GIT_ENV`; the guard then adds command-scope Git configuration through
+the environment:
+
+- `core.fsmonitor=false`;
+- `core.hooksPath=/dev/null`;
+- `HOME=/nonexistent`;
+- `GIT_TERMINAL_PROMPT=0`;
+- `GIT_ATTR_NOSYSTEM=1`.
+
+Those variables are inherited across the installer's fixed `setpriv` Git
+query, so repository-local FSMonitor cannot execute as the runtime UID during a
+root-started qualification. Hosted proof creates a disposable repository with a
+local FSMonitor executable and requires that it is not invoked under the exact
+delegated environment. It separately invokes the wrapper without `-I` and
+requires a machine-readable `python_isolated_mode_required` HOLD.
+
+No accepted qualifier/installer source blob is rewritten and no additional
+runtime/payment authority is granted.

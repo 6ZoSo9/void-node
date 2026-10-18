@@ -69,9 +69,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = c7ff3b61d608ecaefa96a0520a9c94a86a2611f1
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 436aab2f41426db0fc2597fb312ae918aee9606f
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 492ac38f13be547c77acc159cf2e86a8be5875db
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = a4e643ca4e1ecee7198ac06c202bf286972063d0
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = b024022b9b7b84e1a4fbc2ff99f49511735e0531
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = d583f7bcde19864f8b191245759085abe81e2c67
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = a04c2e7665294cdd142426e9eb01ee27c5292b8d
@@ -112,6 +112,10 @@ jobs:
             'pathname_swap_adversary_inherited=true' \
             'required_true_field_downgrade_rejected=true' \
             'authority_overclaim_rejected=true' \
+            'python_isolated_mode_enforced=true' \
+            'delegated_installer_git_fsmonitor_disabled=true' \
+            'delegated_installer_git_hooks_disabled=true' \
+            'delegated_local_fsmonitor_execution_rejected=true' \
             'git_fsmonitor_disabled=true' \
             'git_spawn_failure_maps_to_hold=true' \
             'git_timeout_maps_to_hold=true' \
@@ -139,6 +143,9 @@ jobs:
             'parent_host_evidence_plan_bound=true' \
             'exact_qualifier_source_and_proof_bound=true' \
             'root_required_for_future_run=true' \
+            'python_isolated_mode_required_for_future_run=true' \
+            'delegated_installer_git_fsmonitor_disabled=true' \
+            'delegated_installer_git_hooks_disabled=true' \
             'installed_generation_before_middle_after_stability_required=true' \
             'double_descriptor_bound_native_self_test_required=true' \
             'native_self_test_execution_performed_by_future_host_run=true' \

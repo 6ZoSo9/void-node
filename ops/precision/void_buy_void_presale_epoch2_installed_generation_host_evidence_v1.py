@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 import types
 from typing import Any
 
@@ -49,8 +50,66 @@ GIT_ENV = {
 }
 
 
+EXPECTED_DELEGATED_INSTALLER_GIT_ENV = {
+    "PATH": "/usr/bin:/bin",
+    "HOME": "/home/zoso",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_NO_REPLACE_OBJECTS": "1",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+}
+
+DELEGATED_GIT_CONFIG = {
+    "HOME": "/nonexistent",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_ATTR_NOSYSTEM": "1",
+    "GIT_CONFIG_COUNT": "2",
+    "GIT_CONFIG_KEY_0": "core.fsmonitor",
+    "GIT_CONFIG_VALUE_0": "false",
+    "GIT_CONFIG_KEY_1": "core.hooksPath",
+    "GIT_CONFIG_VALUE_1": "/dev/null",
+}
+
+
 class EvidenceError(RuntimeError):
     pass
+
+
+def _require_isolated_python() -> None:
+    if sys.flags.isolated != 1 or not getattr(sys.flags, "safe_path", False):
+        raise EvidenceError("python_isolated_mode_required")
+    checkout = FIXED_CHECKOUT.resolve(strict=False)
+    for entry in sys.path:
+        if not isinstance(entry, str) or entry == "":
+            raise EvidenceError("python_path_not_isolated")
+        candidate = Path(entry).resolve(strict=False)
+        if candidate == checkout or checkout in candidate.parents:
+            raise EvidenceError("python_path_checkout_exposure")
+
+
+def _harden_installer_git_environment(installer: types.ModuleType) -> types.ModuleType:
+    clean = getattr(installer, "CLEAN_GIT_ENV", None)
+    if clean != EXPECTED_DELEGATED_INSTALLER_GIT_ENV:
+        raise EvidenceError("delegated_installer_git_environment_invalid")
+    hardened = dict(clean)
+    hardened.update(DELEGATED_GIT_CONFIG)
+    installer.CLEAN_GIT_ENV = hardened
+    return installer
+
+
+def _guard_qualifier_installer_loader(qualifier: types.ModuleType) -> None:
+    original = getattr(qualifier, "_load_installer", None)
+    if not callable(original):
+        raise EvidenceError("qualifier_installer_loader_missing")
+
+    def guarded_load_installer():
+        installer = original()
+        return _harden_installer_git_environment(installer)
+
+    qualifier._load_installer = guarded_load_installer
 
 
 def git_blob(raw: bytes) -> str:
@@ -160,6 +219,7 @@ def load_qualifier(expected_head: str) -> types.ModuleType:
         raise EvidenceError("qualifier_marker_mismatch")
     if not callable(getattr(module, "collect", None)):
         raise EvidenceError("qualifier_collect_missing")
+    _guard_qualifier_installer_loader(module)
     return module
 
 
@@ -228,6 +288,7 @@ def validate_result(result: object, expected_head: str) -> dict[str, Any]:
 
 
 def collect(expected_head: str) -> dict[str, Any]:
+    _require_isolated_python()
     if os.geteuid() != 0:
         raise EvidenceError("root_required_for_epoch2_host_evidence")
     checkout = checkout_snapshot(expected_head)
@@ -304,6 +365,9 @@ def self_test() -> None:
     print("parent_host_evidence_plan_bound=true")
     print("exact_qualifier_source_and_proof_bound=true")
     print("root_required_for_future_run=true")
+    print("python_isolated_mode_required_for_future_run=true")
+    print("delegated_installer_git_fsmonitor_disabled=true")
+    print("delegated_installer_git_hooks_disabled=true")
     print("installed_generation_before_middle_after_stability_required=true")
     print("double_descriptor_bound_native_self_test_required=true")
     print("native_self_test_execution_performed_by_future_host_run=true")

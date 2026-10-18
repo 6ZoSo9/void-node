@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -15,7 +16,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "c7ff3b61d608ecaefa96a0520a9c94a86a2611f1"
+TARGET_BLOB = "a4e643ca4e1ecee7198ac06c202bf286972063d0"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -81,6 +82,13 @@ for required in (
     "except (OSError, subprocess.TimeoutExpired) as exc:",
     '"git_execution_failed:" + type(exc).__name__',
     '"core.fsmonitor=false"',
+    '"GIT_CONFIG_COUNT": "2"',
+    '"GIT_CONFIG_KEY_0": "core.fsmonitor"',
+    '"GIT_CONFIG_VALUE_0": "false"',
+    '"GIT_CONFIG_KEY_1": "core.hooksPath"',
+    '"GIT_CONFIG_VALUE_1": "/dev/null"',
+    "sys.flags.isolated != 1",
+    "_guard_qualifier_installer_loader(module)",
 ):
     assert required in source, required
 
@@ -116,6 +124,9 @@ functions = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for name in (
+    "_require_isolated_python",
+    "_harden_installer_git_environment",
+    "_guard_qualifier_installer_loader",
     "_git",
     "checkout_snapshot",
     "exact_git_object",
@@ -140,12 +151,18 @@ for name, fn in functions.items():
 assert run_calls == ["_git"], run_calls
 
 collect_source = ast.get_source_segment(source, functions["collect"]) or ""
+assert "_require_isolated_python()" in collect_source
 assert "os.geteuid() != 0" in collect_source
+assert collect_source.index("_require_isolated_python()") < collect_source.index("os.geteuid() != 0")
 assert "checkout_snapshot(expected_head)" in collect_source
 assert "load_qualifier(expected_head)" in collect_source
 assert "qualifier.collect(expected_head)" in collect_source
 assert "qualifier.main" not in collect_source
 assert "subprocess." not in collect_source
+
+load_source = ast.get_source_segment(source, functions["load_qualifier"]) or ""
+assert "_guard_qualifier_installer_loader(module)" in load_source
+assert load_source.index("_guard_qualifier_installer_loader(module)") < load_source.index("return module")
 
 validate_source = ast.get_source_segment(source, functions["validate_result"]) or ""
 for required in (
@@ -201,6 +218,89 @@ assert module.PARENT_PLAN_ID == PARENT_PLAN_ID
 assert module.PARENT_PLAN_ID == json.loads(
     pin(PARENT_PLAN_REL, PARENT_PLAN_BLOB).decode("utf-8", "strict")
 )["plan_id"]
+
+module._require_isolated_python()
+
+fake_installer = module.types.ModuleType("fake_installer")
+fake_installer.CLEAN_GIT_ENV = dict(module.EXPECTED_DELEGATED_INSTALLER_GIT_ENV)
+hardened = module._harden_installer_git_environment(fake_installer)
+delegated_env = dict(hardened.CLEAN_GIT_ENV)
+assert delegated_env["HOME"] == "/nonexistent"
+assert delegated_env["GIT_TERMINAL_PROMPT"] == "0"
+assert delegated_env["GIT_ATTR_NOSYSTEM"] == "1"
+assert delegated_env["GIT_CONFIG_COUNT"] == "2"
+assert delegated_env["GIT_CONFIG_KEY_0"] == "core.fsmonitor"
+assert delegated_env["GIT_CONFIG_VALUE_0"] == "false"
+assert delegated_env["GIT_CONFIG_KEY_1"] == "core.hooksPath"
+assert delegated_env["GIT_CONFIG_VALUE_1"] == "/dev/null"
+
+fresh_installer = module.types.ModuleType("fresh_installer")
+fresh_installer.CLEAN_GIT_ENV = dict(module.EXPECTED_DELEGATED_INSTALLER_GIT_ENV)
+fake_qualifier = module.types.ModuleType("fake_qualifier")
+fake_qualifier._load_installer = lambda: fresh_installer
+module._guard_qualifier_installer_loader(fake_qualifier)
+assert fake_qualifier._load_installer().CLEAN_GIT_ENV["GIT_CONFIG_VALUE_0"] == "false"
+
+with tempfile.TemporaryDirectory(prefix="void-epoch2-fsmonitor-proof-") as td:
+    root = Path(td)
+    subprocess.run(
+        ["/usr/bin/git", "-C", str(root), "init", "-q"],
+        check=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    marker = root / "fsmonitor-executed"
+    helper = root / "fsmonitor-helper.sh"
+    helper.write_text(
+        "#!/bin/sh\nprintf executed > " + str(marker) + "\nexit 0\n",
+        encoding="utf-8",
+    )
+    helper.chmod(0o755)
+    subprocess.run(
+        ["/usr/bin/git", "-C", str(root), "config", "core.fsmonitor", str(helper)],
+        check=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    cp_git = subprocess.run(
+        ["/usr/bin/git", "-C", str(root), "status", "--porcelain=v1"],
+        env=delegated_env,
+        check=False,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=20,
+    )
+    assert cp_git.returncode == 0, cp_git.stderr
+    assert not marker.exists(), "delegated_local_fsmonitor_executed"
+
+cp_unisolated = subprocess.run(
+    [
+        "/usr/bin/python3",
+        "-B",
+        str(ROOT / TARGET_REL),
+        "--run",
+        "--expected-head",
+        "a" * 40,
+    ],
+    cwd=ROOT,
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=30,
+)
+assert cp_unisolated.returncode == 2
+assert cp_unisolated.stderr == ""
+assert "status=HOLD" in cp_unisolated.stdout
+assert "reason=python_isolated_mode_required" in cp_unisolated.stdout
+assert "epoch2_installed_generation_qualified=false" in cp_unisolated.stdout
+assert "filesystem_write_performed=false" in cp_unisolated.stdout
+assert "network_contact=false" in cp_unisolated.stdout
+assert "funds_movement=false" in cp_unisolated.stdout
 
 original_subprocess_run = module.subprocess.run
 
@@ -348,6 +448,9 @@ for marker in (
     "parent_host_evidence_plan_bound=true",
     "exact_qualifier_source_and_proof_bound=true",
     "root_required_for_future_run=true",
+    "python_isolated_mode_required_for_future_run=true",
+    "delegated_installer_git_fsmonitor_disabled=true",
+    "delegated_installer_git_hooks_disabled=true",
     "installed_generation_before_middle_after_stability_required=true",
     "double_descriptor_bound_native_self_test_required=true",
     "native_self_test_execution_performed_by_future_host_run=true",
@@ -374,6 +477,10 @@ print("double_descriptor_bound_native_self_test_inherited=true")
 print("pathname_swap_adversary_inherited=true")
 print("required_true_field_downgrade_rejected=true")
 print("authority_overclaim_rejected=true")
+print("python_isolated_mode_enforced=true")
+print("delegated_installer_git_fsmonitor_disabled=true")
+print("delegated_installer_git_hooks_disabled=true")
+print("delegated_local_fsmonitor_execution_rejected=true")
 print("git_fsmonitor_disabled=true")
 print("git_spawn_failure_maps_to_hold=true")
 print("git_timeout_maps_to_hold=true")
