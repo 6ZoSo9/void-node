@@ -138,7 +138,7 @@ Hosted CI:
 - binds exact V5 qualifier and proof blobs;
 - compiles and adversarially checks the wrapper;
 - exercises only wrapper `--self-test`;
-- does not invoke wrapper `--run`;
+- uses `--run` only on a disposable unisolated copy to prove rejection before collection;
 - does not execute the real native self-test or inspect Precision.
 
 Real host qualification remains separately authorized.
@@ -147,10 +147,10 @@ Real host qualification remains separately authorized.
 
 ## Qualifier source stat contract
 
-The future wrapper observes the checked-out reviewed qualifier with
-`Path.lstat()`, whose result is an `os.stat_result`. Regular/symlink
-classification therefore uses Python's stat-mode predicates
-`stat.S_ISREG(before.st_mode)` and `stat.S_ISLNK(before.st_mode)`.
+The future wrapper observes the checked-out reviewed qualifier through
+`os.fstat()` on a retained descriptor and `os.stat(..., follow_symlinks=False)`
+relative to a retained parent directory. Regular/symlink classification uses
+`stat.S_ISREG(before.st_mode)` and `stat.S_ISLNK(visible.st_mode)`.
 The wrapper does not rely on nonexistent pathlib-style methods on
 `os.stat_result`; malformed or drifting source metadata remains fail-closed.
 
@@ -184,8 +184,9 @@ qualifier and installer source are executed in memory.
 
 The exact V5 qualifier source remains byte-identical. Before its
 `collect(expected_head)` call can load the exact protected installer, the
-wrapper replaces only the qualifier's installer-loader boundary with a reviewed
-guard. The returned exact installer module must expose the reviewed
+wrapper replaces the qualifier's installer-loader boundary with an exact-object,
+descriptor-validated loader. It never calls the original pathname-based loader.
+The returned exact installer module must expose the reviewed
 `CLEAN_GIT_ENV`; the guard then adds command-scope Git configuration through
 the environment:
 
@@ -217,8 +218,11 @@ same machine-readable `status=HOLD` negative-authority receipt and exits before
 is imported. Non-main import under an unisolated interpreter is rejected
 immediately as well.
 
-Hosted proof executes a disposable copy of the wrapper beside a hostile
-`hashlib.py` that would create a marker if imported. An unisolated
+The unnecessary `from __future__ import annotations` is absent: that statement
+also performs a runtime import and could execute a checkout-local `__future__.py`
+before the bootstrap. Hosted proof executes a disposable copy beside hostile
+`__future__.py`, `hashlib.py`, and `argparse.py` modules that would create a marker
+if imported. An unisolated
 `python3 -B` launch must HOLD and the hostile marker must remain absent. The
 later full `sys.path` checkout-exposure check remains in place for isolated
 execution.
@@ -228,10 +232,15 @@ No host/runtime/payment authority changes.
 ## Descriptor-bound qualifier source
 
 Before executing the reviewed qualifier module, the wrapper opens the fixed
-checkout qualifier path exactly once with
+checkout qualifier file exactly once, relative to a retained parent, with
 `O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK`. The retained descriptor must be a
 regular single-link file whose size is exactly the already-authenticated Git
 object byte length before any content read occurs.
+
+The parent path is traversed component by component from `/` through directory
+descriptors using `O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`. Revalidation repeats
+that traversal and checks parent/file identity. A symlink in any ancestor is
+rejected, as are visible-path replacement, metadata drift, and file growth.
 
 The wrapper bounded-reads only through that descriptor, checks exact EOF/bytes,
 revalidates descriptor generation, and then requires the canonical visible path
@@ -241,3 +250,25 @@ without blocking.
 
 The exact Git object remains compile authority; the visible checkout file must
 be byte-identical. This adds no host mutation or runtime/economic authority.
+
+## Delegated installer and accepted-lock reads
+
+The same bounded reader protects the delegated installer source and accepted
+lock. The wrapper independently binds installer Git blob
+`fd7a06490ccf6fb14831d8b0372a892e2764c9dc` and lock Git blob
+`bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b` at the expected checkout head.
+Only authenticated Git-object bytes are compiled, after the visible installer
+passes descriptor validation. Its marker, checkout path, lock path/blob, and Git
+environment must match the reviewed contract.
+
+Before returning the module, the wrapper replaces `_direct_repo_bytes` with an
+exact lock-path allowlist and descriptor-validated read. The qualification's
+`accepted_lock()` retains its own schema/blob checks; other repository-read paths
+HOLD before lookup or access. The reviewed V5 qualifier and installer files stay
+byte-identical.
+
+Hosted proof uses synthetic installer definitions and a mocked exact-object
+lookup in a disposable directory. It proves the original loader/reader cannot
+be called, symlink/FIFO/changed-byte sources reject, and path swaps, ancestor
+symlinks, and growth fail closed. The real installer, host qualification, native
+self-test, credentials, and economic paths are not executed by these fixtures.

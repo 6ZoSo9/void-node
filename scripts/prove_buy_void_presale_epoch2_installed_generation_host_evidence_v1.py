@@ -17,7 +17,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "756c6081f9713cdf4b17433b2998cac3d5bfa929"
+TARGET_BLOB = "8eb596041c6e0858e63135dde71923a2355d4e13"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -29,6 +29,13 @@ QUALIFIER_PROOF_REL = (
     "prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
 )
 QUALIFIER_PROOF_BLOB = "c14ec00acffbc55630aa68db0013d97cac068ab3"
+INSTALLER_REL = (
+    "ops/precision/"
+    "void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+)
+INSTALLER_BLOB = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
+LOCK_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
+LOCK_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 
 PARENT_PLAN_REL = "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
 PARENT_PLAN_BLOB = "ad68175e629fd1cf90180db3a904f84834314fdd"
@@ -56,6 +63,10 @@ qualifier_proof = pin(QUALIFIER_PROOF_REL, QUALIFIER_PROOF_BLOB).decode(
     "utf-8", "strict"
 )
 pin(PARENT_PLAN_REL, PARENT_PLAN_BLOB)
+installer_source = pin(INSTALLER_REL, INSTALLER_BLOB).decode("utf-8", "strict")
+pin(LOCK_REL, LOCK_BLOB)
+assert 'INSTALLER_SOURCE_GIT_BLOB_SHA1 = "' + INSTALLER_BLOB + '"' in qualifier_source
+assert 'LOCK_GIT_BLOB_SHA1 = "' + LOCK_BLOB + '"' in installer_source
 
 compile(source, TARGET_REL, "exec", dont_inherit=True)
 
@@ -68,6 +79,8 @@ assert source.index("raise SystemExit(2)") < first_shadowable_import_index
 for required in (
     'QUALIFIER_BLOB = "' + QUALIFIER_BLOB + '"',
     'QUALIFIER_PROOF_BLOB = "' + QUALIFIER_PROOF_BLOB + '"',
+    'INSTALLER_BLOB = "' + INSTALLER_BLOB + '"',
+    'LOCK_BLOB = "' + LOCK_BLOB + '"',
     "qualifier.collect(expected_head)",
     '"epoch2_installed_generation_qualified": True',
     '"protected_upgrade_verified": True',
@@ -99,7 +112,7 @@ for required in (
     "_bootstrap_sys.flags.isolated != 1",
     "reason=python_isolated_mode_required",
     "_BOOTSTRAP_NEGATIVE_AUTHORITY_FIELDS",
-    "_guard_qualifier_installer_loader(module)",
+    "_guard_qualifier_installer_loader(module, expected_head)",
     "os.O_NOFOLLOW",
     "os.O_CLOEXEC",
     "os.O_NONBLOCK",
@@ -134,6 +147,9 @@ for forbidden in (
     assert forbidden not in source, forbidden
 
 tree = ast.parse(source)
+imports = [node for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))]
+assert isinstance(imports[0], ast.Import)
+assert [(alias.name, alias.asname) for alias in imports[0].names] == [("sys", "_bootstrap_sys")]
 functions = {
     node.name: node
     for node in tree.body
@@ -143,10 +159,12 @@ for name in (
     "_require_isolated_python",
     "_harden_installer_git_environment",
     "_guard_qualifier_installer_loader",
+    "_load_verified_installer",
+    "_open_source_parent",
     "_git",
     "checkout_snapshot",
     "exact_git_object",
-    "_read_visible_qualifier_exact",
+    "_read_visible_source_exact",
     "load_qualifier",
     "validate_result",
     "collect",
@@ -178,24 +196,30 @@ assert "qualifier.main" not in collect_source
 assert "subprocess." not in collect_source
 
 read_source = ast.get_source_segment(
-    source, functions["_read_visible_qualifier_exact"]
+    source, functions["_read_visible_source_exact"]
 ) or ""
 for required in (
-    "os.open(str(path), flags)",
+    "os.open(path.name, flags, dir_fd=parent_fd)",
     "os.fstat(fd)",
     "os.read(fd",
     "stat.S_ISREG(before.st_mode)",
-    "path.lstat()",
+    "follow_symlinks=False",
     "direct != expected",
 ):
     assert required in read_source, required
 assert ".read_bytes()" not in read_source
 
 load_source = ast.get_source_segment(source, functions["load_qualifier"]) or ""
-assert "_read_visible_qualifier_exact(visible, raw)" in load_source
+assert "_read_visible_source_exact(visible, raw)" in load_source
 assert ".read_bytes()" not in load_source
-assert "_guard_qualifier_installer_loader(module)" in load_source
-assert load_source.index("_guard_qualifier_installer_loader(module)") < load_source.index("return module")
+assert "_guard_qualifier_installer_loader(module, expected_head)" in load_source
+assert load_source.index("_guard_qualifier_installer_loader(module, expected_head)") < load_source.index("return module")
+installer_loader_source = ast.get_source_segment(source, functions["_load_verified_installer"]) or ""
+assert installer_loader_source.index("_read_visible_source_exact(visible, raw)") < installer_loader_source.index("exec(compile(")
+assert "installer._direct_repo_bytes = guarded_repository_bytes" in installer_loader_source
+assert ".read_bytes()" not in installer_loader_source
+guard_source = ast.get_source_segment(source, functions["_guard_qualifier_installer_loader"]) or ""
+assert "original()" not in guard_source
 
 validate_source = ast.get_source_segment(source, functions["validate_result"]) or ""
 for required in (
@@ -267,12 +291,94 @@ assert delegated_env["GIT_CONFIG_VALUE_0"] == "false"
 assert delegated_env["GIT_CONFIG_KEY_1"] == "core.hooksPath"
 assert delegated_env["GIT_CONFIG_VALUE_1"] == "/dev/null"
 
-fresh_installer = module.types.ModuleType("fresh_installer")
-fresh_installer.CLEAN_GIT_ENV = dict(module.EXPECTED_DELEGATED_INSTALLER_GIT_ENV)
-fake_qualifier = module.types.ModuleType("fake_qualifier")
-fake_qualifier._load_installer = lambda: fresh_installer
-module._guard_qualifier_installer_loader(fake_qualifier)
-assert fake_qualifier._load_installer().CLEAN_GIT_ENV["GIT_CONFIG_VALUE_0"] == "false"
+def expect_source_hold(action, reason: str) -> None:
+    try:
+        action()
+    except module.EvidenceError as exc:
+        assert str(exc).startswith(reason), (str(exc), reason)
+    else:
+        raise AssertionError("source_adversary_accepted:" + reason)
+
+
+with tempfile.TemporaryDirectory(prefix="void-epoch2-delegated-loader-proof-") as td:
+    checkout = Path(td)
+    installer_path = checkout / INSTALLER_REL
+    lock_path = checkout / LOCK_REL
+    installer_path.parent.mkdir(parents=True)
+    lock_path.parent.mkdir(parents=True)
+    # Synthetic module definitions only: no real installer/qualifier execution.
+    fixture = (
+        "from pathlib import Path\n"
+        "ROOT = Path(__file__).resolve().parents[2]\n"
+        "FIXED_CHECKOUT = ROOT\n"
+        "MARKER = " + repr(module.EXPECTED_INSTALLER_MARKER) + "\n"
+        "LOCK_REL = " + repr(LOCK_REL) + "\n"
+        "LOCK_PATH = ROOT / LOCK_REL\n"
+        "LOCK_GIT_BLOB_SHA1 = " + repr(LOCK_BLOB) + "\n"
+        "CLEAN_GIT_ENV = " + repr(module.EXPECTED_DELEGATED_INSTALLER_GIT_ENV) + "\n"
+        "def _direct_repo_bytes(path):\n"
+        "    raise AssertionError('unsafe_original_repository_reader_called')\n"
+    ).encode()
+    lock_bytes = b'{"synthetic_accepted_lock":true}\n'
+    installer_path.write_bytes(fixture)
+    lock_path.write_bytes(lock_bytes)
+    saved_checkout, saved_exact = module.FIXED_CHECKOUT, module.exact_git_object
+    looked_up = []
+
+    def fixture_git_object(head, relative, blob):
+        assert head == "a" * 40
+        looked_up.append((relative, blob))
+        if (relative, blob) == (INSTALLER_REL, INSTALLER_BLOB):
+            return fixture
+        assert (relative, blob) == (LOCK_REL, LOCK_BLOB)
+        return lock_bytes
+
+    def forbidden_original_loader():
+        raise AssertionError("unsafe_original_installer_loader_called")
+
+    try:
+        module.FIXED_CHECKOUT = checkout
+        module.exact_git_object = fixture_git_object
+        fake_qualifier = module.types.ModuleType("fake_qualifier")
+        fake_qualifier._load_installer = forbidden_original_loader
+        fake_qualifier.INSTALLER_SOURCE = installer_path
+        fake_qualifier.INSTALLER_SOURCE_GIT_BLOB_SHA1 = INSTALLER_BLOB
+        module._guard_qualifier_installer_loader(fake_qualifier, "a" * 40)
+        loaded = fake_qualifier._load_installer()
+        assert loaded.CLEAN_GIT_ENV == delegated_env
+        assert loaded._direct_repo_bytes(lock_path) == lock_bytes
+        assert looked_up == [(INSTALLER_REL, INSTALLER_BLOB), (LOCK_REL, LOCK_BLOB)]
+        lookups_before = len(looked_up)
+        expect_source_hold(
+            lambda: loaded._direct_repo_bytes(checkout / "unreviewed"),
+            "installer_repository_path_not_allowed",
+        )
+        assert len(looked_up) == lookups_before
+
+        for target, expected, read in (
+            (installer_path, fixture, fake_qualifier._load_installer),
+            (lock_path, lock_bytes, lambda: loaded._direct_repo_bytes(lock_path)),
+        ):
+            target.unlink()
+            alternate = target.with_name("synthetic-sensitive-target")
+            alternate.write_bytes(expected)
+            target.symlink_to(alternate)
+            expect_source_hold(read, "reviewed_source_unavailable")
+            target.unlink()
+            os.mkfifo(target, 0o600)
+            expect_source_hold(read, "reviewed_source_metadata_invalid")
+            target.unlink()
+            target.write_bytes(b"x" * len(expected))
+            expect_source_hold(read, "reviewed_source_bytes_mismatch")
+            target.write_bytes(expected)
+
+        fake_qualifier.INSTALLER_SOURCE_GIT_BLOB_SHA1 = "0" * 40
+        expect_source_hold(
+            lambda: module._guard_qualifier_installer_loader(fake_qualifier, "a" * 40),
+            "qualifier_installer_binding_invalid",
+        )
+    finally:
+        module.FIXED_CHECKOUT, module.exact_git_object = saved_checkout, saved_exact
 
 with tempfile.TemporaryDirectory(prefix="void-epoch2-fsmonitor-proof-") as td:
     root = Path(td)
@@ -315,46 +421,116 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-qualifier-fd-proof-") as td
 
     regular = root / "qualifier.py"
     regular.write_bytes(expected)
-    assert module._read_visible_qualifier_exact(regular, expected) == expected
+    assert module._read_visible_source_exact(regular, expected) == expected
 
     sensitive = root / "sensitive-target"
     sensitive.write_bytes(expected)
     symlink = root / "qualifier-symlink.py"
     symlink.symlink_to(sensitive)
     try:
-        module._read_visible_qualifier_exact(symlink, expected)
+        module._read_visible_source_exact(symlink, expected)
     except module.EvidenceError as exc:
-        assert str(exc) == "qualifier_source_unavailable"
+        assert str(exc) == "reviewed_source_unavailable"
     else:
         raise AssertionError("qualifier_symlink_followed")
 
     fifo = root / "qualifier-fifo.py"
     os.mkfifo(fifo, 0o600)
     try:
-        module._read_visible_qualifier_exact(fifo, expected)
+        module._read_visible_source_exact(fifo, expected)
     except module.EvidenceError as exc:
-        assert str(exc) == "qualifier_source_metadata_invalid"
+        assert str(exc) == "reviewed_source_metadata_invalid"
     else:
         raise AssertionError("qualifier_fifo_accepted")
 
     wrong = root / "qualifier-wrong.py"
     wrong.write_bytes(b"x" * len(expected))
     try:
-        module._read_visible_qualifier_exact(wrong, expected)
+        module._read_visible_source_exact(wrong, expected)
     except module.EvidenceError as exc:
-        assert str(exc) == "qualifier_source_bytes_mismatch"
+        assert str(exc) == "reviewed_source_bytes_mismatch"
     else:
         raise AssertionError("qualifier_wrong_bytes_accepted")
+
+    actual_parent = root / "actual-parent"
+    actual_parent.mkdir()
+    (actual_parent / "qualifier.py").write_bytes(expected)
+    linked_parent = root / "linked-parent"
+    linked_parent.symlink_to(actual_parent, target_is_directory=True)
+    expect_source_hold(
+        lambda: module._read_visible_source_exact(linked_parent / "qualifier.py", expected),
+        "reviewed_source_unavailable",
+    )
+
+    # Replace the pathname only after the reader retains its FD. No replacement
+    # contents may be consumed, and even an identical-byte replacement must HOLD.
+    saved_read = module.os.read
+    retained_bytes = []
+    replaced = False
+    def swap_after_open(fd, count):
+        global replaced
+        if not replaced:
+            replacement = regular.with_name("replacement.py")
+            replacement.write_bytes(expected)
+            replacement.replace(regular)
+            replaced = True
+        chunk = saved_read(fd, count)
+        retained_bytes.append(chunk)
+        return chunk
+    try:
+        module.os.read = swap_after_open
+        expect_source_hold(
+            lambda: module._read_visible_source_exact(regular, expected),
+            "reviewed_source_generation_unstable",
+        )
+    finally:
+        module.os.read = saved_read
+
+    regular.write_bytes(expected)
+    read_counts = []
+    def grow_after_open(fd, count):
+        if not read_counts:
+            with regular.open("ab") as handle:
+                handle.write(b"x" * 128)
+        read_counts.append(count)
+        return saved_read(fd, count)
+    try:
+        module.os.read = grow_after_open
+        expect_source_hold(
+            lambda: module._read_visible_source_exact(regular, expected),
+            "reviewed_source_size_changed",
+        )
+    finally:
+        module.os.read = saved_read
+    assert sum(read_counts) <= len(expected) + 1
+    assert replaced and b"".join(retained_bytes) == expected
+
+    # A symlink/FIFO must be rejected before any descriptor content read.
+    def forbidden_source_read(*_args):
+        raise AssertionError("special_file_contents_read")
+    try:
+        module.os.read = forbidden_source_read
+        for target, reason in (
+            (symlink, "reviewed_source_unavailable"),
+            (fifo, "reviewed_source_metadata_invalid"),
+        ):
+            expect_source_hold(
+                lambda target=target: module._read_visible_source_exact(target, expected),
+                reason,
+            )
+    finally:
+        module.os.read = saved_read
 
 with tempfile.TemporaryDirectory(prefix="void-epoch2-shadow-import-proof-") as td:
     shadow_root = Path(td)
     shadow_wrapper = shadow_root / "collector.py"
     shadow_wrapper.write_text(source, encoding="utf-8")
     shadow_marker = shadow_root / "shadow-import-executed"
-    (shadow_root / "hashlib.py").write_text(
-        "open(" + repr(str(shadow_marker)) + ", 'w').write('executed')\n",
-        encoding="utf-8",
-    )
+    for shadow_name in ("hashlib", "argparse"):
+        (shadow_root / (shadow_name + ".py")).write_text(
+            "open(" + repr(str(shadow_marker)) + ", 'w').write('executed')\n",
+            encoding="utf-8",
+        )
     future_marker = shadow_root / "future-import-executed"
     (shadow_root / "__future__.py").write_text(
         "open(" + repr(str(future_marker)) + ", 'w').write('executed')\n"
@@ -538,6 +714,11 @@ for marker in (
     "python_isolated_mode_required_for_future_run=true",
     "delegated_installer_git_fsmonitor_disabled=true",
     "delegated_installer_git_hooks_disabled=true",
+    "delegated_installer_source_descriptor_bound=true",
+    "delegated_installer_original_loader_bypassed=true",
+    "delegated_accepted_lock_descriptor_bound=true",
+    "reviewed_source_ancestor_symlinks_rejected=true",
+    "unisolated_future_module_blocked=true",
     "installed_generation_before_middle_after_stability_required=true",
     "double_descriptor_bound_native_self_test_required=true",
     "native_self_test_execution_performed_by_future_host_run=true",
@@ -572,6 +753,15 @@ print("qualifier_source_fifo_rejected_without_blocking=true")
 print("qualifier_source_exact_bytes_required=true")
 print("unisolated_shadow_module_blocked=true")
 print("unisolated_future_module_blocked=true")
+print("delegated_installer_source_descriptor_bound=true")
+print("delegated_installer_original_loader_bypassed=true")
+print("delegated_installer_symlink_fifo_rejected=true")
+print("delegated_accepted_lock_descriptor_bound=true")
+print("delegated_accepted_lock_symlink_fifo_rejected=true")
+print("delegated_repository_path_allowlist_enforced=true")
+print("reviewed_source_ancestor_symlinks_rejected=true")
+print("reviewed_source_path_swap_rejected=true")
+print("reviewed_source_growth_bounded=true")
 print("delegated_installer_git_fsmonitor_disabled=true")
 print("delegated_installer_git_hooks_disabled=true")
 print("delegated_local_fsmonitor_execution_rejected=true")

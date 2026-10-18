@@ -10,6 +10,8 @@ on:
       - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
       - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
       - "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
   push:
     branches: [main]
     paths:
@@ -20,6 +22,8 @@ on:
       - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
       - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
       - "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
   workflow_dispatch:
 
 permissions:
@@ -69,13 +73,15 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 756c6081f9713cdf4b17433b2998cac3d5bfa929
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 9ebf8c16798dd31113287b5715fc9fc92716529f
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 045d6bba02162f0bf9d41897e97bf86f37ee08f3
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 8eb596041c6e0858e63135dde71923a2355d4e13
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 3e1b0663f0770620ff9204f6df4c053b3b641508
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 34b951984fce55d8347a68d2beecbbf35389a507
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = a04c2e7665294cdd142426e9eb01ee27c5292b8d
           test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = c14ec00acffbc55630aa68db0013d97cac068ab3
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = fd7a06490ccf6fb14831d8b0372a892e2764c9dc
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json)" = bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -116,6 +122,15 @@ jobs:
             'preimport_python_isolation_enforced=true' \
             'unisolated_shadow_module_blocked=true' \
             'unisolated_future_module_blocked=true' \
+            'delegated_installer_source_descriptor_bound=true' \
+            'delegated_installer_original_loader_bypassed=true' \
+            'delegated_installer_symlink_fifo_rejected=true' \
+            'delegated_accepted_lock_descriptor_bound=true' \
+            'delegated_accepted_lock_symlink_fifo_rejected=true' \
+            'delegated_repository_path_allowlist_enforced=true' \
+            'reviewed_source_ancestor_symlinks_rejected=true' \
+            'reviewed_source_path_swap_rejected=true' \
+            'reviewed_source_growth_bounded=true' \
             'delegated_installer_git_fsmonitor_disabled=true' \
             'delegated_installer_git_hooks_disabled=true' \
             'delegated_local_fsmonitor_execution_rejected=true' \
@@ -149,6 +164,11 @@ jobs:
             'python_isolated_mode_required_for_future_run=true' \
             'preimport_python_isolation_enforced=true' \
             'unisolated_shadow_module_blocked=true' \
+            'unisolated_future_module_blocked=true' \
+            'delegated_installer_source_descriptor_bound=true' \
+            'delegated_installer_original_loader_bypassed=true' \
+            'delegated_accepted_lock_descriptor_bound=true' \
+            'reviewed_source_ancestor_symlinks_rejected=true' \
             'delegated_installer_git_fsmonitor_disabled=true' \
             'delegated_installer_git_hooks_disabled=true' \
             'installed_generation_before_middle_after_stability_required=true' \

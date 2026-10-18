@@ -73,6 +73,17 @@ QUALIFIER_PROOF_REL = (
 )
 QUALIFIER_PROOF_BLOB = "c14ec00acffbc55630aa68db0013d97cac068ab3"
 EXPECTED_QUALIFIER_MARKER = "VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V5"
+INSTALLER_REL = (
+    "ops/precision/"
+    "void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+)
+INSTALLER_BLOB = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
+EXPECTED_INSTALLER_MARKER = (
+    "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_PROTECTED_INSTALL_V5"
+)
+LOCK_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
+LOCK_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
+MAX_REVIEWED_SOURCE_BYTES = 2 * 1024 * 1024
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
 GIT_ENV = {
@@ -140,16 +151,53 @@ def _harden_installer_git_environment(installer: types.ModuleType) -> types.Modu
     return installer
 
 
-def _guard_qualifier_installer_loader(qualifier: types.ModuleType) -> None:
-    original = getattr(qualifier, "_load_installer", None)
-    if not callable(original):
+def _guard_qualifier_installer_loader(
+    qualifier: types.ModuleType, expected_head: str
+) -> None:
+    if not callable(getattr(qualifier, "_load_installer", None)):
         raise EvidenceError("qualifier_installer_loader_missing")
+    if (
+        getattr(qualifier, "INSTALLER_SOURCE", None) != FIXED_CHECKOUT / INSTALLER_REL
+        or getattr(qualifier, "INSTALLER_SOURCE_GIT_BLOB_SHA1", None) != INSTALLER_BLOB
+    ):
+        raise EvidenceError("qualifier_installer_binding_invalid")
 
     def guarded_load_installer():
-        installer = original()
-        return _harden_installer_git_environment(installer)
+        return _load_verified_installer(expected_head)
 
     qualifier._load_installer = guarded_load_installer
+
+
+def _load_verified_installer(expected_head: str) -> types.ModuleType:
+    raw = exact_git_object(expected_head, INSTALLER_REL, INSTALLER_BLOB)
+    visible = FIXED_CHECKOUT / INSTALLER_REL
+    _read_visible_source_exact(visible, raw)
+    installer = types.ModuleType(
+        "void_buy_void_epoch2_live_composition_native_protected_install_v5"
+    )
+    installer.__file__ = str(visible)
+    installer.__package__ = ""
+    exec(compile(raw, str(visible), "exec", dont_inherit=True), installer.__dict__)
+    if (
+        getattr(installer, "MARKER", None) != EXPECTED_INSTALLER_MARKER
+        or getattr(installer, "ROOT", None) != FIXED_CHECKOUT
+        or getattr(installer, "FIXED_CHECKOUT", None) != FIXED_CHECKOUT
+        or getattr(installer, "LOCK_REL", None) != LOCK_REL
+        or getattr(installer, "LOCK_PATH", None) != FIXED_CHECKOUT / LOCK_REL
+        or getattr(installer, "LOCK_GIT_BLOB_SHA1", None) != LOCK_BLOB
+        or not callable(getattr(installer, "_direct_repo_bytes", None))
+    ):
+        raise EvidenceError("installer_source_contract_invalid")
+
+    def guarded_repository_bytes(path: Path) -> bytes:
+        # The reviewed qualification calls this boundary only for accepted_lock().
+        if path != FIXED_CHECKOUT / LOCK_REL:
+            raise EvidenceError("installer_repository_path_not_allowed")
+        lock = exact_git_object(expected_head, LOCK_REL, LOCK_BLOB)
+        return _read_visible_source_exact(path, lock)
+
+    installer._direct_repo_bytes = guarded_repository_bytes
+    return _harden_installer_git_environment(installer)
 
 
 def git_blob(raw: bytes) -> str:
@@ -223,28 +271,42 @@ def exact_git_object(expected_head: str, relative: str, blob: str) -> bytes:
     return raw
 
 
-def _read_visible_qualifier_exact(path: Path, expected: bytes) -> bytes:
+def _open_source_parent(path: Path) -> int:
+    if not path.is_absolute() or ".." in path.parts or not path.name:
+        raise EvidenceError("reviewed_source_path_invalid")
+    flags = os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+    fd = os.open("/", flags)
+    try:
+        for part in path.parts[1:-1]:
+            child = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _read_visible_source_exact(path: Path, expected: bytes) -> bytes:
+    if not 0 < len(expected) <= MAX_REVIEWED_SOURCE_BYTES:
+        raise EvidenceError("reviewed_source_expected_size_invalid")
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+    parent_fd = fd = visible_parent_fd = -1
     try:
-        fd = os.open(str(path), flags)
-    except OSError as exc:
-        raise EvidenceError("qualifier_source_unavailable") from exc
-    try:
+        parent_fd = _open_source_parent(path)
+        fd = os.open(path.name, flags, dir_fd=parent_fd)
         before = os.fstat(fd)
         if (
             not stat.S_ISREG(before.st_mode)
             or before.st_nlink != 1
             or before.st_size != len(expected)
         ):
-            raise EvidenceError("qualifier_source_metadata_invalid")
+            raise EvidenceError("reviewed_source_metadata_invalid")
 
         chunks: list[bytes] = []
         remaining = len(expected) + 1
         while remaining > 0:
-            try:
-                chunk = os.read(fd, min(64 * 1024, remaining))
-            except OSError as exc:
-                raise EvidenceError("qualifier_source_read_failed") from exc
+            chunk = os.read(fd, min(64 * 1024, remaining))
             if not chunk:
                 break
             chunks.append(chunk)
@@ -253,10 +315,12 @@ def _read_visible_qualifier_exact(path: Path, expected: bytes) -> bytes:
 
         direct = b"".join(chunks)
         if len(direct) != len(expected):
-            raise EvidenceError("qualifier_source_size_changed")
+            raise EvidenceError("reviewed_source_size_changed")
         for field in (
             "st_dev",
             "st_ino",
+            "st_uid",
+            "st_gid",
             "st_mode",
             "st_nlink",
             "st_size",
@@ -264,29 +328,44 @@ def _read_visible_qualifier_exact(path: Path, expected: bytes) -> bytes:
             "st_ctime_ns",
         ):
             if getattr(before, field) != getattr(after, field):
-                raise EvidenceError("qualifier_source_generation_unstable:" + field)
+                raise EvidenceError("reviewed_source_generation_unstable:" + field)
 
-        try:
-            visible = path.lstat()
-        except OSError as exc:
-            raise EvidenceError("qualifier_source_visible_unavailable") from exc
+        # Rewalk without following any symlink, including checkout ancestors.
+        visible_parent_fd = _open_source_parent(path)
+        parent = os.fstat(parent_fd)
+        visible_parent = os.fstat(visible_parent_fd)
+        if (parent.st_dev, parent.st_ino) != (visible_parent.st_dev, visible_parent.st_ino):
+            raise EvidenceError("reviewed_source_parent_changed")
+        visible = os.stat(path.name, dir_fd=visible_parent_fd, follow_symlinks=False)
         if (
             not stat.S_ISREG(visible.st_mode)
             or stat.S_ISLNK(visible.st_mode)
             or visible.st_nlink != 1
             or visible.st_dev != after.st_dev
             or visible.st_ino != after.st_ino
+            or visible.st_uid != after.st_uid
+            or visible.st_gid != after.st_gid
             or visible.st_mode != after.st_mode
             or visible.st_size != after.st_size
             or visible.st_mtime_ns != after.st_mtime_ns
             or visible.st_ctime_ns != after.st_ctime_ns
         ):
-            raise EvidenceError("qualifier_source_visible_generation_changed")
+            raise EvidenceError("reviewed_source_visible_generation_changed")
         if direct != expected:
-            raise EvidenceError("qualifier_source_bytes_mismatch")
+            raise EvidenceError("reviewed_source_bytes_mismatch")
         return direct
+    except OSError as exc:
+        raise EvidenceError("reviewed_source_unavailable") from exc
     finally:
-        os.close(fd)
+        close_error = None
+        for retained in (visible_parent_fd, fd, parent_fd):
+            if retained >= 0:
+                try:
+                    os.close(retained)
+                except OSError as exc:
+                    close_error = exc
+        if close_error is not None:
+            raise EvidenceError("reviewed_source_close_failed") from close_error
 
 
 def load_qualifier(expected_head: str) -> types.ModuleType:
@@ -294,7 +373,7 @@ def load_qualifier(expected_head: str) -> types.ModuleType:
     exact_git_object(expected_head, QUALIFIER_PROOF_REL, QUALIFIER_PROOF_BLOB)
 
     visible = FIXED_CHECKOUT / QUALIFIER_REL
-    direct = _read_visible_qualifier_exact(visible, raw)
+    _read_visible_source_exact(visible, raw)
 
     module = types.ModuleType("void_presale_verified_epoch2_installed_qualifier_v5")
     module.__file__ = str(visible)
@@ -307,7 +386,7 @@ def load_qualifier(expected_head: str) -> types.ModuleType:
         raise EvidenceError("qualifier_marker_mismatch")
     if not callable(getattr(module, "collect", None)):
         raise EvidenceError("qualifier_collect_missing")
-    _guard_qualifier_installer_loader(module)
+    _guard_qualifier_installer_loader(module, expected_head)
     return module
 
 
@@ -447,6 +526,8 @@ def self_test() -> None:
     assert len(PARENT_PLAN_ID) == len("voidbuyhostevplan1_") + 64
     assert len(QUALIFIER_BLOB) == 40
     assert len(QUALIFIER_PROOF_BLOB) == 40
+    assert len(INSTALLER_BLOB) == 40
+    assert len(LOCK_BLOB) == 40
     assert HEX40.fullmatch("a" * 40)
     assert HEX40.fullmatch("A" * 40) is None
     print(MARKER + "_SELF_TEST_GREEN")
@@ -454,10 +535,15 @@ def self_test() -> None:
     print("exact_qualifier_source_and_proof_bound=true")
     print("qualifier_source_descriptor_bound=true")
     print("qualifier_source_nofollow_bounded_read=true")
+    print("delegated_installer_source_descriptor_bound=true")
+    print("delegated_installer_original_loader_bypassed=true")
+    print("delegated_accepted_lock_descriptor_bound=true")
+    print("reviewed_source_ancestor_symlinks_rejected=true")
     print("root_required_for_future_run=true")
     print("python_isolated_mode_required_for_future_run=true")
     print("preimport_python_isolation_enforced=true")
     print("unisolated_shadow_module_blocked=true")
+    print("unisolated_future_module_blocked=true")
     print("delegated_installer_git_fsmonitor_disabled=true")
     print("delegated_installer_git_hooks_disabled=true")
     print("installed_generation_before_middle_after_stability_required=true")
