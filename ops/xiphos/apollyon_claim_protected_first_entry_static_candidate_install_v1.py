@@ -133,9 +133,14 @@ def load_accepted_parent_lock() -> dict[str, Any]:
     module = types.ModuleType("accepted_apollyon_first_entry_lock")
     module.__file__ = os.fspath(target)
     module.__package__ = ""
-    exec(compile(raw, os.fspath(target), "exec"), module.__dict__)
-    lock = module.derive_lock()
-    module.validate_lock(lock)
+    try:
+        exec(compile(raw, os.fspath(target), "exec"), module.__dict__)
+        lock = module.derive_lock()
+        module.validate_lock(lock)
+    except (OSError, RuntimeError, SyntaxError, ValueError, TypeError) as exc:
+        # Preserve the machine-readable negative authority contract when the
+        # accepted predecessor is incomplete, inaccessible, or has drifted.
+        raise Hold("accepted_parent_lock_revalidation_failed") from exc
     if (
         lock.get("parent_candidate", {}).get("head") != ACCEPTED_CANDIDATE_HEAD
         or lock.get("authority", {}).get("candidate_accepted") is not True
@@ -268,6 +273,12 @@ def verify_archive_bytes(raw: bytes, lock: dict[str, Any]) -> dict[str, Any]:
         raise Hold("archive_report_json_invalid") from exc
     if canonical(report) + b"\n" != report_raw:
         hold("archive_report_canonical_invalid")
+    if (
+        not isinstance(report, dict)
+        or not isinstance(report.get("binary"), dict)
+        or not isinstance(report.get("authority"), dict)
+    ):
+        hold("archive_report_semantics_invalid")
     if (
         report.get("candidate_id") != parent["candidate_id"]
         or report.get("binary", {}).get("sha256") != binary["sha256"]
