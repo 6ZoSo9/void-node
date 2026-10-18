@@ -11,7 +11,7 @@ MARKER = "VOID_BUY_VOID_PRESALE_INDEPENDENT_HOST_EVIDENCE_COLLECTION_PLAN_V1"
 SCHEMA = "void_buy_void_presale_independent_host_evidence_collection_plan_v1"
 VERSION = 1
 REPOSITORY = "6ZoSo9/void-node"
-PARENT_HEAD = "dfcc2c991fb1496debf4ee1e2007ae9f0237d842"
+PARENT_HEAD = "45813f0de04ccccb8d12e0f0283096cb2b05843c"
 
 HOST_QUALIFIER_REL = (
     "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py"
@@ -20,7 +20,7 @@ HOST_QUALIFIER_BLOB = "1c8299cb38e3a02c5e65c3d38d4863e8ee0c1005"
 HOST_QUALIFIER_PROOF_REL = (
     "scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py"
 )
-HOST_QUALIFIER_PROOF_BLOB = "d42ad28bc00fe383a20eeb6d1c66a7c39cd1b674"
+HOST_QUALIFIER_PROOF_BLOB = "15813299b38ac146dd4b82b109fef72fbfb868c3"
 
 LIVE_PLAN_REL = (
     "ops/precision/"
