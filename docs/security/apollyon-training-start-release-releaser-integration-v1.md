@@ -78,8 +78,19 @@ The filter denies:
 - pidfd_getfd;
 - io_uring setup.
 
+The hosted fixture also separates **releaser proof time** from the trainer's
+one-second frame deadline. Before allowing the child to exec, the parent attaches
+with `PTRACE_SEIZE|PTRACE_O_TRACEEXEC`. The child then stops at the kernel exec
+event after the exact trainer image is installed but before trainer user code
+runs. While that trainer generation is stopped, the releaser proves exact
+PPid/start/executable/same-pipe identity, installs the writer-continuity filter,
+and executes the late-writer adversaries. Only after all releaser-side proof is
+complete does the parent `PTRACE_DETACH` and immediately write+close the exact
+frame. The trainer's own frame timeout therefore does not include releaser proof
+latency.
+
 The releaser then proves representative late duplication/reopen/socket attempts
-return EPERM before it writes the frame.
+return EPERM before it resumes the trainer and writes the frame.
 
 ## Adversarial fixtures
 
