@@ -311,6 +311,10 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     "customer_request_state_sha256","reviewed_source_tree"]){
     if(terminal[key]!==before[key])fail("terminal_binding_drift:"+key);
   }
+  if(
+    terminal.journal_sequence!==before.journal_sequence||
+    terminal.journal_tip_sha256!==before.journal_tip_sha256
+  )fail("terminal_journal_drift");
   if(terminal.high_water_sequence<high.high_water_sequence||
      terminal.high_water_sha256!==high.high_water_sha256)
     fail("terminal_high_water_drift");
@@ -355,6 +359,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     controlled_journal_rollback_contract_validated:true,
     protected_high_water_non_decrease_contract_validated:true,
     stale_journal_refusal_contract_validated:true,
+    terminal_journal_predecessor_revalidated:true,
     storage_policy_reobservation_contract_validated:true,
     allocation_ledger_unchanged_contract_validated:true,
     customer_request_state_unchanged_contract_validated:true,

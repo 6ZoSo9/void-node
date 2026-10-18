@@ -70,6 +70,8 @@ The controlled rollback may target only the journal predecessor. It must report
 - protected high-water unchanged/non-decreasing;
 - external-witness continuity retained;
 - stale journal replay explicitly refused because high-water is ahead;
+- terminal reobservation still shows the journal at the exact rolled-back
+  predecessor after that refusal;
 - distinct journal/high-water storage identities preserved;
 - exact policy fingerprint/generation preserved;
 - exact accepted source generation preserved;

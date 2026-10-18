@@ -54,9 +54,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json)" = 5face2022dc2cbc573e32e99f88623f381a8a174
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
           test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
-          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = 9f33267620f0c2244a061a5ad5999908cb5a0698
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 5839dd24b070d07ddfc92efa9f731d13f994723d
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = ae17b06a7a56574aaecd0cf44fd2c9f61796ba72
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = bd21f56631c4187c89ca9ddeca34be09bd07a5c4
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 064b2f9ec76e2b04d338e179d97a384fd7ed6ea8
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = aaf9f2b5559c6290de7c4949d558d9376b81c848
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -78,6 +78,7 @@ jobs:
             'second_control_precedes_rollback=true' \
             'protected_high_water_non_decrease_required=true' \
             'stale_journal_refusal_required=true' \
+            'terminal_journal_predecessor_revalidation_required=true' \
             'allocation_ledger_unchanged_required=true' \
             'customer_request_state_unchanged_required=true' \
             'evidence_origin_authentication_required=true' \

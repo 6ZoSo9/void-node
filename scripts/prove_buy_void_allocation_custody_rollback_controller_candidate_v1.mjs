@@ -173,6 +173,7 @@ const expectedOrder=["entropy","before","append","high","reopen","witness","seco
   assert.equal(result.challenge_unpredictability_proven,false);
   assert.equal(result.protected_high_water_non_decrease_contract_validated,true);
   assert.equal(result.stale_journal_refusal_contract_validated,true);
+  assert.equal(result.terminal_journal_predecessor_revalidated,true);
   assert.equal(result.allocation_ledger_unchanged_contract_validated,true);
   assert.equal(result.customer_request_state_unchanged_contract_validated,true);
   assert.equal(result.evidence_origin_capability_report_validated,true);
@@ -208,6 +209,11 @@ mustFail("high water decrease",(c,s,b)=>{c.observe_after_rollback=()=>({...b,
 mustFail("stale replay accepted",(c)=>{c.attempt_stale_journal_replay=({challenge_id})=>({
   attempted:true,challenge_id,refused:false,reason:"accepted",
 });},/stale_journal_not_refused/);
+mustFail("terminal journal drift",(c,s,b)=>{c.reobserve_storage_and_policy=()=>({...b,
+  journal_sequence:8,journal_tip_sha256:s.append.journal_tip_sha256,
+  high_water_sequence:8,high_water_sha256:s.high.high_water_sha256,
+  external_witness_sequence:12,external_witness_tip_sha256:s.witness.external_witness_tip_sha256,
+});},/terminal_journal_drift/);
 mustFail("ledger drift",(c,s,b)=>{c.reobserve_storage_and_policy=()=>({...b,
   high_water_sequence:8,high_water_sha256:s.high.high_water_sha256,
   external_witness_sequence:12,external_witness_tip_sha256:s.witness.external_witness_tip_sha256,
@@ -247,6 +253,7 @@ console.log("challenge_unpredictability_proven=false");
 console.log("second_control_precedes_rollback=true");
 console.log("protected_high_water_non_decrease_required=true");
 console.log("stale_journal_refusal_required=true");
+console.log("terminal_journal_predecessor_revalidation_required=true");
 console.log("allocation_ledger_unchanged_required=true");
 console.log("customer_request_state_unchanged_required=true");
 console.log("evidence_origin_authentication_required=true");
