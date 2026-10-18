@@ -48,6 +48,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTA
     store_core_implementation_present:true,
     publisher_exact_forward_implementation_present:true,
     fixed_physical_namespace_defined:true,
+    non_root_claim_identity_required:true,
     create_only_slot_publication_implemented:true,
     create_only_claim_publication_implemented:true,
     private_pending_fsync_publication_implemented:true,
@@ -657,8 +658,8 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
   );
   if(
     !Number.isSafeInteger(cfg.root_fd)||cfg.root_fd<0||
-    !Number.isSafeInteger(cfg.claim_uid)||cfg.claim_uid<0||
-    !Number.isSafeInteger(cfg.claim_gid)||cfg.claim_gid<0||
+    !Number.isSafeInteger(cfg.claim_uid)||cfg.claim_uid<1||cfg.claim_uid>65533||
+    !Number.isSafeInteger(cfg.claim_gid)||cfg.claim_gid<1||cfg.claim_gid>65533||
     !SESSION_BINDING_ID.test(cfg.session_binding_id)||
     typeof config?.withExclusiveStoreTransaction!=="function"||
     typeof config?.revalidate!=="function"
