@@ -21,7 +21,7 @@ function gitBlob(bytes){
 }
 assert.equal(
   gitBlob(fs.readFileSync(path.join(ROOT,"tools/apollyon-candidate-training-attempt-claim-contract-v2.mjs"))),
-  "b61f2f0982de47c5e11cc1f82e6ea7946ab4a8b2",
+  "fd671b3303946143d927473e4ed04e7cd5030bac",
 );
 assert.equal(
   gitBlob(fs.readFileSync(path.join(ROOT,"tools/apollyon-authorization-custody-launcher-v2.mjs"))),
@@ -33,7 +33,7 @@ function claim(){
     marker:"VOID_APOLLYON_CANDIDATE_TRAINING_ATTEMPT_CLAIM_CONTRACT_V2",
     version:2,status:"current_v2_claim_contract_qualified_unclaimed",
     target_host:"Xiphos",
-    preclaim_v2_blob_sha1:"33a7f0d51d7ce1ab6e7ee48e4e205c0b639cca82",
+    preclaim_v2_blob_sha1:"d062fe9d8f70f731e157c8d9f835d3f936ac5d59",
     v1_canonicalizer_blob_sha1:"f97fafb0148527ae3a954e2752faef8c7fc9e88e",
     preclaim_id:"apollyon_preclaim_v2:"+"1".repeat(64),
     current_v2_live_qualification_id:"apollyon_custody_live_v2:"+"2".repeat(64),
