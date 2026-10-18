@@ -33,10 +33,15 @@ for (const [key, value] of Object.entries(
   assert.equal(value, true, key);
 }
 assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_REQUIRED_FUTURE_EVIDENCE_V1
+    .reviewed_source_generation_binding_required,
+  true,
+);
+assert.equal(
   Object.keys(
     VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_REQUIRED_FUTURE_EVIDENCE_V1,
   ).length,
-  19,
+  20,
 );
 
 assert.equal(
@@ -190,6 +195,7 @@ console.log("read_only_collection_sufficient=false");
 console.log("controlled_live_challenge_required=true");
 console.log("non_customer_canary_domain_required=true");
 console.log("operation_bound_authorization_required=true");
+console.log("reviewed_source_generation_binding_required=true");
 console.log("live_rollback_test_required=true");
 console.log("live_durable_storage_proven=false");
 console.log("rollback_resistance_proven=false");

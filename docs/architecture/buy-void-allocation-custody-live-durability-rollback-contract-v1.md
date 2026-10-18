@@ -71,23 +71,26 @@ custody, or independent custody:
 
 1. use a dedicated **non-customer canary domain**;
 2. bind a fresh operation-specific authorization;
-3. bind the exact current rollback policy and reviewed source generation;
-4. use fresh challenge entropy whose unpredictability is evidenced;
+3. bind the exact current rollback policy;
+4. independently bind the exact reviewed source generation through the explicit
+   machine-readable requirement
+   `reviewed_source_generation_binding_required=true`;
+6. use fresh challenge entropy whose unpredictability is evidenced;
 5. append a live challenge to the replay journal;
-6. advance the protected high-water state;
-7. sync, close and independently reopen journal and high-water state;
-8. append the resulting challenge state to the external witness;
-9. perform a controlled rollback attempt through the reviewed rollback
+7. advance the protected high-water state;
+8. sync, close and independently reopen journal and high-water state;
+9. append the resulting challenge state to the external witness;
+10. perform a controlled rollback attempt through the reviewed rollback
    controller;
-10. require the independent high-water second control;
-11. prove the protected high-water never decreases;
-12. prove stale journal state is refused after the rollback attempt;
-13. prove external-witness continuity after the attempt;
-14. reobserve distinct physical storage domains;
-15. rebind the reviewed policy after the test;
-16. prove the allocation ledger is unchanged;
-17. prove customer request state is unchanged; and
-18. authenticate the origin of the resulting live evidence.
+11. require the independent high-water second control;
+12. prove the protected high-water never decreases;
+13. prove stale journal state is refused after the rollback attempt;
+14. prove external-witness continuity after the attempt;
+15. reobserve distinct physical storage domains;
+16. rebind the reviewed policy after the test;
+17. prove the allocation ledger is unchanged;
+18. prove customer request state is unchanged; and
+19. authenticate the origin of the resulting live evidence.
 
 The source contract additionally requires a reviewed rollback controller and
 records every future requirement in one immutable requirements object.

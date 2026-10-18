@@ -45,6 +45,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_REQUIRED_
     non_customer_canary_domain_required: true,
     operation_bound_authorization_required: true,
     exact_current_policy_binding_required: true,
+    reviewed_source_generation_binding_required: true,
     challenge_entropy_and_unpredictability_required: true,
     live_journal_challenge_append_required: true,
     live_high_water_advance_required: true,
