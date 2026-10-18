@@ -985,11 +985,12 @@ static int fixture_run(
         return 138;
     }
 
-    if(ptrace(PTRACE_DETACH,child,NULL,NULL)!=0) {
-        cleanup_child(child);
-        return 139;
-    }
-
+    /*
+     * Keep the trainer stopped at PTRACE_EVENT_EXEC until the exact frame is
+     * fully buffered and the releaser's sole writer is closed. The trainer's
+     * one-second frame deadline therefore cannot include releaser proof work
+     * or a scheduler gap between resume and frame publication.
+     */
     if(!write_all(release_pipe[1],frame,sizeof(frame))) {
         cleanup_child(child);
         return 140;
@@ -999,6 +1000,11 @@ static int fixture_run(
         return 141;
     }
     release_pipe[1]=-1;
+
+    if(ptrace(PTRACE_DETACH,child,NULL,NULL)!=0) {
+        cleanup_child(child);
+        return 139;
+    }
 
     int status=0;
     if(waitpid(child,&status,0)!=child) return 142;
@@ -1013,6 +1019,7 @@ static int fixture_run(
     puts("single_threaded_releaser_before_write=true");
     puts("trainer_exec_stop_synchronization=true");
     puts("frame_budget_starts_after_releaser_proof=true");
+    puts("frame_and_eof_buffered_before_trainer_resume=true");
     puts("writer_continuity_filter_installed=true");
     puts("late_clone_dup_open_socket_fdpass_blocked=true");
     puts("exact_frame_written_and_sole_writer_closed=true");
