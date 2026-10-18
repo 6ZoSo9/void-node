@@ -36,9 +36,9 @@ function sha256(value){return crypto.createHash("sha256").update(value).digest("
 
 const EXACT_BLOBS=Object.freeze({
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "0d620a77a465007505c3a0415062699a220b8437",
+    "7654ddb2d5875d1aa42e8f41398afb727ba3832d",
   "ops/xiphos/apollyon_durable_attempt_claim_store_host_plan_v2.py":
-    "ce2f3bfed25523ebb82fa594d42378ecaa6b6143",
+    "9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
     "bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
@@ -67,8 +67,8 @@ assert.equal(candidate.status,"claim_store_service_source_boundary_defined_unimp
 assert.equal(candidate.target_host,"Xiphos");
 assert.equal(candidate.parent_store_contract_head,"9475035552881f34658a7c8f3a6b336199fda159");
 assert.equal(candidate.parent_store_contract_blob_sha1,"bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc");
-assert.equal(candidate.parent_host_plan_head,"9b06e15738307571656f25694c5c68d0a91eea9b");
-assert.equal(candidate.parent_host_planner_blob_sha1,"ce2f3bfed25523ebb82fa594d42378ecaa6b6143");
+assert.equal(candidate.parent_host_plan_head,"30edd98609877c15be44d26b46916cf8c5d1f174");
+assert.equal(candidate.parent_host_planner_blob_sha1,"9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d");
 assert.notEqual(candidate.parent_host_planner_blob_sha1,"69db13fffaf1678da03b90f0fa14fd60c3c5c98c");
 assert.equal(candidate.store_policy_id,policy.store_policy_id);
 assert.deepEqual(candidate.fixed_identities,{
@@ -133,9 +133,9 @@ assert.deepEqual(candidate.host_plan_receipt_requirements,{
   supplementary_groups_consumed_required:true,
   initial_and_final_process_census_required:true,
   candidate_slots_clear_in_final_process_census_required:true,
-  source_generation_source_head:"9b06e15738307571656f25694c5c68d0a91eea9b",
+  source_generation_source_head:"30edd98609877c15be44d26b46916cf8c5d1f174",
   source_generation_parent_head:"9475035552881f34658a7c8f3a6b336199fda159",
-  source_generation_planner_blob_sha1:"ce2f3bfed25523ebb82fa594d42378ecaa6b6143",
+  source_generation_planner_blob_sha1:"9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d",
   source_generation_parent_contract_blob_sha1:"bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc",
   source_generation_authenticated_required:true,
   source_generation_isolated_python_startup_proven_required:true,
@@ -296,8 +296,8 @@ const source=fs.readFileSync(
 for(const required of [
   'PARENT_STORE_CONTRACT_HEAD="9475035552881f34658a7c8f3a6b336199fda159"',
   'PARENT_STORE_CONTRACT_BLOB_SHA1="bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc"',
-  'PARENT_HOST_PLAN_HEAD="9b06e15738307571656f25694c5c68d0a91eea9b"',
-  'PARENT_HOST_PLANNER_BLOB_SHA1="ce2f3bfed25523ebb82fa594d42378ecaa6b6143"',
+  'PARENT_HOST_PLAN_HEAD="30edd98609877c15be44d26b46916cf8c5d1f174"',
+  'PARENT_HOST_PLANNER_BLOB_SHA1="9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d"',
   'numeric_host_identities:null',
   'host_plan_receipt_required_for_numeric_identity_binding:true',
   'host_plan_receipt_requirements:hostPlanReceiptRequirements',
