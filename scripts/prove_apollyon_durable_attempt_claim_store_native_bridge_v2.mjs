@@ -15,6 +15,7 @@ import {serializeApollyonDurableAttemptClaimPublishRequestV2} from "../tools/apo
 import {qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1} from "../tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs";
 import {qualifyApollyonDurableAttemptClaimStorePolicyV2} from "../tools/apollyon-durable-attempt-claim-store-contract-v2.mjs";
 import {VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2} from "../tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
+import {createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2} from "../tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SELF_REL="scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs";
@@ -23,8 +24,8 @@ const C_REL="ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c"
 const PROCESS_REL="ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c";
 const PROCESS_HEADER_REL="ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h";
 const ADDON_REL="build/Release/apollyon_claim_store_native_bridge_v2.node";
-const JS_BLOB="4531f91225a760aefa35873e1b24f62e21b17394";
-const C_BLOB="db37030d21b7e16c5b018b2003b1d4952bffbb77";
+const JS_BLOB="3a46492c841047431f2086f5e8c37a51c20ff2a4";
+const C_BLOB="96df365a812c645e6210ea5728c8f38851019d50";
 const PINNED=Object.freeze({
   [JS_REL]:JS_BLOB,
   [C_REL]:C_BLOB,
@@ -448,6 +449,251 @@ finally:
     os.waitpid(peer_pid,0)
     for fd in fds: os.close(fd)
     supervisor.close()
+`;
+
+// The control process really forks the publisher. Each process creates its own
+// tested SOCK_STREAM pair, so neither SO_PEERCRED nor PPid is a fixture label.
+// Separate SOCK_SEQPACKET management pairs transfer descriptors and coordinate
+// faults; none of the fixtures starts a listener or substitutes a socket mock.
+const SESSION_FIXTURE=String.raw`
+import array,base64,hashlib,json,os,signal,socket,subprocess,sys,threading,time
+plan=json.loads(sys.stdin.buffer.read())
+def management_pair():
+    return socket.socketpair(socket.AF_UNIX,socket.SOCK_SEQPACKET)
+def send_packet(channel,value,fds=()):
+    body=json.dumps(value).encode()
+    if fds: channel.sendmsg([body],[(socket.SOL_SOCKET,socket.SCM_RIGHTS,array.array('i',fds))])
+    else: channel.sendall(body)
+def receive_packet(channel,descriptors=0):
+    if not descriptors: return json.loads(channel.recv(262144))
+    data,ancillary,flags,address=channel.recvmsg(8192,socket.CMSG_SPACE(descriptors*4))
+    fds=array.array('i')
+    for level,kind,control in ancillary:
+        if level==socket.SOL_SOCKET and kind==socket.SCM_RIGHTS:
+            fds.frombytes(control[:len(control)-(len(control)%fds.itemsize)])
+    if len(fds)!=descriptors: raise RuntimeError('session descriptor transfer failed')
+    return json.loads(data),list(fds)
+def introduce(channel):
+    local,remote=socket.socketpair(socket.AF_UNIX,socket.SOCK_STREAM)
+    remote.setsockopt(socket.SOL_SOCKET,socket.SO_SNDBUF,4096)
+    if plan['case']!='session_missing_inline': remote.setsockopt(socket.SOL_SOCKET,socket.SO_OOBINLINE,1)
+    # Linux asm-generic/socket.h defines SO_PEEK_OFF as 42; Python may not expose it.
+    if plan['case']=='session_nondefault_peek': remote.setsockopt(socket.SOL_SOCKET,42,1)
+    executable=os.open('/proc/self/exe',os.O_RDONLY|os.O_CLOEXEC)
+    with open('/proc/self/cmdline','rb') as stream: command=stream.read()
+    metadata={'peer_pid':os.getpid(),'expected_ppid':os.getppid(),
+        'expected_uid':os.getuid(),'expected_gid':os.getgid(),
+        'expected_supplementary_gids':os.getgroups(),
+        'expected_cmdline_base64':base64.b64encode(command).decode()}
+    send_packet(channel,metadata,(remote.fileno(),executable))
+    remote.close();os.close(executable)
+    return local
+def serve_management(channel,local,role):
+    result={'role':role,'received_base64':'','eof':False,'challenge_base64':'',
+        'sent_response':False,'rights_sent':False}
+    finished=threading.Event()
+    drain=threading.Event()
+    started=False
+    def wire(config):
+        try:
+            case=plan['case']
+            if role=='publisher':
+                body=base64.b64decode(config['body'])
+                if case=='session_request_rights':
+                    transferred=os.open('/dev/null',os.O_RDONLY|os.O_CLOEXEC)
+                    try:
+                        count=local.sendmsg([body],[(socket.SOL_SOCKET,socket.SCM_RIGHTS,array.array('i',[transferred]))])
+                        if count<=0: raise RuntimeError('request ancillary descriptor was not sent')
+                        result['rights_sent']=True
+                        pieces=[body[count:]]
+                    finally: os.close(transferred)
+                else: pieces=[body[:1],body[1:17],body[17:]]
+                for piece in pieces:
+                    if piece: local.sendall(piece)
+                    if case=='session_valid': time.sleep(0.015)
+                if case=='session_request_delayed_extra':
+                    time.sleep(0.075);local.sendall(b'x')
+                if case!='session_request_no_eof': local.shutdown(socket.SHUT_WR)
+                if case=='native_session_response_timeout': drain.wait(9)
+            else:
+                challenge=b''
+                while len(challenge)<32:
+                    fragment=local.recv(32-len(challenge))
+                    if not fragment: break
+                    challenge+=fragment
+                result['challenge_base64']=base64.b64encode(challenge).decode()
+                if len(challenge)==32:
+                    response=challenge+bytes.fromhex(config['digest'])
+                    if case=='session_wrong_challenge': response=bytes([response[0]^1])+response[1:]
+                    if case=='session_wrong_digest': response=response[:32]+bytes([response[32]^1])+response[33:]
+                    if case=='session_challenge_short': response=response[:63]
+                    if case=='session_challenge_extra': response+=b'x'
+                    if case=='session_challenge_rights':
+                        transferred=os.open('/dev/null',os.O_RDONLY|os.O_CLOEXEC)
+                        try:
+                            count=local.sendmsg([response],[(socket.SOL_SOCKET,socket.SCM_RIGHTS,array.array('i',[transferred]))])
+                            if count<=0: raise RuntimeError('challenge ancillary descriptor was not sent')
+                            result['rights_sent']=True
+                            pieces=[response[count:]]
+                        finally: os.close(transferred)
+                    else: pieces=[response[:1],response[1:31],response[31:]]
+                    for piece in pieces:
+                        if not piece: continue
+                        local.sendall(piece)
+                        if case=='session_valid': time.sleep(0.015)
+                    if case=='session_challenge_delayed_extra':
+                        time.sleep(0.075);local.sendall(b'x')
+                    result['sent_response']=True
+                    if case!='session_challenge_no_eof': local.shutdown(socket.SHUT_WR)
+            received=bytearray()
+            while True:
+                fragment=local.recv(113)
+                if not fragment:
+                    result['eof']=True;break
+                received.extend(fragment)
+                if len(received)>131072: raise RuntimeError('fixture response bound exceeded')
+            result['received_base64']=base64.b64encode(received).decode()
+        except (OSError,RuntimeError) as error:
+            result['wire_error']=type(error).__name__+': '+str(error)
+        finally: finished.set()
+    while True:
+        raw=channel.recv(262144)
+        if not raw: return
+        command=json.loads(raw)
+        action=command['action']
+        if action=='start':
+            if started: raise RuntimeError('fixture cannot start twice')
+            started=True
+            # Early data/EOF must be queued before the service starts reading.
+            if role=='control' and plan['case']=='session_control_early_bytes':
+                local.sendall(b'x')
+            if role=='control' and plan['case']=='session_control_early_eof':
+                local.shutdown(socket.SHUT_WR)
+            if role=='control' and plan['case']=='session_control_urgent':
+                local.send(b'x',socket.MSG_OOB)
+            threading.Thread(target=wire,args=(command,),daemon=True).start()
+            send_packet(channel,{'ok':True})
+        elif action=='exit': os._exit(0)
+        elif action=='exec': os.execl('/bin/sleep','sleep','20')
+        elif action=='full_close':
+            try: local.shutdown(socket.SHUT_RDWR)
+            except OSError: pass
+            local.close();send_packet(channel,{'ok':True})
+        elif action=='shutdown_read':
+            local.shutdown(socket.SHUT_RD);send_packet(channel,{'ok':True})
+        elif action=='result':
+            drain.set()
+            if started and not finished.wait(3): raise RuntimeError('fixture wire result did not finish')
+            send_packet(channel,result)
+        else: raise RuntimeError('unknown session fixture action')
+def publisher_main(channel):
+    local=introduce(channel)
+    try: serve_management(channel,local,'publisher')
+    except BaseException as error:
+        try: send_packet(channel,{'fixture_error':repr(error)})
+        except OSError: pass
+        raise
+    finally: local.close();channel.close()
+supervisor,control_management=management_pair()
+control_pid=os.fork()
+if control_pid==0:
+    supervisor.close()
+    local=introduce(control_management)
+    child_pid=None
+    try:
+        if plan['case']!='session_wrong_parent':
+            publisher_supervisor,publisher_management=management_pair()
+            child_pid=os.fork()
+            if child_pid==0:
+                publisher_supervisor.close();local.close();control_management.close()
+                try: publisher_main(publisher_management)
+                finally: os._exit(0)
+            publisher_management.close()
+            metadata,fds=receive_packet(publisher_supervisor,2)
+            send_packet(control_management,metadata,(*fds,publisher_supervisor.fileno()))
+            for fd in fds: os.close(fd)
+            publisher_supervisor.close()
+        serve_management(control_management,local,'control')
+    except BaseException as error:
+        try: send_packet(control_management,{'fixture_error':repr(error)})
+        except OSError: pass
+        raise
+    finally:
+        if child_pid is not None:
+            try: os.kill(child_pid,signal.SIGKILL)
+            except ProcessLookupError: pass
+            try: os.waitpid(child_pid,0)
+            except ChildProcessError: pass
+        local.close();control_management.close();os._exit(0)
+control_management.close()
+control,control_fds=receive_packet(supervisor,2)
+unrelated=None
+if plan['case']=='session_wrong_parent':
+    publisher_supervisor,publisher_management=management_pair()
+    unrelated=os.fork()
+    if unrelated==0:
+        supervisor.close();publisher_supervisor.close()
+        for fd in control_fds: os.close(fd)
+        try: publisher_main(publisher_management)
+        finally: os._exit(0)
+    publisher_management.close()
+    publisher,publisher_fds=receive_packet(publisher_supervisor,2)
+    publisher_management_fd=publisher_supervisor.detach()
+else:
+    publisher,publisher_fds=receive_packet(supervisor,3)
+    publisher_management_fd=publisher_fds.pop()
+for metadata,fds,management in [(control,control_fds,supervisor.fileno()),
+        (publisher,publisher_fds,publisher_management_fd)]:
+    metadata.update({'socket_fd':fds[0],'expected_executable_fd':fds[1],'control_fd':management})
+all_fds=control_fds+publisher_fds+[supervisor.fileno(),publisher_management_fd]
+child=None
+try:
+    child=subprocess.Popen([plan['node'],plan['proof'],'--session-child',
+        json.dumps({'case':plan['case'],'control':control,'publisher':publisher})],
+        stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        pass_fds=tuple(all_fds),env={'PATH':'/usr/bin:/bin','LANG':'C','LC_ALL':'C'},cwd='/')
+    # Only the Node child now owns borrowed service endpoints. Keeping copies in
+    # the supervisor would mask EOF and make acknowledgement evidence dishonest.
+    for fd in control_fds+publisher_fds+[publisher_management_fd]: os.close(fd)
+    supervisor.close()
+    stdout,stderr=child.communicate(timeout=14)
+    print(json.dumps({'status':child.returncode,'stdout':stdout.decode(),'stderr':stderr.decode()}))
+finally:
+    if child is not None and child.poll() is None: child.kill();child.wait(timeout=3)
+    for pid in [publisher['peer_pid'],control_pid]:
+        try: os.kill(pid,signal.SIGKILL)
+        except ProcessLookupError: pass
+    for pid in [control_pid,unrelated]:
+        if pid is not None:
+            try: os.waitpid(pid,0)
+            except ChildProcessError: pass
+`;
+
+// Linker interception is used only in the disposable fault binary. Ordinary
+// session cases above exercise the unwrapped send(2) and real socket pressure.
+const SESSION_SEND_FAULT_FIXTURE=String.raw`
+#define _GNU_SOURCE
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+
+ssize_t __real_send(int fd,const void *buffer,size_t length,int flags);
+ssize_t __wrap_send(int fd,const void *buffer,size_t length,int flags) {
+  static int sent = 0;
+  const char *fault = getenv("APOLLYON_TEST_SESSION_SEND_FAULT");
+  if (fault && strcmp(fault,"partial") == 0) {
+    if (sent) { errno = EIO; return -1; }
+    ssize_t result = __real_send(fd,buffer,length > 11U ? 11U : length,flags);
+    if (result > 0) sent = 1;
+    return result;
+  }
+  ssize_t result = __real_send(fd,buffer,length,flags);
+  if (result > 0 && fault && strcmp(fault,"after_send_close") == 0) {
+    (void)setenv("APOLLYON_TEST_CLOSE_FAULT","1",1);
+  }
+  return result;
+}
 `;
 
 // This wrapper is compiled only into a second disposable proof binary.
@@ -971,6 +1217,419 @@ async function peerChild(plan){
   fs.writeSync(1,JSON.stringify({ok:true,case:plan.case,uid,gid})+"\n");
 }
 
+function sessionCommand(peer,value,reply=true){
+  const body=Buffer.from(JSON.stringify(value),"utf8");
+  assert.equal(WRITE_PROOF_CONTROL(peer.control_fd,body),body.length);
+  if(!reply)return;
+  const response=Buffer.alloc(262144);
+  const count=fs.readSync(peer.control_fd,response,0,response.length,null);
+  assert.ok(count>0,"session fixture management channel remains live: "+peer.fixture_case);
+  const replyValue=JSON.parse(response.subarray(0,count).toString("utf8"));
+  if(replyValue.fixture_error)assert.fail("session fixture "+peer.fixture_case+": "+replyValue.fixture_error);
+  return replyValue;
+}
+function sessionTransition(peer,command){
+  const originalExe=fs.readlinkSync("/proc/"+peer.peer_pid+"/exe");
+  sessionCommand(peer,{action:command},false);
+  const deadline=performance.now()+3000;
+  while(performance.now()<deadline){
+    try{
+      if(command==="exec"){
+        if(fs.readlinkSync("/proc/"+peer.peer_pid+"/exe")!==originalExe)return;
+      }else{
+        const stat=fs.readFileSync("/proc/"+peer.peer_pid+"/stat","utf8");
+        if(stat.slice(stat.lastIndexOf(")")+2).startsWith("Z "))return;
+      }
+    }catch(error){if(error.code==="ENOENT"||error.code==="ESRCH")return;throw error;}
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5);
+  }
+  assert.fail("session fixture peer did not complete "+command);
+}
+function startSessionWire(plan,body,digest=sha256(body)){
+  assert.equal(sessionCommand(plan.control,{action:"start",digest}).ok,true);
+  assert.equal(sessionCommand(plan.publisher,{action:"start",body:body.toString("base64")}).ok,true);
+}
+function finishSessionWire(plan,dead=new Set()){
+  for(const peer of [plan.control,plan.publisher]){
+    fs.closeSync(peer.socket_fd);
+    fs.closeSync(peer.expected_executable_fd);
+  }
+  const results={};
+  for(const role of ["control","publisher"]){
+    if(dead.has(role))continue;
+    results[role]=sessionCommand(plan[role],{action:"result"});
+    results[role].received=Buffer.from(results[role].received_base64,"base64");
+  }
+  if(results.control)assert.equal(results.control.received.length,0,
+    "the control connection never receives the publisher success response");
+  return results;
+}
+function nativeSessionPair(native,plan){
+  const control=nativeOpen(native,peerConfig(plan.control));
+  let publisher;
+  try{publisher=nativeOpen(native,peerConfig(plan.publisher));}
+  catch(error){native.closePeerIdentity(control);throw error;}
+  return {control,publisher};
+}
+function closeNativePair(native,pair){
+  let first;
+  for(const handle of [pair.control,pair.publisher]){
+    try{native.closePeerIdentity(handle);}catch(error){first??=error;}
+  }
+  if(first)throw first;
+}
+function requireSessionClosed(session,input){
+  expectError(()=>session.servePublisherRequest(input),"apollyon_claim_store_session_v2_session_closed");
+  expectError(()=>session.close(),"apollyon_claim_store_session_v2_session_closed");
+}
+function assertDurableWinner(f,bundle){
+  const before=storeSnapshot(f.root);
+  const reader=createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2({
+    root_fd:f.rootFd,claim_uid:uid,claim_gid:gid,session_binding_id:SESSION_ID,
+    revalidate:(stage,context)=>revalidationReceipt(stage,context),
+  });
+  const winner=withReadOnlyFs(()=>reader.observeAuthorizationWinner(observationInput(bundle,f.generation)));
+  assert.equal(winner.status,"authorization_winner_observed_source_only");
+  assert.equal(winner.activation_capability_issuance_authorized,false);
+  assert.deepEqual(storeSnapshot(f.root),before,"late session failure preserves an observable durable winner");
+}
+
+async function nativeSessionCases(plan,native){
+  const baseline=descriptorSet();
+  const pair=nativeSessionPair(native,plan);
+  assert.equal(descriptorSet().length,baseline.length+6);
+  let wire;
+  try{
+    assert.equal(native.revalidatePeerPair(pair.control,pair.publisher),undefined);
+    if(plan.case==="native_session_pair_rules"){
+      requireNativeError(expectError(()=>native.revalidatePeerPair(pair.control,pair.control),
+        "APOLLYON_NATIVE_PAIR_IDENTITY"),"APOLLYON_NATIVE_PAIR_IDENTITY");
+      closeNativePair(native,pair);
+      assert.deepEqual(descriptorSet(),baseline);
+      const swapped=nativeSessionPair(native,plan);
+      requireNativeError(expectError(()=>native.revalidatePeerPair(swapped.publisher,swapped.control),
+        "APOLLYON_NATIVE_PAIR_IDENTITY"),"APOLLYON_NATIVE_PAIR_IDENTITY");
+      closeNativePair(native,swapped);
+      const reused=nativeSessionPair(native,plan);
+      requireNativeError(expectError(()=>native.sendPublisherPeerResponse(reused.control,reused.publisher,
+        Buffer.from("premature\n")),"APOLLYON_NATIVE_PAIR_STATE"),"APOLLYON_NATIVE_PAIR_STATE");
+      expectError(()=>native.readPublisherPeerRequest(reused.control,reused.publisher));
+      expectError(()=>native.exchangePeerChallenge(reused.control,reused.publisher,Buffer.alloc(32)));
+      closeNativePair(native,reused);
+    }else{
+      const request=plan.case==="native_session_response_large"
+        ?Buffer.alloc(65536,0x71):Buffer.from("native exact request fixture\n");
+      startSessionWire(plan,request);
+      const observed=native.readPublisherPeerRequest(pair.control,pair.publisher);
+      assert.deepEqual(observed,request);
+      if(plan.case==="native_session_repair"){
+        const replacement=nativeOpen(native,peerConfig(plan.publisher));
+        try{
+          requireNativeError(expectError(()=>native.exchangePeerChallenge(pair.control,replacement,
+            Buffer.from(sha256(request),"hex")),"APOLLYON_NATIVE_PAIR_STATE"),"APOLLYON_NATIVE_PAIR_STATE");
+        }finally{native.closePeerIdentity(replacement);}
+        closeNativePair(native,pair);
+        assert.deepEqual(descriptorSet(),baseline);
+        wire=finishSessionWire(plan);
+        assert.equal(wire.publisher.received.length,0);
+        return;
+      }
+      assert.equal(native.exchangePeerChallenge(pair.control,pair.publisher,
+        Buffer.from(sha256(request),"hex")),undefined);
+      const response=Buffer.alloc(65536,0x5a);
+      const started=performance.now();
+      if(plan.case==="native_session_response_timeout"){
+        const error=expectError(()=>native.sendPublisherPeerResponse(pair.control,pair.publisher,response),
+          "APOLLYON_NATIVE_RESPONSE_TIMEOUT");
+        requireNativeError(error,"APOLLYON_NATIVE_RESPONSE_TIMEOUT");
+        const elapsed=performance.now()-started;
+        assert.ok(elapsed>=4500&&elapsed<7500,"response backpressure obeys one bounded total deadline");
+      }else{
+        assert.equal(native.sendPublisherPeerResponse(pair.control,pair.publisher,response),undefined);
+        // A second send cannot duplicate an acknowledgement on the same pair.
+        expectError(()=>native.sendPublisherPeerResponse(pair.control,pair.publisher,response));
+      }
+      closeNativePair(native,pair);
+      assert.deepEqual(descriptorSet(),baseline);
+      wire=finishSessionWire(plan);
+      if(plan.case==="native_session_response_timeout"){
+        assert.ok(wire.publisher.received.length>0&&wire.publisher.received.length<response.length,
+          "actual socket pressure permits a partial prefix without claiming complete delivery");
+        assert.deepEqual(wire.publisher.received,response.subarray(0,wire.publisher.received.length));
+      }else{
+        assert.deepEqual(wire.publisher.received,response);
+        assert.equal(wire.publisher.eof,true,"successful native send explicitly terminates its write half");
+      }
+    }
+  }finally{closeNativePair(native,pair);}
+  if(!wire){
+    assert.deepEqual(descriptorSet(),baseline);
+    finishSessionWire(plan);
+  }
+}
+
+async function sessionAdapterCases(plan,bridge){
+  const f=fixture();
+  const bundle=requestBundle(claimRecord(f.generation));
+  const input={expected_store_generation_record:structuredClone(f.generation)};
+  const baseline=descriptorSet();
+  const before=storeSnapshot(f.root);
+  const create=bridge.createApollyonDurableAttemptClaimStoreServiceWithNativeSessionV2;
+  const peers={control_peer_identity:peerConfig(plan.control),publisher_peer_identity:peerConfig(plan.publisher)};
+  const cfg={root_fd:f.rootFd,claim_uid:uid,claim_gid:gid,session_binding_id:SESSION_ID,
+    revalidate:(stage,context)=>revalidationReceipt(stage,context),...peers};
+  let session;
+  let closed=false;
+  const dead=new Set();
+  let result;
+  let failure;
+  let callbacks=0;
+  let getters=0;
+  let installedToJson=false;
+  const originalToJson=Object.getOwnPropertyDescriptor(Object.prototype,"toJSON");
+  let cleanupInjected=false;
+  let recycled;
+  try{
+    if(plan.case==="session_config"){
+      const accessor={...cfg};
+      Object.defineProperty(accessor,"control_peer_identity",{enumerable:true,get(){getters+=1;return peers.control_peer_identity;}});
+      const peerAccessor={...peers.publisher_peer_identity};
+      Object.defineProperty(peerAccessor,"socket_fd",{enumerable:true,get(){getters+=1;return plan.publisher.socket_fd;}});
+      const bad=[accessor,{...cfg,publisher_peer_identity:peerAccessor},{...cfg,peer_identity:peers.control_peer_identity},
+        {...cfg,revalidate:async()=>({})},{...cfg,revalidate:function*(){yield {};}},
+        {...cfg,publisher_peer_identity:new Proxy(peers.publisher_peer_identity,{get(){getters+=1;assert.fail();}})}];
+      for(const candidate of bad){
+        expectError(()=>create(candidate));
+        assert.deepEqual(descriptorSet(),baseline);
+      }
+      assert.equal(getters,0);
+      session=create(cfg);
+      const operationAccessor={};
+      Object.defineProperty(operationAccessor,"expected_store_generation_record",{
+        enumerable:true,get(){getters+=1;return f.generation;},
+      });
+      expectError(()=>session.servePublisherRequest(operationAccessor),
+        "apollyon_claim_store_session_v2_operation_input_invalid");
+      closed=true;
+      assert.equal(getters,0);
+      requireSessionClosed(session,input);
+      assert.deepEqual(descriptorSet(),baseline);
+      assert.deepEqual(storeSnapshot(f.root),before);
+      finishSessionWire(plan);
+      return;
+    }
+    if(plan.case==="session_role_swap"){
+      [cfg.control_peer_identity,cfg.publisher_peer_identity]=[cfg.publisher_peer_identity,cfg.control_peer_identity];
+    }
+    if(plan.case==="session_duplicate_peer")cfg.publisher_peer_identity={...cfg.control_peer_identity};
+    const invalidPair=["session_wrong_parent","session_role_swap","session_duplicate_peer",
+      "session_missing_inline","session_nondefault_peek"].includes(plan.case);
+    if(invalidPair){
+      const error=expectError(()=>create(cfg),"apollyon_claim_store_session_v2_initialization_failed");
+      assert.ok(errorMessages(error).includes(["session_missing_inline","session_nondefault_peek"].includes(plan.case)
+        ?"APOLLYON_NATIVE_PAIR_SOCKET_OPTIONS":"APOLLYON_NATIVE_PAIR_IDENTITY"));
+      assert.deepEqual(descriptorSet(),baseline,"both native peers close after pair admission failure");
+      assert.deepEqual(storeSnapshot(f.root),before);
+      finishSessionWire(plan);
+      closed=true;
+      return;
+    }
+    cfg.revalidate=(stage,context)=>{
+      callbacks+=1;
+      if(plan.case==="session_valid"){
+        expectError(()=>session.close(),"apollyon_claim_store_session_v2_reentry");
+        expectError(()=>session.servePublisherRequest(input),"apollyon_claim_store_session_v2_reentry");
+        assert.equal(context.publish_request_sha256,bundle.publishRequestSha);
+      }
+      if(plan.case==="session_generation_alias"){
+        input.expected_store_generation_record.store_generation_id="apollyon_claim_store_generation_v2:"+"f".repeat(64);
+      }
+      if(plan.case==="session_control_before_slot"&&stage==="before_slot_publication"){
+        sessionTransition(plan.control,"exit");dead.add("control");
+      }
+      if(plan.case==="session_publisher_after_slot"&&stage==="after_slot_before_claim"){
+        sessionTransition(plan.publisher,"exec");dead.add("publisher");
+      }
+      if(plan.case==="session_control_before_ack"&&stage==="before_success_ack"){
+        sessionTransition(plan.control,"exec");dead.add("control");
+      }
+      if(plan.case==="session_callback_tojson"&&stage==="before_success_ack"){
+        installedToJson=true;
+        Object.defineProperty(Object.prototype,"toJSON",{configurable:true,get(){
+          getters+=1;throw new Error("fixture_toJSON_getter_was_executed");
+        }});
+      }
+      if(stage==="before_success_ack"&&plan.case==="session_ack_partial"){
+        process.env.APOLLYON_TEST_SESSION_SEND_FAULT="partial";
+      }
+      if(stage==="before_success_ack"&&plan.case==="session_ack_after_send_close"){
+        process.env.APOLLYON_TEST_SESSION_SEND_FAULT="after_send_close";
+      }
+      const receipt=revalidationReceipt(stage,context);
+      if(plan.case==="session_callback_async")return Promise.reject(new Error("fixture_async_local_receipt"));
+      return receipt;
+    };
+    if(plan.case==="session_valid")for(const peer of Object.values(peers)){
+      Object.defineProperty(peer.expected_cmdline_bytes,"byteLength",{
+        configurable:true,get(){getters+=1;assert.fail("session cmdline getter invoked");},
+      });
+    }
+    session=create(cfg);
+    assert.equal(Object.isFrozen(session),true);
+    assert.equal(session.publishClaim,undefined);
+    assert.equal(session.observeAuthorizationWinner,undefined);
+    assert.equal(session.challenge_exchange_implementation_present,true);
+    assert.equal(session.protected_expected_identity_origin_proven,false);
+    assert.equal(session.privileged_peer_role_admission_performed,false);
+    assert.equal(descriptorSet().length,baseline.length+6,"both original peer handles remain retained");
+    if(plan.case==="session_valid")for(const peer of Object.values(peers)){
+      assert.equal(getters,0);
+      delete peer.expected_cmdline_bytes.byteLength;
+      peer.expected_cmdline_bytes.fill(0x21);
+      peer.expected_supplementary_gids.push(65533);
+    }
+    let body=bundle.requestBytes;
+    if(plan.case==="session_request_empty")body=Buffer.alloc(0);
+    if(plan.case==="session_request_malformed")body=Buffer.from("{}\n");
+    if(plan.case==="session_request_oversize")body=Buffer.alloc(65537,0x61);
+    startSessionWire(plan,body);
+    const originalOpen=fs.openSync;
+    const originalClose=fs.closeSync;
+    const roots=[];
+    if(plan.case==="session_publisher_cleanup"||plan.case==="session_ack_shutdown"){
+      fs.openSync=function observedOpen(file,flags,...args){
+        const fd=originalOpen(file,flags,...args);
+        if(String(file)==="/proc/self/fd/"+f.rootFd&&(flags&O_DIRECTORY)!==0)roots.push(fd);
+        return fd;
+      };
+      fs.closeSync=function observedClose(fd){
+        const value=originalClose(fd);
+        if(!cleanupInjected&&roots.length===2&&fd===roots[1]){
+          cleanupInjected=true;
+          if(plan.case==="session_publisher_cleanup"){
+            sessionTransition(plan.publisher,"exec");dead.add("publisher");
+          }else assert.equal(sessionCommand(plan.publisher,{action:"shutdown_read"}).ok,true);
+        }
+        return value;
+      };
+    }
+    const started=performance.now();
+    try{result=session.servePublisherRequest(input);}
+    catch(error){failure=error;}
+    finally{
+      fs.openSync=originalOpen;fs.closeSync=originalClose;
+      if(installedToJson){
+        if(originalToJson)Object.defineProperty(Object.prototype,"toJSON",originalToJson);
+        else delete Object.prototype.toJSON;
+        installedToJson=false;
+      }
+      delete process.env.APOLLYON_TEST_SESSION_SEND_FAULT;
+      delete process.env.APOLLYON_TEST_CLOSE_FAULT;
+    }
+    const elapsed=performance.now()-started;
+    closed=true;
+    const successful=plan.case==="session_valid"||plan.case==="session_generation_alias";
+    if(successful){
+      if(failure)throw failure;
+      assert.equal(result.status,"store_core_transaction_complete_source_only");
+      assert.equal(result.success_response.durability_proven,true);
+      assert.equal(Object.isFrozen(result.native_session),true);
+      for(const field of ["challenge_exchange_performed","direct_parent_lineage_observed",
+        "response_transmission_completed","native_handles_closed"]){
+        assert.equal(result.native_session[field],true,field);
+      }
+      for(const field of ["response_receipt_confirmed","protected_expected_identity_origin_proven",
+        "privileged_peer_role_admission_performed","cross_uid_host_qualification_performed"]){
+        assert.equal(result.native_session[field],false,field);
+      }
+      assert.equal(callbacks,3);
+      assertDurableWinner(f,bundle);
+    }else{
+      assert.notEqual(failure,undefined,"negative session must not return a success object: "+plan.case);
+      assert.ok(errorMessages(failure).some(value=>value.includes("apollyon_claim_store_session_v2_")),
+        errorMessages(failure).join("\n"));
+      assert.equal(Object.isFrozen(failure.cleanup_errors),true);
+      if(plan.case==="session_request_no_eof"||plan.case==="session_challenge_no_eof"){
+        assert.ok(elapsed>=4500&&elapsed<7500,"session request/challenge requires EOF within its total deadline");
+      }
+      if(plan.case==="session_request_rights")assert.ok(errorMessages(failure).includes("APOLLYON_NATIVE_REQUEST_FRAME"));
+      if(plan.case==="session_challenge_rights")assert.ok(errorMessages(failure).some(message=>
+        message.includes("apollyon_claim_store_impl_v2_revalidation_failed:before_slot_publication:")&&
+        message.includes("Peer frame contains truncated or unsupported ancillary input")),
+      errorMessages(failure).join("\n"));
+      const late=["session_publisher_after_slot","session_control_before_ack","session_publisher_cleanup",
+        "session_ack_shutdown","session_callback_tojson","session_ack_partial","session_ack_after_send_close"];
+      const slotExpected=late.includes(plan.case);
+      const claimExpected=slotExpected&&plan.case!=="session_publisher_after_slot";
+      const files=recordPaths(f,bundle);
+      assert.equal(fs.existsSync(files.slot),slotExpected,"slot conservation: "+plan.case);
+      assert.equal(fs.existsSync(files.claim),claimExpected,"claim conservation: "+plan.case);
+      if(!slotExpected)assert.deepEqual(storeSnapshot(f.root),before,
+        "all early protocol and local revalidation failures precede durable store mutation");
+      if(claimExpected)assertDurableWinner(f,bundle);
+      if(plan.case==="session_ack_partial"||plan.case==="session_ack_after_send_close"){
+        assert.equal(failure.core_store_mutation_may_have_occurred,true);
+        assert.equal(failure.response_delivery_may_have_occurred,true,
+          "a send or later close failure cannot claim that no peer observed response bytes");
+      }else if(plan.case!=="session_ack_shutdown")assert.equal(failure.response_delivery_may_have_occurred,false);
+      if(plan.case==="session_publisher_cleanup"||plan.case==="session_ack_shutdown")assert.equal(cleanupInjected,true);
+      assert.equal(getters,0,"caller serialization and buffer accessors never execute across the session boundary");
+    }
+    requireSessionClosed(session,input);
+    if(plan.case==="session_ack_after_send_close"){
+      assert.match(process.env.APOLLYON_TEST_RECYCLED_FD??"",/^[0-9]+$/u);
+      recycled=Number(process.env.APOLLYON_TEST_RECYCLED_FD);
+      assert.equal(fs.readlinkSync("/proc/self/fd/"+recycled),"/dev/null");
+      assert.equal(descriptorSet().length,baseline.length+1,
+        "post-send close uncertainty cleans both peers and leaves the recycled descriptor alone");
+      fs.closeSync(recycled);recycled=undefined;
+      delete process.env.APOLLYON_TEST_RECYCLED_FD;
+    }
+    assert.deepEqual(descriptorSet(),baseline,"both retained peer handles and all core/lease descriptors close");
+    const wire=finishSessionWire(plan,dead);
+    if(plan.case==="session_request_rights")assert.equal(wire.publisher.rights_sent,true);
+    if(plan.case==="session_challenge_rights")assert.equal(wire.control.rights_sent,true);
+    if(successful){
+      assert.deepEqual(wire.publisher.received,bytes(result.success_response),
+        "the publisher receives only the accepted exact canonical success response");
+      assert.equal(wire.publisher.eof,true);
+      assert.equal(Buffer.from(wire.control.challenge_base64,"base64").length,32);
+      assert.equal(wire.control.sent_response,true);
+    }else if(wire.publisher){
+      if(plan.case==="session_ack_partial"){
+        assert.equal(wire.publisher.received.length,11);
+        assert.throws(()=>JSON.parse(wire.publisher.received.toString("utf8")));
+      }else if(plan.case==="session_ack_after_send_close"){
+        assert.ok(wire.publisher.received.length>11,
+          "a late cleanup failure may occur after a complete response was visible on the live socket");
+        const visible=JSON.parse(wire.publisher.received.toString("utf8"));
+        assert.equal(visible.durability_proven,true);
+      }else assert.equal(wire.publisher.received.length,0,"failure before native send emits no success bytes");
+    }
+    if(plan.case==="session_callback_async")await new Promise(resolve=>setImmediate(resolve));
+  }finally{
+    if(installedToJson){
+      if(originalToJson)Object.defineProperty(Object.prototype,"toJSON",originalToJson);
+      else delete Object.prototype.toJSON;
+    }
+    delete process.env.APOLLYON_TEST_SESSION_SEND_FAULT;
+    delete process.env.APOLLYON_TEST_CLOSE_FAULT;
+    delete process.env.APOLLYON_TEST_RECYCLED_FD;
+    if(recycled!==undefined)fs.closeSync(recycled);
+    if(session&&!closed)session.close();
+    f.cleanup();
+  }
+}
+
+async function sessionChild(plan){
+  plan.control.fixture_case=plan.case;
+  plan.publisher.fixture_case=plan.case;
+  const native=nativeModule();
+  if(plan.case.startsWith("native_session_"))await nativeSessionCases(plan,native);
+  else await sessionAdapterCases(plan,await bridgeModule());
+  fs.writeSync(1,JSON.stringify({ok:true,case:plan.case,uid,gid})+"\n");
+}
+
 function parseMainArguments(args){
   let headers;
   let rootPipeOnly=false;
@@ -1020,7 +1679,7 @@ function runFixture(fixturePath,plan){
   assert.equal(result.error,undefined,String(result.error));
   assert.equal(result.status,0,"fixture failed:\n"+String(result.stderr)+"\n"+String(result.stdout));
   const outcome=JSON.parse(result.stdout);
-  assert.equal(outcome.status,0,"native child failed:\n"+outcome.stderr+"\n"+outcome.stdout);
+  assert.equal(outcome.status,0,"native child failed ["+(plan.case??plan.mode)+"]:\n"+outcome.stderr+"\n"+outcome.stdout);
   const child=JSON.parse(outcome.stdout);
   assert.equal(child.ok,true);
   return {outcome,child};
@@ -1053,8 +1712,10 @@ async function main(args){
     compileAddon();
     const pipeFixture=path.join(temporary,"pipe_fixture.py");
     const peerFixture=path.join(temporary,"peer_fixture.py");
+    const sessionFixture=path.join(temporary,"session_fixture.py");
     fs.writeFileSync(pipeFixture,PIPE_FIXTURE,{mode:0o644});
     fs.writeFileSync(peerFixture,PEER_FIXTURE,{mode:0o644});
+    fs.writeFileSync(sessionFixture,SESSION_FIXTURE,{mode:0o644});
     const proof=path.join(snapshot,SELF_REL);
     const record=claimRecord(generationRecord("a".repeat(64)));
     const bundle=requestBundle(record);
@@ -1099,7 +1760,18 @@ async function main(args){
       "adapter_before_ack","adapter_cleanup_publish","adapter_cleanup_observe"]){
       runFixture(peerFixture,{node:process.execPath,proof,case:kind});
     }
-    // All 29 ordinary fixtures above run the unwrapped production source build.
+    for(const kind of ["native_session_pair_rules","native_session_repair","native_session_response_large","native_session_response_timeout",
+      "session_valid","session_config","session_wrong_parent","session_role_swap","session_duplicate_peer",
+      "session_missing_inline","session_nondefault_peek","session_control_urgent","session_request_empty","session_request_malformed",
+      "session_request_oversize","session_request_delayed_extra","session_request_no_eof","session_request_rights",
+      "session_control_early_bytes","session_control_early_eof","session_wrong_challenge","session_wrong_digest",
+      "session_challenge_short","session_challenge_extra","session_challenge_delayed_extra","session_challenge_no_eof",
+      "session_challenge_rights",
+      "session_callback_async","session_callback_tojson","session_generation_alias","session_control_before_slot",
+      "session_publisher_after_slot","session_control_before_ack","session_publisher_cleanup","session_ack_shutdown"]){
+      runFixture(sessionFixture,{node:process.execPath,proof,case:kind});
+    }
+    // The 29 original and 35 two-peer fixtures use the production source build.
     // These three fault cases use a separate temporary compile with linker-only
     // close interception, without adding a production native hook or export.
     const closeFaultSource=path.join(temporary,"native_close_fault.c");
@@ -1107,6 +1779,12 @@ async function main(args){
     compileAddon([closeFaultSource],["-Wl,--wrap=close"]);
     for(const kind of ["native_fault_explicit","native_fault_temporary","native_fault_primary"]){
       runFixture(peerFixture,{node:process.execPath,proof,case:kind});
+    }
+    const sendFaultSource=path.join(temporary,"native_session_send_fault.c");
+    fs.writeFileSync(sendFaultSource,SESSION_SEND_FAULT_FIXTURE,{mode:0o644});
+    compileAddon([closeFaultSource,sendFaultSource],["-Wl,--wrap=close","-Wl,--wrap=send"]);
+    for(const kind of ["session_ack_partial","session_ack_after_send_close"]){
+      runFixture(sessionFixture,{node:process.execPath,proof,case:kind});
     }
   }finally{fs.rmSync(temporary,{recursive:true,force:true});}
 
@@ -1144,6 +1822,35 @@ async function main(args){
   console.log("native_adapter_peer_failure_before_slot_prevents_store_mutation=true");
   console.log("native_adapter_peer_failure_after_slot_or_claim_suppresses_ack=true");
   console.log("native_adapter_peer_retained_through_core_cleanup_and_postcheck=true");
+  console.log("native_session_real_control_parent_and_distinct_publisher_socket_identity_proven=true");
+  console.log("native_session_wrong_parent_duplicate_and_reversed_roles_rejected=true");
+  console.log("native_session_required_inline_urgent_byte_handling_and_urgent_input_rejection_proven=true");
+  console.log("native_session_pair_phase_order_and_one_use_after_failure_proven=true");
+  console.log("native_session_fragmented_actual_request_challenge_and_canonical_response_proven=true");
+  console.log("native_session_exact_request_bound_empty_malformed_and_delayed_extra_rejected=true");
+  console.log("native_session_missing_request_eof_total_deadline_proven=true");
+  console.log("native_session_prechallenge_control_bytes_and_eof_rejected=true");
+  console.log("native_session_wrong_challenge_echo_and_request_digest_rejected=true");
+  console.log("native_session_short_extra_delayed_extra_and_missing_challenge_eof_rejected=true");
+  console.log("native_session_request_and_challenge_ancillary_descriptors_rejected_without_leak=true");
+  console.log("native_session_challenge_exchange_performed=true");
+  console.log("native_session_challenge_failure_precedes_store_mutation=true");
+  console.log("native_session_existing_core_durable_winner_and_readonly_observer_preserved=true");
+  console.log("native_session_no_raw_publish_or_observe_entrypoint_exposed=true");
+  console.log("native_session_config_and_operation_accessors_rejected_without_invocation=true");
+  console.log("native_session_cmdline_and_generation_input_aliases_cannot_redirect=true");
+  console.log("native_session_async_local_receipt_observed_rejected_and_session_closed=true");
+  console.log("native_session_callback_serialization_getter_rejected_without_invocation=true");
+  console.log("native_session_reentry_rejected_without_closing_active_pair=true");
+  console.log("native_session_peer_exit_or_exec_at_each_publication_boundary_suppresses_ack=true");
+  console.log("native_session_both_peers_retained_through_core_cleanup_and_response_boundary=true");
+  console.log("native_session_actual_response_backpressure_partial_progress_and_deadline_proven=true");
+  console.log("native_session_partial_response_failure_preserves_durable_winner_and_delivery_uncertainty=true");
+  console.log("native_session_postsend_close_failure_does_not_claim_response_suppression=true");
+  console.log("native_session_both_native_handles_closed_before_local_return=true");
+  console.log("native_session_control_receives_no_publisher_success_response=true");
+  console.log("native_session_successful_transmission_is_not_confirmed_peer_receipt=true");
+  console.log("native_session_privileged_roles_installed_origin_and_cross_uid_host_proof=false");
   console.log("native_peer_expected_identity_origin_proven=false");
   console.log("privileged_peer_role_admission_performed=false");
   console.log("challenge_exchange_performed=false");
@@ -1159,4 +1866,7 @@ if(process.argv[2]==="--pipe-child"){
 }else if(process.argv[2]==="--peer-child"){
   assert.equal(process.argv.length,4);
   await peerChild(JSON.parse(process.argv[3]));
+}else if(process.argv[2]==="--session-child"){
+  assert.equal(process.argv.length,4);
+  await sessionChild(JSON.parse(process.argv[3]));
 }else await main(process.argv.slice(2));

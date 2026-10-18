@@ -117,14 +117,14 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
             ed479d7dfd29d68c44edcf0ebbe3cfda4d64532b
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            ae89fb6c14c20125d51cb58a65a02445abb33735
+            71ba2f0eb6e4c326eb8f067835929ec403ee6481
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
-            db37030d21b7e16c5b018b2003b1d4952bffbb77
+            96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
-            4531f91225a760aefa35873e1b24f62e21b17394
+            3a46492c841047431f2086f5e8c37a51c20ff2a4
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            7a5a34cc427e745bade226cfcb02f2ba1eed8dbd
+            96124480cd6beb4bd41ce6e33575cad6365ee953
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
@@ -289,7 +289,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Prove native pipe and retained peer composition
+      - name: Prove native pipe, retained peers and one-use paired session
         run: |
           set -euo pipefail
           node --check tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs
@@ -299,7 +299,18 @@ jobs:
           out="$RUNNER_TEMP/apollyon-claim-store-native-bridge-v2.log"
           node scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs \
             --node-headers "$node_headers" | tee "$out"
-          grep -Fx 'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_NATIVE_BRIDGE_V2_PROOF_GREEN' "$out"
+          for marker in \
+            'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_NATIVE_BRIDGE_V2_PROOF_GREEN' \
+            'native_session_fragmented_actual_request_challenge_and_canonical_response_proven=true' \
+            'native_session_required_inline_urgent_byte_handling_and_urgent_input_rejection_proven=true' \
+            'native_session_request_and_challenge_ancillary_descriptors_rejected_without_leak=true' \
+            'native_session_challenge_exchange_performed=true' \
+            'native_session_partial_response_failure_preserves_durable_winner_and_delivery_uncertainty=true' \
+            'native_session_postsend_close_failure_does_not_claim_response_suppression=true' \
+            'native_session_privileged_roles_installed_origin_and_cross_uid_host_proof=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
 
       - name: Prove root-created pipe survives the publisher credential drop
         run: |

@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/random.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/vfs.h>
@@ -23,7 +24,8 @@
 #define PUBLISHER_INPUT_FD 3
 #define MAX_REQUEST_BYTES 65536U
 #define PIPE_DEADLINE_SECONDS 5
-#define MAX_CLEANUP_ERRORS 4U
+#define PEER_PHASE_DEADLINE_SECONDS 5
+#define MAX_CLEANUP_ERRORS 16U
 
 /* Shared by all Node environments loading this canonical addon image. A failed
  * attempt consumes the request too: a partial pipe frame must never be retried.
@@ -57,6 +59,22 @@ struct owned_descriptor {
 
 struct environment;
 
+enum peer_pair_role {
+  PAIR_ROLE_NONE = 0,
+  PAIR_ROLE_CONTROL,
+  PAIR_ROLE_PUBLISHER
+};
+
+enum peer_pair_phase {
+  PAIR_PHASE_UNBOUND = 0,
+  PAIR_PHASE_REQUEST_READING,
+  PAIR_PHASE_REQUEST_COMPLETE,
+  PAIR_PHASE_CHALLENGE_EXCHANGING,
+  PAIR_PHASE_CHALLENGE_COMPLETE,
+  PAIR_PHASE_RESPONSE_SENDING,
+  PAIR_PHASE_RESPONSE_COMPLETE
+};
+
 struct peer_handle {
   struct environment *owner;
   struct peer_handle *previous;
@@ -72,6 +90,12 @@ struct peer_handle {
   size_t group_count;
   unsigned char *cmdline;
   size_t cmdline_length;
+  uint64_t handle_id;
+  uint64_t pair_id;
+  uint64_t partner_handle_id;
+  enum peer_pair_role pair_role;
+  enum peer_pair_phase pair_phase;
+  int response_write_half_closed;
 };
 
 struct environment {
@@ -79,6 +103,8 @@ struct environment {
   int closing;
   size_t references;
   struct peer_handle *handles;
+  uint64_t next_handle_id;
+  uint64_t next_pair_id;
 };
 
 static void fail(
@@ -217,7 +243,8 @@ static void cleanup_error(
   int error_number
 ) {
   fail(failure, code, "Native descriptor cleanup failed", error_number);
-  /* At most the temporary pidfd and three retained descriptors are owned. */
+  /* Pair operations can clean six retained descriptors and one temporary pidfd.
+   * A rejected substitution may additionally close each original counterpart. */
   if (failure->cleanup_count < MAX_CLEANUP_ERRORS) {
     failure->cleanup[failure->cleanup_count++] = (struct cleanup_error){
       .resource = resource, .code = code, .error_number = error_number
@@ -505,7 +532,12 @@ done:
   return failure.code ? throw_failure(env, &failure) : output;
 }
 
-static int socket_credentials(int fd, struct ucred *credentials, struct failure *failure) {
+static int socket_credentials_mode(
+  int fd,
+  struct ucred *credentials,
+  int response_write_half_closed,
+  struct failure *failure
+) {
   int domain = 0;
   int type = 0;
   int accepting = 0;
@@ -545,7 +577,13 @@ static int socket_credentials(int fd, struct ucred *credentials, struct failure 
   struct pollfd transport = {.fd = fd, .events = 0};
   const int ready = poll(&transport, 1, 0);
   if (ready < 0) goto system_error;
-  if (ready != 0 || transport.revents != 0) {
+  /* Once this endpoint deliberately finishes the response, both write halves
+   * can be closed and POLLHUP is expected. This exception does not apply before
+   * our successful final SHUT_WR and never admits POLLERR or POLLNVAL. */
+  if (!(
+    (ready == 0 && transport.revents == 0) ||
+    (response_write_half_closed && ready == 1 && transport.revents == POLLHUP)
+  )) {
     fail(failure, "APOLLYON_NATIVE_PEER_TRANSPORT", "Connected peer transport is no longer live", ECONNRESET);
     return -1;
   }
@@ -553,6 +591,10 @@ static int socket_credentials(int fd, struct ucred *credentials, struct failure 
 system_error:
   fail(failure, "APOLLYON_NATIVE_PEER_DESCRIPTOR", "Connected peer descriptor check failed", errno ? errno : EPROTO);
   return -1;
+}
+
+static int socket_credentials(int fd, struct ucred *credentials, struct failure *failure) {
+  return socket_credentials_mode(fd, credentials, 0, failure);
 }
 
 static int same_credentials(const struct ucred *a, const struct ucred *b) {
@@ -565,7 +607,8 @@ static int peer_bracket(struct peer_handle *handle, struct failure *failure) {
     descriptor_identity(&handle->socket, 0, failure) != 0 ||
     descriptor_identity(&handle->executable, 1, failure) != 0 ||
     descriptor_identity(&handle->pidfd, 0, failure) != 0 ||
-    socket_credentials(handle->socket.fd, &current, failure) != 0
+    socket_credentials_mode(handle->socket.fd, &current,
+      handle->response_write_half_closed, failure) != 0
   ) return -1;
   if (!same_credentials(&handle->credentials, &current)) {
     fail(failure, "APOLLYON_NATIVE_PEER_IDENTITY", "Kernel peer credentials changed", ESTALE);
@@ -584,10 +627,16 @@ static void close_peer(struct peer_handle *handle, struct failure *failure) {
   if (handle->closed) return;
   handle->closed = 1;
   struct failure cleanup = {0};
-  close_descriptor(&handle->pidfd, "peer_pidfd", &cleanup);
+  const char *pidfd_role = handle->pair_role == PAIR_ROLE_CONTROL ? "control_peer_pidfd" :
+    handle->pair_role == PAIR_ROLE_PUBLISHER ? "publisher_peer_pidfd" : "peer_pidfd";
+  const char *executable_role = handle->pair_role == PAIR_ROLE_CONTROL ? "control_peer_executable" :
+    handle->pair_role == PAIR_ROLE_PUBLISHER ? "publisher_peer_executable" : "peer_executable";
+  const char *socket_role = handle->pair_role == PAIR_ROLE_CONTROL ? "control_peer_socket" :
+    handle->pair_role == PAIR_ROLE_PUBLISHER ? "publisher_peer_socket" : "peer_socket";
+  close_descriptor(&handle->pidfd, pidfd_role, &cleanup);
   handle->identity.pidfd = -1;
-  close_descriptor(&handle->executable, "peer_executable", &cleanup);
-  close_descriptor(&handle->socket, "peer_socket", &cleanup);
+  close_descriptor(&handle->executable, executable_role, &cleanup);
+  close_descriptor(&handle->socket, socket_role, &cleanup);
   free(handle->cmdline);
   handle->cmdline = NULL;
   handle->cmdline_length = 0;
@@ -775,6 +824,11 @@ static napi_value open_peer_identity(napi_env env, napi_callback_info info) {
   }
   handle->pidfd.has_identity = 1;
   if (peer_bracket(handle, &failure) != 0) goto done;
+  if (owner->next_handle_id == UINT64_MAX) {
+    fail(&failure, "APOLLYON_NATIVE_PAIR_STATE", "Native peer handle identity space is exhausted", EOVERFLOW);
+    goto done;
+  }
+  handle->handle_id = ++owner->next_handle_id;
   if (
     check_api(napi_create_object(env, &output), &failure) != 0 ||
     check_api(napi_type_tag_object(env, output, &peer_type_tag), &failure) != 0 ||
@@ -793,24 +847,22 @@ done:
   return failure.code ? throw_failure(env, &failure) : output;
 }
 
-static struct peer_handle *get_peer(
+static struct peer_handle *peer_value(
   napi_env env,
-  napi_callback_info info,
+  struct environment *owner,
+  napi_value value,
   struct failure *failure
 ) {
-  struct environment *owner = NULL;
-  napi_value values[2];
   bool tagged = false;
   napi_valuetype type;
-  if (arguments(env, info, 1, values, &owner, failure) != 0) return NULL;
-  if (check_api(napi_typeof(env, values[0], &type), failure) != 0) return NULL;
+  if (check_api(napi_typeof(env, value, &type), failure) != 0) return NULL;
   if (type != napi_object) goto invalid;
-  if (check_api(napi_check_object_type_tag(env, values[0], &peer_type_tag, &tagged), failure) != 0) {
+  if (check_api(napi_check_object_type_tag(env, value, &peer_type_tag, &tagged), failure) != 0) {
     return NULL;
   }
   if (!tagged) goto invalid;
   void *unwrapped = NULL;
-  if (check_api(napi_unwrap(env, values[0], &unwrapped), failure) != 0) return NULL;
+  if (check_api(napi_unwrap(env, value, &unwrapped), failure) != 0) return NULL;
   struct peer_handle *handle = unwrapped;
   if (!handle || handle->owner != owner) goto invalid;
   return handle;
@@ -819,30 +871,37 @@ invalid:
   return NULL;
 }
 
-static napi_value revalidate_peer_identity(napi_env env, napi_callback_info info) {
-  struct failure failure = {0};
-  struct peer_handle *handle = get_peer(env, info, &failure);
+static struct peer_handle *get_peer(
+  napi_env env,
+  napi_callback_info info,
+  struct failure *failure
+) {
+  struct environment *owner = NULL;
+  napi_value values[2];
+  if (arguments(env, info, 1, values, &owner, failure) != 0) return NULL;
+  return peer_value(env, owner, values[0], failure);
+}
+
+static int revalidate_peer_handle(struct peer_handle *handle, struct failure *failure) {
   struct owned_descriptor temporary = {.fd = -1};
   struct apollyon_claim_process_identity_v2 observed = {.pidfd = -1};
-  napi_value output = NULL;
-  if (!handle) goto done;
   if (handle->closed) {
-    fail(&failure, "APOLLYON_NATIVE_PEER_CLOSED", "Retained peer handle is closed", EBADF);
+    fail(failure, "APOLLYON_NATIVE_PEER_CLOSED", "Retained peer handle is closed", EBADF);
     goto done;
   }
-  if (peer_bracket(handle, &failure) != 0) goto done;
+  if (peer_bracket(handle, failure) != 0) goto done;
   errno = 0;
   if (apollyon_claim_process_identity_observe_v2(
     handle->identity.pid, handle->identity.ppid, handle->identity.uid, handle->identity.gid,
     handle->groups, handle->group_count, handle->executable.fd,
     handle->cmdline, handle->cmdline_length, &observed
   ) != 0) {
-    fail(&failure, "APOLLYON_NATIVE_PEER_IDENTITY", "Native peer process revalidation failed", errno ? errno : EIO);
+    fail(failure, "APOLLYON_NATIVE_PEER_IDENTITY", "Native peer process revalidation failed", errno ? errno : EIO);
     goto done;
   }
   temporary.fd = observed.pidfd;
   if (fstat(temporary.fd, &temporary.identity) != 0) {
-    fail(&failure, "APOLLYON_NATIVE_FD_IDENTITY", "Temporary pidfd identity is unavailable", errno);
+    fail(failure, "APOLLYON_NATIVE_FD_IDENTITY", "Temporary pidfd identity is unavailable", errno);
     goto done;
   }
   temporary.has_identity = 1;
@@ -853,16 +912,25 @@ static napi_value revalidate_peer_identity(napi_env env, napi_callback_info info
     observed.executable_dev != handle->identity.executable_dev ||
     observed.executable_ino != handle->identity.executable_ino
   ) {
-    fail(&failure, "APOLLYON_NATIVE_PEER_IDENTITY", "Retained peer process generation changed", ESTALE);
+    fail(failure, "APOLLYON_NATIVE_PEER_IDENTITY", "Retained peer process generation changed", ESTALE);
     goto done;
   }
-  if (peer_bracket(handle, &failure) != 0) goto done;
-  close_descriptor(&temporary, "temporary_pidfd", &failure);
-  if (!failure.code && peer_bracket(handle, &failure) != 0) goto done;
-  if (!failure.code) (void)check_api(napi_get_undefined(env, &output), &failure);
+  if (peer_bracket(handle, failure) != 0) goto done;
+  close_descriptor(&temporary, "temporary_pidfd", failure);
+  if (!failure->code && peer_bracket(handle, failure) != 0) goto done;
 
 done:
-  close_descriptor(&temporary, "temporary_pidfd", &failure);
+  close_descriptor(&temporary, "temporary_pidfd", failure);
+  return failure->code ? -1 : 0;
+}
+
+static napi_value revalidate_peer_identity(napi_env env, napi_callback_info info) {
+  struct failure failure = {0};
+  struct peer_handle *handle = get_peer(env, info, &failure);
+  napi_value output = NULL;
+  if (handle && revalidate_peer_handle(handle, &failure) == 0) {
+    (void)check_api(napi_get_undefined(env, &output), &failure);
+  }
   if (failure.code && handle) close_peer(handle, &failure);
   return failure.code ? throw_failure(env, &failure) : output;
 }
@@ -876,6 +944,550 @@ static napi_value close_peer_identity(napi_env env, napi_callback_info info) {
     else close_peer(handle, &failure);
   }
   if (!failure.code) (void)check_api(napi_get_undefined(env, &output), &failure);
+  return failure.code ? throw_failure(env, &failure) : output;
+}
+
+/* These are protocol roles within a generic source session. They do not admit
+ * an installed root revalidator or prove protected executable/script origin. */
+static int pair_arguments(
+  napi_env env,
+  napi_callback_info info,
+  size_t count,
+  napi_value *values,
+  struct peer_handle **control,
+  struct peer_handle **publisher,
+  struct failure *failure
+) {
+  struct environment *owner = NULL;
+  if (arguments(env, info, count, values, &owner, failure) != 0) return -1;
+  *control = peer_value(env, owner, values[0], failure);
+  *publisher = peer_value(env, owner, values[1], failure);
+  return failure->code ? -1 : 0;
+}
+
+static struct peer_handle *paired_counterpart(struct peer_handle *handle) {
+  if (!handle || !handle->pair_id || !handle->partner_handle_id) return NULL;
+  for (struct peer_handle *peer = handle->owner->handles; peer; peer = peer->next) {
+    if (peer->handle_id == handle->partner_handle_id &&
+        peer->pair_id == handle->pair_id && peer->partner_handle_id == handle->handle_id) {
+      return peer;
+    }
+  }
+  return NULL;
+}
+
+static void close_pair(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  struct failure *failure
+) {
+  /* IDs, rather than cross-handle pointers, keep a rejected substitution or a
+   * separately finalized counterpart from creating a dangling reference. */
+  struct peer_handle *targets[4] = {
+    control, publisher, paired_counterpart(control), paired_counterpart(publisher)
+  };
+  for (size_t i = 0; i < sizeof(targets) / sizeof(targets[0]); ++i) {
+    if (!targets[i]) continue;
+    int seen = 0;
+    for (size_t j = 0; j < i; ++j) if (targets[j] == targets[i]) seen = 1;
+    if (!seen) close_peer(targets[i], failure);
+  }
+}
+
+static int pair_structure(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  struct failure *failure
+) {
+  if (control->closed || publisher->closed) {
+    fail(failure, "APOLLYON_NATIVE_PEER_CLOSED", "Retained peer pair is closed", EBADF);
+    return -1;
+  }
+  if (control == publisher || control->owner != publisher->owner ||
+      !control->handle_id || !publisher->handle_id ||
+      control->handle_id == publisher->handle_id ||
+      control->identity.pid == publisher->identity.pid ||
+      publisher->identity.ppid != control->identity.pid ||
+      same_object(&control->socket.identity, &publisher->socket.identity)) {
+    fail(failure, "APOLLYON_NATIVE_PAIR_IDENTITY",
+      "Expected distinct retained peers with the publisher as direct child", EPERM);
+    return -1;
+  }
+  if (control->pair_id || publisher->pair_id) {
+    if (!control->pair_id || control->pair_id != publisher->pair_id ||
+        control->partner_handle_id != publisher->handle_id ||
+        publisher->partner_handle_id != control->handle_id ||
+        control->pair_role != PAIR_ROLE_CONTROL ||
+        publisher->pair_role != PAIR_ROLE_PUBLISHER ||
+        control->pair_phase != publisher->pair_phase) {
+      fail(failure, "APOLLYON_NATIVE_PAIR_STATE", "Retained peer pairing cannot be replaced", EALREADY);
+      return -1;
+    }
+  } else if (control->partner_handle_id || publisher->partner_handle_id ||
+      control->pair_role != PAIR_ROLE_NONE || publisher->pair_role != PAIR_ROLE_NONE ||
+      control->pair_phase != PAIR_PHASE_UNBOUND || publisher->pair_phase != PAIR_PHASE_UNBOUND) {
+    fail(failure, "APOLLYON_NATIVE_PAIR_STATE", "Retained peer pair state is invalid", EPROTO);
+    return -1;
+  }
+  return 0;
+}
+
+static void set_pair_phase(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  enum peer_pair_phase phase
+) {
+  control->pair_phase = phase;
+  publisher->pair_phase = phase;
+}
+
+static int pair_phase(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  enum peer_pair_phase expected,
+  struct failure *failure
+) {
+  if (pair_structure(control, publisher, failure) != 0) return -1;
+  if (control->pair_phase != expected || publisher->pair_phase != expected) {
+    fail(failure, "APOLLYON_NATIVE_PAIR_STATE", "Peer protocol phase is consumed or out of order", EALREADY);
+    return -1;
+  }
+  return 0;
+}
+
+static int bind_pair(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  struct failure *failure
+) {
+  if (pair_phase(control, publisher, PAIR_PHASE_UNBOUND, failure) != 0) return -1;
+  if (control->owner->next_pair_id == UINT64_MAX) {
+    fail(failure, "APOLLYON_NATIVE_PAIR_STATE", "Native pair identity space is exhausted", EOVERFLOW);
+    return -1;
+  }
+  const uint64_t id = ++control->owner->next_pair_id;
+  control->pair_id = id;
+  publisher->pair_id = id;
+  control->partner_handle_id = publisher->handle_id;
+  publisher->partner_handle_id = control->handle_id;
+  control->pair_role = PAIR_ROLE_CONTROL;
+  publisher->pair_role = PAIR_ROLE_PUBLISHER;
+  set_pair_phase(control, publisher, PAIR_PHASE_REQUEST_READING);
+  return 0;
+}
+
+static int pair_socket_options(struct peer_handle *peer, struct failure *failure) {
+  int inline_oob = 0;
+  int peek_offset = 0;
+  socklen_t length = sizeof(inline_oob);
+  if (getsockopt(peer->socket.fd, SOL_SOCKET, SO_OOBINLINE, &inline_oob, &length) != 0 ||
+      length != sizeof(inline_oob) || inline_oob != 1) {
+    fail(failure, "APOLLYON_NATIVE_PAIR_SOCKET_OPTIONS",
+      "Paired stream input requires retained SO_OOBINLINE", EPROTO);
+    return -1;
+  }
+  length = sizeof(peek_offset);
+  if (getsockopt(peer->socket.fd, SOL_SOCKET, SO_PEEK_OFF, &peek_offset, &length) != 0 ||
+      length != sizeof(peek_offset) || peek_offset != -1) {
+    fail(failure, "APOLLYON_NATIVE_PAIR_SOCKET_OPTIONS",
+      "Paired stream input requires the default SO_PEEK_OFF", EPROTO);
+    return -1;
+  }
+  struct pollfd urgent = {.fd = peer->socket.fd, .events = POLLPRI};
+  const int ready = poll(&urgent, 1, 0);
+  if (ready < 0) {
+    fail(failure, "APOLLYON_NATIVE_TRANSPORT_IO", "Paired socket readiness failed", errno);
+    return -1;
+  }
+  if ((urgent.revents & (POLLPRI | POLLERR | POLLNVAL)) != 0 ||
+      ((urgent.revents & POLLHUP) != 0 && !peer->response_write_half_closed)) {
+    fail(failure, "APOLLYON_NATIVE_TRANSPORT_IO",
+      "Paired socket has urgent input or a terminal transport event", EPROTO);
+    return -1;
+  }
+  return 0;
+}
+
+static int pair_bracket(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  struct failure *failure
+) {
+  return pair_structure(control, publisher, failure) != 0 ||
+    peer_bracket(control, failure) != 0 || peer_bracket(publisher, failure) != 0 ||
+    pair_socket_options(control, failure) != 0 || pair_socket_options(publisher, failure) != 0 ? -1 : 0;
+}
+
+static int revalidate_pair(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  struct failure *failure
+) {
+  if (pair_bracket(control, publisher, failure) != 0 ||
+      revalidate_peer_handle(control, failure) != 0 ||
+      revalidate_peer_handle(publisher, failure) != 0) return -1;
+  return pair_bracket(control, publisher, failure);
+}
+
+static int phase_start(struct timespec *deadline, struct failure *failure) {
+  if (clock_gettime(CLOCK_MONOTONIC, deadline) != 0) {
+    fail(failure, "APOLLYON_NATIVE_CLOCK_FAILED", "Monotonic clock read failed", errno);
+    return -1;
+  }
+  if (deadline->tv_sec < 0 || (uint64_t)deadline->tv_sec > INT64_MAX - PEER_PHASE_DEADLINE_SECONDS) {
+    fail(failure, "APOLLYON_NATIVE_CLOCK_FAILED", "Monotonic clock value is invalid", EOVERFLOW);
+    return -1;
+  }
+  deadline->tv_sec += PEER_PHASE_DEADLINE_SECONDS;
+  return 0;
+}
+
+static int phase_remaining(
+  const struct timespec *deadline,
+  const char *timeout_code,
+  struct failure *failure
+) {
+  struct timespec now;
+  if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+    fail(failure, "APOLLYON_NATIVE_CLOCK_FAILED", "Monotonic clock read failed", errno);
+    return -1;
+  }
+  const int64_t seconds = (int64_t)deadline->tv_sec - (int64_t)now.tv_sec;
+  if (seconds < 0 || seconds > PEER_PHASE_DEADLINE_SECONDS) {
+    fail(failure, timeout_code, "Peer protocol phase exceeded its deadline", ETIMEDOUT);
+    return -1;
+  }
+  const int64_t remaining = seconds * INT64_C(1000000000) +
+    (int64_t)deadline->tv_nsec - (int64_t)now.tv_nsec;
+  if (remaining <= 0) {
+    fail(failure, timeout_code, "Peer protocol phase exceeded its deadline", ETIMEDOUT);
+    return -1;
+  }
+  return (int)((remaining + INT64_C(999999)) / INT64_C(1000000));
+}
+
+static ssize_t receive_nonblocking(
+  int fd,
+  unsigned char *bytes,
+  size_t capacity,
+  int peek,
+  const char *frame_code,
+  struct failure *failure
+) {
+  struct iovec vector = {.iov_base = bytes, .iov_len = capacity};
+  struct msghdr message;
+  memset(&message, 0, sizeof(message));
+  message.msg_iov = &vector;
+  message.msg_iovlen = 1;
+  /* No ancillary buffer is provided. The kernel discards any passed rights;
+   * MSG_CTRUNC still makes that unsupported input a protocol failure. */
+  const ssize_t count = recvmsg(fd, &message, MSG_DONTWAIT | (peek ? MSG_PEEK : 0));
+  if (count >= 0 && (message.msg_flags & (MSG_CTRUNC | MSG_TRUNC | MSG_OOB)) != 0) {
+    fail(failure, frame_code, "Peer frame contains truncated or unsupported ancillary input", EMSGSIZE);
+    return -1;
+  }
+  return count;
+}
+
+static int control_must_be_empty(
+  struct peer_handle *control,
+  const struct timespec *deadline,
+  const char *timeout_code,
+  struct failure *failure
+) {
+  for (;;) {
+    if (phase_remaining(deadline, timeout_code, failure) < 0) return -1;
+    unsigned char byte;
+    const ssize_t count = receive_nonblocking(control->socket.fd, &byte, 1, 1,
+      "APOLLYON_NATIVE_CHALLENGE_FRAME", failure);
+    if (failure->code) return -1;
+    if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return 0;
+    if (count < 0 && errno == EINTR) continue;
+    if (count >= 0) {
+      fail(failure, "APOLLYON_NATIVE_CHALLENGE_EARLY_INPUT",
+        "Control input or EOF is forbidden before the fresh challenge", EPROTO);
+    } else {
+      fail(failure, "APOLLYON_NATIVE_TRANSPORT_IO", "Control stream inspection failed", errno);
+    }
+    return -1;
+  }
+}
+
+static int pair_poll(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  int fd,
+  short events,
+  const struct timespec *deadline,
+  const char *timeout_code,
+  struct failure *failure
+) {
+  for (;;) {
+    if (pair_bracket(control, publisher, failure) != 0) return -1;
+    const int timeout = phase_remaining(deadline, timeout_code, failure);
+    if (timeout < 0) return -1;
+    const int request_phase = control->pair_phase == PAIR_PHASE_REQUEST_READING;
+    if (request_phase && control_must_be_empty(control, deadline, timeout_code, failure) != 0) return -1;
+    struct pollfd descriptors[5] = {
+      {.fd = fd, .events = events},
+      {.fd = control->pidfd.fd, .events = POLLIN},
+      {.fd = publisher->pidfd.fd, .events = POLLIN},
+      {.fd = control->socket.fd, .events = (short)(POLLPRI | (request_phase ? POLLIN : 0))},
+      {.fd = publisher->socket.fd, .events = POLLPRI}
+    };
+    const int ready = poll(descriptors, sizeof(descriptors) / sizeof(descriptors[0]), timeout);
+    if (ready < 0 && errno == EINTR) continue;
+    if (ready < 0) {
+      fail(failure, "APOLLYON_NATIVE_TRANSPORT_IO", "Peer protocol poll failed", errno);
+      return -1;
+    }
+    if (phase_remaining(deadline, timeout_code, failure) < 0) return -1;
+    if (pair_bracket(control, publisher, failure) != 0) return -1;
+    if (request_phase && control_must_be_empty(control, deadline, timeout_code, failure) != 0) return -1;
+    if (ready == 0) continue;
+    if ((descriptors[0].revents & events) != 0) return 0;
+    fail(failure, "APOLLYON_NATIVE_TRANSPORT_IO", "Unexpected peer protocol readiness", EPROTO);
+    return -1;
+  }
+}
+
+static int receive_until_eof(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  int fd,
+  unsigned char *bytes,
+  size_t maximum,
+  size_t minimum,
+  size_t *length,
+  const struct timespec *deadline,
+  const char *timeout_code,
+  const char *frame_code,
+  struct failure *failure
+) {
+  size_t used = 0;
+  for (;;) {
+    if (pair_poll(control, publisher, fd, POLLIN, deadline, timeout_code, failure) != 0) return -1;
+    const ssize_t count = receive_nonblocking(fd, bytes + used, maximum + 1 - used, 0,
+      frame_code, failure);
+    if (failure->code) return -1;
+    if (count > 0) {
+      used += (size_t)count;
+      if (used > maximum) {
+        fail(failure, frame_code, "Peer frame has extra bytes", EMSGSIZE);
+        return -1;
+      }
+      continue;
+    }
+    if (count == 0) {
+      if (used < minimum) {
+        fail(failure, frame_code, "Peer frame ended before its exact minimum", EMSGSIZE);
+        return -1;
+      }
+      if (phase_remaining(deadline, timeout_code, failure) < 0) return -1;
+      *length = used;
+      return 0;
+    }
+    if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) continue;
+    fail(failure, "APOLLYON_NATIVE_TRANSPORT_IO", "Peer protocol receive failed", errno);
+    return -1;
+  }
+}
+
+static int send_bounded(
+  struct peer_handle *control,
+  struct peer_handle *publisher,
+  int fd,
+  const unsigned char *bytes,
+  size_t length,
+  const struct timespec *deadline,
+  const char *timeout_code,
+  struct failure *failure
+) {
+  size_t used = 0;
+  while (used < length) {
+    if (pair_poll(control, publisher, fd, POLLOUT, deadline, timeout_code, failure) != 0) return -1;
+    const ssize_t count = send(fd, bytes + used, length - used, MSG_DONTWAIT | MSG_NOSIGNAL);
+    if (count > 0) {
+      used += (size_t)count;
+      continue;
+    }
+    if (count < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
+    fail(failure, "APOLLYON_NATIVE_TRANSPORT_IO", "Peer protocol send failed", count < 0 ? errno : EIO);
+    return -1;
+  }
+  return phase_remaining(deadline, timeout_code, failure) < 0 ? -1 : 0;
+}
+
+static int copy_protocol_buffer(
+  napi_env env,
+  napi_value value,
+  size_t minimum,
+  size_t maximum,
+  unsigned char **copy,
+  size_t *length,
+  struct failure *failure
+) {
+  bool is_buffer = false;
+  bool is_typed_array = false;
+  bool ordinary_backing = false;
+  bool detached = false;
+  napi_typedarray_type type;
+  napi_value backing;
+  size_t typed_length = 0;
+  size_t byte_offset = 0;
+  void *buffer_bytes = NULL;
+  void *typed_bytes = NULL;
+  if (check_api(napi_is_buffer(env, value, &is_buffer), failure) != 0 ||
+      check_api(napi_is_typedarray(env, value, &is_typed_array), failure) != 0) return -1;
+  if (!is_buffer || !is_typed_array) goto invalid;
+  if (check_api(napi_get_buffer_info(env, value, &buffer_bytes, length), failure) != 0 ||
+      check_api(napi_get_typedarray_info(env, value, &type, &typed_length, &typed_bytes,
+        &backing, &byte_offset), failure) != 0 ||
+      check_api(napi_is_arraybuffer(env, backing, &ordinary_backing), failure) != 0) return -1;
+  if (!ordinary_backing) goto invalid;
+  if (check_api(napi_is_detached_arraybuffer(env, backing, &detached), failure) != 0) return -1;
+  if (detached || type != napi_uint8_array || typed_length != *length ||
+      typed_bytes != buffer_bytes || !buffer_bytes || *length < minimum || *length > maximum) goto invalid;
+  *copy = malloc(*length);
+  if (!*copy) {
+    fail(failure, "APOLLYON_NATIVE_ALLOCATION", "Protocol byte capture failed", ENOMEM);
+    return -1;
+  }
+  memcpy(*copy, buffer_bytes, *length);
+  return 0;
+invalid:
+  fail(failure, "APOLLYON_NATIVE_INVALID_ARGUMENT", "Protocol requires a bounded ordinary byte Buffer", EINVAL);
+  return -1;
+}
+
+static napi_value revalidate_peer_pair(napi_env env, napi_callback_info info) {
+  struct failure failure = {0};
+  struct peer_handle *control = NULL;
+  struct peer_handle *publisher = NULL;
+  napi_value values[3];
+  napi_value output = NULL;
+  if (pair_arguments(env, info, 2, values, &control, &publisher, &failure) == 0 &&
+      revalidate_pair(control, publisher, &failure) == 0) {
+    (void)check_api(napi_get_undefined(env, &output), &failure);
+  }
+  if (failure.code) close_pair(control, publisher, &failure);
+  return failure.code ? throw_failure(env, &failure) : output;
+}
+
+static napi_value read_publisher_peer_request(napi_env env, napi_callback_info info) {
+  struct failure failure = {0};
+  struct peer_handle *control = NULL;
+  struct peer_handle *publisher = NULL;
+  napi_value values[3];
+  napi_value output = NULL;
+  unsigned char *bytes = NULL;
+  size_t length = 0;
+  struct timespec deadline;
+  if (pair_arguments(env, info, 2, values, &control, &publisher, &failure) != 0) goto done;
+  /* Binding occurs before any attempt at I/O or source observation. A failed
+   * attempt closes the bound pair and cannot be resumed with another handle. */
+  if (bind_pair(control, publisher, &failure) != 0 || phase_start(&deadline, &failure) != 0 ||
+      revalidate_pair(control, publisher, &failure) != 0) goto done;
+  bytes = malloc(MAX_REQUEST_BYTES + 1);
+  if (!bytes) {
+    fail(&failure, "APOLLYON_NATIVE_ALLOCATION", "Publisher frame allocation failed", ENOMEM);
+    goto done;
+  }
+  if (receive_until_eof(control, publisher, publisher->socket.fd, bytes,
+      MAX_REQUEST_BYTES, 1, &length, &deadline, "APOLLYON_NATIVE_REQUEST_TIMEOUT",
+      "APOLLYON_NATIVE_REQUEST_FRAME", &failure) != 0 ||
+      revalidate_pair(control, publisher, &failure) != 0 ||
+      control_must_be_empty(control, &deadline, "APOLLYON_NATIVE_REQUEST_TIMEOUT", &failure) != 0 ||
+      phase_remaining(&deadline, "APOLLYON_NATIVE_REQUEST_TIMEOUT", &failure) < 0 ||
+      check_api(napi_create_buffer_copy(env, length, bytes, NULL, &output), &failure) != 0) goto done;
+  set_pair_phase(control, publisher, PAIR_PHASE_REQUEST_COMPLETE);
+done:
+  free(bytes);
+  if (failure.code) close_pair(control, publisher, &failure);
+  return failure.code ? throw_failure(env, &failure) : output;
+}
+
+static napi_value exchange_peer_challenge(napi_env env, napi_callback_info info) {
+  struct failure failure = {0};
+  struct peer_handle *control = NULL;
+  struct peer_handle *publisher = NULL;
+  napi_value values[4];
+  napi_value output = NULL;
+  unsigned char *digest = NULL;
+  size_t digest_length = 0;
+  unsigned char challenge[32];
+  unsigned char response[65];
+  size_t received = 0;
+  size_t random_used = 0;
+  struct timespec deadline;
+  if (pair_arguments(env, info, 3, values, &control, &publisher, &failure) != 0 ||
+      pair_phase(control, publisher, PAIR_PHASE_REQUEST_COMPLETE, &failure) != 0) goto done;
+  set_pair_phase(control, publisher, PAIR_PHASE_CHALLENGE_EXCHANGING);
+  if (copy_protocol_buffer(env, values[2], 32, 32, &digest, &digest_length, &failure) != 0 ||
+      phase_start(&deadline, &failure) != 0 || revalidate_pair(control, publisher, &failure) != 0 ||
+      control_must_be_empty(control, &deadline, "APOLLYON_NATIVE_CHALLENGE_TIMEOUT", &failure) != 0) goto done;
+  while (random_used < sizeof(challenge)) {
+    if (phase_remaining(&deadline, "APOLLYON_NATIVE_CHALLENGE_TIMEOUT", &failure) < 0) goto done;
+    const ssize_t count = getrandom(challenge + random_used, sizeof(challenge) - random_used, GRND_NONBLOCK);
+    if (count > 0) {
+      random_used += (size_t)count;
+      continue;
+    }
+    if (count < 0 && errno == EINTR) continue;
+    fail(&failure, "APOLLYON_NATIVE_CHALLENGE_RANDOM", "Kernel challenge generation failed", count < 0 ? errno : EIO);
+    goto done;
+  }
+  if (pair_bracket(control, publisher, &failure) != 0 ||
+      control_must_be_empty(control, &deadline, "APOLLYON_NATIVE_CHALLENGE_TIMEOUT", &failure) != 0 ||
+      send_bounded(control, publisher, control->socket.fd, challenge, sizeof(challenge),
+        &deadline, "APOLLYON_NATIVE_CHALLENGE_TIMEOUT", &failure) != 0 ||
+      receive_until_eof(control, publisher, control->socket.fd, response, 64, 64,
+        &received, &deadline, "APOLLYON_NATIVE_CHALLENGE_TIMEOUT",
+        "APOLLYON_NATIVE_CHALLENGE_FRAME", &failure) != 0) goto done;
+  if (received != 64 || memcmp(response, challenge, 32) != 0 || memcmp(response + 32, digest, 32) != 0) {
+    fail(&failure, "APOLLYON_NATIVE_CHALLENGE_CONTENT", "Fresh challenge or exact request digest does not match", EBADMSG);
+    goto done;
+  }
+  if (revalidate_pair(control, publisher, &failure) != 0 ||
+      phase_remaining(&deadline, "APOLLYON_NATIVE_CHALLENGE_TIMEOUT", &failure) < 0 ||
+      check_api(napi_get_undefined(env, &output), &failure) != 0) goto done;
+  set_pair_phase(control, publisher, PAIR_PHASE_CHALLENGE_COMPLETE);
+done:
+  free(digest);
+  if (failure.code) close_pair(control, publisher, &failure);
+  return failure.code ? throw_failure(env, &failure) : output;
+}
+
+static napi_value send_publisher_peer_response(napi_env env, napi_callback_info info) {
+  struct failure failure = {0};
+  struct peer_handle *control = NULL;
+  struct peer_handle *publisher = NULL;
+  napi_value values[4];
+  napi_value output = NULL;
+  unsigned char *bytes = NULL;
+  size_t length = 0;
+  struct timespec deadline;
+  if (pair_arguments(env, info, 3, values, &control, &publisher, &failure) != 0 ||
+      pair_phase(control, publisher, PAIR_PHASE_CHALLENGE_COMPLETE, &failure) != 0) goto done;
+  set_pair_phase(control, publisher, PAIR_PHASE_RESPONSE_SENDING);
+  if (copy_protocol_buffer(env, values[2], 1, MAX_REQUEST_BYTES, &bytes, &length, &failure) != 0 ||
+      phase_start(&deadline, &failure) != 0 || revalidate_pair(control, publisher, &failure) != 0 ||
+      send_bounded(control, publisher, publisher->socket.fd, bytes, length, &deadline,
+        "APOLLYON_NATIVE_RESPONSE_TIMEOUT", &failure) != 0 ||
+      revalidate_pair(control, publisher, &failure) != 0 ||
+      phase_remaining(&deadline, "APOLLYON_NATIVE_RESPONSE_TIMEOUT", &failure) < 0) goto done;
+  if (shutdown(publisher->socket.fd, SHUT_WR) != 0) {
+    fail(&failure, "APOLLYON_NATIVE_TRANSPORT_IO", "Publisher response write-half shutdown failed", errno);
+    goto done;
+  }
+  publisher->response_write_half_closed = 1;
+  if (revalidate_pair(control, publisher, &failure) != 0 ||
+      phase_remaining(&deadline, "APOLLYON_NATIVE_RESPONSE_TIMEOUT", &failure) < 0 ||
+      check_api(napi_get_undefined(env, &output), &failure) != 0) goto done;
+  set_pair_phase(control, publisher, PAIR_PHASE_RESPONSE_COMPLETE);
+done:
+  free(bytes);
+  if (failure.code) close_pair(control, publisher, &failure);
   return failure.code ? throw_failure(env, &failure) : output;
 }
 
@@ -934,9 +1546,13 @@ NAPI_MODULE_INIT() {
     {.utf8name = "readInheritedPublisherRequest", .method = read_inherited_publisher_request, .data = owner},
     {.utf8name = "openPeerIdentity", .method = open_peer_identity, .data = owner},
     {.utf8name = "revalidatePeerIdentity", .method = revalidate_peer_identity, .data = owner},
-    {.utf8name = "closePeerIdentity", .method = close_peer_identity, .data = owner}
+    {.utf8name = "closePeerIdentity", .method = close_peer_identity, .data = owner},
+    {.utf8name = "revalidatePeerPair", .method = revalidate_peer_pair, .data = owner},
+    {.utf8name = "readPublisherPeerRequest", .method = read_publisher_peer_request, .data = owner},
+    {.utf8name = "exchangePeerChallenge", .method = exchange_peer_challenge, .data = owner},
+    {.utf8name = "sendPublisherPeerResponse", .method = send_publisher_peer_response, .data = owner}
   };
-  if (check_api(napi_define_properties(env, exports, 4, methods), &failure) != 0) {
+  if (check_api(napi_define_properties(env, exports, sizeof(methods) / sizeof(methods[0]), methods), &failure) != 0) {
     return throw_failure(env, &failure);
   }
   return exports;

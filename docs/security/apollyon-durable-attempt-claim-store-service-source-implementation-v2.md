@@ -3,7 +3,7 @@
 Marker:
 `VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_V2`.
 
-Status: **source/test integration of the durable core, Linux transaction lease, inherited publisher-pipe reader and retained native peer checks. Installed service and privileged host qualification remain unproven**.
+Status: **source/test integration of the durable core, Linux transaction lease, inherited publisher-pipe reader, retained native peer checks and one-use paired socket/challenge session. Installed service and privileged host qualification remain unproven**.
 
 ## Purpose
 
@@ -20,12 +20,15 @@ This gate provides the reusable synchronous store/publisher core, an actual
 read-only authorization-winner observation method, the physical store namespace,
 a Linux composition that supplies a real advisory transaction lock, and a native
 bridge that reads the actual inherited publisher pipe and retains kernel peer
-handles across store operations. Both store operations bind record reads to held
+handles across store operations. A separate one-use session composes actual
+publisher socket bytes, a fresh control-peer challenge, durable publication and
+a bounded publisher response through that same core. Both store operations bind
+record reads to held
 descriptors and recheck the visible names within the supplied root. The Linux
 composition serializes cooperating operations on that same root inode. The native
 bridge reuses the accepted process observer in the Node process. An installed
 service wrapper, protected expected-identity/root origin, privileged role admission
-and revalidation, challenge exchange, and exclusion of other writers or root
+and revalidation, and exclusion of other writers or root
 migrations remain separate work.
 
 ## Exact parent
@@ -243,9 +246,9 @@ existing canonical request parser and private forwarding helper. Truncated,
 malformed, noncanonical and trailing request data therefore fail through the
 same accepted parser. There is no request reconstruction or digest substitution.
 
-This implements actual inherited-pipe I/O. It does not authenticate the pipe's
-producer, establish the privileged launcher's installed source, or implement the
-remaining publisher socket/challenge protocol.
+This entrypoint implements actual inherited-pipe I/O. It does not authenticate the
+pipe's producer or establish the privileged launcher's installed source. The
+separate paired-session entrypoint below implements the socket/challenge path.
 
 ## Retained native peer and canonical store composition
 
@@ -290,8 +293,8 @@ executable FD or identify the body of an interpreted script.
 
 A peer may half-close its write side to supply the accepted EOF framing while
 remaining alive. That condition is accepted; a full transport hangup or an exited
-pidfd is rejected. The addon does not consume socket request bytes or send a
-challenge in this generation.
+pidfd is rejected. This reusable one-peer adapter does not consume socket request
+bytes or send a challenge. The paired-session API below adds those operations.
 
 The JS factory creates the real Linux transaction core and keeps its raw methods
 private. Its wrapped publication method performs native checks before and after
@@ -308,7 +311,7 @@ the core's receipt processing. Async/generator callbacks are refused; a returned
 native Promise is rejected and its rejection is observed through the captured
 Promise intrinsic. The core still validates the exact accepted receipt values.
 
-A successful source operation leaves the native session available for the next
+A successful source operation leaves this reusable one-peer adapter available for the next
 operation. Call `close()` explicitly when the session is finished; success does
 not depend on garbage collection. Every failure after an operation starts closes and poisons the
 adapter. Later publish/observe/close calls fail without revisiting released FD
@@ -329,6 +332,132 @@ observing a root revalidator from a non-root capability-empty process must still
 fail closed. This addon does not bypass cross-UID `/proc` permissions, install
 single-thread process guards in Node, or satisfy full privileged current-host
 revalidation merely because its source fixture passes.
+
+## One-use paired socket and challenge session
+
+`createApollyonDurableAttemptClaimStoreServiceWithNativeSessionV2(config)` adds a
+complete source transport around the unchanged Linux transaction core. Its
+configuration has exactly seven own data fields:
+
+| Field | Required source input |
+| --- | --- |
+| `root_fd` | Retained root descriptor accepted by the existing core |
+| `claim_uid`, `claim_gid` | Existing non-root claim identity policy |
+| `session_binding_id` | Existing exact source-session ID |
+| `revalidate` | Synchronous local policy callback |
+| `control_peer_identity` | The seven-field expected-peer policy above |
+| `publisher_peer_identity` | The seven-field expected-peer policy above |
+
+The returned frozen object exposes only `servePublisherRequest({
+expected_store_generation_record })` and `close()`, alongside source metadata.
+It does not expose the raw core's publish or observation methods. Construction
+opens and observes the control handle first, then the publisher handle. This
+ordering does not establish when the already-connected sockets arrived.
+
+The native pair must contain distinct handles, sockets and actual peer PIDs.
+The publisher's observed direct PPid must equal the retained control PID. Both
+handles retain their original socket, executable and pidfd through the whole
+operation. The addon repeats the complete accepted #3309 observation for both
+peers before and after transport and callback boundaries. Private environment-local
+handle/pair identifiers and one-way phases bind the same two handles from the
+first request read onward; substituting a handle, re-pairing a consumed handle
+or repeating a transport phase rejects and closes the affected owned peers.
+
+This is a generic source pair. Controlled same-UID parent/child fixtures prove
+actual kernel lineage and the complete transport/store sequence. They do not
+admit the installed privileged revalidator role. A non-root, capability-empty
+claim writer cannot treat inaccessible root-peer `/proc` observations as a
+successful check; the accepted observer still rejects them. The bridge changes
+no credentials and supplies no privileged broker or permission bypass.
+
+### Socket custody and framing
+
+Both service-side sockets must already have `SO_OOBINLINE=1` and
+`SO_PEEK_OFF=-1`. These are checked preconditions, including at later peer
+boundaries. Native code does not set either option or change shared nonblocking
+flags. Inline urgent data prevents ordinary Linux AF_UNIX reads from silently
+skipping an urgent byte; the default peek offset prevents a prechallenge peek
+from starting after queued bytes. Observed `POLLPRI` is rejected as well.
+The Linux [socket option documentation](https://man7.org/linux/man-pages/man7/socket.7.html)
+describes both options; the Linux
+[AF_UNIX receive path](https://github.com/torvalds/linux/blob/master/net/unix/af_unix.c)
+implements urgent-byte skipping when inline delivery is disabled. The handoff must preserve these settings and
+exclusive endpoint custody. Rechecks do not constrain another holder changing
+shared socket state between a check and a syscall.
+
+All I/O uses per-call `MSG_DONTWAIT`; sends also use `MSG_NOSIGNAL`.
+Receives use `recvmsg` with no ancillary buffer and reject `MSG_CTRUNC` or
+`MSG_TRUNC`, including descriptor rights that cannot fit that buffer. No received
+descriptor is exposed to JS. Each transport operation uses a single
+five-second `CLOCK_MONOTONIC` deadline, rather than restarting a timeout after
+every fragment:
+
+| Phase | Exact behavior |
+| --- | --- |
+| Publisher request | Read 1..65,536 bytes and a one-byte oversize probe; require publisher write-side EOF before proceeding |
+| Control challenge | Reject already-queued control bytes or EOF; generate 32 bytes with nonblocking `getrandom`, send them, and receive exactly 64 bytes plus EOF under one shared deadline |
+| Challenge response | Require `challenge[32] || SHA-256(actual publisher request bytes)[32]`; reject a wrong echo, digest, length, trailing data or missing EOF |
+| Publisher response | Send the qualified canonical core success record plus LF, bounded by 65,536 bytes, then shut down only the service's publisher write side |
+
+The challenge has no caller-provided nonce or random fallback. A failed or
+partially completed phase consumes the session. The control channel carries the
+challenge only; it receives no separate claim-success response.
+
+### Publication and response boundary
+
+`servePublisherRequest` consumes the JS session before validating its arguments
+or beginning I/O. It captures all expected-generation fields into frozen,
+null-prototype primitive data before blocking. Later caller mutation cannot
+replace that expected generation. The existing request parser accepts the bytes
+actually read from the retained publisher socket, and the original frame and
+digest remain private. The adapter derives the accepted authorization slot from
+that parsed claim and digest; callers supply neither request bytes nor a slot.
+
+The unchanged core validates the captured generation and request, acquires the
+Linux lease and holds its generation descriptors. Its first
+`before_slot_publication` callback performs the fresh native challenge exchange
+before pending-state recovery or any core store mutation. The local revalidator
+then runs, followed by the second native pair check. The adapter enforces exactly
+the core's three existing stages in order and captures each receipt's 13
+primitive fields before handing it back to the core. An inherited
+`Object.prototype.toJSON` property, including one installed by the callback,
+rejects before the parent validators can invoke it during canonicalization.
+
+The core completes slot-first durable publication, final held-record rereads,
+all descriptor closes and Linux lease release before the adapter attempts a
+success response. The adapter rechecks both retained peers, qualifies the core's
+existing success-response schema against the actual request, serializes the
+flat primitive record as sorted canonical JSON plus LF, rechecks the pair, and
+calls the native bounded send. It then explicitly closes the publisher and
+control handles before returning locally. No successful session relies on
+garbage collection or permits a second request.
+
+The peers must remain alive throughout. A full publisher transport hangup is
+accepted only after native code records its own successful final `SHUT_WR`:
+both sides have then legitimately half-closed their writes. Even in that terminal
+phase the pidfd, socket credentials, executable, command line and error state
+must still pass revalidation. An earlier full hangup remains an error.
+
+Once response bytes have entered the socket, a later error cannot revoke them.
+The checks required to begin the response and all core cleanup precede the first
+success byte, but a
+partial send, final shutdown/check failure or native close failure can still
+leave response delivery uncertain. Such errors preserve the primary cause and
+all cleanup rows, report `response_delivery_may_have_occurred=true` from entry
+into native send, and leave the session consumed. This flag is conservative;
+it is not an acknowledgement or permission to retry. Core-entry failures also
+retain `core_store_mutation_may_have_occurred` without promising rollback.
+
+A successful local result preserves every original core outcome/authority field
+and adds a frozen `native_session` report. That report states actual socket input,
+request-derived digest, observed direct-parent lineage, completed challenge and
+response transmission, and explicit native-handle cleanup. It keeps
+`response_receipt_confirmed=false`,
+`protected_expected_identity_origin_proven=false`,
+`privileged_peer_role_admission_performed=false` and
+`cross_uid_host_qualification_performed=false`. The factory also keeps fixed
+listener origin and connection arrival order unproven. These fields distinguish
+the source transport evidence from the unchanged core's authority fields.
 
 ## Durable slot-first publication
 
@@ -782,13 +911,34 @@ publish and read an exact winner through the actual Linux lease, reject input an
 receipt getter attacks, preserve read-only observation, and suppress success when
 the peer fails at any publication boundary or during the final core cleanup.
 
+The paired-session fixtures use a real control process that directly forks its
+publisher. Each peer creates its own socketpair after that fork and transfers the
+service endpoint over a separate fixture-only channel; the process named by
+`SO_PEERCRED` is therefore the actual intended parent or child. The fixtures
+exercise the complete socket-to-store-to-response path under the actual Linux
+lease, exact 65,536-byte transport limits, real send-buffer backpressure, all
+three five-second deadlines, fresh challenge/digest binding, both EOF boundaries,
+early and urgent control input, incompatible socket options, and attempted
+handle re-pairing. Actual `SCM_RIGHTS` injections on otherwise valid publisher
+and challenge-response frames must reject and preserve the receiver's descriptor
+set. They also check expected-generation capture, callback getter
+and async rejection, reentry, peer failures at the publication/cleanup boundaries,
+preserved durable-winner observation, and explicit cleanup of both handles.
+
 After those ordinary fixtures pass against the production build, a second
-temporary build uses a test-only `--wrap=close` linker wrapper. Three cases
+temporary build uses a test-only `--wrap=close` linker wrapper. Three original cases
 actually close a retained or temporary pidfd, recycle its number to `/dev/null`,
 and return `EIO`. The proof checks cleanup of the other private descriptors,
 frozen diagnostics, preservation of a simultaneous primary transport error, and
 that repeated close/revalidation never touches the recycled descriptor. The
-production source has no injection hook or additional export.
+production source has no injection hook or additional export. A third temporary
+build adds `--wrap=send` for two session cases: a send that first transmits a real
+prefix and then fails, and a successful response followed by an uncertain native
+close. Both preserve the durable winner and report possible response delivery;
+neither claims to retract already-sent bytes or authorize a session retry.
+The mandatory native suite contains 64 unwrapped cases (29 existing and 35 paired
+session cases), five fault cases, and 70 required result markers. The separate
+core/lease and root-owned-pipe suites retain their 92 and four markers.
 
 A separate root-owned pipe mode begins with UID0, creates a mode-0600 anonymous
 pipe and launches only a disposable UID/GID1000 reader. That child proves that
@@ -799,10 +949,12 @@ its temporary UID0 invocation to this pipe fixture.
 
 ## Deliberate non-authority
 
-The core-only API retains `native_peer_runtime_integration_present=false`; the
-new adapter reports its own native integration as present. The native source proof
-does not promote the core outcome to installed or privileged authority. Live
-authority remains false:
+The core-only API retains `native_peer_runtime_integration_present=false`; each
+native adapter reports its own native integration as present. The paired
+session additionally reports its actual observed lineage, challenge exchange and
+response transmission in `native_session`. These source observations do not
+promote the core outcome to installed or privileged authority. The unchanged
+core's authority fields remain false:
 
 ```text
 caller_supplied_exclusive_transaction_is_host_proof=false
@@ -835,13 +987,16 @@ funds_movement=false
 
 `apollyon_durable_attempt_claim_store_service_runtime_integration_v2`.
 
-The next executable step can use the retained native handle for the accepted
-single-use challenge/response and exact socket framing, then admit the distinct
-publisher and privileged revalidator roles from protected expected-identity
-evidence. The full privileged terminal/custody/current-host checks, installed
-helper/source custody and root capability still require integration and
-qualification. All permitted writers and migrations must share the required lock
-domain. Separate installed Xiphos qualification remains required before any
-production claim mutation can be considered.
+The single-use source challenge/response and exact socket framing are now
+implemented over a retained actual parent/child pair. The next integration must
+admit the distinct publisher and privileged revalidator roles from protected
+expected-identity evidence and establish the installed listener, handoff custody
+and connection order. The full privileged terminal/custody/current-host checks,
+cross-UID observation, installed helper/source custody and protected root
+capability still require integration and qualification. Protected-origin work
+remains a separate owned gate; a same-UID source fixture is not its substitute.
+All permitted writers and migrations must share the required lock domain.
+Separate installed Xiphos qualification remains required before any production
+claim mutation can be considered.
 
 **PROTECT THE CORE.**
