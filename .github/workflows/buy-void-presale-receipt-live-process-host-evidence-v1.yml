@@ -73,7 +73,7 @@ jobs:
               test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
               base="$PUSH_BEFORE"
               ;;
-            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            workflow_dispatch) base="89fba1e80c2441bc90ff0387543177e0eb5b5788" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
