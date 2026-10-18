@@ -224,6 +224,15 @@ def fsync_tree(root:Path)->None:
         finally:
             os.close(fd)
 
+def legacy_v1_root_state(manifest:dict)->str:
+    if not OLD_ROOT.exists():
+        return "absent"
+    try:
+        verify_tree(OLD_ROOT,manifest["from"]["closure"])
+    except (Hold,FileNotFoundError) as exc:
+        raise Hold("legacy_v1_root_collision") from exc
+    return "old_exact"
+
 def reviewed_v2_root_state(manifest:dict)->str:
     if not NEW_ROOT.exists():
         return "absent"
@@ -402,11 +411,13 @@ def plan()->dict:
     if socket.gethostname().casefold()!=TARGET_HOST.casefold(): hold("wrong_host")
     manifest=load_upgrade_manifest()
     assert_services_dormant()
-    verify_tree(OLD_ROOT,manifest["from"]["closure"])
+    old_root=legacy_v1_root_state(manifest)
     launcher=launcher_state()
     root=reviewed_v2_root_state(manifest)
     backup=prior_v2_backup_state(manifest)
     migration=classify_upgrade_state(launcher,root,backup)
+    if migration.startswith("legacy_v1") and old_root!="old_exact":
+        hold("legacy_v1_source_root_missing")
     for rel,blob in manifest["to"]["closure"].items(): read_source(rel,blob)
     if migration.startswith("prior_v2") or migration=="current_exact_from_prior_v2":
         for rel,blob in manifest["prior_v2"]["closure"].items():
@@ -422,7 +433,9 @@ def plan()->dict:
         next_action="UPGRADE_ALREADY_EXACT"
     return {
         "marker":MARKER,"mode":"--plan","target_host":TARGET_HOST,
-        "old_root_verified":True,"old_root_preserved":True,
+        "old_root_state":old_root,
+        "old_root_verified":old_root=="old_exact",
+        "old_root_preserved":old_root=="old_exact",
         "reviewed_v2_root_state":root,
         "prior_v2_backup_state":backup,
         "fixed_launcher_state":launcher,
@@ -469,7 +482,9 @@ def apply()->dict:
         pass
     else:
         hold("unsupported_apply_state:"+migration)
-    verify_tree(OLD_ROOT,manifest["from"]["closure"])
+    final_old_root=legacy_v1_root_state(manifest)
+    if final_old_root!=before["old_root_state"]:
+        hold("legacy_v1_root_changed_during_upgrade")
     verify_tree(NEW_ROOT,manifest["to"]["closure"])
     final_backup=prior_v2_backup_state(manifest)
     if migration.startswith("prior_v2") and final_backup!="prior_v2_exact":
@@ -482,7 +497,9 @@ def apply()->dict:
         "fixed_launcher_state":"new_exact",
         "fixed_launcher_replaced":changed,
         "reviewed_v2_tree_replaced":tree_changed,
-        "old_root_preserved":True,
+        "old_root_state":final_old_root,
+        "old_root_verified":final_old_root=="old_exact",
+        "old_root_preserved":final_old_root=="old_exact",
         "prior_v2_backup_preserved":final_backup=="prior_v2_exact",
         "reviewed_root_v2_upgrade_complete":True,
         "service_action":False,"systemd_mutation":False,
@@ -560,7 +577,9 @@ def self_test()->None:
         forbidden="".join(forbidden_parts)
         assert forbidden not in source,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
-    print("old_root_preserved=true")
+    print("legacy_v1_old_root_required_only_for_legacy_source=true")
+    print("direct_prior_v2_old_root_absence_allowed=true")
+    print("old_root_collision_rejected=true")
     print("prior_v2_migration_source_bound=true")
     print("prior_v2_launcher_b96_bound=true")
     print("prior_v2_backup_preserved=true")
