@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 INSTALLER=ROOT/"ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py"
 MANIFEST=ROOT/"ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
+RETIRED_LAUNCHER=ROOT/"ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
 
 def git_blob(path:Path)->str:
     data=path.read_bytes()
@@ -28,7 +29,8 @@ for required in (
     'NODE_BYTES=126595440',
     'NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"',
     'UNIT_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"',
-    'LIVE_LAUNCHER_BLOB="820f7151c0f83280b7457f841cee14c3b0c274b6"',
+    'LIVE_LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"',
+    'LIVE_LAUNCHER_BLOB="352bd36f2b07091140b990de4170f708eb11fee6"',
     'LIFECYCLE_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
     'custody_uid_process_exclusivity_required',
     'custody_uid_process_census_uid_slots',
@@ -59,6 +61,23 @@ for required in (
     'public_key_generation_changed',
 ):
     assert required in source,required
+assert git_blob(RETIRED_LAUNCHER)=="352bd36f2b07091140b990de4170f708eb11fee6"
+retired_source=RETIRED_LAUNCHER.read_text(encoding="utf-8")
+retired_start=retired_source.index("def execute_live(argv:list[str])->int:")
+retired_end=retired_source.index("def self_test()->None:",retired_start)
+retired_body=retired_source[retired_start:retired_end]
+assert "apollyon_live_session_launcher_activation_retired_" in retired_body
+assert "atomic_ownership_required" in retired_body
+for forbidden_live in (
+    "assert_installed_launcher_identity(",
+    "open_trusted_executable(",
+    "materialize_reviewed_closure(",
+    "acquire_training_lifecycle_lock(",
+    "_run_training_systemctl(",
+    "subprocess.run(",
+):
+    assert forbidden_live not in retired_body,forbidden_live
+
 for forbidden in (
     '"/usr/bin/systemctl","start"',
     '"/usr/bin/systemctl","enable"',
@@ -102,6 +121,9 @@ print("public_key_path_swap_rejected=true")
 print("exact_post_install_unit_states_required=true")
 print("manager_environment_influence_unset=true")
 print("create_only=true")
+print("fixed_launcher_source_retired=true")
+print("fixed_launcher_runner_spawn_absent=true")
+print("fixed_launcher_systemd_action_absent=true")
 print("service_start=false")
 print("service_enable=false")
 print("training_execution=false")
