@@ -141,8 +141,8 @@ function canonical(value){
 function safeFlatSnapshot(input,hasId){
   const error="apollyon_activation_credential_transport_schema_invalid";
   if(
-    !input||typeof input!=="object"||Array.isArray(input)||
-    utilTypes.isProxy(input)
+    !input||typeof input!=="object"||utilTypes.isProxy(input)||
+    Array.isArray(input)
   )fail(error);
   const proto=Object.getPrototypeOf(input);
   if(proto!==Object.prototype&&proto!==null)fail(error);
