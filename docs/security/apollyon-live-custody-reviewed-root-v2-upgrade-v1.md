@@ -89,8 +89,26 @@ For this state the executor:
 2. verifies the current reviewed root without modifying it;
 3. atomically replaces only the fixed launcher, from
    `820f7151...` to retired `352bd36f...`;
-4. re-verifies the current reviewed root is byte-identical;
-5. re-attests both services are still exactly dormant.
+4. performs a two-pass `/proc` quiescence census after the swap and requires
+   no root-owned native live-session preentry, fixed-launcher Python process,
+   or private reviewed Node runner generation to remain in flight;
+5. re-attests both services are still exactly dormant;
+6. re-verifies the current reviewed root is byte-identical;
+7. repeats the process quiescence barrier and exact service dormancy before
+   reporting the migration complete.
+
+If an old launcher generation loaded before the pathname replacement, the
+retired pathname prevents any new old generation from loading, but the already
+loaded process can still exist. The post-swap census therefore HOLDs while any
+such reviewed root-owned generation remains. A retry that observes the retired
+`new_exact` launcher must pass the same two-pass process census before it can
+report `UPGRADE_ALREADY_EXACT`. Pathname replacement plus service dormancy
+alone is not accepted as proof of retirement.
+
+The process census is restricted to UID 0 because the reviewed native preentry
+and historical fixed launcher both require root. This prevents an unprivileged
+process from indefinitely blocking the gate merely by spoofing matching argv
+strings.
 
 This path does **not** build a stage, rename the reviewed root, or rewrite any
 reviewed-root file. The reviewed root intentionally still contains historical
