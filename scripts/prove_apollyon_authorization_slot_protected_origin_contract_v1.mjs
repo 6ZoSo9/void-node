@@ -23,7 +23,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs";
-const SOURCE_BLOB="b4de55e501067ebf87c79bd1de57fc0d654c26e5";
+const SOURCE_BLOB="dd78249944a39b62755d0f3a559df1eaedb22504";
 const PARENT_SLOT_BLOB="93582c324ca85aeff56eb61f82b32f1e4c18dfe9";
 const CANONICALIZER_BLOB="f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 const PARENT_SERVICE_CANDIDATE_BLOB=
@@ -135,6 +135,27 @@ for(const [key,value] of [
 }
 
 {
+  const bad={...slotRecord};
+  Object.defineProperty(bad,"hidden_unknown",{
+    enumerable:false,
+    configurable:true,
+    value:"hidden",
+  });
+  expectRejected(
+    ()=>buildApollyonAuthorizationSlotProtectedOriginCandidateV1(bad),
+    /slot_invalid/u,
+  );
+}
+{
+  const bad={...slotRecord};
+  bad[Symbol("hidden_unknown")]="hidden";
+  expectRejected(
+    ()=>buildApollyonAuthorizationSlotProtectedOriginCandidateV1(bad),
+    /slot_invalid/u,
+  );
+}
+
+{
   const bad={
     ...slotRecord,
     unknown_graph:{payload:"x".repeat(100000)},
@@ -179,6 +200,27 @@ for(const [key,value] of [
   expectRejected(
     ()=>buildApollyonAuthorizationSlotProtectedOriginCandidateV1(bad),
     /slot_invalid/u,
+  );
+}
+
+{
+  const bad={...candidate};
+  Object.defineProperty(bad,"hidden_unknown",{
+    enumerable:false,
+    configurable:true,
+    value:"hidden",
+  });
+  expectRejected(
+    ()=>qualifyApollyonAuthorizationSlotProtectedOriginCandidateV1(bad),
+    /candidate_invalid/u,
+  );
+}
+{
+  const bad={...candidate};
+  bad[Symbol("hidden_unknown")]="hidden";
+  expectRejected(
+    ()=>qualifyApollyonAuthorizationSlotProtectedOriginCandidateV1(bad),
+    /candidate_invalid/u,
   );
 }
 
@@ -312,6 +354,8 @@ console.log("slot_accessor_rejected_before_read=true");
 console.log("candidate_accessor_rejected_before_read=true");
 console.log("requirements_accessor_rejected_before_read=true");
 console.log("regex_coercion_rejected=true");
+console.log("nonenumerable_unknown_keys_rejected=true");
+console.log("symbol_keys_rejected=true");
 console.log("activation_capability_issuance_authorized=false");
 console.log("activation_capability_issuance_performed=false");
 console.log("training_start_consumption_performed=false");
