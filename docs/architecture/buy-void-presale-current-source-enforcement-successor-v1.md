@@ -11,7 +11,9 @@ Status: **source-identity acceptance only; presale freeze itself remains unaccep
 - commit `05614762b1b4638e05e539fd7d20cbf670e1570b`;
 - tree `4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e`;
 - freeze ID
-  `voidbuypresalefreeze2_32bd552dc92df07fd391ee3571f92e5efd80cbb50bd79bc4b8952484511db7f1`.
+  `voidbuypresalefreeze2_32bd552dc92df07fd391ee3571f92e5efd80cbb50bd79bc4b8952484511db7f1`;
+- repaired #3491 review head
+  `d3e7404791622541a4567ddd506f27caba60cfea`.
 
 That freeze deliberately refuses to treat the historical V2 enforcement lock as
 current-source authority without a versioned successor.
@@ -66,16 +68,27 @@ The successor therefore accepts only:
 
 `current_source_enforcement_successor_accepted=true`.
 
-This successor's own CI rebuilds and rederives the candidate independently on
-Node 22, 24, and 26. Those three **current successor** candidate JSON files must
-be byte-identical to one another and must preserve the accepted enforcement-set
-hash and protected-inventory digest. They are not required to reuse the
-historical candidate JSON file hash; the historical bytes remain separately
-bound above by #3491's exact-head evidence.
+This successor's own CI rebuilds the reviewed economic closure on Node 22, 24,
+and 26, runs the current-generation integration dispatch separately, and then
+copies the exact frozen V2 candidate bytes. All three lanes must require:
+
+- frozen candidate SHA-256
+  `092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb`;
+- frozen candidate Git blob
+  `4e23ecbb64eb26c14f5ab15af85eb86d59c3a718`;
+- frozen lock SHA-256
+  `06af643df1a807a7d2c3582f6650967575d53874d5bf1277a0f1039bbad6ccd9`;
+- byte-identical frozen candidate files across Node 22/24/26;
+- byte-identical current-generation integration receipts across Node 22/24/26;
+- `frozen_candidate_rederived_on_current_head=false`.
+
+The accepted candidate proof is not weakened or repinned to manufacture a new
+current-head candidate. Current source compatibility is proven separately while
+the historical accepted candidate/lock bytes remain exact.
 
 ## Successor identity
 
-`voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad`
+`voidbuypresaleenfsucc1_819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef`
 
 The suffix is SHA-256 over canonical sorted compact ASCII JSON of the successor
 body excluding `successor_id`.
@@ -97,6 +110,10 @@ A later distinct gate may then evaluate:
 ## Authority
 
 Only source enforcement identity acceptance is true.
+
+The repaired #3491 payment-policy review is a source-policy binding only. This
+successor does not itself accept the source freeze or authorize customer
+payment.
 
 All of these remain false:
 
