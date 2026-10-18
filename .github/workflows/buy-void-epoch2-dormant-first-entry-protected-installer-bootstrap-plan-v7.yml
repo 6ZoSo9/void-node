@@ -56,7 +56,7 @@ jobs:
           case "$EVENT_NAME" in
             pull_request) base="$PR_BASE" ;;
             push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            workflow_dispatch) base="d5e535aa83a94002dbe732e0da2d47feddf434bf" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           test -n "$base"
