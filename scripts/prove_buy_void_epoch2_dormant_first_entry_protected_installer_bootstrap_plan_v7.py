@@ -254,7 +254,7 @@ assert tuple(qualifier.NEW_BOOT) == (
 )
 assert qualifier.NEW_MAN[1] == EXPECTED_MANIFEST_SHA256
 assert qualifier.GREEN_STATE == EXPECTED_GREEN_STATE
-assert qualifier.PLAN_BLOB == "ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78"
+assert qualifier.PLAN_BLOB == "9ba10aac284da9e44db0ad258348425cfa3c2e2c"
 qualifier_source = qualifier_raw.decode("utf-8", "strict")
 for required in (
     '"qualification_git_callbacks_neutralized": True',
