@@ -1,0 +1,88 @@
+name: VOID P2P client clock regression v2
+
+on:
+  pull_request:
+    paths:
+      - "src/p2p/client_transient_clock_v1.ts"
+      - "src/p2p/udp_swarm_authenticated_control_adapter_v1.ts"
+      - "src/node_core.ts"
+      - "scripts/prove_void_p2p_client_clock_regression_v2.ts"
+      - "docs/architecture/p2p-client-clock-regression-v2.md"
+      - ".github/workflows/void-p2p-client-clock-regression-v2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/p2p/client_transient_clock_v1.ts"
+      - "src/p2p/udp_swarm_authenticated_control_adapter_v1.ts"
+      - "src/node_core.ts"
+      - "scripts/prove_void_p2p_client_clock_regression_v2.ts"
+      - "docs/architecture/p2p-client-clock-regression-v2.md"
+      - ".github/workflows/void-p2p-client-clock-regression-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: client clock regression / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove client clock regression closure
+        run: npx --no-install tsx scripts/prove_void_p2p_client_clock_regression_v2.ts
+
+      - name: Preserve UDP-swarm authenticated control
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts
+
+      - name: Preserve staged UDP candidate integration and promotion
+        run: |
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_promotion_v1.ts
+
+      - name: Preserve relay reservation behavior
+        run: npx --no-install tsx scripts/prove_void_p2p_relay_reservation_v1.ts
+
+      - name: Typecheck
+        run: npm run typecheck -- --pretty false
+
+      - name: Build
+        run: npm run build
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"

@@ -108,6 +108,7 @@ import {
   type VoidRelayControlMessageV1,
   type VoidRelayStreamRecordV1,
 } from "./p2p/relay_v1.js";
+import { VoidP2pClientTransientClockV1 } from "./p2p/client_transient_clock_v1.js";
 import {
   normalizeVoidUdpSwarmControlMessageV1,
   type VoidUdpSwarmControlMessageV1,
@@ -671,6 +672,7 @@ export class Node {
     string,
     { relay_node_id: string; reservation_id: string; expires_at_ms: number }
   >();
+  private readonly relayClientClock = new VoidP2pClientTransientClockV1();
   private relayStreams = new Map<string, RelayLocalStreamV1>();
   private readonly udpSwarmAllowNonPublicEndpoint: boolean;
   private readonly udpSwarmControl: VoidUdpSwarmAuthenticatedControlAdapterV1;
@@ -3028,19 +3030,17 @@ attachEphemeralDirectTransportV1(
   }
 
   private activeRelayClientReservation(relayNodeId: string) {
-    const reservation = this.relayClientReservations.get(relayNodeId);
-    if (!reservation) return;
-    if (reservation.expires_at_ms <= Date.now()) {
-      this.relayClientReservations.delete(relayNodeId);
-      return;
-    }
-    return reservation;
+    const nowMs = Date.now();
+    this.sweepRelayClientState(nowMs);
+    return this.relayClientReservations.get(relayNodeId);
   }
 
   requestRelayReservation(
     relayNodeId: string,
     ttlMs = VOID_P2P_RELAY_DEFAULT_RESERVATION_TTL_MS_V1,
   ): string | undefined {
+    const nowMs = Date.now();
+    this.sweepRelayClientState(nowMs);
     const relayPeer = this.authenticatedDirectPeer(relayNodeId);
     if (
       !relayPeer ||
@@ -3057,13 +3057,15 @@ attachEphemeralDirectTransportV1(
     this.relayPendingReservations.set(requestId, {
       relay_node_id: relayNodeId,
       requested_ttl_ms: normalized.ttl_ms,
-      requested_at_ms: Date.now(),
+      requested_at_ms: nowMs,
     });
     this.sendRaw(relayPeer, normalized);
     return requestId;
   }
 
   connectViaRelay(relayNodeId: string, targetNodeId: string): string | undefined {
+    const nowMs = Date.now();
+    this.sweepRelayClientState(nowMs);
     const relayPeer = this.authenticatedDirectPeer(relayNodeId);
     if (
       !relayPeer ||
@@ -3077,7 +3079,7 @@ attachEphemeralDirectTransportV1(
     this.relayPendingConnects.set(requestId, {
       relay_node_id: relayNodeId,
       target_node_id: targetNodeId,
-      requested_at_ms: Date.now(),
+      requested_at_ms: nowMs,
     });
     this.sendRaw(relayPeer, {
       type: "RELAY_CONNECT",
@@ -3212,18 +3214,26 @@ attachEphemeralDirectTransportV1(
   }
 
   private sweepRelayClientState(nowMs = Date.now()): void {
+    const clock = this.relayClientClock.observe(nowMs);
+    const now = clock.now_ms;
+    if (clock.regressed) {
+      this.relayPendingReservations.clear();
+      this.relayPendingConnects.clear();
+      this.relayClientReservations.clear();
+      return;
+    }
     for (const [requestId, pending] of this.relayPendingReservations) {
-      if (voidRelayRequestTimedOutV1(pending.requested_at_ms, nowMs)) {
+      if (voidRelayRequestTimedOutV1(pending.requested_at_ms, now)) {
         this.relayPendingReservations.delete(requestId);
       }
     }
     for (const [requestId, pending] of this.relayPendingConnects) {
-      if (voidRelayRequestTimedOutV1(pending.requested_at_ms, nowMs)) {
+      if (voidRelayRequestTimedOutV1(pending.requested_at_ms, now)) {
         this.relayPendingConnects.delete(requestId);
       }
     }
     for (const [relayNodeId, reservation] of this.relayClientReservations) {
-      if (reservation.expires_at_ms <= nowMs) {
+      if (reservation.expires_at_ms <= now) {
         this.relayClientReservations.delete(relayNodeId);
       }
     }
@@ -3295,6 +3305,8 @@ attachEphemeralDirectTransportV1(
   }
 
   private onRelayControlMessage(peer: Peer, msg: VoidRelayControlMessageV1): void {
+    const relayClientNowMs = Date.now();
+    this.sweepRelayClientState(relayClientNowMs);
     this.sweepRelayServerState();
 
     if (msg.type === "RELAY_RESERVE") {
@@ -3467,7 +3479,7 @@ attachEphemeralDirectTransportV1(
         peer.transport !== "direct"
       ) return;
       this.relayPendingReservations.delete(msg.request_id);
-      if (voidRelayRequestTimedOutV1(pending.requested_at_ms)) {
+      if (voidRelayRequestTimedOutV1(pending.requested_at_ms, relayClientNowMs)) {
         console.warn("VOID_P2P_RELAY_RESERVATION_V1_REQUEST_TIMEOUT", {
           relay_node_id: peer.id,
           request_id: msg.request_id,
@@ -3479,6 +3491,7 @@ attachEphemeralDirectTransportV1(
         pending.requested_at_ms,
         pending.requested_ttl_ms,
         msg.ttl_ms,
+        relayClientNowMs,
       );
       if (expiresAtMs === undefined) {
         console.warn("VOID_P2P_RELAY_RESERVATION_V1_TTL_REJECT", {
@@ -3506,7 +3519,7 @@ attachEphemeralDirectTransportV1(
         peer.transport !== "direct"
       ) return;
       this.relayPendingConnects.delete(msg.request_id);
-      if (voidRelayRequestTimedOutV1(pending.requested_at_ms)) {
+      if (voidRelayRequestTimedOutV1(pending.requested_at_ms, relayClientNowMs)) {
         console.warn("VOID_P2P_RELAY_RESERVATION_V1_REQUEST_TIMEOUT", {
           relay_node_id: peer.id,
           request_id: msg.request_id,
