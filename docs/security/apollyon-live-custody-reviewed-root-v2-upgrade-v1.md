@@ -34,10 +34,13 @@ For a host that never completed the earlier V2 upgrade, the executor:
 ## Previously installed reviewed-v2 path
 
 For a host that already has the former `b96f99d6...` launcher and exact former
-reviewed-v2 tree, the executor performs a bounded dormant migration:
+reviewed-v2 tree, the executor performs a bounded dormant migration. A canonical
+create-only prior-V2 install is valid even when the unrelated historical
+reviewed-v1 root is absent. If that old root is present, it must still match the
+exact reviewed-v1 closure; any collision HOLDs.
 
-1. verifies the retained reviewed-v1 root, exact former reviewed-v2 tree, and
-   exact former launcher;
+1. verifies the exact former reviewed-v2 tree and exact former launcher, and
+   validates the reviewed-v1 root if present;
 2. verifies both custody and training units with the same exact `loaded/inactive/dead/MainPID=0` contract;
 3. stages and fsyncs the complete current reviewed-v2 tree;
 4. atomically replaces the fixed launcher with the current launcher **before**
@@ -52,6 +55,12 @@ reviewed-v2 tree, the executor performs a bounded dormant migration:
 8. re-verifies both units still satisfy the exact `loaded/inactive/dead/MainPID=0` contract.
 
 The rollback tree is preserved. It is not deleted or overwritten by this gate.
+
+The old reviewed-v1 root is mandatory only when the launcher/root state is a
+legacy-v1 migration source. For prior-V2 and already-current states, its absence
+is accepted; if present it is content-verified and its presence/absence state
+must remain unchanged across apply. This admits the canonical direct prior-V2
+installer layout without weakening collision handling or the legacy-v1 path.
 
 A service-state query failure, unknown/not-found unit, nonzero MainPID, or any
 `active`, `activating`, `reloading`, `deactivating`, or `failed` state HOLDs.
