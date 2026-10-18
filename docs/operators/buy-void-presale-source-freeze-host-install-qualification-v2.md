@@ -40,6 +40,39 @@ The evaluator rejects a census that attempts to claim receipt authenticity,
 host qualification, live-generation verification, payment acceptance, presale
 activation, WC/VOID activation, or funds authority.
 
+The three fixed-path metadata entries are also closed schemas, not loose JSON
+objects.
+
+Base entry shape:
+
+```text
+state
+mode
+bytes
+```
+
+Allocation custody adds exactly one field:
+
+```text
+is_mountpoint_metadata_only
+```
+
+Accepted state/value relationships match census V3 exactly:
+
+- `REGULAR_METADATA_ONLY` requires a four-octal-digit string `mode` and a
+  nonnegative integer `bytes`;
+- `DIRECTORY_METADATA_ONLY` requires a four-octal-digit string `mode` and
+  `bytes=null`;
+- `ABSENT`, `METADATA_PERMISSION_HOLD`,
+  `METADATA_UNAVAILABLE_HOLD`, `SYMLINK_HOLD`, and
+  `SPECIAL_FILE_HOLD` require `mode=null` and `bytes=null`;
+- custody's `is_mountpoint_metadata_only` must be a JSON boolean and must be
+  `false` whenever custody metadata is not a directory.
+
+Missing keys, extra keys, unknown states, wrong field types, inconsistent
+mode/byte combinations, and impossible non-directory mountpoint claims are
+invalid input. They do not degrade into an aligned metadata classification.
+
 ## Metadata-alignment classification
 
 A census can reach:
@@ -100,6 +133,10 @@ Possible successful classifications are:
 Invalid/untrusted input exits nonzero as:
 
 - `HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT`.
+
+Malformed nested fixed-path metadata is treated as invalid input rather than as
+a mere alignment blocker. This prevents omitted/type-confused fields from
+silently satisfying the positive metadata path.
 
 This prevents a source-only evaluator from inventing production-host evidence.
 
