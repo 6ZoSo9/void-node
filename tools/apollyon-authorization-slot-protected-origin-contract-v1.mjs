@@ -273,6 +273,35 @@ function recordSha256(record){
   return sha256(Buffer.from(canonical(record)+"\n","utf8"));
 }
 
+function validateCandidateSlotBindings(value){
+  let slot;
+  try{
+    slot=validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1({
+      marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_V1",
+      version:1,
+      status:"authorization_slot_bound_to_exact_durable_claim_candidate",
+      store_policy_id:value.store_policy_id,
+      authorization_id:value.authorization_id,
+      authorization_slot_id:value.authorization_slot_id,
+      store_contract_id:value.store_contract_id,
+      store_generation_id:value.store_generation_id,
+      terminal_receipt_id:value.terminal_receipt_id,
+      claim_record_id:value.claim_record_id,
+      claim_record_sha256:value.claim_record_sha256,
+      publish_request_sha256:value.publish_request_sha256,
+      attempt_limit:1,
+      automatic_retry_authorized:value.automatic_retry_authorized,
+      authorization_slot_record_id:value.authorization_slot_record_id,
+    });
+  }catch{
+    fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
+  }
+  if(recordSha256(slot)!==value.authorization_slot_record_sha256){
+    fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
+  }
+  return slot;
+}
+
 function validateCandidateMaterial(value){
   if(
     value.marker!==VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_CONTRACT_V1||
@@ -304,6 +333,7 @@ function validateCandidateMaterial(value){
   ){
     fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
   }
+  validateCandidateSlotBindings(value);
 }
 
 function preflightRequirements(input){
