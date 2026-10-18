@@ -250,4 +250,3 @@ special-mode, size, and symlink/type drift are rejected as well.
 
 No host write, receipt publication, service mutation, payment, signing,
 transaction, activation, treasury, or funds authority is added.
-
