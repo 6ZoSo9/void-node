@@ -33,6 +33,9 @@ The #3333 source is not present in that parent lineage. This contract therefore 
 
 A later integration gate must bring the exact #3333 contract into the active stack or otherwise execute that exact reviewed source before any capability may be issued.
 
+Hosted CI does not assume the unrelated commit object happened to arrive with the parent checkout. It explicitly fetches the advertised active #3333 branch
+ren/apollyon-training-start-consumption-contract-v1-20261016, requires FETCH_HEAD to equal fdf47e77cd12eee38efe741edb02fa2fd39135e2, and then requires the consumption-contract path at that fetched head to equal blob 60987b860fb7159d88f4f601b76878e7d8ccca92. Branch deletion or force-push therefore fails closed instead of silently accepting another generation.
+
 The current contract must not pretend that merely copying #3333 identifiers into a caller-supplied object proves their protected origin.
 
 ## Reviewed local dependencies
@@ -111,7 +114,7 @@ The contract also defines a non-authoritative generation-binding candidate that 
 - boot-ID SHA-256
 - systemd InvocationID
 - PID
-- process start-time ticks
+- process start-time ticks, accepted only as a positive unsigned-64 decimal with at most 20 digits
 - non-root training UID/GID
 - source-identity SHA-256
 - exact pre-entry SHA-256
@@ -183,6 +186,7 @@ Hosted proof must establish:
 - the create-once issuance key is the existing #3333 start slot
 - no second consumption namespace exists
 - generation binding remains unproven without raw-secret/live evidence
+- process start ticks are rejected before structured cloning when longer than 20 decimal digits and are range-checked as positive uint64
 - #3333 trainer-generation validation remains external and unperformed
 - training-start consumption/admission, release, and execution remain false
 - production source contains no filesystem, network, child-process, systemctl, service-action, signing, wallet, transaction, or funds implementation
