@@ -20,7 +20,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="b4e667fc425e4ca8a5d39bbd3b92989282d39e3b";
+const SOURCE_BLOB="fb961c01572a497a7bc3254fc41938e5c794c63e";
 const PARENT_HEAD="1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae";
 const CONSUMPTION_HEAD="fdf47e77cd12eee38efe741edb02fa2fd39135e2";
 const CONSUMPTION_BLOB="60987b860fb7159d88f4f601b76878e7d8ccca92";
@@ -58,6 +58,27 @@ function reflectionTrapProxy(target){
     }),
     trapCalls:()=>trapCalls,
   };
+}
+function oversizedKeySet(value,count=4096){
+  const bad={...value};
+  for(let index=0;index<count;index+=1){
+    bad["oversized_unknown_"+index]="x";
+  }
+  return bad;
+}
+function expectRejectedBeforeSort(fn,pattern){
+  const originalSort=Array.prototype.sort;
+  let sortCalls=0;
+  Array.prototype.sort=function(...args){
+    sortCalls+=1;
+    return originalSort.apply(this,args);
+  };
+  try{
+    expectRejected(fn,pattern);
+  }finally{
+    Array.prototype.sort=originalSort;
+  }
+  assert.equal(sortCalls,0);
 }
 
 const EXACT_BLOBS=Object.freeze({
@@ -195,6 +216,21 @@ assert.equal(capability.training_execution_authorized,false);
     /capability_invalid/u,
   );
   assert.equal(hostile.trapCalls(),0);
+}
+
+{
+  const bad=oversizedKeySet(capabilityMaterial);
+  expectRejectedBeforeSort(
+    ()=>buildApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
+}
+{
+  const bad=oversizedKeySet(capability);
+  expectRejectedBeforeSort(
+    ()=>qualifyApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
 }
 
 const capabilityText=canonicalApollyonTrainingActivationV1(capability);
@@ -450,6 +486,21 @@ assert.equal(binding.training_execution_authorized,false);
     /binding_invalid/u,
   );
   assert.equal(hostile.trapCalls(),0);
+}
+
+{
+  const bad=oversizedKeySet(bindingMaterial);
+  expectRejectedBeforeSort(
+    ()=>buildApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
+  );
+}
+{
+  const bad=oversizedKeySet(binding);
+  expectRejectedBeforeSort(
+    ()=>qualifyApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
+  );
 }
 
 {
@@ -717,6 +768,7 @@ console.log("nonenumerable_unknown_keys_rejected=true");
 console.log("symbol_keys_rejected=true");
 console.log("proxy_inputs_rejected_before_reflection=true");
 console.log("proxy_reflection_traps_not_invoked=true");
+console.log("oversized_keyset_rejected_before_sort=true");
 console.log("trainer_generation_external_validation_performed=false");
 console.log("training_start_consumption_record_origin_proven=false");
 console.log("training_start_consumption_performed=false");
