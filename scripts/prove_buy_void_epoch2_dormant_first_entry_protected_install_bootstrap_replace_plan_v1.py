@@ -264,7 +264,7 @@ assert (
 helper = helper_raw.decode("utf-8", "strict")
 assert 'POLICY_SCHEMA = (' in helper
 assert '"PROTECTED_INSTALL_BOOTSTRAP_POLICY_V6"' in helper
-assert "def _RepositorySnapshot" in helper
+assert "class _RepositorySnapshot" in helper
 assert "def _read_exact_path" in helper
 assert "def _verify_file" in helper
 assert "def build_policy" in helper
