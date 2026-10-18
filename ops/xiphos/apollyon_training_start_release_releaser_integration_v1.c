@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
+#include <sys/ptrace.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
@@ -590,6 +591,18 @@ static int wait_trainer_exec(
     return 0;
 }
 
+static int wait_trainer_exec_stop(pid_t child) {
+    int status=0;
+    for(;;) {
+        pid_t got=waitpid(child,&status,WUNTRACED);
+        if(got==child) break;
+        if(got<0 && errno==EINTR) continue;
+        return 0;
+    }
+    if(!WIFSTOPPED(status) || WSTOPSIG(status)!=SIGTRAP) return 0;
+    return ((unsigned int)status>>16)==(unsigned int)PTRACE_EVENT_EXEC;
+}
+
 static int cleanup_child(pid_t child) {
     if(child<=0) return 1;
     (void)kill(child,SIGKILL);
@@ -824,20 +837,37 @@ static int fixture_run(
         return 107;
     }
 
-    if(write(go[1],"G",1)!=1) {
+    if(
+        ptrace(
+            PTRACE_SEIZE,
+            child,
+            NULL,
+            (void *)(uintptr_t)PTRACE_O_TRACEEXEC
+        )!=0
+    ) {
         cleanup_child(child);
         return 108;
+    }
+
+    if(write(go[1],"G",1)!=1) {
+        cleanup_child(child);
+        return 109;
     }
     close_if_open(&ready[0]);
     close_if_open(&go[1]);
     close_if_open(&candidate_fd);
+
+    if(!wait_trainer_exec_stop(child)) {
+        cleanup_child(child);
+        return 110;
+    }
 
     unsigned long long child_start=0;
     if(!wait_trainer_exec(
         &proc,child,pidfd,&candidate_st,release_st.st_ino,&child_start
     )) {
         cleanup_child(child);
-        return 109;
+        return 111;
     }
 
     if(which==CASE_DUPLICATE_RELEASER_WRITER) {
@@ -954,19 +984,25 @@ static int fixture_run(
         cleanup_child(child);
         return 138;
     }
-    if(!write_all(release_pipe[1],frame,sizeof(frame))) {
+
+    if(ptrace(PTRACE_DETACH,child,NULL,NULL)!=0) {
         cleanup_child(child);
         return 139;
     }
-    if(close(release_pipe[1])!=0) {
+
+    if(!write_all(release_pipe[1],frame,sizeof(frame))) {
         cleanup_child(child);
         return 140;
+    }
+    if(close(release_pipe[1])!=0) {
+        cleanup_child(child);
+        return 141;
     }
     release_pipe[1]=-1;
 
     int status=0;
-    if(waitpid(child,&status,0)!=child) return 141;
-    if(!WIFEXITED(status) || WEXITSTATUS(status)!=0) return 142;
+    if(waitpid(child,&status,0)!=child) return 142;
+    if(!WIFEXITED(status) || WEXITSTATUS(status)!=0) return 143;
 
     close_if_open(&pidfd);
     close_proc_context(&proc);
@@ -975,6 +1011,8 @@ static int fixture_run(
     puts("direct_trainer_child_lineage_fixture=true");
     puts("same_pipe_fd3_fixture=true");
     puts("single_threaded_releaser_before_write=true");
+    puts("trainer_exec_stop_synchronization=true");
+    puts("frame_budget_starts_after_releaser_proof=true");
     puts("writer_continuity_filter_installed=true");
     puts("late_clone_dup_open_socket_fdpass_blocked=true");
     puts("exact_frame_written_and_sole_writer_closed=true");
@@ -1046,6 +1084,8 @@ int main(int argc,char **argv) {
     puts("duplicate_releaser_writer_rejected=true");
     puts("direct_parent_same_pipe_actual_trainer_fixture=true");
     puts("single_thread_writer_continuity_fixture=true");
+    puts("trainer_exec_stop_synchronization=true");
+    puts("frame_budget_starts_after_releaser_proof=true");
     puts("protected_releaser_origin_proven=false");
     puts("writer_exclusivity_host_proven=false");
     puts("trainer_release_authorized=false");
