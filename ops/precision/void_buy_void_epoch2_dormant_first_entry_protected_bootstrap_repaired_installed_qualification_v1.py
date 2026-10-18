@@ -207,6 +207,8 @@ def load_upgrader(expected_head: str) -> types.ModuleType:
 
 
 def collect(expected_head: str) -> dict[str, Any]:
+    if os.geteuid() == 0:
+        raise QualificationError("nonroot_required_for_repaired_qualification")
     checkout = checkout_snapshot(expected_head)
     exact_git_object(expected_head, UPGRADER_PROOF_REL, UPGRADER_PROOF_BLOB)
     exact_git_object(expected_head, PLAN_REL, PLAN_BLOB)
@@ -270,7 +272,9 @@ def collect(expected_head: str) -> dict[str, Any]:
         "repaired_fixed_root_verified": True,
         "predecessor_retained_verified": True,
         "upgrade_stage_absent_verified": True,
-        "filesystem_write": False,
+        "temporary_git_metadata_write_required": True,
+        "filesystem_write": True,
+        "protected_filesystem_mutation": False,
         "bootstrap_execution": False,
         "inner_installer_execution": False,
         "service_mutation": False,
@@ -303,7 +307,9 @@ def source_plan() -> None:
     print("retained_predecessor_required=true")
     print("upgrade_stage_absent_required=true")
     print("temporary_git_metadata_boundary_explicit=true")
-    print("filesystem_write=false")
+    print("temporary_git_metadata_write_required=true")
+    print("nonroot_run_required=true")
+    print("protected_filesystem_mutation=false")
     print("bootstrap_execution=false")
     print("inner_installer_execution=false")
     print("service_mutation=false")
@@ -332,6 +338,10 @@ def emit(result: dict[str, Any]) -> None:
     print("repaired_fixed_root_verified=true")
     print("predecessor_retained_verified=true")
     print("upgrade_stage_absent_verified=true")
+    print("nonroot_run_required=true")
+    print("temporary_git_metadata_write_required=true")
+    print("filesystem_write=true")
+    print("protected_filesystem_mutation=false")
     print("repaired_bootstrap_sha256=" + NEW_BOOT[1])
     print("repaired_manifest_sha256=" + NEW_MAN[1])
     print("predecessor_bootstrap_sha256=" + OLD_BOOT[1])
@@ -375,8 +385,10 @@ def self_test() -> None:
     print("retained_predecessor_required=true")
     print("upgrade_stage_absent_required=true")
     print("temporary_git_metadata_cleanup_required=true")
+    print("temporary_git_metadata_write_required=true")
+    print("nonroot_run_required=true")
     print("upgrader_apply_not_called=true")
-    print("filesystem_write=false")
+    print("protected_filesystem_mutation=false")
     print("bootstrap_execution=false")
     print("inner_installer_execution=false")
     print("service_mutation=false")
@@ -413,7 +425,9 @@ if __name__ == "__main__":
         print("status=HOLD")
         print("reason=" + str(exc))
         print("automatic_retry=false")
-        print("filesystem_write=false")
+        print("filesystem_write=unknown")
+        print("protected_filesystem_mutation=false")
+        print("temporary_git_metadata_cleanup_completed=unknown")
         print("bootstrap_execution=false")
         print("inner_installer_execution=false")
         print("service_mutation=false")
