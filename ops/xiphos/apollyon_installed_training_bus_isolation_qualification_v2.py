@@ -162,20 +162,39 @@ def _stable_source(relative: str) -> bytes:
         or before.st_size > MAX_SOURCE_BYTES
     ):
         hold("v1_source_metadata_invalid")
-    try:
-        raw = path.read_bytes()
-        after = path.lstat()
-    except OSError as exc:
-        raise Hold("v1_source_read_failed") from exc
-    for field in (
+    fields = (
         "st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",
         "st_size", "st_mtime_ns", "st_ctime_ns",
-    ):
-        if getattr(before, field) != getattr(after, field):
+    )
+    fd: int | None = None
+    try:
+        fd = os.open(
+            path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+        )
+        opened = os.fstat(fd)
+        if any(getattr(before, key) != getattr(opened, key) for key in fields):
             hold("v1_source_generation_changed")
-    if len(raw) != before.st_size or git_blob(raw) != V1_BLOB:
-        hold("v1_source_identity_mismatch")
-    return raw
+        raw = os.pread(fd, before.st_size, 0)
+        extra = os.pread(fd, 1, before.st_size)
+        after = os.fstat(fd)
+        visible = path.lstat()
+        if extra or any(
+            getattr(opened, key) != getattr(after, key)
+            or getattr(after, key) != getattr(visible, key)
+            for key in fields
+        ):
+            hold("v1_source_generation_changed")
+        if len(raw) != before.st_size or git_blob(raw) != V1_BLOB:
+            hold("v1_source_identity_mismatch")
+        return raw
+    except OSError as exc:
+        raise Hold("v1_source_read_failed") from exc
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError as exc:
+                raise Hold("v1_source_close_failed") from exc
 
 
 def _load_v1() -> types.ModuleType:

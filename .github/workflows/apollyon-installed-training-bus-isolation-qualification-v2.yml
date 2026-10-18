@@ -61,7 +61,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py)" = "$v1_blob"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
-            a9fcb8e5b6eff9f188c3b74f81dc1eb0dccaed27
+            b57457435cc691ce576ef090e67ba323af254929
           test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
             278b855d3a7706bab56414883614f83df3b1b2c8
           test "$(git rev-parse HEAD:docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md)" = \
@@ -146,6 +146,126 @@ jobs:
           print("missing_retirement_marker_rejected=true")
           print("duplicate_retirement_marker_rejected=true")
           PYCODE
+
+      - name: Prove bounded descriptor source reads
+        run: |
+          set -euo pipefail
+          timeout 30s python3 -I -B - <<'PYREADER'
+          import errno
+          import os
+          from pathlib import Path
+          import tempfile
+          import types
+
+          source_path = Path('ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py').resolve()
+          mod = types.ModuleType('apollyon_source_reader_regression')
+          mod.__file__ = str(source_path)
+          exec(compile(source_path.read_bytes(), str(source_path), 'exec'), mod.__dict__)
+          original = b'# deterministic source fixture\n'
+          mod.V1_BLOB = mod.git_blob(original)
+
+          class RacingPath:
+              def __init__(self, path, swap):
+                  self.path, self.swap, self.calls = path, swap, 0
+              def __fspath__(self):
+                  return os.fspath(self.path)
+              def lstat(self):
+                  before = self.path.lstat()
+                  self.calls += 1
+                  if self.calls == 1:
+                      self.swap()
+                  return before
+
+          class FixtureRoot:
+              def __init__(self, path):
+                  self.path = path
+              def __truediv__(self, _relative):
+                  return self.path
+
+          with tempfile.TemporaryDirectory(prefix='apollyon-source-reader-regression-') as td:
+              root = Path(td)
+              source = root / 'source.py'
+              target = root / 'target.py'
+              target.write_bytes(original)
+              original_open, original_pread, original_close = os.open, os.pread, os.close
+              for case in ('stable', 'symlink', 'fifo', 'oversize', 'same_bytes_inode', 'growth', 'short_read', 'read_error', 'path_loss', 'close_error'):
+                  if source.exists() or source.is_symlink():
+                      source.unlink()
+                  source.write_bytes(original)
+                  opened, closed, reads = [], [], []
+                  def swap():
+                      if case not in ('symlink', 'fifo', 'oversize', 'same_bytes_inode'):
+                          return
+                      replacement = root / 'replacement'
+                      if case == 'symlink':
+                          replacement.symlink_to(target)
+                      elif case == 'fifo':
+                          os.mkfifo(replacement)
+                      else:
+                          replacement.write_bytes(b'x' * (mod.MAX_SOURCE_BYTES + 1) if case == 'oversize' else original)
+                      os.replace(replacement, source)
+                  mod.ROOT = FixtureRoot(RacingPath(source, swap))
+                  def tracking_open(path, flags, *args, **kwargs):
+                      required = os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+                      if flags & required != required:
+                          raise AssertionError('source_open_flags_incomplete')
+                      fd = original_open(path, flags, *args, **kwargs)
+                      opened.append(fd)
+                      return fd
+                  def tracking_read(fd, count, offset):
+                      reads.append((count, offset))
+                      if (count, offset) not in ((len(original), 0), (1, len(original))):
+                          raise AssertionError('source_read_exceeds_authenticated_bound')
+                      if case == 'read_error':
+                          raise OSError(errno.EIO, 'fixture read error')
+                      raw = original_pread(fd, count, offset)
+                      if offset == 0:
+                          if case == 'growth':
+                              with source.open('ab') as stream:
+                                  stream.write(b'x' * (mod.MAX_SOURCE_BYTES + 1))
+                          elif case == 'short_read':
+                              return raw[:-1]
+                          elif case == 'path_loss':
+                              source.unlink()
+                      return raw
+                  def tracking_close(fd):
+                      closed.append(fd)
+                      result = original_close(fd)
+                      if case == 'close_error':
+                          raise OSError(errno.EIO, 'fixture close error after actual close')
+                      return result
+                  try:
+                      os.open, os.pread, os.close = tracking_open, tracking_read, tracking_close
+                      try:
+                          result = mod._stable_source('source.py')
+                      except mod.Hold:
+                          if case == 'stable':
+                              raise
+                      else:
+                          if case != 'stable' or result != original:
+                              raise AssertionError('source_race_accepted:' + case)
+                  finally:
+                      os.open, os.pread, os.close = original_open, original_pread, original_close
+                  if closed != opened:
+                      raise AssertionError('source_descriptor_not_closed_once:' + case)
+                  for fd in opened:
+                      try:
+                          os.fstat(fd)
+                      except OSError as exc:
+                          if exc.errno != errno.EBADF:
+                              raise
+                      else:
+                          raise AssertionError('source_descriptor_leaked:' + case)
+                  if case in ('symlink', 'fifo', 'oversize', 'same_bytes_inode') and reads:
+                      raise AssertionError('replacement_source_read_before_rejection:' + case)
+                  if case == 'stable' and reads != [(len(original), 0), (1, len(original))]:
+                      raise AssertionError('bounded_source_and_eof_probe_missing')
+                  print('source_reader_' + case + '_proven=true')
+          print('source_reader_descriptor_cleanup_proven=true')
+          print('source_reader_bounded_nofollow_nonblocking_proven=true')
+          print('host_service_action=false')
+          print('training_execution=false')
+          PYREADER
 
       - name: Prove retired standalone and launcher lifecycle
         run: |
