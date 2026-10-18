@@ -19,25 +19,25 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "dfeb789bbaac05d2e07038d743ff1523c1d64d2f"
+TARGET_BLOB = "713727325d11ac7923ee3a52fb58670bbbb482e0"
 
 PLANNER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_BLOB = "ea276889645376bfa16c2dfac6b0e48d81cab42d"
+PLANNER_BLOB = "7f218580ea47897290c32b3fe5cb788f16a3ecc1"
 PLANNER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_PROOF_BLOB = "090af92bf0f0362bd86dd63b7a0583363ca56c63"
+PLANNER_PROOF_BLOB = "7b2ec582059ae3a9d87c8668246093f4bb20e14f"
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "a9cee971d3fd088821124b1349179fdd1cb27516"
+QUALIFIER_BLOB = "04c7ca5f0d96dcb60faeae8cf4d712435ad65466"
 
 
 def git_blob(raw: bytes) -> str:
@@ -68,6 +68,9 @@ for required in (
     'PLANNER_PROOF_BLOB = "' + PLANNER_PROOF_BLOB + '"',
     'QUALIFIER_BLOB = "' + QUALIFIER_BLOB + '"',
     '"source_execution_mode": "descriptor_bound_exact_git_object"',
+    '"qualification_git_callbacks_neutralized_required": True',
+    '"qualification_git_callbacks_neutralized": True',
+    '"git_callbacks_neutralized_required": True',
     '"run_as": "nonroot"',
     '"run_as": "root"',
     '"green_required_before_phase_2": True',
@@ -141,6 +144,8 @@ for required in (
     "launcher_historical_authority_overclaim",
     "bootstrap_argv_mismatch",
     "planner_qualification_line_mismatch",
+    "qualification_contract_mismatch:",
+    "qualification_required_result_mismatch:",
 ):
     assert required in validate_source, required
 
@@ -148,6 +153,7 @@ contract_source = ast.get_source_segment(source, functions["execution_contract"]
 assert '"ordinal": 1' in contract_source
 assert '"ordinal": 2' in contract_source
 assert '"run_as": "nonroot"' in contract_source
+assert '"git_callbacks_neutralized_required": True' in contract_source
 assert '"run_as": "root"' in contract_source
 assert (
     '"root_boundary_implementation":\n'
@@ -177,6 +183,7 @@ for expected in (
     "qualification_contract_exact=true",
     "qualification_nonroot_required=true",
     "qualification_descriptor_bound_git_object_required=true",
+    "qualification_git_callbacks_neutralized_required=true",
     "qualification_green_required_before_root_plan=true",
     "root_bootstrap_plan_phase_required=true",
     "root_boundary_implementation_separate=true",
@@ -211,6 +218,7 @@ for expected in (
     "qualifier_git_blob_sha1=" + QUALIFIER_BLOB,
     "phase_order=nonroot_qualification_then_root_bootstrap_plan",
     "qualification_source_execution_mode=descriptor_bound_exact_git_object",
+    "qualification_git_callbacks_neutralized_required=true",
     "root_boundary_implementation=separately_reviewed_operator_boundary_required",
     "qualification_execution_performed=false",
     "bootstrap_execution_performed=false",
@@ -232,6 +240,7 @@ print("planner_plan_id_recomputed=true")
 print("exact_qualification_contract_required=true")
 print("nonroot_qualification_phase_required=true")
 print("descriptor_bound_qualification_source_required=true")
+print("qualification_git_callbacks_neutralized_required=true")
 print("qualification_green_before_root_phase_required=true")
 print("root_bootstrap_plan_phase_structured_only=true")
 print("root_boundary_implementation_separate=true")
