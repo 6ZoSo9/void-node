@@ -312,8 +312,10 @@ FIFO blocks the old query but cannot affect either repaired observation.
 
 This intentionally requires raw bytes and executable modes to match the commit.
 Filtered/normalized or CRLF worktrees, symlinks, gitlinks, unmerged or different
-index entries, invalid paths, special files, and hardlinks HOLD. Every untracked
-file now causes HOLD, even if a Git ignore rule would normally hide it. This is
+index entries, invalid paths, tracked special files, and tracked hardlinks HOLD.
+Every untracked path reported by Git now causes HOLD, even if an ignore rule
+would normally hide it. Git can omit untracked special objects such as FIFOs;
+this listing is not an inventory or qualification of all filesystem objects. This is
 stricter than ordinary Git status: a future source checkout containing ignored
 dependencies, caches, logs, or other untracked state does not qualify. The
 collector never deletes that state or grants permission to remove it.
