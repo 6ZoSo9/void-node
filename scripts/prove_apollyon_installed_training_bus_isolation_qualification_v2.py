@@ -24,7 +24,7 @@ LAUNCHER_BLOB = "2496644ecc13b425c0885d9e38887d845a5824ef"
 LEGACY_LAUNCHER = ROOT / "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
 LEGACY_LAUNCHER_BLOB = "820f7151c0f83280b7457f841cee14c3b0c274b6"
 LEGACY_UPGRADE = ROOT / "ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py"
-LEGACY_UPGRADE_BLOB = "0b6464e16e5792b44e23441e669748cb2887666a"
+LEGACY_UPGRADE_BLOB = "395a2cb3daa5530e1c6291484ac4d85d17b6ba6f"
 
 
 def git_blob(raw: bytes) -> str:
