@@ -26,11 +26,11 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-custody-source-session-runner-v2.mjs":
     "8c2c92055ab05c074653cee971e095934b5cb85c",
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
-    "981935515e08634be96446e58922c16be56d33ad",
+    "5ee36c89275c29b008094ad030b8664ed9d7b60b",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
+    "974a383f4904b6b223a2143d5f7a19322f3d1f66",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -40,7 +40,7 @@ function claim(){
     marker:"VOID_APOLLYON_CANDIDATE_TRAINING_ATTEMPT_CLAIM_CONTRACT_V2",
     version:2,status:"current_v2_claim_contract_qualified_unclaimed",
     target_host:"Xiphos",
-    preclaim_v2_blob_sha1:"33a7f0d51d7ce1ab6e7ee48e4e205c0b639cca82",
+    preclaim_v2_blob_sha1:"d062fe9d8f70f731e157c8d9f835d3f936ac5d59",
     v1_canonicalizer_blob_sha1:"f97fafb0148527ae3a954e2752faef8c7fc9e88e",
     preclaim_id:"apollyon_preclaim_v2:"+"1".repeat(64),
     current_v2_live_qualification_id:"apollyon_custody_live_v2:"+"2".repeat(64),
