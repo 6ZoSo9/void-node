@@ -92,7 +92,10 @@ pin(UPGRADER_WORKFLOW_REL, UPGRADER_WORKFLOW_BLOB)
 plan_workflow_source = (ROOT / PLAN_WORKFLOW_REL).read_text("utf-8")
 for required in (
     "STACK_PARENT=99600d3cce99c7e0a7281a48bbcdcecb66bc54f7",
-    'pull_request) test "$PR_BASE" = "$STACK_PARENT"; base="$STACK_PARENT" ;;',
+    """pull_request)
+              test "$PR_BASE" = "$STACK_PARENT"
+              base="$STACK_PARENT"
+              ;;""",
     'workflow_dispatch) base="$STACK_PARENT" ;;',
 ):
     assert required in plan_workflow_source, required
