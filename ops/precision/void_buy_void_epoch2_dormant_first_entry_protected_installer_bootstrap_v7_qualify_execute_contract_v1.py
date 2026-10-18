@@ -34,19 +34,19 @@ PLANNER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_BLOB = "ea276889645376bfa16c2dfac6b0e48d81cab42d"
+PLANNER_BLOB = "7f218580ea47897290c32b3fe5cb788f16a3ecc1"
 PLANNER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_PROOF_BLOB = "090af92bf0f0362bd86dd63b7a0583363ca56c63"
+PLANNER_PROOF_BLOB = "7b2ec582059ae3a9d87c8668246093f4bb20e14f"
 
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "a9cee971d3fd088821124b1349179fdd1cb27516"
+QUALIFIER_BLOB = "04c7ca5f0d96dcb60faeae8cf4d712435ad65466"
 FIXED_PYTHON = "/usr/bin/python3"
 
 BOOTSTRAP_PATH = (
@@ -244,6 +244,7 @@ def _validate_qualification_contract(
         "protected_state_read_only_required": True,
         "temporary_git_metadata_write_required": True,
         "temporary_git_metadata_cleanup_required": True,
+        "qualification_git_callbacks_neutralized_required": True,
         "descriptor_bound_source_execution_required": True,
     }
     for key, expected in exact.items():
@@ -269,6 +270,7 @@ def _validate_qualification_contract(
         "temporary_git_metadata_write_required": True,
         "temporary_git_metadata_write_performed": True,
         "temporary_git_metadata_cleanup_completed": True,
+        "qualification_git_callbacks_neutralized": True,
         "source_repository_mutation": False,
         "source_object_fetch": False,
         "repository_config_loaded": False,
@@ -332,6 +334,7 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
     _require_bool_line(values, "qualification_nonroot_execution_required", True)
     _require_bool_line(values, "qualification_protected_state_read_only_required", True)
     _require_bool_line(values, "qualification_temporary_git_metadata_write_required", True)
+    _require_bool_line(values, "qualification_git_callbacks_neutralized_required", True)
     _require_bool_line(values, "qualification_descriptor_bound_source_execution_required", True)
     _require_bool_line(values, "expected_installed_bootstrap_identity_bound", True)
     _require_bool_line(values, "accepted_launcher_identity_green", True)
@@ -492,6 +495,7 @@ def execution_contract(validated: dict[str, Any]) -> dict[str, Any]:
             "source_path": QUALIFIER_REL,
             "source_git_blob_sha1": QUALIFIER_BLOB,
             "source_execution_mode": "descriptor_bound_exact_git_object",
+            "git_callbacks_neutralized_required": True,
             "interpreter": FIXED_PYTHON,
             "argv_suffix": ["--run", "--expected-head", expected_head],
             "required_contract": validated["qualification_contract"],
@@ -544,6 +548,7 @@ def source_plan() -> None:
     print("qualifier_git_blob_sha1=" + QUALIFIER_BLOB)
     print("phase_order=nonroot_qualification_then_root_bootstrap_plan")
     print("qualification_source_execution_mode=descriptor_bound_exact_git_object")
+    print("qualification_git_callbacks_neutralized_required=true")
     print("root_boundary_implementation=separately_reviewed_operator_boundary_required")
     print("qualification_execution_performed=false")
     print("bootstrap_execution_performed=false")
@@ -580,6 +585,7 @@ def emit_plan(result: dict[str, Any]) -> None:
     print("phase_order=nonroot_qualification_then_root_bootstrap_plan")
     print("qualification_source_git_blob_sha1=" + QUALIFIER_BLOB)
     print("qualification_source_execution_mode=descriptor_bound_exact_git_object")
+    print("qualification_git_callbacks_neutralized_required=true")
     print("qualification_green_required_before_phase_2=true")
     print("root_boundary_implementation=separately_reviewed_operator_boundary_required")
     print(
@@ -636,6 +642,7 @@ def _fixture_output() -> bytes:
         "protected_state_read_only_required": True,
         "temporary_git_metadata_write_required": True,
         "temporary_git_metadata_cleanup_required": True,
+        "qualification_git_callbacks_neutralized_required": True,
         "descriptor_bound_source_execution_required": True,
         "interpreter": {"path": FIXED_PYTHON},
         "git_tool": {"path": "/usr/bin/git"},
@@ -655,6 +662,7 @@ def _fixture_output() -> bytes:
             "temporary_git_metadata_write_required": True,
             "temporary_git_metadata_write_performed": True,
             "temporary_git_metadata_cleanup_completed": True,
+            "qualification_git_callbacks_neutralized": True,
             "source_repository_mutation": False,
             "source_object_fetch": False,
             "repository_config_loaded": False,
@@ -747,6 +755,7 @@ def _fixture_output() -> bytes:
         "qualification_nonroot_execution_required=true",
         "qualification_protected_state_read_only_required=true",
         "qualification_temporary_git_metadata_write_required=true",
+        "qualification_git_callbacks_neutralized_required=true",
         "qualification_descriptor_bound_source_execution_required=true",
         "expected_installed_bootstrap_identity_bound=true",
         "accepted_launcher_identity_green=true",
@@ -797,6 +806,8 @@ def self_test() -> None:
         != "descriptor_bound_exact_git_object"
     ):
         raise AssertionError("qualification_source_mode_invalid")
+    if result["body"]["qualification_phase"]["git_callbacks_neutralized_required"] is not True:
+        raise AssertionError("qualification_callback_neutralization_missing")
     tampered = json.loads(canonical(valid["planner_body"]))
     tampered["funds_movement"] = True
     try:
@@ -812,6 +823,7 @@ def self_test() -> None:
     print("qualification_contract_exact=true")
     print("qualification_nonroot_required=true")
     print("qualification_descriptor_bound_git_object_required=true")
+    print("qualification_git_callbacks_neutralized_required=true")
     print("qualification_green_required_before_root_plan=true")
     print("root_bootstrap_plan_phase_required=true")
     print("root_boundary_implementation_separate=true")
