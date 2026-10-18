@@ -10,16 +10,16 @@ This is the canonical successor named by the merged training-isolation source an
 pre-entry binary-lock lanes. It closes the distinction between reviewed source,
 installed bytes and live enforcement.
 
-A successful live qualification requires all of the following at the same
-designated host boundary:
+A successful `--observe-live-pid <pid>` receipt requires all of the
+following at the same designated host boundary:
 
 - exact reviewed systemd unit bytes;
 - exact locked 17,352-byte native pre-entry ELF;
 - exact locked 17,384-byte inert training-entrypoint ELF;
 - dedicated `voidapollyontrain` UID/GID;
-- service initially inactive and not enabled;
-- a live transition from systemd's transient executor into the exact reviewed
-  training entrypoint;
+- the service already loaded and active with `MainPID` equal to the supplied
+  observed PID;
+- that PID already executing the exact reviewed training entrypoint;
 - all real/effective/saved/fs UID and GID slots equal the dedicated identity;
 - `NoNewPrivs=1`;
 - inherited, permitted, effective, bounding and ambient capability sets all zero;
@@ -27,6 +27,10 @@ designated host boundary:
 - the process living in the expected system service cgroup;
 - the current Linux boot ID, bound as SHA-256; and
 - the live process start-time ticks from /proc/<pid>/stat field 22.
+
+The observer does not start the service, require an initially inactive state, or
+wait through the executor-to-entrypoint transition. Those lifecycle actions and
+transition timing belong to the current V2 lifecycle owner.
 
 Standalone `--live-qualify` is retained only as an explicit fail-closed
 compatibility flag. It immediately returns
@@ -45,14 +49,17 @@ generation binding. A later V2 composer must require all three to equal the
 training-process generation in its custody evidence; this receipt cannot be
 reused for a different start of the same unit.
 
-## Why the exec-transition wait matters
+## Why exact entrypoint observation matters
 
 On current Xiphos systemd, `MainPID` may briefly identify
 `/usr/lib/systemd/systemd-executor` with root credentials before the configured
 credential transition and final `execve()`. Sampling that transient process is
-not evidence about Apollyon. The qualifier therefore waits for `/proc/<pid>/exe`
-to become the exact reviewed entrypoint before reading credentials,
-capabilities, descriptors or cgroup state.
+not evidence about Apollyon.
+
+The V1 observer therefore accepts only a PID whose `/proc/<pid>/exe` is already
+the exact reviewed entrypoint; it does not perform or wait through that
+transition itself. The V2 lifecycle owner is responsible for waiting for the
+reviewed entrypoint before invoking the V1 observer.
 
 ## Authority boundary
 
