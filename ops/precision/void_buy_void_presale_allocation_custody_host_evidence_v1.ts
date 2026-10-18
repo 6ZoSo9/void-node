@@ -8,6 +8,9 @@ import {
   inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV1,
 } from "../../tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs";
 import {
+  inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1,
+} from "../../tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs";
+import {
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackSecondControlCompositionV1,
 } from "../../src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.js";
 import {
@@ -96,7 +99,11 @@ type EvidenceReport = Readonly<{
   production_gate_ready: false;
   filesystem_read_performed: true;
   filesystem_write_performed: false;
-  process_execution_performed: false;
+  process_execution_performed: true;
+  process_execution_read_only_contract: true;
+  transitive_storage_identity_helper_execution_required: true;
+  installation_storage_generation_bound: true;
+  installation_qualification_id: string;
   network_contact_performed: false;
   mount_mutation_performed: false;
   backup_mutation_performed: false;
@@ -278,6 +285,77 @@ export function testOnlyAssertSecondControlV1(result: unknown): void {
   assertSecondControl(result);
 }
 
+function assertInstallationEvidence(result: any): void {
+  if (
+    !result ||
+    result.ok !== true ||
+    result.status !== "LIVE_REPLAY_STORAGE_DOMAINS_QUALIFIED" ||
+    result.operation_performed !== false ||
+    result.storage_domain_classification_green !== true ||
+    result.live_storage_observation_proven !== true ||
+    result.distinct_local_storage_domains_proven !== true ||
+    result.distinct_parent_block_devices_proven !== true ||
+    result.canonical_journal_high_water_binding_proven !== true ||
+    result.no_pending_publication_intent_observed !== true ||
+    result.double_census_stability_proven !== true ||
+    result.live_durable_storage_proven !== false ||
+    result.rollback_resistance_proven !== false ||
+    result.protected_high_water_custody_proven !== false ||
+    result.independent_custody_proven !== false ||
+    result.runtime_integration !== false ||
+    result.production_gate_ready !== false ||
+    result.funds_movement !== false ||
+    !result.normalized ||
+    typeof result.qualification_id !== "string"
+  ) {
+    fail(
+      "allocation_custody_installation_evidence_hold:" +
+        String(result?.reason || result?.status || "invalid"),
+    );
+  }
+}
+
+function assertObservedFileMatches(
+  observed: StableRead,
+  normalized: any,
+  expectedPath: string,
+  code: string,
+): void {
+  if (
+    !normalized ||
+    normalized.path !== expectedPath ||
+    normalized.dev !== String(observed.dev) ||
+    normalized.ino !== String(observed.ino) ||
+    normalized.sha256 !== observed.sha256 ||
+    normalized.bytes !== observed.size ||
+    normalized.uid !== observed.uid ||
+    normalized.gid !== observed.gid ||
+    normalized.mode !== observed.mode ||
+    normalized.nlink !== observed.nlink ||
+    normalized.regular_file !== true ||
+    normalized.symlink !== false
+  ) {
+    fail(code);
+  }
+}
+
+export function testOnlyAssertInstallationEvidenceV1(result: unknown): void {
+  assertInstallationEvidence(result);
+}
+
+export function testOnlyAssertObservedFileMatchesV1(
+  observed: StableRead,
+  normalized: unknown,
+  expectedPath: string,
+): void {
+  assertObservedFileMatches(
+    observed,
+    normalized,
+    expectedPath,
+    "allocation_custody_test_file_generation_mismatch",
+  );
+}
+
 function assertDurabilityContract(result: any): void {
   if (
     !result ||
@@ -362,6 +440,26 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
     "allocation_custody_rollback_policy_receipt",
   );
 
+  const installationBefore =
+    inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1({
+      journal_root: JOURNAL_ROOT,
+      high_water_root: HIGH_WATER_ROOT,
+      expected_hostname: HOSTNAME,
+    });
+  assertInstallationEvidence(installationBefore);
+  assertObservedFileMatches(
+    journal,
+    installationBefore.normalized.journal_file,
+    JOURNAL_PATH,
+    "allocation_custody_journal_generation_before_mismatch",
+  );
+  assertObservedFileMatches(
+    highWater,
+    installationBefore.normalized.high_water_file,
+    HIGH_WATER_PATH,
+    "allocation_custody_high_water_generation_before_mismatch",
+  );
+
   const livePolicy =
     inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV1({
       journal_root: JOURNAL_ROOT,
@@ -369,6 +467,33 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
       expected_hostname: HOSTNAME,
     });
   assertLivePolicy(livePolicy);
+
+  const installationAfter =
+    inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1({
+      journal_root: JOURNAL_ROOT,
+      high_water_root: HIGH_WATER_ROOT,
+      expected_hostname: HOSTNAME,
+    });
+  assertInstallationEvidence(installationAfter);
+  assertObservedFileMatches(
+    journal,
+    installationAfter.normalized.journal_file,
+    JOURNAL_PATH,
+    "allocation_custody_journal_generation_after_mismatch",
+  );
+  assertObservedFileMatches(
+    highWater,
+    installationAfter.normalized.high_water_file,
+    HIGH_WATER_PATH,
+    "allocation_custody_high_water_generation_after_mismatch",
+  );
+  if (
+    installationBefore.qualification_id !== installationAfter.qualification_id ||
+    installationBefore.normalized.high_water_sha256 !==
+      installationAfter.normalized.high_water_sha256
+  ) {
+    fail("allocation_custody_storage_generation_changed_during_observation");
+  }
 
   const secondControl =
     classifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackSecondControlCompositionV1(
@@ -463,7 +588,11 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
     production_gate_ready: false,
     filesystem_read_performed: true,
     filesystem_write_performed: false,
-    process_execution_performed: false,
+    process_execution_performed: true,
+    process_execution_read_only_contract: true,
+    transitive_storage_identity_helper_execution_required: true,
+    installation_storage_generation_bound: true,
+    installation_qualification_id: String(installationAfter.qualification_id),
     network_contact_performed: false,
     mount_mutation_performed: false,
     backup_mutation_performed: false,
@@ -504,7 +633,10 @@ function selfTest(): void {
   console.log("descriptor_stable_artifact_reads_required=true");
   console.log("filesystem_read_performed_by_future_host_run=true");
   console.log("filesystem_write_performed=false");
-  console.log("process_execution_performed=false");
+  console.log("process_execution_performed_by_future_host_run=true");
+  console.log("process_execution_read_only_contract=true");
+  console.log("transitive_storage_identity_helper_execution_required=true");
+  console.log("installation_storage_generation_binding_required=true");
   console.log("network_contact_performed=false");
   console.log("live_policy_enforcement_proven=false");
   console.log("live_rollback_test_performed=false");
@@ -560,7 +692,9 @@ if (
     console.error(MARKER + "_HOLD");
     console.error("reason=" + String((error as Error)?.message || "unknown"));
     console.error("filesystem_write_performed=false");
-    console.error("process_execution_performed=false");
+    console.error("process_execution_performed=unknown");
+    console.error("process_execution_read_only_contract=true");
+    console.error("transitive_storage_identity_helper_execution_required=true");
     console.error("network_contact_performed=false");
     console.error("mount_mutation_performed=false");
     console.error("backup_mutation_performed=false");
