@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          parent=05614762b1b4638e05e539fd7d20cbf670e1570b
+          parent=9766d382995eb565e06a211a6e198056082f8564
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
 
