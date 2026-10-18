@@ -97,6 +97,7 @@ jobs:
             'scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py' \
             'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py' \
             'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_generation.py' \
             'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_lock_v1.py' \
             'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py' \
             'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py' \
