@@ -210,7 +210,220 @@ function stableReadAbsolute(
   }
 }
 
-function assertLivePolicy(result: any): void {
+const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
+const INSTALLATION_ID = /^voidwlrie1_[0-9a-f]{64}$/u;
+const POLICY_QUALIFICATION_ID = /^voidwlrrq1_[0-9a-f]{64}$/u;
+const EXTERNAL_CUSTODY_QUALIFICATION_ID =
+  /^voidwlrlecq1_[0-9a-f]{64}$/u;
+const SAFE_ID = /^[A-Za-z0-9._:@/-]{1,200}$/u;
+
+const LIVE_POLICY_NORMALIZED_KEYS = Object.freeze([
+  "schema", "marker", "version", "parent_marker", "policy_path",
+  "policy_file_sha256", "policy_file_uid", "policy_file_gid",
+  "policy_file_mode", "policy_file_nlink", "installation_qualification_id",
+  "installation_high_water_sha256", "parent_policy_qualification_id",
+  "policy_fingerprint_sha256", "policy_generation", "host_id",
+  "verification_now_ms",
+]);
+
+const SECOND_CONTROL_NORMALIZED_KEYS = Object.freeze([
+  "schema", "marker", "version", "external_custody_qualification_id",
+  "reviewed_operator_receipt_sha256", "rollback_policy_receipt_sha256",
+  "rollback_policy_receipt_file_sha256", "rollback_policy_qualification_id",
+  "rollback_policy_fingerprint_sha256", "rollback_policy_generation",
+  "rollback_policy_observed_at_ms", "rollback_policy_expires_at_ms",
+  "replay_high_water_sha256", "replay_sequence", "replay_event_count",
+  "external_witness_sha256", "external_witness_event_count",
+  "external_witnessed_replay_sequence", "source_hostname",
+  "source_journal_disk_wwn", "source_high_water_disk_wwn",
+  "witness_hostname", "witness_machine_id_sha256", "witness_root_disk_wwn",
+  "terminal_at_ms",
+]);
+
+type LivePolicyNormalized = Readonly<{
+  schema: string; marker: string; version: 1; parent_marker: string;
+  policy_path: string; policy_file_sha256: string; policy_file_uid: number;
+  policy_file_gid: number; policy_file_mode: number; policy_file_nlink: number;
+  installation_qualification_id: string; installation_high_water_sha256: string;
+  parent_policy_qualification_id: string; policy_fingerprint_sha256: string;
+  policy_generation: string; host_id: string; verification_now_ms: number;
+}>;
+
+type SecondControlNormalized = Readonly<{
+  schema: string; marker: string; version: 1;
+  external_custody_qualification_id: string;
+  reviewed_operator_receipt_sha256: string;
+  rollback_policy_receipt_sha256: string;
+  rollback_policy_receipt_file_sha256: string;
+  rollback_policy_qualification_id: string;
+  rollback_policy_fingerprint_sha256: string;
+  rollback_policy_generation: string;
+  rollback_policy_observed_at_ms: number; rollback_policy_expires_at_ms: number;
+  replay_high_water_sha256: string; replay_sequence: number;
+  replay_event_count: number; external_witness_sha256: string;
+  external_witness_event_count: number; external_witnessed_replay_sequence: number;
+  source_hostname: string; source_journal_disk_wwn: string;
+  source_high_water_disk_wwn: string; witness_hostname: string;
+  witness_machine_id_sha256: string; witness_root_disk_wwn: string;
+  terminal_at_ms: number;
+}>;
+
+function exactRecord(
+  value: unknown,
+  expectedKeys: readonly string[],
+  code: string,
+): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail(code);
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) fail(code);
+  const actual = Object.keys(value as Record<string, unknown>).sort();
+  const expected = [...expectedKeys].sort();
+  if (
+    actual.length !== expected.length ||
+    actual.some((key, index) => key !== expected[index])
+  ) fail(code);
+  return value as Record<string, unknown>;
+}
+
+function shaField(value: unknown, code: string): string {
+  if (typeof value !== "string" || !SHA256_ID.test(value)) fail(code);
+  return value;
+}
+function idField(value: unknown, pattern: RegExp, code: string): string {
+  if (typeof value !== "string" || !pattern.test(value)) fail(code);
+  return value;
+}
+function safeIntegerField(value: unknown, minimum: number, code: string): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < minimum
+  ) fail(code);
+  return value;
+}
+function safeIdField(value: unknown, code: string): string {
+  if (typeof value !== "string" || !SAFE_ID.test(value)) fail(code);
+  return value;
+}
+function generationField(value: unknown, code: string): string {
+  if (typeof value !== "string" || !/^[1-9][0-9]*$/u.test(value)) fail(code);
+  if (BigInt(value) > ((1n << 64n) - 1n)) fail(code);
+  return value;
+}
+
+function validateLivePolicyNormalized(value: unknown): LivePolicyNormalized {
+  const normalized = exactRecord(
+    value, LIVE_POLICY_NORMALIZED_KEYS,
+    "allocation_custody_live_policy_normalized_keys_invalid",
+  );
+  if (
+    normalized.schema !==
+      "void_buy_void_allocation_custody_witness_live_read_replay_rollback_policy_evidence_receipt_v1" ||
+    normalized.marker !==
+      "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1" ||
+    normalized.version !== 1 ||
+    normalized.parent_marker !==
+      "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_INDEPENDENCE_V1" ||
+    normalized.policy_path !==
+      "/etc/void/buy-void-allocation-custody-witness-live-read-replay-rollback-controls-v1.json" ||
+    normalized.policy_file_uid !== 0 ||
+    normalized.policy_file_gid !== 0 ||
+    normalized.policy_file_mode !== 0o444 ||
+    normalized.policy_file_nlink !== 1 ||
+    normalized.host_id !== HOSTNAME
+  ) fail("allocation_custody_live_policy_normalized_identity_invalid");
+  shaField(normalized.policy_file_sha256,
+    "allocation_custody_live_policy_normalized_policy_sha_invalid");
+  idField(normalized.installation_qualification_id, INSTALLATION_ID,
+    "allocation_custody_live_policy_normalized_installation_id_invalid");
+  shaField(normalized.installation_high_water_sha256,
+    "allocation_custody_live_policy_normalized_high_water_invalid");
+  idField(normalized.parent_policy_qualification_id, POLICY_QUALIFICATION_ID,
+    "allocation_custody_live_policy_normalized_policy_id_invalid");
+  shaField(normalized.policy_fingerprint_sha256,
+    "allocation_custody_live_policy_normalized_fingerprint_invalid");
+  generationField(normalized.policy_generation,
+    "allocation_custody_live_policy_normalized_generation_invalid");
+  safeIntegerField(normalized.verification_now_ms, 1,
+    "allocation_custody_live_policy_normalized_time_invalid");
+  return normalized as unknown as LivePolicyNormalized;
+}
+
+function validateSecondControlNormalized(value: unknown): SecondControlNormalized {
+  const normalized = exactRecord(
+    value, SECOND_CONTROL_NORMALIZED_KEYS,
+    "allocation_custody_second_control_normalized_keys_invalid",
+  );
+  if (
+    normalized.schema !==
+      "void_buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1" ||
+    normalized.marker !==
+      "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_SECOND_CONTROL_COMPOSITION_V1" ||
+    normalized.version !== 1 ||
+    normalized.source_hostname !== HOSTNAME
+  ) fail("allocation_custody_second_control_normalized_identity_invalid");
+  idField(normalized.external_custody_qualification_id,
+    EXTERNAL_CUSTODY_QUALIFICATION_ID,
+    "allocation_custody_second_control_normalized_external_id_invalid");
+  for (const [field, code] of [
+    ["reviewed_operator_receipt_sha256", "operator_receipt_sha_invalid"],
+    ["rollback_policy_receipt_sha256", "policy_receipt_sha_invalid"],
+    ["rollback_policy_receipt_file_sha256", "policy_file_sha_invalid"],
+    ["rollback_policy_fingerprint_sha256", "policy_fingerprint_invalid"],
+    ["replay_high_water_sha256", "replay_high_water_invalid"],
+    ["external_witness_sha256", "external_witness_sha_invalid"],
+    ["witness_machine_id_sha256", "witness_machine_id_invalid"],
+  ] as const) {
+    shaField(normalized[field],
+      "allocation_custody_second_control_normalized_" + code);
+  }
+  idField(normalized.rollback_policy_qualification_id, POLICY_QUALIFICATION_ID,
+    "allocation_custody_second_control_normalized_policy_id_invalid");
+  generationField(normalized.rollback_policy_generation,
+    "allocation_custody_second_control_normalized_generation_invalid");
+  const observedAt = safeIntegerField(normalized.rollback_policy_observed_at_ms, 1,
+    "allocation_custody_second_control_normalized_observed_at_invalid");
+  const expiresAt = safeIntegerField(normalized.rollback_policy_expires_at_ms, 1,
+    "allocation_custody_second_control_normalized_expires_at_invalid");
+  if (expiresAt <= observedAt)
+    fail("allocation_custody_second_control_normalized_policy_window_invalid");
+  for (const field of [
+    "replay_sequence", "replay_event_count", "external_witness_event_count",
+    "external_witnessed_replay_sequence", "terminal_at_ms",
+  ] as const) {
+    safeIntegerField(normalized[field], 0,
+      "allocation_custody_second_control_normalized_" + field + "_invalid");
+  }
+  for (const field of [
+    "source_journal_disk_wwn", "source_high_water_disk_wwn",
+    "witness_hostname", "witness_root_disk_wwn",
+  ] as const) {
+    safeIdField(normalized[field],
+      "allocation_custody_second_control_normalized_" + field + "_invalid");
+  }
+  return normalized as unknown as SecondControlNormalized;
+}
+
+function assertCrossReceiptBinding(
+  livePolicy: LivePolicyNormalized,
+  secondControl: SecondControlNormalized,
+): void {
+  if (livePolicy.installation_high_water_sha256 !==
+      secondControl.replay_high_water_sha256)
+    fail("allocation_custody_live_policy_high_water_mismatch");
+  if (livePolicy.host_id !== secondControl.source_hostname)
+    fail("allocation_custody_live_policy_host_mismatch");
+  if (livePolicy.parent_policy_qualification_id !==
+      secondControl.rollback_policy_qualification_id)
+    fail("allocation_custody_live_policy_qualification_mismatch");
+  if (livePolicy.policy_fingerprint_sha256 !==
+      secondControl.rollback_policy_fingerprint_sha256)
+    fail("allocation_custody_live_policy_fingerprint_mismatch");
+  if (livePolicy.policy_generation !== secondControl.rollback_policy_generation)
+    fail("allocation_custody_live_policy_generation_mismatch");
+}
+
+function assertLivePolicy(result: any): LivePolicyNormalized {
   if (
     !result ||
     result.ok !== true ||
@@ -238,13 +451,14 @@ function assertLivePolicy(result: any): void {
         String(result?.reason || result?.status || "invalid"),
     );
   }
+  return validateLivePolicyNormalized(result.normalized);
 }
 
 export function testOnlyAssertLivePolicyV1(result: unknown): void {
   assertLivePolicy(result);
 }
 
-function assertSecondControl(result: any): void {
+function assertSecondControl(result: any): SecondControlNormalized {
   if (
     !result ||
     result.ok !== true ||
@@ -279,10 +493,21 @@ function assertSecondControl(result: any): void {
         String(result?.reason || result?.status || "invalid"),
     );
   }
+  return validateSecondControlNormalized(result.normalized);
 }
 
 export function testOnlyAssertSecondControlV1(result: unknown): void {
   assertSecondControl(result);
+}
+
+export function testOnlyAssertCrossReceiptBindingV1(
+  livePolicy: unknown,
+  secondControl: unknown,
+): void {
+  assertCrossReceiptBinding(
+    assertLivePolicy(livePolicy),
+    assertSecondControl(secondControl),
+  );
 }
 
 function assertInstallationEvidence(result: any): void {
@@ -466,7 +691,7 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
       high_water_root: HIGH_WATER_ROOT,
       expected_hostname: HOSTNAME,
     });
-  assertLivePolicy(livePolicy);
+  const livePolicyNormalized = assertLivePolicy(livePolicy);
 
   const installationAfter =
     inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1({
@@ -505,11 +730,7 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
         rollback_policy_receipt_json: reviewedPolicyReceipt.bytes,
       },
     );
-  assertSecondControl(secondControl);
-  if (!("normalized" in secondControl) || !secondControl.normalized) {
-    fail("allocation_custody_second_control_normalized_missing");
-  }
-  const secondControlNormalized = secondControl.normalized;
+  const secondControlNormalized = assertSecondControl(secondControl);
 
   const durabilityContract =
     classifyBuyVoidAllocationCustodyLiveDurabilityRollbackContractV1({
@@ -536,18 +757,10 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
     });
   assertDurabilityContract(durabilityContract);
 
-  if (
-    livePolicy.normalized?.installation_high_water_sha256 !==
-    secondControlNormalized.replay_high_water_sha256
-  ) {
-    fail("allocation_custody_live_policy_high_water_mismatch");
-  }
-  if (
-    livePolicy.normalized?.host_id !==
-    secondControlNormalized.source_hostname
-  ) {
-    fail("allocation_custody_live_policy_host_mismatch");
-  }
+  assertCrossReceiptBinding(
+    livePolicyNormalized,
+    secondControlNormalized,
+  );
 
   return Object.freeze({
     schema: SCHEMA,

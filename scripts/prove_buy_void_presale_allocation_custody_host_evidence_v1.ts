@@ -10,6 +10,7 @@ import {
   PARENT_PLAN_ID,
   testOnlyAssertLivePolicyV1,
   testOnlyAssertSecondControlV1,
+  testOnlyAssertCrossReceiptBindingV1,
   testOnlyAssertInstallationEvidenceV1,
   testOnlyAssertObservedFileMatchesV1,
   testOnlyAssertDurabilityContractV1,
@@ -172,16 +173,16 @@ for (const required of [
   "fs.constants.O_RDONLY | O_NOFOLLOW",
   "sameStat(opened, after)",
   "sameStat(after, visible)",
-  "assertLivePolicy(livePolicy)",
+  "const livePolicyNormalized = assertLivePolicy(livePolicy)",
   "assertSecondControl(secondControl)",
   "classifyBuyVoidAllocationCustodyLiveDurabilityRollbackContractV1",
   "assertDurabilityContract(durabilityContract)",
   "reviewed_source_generation_binding_required: true",
   "controlled_live_challenge_required: true",
   "SEPARATELY_AUTHORIZE_NONCUSTOMER_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_V1",
-  "livePolicy.normalized?.installation_high_water_sha256",
-  '!("normalized" in secondControl) || !secondControl.normalized',
-  "const secondControlNormalized = secondControl.normalized;",
+  "livePolicyNormalized.installation_high_water_sha256",
+  "const secondControlNormalized = assertSecondControl(secondControl)",
+  "assertCrossReceiptBinding(",
   "secondControlNormalized.replay_high_water_sha256",
   "secondControlNormalized.source_hostname",
   "ALLOCATION_CUSTODY_PREREQUISITES_GREEN_CONTROLLED_CHALLENGE_REQUIRED",
@@ -341,107 +342,143 @@ for (const [key, value] of [
   );
 }
 
+const goodPolicyNormalized: Record<string, unknown> = {
+  schema: "void_buy_void_allocation_custody_witness_live_read_replay_rollback_policy_evidence_receipt_v1",
+  marker: "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1",
+  version: 1,
+  parent_marker: "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_INDEPENDENCE_V1",
+  policy_path: "/etc/void/buy-void-allocation-custody-witness-live-read-replay-rollback-controls-v1.json",
+  policy_file_sha256: "sha256:" + "a".repeat(64),
+  policy_file_uid: 0, policy_file_gid: 0, policy_file_mode: 0o444, policy_file_nlink: 1,
+  installation_qualification_id: "voidwlrie1_" + "1".repeat(64),
+  installation_high_water_sha256: "sha256:" + "2".repeat(64),
+  parent_policy_qualification_id: "voidwlrrq1_" + "3".repeat(64),
+  policy_fingerprint_sha256: "sha256:" + "4".repeat(64),
+  policy_generation: "1", host_id: "zoso-Precision-Tower-7810",
+  verification_now_ms: 1_791_393_507_504,
+};
 const goodPolicy: Record<string, unknown> = {
-  ok: true,
-  status: "LIVE_ROLLBACK_POLICY_OBSERVED",
-  operation_performed: false,
-  root_owned_policy_file_observed: true,
-  rollback_independence_policy_qualified: true,
-  installation_storage_rebound: true,
-  bounded_policy_freshness_checked: true,
-  policy_file_installation_proven: true,
-  live_policy_observation_proven: true,
-  verification_clock_authority_proven: false,
-  policy_generation_monotonicity_proven: false,
-  live_policy_enforcement_proven: false,
-  live_rollback_test_performed: false,
-  live_durable_storage_proven: false,
-  rollback_resistance_proven: false,
-  protected_high_water_custody_proven: false,
-  independent_custody_proven: false,
-  production_gate_ready: false,
-  funds_movement: false,
+  ok: true, status: "LIVE_ROLLBACK_POLICY_OBSERVED", operation_performed: false,
+  root_owned_policy_file_observed: true, rollback_independence_policy_qualified: true,
+  installation_storage_rebound: true, bounded_policy_freshness_checked: true,
+  policy_file_installation_proven: true, live_policy_observation_proven: true,
+  verification_clock_authority_proven: false, policy_generation_monotonicity_proven: false,
+  live_policy_enforcement_proven: false, live_rollback_test_performed: false,
+  live_durable_storage_proven: false, rollback_resistance_proven: false,
+  protected_high_water_custody_proven: false, independent_custody_proven: false,
+  production_gate_ready: false, funds_movement: false, normalized: goodPolicyNormalized,
 };
 testOnlyAssertLivePolicyV1(goodPolicy);
-
 for (const [key, value] of [
-  ["root_owned_policy_file_observed", false],
-  ["rollback_independence_policy_qualified", false],
-  ["policy_file_installation_proven", false],
-  ["live_policy_observation_proven", false],
-  ["live_policy_enforcement_proven", true],
-  ["live_rollback_test_performed", true],
-  ["live_durable_storage_proven", true],
-  ["rollback_resistance_proven", true],
-  ["protected_high_water_custody_proven", true],
-  ["independent_custody_proven", true],
-  ["production_gate_ready", true],
-  ["funds_movement", true],
+  ["root_owned_policy_file_observed", false], ["rollback_independence_policy_qualified", false],
+  ["policy_file_installation_proven", false], ["live_policy_observation_proven", false],
+  ["live_policy_enforcement_proven", true], ["live_rollback_test_performed", true],
+  ["live_durable_storage_proven", true], ["rollback_resistance_proven", true],
+  ["protected_high_water_custody_proven", true], ["independent_custody_proven", true],
+  ["production_gate_ready", true], ["funds_movement", true],
 ] as const) {
-  assert.throws(
-    () => testOnlyAssertLivePolicyV1({ ...goodPolicy, [key]: value }),
-    /allocation_custody_live_policy_hold/u,
-    "policy_boundary_not_rejected:" + key,
-  );
+  assert.throws(() => testOnlyAssertLivePolicyV1({ ...goodPolicy, [key]: value }),
+    /allocation_custody_live_policy_hold/u, "policy_boundary_not_rejected:" + key);
+}
+for (const [label, normalized] of [
+  ["missing", undefined], ["null", null], ["scalar", "not-an-object"], ["empty", {}],
+  ["bad_high_water_type", { ...goodPolicyNormalized, installation_high_water_sha256: 7 }],
+  ["bad_host", { ...goodPolicyNormalized, host_id: "" }],
+  ["extra_key", { ...goodPolicyNormalized, unexpected: true }],
+] as const) {
+  assert.throws(() => testOnlyAssertLivePolicyV1({ ...goodPolicy, normalized }),
+    /allocation_custody_live_policy_normalized_/u, "policy_normalized_not_rejected:" + label);
 }
 
+const goodSecondNormalized: Record<string, unknown> = {
+  schema: "void_buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1",
+  marker: "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_SECOND_CONTROL_COMPOSITION_V1",
+  version: 1, external_custody_qualification_id: "voidwlrlecq1_" + "5".repeat(64),
+  reviewed_operator_receipt_sha256: "sha256:" + "6".repeat(64),
+  rollback_policy_receipt_sha256: "sha256:" + "7".repeat(64),
+  rollback_policy_receipt_file_sha256: "sha256:" + "8".repeat(64),
+  rollback_policy_qualification_id: "voidwlrrq1_" + "3".repeat(64),
+  rollback_policy_fingerprint_sha256: "sha256:" + "4".repeat(64),
+  rollback_policy_generation: "1", rollback_policy_observed_at_ms: 1_791_393_507_504,
+  rollback_policy_expires_at_ms: 1_791_393_627_504,
+  replay_high_water_sha256: "sha256:" + "2".repeat(64), replay_sequence: 2,
+  replay_event_count: 2, external_witness_sha256: "sha256:" + "9".repeat(64),
+  external_witness_event_count: 2, external_witnessed_replay_sequence: 2,
+  source_hostname: "zoso-Precision-Tower-7810", source_journal_disk_wwn: "0x500a0751e9c796d8",
+  source_high_water_disk_wwn: "eui.e8238fa6bf530001001b448b42e66c36",
+  witness_hostname: "Nimo", witness_machine_id_sha256: "sha256:" + "a".repeat(64),
+  witness_root_disk_wwn: "eui.00000000000000000026b76873b25ab5",
+  terminal_at_ms: 1_791_390_138_847,
+};
 const goodSecond: Record<string, unknown> = {
-  ok: true,
-  status: "rollback_second_control_composed",
-  operation_performed: false,
+  ok: true, status: "rollback_second_control_composed", operation_performed: false,
   reviewed_live_rollback_policy_receipt_bound: true,
-  reviewed_external_custody_qualification_bound: true,
-  same_replay_high_water_bound: true,
-  same_precision_storage_identity_bound: true,
-  rollback_independence_policy_qualified: true,
-  live_policy_observation_proven: true,
-  policy_file_installation_proven: true,
-  external_transport_authenticated: true,
-  external_witness_storage_proven: true,
-  live_remote_read_performed: true,
-  live_remote_append_performed: true,
+  reviewed_external_custody_qualification_bound: true, same_replay_high_water_bound: true,
+  same_precision_storage_identity_bound: true, rollback_independence_policy_qualified: true,
+  live_policy_observation_proven: true, policy_file_installation_proven: true,
+  external_transport_authenticated: true, external_witness_storage_proven: true,
+  live_remote_read_performed: true, live_remote_append_performed: true,
   external_second_control_domain_qualified: true,
   external_second_control_policy_binding_proven: true,
-  post_cycle_live_policy_observation_bound: true,
-  live_policy_enforcement_proven: false,
-  live_rollback_test_performed: false,
-  live_durable_storage_proven: false,
-  rollback_resistance_proven: false,
-  protected_high_water_custody_proven: false,
-  independent_custody_proven: false,
-  runtime_integration: false,
-  production_gate_ready: false,
-  funds_movement: false,
+  post_cycle_live_policy_observation_bound: true, live_policy_enforcement_proven: false,
+  live_rollback_test_performed: false, live_durable_storage_proven: false,
+  rollback_resistance_proven: false, protected_high_water_custody_proven: false,
+  independent_custody_proven: false, runtime_integration: false,
+  production_gate_ready: false, funds_movement: false, normalized: goodSecondNormalized,
 };
 testOnlyAssertSecondControlV1(goodSecond);
-
 for (const [key, value] of [
   ["reviewed_live_rollback_policy_receipt_bound", false],
-  ["reviewed_external_custody_qualification_bound", false],
-  ["same_replay_high_water_bound", false],
-  ["same_precision_storage_identity_bound", false],
-  ["external_transport_authenticated", false],
-  ["external_witness_storage_proven", false],
-  ["live_remote_read_performed", false],
-  ["live_remote_append_performed", false],
-  ["external_second_control_domain_qualified", false],
+  ["reviewed_external_custody_qualification_bound", false], ["same_replay_high_water_bound", false],
+  ["same_precision_storage_identity_bound", false], ["external_transport_authenticated", false],
+  ["external_witness_storage_proven", false], ["live_remote_read_performed", false],
+  ["live_remote_append_performed", false], ["external_second_control_domain_qualified", false],
   ["external_second_control_policy_binding_proven", false],
-  ["post_cycle_live_policy_observation_bound", false],
-  ["live_policy_enforcement_proven", true],
-  ["live_rollback_test_performed", true],
-  ["live_durable_storage_proven", true],
-  ["rollback_resistance_proven", true],
-  ["protected_high_water_custody_proven", true],
-  ["independent_custody_proven", true],
-  ["runtime_integration", true],
-  ["production_gate_ready", true],
-  ["funds_movement", true],
+  ["post_cycle_live_policy_observation_bound", false], ["live_policy_enforcement_proven", true],
+  ["live_rollback_test_performed", true], ["live_durable_storage_proven", true],
+  ["rollback_resistance_proven", true], ["protected_high_water_custody_proven", true],
+  ["independent_custody_proven", true], ["runtime_integration", true],
+  ["production_gate_ready", true], ["funds_movement", true],
 ] as const) {
-  assert.throws(
-    () => testOnlyAssertSecondControlV1({ ...goodSecond, [key]: value }),
-    /allocation_custody_second_control_hold/u,
-    "second_control_boundary_not_rejected:" + key,
-  );
+  assert.throws(() => testOnlyAssertSecondControlV1({ ...goodSecond, [key]: value }),
+    /allocation_custody_second_control_hold/u, "second_control_boundary_not_rejected:" + key);
+}
+for (const [label, normalized] of [
+  ["missing", undefined], ["null", null], ["scalar", 7], ["empty", {}],
+  ["bad_high_water_type", { ...goodSecondNormalized, replay_high_water_sha256: 7 }],
+  ["bad_source_host", { ...goodSecondNormalized, source_hostname: "" }],
+  ["extra_key", { ...goodSecondNormalized, unexpected: true }],
+] as const) {
+  assert.throws(() => testOnlyAssertSecondControlV1({ ...goodSecond, normalized }),
+    /allocation_custody_second_control_normalized_/u,
+    "second_control_normalized_not_rejected:" + label);
+}
+
+testOnlyAssertCrossReceiptBindingV1(goodPolicy, goodSecond);
+assert.throws(() => testOnlyAssertCrossReceiptBindingV1(
+  { ...goodPolicy, normalized: undefined }, goodSecond),
+  /allocation_custody_live_policy_normalized_/u,
+  "one_sided_live_policy_normalized_omission_not_rejected");
+assert.throws(() => testOnlyAssertCrossReceiptBindingV1(
+  goodPolicy, { ...goodSecond, normalized: undefined }),
+  /allocation_custody_second_control_normalized_/u,
+  "one_sided_second_control_normalized_omission_not_rejected");
+const crossMismatchCases: Array<[string, Record<string, unknown>, RegExp]> = [
+  ["high_water", { ...goodSecondNormalized, replay_high_water_sha256: "sha256:" + "b".repeat(64) },
+    /allocation_custody_live_policy_high_water_mismatch/u],
+  ["host", { ...goodSecondNormalized, source_hostname: "other-host" },
+    /allocation_custody_live_policy_host_mismatch/u],
+  ["policy_id", { ...goodSecondNormalized, rollback_policy_qualification_id: "voidwlrrq1_" + "c".repeat(64) },
+    /allocation_custody_live_policy_qualification_mismatch/u],
+  ["fingerprint", { ...goodSecondNormalized, rollback_policy_fingerprint_sha256: "sha256:" + "d".repeat(64) },
+    /allocation_custody_live_policy_fingerprint_mismatch/u],
+  ["generation", { ...goodSecondNormalized, rollback_policy_generation: "2" },
+    /allocation_custody_live_policy_generation_mismatch/u],
+];
+for (const [label, normalized, expected] of crossMismatchCases) {
+  assert.throws(() => testOnlyAssertCrossReceiptBindingV1(
+    goodPolicy, { ...goodSecond, normalized }), expected,
+    "cross_receipt_mismatch_not_rejected:" + label);
 }
 
 const goodContract: Record<string, unknown> = {
@@ -512,6 +549,10 @@ console.log("live_policy_boundary_downgrades_rejected=true");
 console.log("installation_evidence_boundary_downgrades_rejected=true");
 console.log("storage_file_generation_mismatches_rejected=true");
 console.log("second_control_boundary_downgrades_rejected=true");
+console.log("normalized_receipt_schemas_bound=true");
+console.log("normalized_payload_mutations_rejected=true");
+console.log("cross_receipt_binding_direct=true");
+console.log("one_sided_normalized_omission_rejected=true");
 console.log("durability_contract_boundary_downgrades_rejected=true");
 console.log("controlled_live_challenge_required=true");
 console.log("filesystem_write_performed=false");
