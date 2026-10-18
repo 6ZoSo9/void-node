@@ -16,7 +16,7 @@ WORKFLOW_REL = (
     "buy-void-epoch2-dormant-first-entry-protected-installer-"
     "bootstrap-plan-v7.yml"
 )
-EXACT_PARENT = "d5e535aa83a94002dbe732e0da2d47feddf434bf"
+EXACT_PARENT = "1d2968fc4a6cfbb3edebbab25a9250826370480a"
 
 TARGET_REL = (
     "ops/precision/"
