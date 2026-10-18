@@ -25,6 +25,7 @@ env:
 
 jobs:
   verify:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.base.sha == 'd3e7404791622541a4567ddd506f27caba60cfea' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -62,7 +63,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs)" = 35b8b878ba30cfa7567578ab05424d4f827f3220
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md)" = f7d2ba9a7653b208fdf404ba7f279b3a03b47bdc
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md)" = efbf8c3d8958127c4ea73752ec1b550a9f52f8e8
           git diff --check "$REVIEWED_BASE" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -111,6 +112,7 @@ jobs:
           retention-days: 7
 
   cross-node:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.base.sha == 'd3e7404791622541a4567ddd506f27caba60cfea' }}
     needs: [verify]
     runs-on: ubuntu-24.04
     timeout-minutes: 8
@@ -133,3 +135,43 @@ jobs:
           echo source_freeze_accepted=false
           echo public_presale_activation=false
           echo funds_movement=false
+
+  downstream-consumer:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha != 'd3e7404791622541a4567ddd506f27caba60cfea' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify pinned V2 downstream consumer
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          ACCEPTED_V2_HEAD=296647cdbba6b113be12b2cc808e2e9cabeac5f9
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$ACCEPTED_V2_HEAD" "$EXPECTED_HEAD"
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs)" = 35b8b878ba30cfa7567578ab05424d4f827f3220
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md)" = efbf8c3d8958127c4ea73752ec1b550a9f52f8e8
+          test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
+          test "$(git rev-parse HEAD:package.json)" = 14fbdf5717b07fd4c734f5da7a8e84ed59bee93f
+          test "$(git rev-parse HEAD:package-lock.json)" = 15b5c82ea36f13079a2f9e8863722f654eb3f201
+          test "$(git rev-parse HEAD:tsconfig.build.json)" = d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json)" = 4e23ecbb64eb26c14f5ab15af85eb86d59c3a718
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = 589845615654da8b688764377b34296267ac0063
+          test "$(git rev-parse HEAD:ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json)" = b08c03912e0f66742f06f314bf5e1f5cad81f20f
+
+          git diff --check "${{ github.event.pull_request.base.sha }}" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+          echo VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2_DOWNSTREAM_GREEN
+          echo historical_commit_objects_required=false
+          echo source_freeze_accepted=false
+          echo public_presale_activation=false
+          echo funds_movement=false
+

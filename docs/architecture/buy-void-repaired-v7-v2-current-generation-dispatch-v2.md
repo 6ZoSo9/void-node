@@ -28,6 +28,26 @@ It additionally pins `package.json`, `package-lock.json`, and `tsconfig.build.js
 
 No historical commit object is required.
 
+## Exact generation versus downstream consumers
+
+The semantic evidence anchor for this V2 verifier is exact reviewed head
+`296647cdbba6b113be12b2cc808e2e9cabeac5f9`. Its helper script remains byte-frozen at
+`35b8b878ba30cfa7567578ab05424d4f827f3220`.
+
+The workflow has two fail-closed modes:
+
+- on the exact #3500 generation (or manual dispatch), it runs the full Node
+  22/24/26 build, receipt derivation, and cross-node byte-identity proof;
+- on a downstream PR that inherits this workflow, it does **not** reinterpret
+  the downstream PR as a new #3500 candidate. Instead it requires the accepted
+  V2 evidence head to be an ancestor, the exact helper/document identities and
+  current economic/package generation to remain pinned, and the worktree to
+  stay clean.
+
+This prevents a downstream composition from producing a false exact-scope red
+while still refusing source/economic drift. Downstream gates remain responsible
+for their own additional source/proof paths.
+
 ## Frozen accepted enforcement
 
 V2 preserves the exact accepted candidate, lock, enforcement set, and 49-row protected inventory. Every protected row is verified directly against current HEAD blob and mode. The frozen candidate is never rederived on the current head.
