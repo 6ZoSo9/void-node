@@ -48,9 +48,9 @@ jobs:
           git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py)" = 266fe91ee8563efff6116be7f890f19340a0de4c
-          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py)" = 9a8446a3d1f02d94277606c2858ec7abd30b3b94
-          test "$(git rev-parse HEAD:docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md)" = b7d216e4623b0918a2aef35f138b412b3eba12ac
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py)" = b5ddb5799b031de6c42efd3743a0bb6ac9e20ddc
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py)" = 9dd55390b75bb6c6075efb053b0491b23a52fe60
+          test "$(git rev-parse HEAD:docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md)" = f6d66b7e806c74bafcf1d21a797be4df0c4f86bd
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = 5d437a37703a83908a7fa78b78da92151aa1aa99
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
@@ -94,6 +94,9 @@ jobs:
             'wallet_or_signer_access=false' \
             'service_mutation=false' \
             'receipt_content_read=false' \
+            'json_safe_integer_byte_domain=true' \
+            'regular_size_range_hold=true' \
+            'max_safe_integer_boundary_tested=true' \
             'source_freeze_acceptance_manifest_bound=true' \
             'host_install_qualified=false' \
             'customer_payment_acceptance=false' \
@@ -115,6 +118,9 @@ jobs:
           grep -F '"root_refusal_precedes_host_access": true' "$out"
           grep -F '"standalone_self_test_and_apply_refusal": true' "$out"
           grep -F '"fixture_report_retains_hold_and_authority": true' "$out"
+          grep -F '"json_safe_integer_byte_domain": true' "$out"
+          grep -F '"max_safe_integer_boundary_verified": true' "$out"
+          grep -F '"regular_size_range_hold_verified": true' "$out"
           grep -F '"complete_clone_identity_checks": true' "$out"
           grep -F '"v3-both-guards"' "$out"
           grep -F '"v3-protocol-fallback"' "$out"
