@@ -46,9 +46,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
           case "$EVENT_NAME" in
-            pull_request) base="e4f636480e78e683d2b6a9fafae53ce61ba0856f" ;;
+            pull_request) base="c6031d02ec4909cd4e2fc4305e5e4e81ff72ab31" ;;
             push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="e4f636480e78e683d2b6a9fafae53ce61ba0856f" ;;
+            workflow_dispatch) base="c6031d02ec4909cd4e2fc4305e5e4e81ff72ab31" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           test -n "$base"
@@ -66,18 +66,18 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            dfeb789bbaac05d2e07038d743ff1523c1d64d2f
+            713727325d11ac7923ee3a52fb58670bbbb482e0
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            6839a17059dffb6134c248b47b0a419ac42a1949
+            e36ee3f29420a119f14d299e60b31bec314ae682
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-v7-qualify-execute-contract-v1.md)" = \
-            491ec343abe1dad753a9e4a04c0387c5deffc1fe
+            9797d8971c944505ea7766bcab28fcf6cef83389
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            ea276889645376bfa16c2dfac6b0e48d81cab42d
+            7f218580ea47897290c32b3fe5cb788f16a3ecc1
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            090af92bf0f0362bd86dd63b7a0583363ca56c63
+            7b2ec582059ae3a9d87c8668246093f4bb20e14f
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            a9cee971d3fd088821124b1349179fdd1cb27516
+            04c7ca5f0d96dcb60faeae8cf4d712435ad65466
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -113,6 +113,7 @@ jobs:
             'exact_qualification_contract_required=true'
             'nonroot_qualification_phase_required=true'
             'descriptor_bound_qualification_source_required=true'
+            'qualification_git_callbacks_neutralized_required=true'
             'qualification_green_before_root_phase_required=true'
             'root_bootstrap_plan_phase_structured_only=true'
             'root_boundary_implementation_separate=true'
@@ -143,6 +144,7 @@ jobs:
             'host_write=false'
             'phase_order=nonroot_qualification_then_root_bootstrap_plan'
             'qualification_source_execution_mode=descriptor_bound_exact_git_object'
+            'qualification_git_callbacks_neutralized_required=true'
             'root_boundary_implementation=separately_reviewed_operator_boundary_required'
             'qualification_execution_performed=false'
             'bootstrap_execution_performed=false'
