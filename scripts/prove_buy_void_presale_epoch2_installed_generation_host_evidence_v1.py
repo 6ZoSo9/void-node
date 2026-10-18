@@ -76,6 +76,8 @@ for required in (
     '"public_presale_activation": False',
     '"funds_movement": False',
     '"production_host_evidence_authority": False',
+    "stat.S_ISREG(before.st_mode)",
+    "stat.S_ISLNK(before.st_mode)",
 ):
     assert required in source, required
 
@@ -99,6 +101,8 @@ for forbidden in (
     "socket.",
     "urllib",
     "requests",
+    "before.is_file()",
+    "before.is_symlink()",
 ):
     assert forbidden not in source, forbidden
 

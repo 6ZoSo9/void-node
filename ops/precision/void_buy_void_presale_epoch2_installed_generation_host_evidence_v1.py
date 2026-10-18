@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import types
 from typing import Any
@@ -128,8 +129,8 @@ def load_qualifier(expected_head: str) -> types.ModuleType:
     except OSError as exc:
         raise EvidenceError("qualifier_source_unavailable") from exc
     if (
-        not before.is_file()
-        or before.is_symlink()
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
         or before.st_nlink != 1
         or before.st_size != len(direct)
         or before.st_dev != after.st_dev

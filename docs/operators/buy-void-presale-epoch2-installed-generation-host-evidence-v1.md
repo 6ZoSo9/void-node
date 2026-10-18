@@ -144,3 +144,14 @@ Hosted CI:
 Real host qualification remains separately authorized.
 
 **PROTECT THE CORE.**
+
+## Qualifier source stat contract
+
+The future wrapper observes the checked-out reviewed qualifier with
+`Path.lstat()`, whose result is an `os.stat_result`. Regular/symlink
+classification therefore uses Python's stat-mode predicates
+`stat.S_ISREG(before.st_mode)` and `stat.S_ISLNK(before.st_mode)`.
+The wrapper does not rely on nonexistent pathlib-style methods on
+`os.stat_result`; malformed or drifting source metadata remains fail-closed.
+
+No host execution authority changes.
