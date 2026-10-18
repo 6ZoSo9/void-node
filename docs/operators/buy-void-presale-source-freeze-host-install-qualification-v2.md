@@ -32,6 +32,17 @@ python3 -I -B scripts/void_buy_void_presale_source_freeze_host_install_qualifica
 
 It opens no host path itself.
 
+The census input itself is descriptor-bound: the evaluator opens the absolute
+path once with `O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK`, validates the retained
+descriptor with `fstat()`, performs a bounded read only through that descriptor,
+requires EOF at the previously authenticated size, and revalidates the same
+descriptor generation after the read. Symlink substitution and FIFO/special-file
+inputs therefore fail closed before their contents can be consumed.
+
+UTF-8/JSON parser failures, including excessive nesting/resource recursion, are
+normalized to `HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT` with explicit
+false host/payment/activation/funds authority rather than escaping as tracebacks.
+
 The input must be an exact
 `VOID_BUY_VOID_PRECISION_SOURCE_FREEZE_HOST_METADATA_CENSUS_V3` report and
 must retain all of the census's negative authority claims.

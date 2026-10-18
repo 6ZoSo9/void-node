@@ -84,6 +84,14 @@ for required in (
     "allocation_custody_mount_nondirectory_mountpoint_must_be_false",
     "epoch2_live_composition_root_directory_bytes_invalid",
     "malformed_nested_metadata_accepted:",
+    "os.O_NOFOLLOW",
+    "os.O_CLOEXEC",
+    "os.O_NONBLOCK",
+    "os.fstat(",
+    "os.read(",
+    "input_grew_during_read",
+    "RecursionError",
+    "MemoryError",
 ):
     assert required in source, required
 
@@ -116,12 +124,16 @@ for forbidden in (
 
 tree = ast.parse(source)
 calls = []
+os_open_calls = []
 for node in ast.walk(tree):
     if isinstance(node, ast.Call):
         name = ast.unparse(node.func)
-        if name.startswith(("open", "Path.write", "os.open", "subprocess", "socket")):
+        if name == "os.open":
+            os_open_calls.append(node)
+        elif name.startswith(("open", "Path.write", "subprocess", "socket")):
             calls.append(name)
 assert calls == [], calls
+assert len(os_open_calls) == 1, len(os_open_calls)
 
 spec = importlib.util.spec_from_file_location("host_install_q_v2", ROOT / TARGET_REL)
 assert spec is not None and spec.loader is not None
@@ -154,6 +166,9 @@ for line in (
     "closed_nested_metadata_schema=true",
     "malformed_nested_metadata_rejected=true",
     "state_dependent_mode_bytes_validated=true",
+    "json_safe_integer_byte_domain=true",
+    "max_safe_integer_boundary_tested=true",
+    "regular_size_range_hold_accepted_as_hold=true",
     "custody_mountpoint_type_validated=true",
     "metadata_presence_never_becomes_authenticity=true",
     "independent_receipt_evidence_required=true",
@@ -172,6 +187,7 @@ with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     root = Path(td)
     target = root / "census.json"
     target.write_text("{}", encoding="utf-8")
+
     link = root / "link.json"
     link.symlink_to(target)
     cp = subprocess.run(
@@ -185,7 +201,48 @@ with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
         timeout=30,
     )
     assert cp.returncode == 2
+    assert cp.stderr == ""
+    assert "status=HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT" in cp.stdout
+    assert "reason=input_unavailable" in cp.stdout
+    assert "host_install_qualified=false" in cp.stdout
+    assert "funds_movement=false" in cp.stdout
+
+    fifo = root / "fifo.json"
+    os.mkfifo(fifo, 0o600)
+    cp = subprocess.run(
+        ["/usr/bin/python3", "-I", "-B", str(ROOT / TARGET_REL), "--census-json", str(fifo)],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=5,
+    )
+    assert cp.returncode == 2
+    assert cp.stderr == ""
+    assert "status=HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT" in cp.stdout
     assert "reason=input_metadata_invalid" in cp.stdout
+
+    deep = root / "deep.json"
+    deep.write_text("[" * 1200 + "0" + "]" * 1200, encoding="utf-8")
+    cp = subprocess.run(
+        ["/usr/bin/python3", "-I", "-B", str(ROOT / TARGET_REL), "--census-json", str(deep)],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert cp.returncode == 2
+    assert cp.stderr == ""
+    assert "status=HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT" in cp.stdout
+    assert "reason=input_json_invalid" in cp.stdout
+    assert "host_install_qualified=false" in cp.stdout
+    assert "public_presale_activation=false" in cp.stdout
+    assert "funds_movement=false" in cp.stdout
 
 print(MARKER + "_PROOF_GREEN")
 print("census_source_generation_bound=true")
@@ -197,6 +254,10 @@ print("host_access_absent=true")
 print("network_access_absent=true")
 print("filesystem_mutation_absent=true")
 print("metadata_cannot_grant_authenticity=true")
+print("descriptor_bound_input_read_proved=true")
+print("input_symlink_rejected_before_read=true")
+print("input_fifo_rejected_without_blocking=true")
+print("recursive_json_maps_to_invalid_input=true")
 print("closed_nested_metadata_schema_proved=true")
 print("malformed_nested_metadata_regressions_proved=true")
 print("custody_mountpoint_type_contract_proved=true")

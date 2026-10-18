@@ -203,32 +203,66 @@ def _validate_path_metadata_entry(
 def _stable_json_file(path: Path) -> dict[str, Any]:
     _require(path.is_absolute(), "input_path_must_be_absolute")
     _require(os.path.normpath(str(path)) == str(path), "input_path_not_normalized")
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     try:
-        before = path.lstat()
+        fd = os.open(str(path), flags)
     except OSError as exc:
         raise QualificationError("input_unavailable") from exc
-    _require(
-        stat.S_ISREG(before.st_mode)
-        and not stat.S_ISLNK(before.st_mode)
-        and before.st_nlink == 1
-        and 1 <= before.st_size <= MAX_INPUT_BYTES,
-        "input_metadata_invalid",
-    )
-    raw = path.read_bytes()
-    after = path.lstat()
-    for field in ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns"):
+    try:
+        try:
+            before = os.fstat(fd)
+        except OSError as exc:
+            raise QualificationError("input_fstat_failed") from exc
         _require(
-            getattr(before, field) == getattr(after, field),
-            "input_changed:" + field,
+            stat.S_ISREG(before.st_mode)
+            and before.st_nlink == 1
+            and 1 <= before.st_size <= MAX_INPUT_BYTES,
+            "input_metadata_invalid",
         )
-    _require(len(raw) == before.st_size, "input_short_read")
+
+        chunks: list[bytes] = []
+        remaining = before.st_size
+        try:
+            while remaining:
+                chunk = os.read(fd, min(64 * 1024, remaining))
+                _require(bool(chunk), "input_short_read")
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            _require(os.read(fd, 1) == b"", "input_grew_during_read")
+            after = os.fstat(fd)
+        except OSError as exc:
+            raise QualificationError("input_read_failed") from exc
+
+        for field in (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_nlink",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+        ):
+            _require(
+                getattr(before, field) == getattr(after, field),
+                "input_changed:" + field,
+            )
+        raw = b"".join(chunks)
+        _require(len(raw) == before.st_size, "input_short_read")
+    finally:
+        os.close(fd)
+
     try:
         value = json.loads(raw.decode("utf-8", "strict"))
-    except (UnicodeError, json.JSONDecodeError) as exc:
+    except (
+        UnicodeError,
+        ValueError,
+        RecursionError,
+        MemoryError,
+        OverflowError,
+    ) as exc:
         raise QualificationError("input_json_invalid") from exc
     _require(isinstance(value, dict), "input_json_root_invalid")
     return value
-
 
 def _bool_false(value: object, label: str) -> None:
     _require(value is False, label + "_must_be_false")
