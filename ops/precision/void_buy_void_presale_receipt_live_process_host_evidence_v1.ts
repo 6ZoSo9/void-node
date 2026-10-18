@@ -1066,7 +1066,7 @@ async function startSelectorSession(uid:number,gid:number): Promise<SelectorSess
     revalidateSelectorBinaryLease(selector);
   }catch(error){
     if(child&&child.exitCode===null){
-      try{child.kill("SIGKILL");}catch{}
+      try{child.kill("SIGKILL");}catch(killError){void killError;}
     }
     throw error;
   }finally{
