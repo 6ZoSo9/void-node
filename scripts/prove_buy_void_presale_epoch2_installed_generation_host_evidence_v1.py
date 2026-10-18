@@ -40,7 +40,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "7dd748dc780ace3cb371603e6e35df84a9c9f768"
+TARGET_BLOB = "771c3e852a77025d44071dd0653f5ec7762c9f65"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -189,6 +189,7 @@ for name in (
     "_read_visible_file",
     "_open_source_parent",
     "_git",
+    "_git_text",
     "_run_git_bounded",
     "_emit_hold",
     "checkout_snapshot",
@@ -644,6 +645,36 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
         expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_untracked_files")
         expect_source_hold(lambda: delegated._run_git(list(module.STATUS_QUERY)), "checkout_untracked_files")
         ignored.unlink()
+
+        # Git permits raw non-UTF-8 ref names. Commit/tree queries still succeed,
+        # but every textual branch observation must produce a fixed HOLD.
+        bad_ref = os.fsdecode(b"refs/heads/invalid-\xff")
+        fixture_git("update-ref", bad_ref, expected_head)
+        fixture_git("symbolic-ref", "HEAD", bad_ref)
+        try:
+            assert fixture_git("rev-parse", "HEAD").decode().strip() == expected_head
+            assert fixture_git("symbolic-ref", "--short", "-q", "HEAD") == b"invalid-\xff\n"
+            expect_source_hold(lambda: module.checkout_snapshot(expected_head), "git_output_not_utf8")
+            expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "git_output_not_utf8")
+            expect_source_hold(lambda: delegated._run_git(["branch", "--show-current"]),
+                               "git_output_not_utf8")
+        finally:
+            fixture_git("symbolic-ref", "HEAD", "refs/heads/main")
+            fixture_git("update-ref", "-d", bad_ref)
+
+        # Valid Unicode whitespace must not be stripped into a false main match.
+        spaced_ref = "refs/heads/main\u00a0"
+        fixture_git("update-ref", spaced_ref, expected_head)
+        fixture_git("symbolic-ref", "HEAD", spaced_ref)
+        try:
+            assert fixture_git("symbolic-ref", "--short", "-q", "HEAD").decode().strip() == "main"
+            expect_source_hold(lambda: module.checkout_snapshot(expected_head), "checkout_branch_not_main")
+            expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_generation_changed")
+            expect_source_hold(lambda: delegated._run_git(["branch", "--show-current"]),
+                               "checkout_branch_not_main")
+        finally:
+            fixture_git("symbolic-ref", "HEAD", "refs/heads/main")
+            fixture_git("update-ref", "-d", spaced_ref)
     finally:
         module.FIXED_CHECKOUT = saved_checkout
         module.RUNTIME_UID, module.RUNTIME_GID = saved_uid, saved_gid
@@ -1243,6 +1274,8 @@ print("git_stdout_and_stderr_bounded_before_buffering=true")
 print("git_limit_timeout_children_killed_and_reaped=true")
 print("git_stderr_cannot_forge_hold_receipt=true")
 print("hold_receipt_single_line_reason_enforced=true")
+print("git_non_utf8_metadata_maps_to_hold=true")
+print("unicode_whitespace_cannot_alias_main=true")
 print("filesystem_write_performed=false")
 print("runner_execution=false")
 print("live_composition_execution=false")

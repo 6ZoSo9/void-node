@@ -440,3 +440,13 @@ diagnostics. The hosted same-UID config-include FIFO also carries forged receipt
 lines in its filename. The kernel denial remains required and none of those
 diagnostics may become authority claims. No real credentials or host collection
 are involved.
+
+All textual Git queries share strict UTF-8 decoding that converts invalid bytes
+to the fixed `git_output_not_utf8` HOLD reason. This includes initial/repeated
+checkout snapshots, object-identity queries, and delegated branch/ref queries.
+A disposable ref containing an invalid UTF-8 byte points to the valid fixture
+commit; commit/tree lookup succeeds, but wrapper and delegated branch checks
+must HOLD without a traceback. Binary Git-object reads remain byte-preserving.
+Text parsing removes only Git's final newline, not arbitrary Unicode whitespace.
+A distinct `main` ref followed by a nonbreaking space must also fail every
+wrapper/delegated branch check rather than being stripped into a `main` match.
