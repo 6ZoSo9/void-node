@@ -1,0 +1,146 @@
+name: Buy VOID presale source freeze acceptance v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-source-freeze-acceptance-v2.yml"
+      - "docs/architecture/buy-void-presale-source-freeze-acceptance-v2.md"
+      - "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
+      - "scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py"
+      - "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
+      - "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
+      - "scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs"
+      - ".github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact acceptance generation
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -n "$PR_BASE"
+          test "$PR_BASE" = 26534cd19c670cd30b3cefda13ef8dcb62e05dab
+          git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-source-freeze-acceptance-v2.yml' \
+            'docs/architecture/buy-void-presale-source-freeze-acceptance-v2.md' \
+            'ops/security/buy-void-presale-source-freeze-acceptance-v2.json' \
+            'scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = c0752dfe4fe3b4616cba799bbe5053ac0b435f8b
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py)" = 97af5c769447d4e796f3cc6979a5b3449fe2dcee
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-acceptance-v2.md)" = b413b34548262ffeb052d2047fe6994624f7d73e
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = bb1144989cd826677f2fc8ea54c97e3bd95cc8ef
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs)" = d37152567b6abbb185008e6c081cf1d645056f36
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml)" = 6110ca79954c79eaa9e334872212904b8d63e1fb
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json)" = 4e23ecbb64eb26c14f5ab15af85eb86d59c3a718
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = 589845615654da8b688764377b34296267ac0063
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
+
+          test "$(git rev-parse 05614762b1b4638e05e539fd7d20cbf670e1570b^{tree})" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
+          git merge-base --is-ancestor 0f5c467253c250a905917e886eb6ae3fb80bff62 "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 26534cd19c670cd30b3cefda13ef8dcb62e05dab "$EXPECTED_HEAD"
+          git diff --check "$PR_BASE" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          relative="scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py"
+          compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_ACCEPTANCE_V2_SYNTAX_GREEN")
+          PY
+
+      - name: Prove source-freeze acceptance
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/source-freeze-acceptance-v2.log"
+          python3 -I -B scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_ACCEPTANCE_V2_PROOF_GREEN' \
+            'acceptance_id=voidbuypresalefreezeaccept2_c35af2c739290a82f612043465717db0b109546168e364f349f88c79c284476e' \
+            'source_freeze_accepted=true' \
+            'source_snapshot_fixed=true' \
+            'auto_adopt_new_main_commits=false' \
+            'current_source_enforcement_successor_required=false' \
+            'protected_path_delta_count=0' \
+            'reviewed_economic_source_delta_count=0' \
+            'cross_node_candidate_identity_verified=true' \
+            'cross_node_current_integration_identity_verified=true' \
+            'source_identity_acceptance_only=true' \
+            'payment_rail_policy_accepted=false' \
+            'host_install_qualified=false' \
+            'live_runtime_evidence_qualified=false' \
+            'customer_payment_acceptance_authorized=false' \
+            'public_presale_activation=false' \
+            'wc_void_market_activation=false' \
+            'wallet_or_signing_authority=false' \
+            'transaction_submission_authorized=false' \
+            'treasury_or_liquidity_action_authorized=false' \
+            'funds_movement=false' \
+            'production_host_evidence_authority=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Re-run accepted enforcement successor proof
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/enforcement-successor.log"
+          node scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_CURRENT_SOURCE_ENFORCEMENT_SUCCESSOR_V1_PROOF_GREEN' \
+            'successor_id=voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad' \
+            'protected_path_count=49' \
+            'protected_path_delta_count=0' \
+            'reviewed_economic_source_file_count=28' \
+            'reviewed_economic_source_delta_count=0' \
+            'accepted_enforcement_set_preserved=true' \
+            'current_source_enforcement_successor_accepted=true' \
+            'current_source_enforcement_successor_required=false' \
+            'source_freeze_accepted=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Refuse apply and preserve clean tree
+        run: |
+          set -euo pipefail
+          set +e
+          python3 -I -B scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py --apply > "$RUNNER_TEMP/apply.log" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -F 'unsupported_mode' "$RUNNER_TEMP/apply.log"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
