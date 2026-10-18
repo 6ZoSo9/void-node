@@ -1,0 +1,183 @@
+name: Buy VOID presale Epoch-2 installed-generation host evidence v3
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-epoch2-installed-generation-host-evidence-v3.yml"
+      - "docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v3.md"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"
+      - "scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
+      - "scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V3 compatibility generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_PARENT: 6a7205490d331c2e71f5548541c03a235e3a7cfe
+          RUNTIME_HEAD: 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
+          SOURCE_HEAD: 44f7cf576cdc4460397677a27af2f587a33d424d
+          SOURCE_TREE: 24208ee96995ca784234ac8281eb40abaec5735d
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE" = "$EXPECTED_PARENT"
+              ;;
+            workflow_dispatch)
+              ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          git merge-base --is-ancestor "$EXPECTED_PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-epoch2-installed-generation-host-evidence-v3.yml' \
+            'docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v3.md' \
+            'ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py' \
+            'scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py' \
+            | sort > "$expected"
+          git diff --name-only "$EXPECTED_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = 7ae27c218505dfc9c13ed9502037eadac204e11f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = e4932766e2a2d26df0a237c40d31e36c1af5a3ac
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v3.md)" = 465d1b825895471ebab9e10b113b29f508767297
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = ef9307452caaa9a946419a9dbc4139eef2322180
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577
+
+          git cat-file -e "$RUNTIME_HEAD^{commit}"
+          git cat-file -e "$SOURCE_HEAD^{commit}"
+          test "$(git rev-parse "$SOURCE_HEAD^{tree}")" = "$SOURCE_TREE"
+          git merge-base --is-ancestor "$RUNTIME_HEAD" "$SOURCE_HEAD"
+
+          expected_delta="$RUNNER_TEMP/expected-main-delta.txt"
+          actual_delta="$RUNNER_TEMP/actual-main-delta.txt"
+          cat > "$expected_delta" <<'EOF'
+          A	docs/operators/buy-void-v7-protected-substrate-source-proposal-v3.md
+          A	ops/precision/void_buy_void_v7_protected_substrate_install_v1.py
+          A	ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py
+          A	ops/security/buy-void-v7-protected-substrate-candidate-lock-v1.json
+          A	scripts/materialize_buy_void_v7_protected_substrate_v1.py
+          A	scripts/prove_buy_void_v7_protected_substrate_source_proposal_v3.py
+          EOF
+          sed -i 's/^          //' "$expected_delta"
+          git diff --name-status "$RUNTIME_HEAD" "$SOURCE_HEAD" -- | LC_ALL=C sort > "$actual_delta"
+          LC_ALL=C sort -o "$expected_delta" "$expected_delta"
+          diff -u "$expected_delta" "$actual_delta"
+
+          check_tree_entry() {
+            path="$1" mode="$2" blob="$3"
+            read -r got_mode got_type got_blob <<<"$(git ls-tree "$SOURCE_HEAD" -- "$path" | awk '{print $1, $2, $3}')"
+            test "$got_mode" = "$mode"
+            test "$got_type" = blob
+            test "$got_blob" = "$blob"
+            ! git cat-file -e "$RUNTIME_HEAD:$path" 2>/dev/null
+          }
+          check_tree_entry docs/operators/buy-void-v7-protected-substrate-source-proposal-v3.md 100644 78190cd9f71e4dd0ee4f7fdc1144b70fc644db8c
+          check_tree_entry ops/precision/void_buy_void_v7_protected_substrate_install_v1.py 100755 9f7f035b814549dad9cc6eeee3620d2c04b95d8a
+          check_tree_entry ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py 100755 56a7ca798553766af525d9fb1ccbe58b70fe9c1d
+          check_tree_entry ops/security/buy-void-v7-protected-substrate-candidate-lock-v1.json 100644 831f6e3f79a62a334662cebc6d2c39133bc7a309
+          check_tree_entry scripts/materialize_buy_void_v7_protected_substrate_v1.py 100755 62d7427577a38fbd69c8405b66951cfb46a28b37
+          check_tree_entry scripts/prove_buy_void_v7_protected_substrate_source_proposal_v3.py 100755 568bd08c6c3a120864a6b4f69a8d5b5cb41f5f72
+
+          git diff --check "$EXPECTED_PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and exact compatibility proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py",
+              "scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V3_SYNTAX_GREEN")
+          PY
+
+          proof="$RUNNER_TEMP/epoch2-installed-host-evidence-v3-proof.log"
+          python3 -I -B scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py | tee "$proof"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V3_PROOF_GREEN' \
+            'exact_v2_source_blob_bound=true' \
+            'v2_source_close_failure_normalized=true' \
+            'v2_source_primary_failure_preserved_on_cleanup_error=true' \
+            'v2_source_all_owned_fds_close_attempted_once=true' \
+            'v2_source_ancestor_close_no_retry=true' \
+            'lexical_symlink_escape_sys_path_rejected=true' \
+            'exact_v2_proof_blob_bound=true' \
+            'exact_v1_source_blob_bound=true' \
+            'runtime_head_and_source_head_distinct=true' \
+            'source_runtime_exact_add_only_allowlist_required=true' \
+            'source_runtime_base_path_identity_preserved=true' \
+            'unexpected_added_path_rejected=true' \
+            'tracked_worktree_byte_drift_rejected=true' \
+            'tracked_worktree_mode_drift_rejected=true' \
+            'tracked_index_drift_rejected=true' \
+            'installer_runtime_head_translation_proved=true' \
+            'installer_dependency_runtime_source_blob_equality_required=true' \
+            'canonical_checkout_rewind_performed=false' \
+            'canonical_checkout_mutation_performed=false' \
+            'filesystem_write_performed=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false' \
+            'production_host_evidence_authority=false'
+          do
+            grep -Fx "$marker" "$proof"
+          done
+
+          self="$RUNNER_TEMP/epoch2-installed-host-evidence-v3-self-test.log"
+          python3 -I -B ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py --self-test | tee "$self"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V3_SELF_TEST_GREEN' \
+            'exact_v2_source_blob_bound=true' \
+            'v2_source_close_failure_normalized=true' \
+            'v2_source_primary_failure_preserved_on_cleanup_error=true' \
+            'v2_source_ancestor_close_no_retry=true' \
+            'lexical_and_resolved_sys_path_guard_enabled=true' \
+            'runtime_head_exact=true' \
+            'source_head_exact=true' \
+            'source_tree_exact=true' \
+            'source_runtime_six_add_only_compatibility_required=true' \
+            'current_checkout_full_tracked_bytes_authenticated=true' \
+            'installer_runtime_head_translation_bound=true' \
+            'runtime_source_dependency_blob_equality_required=true' \
+            'canonical_checkout_rewind_performed=false' \
+            'canonical_checkout_mutation_performed=false' \
+            'filesystem_write_performed=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false' \
+            'production_host_evidence_authority=false'
+          do
+            grep -Fx "$marker" "$self"
+          done
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
