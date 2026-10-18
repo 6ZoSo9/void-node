@@ -267,7 +267,9 @@ export function canonicalApollyonTrainingActivationV1(value){
 }
 function exactOwnKeys(value,expected,code){
   if(!value||typeof value!=="object"||Array.isArray(value))fail(code);
-  const actual=Object.keys(value).sort();
+  const own=Reflect.ownKeys(value);
+  if(own.some((key)=>typeof key!=="string"))fail(code);
+  const actual=[...own].sort();
   const wanted=[...expected].sort();
   if(actual.length!==wanted.length||actual.some((key,index)=>key!==wanted[index])){
     fail(code);
