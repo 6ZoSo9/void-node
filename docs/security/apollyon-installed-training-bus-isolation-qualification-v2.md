@@ -99,6 +99,15 @@ nonzero MainPID, survival of the exact observed process generation, unit-file
 state drift, effective-unit drift, or a change between the first and final
 complete service snapshots all prevent a successful V2 receipt.
 
+After the final installed-launcher and effective-unit contract revalidations,
+V2 performs one additional zero-wait stable shutdown observation: two complete
+inactive/dead/MainPID=0/static service snapshots plus exact old-generation
+absence. That observation is intentionally the final host-state read before
+receipt construction. A direct `systemctl start`, dependency activation, or
+other service-state drift that lands after the earlier stop proof but before
+receipt construction therefore HOLDs instead of being hidden by the earlier
+shutdown snapshot.
+
 ## Shared lifecycle serialization
 
 V2 defines one shared kernel `flock(2)` boundary for the standalone qualifier
