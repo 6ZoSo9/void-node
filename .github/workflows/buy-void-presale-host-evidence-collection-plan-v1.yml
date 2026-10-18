@@ -1,0 +1,78 @@
+name: Buy VOID presale host-evidence collection plan v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
+      - "scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py"
+      - "docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md"
+      - ".github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact plan generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          STACK_PARENT=45813f0de04ccccb8d12e0f0283096cb2b05843c
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            'ops/security/buy-void-presale-host-evidence-collection-plan-v1.json' \
+            'scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py' \
+            'docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md' \
+            '.github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = 44269bd209caacd8f2385b0ad83c213cc4c1ab8a
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 03191f8204cc8e27a87b3b04032acc6642401ec8
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md)" = 687f1125ed1120724c64e453c29de074ffa87162
+
+          git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax check
+        run: python3 -I -B -m py_compile scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py
+
+      - name: Prove collection plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/host-evidence-plan-v1.log"
+          python3 -I -B scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_HOST_EVIDENCE_COLLECTION_PLAN_V1_PROOF_GREEN' \
+            'plan_id=voidbuyhostevplan1_5201f733c3f8bc47379dc54da66534895718f7618f56f34a1db8ef38db5d64f9' \
+            'primitive_path_count=9' \
+            'all_pinned_primitive_blobs_match_current_stack=true' \
+            'receipt_evidence_collected=false' \
+            'custody_evidence_collected=false' \
+            'epoch2_installed_evidence_collected=false' \
+            'host_execution_authorized=false' \
+            'filesystem_read_authorized=false' \
+            'payment_acceptance_authorized=false' \
+            'public_presale_activation_authorized=false' \
+            'wc_void_market_activation_authorized=false' \
+            'funds_movement=false' \
+            'next_gate=SEPARATELY_AUTHORIZE_READ_ONLY_HOST_EVIDENCE_COLLECTION'
+          do
+            grep -Fx "$marker" "$out"
+          done
