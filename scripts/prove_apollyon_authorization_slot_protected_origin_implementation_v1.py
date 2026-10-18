@@ -12,7 +12,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
-SOURCE_BLOB = "7fe674a726b7437656942fa07f4df57f91147c73"
+SOURCE_BLOB = "c9f59147d7d768a3a385d5ea7faafadb718e4ad1"
 
 PARENT_CONTRACT = ROOT / "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
 PARENT_CONTRACT_BLOB = "04ade367f7fbfa5915b29648ff051f08b56c306d"
@@ -121,6 +121,10 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-reader-") as 
     assert receipt["claim_service_identity_external_lease_required"] is True
     assert receipt["claim_service_only_writer_proven"] is False
     assert receipt["protected_authorization_slot_origin_proven"] is False
+    assert receipt["next_gate"] == (
+        "apollyon_authorization_slot_protected_origin_"
+        "claim_service_revalidation_v1"
+    )
     assert receipt["current_store_generation_revalidation_performed"] is False
     assert receipt["exact_claim_record_revalidation_performed"] is False
     assert receipt["exact_terminal_receipt_revalidation_performed"] is False
@@ -212,6 +216,22 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-symlink-") as
         "slot_file_symlink_forbidden",
     )
 
+# A same-name FIFO must fail without blocking the privileged reader.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-fifo-") as td:
+    root, _, leaf = create_fixture(Path(td), record)
+    leaf.unlink()
+    os.mkfifo(leaf, 0o600)
+    expect_hold(
+        lambda: mod.observe_protected_slot(
+            root_path=root,
+            claim_uid=uid,
+            claim_gid=gid,
+            authorization_slot_id=str(record["authorization_slot_id"]),
+            require_trusted_ancestors=False,
+        ),
+        "slot_file_metadata_invalid",
+    )
+
 # Canonical framing is exact.
 with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-canonical-") as td:
     root, _, leaf = create_fixture(Path(td), record)
@@ -226,6 +246,22 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-canonical-") 
             require_trusted_ancestors=False,
         ),
         "slot_record_framing_invalid",
+    )
+
+# Excessive JSON nesting must map to a fail-closed parser Hold.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-recursive-json-") as td:
+    root, _, leaf = create_fixture(Path(td), record)
+    leaf.write_text("[" * 10_000 + "0" + "]" * 10_000 + "\n", encoding="utf-8")
+    leaf.chmod(0o600)
+    expect_hold(
+        lambda: mod.observe_protected_slot(
+            root_path=root,
+            claim_uid=uid,
+            claim_gid=gid,
+            authorization_slot_id=str(record["authorization_slot_id"]),
+            require_trusted_ancestors=False,
+        ),
+        "slot_record_json_invalid",
     )
 
 # Content-derived slot ID must match authorization.
@@ -286,6 +322,37 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-replace-") as
     finally:
         mod.os.pread = real_pread
 
+# Same-byte replacement after the second retained-descriptor reread is detected.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-final-replace-") as td:
+    root, slots, leaf = create_fixture(Path(td), record)
+    real_pread = mod.os.pread
+    nonlocal_calls = [0]
+
+    def second_racing_pread(fd: int, amount: int, offset: int) -> bytes:
+        nonlocal_calls[0] += 1
+        raw = real_pread(fd, amount, offset)
+        if nonlocal_calls[0] == 2:
+            replacement = slots / ".replacement-after-reread"
+            replacement.write_bytes(raw)
+            replacement.chmod(0o600)
+            os.replace(replacement, leaf)
+        return raw
+
+    mod.os.pread = second_racing_pread
+    try:
+        expect_hold(
+            lambda: mod.observe_protected_slot(
+                root_path=root,
+                claim_uid=uid,
+                claim_gid=gid,
+                authorization_slot_id=str(record["authorization_slot_id"]),
+                require_trusted_ancestors=False,
+            ),
+            "protected_slot_generation_changed_after_reread",
+        )
+    finally:
+        mod.os.pread = real_pread
+
 source = TARGET.read_text(encoding="utf-8")
 for required in (
     'CLAIM_STATE_ROOT = Path("/var/lib/void-apollyon-attempt-claim-v2")',
@@ -295,6 +362,10 @@ for required in (
     '"training_start_consumption_authorized": False',
     'os.open(leaf, READ_FLAGS, dir_fd=directory_fd)',
     'os.pread(fd, MAX_SLOT_RECORD_BYTES + 1, 0)',
+    'getattr(os, "O_NONBLOCK", 0)',
+    'require_no_posix_acl(child, "claim_root_ancestor")',
+    'protected_slot_generation_changed_after_reread',
+    '"claim_service_revalidation_v1"',
     'require_no_posix_acl',
 ):
     assert required in source, required
@@ -326,9 +397,14 @@ print("extended_posix_acl_rejected=true")
 print("exact_canonical_slot_bytes_required=true")
 print("exact_parent_slot_content_address_revalidated=true")
 print("same_bytes_path_replacement_rejected=true")
+print("post_second_reread_path_replacement_rejected=true")
+print("slot_fifo_nonblocking_rejected=true")
+print("recursive_json_rejected_fail_closed=true")
+print("trusted_ancestor_posix_acl_required=true")
 print("descriptor_stable_slot_reread=true")
 print("claim_service_identity_external_lease_required=true")
 print("claim_service_only_writer_proven=false")
+print("protected_origin_completion_required=true")
 print("protected_authorization_slot_origin_proven=false")
 print("activation_capability_issuance_authorized=false")
 print("training_start_consumption_authorized=false")

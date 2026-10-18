@@ -1,0 +1,105 @@
+name: Apollyon authorization-slot protected-origin implementation v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py"
+      - "docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-implementation-v1.yml"
+      - "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact implementation generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          STACK_PARENT=0aee45290fe2af7b5990d470ca4ecd177bb9429b
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            'ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py' \
+            'scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py' \
+            'docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md' \
+            '.github/workflows/apollyon-authorization-slot-protected-origin-implementation-v1.yml' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = c9f59147d7d768a3a385d5ea7faafadb718e4ad1
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 7182475cbf31160ea3470266d14f30e98e4487fd
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 2c1e5f89fc31aedfe0f2a093293c8fb8be15ff37
+          test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 04ade367f7fbfa5915b29648ff051f08b56c306d
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = 93582c324ca85aeff56eb61f82b32f1e4c18dfe9
+          test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
+
+          git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B -m py_compile ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py
+
+      - name: Run disposable protected-slot proof
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-origin-implementation-v1.log"
+          python3 -I -B scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py | tee "$out"
+          for marker in \
+            'VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1_PROOF_GREEN' \
+            'fixed_claim_state_root=true' \
+            'fixed_authorization_slot_directory=true' \
+            'descriptor_relative_slot_read=true' \
+            'slot_fifo_nonblocking_rejected=true' \
+            'recursive_json_rejected_fail_closed=true' \
+            'same_bytes_path_replacement_rejected=true' \
+            'post_second_reread_path_replacement_rejected=true' \
+            'trusted_ancestor_posix_acl_required=true' \
+            'descriptor_stable_slot_reread=true' \
+            'protected_origin_completion_required=true' \
+            'claim_service_only_writer_proven=false' \
+            'protected_authorization_slot_origin_proven=false' \
+            'activation_capability_issuance_authorized=false' \
+            'training_start_consumption_authorized=false' \
+            'training_execution_authorized=false' \
+            'filesystem_write=false' \
+            'service_action=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Verify real CLI self-test
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-origin-self-test.log"
+          python3 -I -B ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py --self-test | tee "$out"
+          grep -Fx 'VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1_SELF_TEST=GREEN' "$out"
+          grep -Fx 'slot_leaf_nonblocking_nofollow_open=true' "$out"
+          grep -Fx 'final_visible_generation_revalidation_required=true' "$out"
+          grep -Fx 'protected_origin_completion_required=true' "$out"
+          grep -Fx 'protected_authorization_slot_origin_proven=false' "$out"
+          grep -Fx 'activation_capability_issuance_authorized=false' "$out"
+          grep -Fx 'training_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"

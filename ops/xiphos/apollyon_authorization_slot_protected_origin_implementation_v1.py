@@ -72,6 +72,7 @@ READ_FLAGS = (
     os.O_RDONLY
     | getattr(os, "O_CLOEXEC", 0)
     | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_NONBLOCK", 0)
 )
 
 
@@ -223,6 +224,7 @@ def open_root(
                 ):
                     os.close(child)
                     hold("claim_root_ancestor_custody_invalid")
+                require_no_posix_acl(child, "claim_root_ancestor")
 
             os.close(current)
             current = child
@@ -344,7 +346,13 @@ def parse_slot_record(raw: bytes) -> dict[str, Any]:
         value = json.loads(text, object_pairs_hook=duplicate_rejecting_object)
     except Hold:
         raise
-    except (UnicodeError, json.JSONDecodeError) as exc:
+    except (
+        UnicodeError,
+        ValueError,
+        RecursionError,
+        MemoryError,
+        OverflowError,
+    ) as exc:
         raise Hold("slot_record_json_invalid") from exc
 
     validated = validate_slot_record(value)
@@ -436,6 +444,22 @@ def read_exact_slot(
             second = os.pread(fd, MAX_SLOT_RECORD_BYTES + 1, 0)
             if second != first:
                 hold("slot_file_reread_mismatch")
+
+            final_fd = os.fstat(fd)
+            final_visible = os.stat(
+                leaf,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+            final_directory = os.fstat(directory_fd)
+            final_root = os.fstat(root_fd)
+            if (
+                identity(opened) != identity(final_fd)
+                or identity(final_fd) != identity(final_visible)
+                or identity(directory_opened) != identity(final_directory)
+                or identity(root_stamp) != identity(final_root)
+            ):
+                hold("protected_slot_generation_changed_after_reread")
 
             return {
                 "record": record,
@@ -542,7 +566,10 @@ def observe_protected_slot(
             "wallet_access": False,
             "transaction": False,
             "funds_movement": False,
-            "next_gate": "apollyon_training_activation_capability_protected_issuance_v1",
+            "next_gate": (
+                "apollyon_authorization_slot_protected_origin_"
+                "claim_service_revalidation_v1"
+            ),
         }
         return {
             **material,
@@ -608,7 +635,11 @@ def self_test() -> None:
     print("fixed_claim_state_root=true")
     print("fixed_authorization_slot_directory=true")
     print("descriptor_relative_slot_read_implemented=true")
+    print("slot_leaf_nonblocking_nofollow_open=true")
+    print("final_visible_generation_revalidation_required=true")
+    print("trusted_ancestor_posix_acl_rejected=true")
     print("exact_parent_slot_record_revalidation=true")
+    print("protected_origin_completion_required=true")
     print("protected_authorization_slot_origin_proven=false")
     print("activation_capability_issuance_authorized=false")
     print("training_execution_authorized=false")
