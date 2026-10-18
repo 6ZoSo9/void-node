@@ -75,7 +75,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
             195f180af133a18a24811d19ab4654940931b264
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            2205502ad3e5ee49463b0938411b85f5ad0ba645
+            45ec9022323edf1c95c1b9b13fe98e8e7dce8bd8
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v7.md)" = \
             8f785b76ead3fa96ffa15b21e21b685e3cccae68
 
@@ -119,6 +119,7 @@ jobs:
           markers=(
             'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V7_PROOF_GREEN'
             'target_blob_bound=true'
+            'workflow_pull_request_exact_parent_bound=true'
             'workflow_dispatch_exact_parent_bound=true'
             'workflow_dispatch_first_parent_inference_absent=true'
             'predecessor_v6_plan_bound=true'
