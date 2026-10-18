@@ -16,7 +16,7 @@ Exact parent:
 
 Parent contract Git blob:
 
-`6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`
+`bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc`
 
 Stable terminal-independent store policy:
 
@@ -143,7 +143,7 @@ Before any READY plan can be emitted, the planner uses fixed `/usr/bin/git` with
 - accepted #3233 `9475035552881f34658a7c8f3a6b336199fda159` to appear in the raw cryptographic commit-parent chain of that source head;
 - the planner path to be the canonical direct repository path;
 - the descriptor-stable working planner bytes to equal the exact blob tracked at that HEAD;
-- the descriptor-stable parent contract bytes to equal the exact blob tracked at that HEAD and accepted contract blob `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
+- the descriptor-stable parent contract bytes to equal the exact blob tracked at that HEAD and accepted contract blob `bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc`;
 - the same source-generation evidence to remain unchanged at the end of the plan census.
 
 The content-addressed plan carries the authenticated source head and planner/contract blob evidence. A wrong reviewed head or substituted working planner therefore HOLDs instead of producing READY.
