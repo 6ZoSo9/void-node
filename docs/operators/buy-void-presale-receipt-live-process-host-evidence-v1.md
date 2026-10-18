@@ -359,4 +359,3 @@ the replacement.
 
 No selector semantics, credential access, host mutation, payment, signing,
 transaction, activation, treasury or funds authority is added.
-
