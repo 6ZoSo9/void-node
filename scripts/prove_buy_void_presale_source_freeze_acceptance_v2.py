@@ -13,13 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 MARKER = "VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_ACCEPTANCE_V2"
 
 ACCEPT_REL = "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
-ACCEPT_BLOB = "c0752dfe4fe3b4616cba799bbe5053ac0b435f8b"
+ACCEPT_BLOB = "5d437a37703a83908a7fa78b78da92151aa1aa99"
 ACCEPT_ID = (
     "voidbuypresalefreezeaccept2_"
-    "c35af2c739290a82f612043465717db0b109546168e364f349f88c79c284476e"
+    "88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4"
 )
 
-FREEZE_HEAD = "0f5c467253c250a905917e886eb6ae3fb80bff62"
+FREEZE_HEAD = "d3e7404791622541a4567ddd506f27caba60cfea"
 FREEZE_REL = "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
 FREEZE_BLOB = "ca9c42e2d3ab4c50ac54badadb9efde6180ad241"
 FREEZE_ID = (
@@ -29,17 +29,17 @@ FREEZE_ID = (
 SOURCE_COMMIT = "05614762b1b4638e05e539fd7d20cbf670e1570b"
 SOURCE_TREE = "4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e"
 
-SUCCESSOR_HEAD = "26534cd19c670cd30b3cefda13ef8dcb62e05dab"
+SUCCESSOR_HEAD = "caa7daa8ed32143b6884f938d576f795b828684f"
 SUCCESSOR_REL = "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
-SUCCESSOR_BLOB = "bb1144989cd826677f2fc8ea54c97e3bd95cc8ef"
+SUCCESSOR_BLOB = "774db38ccb771f393b44d589a455144b99d36f6b"
 SUCCESSOR_ID = (
     "voidbuypresaleenfsucc1_"
-    "2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad"
+    "819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef"
 )
 SUCCESSOR_PROOF_REL = "scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs"
-SUCCESSOR_PROOF_BLOB = "d37152567b6abbb185008e6c081cf1d645056f36"
+SUCCESSOR_PROOF_BLOB = "890d17ad00d3f4235649ec4b1ff671853cadc84d"
 SUCCESSOR_WORKFLOW_REL = ".github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml"
-SUCCESSOR_WORKFLOW_BLOB = "6110ca79954c79eaa9e334872212904b8d63e1fb"
+SUCCESSOR_WORKFLOW_BLOB = "38fc0f6ea386d2f0996c37fad38b3c722b32bf46"
 
 CANDIDATE_REL = "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
 CANDIDATE_BLOB = "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718"
@@ -62,8 +62,8 @@ BOOTSTRAP_CANDIDATE_ID = (
 )
 BOOTSTRAP_SHA256 = "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
 
-HOSTED_RUN = 39091307446
-HOSTED_ARTIFACTS = (12123012167, 12122583607, 12122798019)
+HOSTED_RUN = 39104682530
+HOSTED_ARTIFACTS = (12128155696, 12128146272, 12127529856)
 
 ENV = {
     "PATH": "/usr/bin:/bin",
