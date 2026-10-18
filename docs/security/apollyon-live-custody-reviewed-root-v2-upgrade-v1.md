@@ -24,7 +24,7 @@ before migration is admitted.
 For a host that never completed the earlier V2 upgrade, the executor:
 
 1. verifies every reviewed-v1 source blob and the original fixed launcher;
-2. requires both custody and training services inactive;
+2. requires successful systemd observations proving both custody and training units are exactly `LoadState=loaded`, `ActiveState=inactive`, `SubState=dead`, `MainPID=0`;
 3. stages and verifies the complete current reviewed-v2 source tree;
 4. installs that tree at
    `/opt/void-apollyon-live-custody-binding-v2-reviewed-v2`;
@@ -38,7 +38,7 @@ reviewed-v2 tree, the executor performs a bounded dormant migration:
 
 1. verifies the retained reviewed-v1 root, exact former reviewed-v2 tree, and
    exact former launcher;
-2. verifies both custody and training services are inactive;
+2. verifies both custody and training units with the same exact `loaded/inactive/dead/MainPID=0` contract;
 3. stages and fsyncs the complete current reviewed-v2 tree;
 4. atomically replaces the fixed launcher with the current launcher **before**
    moving the old reviewed-v2 tree. During this interval the current launcher
@@ -49,9 +49,13 @@ reviewed-v2 tree, the executor performs a bounded dormant migration:
    root;
 7. re-verifies the rollback tree against the complete prior-V2 manifest and the
    canonical root against the complete current manifest; and
-8. re-verifies both services remain inactive.
+8. re-verifies both units still satisfy the exact `loaded/inactive/dead/MainPID=0` contract.
 
 The rollback tree is preserved. It is not deleted or overwritten by this gate.
+
+A service-state query failure, unknown/not-found unit, nonzero MainPID, or any
+`active`, `activating`, `reloading`, `deactivating`, or `failed` state HOLDs.
+No root rename is permitted on a merely "not active" observation.
 
 ## Interrupted migration recovery
 
