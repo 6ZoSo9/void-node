@@ -16,7 +16,7 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 UPGRADE_MANIFEST_REL="ops/xiphos/apollyon-live-custody-reviewed-root-v2-upgrade-v1.json"
-UPGRADE_MANIFEST_BLOB="a1de842b456e04dcc4f6807eb26451b802ed7073"
+UPGRADE_MANIFEST_BLOB="7ba623dcfc226236a6da3a29e183bbd2b2fd563e"
 OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")
 NEW_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")
 FIXED_LAUNCHER=Path(
@@ -25,7 +25,7 @@ FIXED_LAUNCHER=Path(
 )
 LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
 OLD_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"
-NEW_LAUNCHER_BLOB="b96f99d6c513405e6f8b87b8f5c3fb1b1cbbf9c7"
+NEW_LAUNCHER_BLOB="820f7151c0f83280b7457f841cee14c3b0c274b6"
 CUSTODY_UNIT="void-apollyon-authorization-custody-v1.service"
 TRAINING_UNIT="void-apollyon-training-bus-isolation-v1.service"
 
