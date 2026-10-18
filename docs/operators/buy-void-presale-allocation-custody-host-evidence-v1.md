@@ -38,8 +38,8 @@ The collector also binds #3513's machine-readable challenge contract:
 
 - contract blob `eef7c4e1db7401ba82fda96aa1e8da40c1981b7d`;
 - proof blob `7ced5fb56a22cd546aab30c466021b01b1c6a84d`;
-- operator doc blob `3954439eb39015baaf598c8e36a23865e0555e8f`;
-- workflow blob `9fccecd0701499b774585b0b8e3c80e1005f273f`.
+- operator doc blob `16a8a755888abd7b9ad4f0377468d6a403f80a70`;
+- workflow blob `b3426f40577ff1ca1bbab8ca46232ae1ca0a8148`.
 
 That contract explicitly requires
 `reviewed_source_generation_binding_required=true` in addition to current
