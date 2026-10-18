@@ -533,7 +533,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_CONTRACT_AUTHORITY_V2 =
     repository_merge:false,
   });
 
-const TERMINAL_RECEIPT_V2_BLOB_SHA1="e27f0ebb968f4611bfc069670325c3f5e6df1c65";
+const TERMINAL_RECEIPT_V2_BLOB_SHA1="974a383f4904b6b223a2143d5f7a19322f3d1f66";
 const CANONICALIZER_V1_BLOB_SHA1="f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 const HASH64=/^[0-9a-f]{64}$/u;
 const GIT40=/^[0-9a-f]{40}$/u;
@@ -1181,7 +1181,7 @@ function validateTerminalReceipt(value){
     value.status!=="live_source_session_terminal_shutdown_qualified_unclaimed"||
     value.target_host!=="Xiphos"||
     value.runner_v2_blob_sha1!=="8c2c92055ab05c074653cee971e095934b5cb85c"||
-    value.binding_v2_blob_sha1!=="981935515e08634be96446e58922c16be56d33ad"||
+    value.binding_v2_blob_sha1!=="5ee36c89275c29b008094ad030b8664ed9d7b60b"||
     !TERMINAL_ID.test(value.terminal_receipt_id)||
     !LIVE_BINDING_ID.test(value.live_binding_id)||
     !CLAIM_ID.test(value.claim_contract_id)||
