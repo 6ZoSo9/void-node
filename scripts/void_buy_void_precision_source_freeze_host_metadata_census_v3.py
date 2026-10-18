@@ -60,6 +60,8 @@ READ_ONLY_PATHS = {
         "/opt/void-buy-void-epoch2-live-composition-v3",
 }
 
+MAX_JSON_SAFE_INTEGER = 9_007_199_254_740_991
+
 ENV = {
     "PATH": "/usr/bin:/bin",
     "HOME": "/nonexistent",
@@ -81,6 +83,16 @@ def classify_mode(mode: int, size: int) -> dict[str, object]:
     if stat.S_ISLNK(mode):
         return {"state": "SYMLINK_HOLD", "mode": None, "bytes": None}
     if stat.S_ISREG(mode):
+        if (
+            not isinstance(size, int)
+            or isinstance(size, bool)
+            or not 0 <= size <= MAX_JSON_SAFE_INTEGER
+        ):
+            return {
+                "state": "REGULAR_SIZE_RANGE_HOLD",
+                "mode": None,
+                "bytes": None,
+            }
         return {
             "state": "REGULAR_METADATA_ONLY",
             "mode": format(stat.S_IMODE(mode), "04o"),
@@ -203,6 +215,32 @@ def self_test() -> None:
     assert classify_mode(stat.S_IFREG | 0o600, 51) == {
         "state": "REGULAR_METADATA_ONLY", "mode": "0600", "bytes": 51,
     }
+    assert classify_mode(
+        stat.S_IFREG | 0o600,
+        MAX_JSON_SAFE_INTEGER,
+    ) == {
+        "state": "REGULAR_METADATA_ONLY",
+        "mode": "0600",
+        "bytes": MAX_JSON_SAFE_INTEGER,
+    }
+    assert classify_mode(
+        stat.S_IFREG | 0o600,
+        MAX_JSON_SAFE_INTEGER + 1,
+    ) == {
+        "state": "REGULAR_SIZE_RANGE_HOLD",
+        "mode": None,
+        "bytes": None,
+    }
+    assert classify_mode(stat.S_IFREG | 0o600, -1) == {
+        "state": "REGULAR_SIZE_RANGE_HOLD",
+        "mode": None,
+        "bytes": None,
+    }
+    assert classify_mode(stat.S_IFREG | 0o600, True) == {
+        "state": "REGULAR_SIZE_RANGE_HOLD",
+        "mode": None,
+        "bytes": None,
+    }
     assert classify_mode(stat.S_IFDIR | 0o700, 512) == {
         "state": "DIRECTORY_METADATA_ONLY", "mode": "0700", "bytes": None,
     }
@@ -237,6 +275,9 @@ def self_test() -> None:
     print("wallet_or_signer_access=false")
     print("service_mutation=false")
     print("receipt_content_read=false")
+    print("json_safe_integer_byte_domain=true")
+    print("regular_size_range_hold=true")
+    print("max_safe_integer_boundary_tested=true")
     print("source_freeze_acceptance_manifest_bound=true")
     print("host_install_qualified=false")
     print("customer_payment_acceptance=false")
