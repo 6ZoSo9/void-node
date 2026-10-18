@@ -205,6 +205,20 @@ function deepFreeze(value){
 function contentAddress(prefix,value){
   return prefix+sha256(Buffer.from(canonicalApollyonTrainingActivationV1(value),"utf8"));
 }
+function preflightBindingStartTicks(input){
+  const value=input?.training_process_start_time_ticks;
+  if(typeof value!=="string"||value.length<1||value.length>20){
+    fail("apollyon_training_activation_binding_invalid");
+  }
+}
+function validPositiveU64Decimal(value){
+  if(typeof value!=="string"||!/^[1-9][0-9]{0,19}$/u.test(value))return false;
+  try{
+    return BigInt(value)<=0xffffffffffffffffn;
+  }catch{
+    return false;
+  }
+}
 
 export function hashApollyonTrainingActivationSecretV1(secret){
   if(!Buffer.isBuffer(secret)||secret.length!==32){
@@ -310,8 +324,7 @@ function validateBindingMaterial(capability,value){
     !HASH64.test(value.boot_id_sha256)||
     !INVOCATION_ID.test(value.systemd_invocation_id)||
     !Number.isSafeInteger(value.training_pid)||value.training_pid<=1||
-    typeof value.training_process_start_time_ticks!=="string"||
-      !/^[1-9][0-9]*$/u.test(value.training_process_start_time_ticks)||
+    !validPositiveU64Decimal(value.training_process_start_time_ticks)||
     !Number.isSafeInteger(value.training_uid)||
       value.training_uid<=0||value.training_uid>65533||
     !Number.isSafeInteger(value.training_gid)||
@@ -341,6 +354,7 @@ export function qualifyApollyonTrainingActivationGenerationBindingV1(
   capabilityInput,
   bindingInput,
 ){
+  preflightBindingStartTicks(bindingInput);
   const capability=qualifyApollyonTrainingActivationCapabilityV1(capabilityInput);
   const value=clonePlain(
     bindingInput,
@@ -364,6 +378,7 @@ export function buildApollyonTrainingActivationGenerationBindingV1(
   capabilityInput,
   materialInput,
 ){
+  preflightBindingStartTicks(materialInput);
   const capability=qualifyApollyonTrainingActivationCapabilityV1(capabilityInput);
   const material=clonePlain(
     materialInput,
