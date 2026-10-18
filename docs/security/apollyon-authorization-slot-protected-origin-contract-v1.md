@@ -97,6 +97,13 @@ The contract emits a content-addressed candidate:
 The candidate binds the exact #3357 winner identifiers and slot-record SHA-256,
 plus the frozen future observation requirements.
 
+Direct candidate qualification reconstructs the complete #3357 authorization
+slot record from those embedded fields (using fixed attempt limit/status/version),
+runs the exact parent validator, and requires the canonical validated-record
+SHA-256 to equal the candidate's recorded SHA. Recomputing the outer
+content-addressed protected-origin ID therefore cannot make independently
+tampered authorization/slot/record identifiers acceptable.
+
 The candidate is deliberately a requirement receipt, not proof that the
 protected observation happened.
 
@@ -131,6 +138,8 @@ Hosted proof must establish:
 - exact parent source/proof dependency blobs;
 - exact #3357 slot derivation and record validation;
 - deterministic protected-origin contract ID;
+- embedded #3357 slot identifiers/record SHA are re-derived and revalidated on direct candidate qualification;
+- valid-format slot-binding drift remains rejected after recomputing the outer candidate ID;
 - slot-record SHA-256 over exact canonical bytes plus LF;
 - candidate tamper rejection;
 - protected-origin / reread / issuance flags cannot be promoted;
