@@ -699,6 +699,20 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
           "apollyon_claim_store_impl_v2_claim_id_invalid"
         );
 
+        generationBracket(
+          config,"before_slot_publication",context,
+          cfg.root_fd,generationDirFd,cfg.claim_uid,cfg.claim_gid
+        );
+
+        reconcilePendingLink(
+          slotDirFd,pendingDirFd,slotFinal,"slot",slotDigest,
+          cfg.claim_uid,cfg.claim_gid
+        );
+        reconcilePendingLink(
+          claimDirFd,pendingDirFd,claimFinal,"claim",claimDigest,
+          cfg.claim_uid,cfg.claim_gid
+        );
+
         const preClaim=readRecordAt(
           claimDirFd,claimFinal,cfg.claim_uid,cfg.claim_gid,RECORD_MODE,
           "apollyon_claim_store_impl_v2_preexisting_claim_invalid",
@@ -712,11 +726,6 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
         if(preClaim!==null&&preSlot===null){
           fail("apollyon_claim_store_impl_v2_orphan_claim_without_slot");
         }
-
-        generationBracket(
-          config,"before_slot_publication",context,
-          cfg.root_fd,generationDirFd,cfg.claim_uid,cfg.claim_gid
-        );
 
         const slotPublication=publishExactRecord({
           targetDirFd:slotDirFd,pendingDirFd,
