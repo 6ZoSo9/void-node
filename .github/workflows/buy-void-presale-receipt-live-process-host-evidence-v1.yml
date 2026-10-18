@@ -89,9 +89,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 8830056b644bf3b737b1aff7e57c6bf6fd6c04d2
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 177f56a99fde6e60021d298f79b34d4bb92062f6
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = a9f3268552303a2bf6a264aea3eb5054814936e5
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = fa818744c4f0bde00f50547d57bbd49f79c3f405
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 162a3867b93491e2f7fc8e5ea260ef61f6b624a7
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = e539a38a7bdecc515925a6244fa3d3e0ad71cd31
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -127,6 +127,7 @@ jobs:
             'receipt_canonical_ancestor_namespace_revalidated=true' \
             'receipt_canonical_ancestor_namespace_revalidated=true' \
             'receipt_canonical_namespace_drift_rejected=true' \
+            'receipt_ancestor_special_mode_drift_rejected=true' \
             'receipt_ancestor_drift_rejected=true' \
             'pre_post_live_generation_drift_rejected=true' \
             'final_post_validation_generation_revalidated=true' \

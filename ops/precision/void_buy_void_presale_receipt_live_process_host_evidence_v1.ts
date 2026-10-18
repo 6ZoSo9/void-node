@@ -141,7 +141,7 @@ function receiptAncestorStillTrusted(
     current.dev === held.dev &&
     current.ino === held.ino &&
     current.uid === held.uid &&
-    (current.mode & 0o777) === held.mode &&
+    (current.mode & 0o7777) === held.mode &&
     (current.mode & 0o022) === 0
   );
 }
@@ -183,7 +183,7 @@ function openRootOwnedReceiptAncestors(file: string): HeldReceiptAncestor[] {
             dev: visible.dev,
             ino: visible.ino,
             uid: visible.uid,
-            mode: visible.mode & 0o777,
+            mode: visible.mode & 0o7777,
           },
           held,
         ) ||
@@ -199,7 +199,7 @@ function openRootOwnedReceiptAncestors(file: string): HeldReceiptAncestor[] {
           dev: held.dev,
           ino: held.ino,
           uid: held.uid,
-          mode: held.mode & 0o777,
+          mode: held.mode & 0o7777,
         }),
       );
       const next = path.dirname(cursor);

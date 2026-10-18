@@ -18,7 +18,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const COLLECTOR_REL=
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
-const COLLECTOR_BLOB="8830056b644bf3b737b1aff7e57c6bf6fd6c04d2";
+const COLLECTOR_BLOB="fa818744c4f0bde00f50547d57bbd49f79c3f405";
 
 const PARENT_PLAN_REL="ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
 const PARENT_PLAN_BLOB="ad68175e629fd1cf90180db3a904f84834314fdd";
@@ -159,6 +159,9 @@ for(const required of [
   "path: cursor",
   "fs.lstatSync(held.path)",
   "host_evidence_receipt_ancestor_namespace_changed",
+  "current.mode & 0o7777",
+  "mode: visible.mode & 0o7777",
+  "mode: held.mode & 0o7777",
 ])assert.ok(source.includes(required),required);
 
 const base:any={
@@ -226,6 +229,9 @@ testOnlyAssertReceiptAncestorStableV1(ancestor, {
 for (const [label, current] of [
   ["uid", {...ancestor, uid: 1000, directory: true}],
   ["mode", {...ancestor, mode: 0o777, directory: true}],
+  ["setuid", {...ancestor, mode: 0o4755, directory: true}],
+  ["setgid", {...ancestor, mode: 0o2755, directory: true}],
+  ["sticky", {...ancestor, mode: 0o1755, directory: true}],
   ["inode", {...ancestor, ino: 23, directory: true}],
   ["type", {...ancestor, directory: false}],
 ] as const) {
@@ -277,6 +283,24 @@ for (const [label, before, reopened, after] of [
     {...canonicalAncestor},
   ],
   [
+    "before_setuid",
+    {...canonicalAncestor, mode: 0o4755},
+    {...canonicalAncestor},
+    {...canonicalAncestor},
+  ],
+  [
+    "reopened_setgid",
+    {...canonicalAncestor},
+    {...canonicalAncestor, mode: 0o2755},
+    {...canonicalAncestor},
+  ],
+  [
+    "after_sticky",
+    {...canonicalAncestor},
+    {...canonicalAncestor},
+    {...canonicalAncestor, mode: 0o1755},
+  ],
+  [
     "reopened_type",
     {...canonicalAncestor},
     {...canonicalAncestor, directory: false},
@@ -312,6 +336,7 @@ console.log("receipt_ancestor_descriptor_custody_required=true");
 console.log("receipt_ancestor_post_read_revalidation_required=true");
 console.log("receipt_canonical_ancestor_namespace_revalidated=true");
 console.log("receipt_canonical_namespace_drift_rejected=true");
+console.log("receipt_ancestor_special_mode_drift_rejected=true");
 console.log("receipt_ancestor_drift_rejected=true");
 console.log("pre_post_live_generation_drift_rejected=true");
 console.log("final_post_validation_generation_revalidated=true");

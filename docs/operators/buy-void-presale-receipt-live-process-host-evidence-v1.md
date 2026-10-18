@@ -193,15 +193,17 @@ canonical receipt pathname resolves through a different directory generation.
 After the receipt read, the collector therefore performs two independent checks
 for every receipt ancestor:
 
-1. the retained descriptor must still match its authenticated dev/inode/uid/mode;
+1. the retained descriptor must still match its authenticated dev/inode/uid
+   and exact permission/special-mode bits (`07777`);
 2. the original canonical ancestor pathname is lstat'ed, reopened with
    `O_DIRECTORY|O_NOFOLLOW`, fstat'ed, and lstat'ed again; all three
    observations must match the retained generation and remain root-owned and
-   non-writable.
+   non-group/world-writable.
 
-A missing path, symlink/type change, uid/mode drift, or canonical inode
-replacement causes HOLD even when the old retained descriptor is unchanged.
-Hosted proof includes before/open/after canonical replacement adversaries.
+A missing path, symlink/type change, uid/mode drift, setuid/setgid/sticky-bit
+drift, or canonical inode replacement causes HOLD even when the old retained
+descriptor is unchanged. Hosted proof includes retained and before/open/after
+canonical adversaries for ordinary permission bits plus special mode bits.
 
 No host write, receipt publication, service mutation, payment, signing,
 transaction, activation, treasury, or funds authority is added.
