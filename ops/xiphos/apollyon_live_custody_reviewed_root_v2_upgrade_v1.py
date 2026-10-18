@@ -634,7 +634,11 @@ def self_test()->None:
     post_replace_dormant_index=source.index("assert_services_dormant()",replace_index)
     migrate_index=source.index("tree_changed=migrate_prior_v2_tree(manifest)",post_replace_dormant_index)
     assert stage_index < replace_index < post_replace_dormant_index < migrate_index
-    prior_current_index=source.index('elif migration=="prior_current_pending":')
+    apply_source_index=source.index("def apply()->dict:")
+    prior_current_index=source.index(
+        'elif migration=="prior_current_pending":',
+        apply_source_index,
+    )
     prior_current_replace=source.index(
         '("prior_current_exact",),',
         prior_current_index,
