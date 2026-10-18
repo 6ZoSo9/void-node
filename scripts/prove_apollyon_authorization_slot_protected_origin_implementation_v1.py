@@ -12,7 +12,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
-SOURCE_BLOB = "c9f59147d7d768a3a385d5ea7faafadb718e4ad1"
+SOURCE_BLOB = "eda79f44e924e8577115e0d5b60167c0e078a1d6"
 
 PARENT_CONTRACT = ROOT / "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
 PARENT_CONTRACT_BLOB = "04ade367f7fbfa5915b29648ff051f08b56c306d"

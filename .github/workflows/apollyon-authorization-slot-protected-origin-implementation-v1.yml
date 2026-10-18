@@ -47,7 +47,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = eda79f44e924e8577115e0d5b60167c0e078a1d6
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = e3379bd9a607a658ca3f3bc0513c17f90d90cbee
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = f35aef220e9374ae800507756b00257d9c5f4883
           test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 2677d888b0716c197d33e5ae033775dcfcb9ada2
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 04ade367f7fbfa5915b29648ff051f08b56c306d
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = 93582c324ca85aeff56eb61f82b32f1e4c18dfe9
