@@ -80,10 +80,10 @@ def _read_bound_source(path: pathlib.Path, expected_blob: str) -> bytes:
         raise RebindError("source_lstat_failed:" + path.name) from exc
     if (
         not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
         or before.st_nlink != 1
         or before.st_size <= 0
         or before.st_size > MAX_SOURCE_BYTES
-        or (before.st_mode & 0o022) != 0
     ):
         raise RebindError("source_metadata_invalid:" + path.name)
     try:
