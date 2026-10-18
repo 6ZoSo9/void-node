@@ -57,6 +57,33 @@ def main() -> None:
     assert probe.ENV["GIT_ALLOW_PROTOCOL"] == ""
     assert probe.ENV["GIT_OPTIONAL_LOCKS"] == "0"
     assert probe.ENV["GIT_NO_REPLACE_OBJECTS"] == "1"
+    assert probe.MAX_JSON_SAFE_INTEGER == 9_007_199_254_740_991
+    assert probe.classify_mode(
+        stat.S_IFREG | 0o600,
+        probe.MAX_JSON_SAFE_INTEGER,
+    ) == {
+        "state": "REGULAR_METADATA_ONLY",
+        "mode": "0600",
+        "bytes": probe.MAX_JSON_SAFE_INTEGER,
+    }
+    assert probe.classify_mode(
+        stat.S_IFREG | 0o600,
+        probe.MAX_JSON_SAFE_INTEGER + 1,
+    ) == {
+        "state": "REGULAR_SIZE_RANGE_HOLD",
+        "mode": None,
+        "bytes": None,
+    }
+    assert probe.classify_mode(stat.S_IFREG | 0o600, -1) == {
+        "state": "REGULAR_SIZE_RANGE_HOLD",
+        "mode": None,
+        "bytes": None,
+    }
+    assert probe.classify_mode(stat.S_IFREG | 0o600, True) == {
+        "state": "REGULAR_SIZE_RANGE_HOLD",
+        "mode": None,
+        "bytes": None,
+    }
 
     source_text = V3.read_text("utf-8")
     for forbidden in (
@@ -303,6 +330,9 @@ def main() -> None:
         )
         assert snapshot(complete) == before_complete
         result["fixture_report_retains_hold_and_authority"] = True
+        result["json_safe_integer_byte_domain"] = True
+        result["max_safe_integer_boundary_verified"] = True
+        result["regular_size_range_hold_verified"] = True
 
         downloads = task / "Downloads"
         downloads.mkdir()
