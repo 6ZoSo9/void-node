@@ -467,7 +467,7 @@ const crossMismatchCases: Array<[string, Record<string, unknown>, RegExp]> = [
   ["high_water", { ...goodSecondNormalized, replay_high_water_sha256: "sha256:" + "b".repeat(64) },
     /allocation_custody_live_policy_high_water_mismatch/u],
   ["host", { ...goodSecondNormalized, source_hostname: "other-host" },
-    /allocation_custody_live_policy_host_mismatch/u],
+    /allocation_custody_second_control_normalized_identity_invalid/u],
   ["policy_id", { ...goodSecondNormalized, rollback_policy_qualification_id: "voidwlrrq1_" + "c".repeat(64) },
     /allocation_custody_live_policy_qualification_mismatch/u],
   ["fingerprint", { ...goodSecondNormalized, rollback_policy_fingerprint_sha256: "sha256:" + "d".repeat(64) },
