@@ -116,6 +116,7 @@ function sameStat(a: fs.Stats, b: fs.Stats): boolean {
 }
 
 type HeldReceiptAncestor = Readonly<{
+  path: string;
   fd: number;
   dev: number;
   ino: number;
@@ -193,6 +194,7 @@ function openRootOwnedReceiptAncestors(file: string): HeldReceiptAncestor[] {
       }
       heldDirectories.push(
         Object.freeze({
+          path: cursor,
           fd,
           dev: held.dev,
           ino: held.ino,
@@ -213,14 +215,53 @@ function openRootOwnedReceiptAncestors(file: string): HeldReceiptAncestor[] {
   }
 }
 
+function assertCanonicalReceiptAncestorObservations(
+  held: Pick<HeldReceiptAncestor, "dev" | "ino" | "uid" | "mode">,
+  before: ReceiptAncestorStat,
+  reopened: ReceiptAncestorStat,
+  after: ReceiptAncestorStat,
+): void {
+  for (const current of [before, reopened, after]) {
+    if (!receiptAncestorStillTrusted(held, current)) {
+      fail("host_evidence_receipt_ancestor_namespace_changed");
+    }
+  }
+}
+
 function revalidateReceiptAncestors(
   heldDirectories: readonly HeldReceiptAncestor[],
 ): void {
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directory = fs.constants.O_DIRECTORY;
   for (const held of heldDirectories) {
     const current = fs.fstatSync(held.fd);
     if (!receiptAncestorStillTrusted(held, current)) {
       fail("host_evidence_receipt_ancestor_changed_during_read");
     }
+
+    let reopenedFd = -1;
+    let visibleBefore: fs.Stats;
+    let reopened: fs.Stats;
+    let visibleAfter: fs.Stats;
+    try {
+      visibleBefore = fs.lstatSync(held.path);
+      reopenedFd = fs.openSync(
+        held.path,
+        fs.constants.O_RDONLY | directory | noFollow,
+      );
+      reopened = fs.fstatSync(reopenedFd);
+      visibleAfter = fs.lstatSync(held.path);
+    } catch {
+      fail("host_evidence_receipt_ancestor_namespace_unavailable");
+    } finally {
+      if (reopenedFd >= 0) fs.closeSync(reopenedFd);
+    }
+    assertCanonicalReceiptAncestorObservations(
+      held,
+      visibleBefore!,
+      reopened!,
+      visibleAfter!,
+    );
   }
 }
 
@@ -245,6 +286,45 @@ export function testOnlyAssertReceiptAncestorStableV1(
   ) {
     fail("host_evidence_receipt_ancestor_changed_during_read");
   }
+}
+
+export function testOnlyAssertReceiptCanonicalAncestorStableV1(
+  held: Readonly<{ dev: number; ino: number; uid: number; mode: number }>,
+  before: Readonly<{
+    dev: number;
+    ino: number;
+    uid: number;
+    mode: number;
+    directory: boolean;
+  }>,
+  reopened: Readonly<{
+    dev: number;
+    ino: number;
+    uid: number;
+    mode: number;
+    directory: boolean;
+  }>,
+  after: Readonly<{
+    dev: number;
+    ino: number;
+    uid: number;
+    mode: number;
+    directory: boolean;
+  }>,
+): void {
+  const wrap = (value: typeof before): ReceiptAncestorStat => ({
+    dev: value.dev,
+    ino: value.ino,
+    uid: value.uid,
+    mode: value.mode,
+    isDirectory: () => value.directory,
+  });
+  assertCanonicalReceiptAncestorObservations(
+    held,
+    wrap(before),
+    wrap(reopened),
+    wrap(after),
+  );
 }
 
 function readInstalledLiveReceiptExact(expected: Buffer): void {

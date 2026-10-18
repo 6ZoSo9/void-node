@@ -183,3 +183,25 @@ Hosted CI:
 The real Precision collection remains separately authorized.
 
 **PROTECT THE CORE.**
+
+## Canonical receipt namespace revalidation
+
+Retained ancestor directory descriptors are necessary but not sufficient: a
+root-level rename/replacement can leave those old descriptors stable while the
+canonical receipt pathname resolves through a different directory generation.
+
+After the receipt read, the collector therefore performs two independent checks
+for every receipt ancestor:
+
+1. the retained descriptor must still match its authenticated dev/inode/uid/mode;
+2. the original canonical ancestor pathname is lstat'ed, reopened with
+   `O_DIRECTORY|O_NOFOLLOW`, fstat'ed, and lstat'ed again; all three
+   observations must match the retained generation and remain root-owned and
+   non-writable.
+
+A missing path, symlink/type change, uid/mode drift, or canonical inode
+replacement causes HOLD even when the old retained descriptor is unchanged.
+Hosted proof includes before/open/after canonical replacement adversaries.
+
+No host write, receipt publication, service mutation, payment, signing,
+transaction, activation, treasury, or funds authority is added.

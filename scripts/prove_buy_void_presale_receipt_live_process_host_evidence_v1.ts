@@ -10,6 +10,7 @@ import {
   PARENT_PLAN_ID,
   testOnlyAssertFinalLiveGenerationV1,
   testOnlyAssertReceiptAncestorStableV1,
+  testOnlyAssertReceiptCanonicalAncestorStableV1,
   testOnlyAssertSameLiveGenerationV1,
 } from "../ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.js";
 
@@ -155,6 +156,9 @@ for(const required of [
   "before.gid !== 0",
   "(before.mode & 0o777) !== 0o444",
   "!observed.equals(expected)",
+  "path: cursor",
+  "fs.lstatSync(held.path)",
+  "host_evidence_receipt_ancestor_namespace_changed",
 ])assert.ok(source.includes(required),required);
 
 const base:any={
@@ -234,6 +238,69 @@ for (const [label, current] of [
   assert.equal(rejected,true,"ancestor_drift_not_rejected:"+label);
 }
 
+const canonicalAncestor = {...ancestor, directory: true};
+testOnlyAssertReceiptCanonicalAncestorStableV1(
+  ancestor,
+  canonicalAncestor,
+  {...canonicalAncestor},
+  {...canonicalAncestor},
+);
+for (const [label, before, reopened, after] of [
+  [
+    "before_inode",
+    {...canonicalAncestor, ino: 23},
+    {...canonicalAncestor},
+    {...canonicalAncestor},
+  ],
+  [
+    "reopened_inode",
+    {...canonicalAncestor},
+    {...canonicalAncestor, ino: 23},
+    {...canonicalAncestor},
+  ],
+  [
+    "after_inode",
+    {...canonicalAncestor},
+    {...canonicalAncestor},
+    {...canonicalAncestor, ino: 23},
+  ],
+  [
+    "reopened_uid",
+    {...canonicalAncestor},
+    {...canonicalAncestor, uid: 1000},
+    {...canonicalAncestor},
+  ],
+  [
+    "reopened_mode",
+    {...canonicalAncestor},
+    {...canonicalAncestor, mode: 0o777},
+    {...canonicalAncestor},
+  ],
+  [
+    "reopened_type",
+    {...canonicalAncestor},
+    {...canonicalAncestor, directory: false},
+    {...canonicalAncestor},
+  ],
+] as const) {
+  let rejected=false;
+  try{
+    testOnlyAssertReceiptCanonicalAncestorStableV1(
+      ancestor,
+      before,
+      reopened,
+      after,
+    );
+  }catch{
+    rejected=true;
+  }
+  assert.equal(
+    rejected,
+    true,
+    "canonical_ancestor_namespace_drift_not_rejected:"+label,
+  );
+}
+
 console.log(MARKER+"_PROOF_GREEN");
 console.log("parent_host_evidence_plan_bound=true");
 console.log("four_reviewed_primitive_blobs_bound=true");
@@ -243,6 +310,8 @@ console.log("two_source_custody_requalifications_required=true");
 console.log("installed_receipt_exact_bytes_match_required=true");
 console.log("receipt_ancestor_descriptor_custody_required=true");
 console.log("receipt_ancestor_post_read_revalidation_required=true");
+console.log("receipt_canonical_ancestor_namespace_revalidated=true");
+console.log("receipt_canonical_namespace_drift_rejected=true");
 console.log("receipt_ancestor_drift_rejected=true");
 console.log("pre_post_live_generation_drift_rejected=true");
 console.log("final_post_validation_generation_revalidated=true");
