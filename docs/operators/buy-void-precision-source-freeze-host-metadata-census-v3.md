@@ -87,6 +87,25 @@ credentials, query wallet/signer state, or call services.
 The allocation-custody mountpoint bit is observed only when the fixed path is a
 directory.
 
+Regular-file byte counts are restricted to JSON's interoperable exact-integer
+domain:
+
+`0..9007199254740991`
+
+A regular file whose `st_size` is outside that range is not serialized as an
+unbounded JSON number. It is classified instead as:
+
+```text
+state=REGULAR_SIZE_RANGE_HOLD
+mode=null
+bytes=null
+```
+
+This keeps distinct host observations from collapsing when a downstream
+JavaScript consumer parses the report. The focused proof covers the exact
+max-safe boundary, max-safe+1, negative synthetic input, and boolean type
+confusion.
+
 ## Local Git observations
 
 If `~/dev/void-node` is a directory, V3 reports:
