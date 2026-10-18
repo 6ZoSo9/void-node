@@ -56,7 +56,8 @@ EXPECTED_PARENT_ARTIFACT_INNER_TAR_SHA256 = (
 EXPECTED_PARENT_ARTIFACT_WRAPPER_SHA256 = (
     "ae1a062c6bd6a74d446a4cc7bf25242e11f2638f2c17c30dc1b2ae08017fc417"
 )
-EXPECTED_PARENT_BUILD_EVIDENCE = {
+def expected_parent_build_evidence() -> dict[str, Any]:
+    return {
     "runner_image": "ubuntu24/20261012.334",
     "gcc": {
         "alias": "/usr/bin/gcc",
@@ -79,6 +80,12 @@ EXPECTED_PARENT_BUILD_EVIDENCE = {
     },
     "toolchain_revalidated_after_build": True,
 }
+
+
+# Compatibility snapshot only. Parent evidence derivation reconstructs a fresh
+# nested mapping so returned locks cannot poison the provenance oracle.
+EXPECTED_PARENT_BUILD_EVIDENCE = expected_parent_build_evidence()
+
 NEXT_GATE = "apollyon_claim_protected_first_entry_static_candidate_install_v1"
 
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
@@ -273,7 +280,7 @@ def accepted_parent_evidence() -> dict[str, Any]:
             EXPECTED_PARENT_ARTIFACT_INNER_TAR_SHA256
         ),
         "artifact_wrapper_sha256": EXPECTED_PARENT_ARTIFACT_WRAPPER_SHA256,
-        "accepted_build_evidence": EXPECTED_PARENT_BUILD_EVIDENCE,
+        "accepted_build_evidence": expected_parent_build_evidence(),
     }
 
 
@@ -296,7 +303,12 @@ def validate_lock(lock: dict[str, Any]) -> None:
     }
     if set(lock) != expected_keys:
         hold("candidate_lock_keys_invalid")
-    if lock.get("marker") != MARKER or lock.get("version") != 1:
+    version = lock.get("version")
+    if (
+        lock.get("marker") != MARKER
+        or type(version) is not int
+        or version != 1
+    ):
         hold("candidate_lock_identity_invalid")
 
     expected_lock_id = (
