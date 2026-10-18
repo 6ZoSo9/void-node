@@ -11,6 +11,7 @@ import {
   testOnlyAssertFinalLiveGenerationV1,
   testOnlyAssertReceiptAncestorStableV1,
   testOnlyAssertReceiptCanonicalAncestorStableV1,
+  testOnlyAssertReceiptCanonicalLeafStableV1,
   testOnlyReceiptAncestorRevalidationOrderV1,
   testOnlyReceiptLeafCustodyTrustedV1,
   testOnlyAssertSameLiveGenerationV1,
@@ -88,6 +89,11 @@ for(const required of [
   "fs.constants.O_NOFOLLOW",
   "const leafViaParent =",
   "revalidateReceiptAncestors(heldDirectories)",
+  "const canonicalBefore = fs.lstatSync(target)",
+  "const canonicalOpened = fs.fstatSync(canonicalFd)",
+  "receiptLeafGenerationStillTrusted(",
+  "host_evidence_receipt_leaf_namespace_changed",
+  "host_evidence_canonical_receipt_bytes_changed",
   "host_evidence_receipt_ancestor_changed_during_read",
   "for (let index = heldDirectories.length - 1; index >= 0; index -= 1)",
   "const finalGeneration = await collectBuyVoidV2LiveProcessCollectionPlanV1({",
@@ -173,6 +179,13 @@ for(const required of [
 for(const stale of [
   "(before.mode & 0o777) !== 0o444",
 ])assert.equal(source.includes(stale),false,stale);
+
+const ancestorRevalidationIndex =
+  source.indexOf("revalidateReceiptAncestors(heldDirectories);");
+const canonicalLeafRevalidationIndex =
+  source.indexOf("const canonicalBefore = fs.lstatSync(target);");
+assert.ok(ancestorRevalidationIndex >= 0);
+assert.ok(canonicalLeafRevalidationIndex > ancestorRevalidationIndex);
 
 const base:any={
   plan_id:"voidbsv2colplan1_"+"1".repeat(64),
@@ -271,6 +284,49 @@ assert.equal(
   testOnlyReceiptLeafCustodyTrustedV1({...leafBase,uid:1},128),
   false,
 );
+
+const leafGenerationBase = Object.freeze({
+  dev: 41,
+  ino: 42,
+  uid: 0,
+  gid: 0,
+  mode: 0o444,
+  nlink: 1,
+  size: 128,
+  mtimeMs: 100,
+  ctimeMs: 200,
+  regular: true,
+  symlink: false,
+});
+testOnlyAssertReceiptCanonicalLeafStableV1(
+  leafGenerationBase,
+  {...leafGenerationBase},
+  128,
+);
+for (const [label,current] of [
+  ["replaced_inode",{...leafGenerationBase,ino:43}],
+  ["changed_ctime",{...leafGenerationBase,ctimeMs:201}],
+  ["changed_mode",{...leafGenerationBase,mode:0o644}],
+  ["special_mode",{...leafGenerationBase,mode:0o4444}],
+  ["changed_size",{...leafGenerationBase,size:127}],
+  ["symlink",{...leafGenerationBase,regular:false,symlink:true}],
+] as const) {
+  let rejected=false;
+  try {
+    testOnlyAssertReceiptCanonicalLeafStableV1(
+      leafGenerationBase,
+      current,
+      128,
+    );
+  } catch {
+    rejected=true;
+  }
+  assert.equal(
+    rejected,
+    true,
+    "canonical_receipt_leaf_drift_not_rejected:"+label,
+  );
+}
 
 const ancestor = Object.freeze({
   dev: 11,
@@ -393,6 +449,8 @@ console.log("receipt_ancestor_post_read_revalidation_required=true");
 console.log("receipt_canonical_ancestor_namespace_revalidated=true");
 console.log("receipt_ancestor_revalidation_root_to_leaf=true");
 console.log("receipt_parent_revalidated_last=true");
+console.log("receipt_canonical_leaf_post_parent_revalidated=true");
+console.log("receipt_canonical_leaf_replacement_rejected=true");
 console.log("receipt_leaf_exact_mode_0444=true");
 console.log("receipt_leaf_special_mode_bits_rejected=true");
 console.log("receipt_canonical_namespace_drift_rejected=true");

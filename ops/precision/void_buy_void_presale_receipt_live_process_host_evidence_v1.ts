@@ -101,7 +101,19 @@ function canonicalReceiptBytes(
   return bytes;
 }
 
-function sameStat(a: fs.Stats, b: fs.Stats): boolean {
+type StableStatIdentity = Readonly<{
+  dev: number;
+  ino: number;
+  uid: number;
+  gid: number;
+  mode: number;
+  nlink: number;
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+}>;
+
+function sameStat(a: StableStatIdentity, b: StableStatIdentity): boolean {
   return (
     a.dev === b.dev &&
     a.ino === b.ino &&
@@ -125,6 +137,8 @@ type ReceiptLeafStat = Readonly<{
   isSymbolicLink(): boolean;
 }>;
 
+type ReceiptLeafGenerationStat = StableStatIdentity & ReceiptLeafStat;
+
 function receiptLeafCustodyTrusted(
   current: ReceiptLeafStat,
   expectedLength: number,
@@ -139,6 +153,17 @@ function receiptLeafCustodyTrusted(
     current.size >= 2 &&
     current.size <= MAX_RECEIPT_BYTES &&
     current.size === expectedLength
+  );
+}
+
+function receiptLeafGenerationStillTrusted(
+  retained: StableStatIdentity,
+  current: ReceiptLeafGenerationStat,
+  expectedLength: number,
+): boolean {
+  return (
+    receiptLeafCustodyTrusted(current, expectedLength) &&
+    sameStat(retained, current)
   );
 }
 
@@ -324,6 +349,24 @@ export function testOnlyReceiptLeafCustodyTrustedV1(
   );
 }
 
+export function testOnlyAssertReceiptCanonicalLeafStableV1(
+  retained: StableStatIdentity,
+  current: Readonly<StableStatIdentity & {
+    regular: boolean;
+    symlink: boolean;
+  }>,
+  expectedLength: number,
+): void {
+  const wrapped: ReceiptLeafGenerationStat = {
+    ...current,
+    isFile: () => current.regular,
+    isSymbolicLink: () => current.symlink,
+  };
+  if (!receiptLeafGenerationStillTrusted(retained, wrapped, expectedLength)) {
+    fail("host_evidence_receipt_leaf_namespace_changed");
+  }
+}
+
 export function testOnlyReceiptAncestorRevalidationOrderV1(
   paths: readonly string[],
 ): readonly string[] {
@@ -445,6 +488,80 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
     }
 
     revalidateReceiptAncestors(heldDirectories);
+
+    let canonicalFd = -1;
+    try {
+      const canonicalBefore = fs.lstatSync(target);
+      if (
+        !receiptLeafGenerationStillTrusted(
+          opened,
+          canonicalBefore,
+          expected.length,
+        )
+      ) {
+        fail("host_evidence_receipt_leaf_namespace_changed");
+      }
+
+      canonicalFd = fs.openSync(
+        target,
+        fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+      );
+      const canonicalOpened = fs.fstatSync(canonicalFd);
+      if (
+        !receiptLeafGenerationStillTrusted(
+          opened,
+          canonicalOpened,
+          expected.length,
+        )
+      ) {
+        fail("host_evidence_receipt_leaf_namespace_changed");
+      }
+
+      const canonicalChunks: Buffer[] = [];
+      let canonicalTotal = 0;
+      for (;;) {
+        const chunk = Buffer.alloc(8192);
+        const count = fs.readSync(
+          canonicalFd,
+          chunk,
+          0,
+          chunk.length,
+          null,
+        );
+        if (count === 0) break;
+        canonicalTotal += count;
+        if (
+          canonicalTotal > MAX_RECEIPT_BYTES ||
+          canonicalTotal > expected.length
+        ) {
+          fail("host_evidence_canonical_receipt_read_too_large");
+        }
+        canonicalChunks.push(chunk.subarray(0, count));
+      }
+
+      const canonicalObserved = Buffer.concat(
+        canonicalChunks,
+        canonicalTotal,
+      );
+      const canonicalAfter = fs.fstatSync(canonicalFd);
+      const canonicalVisibleAfter = fs.lstatSync(target);
+      for (const current of [canonicalAfter, canonicalVisibleAfter]) {
+        if (
+          !receiptLeafGenerationStillTrusted(
+            opened,
+            current,
+            expected.length,
+          )
+        ) {
+          fail("host_evidence_receipt_leaf_namespace_changed");
+        }
+      }
+      if (!canonicalObserved.equals(expected)) {
+        fail("host_evidence_canonical_receipt_bytes_changed");
+      }
+    } finally {
+      if (canonicalFd >= 0) fs.closeSync(canonicalFd);
+    }
 
     if (!observed.equals(expected)) {
       fail("host_evidence_live_receipt_not_current_process_generation");

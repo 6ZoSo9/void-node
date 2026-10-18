@@ -228,3 +228,26 @@ Setuid, setgid, or sticky bits on the receipt leaf are therefore rejected even
 when ordinary permission bits remain `0444`. The focused adversarial proof
 exercises `04444`, `02444`, and `01444` negatives through the exact
 predicate used by production.
+
+## Final canonical receipt leaf revalidation
+
+Ancestor revalidation closes directory-generation drift only up to the receipt
+parent. A concurrent root replacement of the receipt leaf itself does not change
+the parent directory's dev/inode/uid/mode identity, so the receipt leaf is now
+revalidated **after** the root-to-leaf ancestor walk has completed.
+
+The collector reopens the absolute canonical receipt pathname with
+`O_RDONLY|O_NOFOLLOW`, requires that the canonical leaf still has the exact
+retained receipt dev/inode/uid/gid/mode/nlink/size/mtime/ctime generation,
+descriptor-reads the canonical leaf again, and requires those bytes to equal the
+already derived expected receipt. A final descriptor/path observation must still
+match that same retained generation.
+
+This is deliberately the last namespace-custody check before accepting the
+receipt bytes. Hosted proof models a leaf replacement after parent revalidation
+by changing only the canonical leaf inode and requires HOLD; ctime, mode,
+special-mode, size, and symlink/type drift are rejected as well.
+
+No host write, receipt publication, service mutation, payment, signing,
+transaction, activation, treasury, or funds authority is added.
+
