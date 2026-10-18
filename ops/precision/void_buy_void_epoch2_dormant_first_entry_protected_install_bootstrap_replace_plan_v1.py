@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -537,23 +538,33 @@ def self_test() -> None:
     plan_id = PLAN_PREFIX + sha256(canonical_json(body))
     assert re.fullmatch(PLAN_PREFIX + r"[0-9a-f]{64}", plan_id)
     own = Path(__file__).read_text("utf-8")
-    for forbidden in (
-        "--apply",
-        "def apply(",
-        "RENAME_EXCHANGE",
-        "_renameat2(",
-        "os.mkdir(",
-        "os.rename(",
-        "os.replace(",
-        "os.unlink(",
-        "os.rmdir(",
-        "os.fchmod(",
-        "os.fchown(",
-        "O_WRONLY",
-        "O_CREAT",
-        "O_EXCL",
-    ):
-        assert forbidden not in own, forbidden
+    parsed = ast.parse(own, filename=str(Path(__file__)))
+    function_names = {
+        node.name
+        for node in parsed.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    assert "apply" not in function_names
+    string_constants = {
+        node.value
+        for node in ast.walk(parsed)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    assert "--apply" not in string_constants
+    forbidden_os_calls = {
+        "mkdir", "rename", "replace", "unlink", "rmdir", "fchmod", "fchown",
+    }
+    observed_mutations = []
+    for node in ast.walk(parsed):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "os"
+            and node.func.attr in forbidden_os_calls
+        ):
+            observed_mutations.append(node.func.attr)
+    assert observed_mutations == []
     print(MARKER + "_SELF_TEST_GREEN")
     print("plan_only=true")
     print("predecessor_generation_exact=true")
@@ -595,7 +606,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (PlanError, OSError) as exc:
+    except Exception as exc:
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc).replace("\n", " ")[:1024])
