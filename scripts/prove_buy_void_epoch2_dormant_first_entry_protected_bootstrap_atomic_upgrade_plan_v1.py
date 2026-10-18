@@ -89,9 +89,11 @@ tree = ast.parse(source)
 
 for required in (
     'UPGRADER_BLOB = "' + UPGRADER_BLOB + '"',
-    OLD_LOCK,
-    NEW_LOCK,
-    NEW_CAND,
+    '"voidbuye2dormantbootstraplock3_"',
+    '"5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"',
+    '"4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396"',
+    '"voidbuye2dormantbootstrapcand3_"',
+    '"1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2"',
     NEW_BOOTSTRAP_SHA256,
     NEW_BOOTSTRAP_GIT_BLOB,
     NEW_MANIFEST_SHA256,
