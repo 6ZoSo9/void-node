@@ -5,6 +5,7 @@ import ast
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -84,7 +85,7 @@ for required in (
     '"funds_movement": False',
     '"production_host_evidence_authority": False',
     "stat.S_ISREG(before.st_mode)",
-    "stat.S_ISLNK(before.st_mode)",
+    "stat.S_ISLNK(visible.st_mode)",
     "except (OSError, subprocess.TimeoutExpired) as exc:",
     '"git_execution_failed:" + type(exc).__name__',
     '"core.fsmonitor=false"',
