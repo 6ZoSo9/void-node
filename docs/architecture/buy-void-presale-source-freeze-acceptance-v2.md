@@ -25,7 +25,7 @@ Fixed source snapshot:
 - candidate manifest blob
   `ca9c42e2d3ab4c50ac54badadb9efde6180ad241`;
 - candidate review head
-  `0f5c467253c250a905917e886eb6ae3fb80bff62`.
+  `d3e7404791622541a4567ddd506f27caba60cfea`.
 
 The acceptance preserves:
 
@@ -39,21 +39,21 @@ later_main_changes_require_separate_review=true
 
 Accepted successor:
 
-`voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad`
+`voidbuypresaleenfsucc1_819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef`
 
 Successor manifest blob:
 
-`bb1144989cd826677f2fc8ea54c97e3bd95cc8ef`.
+`774db38ccb771f393b44d589a455144b99d36f6b`.
 
 Exact hosted successor run:
 
-`39091307446`.
+`39104682530`.
 
 Artifacts:
 
-- Node 22: `12123012167`;
-- Node 24: `12122583607`;
-- Node 26: `12122798019`.
+- Node 22: `12128155696`;
+- Node 24: `12128146272`;
+- Node 26: `12127529856`.
 
 The reviewed successor proves:
 
@@ -107,7 +107,7 @@ authority remains false.
 
 Acceptance ID:
 
-`voidbuypresalefreezeaccept2_c35af2c739290a82f612043465717db0b109546168e364f349f88c79c284476e`
+`voidbuypresalefreezeaccept2_88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4`
 
 The suffix is SHA-256 over canonical JSON of the acceptance body excluding
 `acceptance_id`.
