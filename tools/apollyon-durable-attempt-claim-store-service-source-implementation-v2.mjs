@@ -379,7 +379,7 @@ function publishExactRecord({
   try{
     pendingFd=fs.openSync(
       pendingPath,
-      fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|
+      fs.constants.O_RDWR|fs.constants.O_CREAT|fs.constants.O_EXCL|
         O_NOFOLLOW|O_CLOEXEC,
       RECORD_MODE,
     );
