@@ -13,10 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 MARKER = "VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_ACCEPTANCE_V2"
 
 ACCEPT_REL = "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
-ACCEPT_BLOB = "5d437a37703a83908a7fa78b78da92151aa1aa99"
+ACCEPT_BLOB = "174d536807f03fd7b6ff44820d4e378c7055150e"
 ACCEPT_ID = (
     "voidbuypresalefreezeaccept2_"
-    "88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4"
+    "427988497e4789465dde1c193668bb140d017c4e3ba3748567ea4e3bacfadb57"
 )
 
 FREEZE_HEAD = "d3e7404791622541a4567ddd506f27caba60cfea"
@@ -29,7 +29,14 @@ FREEZE_ID = (
 SOURCE_COMMIT = "05614762b1b4638e05e539fd7d20cbf670e1570b"
 SOURCE_TREE = "4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e"
 
-SUCCESSOR_HEAD = "caa7daa8ed32143b6884f938d576f795b828684f"
+FREEZE_PROOF_REL = "scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
+FREEZE_PROOF_BLOB = "668eab35bca38b8ed90b1e11f75647f80b677436"
+FREEZE_DOC_REL = "docs/architecture/buy-void-presale-source-freeze-candidate-v2.md"
+FREEZE_DOC_BLOB = "e0862b321d7af50ea1ca06d9c4eb45a462b42446"
+FREEZE_WORKFLOW_REL = ".github/workflows/buy-void-presale-source-freeze-candidate-v2.yml"
+FREEZE_WORKFLOW_BLOB = "eeea03077bc445575f0828084532c6cf46f3619d"
+
+SUCCESSOR_HEAD = "d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5"
 SUCCESSOR_REL = "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
 SUCCESSOR_BLOB = "774db38ccb771f393b44d589a455144b99d36f6b"
 SUCCESSOR_ID = (
@@ -37,9 +44,9 @@ SUCCESSOR_ID = (
     "819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef"
 )
 SUCCESSOR_PROOF_REL = "scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs"
-SUCCESSOR_PROOF_BLOB = "890d17ad00d3f4235649ec4b1ff671853cadc84d"
+SUCCESSOR_PROOF_BLOB = "6777b900a61d979355671ebee502c4b7ebb6b5dd"
 SUCCESSOR_WORKFLOW_REL = ".github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml"
-SUCCESSOR_WORKFLOW_BLOB = "38fc0f6ea386d2f0996c37fad38b3c722b32bf46"
+SUCCESSOR_WORKFLOW_BLOB = "4f2c36b201cb7030c3ed0075400b65e01c8090fb"
 
 CANDIDATE_REL = "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
 CANDIDATE_BLOB = "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718"
@@ -62,8 +69,8 @@ BOOTSTRAP_CANDIDATE_ID = (
 )
 BOOTSTRAP_SHA256 = "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
 
-HOSTED_RUN = 39104682530
-HOSTED_ARTIFACTS = (12128155696, 12128146272, 12127529856)
+HOSTED_RUN = 39107024613
+HOSTED_ARTIFACTS = (12128524197, 12128298547, 12128707222)
 
 ENV = {
     "PATH": "/usr/bin:/bin",
@@ -193,6 +200,24 @@ def verify_fixed_freeze(acceptance: dict) -> dict:
     require(bound.get("auto_adopt_new_main_commits") is False, "accept_auto_adopt")
     require(bound.get("later_main_changes_require_separate_review") is True, "accept_future_review")
     return freeze
+
+
+def verify_freeze_semantics() -> None:
+    proof_text = read_pinned(
+        FREEZE_PROOF_REL, FREEZE_PROOF_BLOB, 256 * 1024
+    ).decode("utf-8", "strict")
+    read_pinned(FREEZE_DOC_REL, FREEZE_DOC_BLOB, 128 * 1024)
+    read_pinned(FREEZE_WORKFLOW_REL, FREEZE_WORKFLOW_BLOB, 128 * 1024)
+    for marker in (
+        "presale_payment_asset=native_usdc",
+        "presale_source_chains=ethereum_mainnet_1,base_mainnet_8453",
+        "presale_pool_void=10000000",
+        "presale_rate_void_per_usdc=2",
+        "wc_void_launch_coupled_to_presale=true",
+        "btc_void_post_presale=true",
+        "legacy_btc_coupled_field_payment_asset_authority=false",
+    ):
+        require(marker in proof_text, "freeze_semantics_marker_missing:" + marker)
 
 
 def verify_successor(acceptance: dict) -> dict:
@@ -350,6 +375,7 @@ def verify() -> None:
     require(git("status", "--porcelain=v1", "--untracked-files=all") == "", "worktree_not_clean")
     acceptance = verify_acceptance()
     verify_fixed_freeze(acceptance)
+    verify_freeze_semantics()
     verify_successor(acceptance)
     verify_historical_enforcement(acceptance)
     verify_epoch2(acceptance)
@@ -373,6 +399,8 @@ def main() -> int:
     print("cross_node_candidate_identity_verified=true")
     print("cross_node_current_integration_identity_verified=true")
     print("source_identity_acceptance_only=true")
+    print("freeze_payment_semantics_evidence_bound=true")
+    print("legacy_btc_coupled_field_payment_asset_authority=false")
     print("payment_rail_policy_accepted=false")
     print("host_install_qualified=false")
     print("live_runtime_evidence_qualified=false")

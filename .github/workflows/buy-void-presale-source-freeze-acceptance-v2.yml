@@ -8,6 +8,9 @@ on:
       - "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
       - "scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py"
       - "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
+      - "scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
+      - "docs/architecture/buy-void-presale-source-freeze-candidate-v2.md"
+      - ".github/workflows/buy-void-presale-source-freeze-candidate-v2.yml"
       - "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
       - "scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs"
       - ".github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml"
@@ -35,7 +38,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=caa7daa8ed32143b6884f938d576f795b828684f
+          STACK_PARENT=d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
@@ -50,21 +53,24 @@ jobs:
           git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = 5d437a37703a83908a7fa78b78da92151aa1aa99
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py)" = 92ad15e1f961870961aea7d90e63fade2a5d1753
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-acceptance-v2.md)" = 2bfe9a37198df3206c278b5a4868d173d15f37d8
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = 174d536807f03fd7b6ff44820d4e378c7055150e
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py)" = c349530e430a925176824ff94d4ee314c8ca2545
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-acceptance-v2.md)" = e2de7f5ea4396da6c09faa42f4a25bf1a18d0fe1
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 668eab35bca38b8ed90b1e11f75647f80b677436
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-candidate-v2.md)" = e0862b321d7af50ea1ca06d9c4eb45a462b42446
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-source-freeze-candidate-v2.yml)" = eeea03077bc445575f0828084532c6cf46f3619d
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = 774db38ccb771f393b44d589a455144b99d36f6b
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs)" = 890d17ad00d3f4235649ec4b1ff671853cadc84d
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml)" = 38fc0f6ea386d2f0996c37fad38b3c722b32bf46
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs)" = 6777b900a61d979355671ebee502c4b7ebb6b5dd
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml)" = 4f2c36b201cb7030c3ed0075400b65e01c8090fb
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json)" = 4e23ecbb64eb26c14f5ab15af85eb86d59c3a718
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = 589845615654da8b688764377b34296267ac0063
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
 
           test "$(git rev-parse 05614762b1b4638e05e539fd7d20cbf670e1570b^{tree})" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
           git merge-base --is-ancestor d3e7404791622541a4567ddd506f27caba60cfea "$EXPECTED_HEAD"
-          git merge-base --is-ancestor caa7daa8ed32143b6884f938d576f795b828684f "$EXPECTED_HEAD"
+          git merge-base --is-ancestor d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5 "$EXPECTED_HEAD"
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -85,7 +91,7 @@ jobs:
           python3 -I -B scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py | tee "$out"
           for marker in \
             'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_ACCEPTANCE_V2_PROOF_GREEN' \
-            'acceptance_id=voidbuypresalefreezeaccept2_88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4' \
+            'acceptance_id=voidbuypresalefreezeaccept2_427988497e4789465dde1c193668bb140d017c4e3ba3748567ea4e3bacfadb57' \
             'source_freeze_accepted=true' \
             'source_snapshot_fixed=true' \
             'auto_adopt_new_main_commits=false' \
@@ -95,6 +101,8 @@ jobs:
             'cross_node_candidate_identity_verified=true' \
             'cross_node_current_integration_identity_verified=true' \
             'source_identity_acceptance_only=true' \
+            'freeze_payment_semantics_evidence_bound=true' \
+            'legacy_btc_coupled_field_payment_asset_authority=false' \
             'payment_rail_policy_accepted=false' \
             'host_install_qualified=false' \
             'live_runtime_evidence_qualified=false' \
@@ -122,6 +130,8 @@ jobs:
             'protected_path_delta_count=0' \
             'reviewed_economic_source_file_count=28' \
             'reviewed_economic_source_delta_count=0' \
+            'historical_commit_objects_required=false' \
+            'reviewed_economic_source_inventory_reproduced=true' \
             'accepted_enforcement_set_preserved=true' \
             'current_source_enforcement_successor_accepted=true' \
             'current_source_enforcement_successor_required=false' \

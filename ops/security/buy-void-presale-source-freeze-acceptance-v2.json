@@ -16,14 +16,14 @@
     "later_main_changes_require_separate_review": true
   },
   "enforcement_successor": {
-    "review_head": "caa7daa8ed32143b6884f938d576f795b828684f",
+    "review_head": "d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5",
     "path": "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json",
     "git_blob_sha1": "774db38ccb771f393b44d589a455144b99d36f6b",
     "successor_id": "voidbuypresaleenfsucc1_819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef",
-    "hosted_workflow_run": 39104682530,
-    "artifact_node22": 12128155696,
-    "artifact_node24": 12128146272,
-    "artifact_node26": 12127529856,
+    "hosted_workflow_run": 39107024613,
+    "artifact_node22": 12128524197,
+    "artifact_node24": 12128298547,
+    "artifact_node26": 12128707222,
     "cross_node_candidate_identity_verified": true,
     "cross_node_current_integration_identity_verified": true,
     "protected_path_count": 49,
@@ -71,5 +71,5 @@
     "production_host_evidence_authority": false
   },
   "next_gate": "void_buy_void_presale_source_freeze_host_install_qualification_v2",
-  "acceptance_id": "voidbuypresalefreezeaccept2_88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4"
+  "acceptance_id": "voidbuypresalefreezeaccept2_427988497e4789465dde1c193668bb140d017c4e3ba3748567ea4e3bacfadb57"
 }

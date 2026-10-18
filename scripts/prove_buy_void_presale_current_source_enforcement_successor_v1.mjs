@@ -205,21 +205,44 @@ for(const row of candidate.current_enforcement_tracked_source_inventory_v1){
 }
 assert.deepEqual(protectedDelta,[],"frozen_source_protected_delta_present");
 
-const historicalParent=candidate.current_enforcement_parent;
-git(["cat-file","-e",historicalParent+"^{commit}"]);
 const sourcePaths=[...new Set(ECONOMIC_ARTIFACT_PATHS.map(
   p=>"src/economic/"+path.basename(p,".js")+".ts"
 ))].sort();
 assert.equal(sourcePaths.length,28);
-const economicSourceDelta=[];
+const economicSourceRows=[];
 for(const relative of sourcePaths){
-  const before=treeRow(historicalParent,relative);
-  const after=treeRow(FREEZE_SOURCE,relative);
-  if(before.git_blob_sha1!==after.git_blob_sha1||before.git_mode!==after.git_mode){
-    economicSourceDelta.push({path:relative,before,after});
-  }
+  const frozen=treeRow(FREEZE_SOURCE,relative);
+  const current=treeRow("HEAD",relative);
+  assert.deepEqual(current,frozen,"reviewed_economic_source_tree_drift:"+relative);
+  const raw=readExact(relative,4*1024*1024);
+  const blob=gitBlob(raw);
+  assert.equal(blob,current.git_blob_sha1,"reviewed_economic_source_blob_drift:"+relative);
+  economicSourceRows.push(Object.freeze({
+    path:relative,
+    bytes:raw.length,
+    git_blob_sha1:blob,
+    sha256:sha256(raw),
+  }));
 }
-assert.deepEqual(economicSourceDelta,[],"reviewed_economic_source_delta_present");
+assert.equal(economicSourceRows.length,28);
+assert.equal(
+  sha256(Buffer.from(JSON.stringify(economicSourceRows),"utf8")),
+  candidate.hosted_census_evidence.source_inventory_sha256,
+  "reviewed_economic_hosted_source_inventory_drift",
+);
+assert.equal(
+  sha256(Buffer.from(canonical(economicSourceRows),"utf8")),
+  candidate.current_inventory_evidence.canonical_source_inventory_sha256,
+  "reviewed_economic_canonical_source_inventory_drift",
+);
+assert.equal(
+  candidate.hosted_census_evidence.source_inventory_sha256,
+  "172c6be2f5e2f8d9865df516bde4bbbec65086025b779337d3b5ed2e701163be",
+);
+assert.equal(
+  candidate.current_inventory_evidence.canonical_source_inventory_sha256,
+  "2f6a49dcaa8dde179af2ed366daa2dc1a0abbc0956de61275260d29af047b280",
+);
 
 assert.deepEqual(successor.hosted_current_source_evidence,{
   census_workflow_run:CENSUS_RUN,
@@ -272,6 +295,8 @@ console.log("protected_path_count=49");
 console.log("protected_path_delta_count=0");
 console.log("reviewed_economic_source_file_count=28");
 console.log("reviewed_economic_source_delta_count=0");
+console.log("historical_commit_objects_required=false");
+console.log("reviewed_economic_source_inventory_reproduced=true");
 console.log("current_built_census_identity_matches_frozen_v4=true");
 console.log("accepted_enforcement_set_preserved=true");
 console.log("current_source_enforcement_successor_accepted=true");
