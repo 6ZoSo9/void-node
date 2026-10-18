@@ -18,20 +18,22 @@ ROOT = Path(__file__).resolve().parents[2]
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
-    "PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V6"
+    "PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V7"
 )
 PLAN_SCHEMA = (
     "void_buy_void_epoch2_dormant_first_entry_"
-    "protected_installer_bootstrap_plan_v6"
+    "protected_installer_bootstrap_plan_v7"
 )
-PLAN_PREFIX = "voidbuye2protectedbootstrapplan6_"
+PLAN_PREFIX = "voidbuye2protectedbootstrapplan7_"
 
 QUALIFIER_REL = (
     "ops/precision/"
-    "void_buy_void_epoch2_dormant_first_entry_protected_install_"
-    "bootstrap_installed_qualification_v6.py"
+    "void_buy_void_epoch2_dormant_first_entry_"
+    "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "5f7321725b306184567111c0a7831d08243ad052"
+QUALIFIER_BLOB = "a9cee971d3fd088821124b1349179fdd1cb27516"
+QUALIFIER_UPGRADER_BLOB = "7d70527d8910881f9973479b89ceef78789ad100"
+QUALIFIER_UPGRADE_PLAN_BLOB = "928568d08f56375911505af635306b715790c1f3"
 
 BOOTSTRAP_PATH = Path(
     "/opt/void-buy-void-epoch2-dormant-first-entry-"
@@ -44,6 +46,27 @@ BOOTSTRAP_SHA256 = (
     "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
 )
 BOOTSTRAP_GIT_BLOB = "b577d70666f98ac59a75b84b3dab741fe7b93a4b"
+
+BOOTSTRAP_LOCK_ID = (
+    "voidbuye2dormantbootstraplock3_"
+    "4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396"
+)
+BOOTSTRAP_CANDIDATE_ID = (
+    "voidbuye2dormantbootstrapcand3_"
+    "1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2"
+)
+BOOTSTRAP_MANIFEST_BYTES = 2_382
+BOOTSTRAP_MANIFEST_SHA256 = (
+    "8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9"
+)
+BOOTSTRAP_MANIFEST_GIT_BLOB = "de56bacb30bea0adc418e240cf3fb8d900b061ef"
+BOOTSTRAP_PREDECESSOR_SHA256 = (
+    "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
+)
+BOOTSTRAP_PREDECESSOR_MANIFEST_SHA256 = (
+    "aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662"
+)
+BOOTSTRAP_GREEN_STATE = "PROTECTED_BOOTSTRAP_V6_REPAIRED_GREEN_WITH_PREDECESSOR"
 
 LAUNCHER_LOCK_REL = (
     "ops/security/"
@@ -756,7 +779,7 @@ def checkout_snapshot(expected_head: str) -> dict[str, str]:
 
 def load_qualifier():
     raw = repository_blob(QUALIFIER_REL, QUALIFIER_BLOB)
-    module = types.ModuleType("void_e2_v6_installed_qualifier_verified")
+    module = types.ModuleType("void_e2_v6_repaired_installed_qualifier_verified")
     module.__file__ = str(ROOT / QUALIFIER_REL)
     module.__package__ = None
     try:
@@ -770,16 +793,38 @@ def load_qualifier():
         exec(code, module.__dict__)
     except Exception as exc:
         raise PlanError("qualifier_verified_execution_failed") from exc
-    if getattr(module, "MARKER", "") != (
-        "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
-        "PROTECTED_INSTALL_BOOTSTRAP_INSTALLED_QUALIFICATION_V6"
+    required = {
+        "MARKER": (
+            "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
+            "PROTECTED_BOOTSTRAP_V6_REPAIRED_INSTALLED_QUALIFICATION_V1"
+        ),
+        "UPGRADER_BLOB": QUALIFIER_UPGRADER_BLOB,
+        "PLAN_BLOB": QUALIFIER_UPGRADE_PLAN_BLOB,
+        "OLD_LOCK": (
+            "voidbuye2dormantbootstraplock3_"
+            "5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"
+        ),
+        "NEW_LOCK": BOOTSTRAP_LOCK_ID,
+        "NEW_CAND": BOOTSTRAP_CANDIDATE_ID,
+        "GREEN_STATE": BOOTSTRAP_GREEN_STATE,
+    }
+    for key, expected in required.items():
+        if getattr(module, key, None) != expected:
+            raise PlanError("qualifier_contract_mismatch:" + key)
+    if tuple(module.NEW_BOOT) != (
+        BOOTSTRAP_BYTES,
+        BOOTSTRAP_SHA256,
+        BOOTSTRAP_GIT_BLOB,
     ):
-        raise PlanError("qualifier_marker_mismatch")
-    if getattr(module, "INSTALLER_SOURCE_GIT_BLOB_SHA1", "") != (
-        "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84"
+        raise PlanError("qualifier_bootstrap_identity_mismatch")
+    if tuple(module.NEW_MAN) != (
+        BOOTSTRAP_MANIFEST_BYTES,
+        BOOTSTRAP_MANIFEST_SHA256,
+        BOOTSTRAP_MANIFEST_GIT_BLOB,
     ):
-        raise PlanError("qualifier_installer_blob_mismatch")
+        raise PlanError("qualifier_manifest_identity_mismatch")
     return module
+
 
 
 def source_dependencies() -> dict[str, Any]:
@@ -864,44 +909,28 @@ def collect_plan(
     source_dependencies()
 
     qualifier = load_qualifier()
-    installer = qualifier._load_installer()
     expected_bootstrap = {
-        "lock_id":
-            "voidbuye2dormantbootstraplock3_"
-            "4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396",
-        "candidate_id":
-            "voidbuye2dormantbootstrapcand3_"
-            "1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2",
+        "lock_id": BOOTSTRAP_LOCK_ID,
+        "candidate_id": BOOTSTRAP_CANDIDATE_ID,
         "bytes": BOOTSTRAP_BYTES,
         "sha256": BOOTSTRAP_SHA256,
         "git_blob_sha1": BOOTSTRAP_GIT_BLOB,
-        "manifest_bytes": 2382,
-        "manifest_sha256":
-            "8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9",
-        "manifest_git_blob_sha1":
-            "de56bacb30bea0adc418e240cf3fb8d900b061ef",
-        "policy_schema":
-            "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
-            "PROTECTED_INSTALL_BOOTSTRAP_POLICY_V6",
+        "manifest_bytes": BOOTSTRAP_MANIFEST_BYTES,
+        "manifest_sha256": BOOTSTRAP_MANIFEST_SHA256,
+        "manifest_git_blob_sha1": BOOTSTRAP_MANIFEST_GIT_BLOB,
     }
     observed_bootstrap = {
-        "lock_id": installer.LOCK_ID,
-        "candidate_id": installer.CANDIDATE_ID,
-        "bytes": installer.BOOTSTRAP_BYTES,
-        "sha256": installer.BOOTSTRAP_SHA256,
-        "git_blob_sha1": installer.BOOTSTRAP_GIT_BLOB_SHA1,
-        "manifest_bytes": installer.MANIFEST_BYTES,
-        "manifest_sha256": installer.MANIFEST_SHA256,
-        "manifest_git_blob_sha1": installer.MANIFEST_GIT_BLOB_SHA1,
-        "policy_schema": installer.POLICY_SCHEMA,
+        "lock_id": qualifier.NEW_LOCK,
+        "candidate_id": qualifier.NEW_CAND,
+        "bytes": qualifier.NEW_BOOT[0],
+        "sha256": qualifier.NEW_BOOT[1],
+        "git_blob_sha1": qualifier.NEW_BOOT[2],
+        "manifest_bytes": qualifier.NEW_MAN[0],
+        "manifest_sha256": qualifier.NEW_MAN[1],
+        "manifest_git_blob_sha1": qualifier.NEW_MAN[2],
     }
     if observed_bootstrap != expected_bootstrap:
         raise PlanError("qualifier_bootstrap_generation_mismatch")
-    installed_path = (
-        installer.INSTALL_ROOT / installer.BIN_DIR / installer.BOOTSTRAP_NAME
-    )
-    if installed_path != BOOTSTRAP_PATH:
-        raise PlanError("qualifier_bootstrap_path_mismatch")
 
     launcher_info = stable_artifact(
         launcher,
@@ -917,51 +946,48 @@ def collect_plan(
         expected_git_blob=None,
         label="accepted_native",
     )
-    python_info = _safe_tool(Path("/usr/bin/python3"), "qualification_python", 512 * 1024 * 1024)
-    git_info = _safe_tool(Path("/usr/bin/git"), "qualification_git", 64 * 1024 * 1024)
+    python_info = _safe_tool(
+        Path("/usr/bin/python3"),
+        "qualification_python",
+        512 * 1024 * 1024,
+    )
+    git_info = _safe_tool(
+        Path("/usr/bin/git"),
+        "qualification_git",
+        64 * 1024 * 1024,
+    )
 
     qualification_contract = {
         "qualifier_source_path": str(ROOT / QUALIFIER_REL),
         "qualifier_git_blob_sha1": QUALIFIER_BLOB,
-        "qualifier_installer_git_blob_sha1":
-            "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84",
+        "qualifier_upgrader_git_blob_sha1": QUALIFIER_UPGRADER_BLOB,
+        "qualifier_upgrade_plan_git_blob_sha1": QUALIFIER_UPGRADE_PLAN_BLOB,
         "expected_head": expected_head,
-        "root_execution_required": True,
-        "read_only_required": False,
+        "root_execution_required": False,
+        "nonroot_execution_required": True,
+        "protected_state_read_only_required": True,
         "temporary_git_metadata_write_required": True,
         "temporary_git_metadata_cleanup_required": True,
         "descriptor_bound_source_execution_required": True,
         "interpreter": python_info,
         "git_tool": git_info,
         "required_result": {
-            "version": 6,
-            "read_only": False,
             "expected_head": expected_head,
-            "accepted_lock_id": expected_bootstrap["lock_id"],
-            "candidate_id": expected_bootstrap["candidate_id"],
-            "installed_identity_green": True,
-            "policy_generation_green": True,
-            "python_generation_bound": True,
-            "git_generation_bound": True,
-            "checkout_generation_bound": True,
-            "installed_generation_stable": True,
-            "bootstrap_descriptor_bound_self_test": True,
-            "bootstrap_self_test_execution": True,
-            "bootstrap_self_test_count": 2,
-            "bootstrap_self_test_stable": True,
-            "bootstrap_sha256": BOOTSTRAP_SHA256,
-            "bootstrap_bytes": BOOTSTRAP_BYTES,
-            "bootstrap_git_blob_sha1": BOOTSTRAP_GIT_BLOB,
-            "manifest_sha256": expected_bootstrap["manifest_sha256"],
-            "manifest_bytes": expected_bootstrap["manifest_bytes"],
-            "manifest_git_blob_sha1": expected_bootstrap["manifest_git_blob_sha1"],
-            "bootstrap_execution_beyond_self_test": False,
-            "inner_installer_execution": False,
-            "protected_installer_apply": False,
-            "filesystem_write": True,
-            "protected_filesystem_mutation": False,
-            "git_boundary_policy":
-                "private_metadata_pinned_objects_raw_checkout_outer_v6",
+            "protected_state": BOOTSTRAP_GREEN_STATE,
+            "old_lock_id": (
+                "voidbuye2dormantbootstraplock3_"
+                "5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"
+            ),
+            "new_lock_id": BOOTSTRAP_LOCK_ID,
+            "new_candidate_id": BOOTSTRAP_CANDIDATE_ID,
+            "repaired_fixed_root_verified": True,
+            "predecessor_retained_verified": True,
+            "upgrade_stage_absent_verified": True,
+            "repaired_bootstrap_sha256": BOOTSTRAP_SHA256,
+            "repaired_manifest_sha256": BOOTSTRAP_MANIFEST_SHA256,
+            "predecessor_bootstrap_sha256": BOOTSTRAP_PREDECESSOR_SHA256,
+            "predecessor_manifest_sha256":
+                BOOTSTRAP_PREDECESSOR_MANIFEST_SHA256,
             "temporary_git_metadata_write_required": True,
             "temporary_git_metadata_write_performed": True,
             "temporary_git_metadata_cleanup_completed": True,
@@ -969,10 +995,12 @@ def collect_plan(
             "source_object_fetch": False,
             "repository_config_loaded": False,
             "repository_callback_execution": False,
-            "standalone_git_tool_admission": True,
             "native_parent_authority_claimed": False,
+            "filesystem_write": True,
+            "protected_filesystem_mutation": False,
+            "bootstrap_execution": False,
+            "inner_installer_execution": False,
             "service_mutation": False,
-            "systemd_mutation": False,
             "credential_access": False,
             "private_key_access": False,
             "signing": False,
@@ -1000,7 +1028,7 @@ def collect_plan(
 
     body = {
         "schema": PLAN_SCHEMA,
-        "version": 6,
+        "version": 7,
         "checkout": checkout,
         "expected_head": expected_head,
         "qualifier_git_blob_sha1": QUALIFIER_BLOB,
@@ -1018,6 +1046,7 @@ def collect_plan(
         "bootstrap_execution_performed": False,
         "protected_installer_apply_performed": False,
         "filesystem_write": False,
+        "protected_filesystem_mutation": False,
         "service_mutation": False,
         "systemd_mutation": False,
         "credential_access": False,
@@ -1055,7 +1084,9 @@ def emit_plan(result: dict[str, Any]) -> None:
     print("qualifier_git_blob_sha1=" + QUALIFIER_BLOB)
     print("installed_qualification_performed=false")
     print("installed_qualification_required_before_bootstrap_plan=true")
-    print("qualification_root_execution_required=true")
+    print("qualification_nonroot_execution_required=true")
+    print("qualification_protected_state_read_only_required=true")
+    print("qualification_temporary_git_metadata_write_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
     print("expected_installed_bootstrap_identity_bound=true")
     print("accepted_launcher_identity_green=true")
@@ -1111,6 +1142,9 @@ def source_plan() -> None:
     print("native_materializer_git_blob_sha1=" + NATIVE_MATERIALIZER_BLOB)
     print("bootstrap_path=" + str(BOOTSTRAP_PATH))
     print("installed_qualification_performed=false")
+    print("qualification_nonroot_execution_required=true")
+    print("qualification_protected_state_read_only_required=true")
+    print("qualification_temporary_git_metadata_write_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
     print("bootstrap_execution_performed=false")
     print("protected_installer_apply_performed=false")
@@ -1131,7 +1165,7 @@ def source_plan() -> None:
 def self_test() -> None:
     assert HEX40.fullmatch("a" * 40)
     assert HEX40.fullmatch("A" * 40) is None
-    assert PLAN_PREFIX == "voidbuye2protectedbootstrapplan6_"
+    assert PLAN_PREFIX == "voidbuye2protectedbootstrapplan7_"
     assert BOOTSTRAP_BYTES == 874_608
     assert BOOTSTRAP_SHA256 == (
         "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
@@ -1140,14 +1174,16 @@ def self_test() -> None:
     assert str(BOOTSTRAP_PATH).endswith("protected_install_bootstrap_v6")
     print(MARKER + "_SELF_TEST_GREEN")
     print("nonroot_plan_required=true")
-    print("merged_v6_qualifier_bound=true")
+    print("repaired_v6_qualifier_bound=true")
+    print("qualification_protected_state_read_only_required=true")
+    print("qualification_temporary_git_metadata_write_required=true")
     print("accepted_launcher_materializer_bound=true")
     print("accepted_launcher_lock_v2_bound=true")
     print("launcher_runtime_head_contract_accepted=true")
     print("launcher_superseded_v1_lock_install_authority=false")
     print("accepted_native_materializer_bound=true")
     print("strict_runtime_head_required=true")
-    print("qualification_root_execution_separate=true")
+    print("qualification_nonroot_execution_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
     print("installed_qualification_performed=false")
     print("operation_bound_plan_id=true")
