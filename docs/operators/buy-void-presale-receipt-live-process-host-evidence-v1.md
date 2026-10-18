@@ -261,3 +261,56 @@ Buffer-read boundary.
 
 Hosted adversaries reject adjacent inode values above `2^53-1` and
 one-nanosecond mtime/ctime changes.
+
+## Credential-free retained live-generation verification
+
+The current collector no longer executes the historical JavaScript collection
+plan that reads `/proc/<pid>/environ`. The reviewed launcher exports
+`NODE_PRIVKEY_PATH`, so consuming that kernel file would be credential-bearing
+even if the secret value were not printed.
+
+Instead, the collector authenticates and drives the reviewed native selector
+directly. One selector session retains manager and service pidfds from READY
+through every source, systemd, deployment-receipt and installed-receipt check;
+only then does the collector send `VERIFY` and require GREEN for the identical
+manager/service generation.
+
+Live facts are obtained without process environment access:
+
+- `MainPID`, `InvocationID`, and working directory use read-only
+  `systemctl --user show` over the root-owned runtime bus;
+- process `stat`, `status`, `cgroup`, `cmdline`, `exe`, and `cwd`
+  are bounded, descriptor-read kernel observations;
+- source commit/tree/main are derived from the exact reviewed launcher argv and
+  requalified against the clean root-custodied release Git tree;
+- the expected canonical-producer `NODE_OPTIONS` digest is derived from the
+  reviewed `src/index.ts` generation and guard mapping, not read from
+  `environ`;
+- launch-time loader-variable absence and canonical-role fields remain
+  authenticated fields of the exact root-custodied, content-addressed V2
+  live-process receipt.
+
+The report truth is therefore:
+
+```text
+process_environment_read_performed=false
+systemd_metadata_query_performed=true
+launch_environment_fields_receipt_attested=true
+credential_access=false
+```
+
+The collector performs no receipt publication, filesystem write, service
+mutation, network contact, wallet/signer access, payment acceptance,
+transaction, presale/WC activation, treasury/liquidity action, or funds
+movement.
+
+## Exact filesystem-generation identity
+
+Receipt leaf and ancestor generation checks use BigInt stat observations end to
+end. `dev`, `ino`, `uid`, `gid`, `mode`, `nlink`, `size`,
+`mtimeNs`, and `ctimeNs` are compared without floating-point conversion.
+Only the bounded receipt byte length (at most 64 KiB) is converted at the
+Buffer-read boundary.
+
+Hosted adversaries reject adjacent inode values above `2^53-1` and
+one-nanosecond mtime/ctime drift.

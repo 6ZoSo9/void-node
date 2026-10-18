@@ -8,20 +8,21 @@ import { fileURLToPath } from "node:url";
 import {
   MARKER,
   PARENT_PLAN_ID,
-  testOnlyAssertFinalLiveGenerationV1,
   testOnlyAssertReceiptAncestorStableV1,
   testOnlyAssertReceiptCanonicalAncestorStableV1,
   testOnlyAssertReceiptCanonicalLeafStableV1,
+  testOnlyAssertSelectorGenerationStableV1,
+  testOnlyAssertServiceSnapshotStableV1,
+  testOnlyExpectedNodeOptionsShaV1,
   testOnlyReceiptAncestorRevalidationOrderV1,
   testOnlyReceiptLeafCustodyTrustedV1,
-  testOnlyAssertSameLiveGenerationV1,
 } from "../ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.js";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const COLLECTOR_REL=
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
-const COLLECTOR_BLOB="db1beec625c732485584c3bf590d43a2257fe3be";
+const COLLECTOR_BLOB="29bed1b9b2e6d1515a5a68c28a89dfd172eec40a";
 
 const PARENT_PLAN_REL="ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
 const PARENT_PLAN_BLOB="ad68175e629fd1cf90180db3a904f84834314fdd";
@@ -41,6 +42,12 @@ const PRIMITIVES=Object.freeze({
     "a334ab29477dec3e36862a512191b9701debb73e",
   "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts":
     "d47a6f99870f385c1bc938adbef74535b78eba1f",
+  "ops/precision/void_buy_void_source_finality_live_process_v2_selector_guard.c":
+    "b7aad6ecea7afa5b7f931b50b4b463e992b19748",
+  "ops/security/buy-void-v7-live-process-v2-selector-elf-lock-v1.json":
+    "f2c3d0c9f87ffd1e5495a6163594dbd79d7a8a96",
+  "ops/run-void-node-live-v1.sh":
+    "6fb040de128ce0df16e848d61ea5f4acb62794da",
 });
 
 function gitBlob(raw:Buffer):string{
@@ -50,16 +57,16 @@ function gitBlob(raw:Buffer):string{
 }
 function pin(relative:string,expected:string):Buffer{
   const file=path.join(ROOT,...relative.split("/"));
-  const before=fs.lstatSync(file);
-  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1,relative);
+  const before=fs.lstatSync(file,{bigint:true});
+  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1n,relative);
   const raw=fs.readFileSync(file);
-  const after=fs.lstatSync(file);
+  const after=fs.lstatSync(file,{bigint:true});
   assert.equal(after.dev,before.dev,relative+":dev");
   assert.equal(after.ino,before.ino,relative+":ino");
   assert.equal(after.size,before.size,relative+":size");
   assert.equal(after.mtimeNs,before.mtimeNs,relative+":mtime");
   assert.equal(after.ctimeNs,before.ctimeNs,relative+":ctime");
-  assert.equal(raw.length,before.size,relative+":short");
+  assert.equal(BigInt(raw.length),before.size,relative+":short");
   assert.equal(gitBlob(raw),expected,relative+":blob");
   return raw;
 }
@@ -79,59 +86,39 @@ assert.equal(MARKER,"VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V1
 
 for(const required of [
   "verifyBuyVoidSourceFinalityDeploymentReceiptV7",
-  "collectBuyVoidV2LiveProcessCollectionPlanV1",
-  "requalifyBuyVoidV2LiveSourceCustodyV1",
-  "buildBuyVoidV2LiveProcessReceiptFromPlanV1",
-  "readInstalledLiveReceiptExact(derivedFirstBytes)",
-  "readInstalledLiveReceiptExact(derivedSecondBytes)",
-  "openRootOwnedReceiptAncestors(target)",
-  "fs.constants.O_DIRECTORY",
-  "fs.constants.O_NOFOLLOW",
-  "const leafViaParent =",
-  "revalidateReceiptAncestors(heldDirectories)",
-  "const canonicalBefore = fs.lstatSync(target)",
-  "const canonicalOpened = fs.fstatSync(canonicalFd)",
-  "receiptLeafGenerationStillTrusted(",
-  "host_evidence_receipt_leaf_namespace_changed",
-  "host_evidence_canonical_receipt_bytes_changed",
-  "host_evidence_receipt_ancestor_changed_during_read",
-  "for (let index = heldDirectories.length - 1; index >= 0; index -= 1)",
-  "const finalGeneration = await collectBuyVoidV2LiveProcessCollectionPlanV1({",
-  "assertSameLiveGeneration(first, finalGeneration)",
-  "assertSameLiveGeneration(second, finalGeneration)",
-  "assertSameLiveGeneration(first, second)",
-  "deployment_receipt_id: deploymentFirst.deployment_receipt_id",
-  "live_process_binding_receipt_id: derivedFirst.receipt_id",
-  "authenticated_receipt_verified: true",
-  "same_live_process_binding_verified: true",
-  "installed_live_process_receipt_exact_bytes_match: true",
-  "receipt_ancestor_custody_revalidated: true",
-  "pre_post_live_generation_stable: true",
-  "final_post_validation_generation_revalidated: true",
-  "selector_process_execution_performed: true",
-  "source_custody_process_execution_performed: true",
-  "filesystem_write_performed: false",
-  "network_contact_performed: false",
-  "receipt_publication_performed: false",
-  "receipt_retirement_performed: false",
-  "production_host_evidence_authority: false",
+  "buildBuyVoidSourceFinalityLiveProcessBindingReceiptV2",
+  "VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1",
+  "parseBuyVoidV2SelectorLineV1",
+  "startSelectorSession(",
+  "finishSelectorSession(",
+  "pidfds_retained_during_collection=true",
+  "serviceSnapshot(uid)",
+  "systemd_metadata_query_performed:true",
+  "readInstalledLiveReceiptCandidate()",
+  "readInstalledLiveReceiptExact(canonicalBytes)",
+  "parseReviewedSourceFromCmdline(",
+  "process_environment_read_performed:false",
+  "launch_environment_fields_receipt_attested:true",
+  "credential_access:false",
+  "authenticated_receipt_verified:true",
+  "same_live_process_binding_verified:true",
+  "installed_live_process_receipt_exact_bytes_match:true",
+  "receipt_ancestor_custody_revalidated:true",
+  "selector_process_execution_performed:true",
+  "source_custody_process_execution_performed:true",
+  "filesystem_write_performed:false",
+  "network_contact_performed:false",
+  "receipt_publication_performed:false",
+  "receipt_retirement_performed:false",
+  "production_host_evidence_authority:false",
 ])assert.ok(source.includes(required),required);
-
-assert.equal(
-  source.split("await collectBuyVoidV2LiveProcessCollectionPlanV1({").length-1,
-  3,
-  "three_live_collections_required",
-);
-assert.equal(
-  source.split("requalifyBuyVoidV2LiveSourceCustodyV1(").length-1,
-  2,
-  "two_source_custody_requalifications_required",
-);
-assert.equal(
-  source.split("deploymentDecision(").length-1,
-  3,
-  "deployment_decision_helper_plus_two_calls_required",
-);
+for(const forbiddenCredentialRead of [
+  "collectBuyVoidV2LiveProcessCollectionPlanV1",
+  "/environ",
+  '"environ"',
+  "NODE_PRIVKEY_PATH",
+  "process_environment_read_performed:true",
+])assert.equal(source.includes(forbiddenCredentialRead),false,forbiddenCredentialRead);
 
 for(const forbidden of [
   "installBuyVoidV2LiveProcessReceiptCreateOnceV1",
@@ -161,19 +148,18 @@ for(const required of [
   "fs.constants.O_RDONLY",
   "fs.constants.O_NOFOLLOW",
   "function receiptLeafCustodyTrusted(",
-  "current.uid === 0",
-  "current.gid === 0",
-  "current.nlink === 1",
-  "(current.mode & 0o7777) === 0o444",
-  "current.size === expectedLength",
-  "receiptLeafCustodyTrusted(before, expected.length)",
-  "!observed.equals(expected)",
+  "current.uid === 0n",
+  "current.gid === 0n",
+  "current.nlink === 1n",
+  "(current.mode & 0o7777n) === 0o444n",
+  "current.size === BigInt(expectedLength)",
+  "readInstalledLiveReceiptCandidate()",
   "path: cursor",
-  "fs.lstatSync(held.path)",
+  "fs.lstatSync(held.path, { bigint: true })",
   "host_evidence_receipt_ancestor_namespace_changed",
-  "current.mode & 0o7777",
-  "mode: visible.mode & 0o7777",
-  "mode: held.mode & 0o7777",
+  "current.mode & 0o7777n",
+  "mode: visible.mode & 0o7777n",
+  "mode: held.mode & 0o7777n",
 ])assert.ok(source.includes(required),required);
 
 for(const stale of [
@@ -187,57 +173,49 @@ const canonicalLeafRevalidationIndex =
 assert.ok(ancestorRevalidationIndex >= 0);
 assert.ok(canonicalLeafRevalidationIndex > ancestorRevalidationIndex);
 
-const base:any={
-  plan_id:"voidbsv2colplan1_"+"1".repeat(64),
-  runtime_uid:995,
-  runtime_gid:982,
+const selectorBase=Object.freeze({
   manager_pid:101,
-  manager_start_time_ticks:"1001",
+  manager_start_ticks:"1001",
   manager_cmdline_sha256:"2".repeat(64),
   service_pid:202,
-  service_start_time_ticks:"2002",
+  service_start_ticks:"2002",
   service_cmdline_sha256:"3".repeat(64),
-  service_cgroup_v2_path:"/user.slice/user-995.slice/user@995.service/app.slice/void-node-live.service",
-  process_source_identity_marker:"VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
-  process_source_commit:"4".repeat(40),
-  process_source_tree:"5".repeat(40),
-  process_source_branch:"main",
-  systemd_invocation_id:"6".repeat(32),
-  cwd_realpath:"/opt/void-source",
-  node_options_sha256:"7".repeat(64),
-};
-testOnlyAssertSameLiveGenerationV1(base,{...base});
-for(const [key,value] of [
-  ["service_pid",203],
-  ["service_start_time_ticks","2003"],
-  ["manager_pid",102],
-  ["process_source_commit","8".repeat(40)],
-  ["systemd_invocation_id","9".repeat(32)],
+});
+testOnlyAssertSelectorGenerationStableV1(selectorBase,{...selectorBase});
+for(const [label,current] of [
+  ["manager_pid",{...selectorBase,manager_pid:102}],
+  ["manager_start",{...selectorBase,manager_start_ticks:"1002"}],
+  ["manager_cmdline",{...selectorBase,manager_cmdline_sha256:"4".repeat(64)}],
+  ["service_pid",{...selectorBase,service_pid:203}],
+  ["service_start",{...selectorBase,service_start_ticks:"2003"}],
+  ["service_cmdline",{...selectorBase,service_cmdline_sha256:"5".repeat(64)}],
 ] as const){
   let rejected=false;
-  try{
-    testOnlyAssertSameLiveGenerationV1(
-      base,
-      {...base,[key]:value},
-    );
-  }catch{
-    rejected=true;
-  }
-  assert.equal(rejected,true,"generation_drift_not_rejected:"+key);
+  try{testOnlyAssertSelectorGenerationStableV1(selectorBase,current);}catch{rejected=true;}
+  assert.equal(rejected,true,"selector_generation_drift_not_rejected:"+label);
 }
-
-let finalPhaseDriftRejected=false;
-try{
-  testOnlyAssertFinalLiveGenerationV1(
-    base,
-    {...base},
-    {...base,service_start_time_ticks:"2999",systemd_invocation_id:"a".repeat(32)},
-  );
-}catch{
-  finalPhaseDriftRejected=true;
+const snapshotBase=Object.freeze({
+  main_pid:202,
+  invocation_id:"6".repeat(32),
+  working_directory:"/opt/void-node-live/releases/"+"7".repeat(40),
+});
+testOnlyAssertServiceSnapshotStableV1(snapshotBase,{...snapshotBase});
+for(const [label,current] of [
+  ["pid",{...snapshotBase,main_pid:203}],
+  ["invocation",{...snapshotBase,invocation_id:"8".repeat(32)}],
+  ["cwd",{...snapshotBase,working_directory:"/opt/void-node-live/releases/"+"9".repeat(40)}],
+] as const){
+  let rejected=false;
+  try{testOnlyAssertServiceSnapshotStableV1(snapshotBase,current);}catch{rejected=true;}
+  assert.equal(rejected,true,"systemd_generation_drift_not_rejected:"+label);
 }
-assert.equal(finalPhaseDriftRejected,true,"final_phase_generation_drift_not_rejected");
-testOnlyAssertFinalLiveGenerationV1(base,{...base},{...base});
+assert.equal(
+  testOnlyExpectedNodeOptionsShaV1(
+    "/opt/void-node-live/releases/"+"a".repeat(40),
+    "123ec1792a027f93d4c9030749a0e7e136a75a44",
+  ).length,
+  64,
+);
 
 const receiptParent="/var/lib/void-source-finality-v7";
 const leafToRootOrder=[
@@ -463,10 +441,10 @@ for (const [label, before, reopened, after] of [
 
 console.log(MARKER+"_PROOF_GREEN");
 console.log("parent_host_evidence_plan_bound=true");
-console.log("four_reviewed_primitive_blobs_bound=true");
+console.log("reviewed_primitive_blob_count=7");
 console.log("deployment_receipt_verified_against_live_source_identity=true");
-console.log("three_live_selector_collections_required=true");
-console.log("two_source_custody_requalifications_required=true");
+console.log("single_native_selector_pidfd_session_required=true");
+console.log("source_custody_requalification_without_environment=true");
 console.log("installed_receipt_exact_bytes_match_required=true");
 console.log("receipt_ancestor_descriptor_custody_required=true");
 console.log("receipt_ancestor_post_read_revalidation_required=true");
@@ -481,11 +459,16 @@ console.log("receipt_canonical_namespace_drift_rejected=true");
 console.log("receipt_stat_identity_bigint=true");
 console.log("receipt_inode_above_js_safe_integer_drift_rejected=true");
 console.log("receipt_one_nanosecond_timestamp_drift_rejected=true");
+console.log("selector_pidfd_session_generation_stability_proved=true");
+console.log("process_environment_read_performed=false");
+console.log("credential_access=false");
+console.log("systemd_metadata_query_read_only=true");
+console.log("launch_environment_fields_receipt_attested=true");
 console.log("receipt_ancestor_special_mode_drift_rejected=true");
 console.log("receipt_ancestor_drift_rejected=true");
 console.log("pre_post_live_generation_drift_rejected=true");
 console.log("final_post_validation_generation_revalidated=true");
-console.log("restart_during_final_validation_rejected=true");
+console.log("selector_and_systemd_generation_drift_rejected=true");
 console.log("publisher_write_functions_not_imported=true");
 console.log("service_self_verifier_not_misused=true");
 console.log("receipt_read_descriptor_nofollow=true");
