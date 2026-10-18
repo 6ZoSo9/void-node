@@ -61,8 +61,8 @@ for required in (
     "base._git(tree_query)",
     "base._git(index_query)",
     "base._read_visible_file(",
-    "base._verify_checkout_bytes = tracked_verifier",
-    "base.checkout_snapshot = tracked_snapshot",
+    "module._verify_checkout_bytes = tracked_verifier",
+    "module.checkout_snapshot = tracked_snapshot",
     '"tracked_source_checkout_exact": True',
     '"untracked_paths_enumerated": False',
     '"untracked_paths_source_authority": False',
@@ -94,15 +94,16 @@ for forbidden in (
     assert forbidden not in source, forbidden
 
 # V2 inherits the reviewed V1 isolation, Git confinement, descriptor loading,
-# and native-self-test contract by exact source/proof identity.
+# and native-self-test contract by exact source/proof identity. Bind concrete
+# proof code and inherited qualifier-proof assertions rather than output labels.
 for required in (
-    "preimport_python_isolation_enforced=true",
-    "unisolated_shadow_module_blocked=true",
-    "delegated_installer_original_loader_bypassed=true",
-    "root_git_query_uid_gid_and_capability_drop_required=true",
-    "kernel_git_read_boundary_executed=true",
-    "double_descriptor_bound_native_self_test_inherited=true",
-    "pathname_swap_adversary_inherited=true",
+    "module._require_isolated_python()",
+    "checkout_local_shadow_import_executed",
+    "_guard_qualifier_installer_loader(module, expected_head)",
+    '"--reuid=1000"',
+    "KERNEL_READ_BOUNDARY_EXECUTED =",
+    "descriptor_bound_native_self_test_required=true",
+    "pathname_swap_during_self_test_rejected=true",
 ):
     assert required in base_proof, required
 for required in (
