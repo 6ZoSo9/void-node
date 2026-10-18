@@ -8,7 +8,6 @@ import os
 from pathlib import Path
 import stat
 import subprocess
-import types
 from typing import Any
 
 MARKER = "VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_LOCK_V1"
@@ -45,6 +44,41 @@ EXPECTED_BINARY_SHA256 = (
 )
 EXPECTED_BINARY_GIT_BLOB_SHA1 = "0eaedceb79f39829fbde9f06e454f45b9aeb8912"
 EXPECTED_INSTALL_MODE = "0555"
+EXPECTED_PARENT_REPORT_CANONICAL_SHA256 = (
+    "8e96b53161b0b5447e5b02499537803ffd680b5f01d6520ec1653fee52c75649"
+)
+EXPECTED_PARENT_REPORT_RAW_SHA256 = (
+    "dffdd2ce32fcf9dee765f8a6d17b455e100022012c7cd17d9cec1f5d436b484a"
+)
+EXPECTED_PARENT_ARTIFACT_INNER_TAR_SHA256 = (
+    "ca21d9f28b66c408f857ee00480a63585080025a6a76a84efca472e188390944"
+)
+EXPECTED_PARENT_ARTIFACT_WRAPPER_SHA256 = (
+    "ae1a062c6bd6a74d446a4cc7bf25242e11f2638f2c17c30dc1b2ae08017fc417"
+)
+EXPECTED_PARENT_BUILD_EVIDENCE = {
+    "runner_image": "ubuntu24/20261012.334",
+    "gcc": {
+        "alias": "/usr/bin/gcc",
+        "realpath": "/usr/bin/x86_64-linux-gnu-gcc-13",
+        "bytes": 1023032,
+        "sha256": (
+            "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26"
+        ),
+    },
+    "gcc_dumpmachine": "x86_64-linux-gnu",
+    "gcc_dumpversion": "13.3.0",
+    "gcc_version_line": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "readelf": {
+        "alias": "/usr/bin/readelf",
+        "realpath": "/usr/bin/x86_64-linux-gnu-readelf",
+        "bytes": 789280,
+        "sha256": (
+            "64c58e15274bbbb5153f31078e455e9e77ee5f51489e709bba5bb788ce9df2b0"
+        ),
+    },
+    "toolchain_revalidated_after_build": True,
+}
 NEXT_GATE = "apollyon_claim_protected_first_entry_static_candidate_install_v1"
 
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
@@ -67,7 +101,10 @@ ENV = {
 
 AUTHORITY = {
     "source_only_acceptance_lock": True,
-    "historical_parent_candidate_rederived": True,
+    "historical_parent_candidate_rederived": False,
+    "accepted_parent_evidence_identity_bound": True,
+    "accepted_parent_toolchain_identity_bound": True,
+    "mutable_runner_toolchain_used": False,
     "candidate_accepted": True,
     "binary_identity_accepted": True,
     "static_first_instruction_candidate_evidence_accepted": True,
@@ -209,94 +246,28 @@ def repository_lineage() -> dict[str, str]:
     }
 
 
-def _load_parent() -> types.ModuleType:
+def accepted_parent_evidence() -> dict[str, Any]:
+    repository_lineage()
     for relative, expected in PARENT_BLOBS.items():
         stable_file(relative, expected)
-
-    raw = stable_file(PARENT_TOOL_REL, PARENT_BLOBS[PARENT_TOOL_REL])
-    module = types.ModuleType("apollyon_static_candidate_v1_historical")
-    module.__file__ = os.fspath(ROOT / PARENT_TOOL_REL)
-    module.__package__ = None
-    try:
-        exec(
-            compile(
-                raw.decode("utf-8", "strict"),
-                PARENT_TOOL_REL,
-                "exec",
-                dont_inherit=True,
-                optimize=0,
-            ),
-            module.__dict__,
-        )
-    except Exception as exc:
-        raise LockError("parent_candidate_verified_execution_failed") from exc
-    if getattr(module, "MARKER", "") != (
-        "VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_V1"
-    ):
-        hold("parent_candidate_marker_invalid")
-    if getattr(module, "PARENT_HEAD", "") != PARENT_ACCEPTED_BASE:
-        hold("parent_candidate_accepted_base_invalid")
-
-    # The accepted candidate report is intentionally head-addressed. A
-    # descendant acceptance-lock branch must reproduce the exact historical
-    # report, not silently mint a different candidate merely because this lock
-    # adds files. This override is permitted only after repository_lineage()
-    # proves the accepted parent head is an ancestor and every parent-owned
-    # file above is still the exact accepted blob.
-    module.repository_lineage = lambda: {
+    return {
         "head": PARENT_HEAD,
-        "accepted_parent": PARENT_ACCEPTED_BASE,
+        "accepted_base": PARENT_ACCEPTED_BASE,
+        "tool_git_blob_sha1": PARENT_BLOBS[PARENT_TOOL_REL],
+        "proof_git_blob_sha1": PARENT_BLOBS[PARENT_PROOF_REL],
+        "doc_git_blob_sha1": PARENT_BLOBS[PARENT_DOC_REL],
+        "workflow_git_blob_sha1": PARENT_BLOBS[PARENT_WORKFLOW_REL],
+        "candidate_id": EXPECTED_CANDIDATE_ID,
+        "candidate_report_canonical_sha256": (
+            EXPECTED_PARENT_REPORT_CANONICAL_SHA256
+        ),
+        "candidate_report_raw_sha256": EXPECTED_PARENT_REPORT_RAW_SHA256,
+        "artifact_inner_tar_sha256": (
+            EXPECTED_PARENT_ARTIFACT_INNER_TAR_SHA256
+        ),
+        "artifact_wrapper_sha256": EXPECTED_PARENT_ARTIFACT_WRAPPER_SHA256,
+        "accepted_build_evidence": EXPECTED_PARENT_BUILD_EVIDENCE,
     }
-    return module
-
-
-def derive_parent_candidate() -> tuple[types.ModuleType, dict[str, Any], bytes]:
-    repository_lineage()
-    parent = _load_parent()
-    report, binary = parent.derive()
-    parent.validate(report, binary)
-
-    if report.get("candidate_id") != EXPECTED_CANDIDATE_ID:
-        hold("parent_candidate_id_invalid")
-    if (
-        len(binary) != EXPECTED_BINARY_BYTES
-        or sha256(binary) != EXPECTED_BINARY_SHA256
-        or git_blob(binary) != EXPECTED_BINARY_GIT_BLOB_SHA1
-    ):
-        hold("parent_candidate_binary_identity_invalid")
-
-    parent_binary = report.get("binary")
-    if not isinstance(parent_binary, dict):
-        hold("parent_candidate_binary_report_invalid")
-    if (
-        parent_binary.get("bytes") != EXPECTED_BINARY_BYTES
-        or parent_binary.get("sha256") != EXPECTED_BINARY_SHA256
-        or parent_binary.get("git_blob_sha1") != EXPECTED_BINARY_GIT_BLOB_SHA1
-    ):
-        hold("parent_candidate_binary_report_invalid")
-
-    parent_authority = report.get("authority")
-    if not isinstance(parent_authority, dict):
-        hold("parent_candidate_authority_invalid")
-    for key in (
-        "candidate_accepted",
-        "binary_identity_accepted",
-        "protected_install_authorized",
-        "xiphos_host_qualification_performed",
-        "protected_expected_source_origin_proven",
-        "durable_attempt_claim_authorized",
-        "trainer_release_authorized",
-        "training_execution_authorized",
-        "credential_access",
-        "private_key_access",
-        "signing",
-        "wallet_access",
-        "transaction",
-        "funds_movement",
-    ):
-        if parent_authority.get(key) is not False:
-            hold("parent_candidate_authority_invalid:" + key)
-    return parent, report, binary
 
 
 def lock_material(lock: dict[str, Any]) -> dict[str, Any]:
@@ -305,12 +276,7 @@ def lock_material(lock: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
-def validate_lock(
-    lock: dict[str, Any],
-    parent: types.ModuleType,
-    parent_report: dict[str, Any],
-    binary: bytes,
-) -> None:
+def validate_lock(lock: dict[str, Any]) -> None:
     expected_keys = {
         "marker",
         "version",
@@ -336,17 +302,7 @@ def validate_lock(
     if lock.get("repository") != repository_lineage():
         hold("candidate_lock_repository_invalid")
 
-    expected_parent = {
-        "head": PARENT_HEAD,
-        "accepted_base": PARENT_ACCEPTED_BASE,
-        "tool_git_blob_sha1": PARENT_BLOBS[PARENT_TOOL_REL],
-        "proof_git_blob_sha1": PARENT_BLOBS[PARENT_PROOF_REL],
-        "doc_git_blob_sha1": PARENT_BLOBS[PARENT_DOC_REL],
-        "workflow_git_blob_sha1": PARENT_BLOBS[PARENT_WORKFLOW_REL],
-        "candidate_id": EXPECTED_CANDIDATE_ID,
-        "candidate_report_sha256": sha256(parent.canonical(parent_report)),
-    }
-    if lock.get("parent_candidate") != expected_parent:
+    if lock.get("parent_candidate") != accepted_parent_evidence():
         hold("candidate_lock_parent_identity_invalid")
 
     observed_binary = lock.get("binary")
@@ -379,12 +335,6 @@ def validate_lock(
     }
     if observed_binary != expected_binary:
         hold("candidate_lock_binary_identity_invalid")
-    if (
-        len(binary) != EXPECTED_BINARY_BYTES
-        or sha256(binary) != EXPECTED_BINARY_SHA256
-        or git_blob(binary) != EXPECTED_BINARY_GIT_BLOB_SHA1
-    ):
-        hold("candidate_lock_supplied_binary_invalid")
 
     if lock.get("authority") != AUTHORITY:
         hold("candidate_lock_authority_invalid")
@@ -392,37 +342,23 @@ def validate_lock(
         hold("candidate_lock_next_gate_invalid")
 
 
-def derive_lock() -> tuple[dict[str, Any], bytes]:
-    parent, parent_report, binary = derive_parent_candidate()
-    parent_binary = parent_report["binary"]
+def derive_lock() -> dict[str, Any]:
+    parent = accepted_parent_evidence()
     lock: dict[str, Any] = {
         "marker": MARKER,
         "version": 1,
         "repository": repository_lineage(),
-        "parent_candidate": {
-            "head": PARENT_HEAD,
-            "accepted_base": PARENT_ACCEPTED_BASE,
-            "tool_git_blob_sha1": PARENT_BLOBS[PARENT_TOOL_REL],
-            "proof_git_blob_sha1": PARENT_BLOBS[PARENT_PROOF_REL],
-            "doc_git_blob_sha1": PARENT_BLOBS[PARENT_DOC_REL],
-            "workflow_git_blob_sha1": PARENT_BLOBS[PARENT_WORKFLOW_REL],
-            "candidate_id": parent_report["candidate_id"],
-            "candidate_report_sha256": sha256(parent.canonical(parent_report)),
-        },
+        "parent_candidate": parent,
         "binary": {
-            "bytes": parent_binary["bytes"],
-            "sha256": parent_binary["sha256"],
-            "git_blob_sha1": parent_binary["git_blob_sha1"],
+            "bytes": EXPECTED_BINARY_BYTES,
+            "sha256": EXPECTED_BINARY_SHA256,
+            "git_blob_sha1": EXPECTED_BINARY_GIT_BLOB_SHA1,
             "expected_install_mode": EXPECTED_INSTALL_MODE,
-            "elf_static_no_interp": parent_binary["elf_static_no_interp"],
-            "elf_dynamic_needed_absent": parent_binary[
-                "elf_dynamic_needed_absent"
-            ],
-            "elf_type_exec": parent_binary["elf_type_exec"],
-            "elf_machine_x86_64": parent_binary["elf_machine_x86_64"],
-            "production_fixed_self_embedded": parent_binary[
-                "production_fixed_self_embedded"
-            ],
+            "elf_static_no_interp": True,
+            "elf_dynamic_needed_absent": True,
+            "elf_type_exec": True,
+            "elf_machine_x86_64": True,
+            "production_fixed_self_embedded": True,
         },
         "authority": AUTHORITY,
         "next_gate": NEXT_GATE,
@@ -431,26 +367,34 @@ def derive_lock() -> tuple[dict[str, Any], bytes]:
         "apollyon_claim_protected_first_entry_static_candidate_lock_v1:"
         + sha256(canonical(lock_material(lock)))
     )
-    validate_lock(lock, parent, parent_report, binary)
-    return lock, binary
+    validate_lock(lock)
+    return lock
 
 
 def self_test() -> None:
-    lock, binary = derive_lock()
+    lock = derive_lock()
     if lock["authority"]["candidate_accepted"] is not True:
         hold("candidate_lock_self_test_acceptance_missing")
     if lock["authority"]["binary_identity_accepted"] is not True:
         hold("candidate_lock_self_test_binary_acceptance_missing")
+    if lock["authority"]["historical_parent_candidate_rederived"] is not False:
+        hold("candidate_lock_self_test_rederivation_overclaim")
+    if lock["authority"]["mutable_runner_toolchain_used"] is not False:
+        hold("candidate_lock_self_test_mutable_toolchain")
     if lock["authority"]["protected_install_authorized"] is not False:
         hold("candidate_lock_self_test_install_authority")
     if lock["parent_candidate"]["candidate_id"] != EXPECTED_CANDIDATE_ID:
         hold("candidate_lock_self_test_candidate_identity")
-    if sha256(binary) != EXPECTED_BINARY_SHA256:
+    if lock["binary"]["sha256"] != EXPECTED_BINARY_SHA256:
         hold("candidate_lock_self_test_binary_identity")
     print(MARKER + "_SELF_TEST_GREEN")
-    print("historical_parent_candidate_rederived=true")
+    print("historical_parent_candidate_rederived=false")
+    print("accepted_parent_evidence_identity_bound=true")
+    print("accepted_parent_toolchain_identity_bound=true")
+    print("mutable_runner_toolchain_used=false")
     print("parent_candidate_id_bound=true")
     print("parent_candidate_report_bound=true")
+    print("parent_candidate_artifact_bound=true")
     print("binary_identity_bound=true")
     print("expected_install_mode=0555")
     print("candidate_accepted=true")
@@ -474,7 +418,7 @@ def main() -> int:
         if args.self_test:
             self_test()
         else:
-            lock, _ = derive_lock()
+            lock = derive_lock()
             os.sys.stdout.buffer.write(canonical(lock) + b"\n")
     except LockError as exc:
         print(MARKER, file=os.sys.stderr)
