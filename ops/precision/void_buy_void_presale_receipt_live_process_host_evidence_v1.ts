@@ -56,6 +56,7 @@ type EvidenceReport = Readonly<{
   same_live_process_binding_verified: true;
   installed_live_process_receipt_exact_bytes_match: true;
   pre_post_live_generation_stable: true;
+  final_post_validation_generation_revalidated: true;
   process_environment_read_performed: true;
   selector_process_execution_performed: true;
   source_custody_process_execution_performed: true;
@@ -318,6 +319,18 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
   }
   readInstalledLiveReceiptExact(derivedSecondBytes);
 
+  // Final selector observation occurs only after all B-side deployment,
+  // source-custody, derivation and installed-receipt checks. No selector
+  // pidfd/lifecycle lease survives collect(), so this third boundary proves
+  // the validated generation is still live at the end of validation.
+  const finalGeneration = await collectBuyVoidV2LiveProcessCollectionPlanV1({
+    runtime_uid: uid,
+    runtime_gid: gid,
+  });
+  assertPlanAuthority(finalGeneration);
+  assertSameLiveGeneration(first, finalGeneration);
+  assertSameLiveGeneration(second, finalGeneration);
+
   return Object.freeze({
     schema: SCHEMA,
     marker: MARKER,
@@ -343,6 +356,7 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
     same_live_process_binding_verified: true,
     installed_live_process_receipt_exact_bytes_match: true,
     pre_post_live_generation_stable: true,
+    final_post_validation_generation_revalidated: true,
     process_environment_read_performed: true,
     selector_process_execution_performed: true,
     source_custody_process_execution_performed: true,
@@ -372,6 +386,16 @@ export function testOnlyAssertSameLiveGenerationV1(
   assertSameLiveGeneration(first, second);
 }
 
+export function testOnlyAssertFinalLiveGenerationV1(
+  first: BuyVoidV2LiveProcessCollectionPlanV1,
+  second: BuyVoidV2LiveProcessCollectionPlanV1,
+  finalGeneration: BuyVoidV2LiveProcessCollectionPlanV1,
+): void {
+  assertSameLiveGeneration(first, second);
+  assertSameLiveGeneration(first, finalGeneration);
+  assertSameLiveGeneration(second, finalGeneration);
+}
+
 function selfTest(): void {
   assert.equal(PARENT_PLAN_ID.length, "voidbuyhostevplan1_".length + 64);
   assert.equal(
@@ -389,6 +413,8 @@ function selfTest(): void {
   console.log("source_custody_requalification_required=true");
   console.log("installed_live_receipt_exact_byte_match_required=true");
   console.log("pre_post_live_generation_stability_required=true");
+  console.log("final_post_validation_generation_revalidation_required=true");
+  console.log("three_selector_observations_required=true");
   console.log("selector_process_execution_performed_by_future_host_run=true");
   console.log("source_custody_process_execution_performed_by_future_host_run=true");
   console.log("filesystem_write_performed=false");

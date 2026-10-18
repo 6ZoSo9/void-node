@@ -84,7 +84,16 @@ The collector performs this sequence:
    source commit/tree, invocation ID, cgroup/cmdline identity and runtime IDs;
 10. reverify the deployment receipt and source custody for generation B;
 11. independently rederive the V2 receipt and require identical receipt bytes;
-12. reread the installed receipt and require the same exact bytes.
+12. reread the installed receipt and require the same exact bytes;
+13. **after every B-side check above has completed**, collect live generation C
+    through a third independent selector session; and
+14. require A = B = C across the complete manager/service/source/invocation
+    identity.
+
+The selector does not return a lifecycle lease or retained pidfd to this
+collector. The final C observation therefore closes the interval that B alone
+could not bound: a restart during deployment/custody/receipt validation must
+HOLD instead of being reported as a stable live generation.
 
 Any source/process/receipt generation drift causes HOLD.
 
@@ -94,7 +103,7 @@ This collector is read-only with respect to persistent host state, but it is
 **not metadata-only**.
 
 A future authorized host run executes:
-- the existing reviewed selector process twice;
+- the existing reviewed selector process three times;
 - the existing reviewed source-custody requalification child twice.
 
 The report therefore states:
@@ -134,6 +143,7 @@ selector_generation_verified=true
 same_live_process_binding_verified=true
 installed_live_process_receipt_exact_bytes_match=true
 pre_post_live_generation_stable=true
+final_post_validation_generation_revalidated=true
 ```
 
 It must still keep:

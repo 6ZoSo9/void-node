@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import {
   MARKER,
   PARENT_PLAN_ID,
+  testOnlyAssertFinalLiveGenerationV1,
   testOnlyAssertSameLiveGenerationV1,
 } from "../ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.js";
 
@@ -78,6 +79,9 @@ for(const required of [
   "buildBuyVoidV2LiveProcessReceiptFromPlanV1",
   "readInstalledLiveReceiptExact(derivedFirstBytes)",
   "readInstalledLiveReceiptExact(derivedSecondBytes)",
+  "const finalGeneration = await collectBuyVoidV2LiveProcessCollectionPlanV1({",
+  "assertSameLiveGeneration(first, finalGeneration)",
+  "assertSameLiveGeneration(second, finalGeneration)",
   "assertSameLiveGeneration(first, second)",
   "deployment_receipt_id: deploymentFirst.deployment_receipt_id",
   "live_process_binding_receipt_id: derivedFirst.receipt_id",
@@ -85,6 +89,7 @@ for(const required of [
   "same_live_process_binding_verified: true",
   "installed_live_process_receipt_exact_bytes_match: true",
   "pre_post_live_generation_stable: true",
+  "final_post_validation_generation_revalidated: true",
   "selector_process_execution_performed: true",
   "source_custody_process_execution_performed: true",
   "filesystem_write_performed: false",
@@ -96,8 +101,8 @@ for(const required of [
 
 assert.equal(
   source.split("await collectBuyVoidV2LiveProcessCollectionPlanV1({").length-1,
-  2,
-  "two_live_collections_required",
+  3,
+  "three_live_collections_required",
 );
 assert.equal(
   source.split("requalifyBuyVoidV2LiveSourceCustodyV1(").length-1,
@@ -182,14 +187,29 @@ for(const [key,value] of [
   assert.equal(rejected,true,"generation_drift_not_rejected:"+key);
 }
 
+let finalPhaseDriftRejected=false;
+try{
+  testOnlyAssertFinalLiveGenerationV1(
+    base,
+    {...base},
+    {...base,service_start_time_ticks:"2999",systemd_invocation_id:"a".repeat(32)},
+  );
+}catch{
+  finalPhaseDriftRejected=true;
+}
+assert.equal(finalPhaseDriftRejected,true,"final_phase_generation_drift_not_rejected");
+testOnlyAssertFinalLiveGenerationV1(base,{...base},{...base});
+
 console.log(MARKER+"_PROOF_GREEN");
 console.log("parent_host_evidence_plan_bound=true");
 console.log("four_reviewed_primitive_blobs_bound=true");
 console.log("deployment_receipt_verified_against_live_source_identity=true");
-console.log("two_live_selector_collections_required=true");
+console.log("three_live_selector_collections_required=true");
 console.log("two_source_custody_requalifications_required=true");
 console.log("installed_receipt_exact_bytes_match_required=true");
 console.log("pre_post_live_generation_drift_rejected=true");
+console.log("final_post_validation_generation_revalidated=true");
+console.log("restart_during_final_validation_rejected=true");
 console.log("publisher_write_functions_not_imported=true");
 console.log("service_self_verifier_not_misused=true");
 console.log("receipt_read_descriptor_nofollow=true");

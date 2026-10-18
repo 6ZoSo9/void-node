@@ -89,9 +89,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 88d309e87d5862302ab0f6ac942a06f75020c9c9
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = a808c43ef819077c7cd5199149c866a3ae89a668
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = 200e2bbfdf1c0c77ee39ac049a3bf5fccc64d1cb
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 29fe60635437e5d21e1a47a54467ec876ca1e853
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = c5f0b8a691e2da27f0eb974a166fd4f64193a31f
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = b4e9e6f735e16bcceff9671dcb5b17b2811d8b5f
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -119,10 +119,12 @@ jobs:
             'parent_host_evidence_plan_bound=true' \
             'four_reviewed_primitive_blobs_bound=true' \
             'deployment_receipt_verified_against_live_source_identity=true' \
-            'two_live_selector_collections_required=true' \
+            'three_live_selector_collections_required=true' \
             'two_source_custody_requalifications_required=true' \
             'installed_receipt_exact_bytes_match_required=true' \
             'pre_post_live_generation_drift_rejected=true' \
+            'final_post_validation_generation_revalidated=true' \
+            'restart_during_final_validation_rejected=true' \
             'publisher_write_functions_not_imported=true' \
             'service_self_verifier_not_misused=true' \
             'receipt_read_descriptor_nofollow=true' \
@@ -148,6 +150,8 @@ jobs:
             'source_custody_requalification_required=true' \
             'installed_live_receipt_exact_byte_match_required=true' \
             'pre_post_live_generation_stability_required=true' \
+            'final_post_validation_generation_revalidation_required=true' \
+            'three_selector_observations_required=true' \
             'selector_process_execution_performed_by_future_host_run=true' \
             'source_custody_process_execution_performed_by_future_host_run=true' \
             'filesystem_write_performed=false' \
