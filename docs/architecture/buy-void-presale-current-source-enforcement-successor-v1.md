@@ -66,6 +66,13 @@ The successor therefore accepts only:
 
 `current_source_enforcement_successor_accepted=true`.
 
+This successor's own CI rebuilds and rederives the candidate independently on
+Node 22, 24, and 26. Those three **current successor** candidate JSON files must
+be byte-identical to one another and must preserve the accepted enforcement-set
+hash and protected-inventory digest. They are not required to reuse the
+historical candidate JSON file hash; the historical bytes remain separately
+bound above by #3491's exact-head evidence.
+
 ## Successor identity
 
 `voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad`
