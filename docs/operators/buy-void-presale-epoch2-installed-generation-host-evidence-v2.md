@@ -81,9 +81,11 @@ or execution authority.
 Untracked checkout files cannot enter this lane through Python import search:
 
 - V2 enforces isolated/safe-path Python before any shadowable import;
-- active `sys.path` entries may not equal the materialized repository root or
-  any directory beneath it, so checkout-local untracked modules cannot become
-  import authority through an injected search root;
+- active `sys.path` entries may not equal either the materialized source
+  repository root or V1's fixed Precision checkout
+  `/home/zoso/dev/void-node`, nor any directory beneath either root;
+- the fixed Precision checkout remains protected even when the exact V2 wrapper
+  and exact V1 source are copied to another materialization location;
 - the exact V1 source is compiled from descriptor-authenticated bytes;
 - V1 loads the exact qualifier and installer from authenticated Git objects and
   descriptor-matched tracked files;
@@ -93,9 +95,10 @@ Untracked checkout files cannot enter this lane through Python import search:
 The focused proof places untracked `hashlib.py`, `argparse.py`,
 `sitecustomize.py`, `__future__.py`, `data_a/...`, and `node_modules/...` files
 beside an exact tracked fixture and requires GREEN without issuing an untracked
-Git query. It also injects the exact repository root into the imported module's
-`sys.path` and requires `python_path_source_checkout_exposure` before any
-delegated collection. Tracked byte/index drift still fails closed.
+Git query. It injects both the materialized source root and a descendant of the
+fixed Precision checkout into the imported module's `sys.path`; both must HOLD
+before delegated collection, and the copied-wrapper adversary must not execute
+its hostile `selectors.py`. Tracked byte/index drift still fails closed.
 
 ## Inherited host execution
 

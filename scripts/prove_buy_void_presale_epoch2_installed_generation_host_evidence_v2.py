@@ -17,7 +17,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
 )
-TARGET_BLOB = "21bff27aa7634823f827477222a93d736d91ec38"
+TARGET_BLOB = "d04924eafb9bba33be43aedac87612728a56e61f"
 BASE_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
@@ -57,6 +57,8 @@ assert source.index("raise SystemExit(2)") < shadowable
 
 for required in (
     'BASE_GIT_BLOB_SHA1 = "' + BASE_BLOB + '"',
+    'FIXED_CHECKOUT = Path("/home/zoso/dev/void-node")',
+    'getattr(module, "FIXED_CHECKOUT", None) != FIXED_CHECKOUT',
     "def _verify_tracked_checkout_bytes(",
     "base._git(tree_query)",
     "base._git(index_query)",
@@ -107,6 +109,7 @@ for required in (
 ):
     assert required in base_proof, required
 for required in (
+    'FIXED_CHECKOUT = Path("/home/zoso/dev/void-node")',
     "def _verify_checkout_bytes(",
     "def checkout_snapshot(",
     "def collect(",
@@ -147,10 +150,14 @@ assert "status" not in tracked_source
 isolation_source = ast.get_source_segment(
     source, functions["_require_isolated_python"]
 ) or ""
-assert "checkout_root = Path(__file__).resolve(strict=False).parents[2]" in isolation_source
-assert "candidate == checkout_root or checkout_root in candidate.parents" in isolation_source
+assert "source_checkout = Path(__file__).resolve(strict=False).parents[2]" in isolation_source
+assert "FIXED_CHECKOUT.resolve(strict=False)" in isolation_source
+assert "candidate == protected or protected in candidate.parents" in isolation_source
 
 load_source = ast.get_source_segment(source, functions["_load_patched_base_module"]) or ""
+assert load_source.index("_require_isolated_python()") < load_source.index(
+    "_read_exact_base_source(source_path)"
+)
 assert load_source.index("_read_exact_base_source(source_path)") < load_source.index("exec(")
 assert load_source.index("module._verify_checkout_bytes = tracked_verifier") < load_source.index("return module")
 assert load_source.index("module.checkout_snapshot = tracked_snapshot") < load_source.index("return module")
@@ -167,6 +174,7 @@ base = module._load_patched_base_module()
 assert base.MARKER == module.BASE_MARKER
 assert base.SCHEMA == module.BASE_SCHEMA
 assert base.PARENT_PLAN_ID == module.PARENT_PLAN_ID
+assert base.FIXED_CHECKOUT == module.FIXED_CHECKOUT
 assert base._verify_checkout_bytes.__name__ == "tracked_verifier"
 assert base.checkout_snapshot.__name__ == "tracked_snapshot"
 
@@ -181,7 +189,7 @@ def expect_hold(action, reason: str) -> None:
 
 
 # Even under isolated Python, a site-provided search path must not expose the
-# materialized checkout as import authority.
+# materialized source checkout as import authority.
 saved_sys_path = list(module.sys.path)
 try:
     module.sys.path.insert(0, str(ROOT))
@@ -193,6 +201,38 @@ finally:
     module.sys.path[:] = saved_sys_path
 module._require_isolated_python()
 
+# A copied V2 wrapper must still reject V1's fixed Precision checkout before
+# executing exact V1 bytes. A hostile shadow module therefore cannot run.
+with tempfile.TemporaryDirectory(prefix="void-epoch2-v2-fixed-checkout-") as td:
+    root = Path(td)
+    copied_source = root / "copy/ops/precision/target.py"
+    copied_source.parent.mkdir(parents=True)
+    copied_source.write_bytes(source_bytes)
+    fixed_checkout = root / "precision-checkout"
+    hostile = fixed_checkout / "scripts"
+    hostile.mkdir(parents=True)
+    marker = root / "shadow-executed"
+    (hostile / "selectors.py").write_text(
+        "from pathlib import Path\nPath(" + repr(str(marker)) + ").write_text('executed')\n",
+        encoding="utf-8",
+    )
+    saved_file = module.__file__
+    saved_fixed = module.FIXED_CHECKOUT
+    saved_path = list(module.sys.path)
+    try:
+        module.__file__ = str(copied_source)
+        module.FIXED_CHECKOUT = fixed_checkout
+        module.sys.path.insert(0, str(hostile))
+        expect_hold(
+            module._load_patched_base_module,
+            "python_path_source_checkout_exposure",
+        )
+        assert not marker.exists()
+    finally:
+        module.__file__ = saved_file
+        module.FIXED_CHECKOUT = saved_fixed
+        module.sys.path[:] = saved_path
+module._require_isolated_python()
 
 # The base source reader is descriptor-bound and rejects path substitution.
 with tempfile.TemporaryDirectory(prefix="void-epoch2-v2-base-source-") as td:
@@ -383,6 +423,7 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v2-shadow-") as td:
 print(MARKER + "_PROOF_GREEN")
 print("exact_base_v1_source_blob_bound=true")
 print("exact_base_v1_proof_blob_bound=true")
+print("base_v1_fixed_checkout_contract_bound=true")
 print("base_v1_source_descriptor_bound=true")
 print("base_v1_source_symlink_fifo_rejected=true")
 print("tracked_tree_index_worktree_equality_required=true")
@@ -393,6 +434,7 @@ print("untracked_paths_source_authority=false")
 print("large_untracked_runtime_tree_compatible=true")
 print("checkout_shadow_modules_outside_isolated_loader=true")
 print("checkout_root_sys_path_injection_rejected=true")
+print("fixed_checkout_sys_path_injection_rejected_before_base_exec=true")
 print("delegated_original_status_bypassed=true")
 print("base_native_self_test_contract_inherited=true")
 print("receipt_checkout_clean_overclaim_rejected=true")

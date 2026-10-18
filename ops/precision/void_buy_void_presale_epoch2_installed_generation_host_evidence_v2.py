@@ -61,6 +61,7 @@ BASE_NAME = "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.
 BASE_GIT_BLOB_SHA1 = "6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577"
 BASE_MARKER = "VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1"
 BASE_SCHEMA = "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1"
+FIXED_CHECKOUT = Path("/home/zoso/dev/void-node")
 MAX_BASE_SOURCE_BYTES = 2 * 1024 * 1024
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
@@ -95,12 +96,19 @@ def _same_stat(a: os.stat_result, b: os.stat_result) -> bool:
 def _require_isolated_python() -> None:
     if sys.flags.isolated != 1 or not getattr(sys.flags, "safe_path", False):
         raise EvidenceError("python_isolated_mode_required")
-    checkout_root = Path(__file__).resolve(strict=False).parents[2]
+    source_checkout = Path(__file__).resolve(strict=False).parents[2]
+    protected_roots = (
+        source_checkout,
+        FIXED_CHECKOUT.resolve(strict=False),
+    )
     for entry in sys.path:
         if not isinstance(entry, str) or entry == "":
             raise EvidenceError("python_path_not_isolated")
         candidate = Path(entry).resolve(strict=False)
-        if candidate == checkout_root or checkout_root in candidate.parents:
+        if any(
+            candidate == protected or protected in candidate.parents
+            for protected in protected_roots
+        ):
             raise EvidenceError("python_path_source_checkout_exposure")
 
 
@@ -257,6 +265,7 @@ def _load_patched_base_module() -> types.ModuleType:
         getattr(module, "MARKER", None) != BASE_MARKER
         or getattr(module, "SCHEMA", None) != BASE_SCHEMA
         or getattr(module, "PARENT_PLAN_ID", None) != PARENT_PLAN_ID
+        or getattr(module, "FIXED_CHECKOUT", None) != FIXED_CHECKOUT
         or not callable(getattr(module, "_verify_checkout_bytes", None))
         or not callable(getattr(module, "checkout_snapshot", None))
         or not callable(getattr(module, "collect", None))
@@ -369,6 +378,7 @@ def self_test() -> None:
     print("checkout_clean_claimed=false")
     print("isolated_loader_blocks_checkout_shadow_modules=true")
     print("checkout_root_sys_path_guard_enabled=true")
+    print("fixed_checkout_sys_path_guard_enabled=true")
     print("native_self_test_execution_performed_by_future_host_run=true")
     print("runner_execution=false")
     print("live_composition_execution=false")
