@@ -190,7 +190,13 @@ function stableReadFd(fd,maxBytes,code){
     before=fs.fstatSync(fd);
     if(!before.isFile()||before.isSymbolicLink?.()||
        before.size<2||before.size>maxBytes)fail(code);
-    bytes=fs.readFileSync(fd);
+    bytes=Buffer.alloc(before.size);
+    let offset=0;
+    while(offset<bytes.length){
+      const got=fs.readSync(fd,bytes,offset,bytes.length-offset,offset);
+      if(got<=0)fail(code);
+      offset+=got;
+    }
     after=fs.fstatSync(fd);
   }catch(error){
     if(error?.message===code)throw error;
@@ -199,7 +205,7 @@ function stableReadFd(fd,maxBytes,code){
   if(!sameIdentity(identity(before),identity(after))||bytes.length!==before.size){
     fail(code);
   }
-  return Buffer.from(bytes);
+  return bytes;
 }
 function parseCanonicalRecordBytes(bytes,code){
   if(!Buffer.isBuffer(bytes)||bytes.length<3||bytes.length>MAX_RECORD_BYTES)fail(code);
