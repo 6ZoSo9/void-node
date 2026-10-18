@@ -103,7 +103,14 @@ identity with the supplied binary. A report whose candidate ID and binary
 hashes have been recomputed around arbitrary non-ELF bytes or a mutated ELF
 therefore still fails closed.
 
-Re-addressed source/toolchain/binary/authority/next-gate drift is rejected.
+The nested `binary` object is also schema-closed: its key set must exactly
+match the reviewed binary identity/evidence fields. Adding contradictory or
+future-looking members such as `candidate_accepted` and recomputing the outer
+candidate ID is rejected before those values can become ambiguous to a later
+consumer.
+
+Re-addressed source/toolchain/binary/authority/next-gate drift and binary
+extra-key drift are rejected.
 
 ## Hosted artifact
 
