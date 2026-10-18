@@ -31,9 +31,9 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "a9cee971d3fd088821124b1349179fdd1cb27516"
+QUALIFIER_BLOB = "04c7ca5f0d96dcb60faeae8cf4d712435ad65466"
 QUALIFIER_UPGRADER_BLOB = "7d70527d8910881f9973479b89ceef78789ad100"
-QUALIFIER_UPGRADE_PLAN_BLOB = "928568d08f56375911505af635306b715790c1f3"
+QUALIFIER_UPGRADE_PLAN_BLOB = "ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78"
 
 BOOTSTRAP_PATH = Path(
     "/opt/void-buy-void-epoch2-dormant-first-entry-"
@@ -968,6 +968,7 @@ def collect_plan(
         "protected_state_read_only_required": True,
         "temporary_git_metadata_write_required": True,
         "temporary_git_metadata_cleanup_required": True,
+        "qualification_git_callbacks_neutralized_required": True,
         "descriptor_bound_source_execution_required": True,
         "interpreter": python_info,
         "git_tool": git_info,
@@ -991,6 +992,7 @@ def collect_plan(
             "temporary_git_metadata_write_required": True,
             "temporary_git_metadata_write_performed": True,
             "temporary_git_metadata_cleanup_completed": True,
+            "qualification_git_callbacks_neutralized": True,
             "source_repository_mutation": False,
             "source_object_fetch": False,
             "repository_config_loaded": False,
@@ -1087,6 +1089,7 @@ def emit_plan(result: dict[str, Any]) -> None:
     print("qualification_nonroot_execution_required=true")
     print("qualification_protected_state_read_only_required=true")
     print("qualification_temporary_git_metadata_write_required=true")
+    print("qualification_git_callbacks_neutralized_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
     print("expected_installed_bootstrap_identity_bound=true")
     print("accepted_launcher_identity_green=true")
@@ -1145,6 +1148,7 @@ def source_plan() -> None:
     print("qualification_nonroot_execution_required=true")
     print("qualification_protected_state_read_only_required=true")
     print("qualification_temporary_git_metadata_write_required=true")
+    print("qualification_git_callbacks_neutralized_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
     print("bootstrap_execution_performed=false")
     print("protected_installer_apply_performed=false")
@@ -1177,6 +1181,7 @@ def self_test() -> None:
     print("repaired_v6_qualifier_bound=true")
     print("qualification_protected_state_read_only_required=true")
     print("qualification_temporary_git_metadata_write_required=true")
+    print("qualification_git_callbacks_neutralized_required=true")
     print("accepted_launcher_materializer_bound=true")
     print("accepted_launcher_lock_v2_bound=true")
     print("launcher_runtime_head_contract_accepted=true")
