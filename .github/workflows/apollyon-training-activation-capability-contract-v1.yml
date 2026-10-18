@@ -51,16 +51,25 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
-            4fbecc137f5ee08a4a471cd2b45944285810a7e8
+            790fb4f5b1f04017d9f7c970d57b25c764d9949b
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
-            fc6c0050de47b46d60ba5eb750897d67b19dff36
+            86f4d8e16a4d57f246c64b2c8d9ec20ab46ac2b0
           test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
             f70351803ec89227fd345f6e1a423542402eba87
 
+          external_consumption_ref=refs/heads/ren/apollyon-training-start-consumption-contract-v1-20261016
           external_consumption_head=fdf47e77cd12eee38efe741edb02fa2fd39135e2
           external_consumption_blob=60987b860fb7159d88f4f601b76878e7d8ccca92
-          test "$(git cat-file -t "$external_consumption_head")" = commit
-          test "$(git rev-parse "$external_consumption_head:tools/apollyon-training-start-consumption-contract-v1.mjs")" = \
+
+          GIT_TERMINAL_PROMPT=0 git fetch \
+            --no-tags \
+            --depth=1 \
+            origin \
+            "$external_consumption_ref"
+
+          test "$(git rev-parse FETCH_HEAD)" = "$external_consumption_head"
+          test "$(git cat-file -t FETCH_HEAD)" = commit
+          test "$(git rev-parse FETCH_HEAD:tools/apollyon-training-start-consumption-contract-v1.mjs)" = \
             "$external_consumption_blob"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
@@ -117,6 +126,8 @@ jobs:
           grep -Fx 'external_consumption_validation_performed=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'activation_secret_possession_proven=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'activation_generation_bound=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'start_ticks_preclone_length_bound=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'start_ticks_u64_range_bound=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'trainer_generation_external_validation_performed=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'training_start_consumption_record_origin_proven=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'training_start_consumption_performed=false' /tmp/apollyon-activation-capability-proof.txt
