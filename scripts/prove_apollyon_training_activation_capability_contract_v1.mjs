@@ -20,7 +20,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="c5ceb336c3db97aa141f9d442286130f4a462c46";
+const SOURCE_BLOB="b4e667fc425e4ca8a5d39bbd3b92989282d39e3b";
 const PARENT_HEAD="1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae";
 const CONSUMPTION_HEAD="fdf47e77cd12eee38efe741edb02fa2fd39135e2";
 const CONSUMPTION_BLOB="60987b860fb7159d88f4f601b76878e7d8ccca92";
@@ -42,6 +42,22 @@ function cloned(value){
 }
 function expectRejected(fn,pattern){
   assert.throws(fn,pattern);
+}
+function reflectionTrapProxy(target){
+  let trapCalls=0;
+  const trip=()=>{
+    trapCalls+=1;
+    throw new Error("proxy_trap_invoked");
+  };
+  return {
+    proxy:new Proxy(target,{
+      get:trip,
+      getPrototypeOf:trip,
+      getOwnPropertyDescriptor:trip,
+      ownKeys:trip,
+    }),
+    trapCalls:()=>trapCalls,
+  };
 }
 
 const EXACT_BLOBS=Object.freeze({
@@ -163,6 +179,23 @@ assert.equal(capability.raw_capability_export_authorized,false);
 assert.equal(capability.direct_systemd_start_without_capability_authorized,false);
 assert.equal(capability.systemd_caller_identity_authoritative,false);
 assert.equal(capability.training_execution_authorized,false);
+
+{
+  const hostile=reflectionTrapProxy(capabilityMaterial);
+  expectRejected(
+    ()=>buildApollyonTrainingActivationCapabilityV1(hostile.proxy),
+    /capability_invalid/u,
+  );
+  assert.equal(hostile.trapCalls(),0);
+}
+{
+  const hostile=reflectionTrapProxy(capability);
+  expectRejected(
+    ()=>qualifyApollyonTrainingActivationCapabilityV1(hostile.proxy),
+    /capability_invalid/u,
+  );
+  assert.equal(hostile.trapCalls(),0);
+}
 
 const capabilityText=canonicalApollyonTrainingActivationV1(capability);
 assert.equal(capabilityText.includes(secret.toString("hex")),false);
@@ -395,6 +428,29 @@ assert.equal(binding.training_start_consumption_performed,false);
 assert.equal(binding.training_start_admission,false);
 assert.equal(binding.training_release_authorized,false);
 assert.equal(binding.training_execution_authorized,false);
+
+{
+  const hostile=reflectionTrapProxy(bindingMaterial);
+  expectRejected(
+    ()=>buildApollyonTrainingActivationGenerationBindingV1(
+      capability,
+      hostile.proxy,
+    ),
+    /binding_invalid/u,
+  );
+  assert.equal(hostile.trapCalls(),0);
+}
+{
+  const hostile=reflectionTrapProxy(binding);
+  expectRejected(
+    ()=>qualifyApollyonTrainingActivationGenerationBindingV1(
+      capability,
+      hostile.proxy,
+    ),
+    /binding_invalid/u,
+  );
+  assert.equal(hostile.trapCalls(),0);
+}
 
 {
   const bad=cloned(binding);
@@ -659,6 +715,8 @@ console.log("accessor_fields_rejected_before_read=true");
 console.log("validated_descriptor_snapshot_cloned=true");
 console.log("nonenumerable_unknown_keys_rejected=true");
 console.log("symbol_keys_rejected=true");
+console.log("proxy_inputs_rejected_before_reflection=true");
+console.log("proxy_reflection_traps_not_invoked=true");
 console.log("trainer_generation_external_validation_performed=false");
 console.log("training_start_consumption_record_origin_proven=false");
 console.log("training_start_consumption_performed=false");
