@@ -16,19 +16,19 @@ def git_blob(path:Path)->str:
     h.update(f"blob {len(data)}\0".encode("ascii"));h.update(data)
     return h.hexdigest()
 
-assert git_blob(MANIFEST)=="7de6b518ec67f3c7588f65929fadaa85716ceef5"
+assert git_blob(MANIFEST)=="2495dae4f20a9a224ed8be972748d45f3e066340"
 source=INSTALLER.read_text(encoding="utf-8")
 ast.parse(source)
 for required in (
     'MARKER="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_CREATE_ONLY_INSTALL_V1"',
-    'MANIFEST_BLOB="7de6b518ec67f3c7588f65929fadaa85716ceef5"',
+    'MANIFEST_BLOB="2495dae4f20a9a224ed8be972748d45f3e066340"',
     'EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"',
     'NODE_RUNTIME=Path("/opt/void-apollyon-node-runtime-v1/node")',
     'NODE_VERSION="v24.21.0"',
     'NODE_BYTES=126595440',
     'NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"',
     'UNIT_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"',
-    'LIVE_LAUNCHER_BLOB="b96f99d6c513405e6f8b87b8f5c3fb1b1cbbf9c7"',
+    'LIVE_LAUNCHER_BLOB="820f7151c0f83280b7457f841cee14c3b0c274b6"',
     'LIFECYCLE_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
     'custody_uid_process_exclusivity_required',
     'custody_uid_process_census_uid_slots',
