@@ -112,7 +112,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
             2351eaf1f12317b8ae047ad6dd58f29ba116e0c7
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
-            58706280787ebd433977d6bc8c1e4bdce99e9569
+            5261be7e756480ca6add3855f23118ebe196af3b
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = \
             ce0c1767296c13755b5ce95dbecdcae0f4cfb980
 
