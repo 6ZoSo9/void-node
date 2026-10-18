@@ -13,7 +13,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 TARGET_REL="ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
 TARGET=ROOT/TARGET_REL
-TARGET_BLOB="3fe1158a0fdf19fa4307c2a8122314b75ee36345"
+TARGET_BLOB="763230612b2aa61d8572665d8889b2585fbe65e1"
 
 def git_blob(raw:bytes)->str:
     return hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
@@ -29,6 +29,9 @@ for required in (
     "plan_bindings_changed_before_exchange",
     "plan_bindings_changed_after_exchange",
     "published_rolled_back_green",
+    "rename_outcome_reconciliation_required=true",
+    "exchange_attempted=False",
+    "retention_attempted=False",
     "rollback_available=true",
     "protected_root_mutation_performed=false",
     "bootstrap_execution=false",
@@ -169,6 +172,58 @@ try:
         finally:
             m.rebind=real_rebind
 
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-exchange-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"c"*40)
+        real_rename=fake._renameat2; calls={"n":0}
+        def interrupt_after_exchange(*args,**kwargs):
+            calls["n"]+=1
+            real_rename(*args,**kwargs)
+            if calls["n"]==1:
+                raise KeyboardInterrupt("synthetic_interrupt_after_exchange")
+        fake._renameat2=interrupt_after_exchange
+        try:
+            m.apply(boot,man,"c"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="atomic_upgrade_rolled_back_after_failure"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_rolled_back_green"
+            assert rec["rollback_green"]=="true"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert not m.STAGE_ROOT.exists()
+            assert not m.PREDECESSOR_ROOT.exists()
+        else:
+            raise AssertionError("interrupt after exchange did not reconcile publication")
+        finally:
+            fake._renameat2=real_rename
+
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-retention-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"d"*40)
+        real_rename=fake._renameat2; calls={"n":0}
+        def interrupt_after_retention(*args,**kwargs):
+            calls["n"]+=1
+            real_rename(*args,**kwargs)
+            if calls["n"]==2:
+                raise KeyboardInterrupt("synthetic_interrupt_after_retention")
+        fake._renameat2=interrupt_after_retention
+        try:
+            m.apply(boot,man,"d"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="atomic_upgrade_rolled_back_after_failure"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_rolled_back_green"
+            assert rec["rollback_green"]=="true"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert not m.STAGE_ROOT.exists()
+            assert not m.PREDECESSOR_ROOT.exists()
+        else:
+            raise AssertionError("interrupt after retention did not reconcile publication")
+        finally:
+            fake._renameat2=real_rename
+
     with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-foreign-") as d:
         td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
         fd=os.open(td,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
@@ -191,6 +246,9 @@ print("success_atomic_exchange_exercised=true")
 print("predecessor_retention_exercised=true")
 print("post_exchange_failure_rollback_exercised=true")
 print("publication_truth_monotonic=true")
+print("rename_outcome_layout_reconciled=true")
+print("interrupt_after_exchange_reconciled=true")
+print("interrupt_after_retention_reconciled=true")
 print("foreign_stage_cleanup_refused=true")
 print("bootstrap_execution=false")
 print("inner_installer_execution=false")
