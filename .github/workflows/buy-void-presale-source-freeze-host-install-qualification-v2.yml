@@ -49,11 +49,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
-            89e2075fff8640f176d1e4338a9f70f4ebf169e1
+            21ec67f62c3c303e2362a836602c9a7cfd1af136
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
-            acbe1f848e52743ce45ce7b0e14520932290b068
+            8f6ff030efea364315cba67c8c8390a583bbb228
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-source-freeze-host-install-qualification-v2.md)" = \
-            f35e8e5cd7fd3cd67812a83079088f04c477f04e
+            5f88446c0e72f77053edec456c362d028cfa303f
 
           test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py)" = \
             266fe91ee8563efff6116be7f890f19340a0de4c
@@ -103,6 +103,9 @@ jobs:
             'network_access_absent=true' \
             'filesystem_mutation_absent=true' \
             'metadata_cannot_grant_authenticity=true' \
+            'closed_nested_metadata_schema_proved=true' \
+            'malformed_nested_metadata_regressions_proved=true' \
+            'custody_mountpoint_type_contract_proved=true' \
             'independent_receipt_evidence_required=true' \
             'independent_custody_evidence_required=true' \
             'independent_epoch2_installed_evidence_required=true' \
@@ -121,6 +124,10 @@ jobs:
           for marker in \
             'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_HOST_INSTALL_QUALIFICATION_V2_SELF_TEST_GREEN' \
             'metadata_alignment_classifier=true' \
+            'closed_nested_metadata_schema=true' \
+            'malformed_nested_metadata_rejected=true' \
+            'state_dependent_mode_bytes_validated=true' \
+            'custody_mountpoint_type_validated=true' \
             'metadata_presence_never_becomes_authenticity=true' \
             'independent_receipt_evidence_required=true' \
             'independent_custody_evidence_required=true' \
