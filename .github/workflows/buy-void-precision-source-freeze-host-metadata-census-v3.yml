@@ -1,0 +1,130 @@
+name: Buy VOID Precision accepted-freeze host metadata census v3
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-precision-source-freeze-host-metadata-census-v3.yml"
+      - "docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md"
+      - "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py"
+      - "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py"
+      - "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
+      - "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
+      - "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V3 census generation
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$PR_BASE" = d9c2cbc7e8d838083325d389beac2e95a16b5bfa
+          git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-precision-source-freeze-host-metadata-census-v3.yml' \
+            'docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md' \
+            'scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py' \
+            'scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py)" = af5977404dfd55e8ced6c6056eba88d62af6b46b
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py)" = 9a8446a3d1f02d94277606c2858ec7abd30b3b94
+          test "$(git rev-parse HEAD:docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md)" = 2c2127605f97a1e507707eaf82bc59f073f6ae55
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = c0752dfe4fe3b4616cba799bbe5053ac0b435f8b
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = bb1144989cd826677f2fc8ea54c97e3bd95cc8ef
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = 589845615654da8b688764377b34296267ac0063
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
+
+          test "$(git rev-parse 05614762b1b4638e05e539fd7d20cbf670e1570b^{tree})" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
+          git merge-base --is-ancestor 0f5c467253c250a905917e886eb6ae3fb80bff62 "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 26534cd19c670cd30b3cefda13ef8dcb62e05dab "$EXPECTED_HEAD"
+          git merge-base --is-ancestor d9c2cbc7e8d838083325d389beac2e95a16b5bfa "$EXPECTED_HEAD"
+          git diff --check "$PR_BASE" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py",
+              "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_PRECISION_SOURCE_FREEZE_HOST_METADATA_CENSUS_V3_SYNTAX_GREEN")
+          PY
+
+      - name: Self-test metadata probe
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/census-v3-self-test.log"
+          python3 -I -B scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRECISION_SOURCE_FREEZE_HOST_METADATA_CENSUS_V3_SELF_TEST_GREEN' \
+            'metadata_only=true' \
+            'root_required=false' \
+            'network_contact=false' \
+            'git_lazy_fetch=false' \
+            'git_transport_allowed=false' \
+            'credential_content_access=false' \
+            'wallet_or_signer_access=false' \
+            'service_mutation=false' \
+            'receipt_content_read=false' \
+            'source_freeze_acceptance_manifest_bound=true' \
+            'host_install_qualified=false' \
+            'customer_payment_acceptance=false' \
+            'presale_activation=false' \
+            'wc_void_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove no-fetch metadata behavior with synthetic fixtures
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/census-v3-proof.json"
+          python3 -I -B scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py --self-test | tee "$out"
+          grep -F '"marker": "VOID_BUY_VOID_PRECISION_SOURCE_FREEZE_HOST_METADATA_CENSUS_V3_PROOF_GREEN"' "$out"
+          grep -F '"external_network_contact": false' "$out"
+          grep -F '"real_host_run": false' "$out"
+          grep -F '"root_refusal_precedes_host_access": true' "$out"
+          grep -F '"standalone_self_test_and_apply_refusal": true' "$out"
+          grep -F '"fixture_report_retains_hold_and_authority": true' "$out"
+          grep -F '"complete_clone_identity_checks": true' "$out"
+          grep -F '"v3-both-guards"' "$out"
+          grep -F '"v3-protocol-fallback"' "$out"
+
+      - name: Refuse real host run in CI
+        run: |
+          set -euo pipefail
+          # Hosted CI deliberately does not invoke --run against its runner host.
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo "real_host_run=false"
+          echo "precision_host_evidence_claimed=false"
+          echo "status=HOST_RELEASE_EVIDENCE_HOLD"
