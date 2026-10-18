@@ -315,3 +315,25 @@ Buffer-read boundary.
 
 Hosted adversaries reject adjacent inode values above `2^53-1` and
 one-nanosecond mtime/ctime drift.
+
+## Retained-byte semantic deployment verification
+
+The final source generation removes the independent deployment-receipt pathname
+verifier from this collector. The root-custodied deployment receipt is opened
+once into the retained no-follow descriptor lease. Both the initial and final
+deployment decisions parse and classify **only `deploymentLease.bytes`** with
+the reviewed pure V7 classifier and the exact reviewed-source digest/count.
+
+The existing retained descriptor + root-owned ancestor lease still requires the
+canonical pathname to remain the same inode/generation and the canonical bytes
+to remain byte-identical before, during, and after selector verification. A
+temporary pathname replacement therefore cannot be semantically authenticated
+while a different receipt remains leased.
+
+The collector does not call
+`verifyBuyVoidSourceFinalityDeploymentReceiptV7`; no semantic decision reopens
+the deployment receipt pathname.
+
+All read-only/no-credential/no-write and false economic authority boundaries are
+unchanged.
+

@@ -95,9 +95,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = f37552bb0bc952a9030bbd96b0a843baf61ab4ce
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 9c9033c04a74e352cd2954617977ec0e07ffb847
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = d6f09b94f09bf242e2ea276e400d2a70fe4b0367
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 51d164857be3966576b25b8627b02ead166afd73
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 4542fd56bb77268be9f6acb2332a8e233d3c2a52
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = 55e0a6e87133fcbb0c822cc74a04ffc9b8305d1a
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -128,6 +128,9 @@ jobs:
             'parent_host_evidence_plan_bound=true' \
             'reviewed_primitive_blob_count=7' \
             'deployment_receipt_verified_against_live_source_identity=true' \
+            'deployment_receipt_semantics_from_retained_bytes=true' \
+            'deployment_receipt_path_verifier_not_used=true' \
+            'deployment_receipt_retained_bytes_span_initial_and_final_semantics=true' \
             'single_native_selector_pidfd_session_required=true' \
             'source_custody_requalification_without_environment=true' \
             'installed_receipt_exact_bytes_match_required=true' \
@@ -180,8 +183,10 @@ jobs:
           for marker in \
             'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V1_SELF_TEST_GREEN' \
             'parent_host_evidence_plan_bound=true' \
-            'deployment_receipt_verifier_required=true' \
+            'deployment_receipt_classifier_required=true' \
             'deployment_receipt_retained_descriptor_required=true' \
+            'deployment_receipt_semantics_from_retained_bytes_required=true' \
+            'deployment_receipt_path_verifier_not_used=true' \
             'deployment_receipt_semantic_revalidation_required=true' \
             'deployment_receipt_post_selector_identity_revalidation_required=true' \
             'credential_free_native_selector_session_required=true' \

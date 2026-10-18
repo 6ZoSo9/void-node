@@ -16,7 +16,8 @@ import {
   VOID_BUY_VOID_V7_DEPLOYMENT_RECEIPT_PATH_V1,
 } from "./void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.js";
 import {
-  verifyBuyVoidSourceFinalityDeploymentReceiptV7,
+  classifyBuyVoidSourceFinalityDeploymentReceiptV7,
+  inspectBuyVoidSourceFinalityReviewedSourceFilesV7,
 } from "../../src/economic/buy_void_source_finality_generation_provenance_v7.js";
 import {
   buildBuyVoidSourceFinalityLiveProcessBindingReceiptV2,
@@ -1176,13 +1177,27 @@ function assertReceiptMatchesLive(
     systemd.working_directory!==live.source.cwd_realpath
   )fail("host_evidence_installed_receipt_not_live_generation");
 }
-function deploymentDecision(live:LiveObservation) {
-  return verifyBuyVoidSourceFinalityDeploymentReceiptV7({
-    deployment_receipt_path:VOID_BUY_VOID_V7_DEPLOYMENT_RECEIPT_PATH_V1,
+function deploymentDecisionFromLease(
+  lease:RetainedDeploymentReceiptLease,
+  live:LiveObservation,
+) {
+  let receipt:unknown;
+  try{
+    receipt=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(lease.bytes));
+  }catch{
+    fail("host_evidence_deployment_receipt_lease_json_invalid");
+  }
+  const reviewed=inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
+  return classifyBuyVoidSourceFinalityDeploymentReceiptV7({
+    receipt,
     process_source_identity:{
       marker:"VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
-      commit:live.source.process_source_commit,tree:live.source.process_source_tree,branch:"main",
+      commit:live.source.process_source_commit,
+      tree:live.source.process_source_tree,
+      branch:"main",
     },
+    reviewed_source_files_sha256:reviewed.reviewed_source_files_sha256,
+    reviewed_source_file_count:reviewed.reviewed_source_file_count,
   });
 }
 export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(input:{
@@ -1203,7 +1218,8 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
     const receipt=parseInstalledReceipt(readInstalledLiveReceiptCandidate());
     assertReceiptMatchesLive(receipt,live,systemdBefore,uid,gid);
     deploymentLease=openRetainedDeploymentReceiptLease();
-    const deployment=deploymentDecision(live);
+    revalidateRetainedDeploymentReceiptLease(deploymentLease);
+    const deployment=deploymentDecisionFromLease(deploymentLease,live);
     if(deployment.ok!==true)fail("host_evidence_deployment_receipt_not_verified:"+deployment.reason);
     if(deployment.deployment_receipt_id!==receipt.deployment_receipt_id){
       fail("host_evidence_deployment_receipt_identity_mismatch");
@@ -1219,7 +1235,8 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
     const finalLive=observeLiveGeneration(session.ready,uid,gid);
     assertReceiptMatchesLive(receipt,finalLive,systemdAfter,uid,gid);
     readInstalledLiveReceiptExact(canonicalBytes);
-    const finalDeployment=deploymentDecision(finalLive);
+    revalidateRetainedDeploymentReceiptLease(deploymentLease);
+    const finalDeployment=deploymentDecisionFromLease(deploymentLease,finalLive);
     if(finalDeployment.ok!==true){
       fail("host_evidence_final_deployment_receipt_not_verified:"+finalDeployment.reason);
     }
@@ -1286,8 +1303,10 @@ function selfTest(): void {
   );
   console.log(MARKER + "_SELF_TEST_GREEN");
   console.log("parent_host_evidence_plan_bound=true");
-  console.log("deployment_receipt_verifier_required=true");
+  console.log("deployment_receipt_classifier_required=true");
   console.log("deployment_receipt_retained_descriptor_required=true");
+  console.log("deployment_receipt_semantics_from_retained_bytes_required=true");
+  console.log("deployment_receipt_path_verifier_not_used=true");
   console.log("deployment_receipt_semantic_revalidation_required=true");
   console.log("deployment_receipt_post_selector_identity_revalidation_required=true");
   console.log("credential_free_native_selector_session_required=true");

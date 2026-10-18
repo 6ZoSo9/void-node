@@ -22,7 +22,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const COLLECTOR_REL=
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
-const COLLECTOR_BLOB="f37552bb0bc952a9030bbd96b0a843baf61ab4ce";
+const COLLECTOR_BLOB="51d164857be3966576b25b8627b02ead166afd73";
 
 const PARENT_PLAN_REL="ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
 const PARENT_PLAN_BLOB="ad68175e629fd1cf90180db3a904f84834314fdd";
@@ -85,7 +85,10 @@ assert.equal(
 assert.equal(MARKER,"VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V1");
 
 for(const required of [
-  "verifyBuyVoidSourceFinalityDeploymentReceiptV7",
+  "classifyBuyVoidSourceFinalityDeploymentReceiptV7",
+  "inspectBuyVoidSourceFinalityReviewedSourceFilesV7",
+  "deploymentDecisionFromLease(",
+  "lease.bytes",
   "buildBuyVoidSourceFinalityLiveProcessBindingReceiptV2",
   "VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1",
   "parseBuyVoidV2SelectorLineV1",
@@ -98,7 +101,7 @@ for(const required of [
   "readInstalledLiveReceiptExact(canonicalBytes)",
   "const finalLive=observeLiveGeneration(session.ready,uid,gid);",
   "openRetainedDeploymentReceiptLease()",
-  "const finalDeployment=deploymentDecision(finalLive);",
+  "const finalDeployment=deploymentDecisionFromLease(deploymentLease,finalLive);",
   "revalidateRetainedDeploymentReceiptLease(deploymentLease);",
   "const green=await finishSelectorSession(session);",
   "testOnlyAssertSelectorGenerationStableV1(finalLive.selector,green);",
@@ -134,6 +137,8 @@ for(const forbiddenCredentialRead of [
 ])assert.equal(source.includes(forbiddenCredentialRead),false,forbiddenCredentialRead);
 
 for(const forbidden of [
+  "verifyBuyVoidSourceFinalityDeploymentReceiptV7",
+  "deployment_receipt_path:VOID_BUY_VOID_V7_DEPLOYMENT_RECEIPT_PATH_V1",
   "installBuyVoidV2LiveProcessReceiptCreateOnceV1",
   "rollbackNewBuyVoidV2LiveProcessReceiptV1",
   "verifyBuyVoidSourceFinalityLiveProcessBindingV2",
@@ -189,7 +194,7 @@ assert.ok(canonicalLeafRevalidationIndex > ancestorRevalidationIndex);
 const finalReceiptReadIndex =
   source.lastIndexOf("readInstalledLiveReceiptExact(canonicalBytes);");
 const finalDeploymentDecisionIndex =
-  source.lastIndexOf("const finalDeployment=deploymentDecision(finalLive);");
+  source.lastIndexOf("const finalDeployment=deploymentDecisionFromLease(deploymentLease,finalLive);");
 const terminalSelectorVerifyIndex =
   source.lastIndexOf("const green=await finishSelectorSession(session);");
 const postSelectorDeploymentRevalidationIndex =
@@ -485,6 +490,9 @@ console.log(MARKER+"_PROOF_GREEN");
 console.log("parent_host_evidence_plan_bound=true");
 console.log("reviewed_primitive_blob_count=7");
 console.log("deployment_receipt_verified_against_live_source_identity=true");
+console.log("deployment_receipt_semantics_from_retained_bytes=true");
+console.log("deployment_receipt_path_verifier_not_used=true");
+console.log("deployment_receipt_retained_bytes_span_initial_and_final_semantics=true");
 console.log("single_native_selector_pidfd_session_required=true");
 console.log("source_custody_requalification_without_environment=true");
 console.log("installed_receipt_exact_bytes_match_required=true");
