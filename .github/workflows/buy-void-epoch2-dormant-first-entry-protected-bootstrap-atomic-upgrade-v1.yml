@@ -65,9 +65,9 @@ jobs:
           git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 3fe1158a0fdf19fa4307c2a8122314b75ee36345
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = ca96e713cbe91d69161b04dd1508137a69b37cd3
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md)" = a561fd445067f94e4c8d246dd683383eade07a81
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 7d70527d8910881f9973479b89ceef78789ad100
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 9e0b997230943b1ad0a0285e74e82faf049d7d31
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md)" = 6073c2c3a6489d80a24e64eba9fdf892bfe8c4c0
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
@@ -100,6 +100,7 @@ jobs:
             'atomic_root_exchange_required=true' \
             'predecessor_retention_required=true' \
             'automatic_rollback_required=true' \
+            'rename_outcome_reconciliation_required=true' \
             'bootstrap_execution=false' \
             'inner_installer_execution=false' \
             'service_mutation=false' \
@@ -119,6 +120,7 @@ jobs:
             'atomic_root_exchange_required=true' \
             'predecessor_retention_required=true' \
             'automatic_rollback_required=true' \
+            'rename_outcome_reconciliation_required=true' \
             'bootstrap_execution=false' \
             'inner_installer_execution=false' \
             'service_mutation=false' \
@@ -140,6 +142,15 @@ jobs:
             'predecessor_retention_exercised=true' \
             'post_exchange_failure_rollback_exercised=true' \
             'publication_truth_monotonic=true' \
+            'rename_outcome_layout_reconciled=true' \
+            'interrupt_after_exchange_reconciled=true' \
+            'interrupt_after_retention_reconciled=true' \
+            'pending_sigint_after_exchange_reconciled=true' \
+            'post_return_exchange_interrupt_rollback_exercised=true' \
+            'pending_sigint_after_retention_reconciled=true' \
+            'layout_inspection_failure_publication_aware=true' \
+            'signal_mask_restored_after_layout_failure=true' \
+            'inspection_failure_automatic_retry_false=true' \
             'foreign_stage_cleanup_refused=true' \
             'bootstrap_execution=false' \
             'inner_installer_execution=false' \

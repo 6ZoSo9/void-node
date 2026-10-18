@@ -95,13 +95,25 @@ The repaired fixed root and predecessor are never created by in-place overwrite.
 ## Rollback
 
 Any failure after the first successful root exchange is publication-aware.
+Each forward rename handoff is marked attempted before entering the syscall. SIGINT
+delivery is deferred across the syscall boundary, and after every successful,
+failed, or interrupted rename the upgrader classifies the exact old/new root inode
+layout at the fixed, staging, and predecessor pathnames. Publication and
+predecessor-retention truth are derived from that observed layout rather than from
+a Boolean assignment that may not have executed after kernel success.
+
 The upgrader attempts to exchange the exact predecessor generation back into the
 fixed root, move the repaired generation back to the staging pathname, and remove
-only the staging inode created by the current invocation.
+only the staging inode created by the current invocation. Rollback rename outcomes
+are also reconciled by exact layout; an interrupt after kernel success may continue
+only when the expected next layout is already proven.
 
 Cleanup refuses unknown entries or a substituted staging inode. A proven rollback
 reports `publication_state=published_rolled_back_green`; an ambiguous rollback
-reports `published_needs_inspection`. Automatic retry is always false.
+reports `published_needs_inspection`. If post-rename layout observation itself fails,
+the prior SIGINT mask is restored in `finally` and the operation immediately reports
+publication-aware inspection-required state without attempting another destructive
+transition. Automatic retry is always false.
 
 The successful terminal retains the predecessor and reports
 `rollback_available=true`.
@@ -115,7 +127,18 @@ The focused proof:
 - exercises a complete atomic exchange in a temporary directory;
 - verifies repaired fixed root plus retained predecessor;
 - injects a post-exchange binding failure and requires a green automatic rollback;
-- verifies publication truth remains monotonic across the rollback;
+- delivers a real pending SIGINT with `os.kill` immediately after the first exchange
+  succeeds in the kernel, requiring layout capture before signal unmask and green rollback;
+- injects an interruption after `observed_rename()` has returned the proven
+  `LAYOUT_EXCHANGED` result but before the caller can assign its publication Boolean,
+  requiring the fallback observer to infer publication from layout and perform the same
+  green automatic rollback;
+- delivers a real pending SIGINT immediately after predecessor retention succeeds,
+  requiring the retained layout to select the correct rollback path;
+- forces post-rename layout inspection to remain unavailable after a successful exchange
+  and requires publication-aware `published_needs_inspection`, no automatic retry,
+  and restoration of the caller's original signal mask;
+- verifies publication truth remains monotonic across every rollback;
 - inserts a foreign staging entry and requires cleanup refusal;
 - rejects subprocess/systemctl/exec-based live execution paths in the upgrader source.
 
