@@ -105,8 +105,8 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 1279b6d9a613b856c9fb5520a09019a7b73c25a7
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = d354ec8e7de2dd3e89bcc6f4cdc33f9b11bd0ccc
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = 6f76ce417e138b48b712000065610717ca5a8de4
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 2b635d119df4c4a6e86c43f2964166ad67241ca1
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = 26f8c86879d5f633f7ad94d40cda994775ace7b3
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -119,8 +119,8 @@ jobs:
 
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
           test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs)" = 7ced5fb56a22cd546aab30c466021b01b1c6a84d
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md)" = 3954439eb39015baaf598c8e36a23865e0555e8f
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-live-durability-rollback-contract-v1.yml)" = 9fccecd0701499b774585b0b8e3c80e1005f273f
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md)" = 16a8a755888abd7b9ad4f0377468d6a403f80a70
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-live-durability-rollback-contract-v1.yml)" = b3426f40577ff1ca1bbab8ca46232ae1ca0a8148
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
