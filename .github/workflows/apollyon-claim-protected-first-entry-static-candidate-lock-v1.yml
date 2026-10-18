@@ -110,9 +110,9 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
-            4b1085d1b957d47285d983a35443aab69b581015
+            c8e345f1d7b4e3b28b962512e9e559106098b2df
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
-            a323002c7d8c19e4aae7cf45f8d1f213096c4953
+            8ae5093133cc016b76e1ca1a990948abcf4f3167
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = \
             767142fddedf60a46c0c098ec811eee25b47f1d4
 
@@ -182,6 +182,8 @@ jobs:
             'build_evidence_alias_attack_rejected=true' \
             'build_evidence_oracle_isolated=true' \
             'boolean_version_rejected=true' \
+            'numeric_authority_boolean_rejected=true' \
+            'authority_boolean_types_exact=true' \
             'readdressed_install_overclaim_rejected=true' \
             'readdressed_rederivation_overclaim_rejected=true' \
             'readdressed_mutable_toolchain_overclaim_rejected=true' \
