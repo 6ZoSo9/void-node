@@ -118,11 +118,11 @@ PROTECT THE CORE.
 
 ## Current reviewed host-plan generation
 
-The service candidate now pins the accepted #3265 reviewed planner source at
-`30edd98609877c15be44d26b46916cf8c5d1f174` with exact Git blob `9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d`.
-This is the reviewed head preserved as a parent of merged main
-`e70bbb004d58cde6517ed17568e2925a2627c29f`, not an uncontrolled
-caller-selected planner generation. The parent host plan excludes stale
+The service candidate pins the reviewed planner source at
+`30edd98609877c15be44d26b46916cf8c5d1f174` with exact Git blob
+`9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d`. The host-plan proof binds
+that source head and blob as one exact generation; no provenance claim is made
+through an unrelated historical merge parent. The parent host plan excludes stale
 numeric UID/GID process collisions, verifies host PID and user namespace leases,
 and traverses raw Git commit-object ancestry breadth-first under its unchanged
 4,096-object cap. Numeric identities remain unprovisioned, and a new live
