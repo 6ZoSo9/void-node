@@ -72,9 +72,9 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_replace_plan_v1.py)" = \
-            d43d2729819ae94f14b531d75368df042a5ee971
+            c60179b340a0bf0d138d588b9537599aae2975a0
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_replace_plan_v1.py)" = \
-            485ca61effedba2c2d7158a0571a2fc28b7b069c
+            ef1ff9ec82db60168aaaccc711905c6f31f2c3d8
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-replace-plan-v1.md)" = \
             f4d4f30208c7f034938770ecebbc27735898e416
 
