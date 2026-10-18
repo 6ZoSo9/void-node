@@ -46,7 +46,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=296647cdbba6b113be12b2cc808e2e9cabeac5f9
+          STACK_PARENT=4cdf06a58f2d7ef08942af359b44421887e4d12e
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
@@ -63,7 +63,7 @@ jobs:
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = 774db38ccb771f393b44d589a455144b99d36f6b
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs)" = 6777b900a61d979355671ebee502c4b7ebb6b5dd
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-current-source-enforcement-successor-v1.md)" = 6efefa3235e39836d46bc4663b0e2a750200bff7
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-current-source-enforcement-successor-v1.md)" = 311b8491a22ac887c4d017fbe9cf02726601a438
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json)" = 4e23ecbb64eb26c14f5ab15af85eb86d59c3a718
@@ -71,7 +71,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs)" = 35b8b878ba30cfa7567578ab05424d4f827f3220
 
           test "$(git rev-parse 05614762b1b4638e05e539fd7d20cbf670e1570b^{tree})" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
-          git merge-base --is-ancestor 296647cdbba6b113be12b2cc808e2e9cabeac5f9 "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 4cdf06a58f2d7ef08942af359b44421887e4d12e "$EXPECTED_HEAD"
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
 
       - run: npm ci --ignore-scripts --no-audit --no-fund

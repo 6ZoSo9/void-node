@@ -73,9 +73,11 @@ The successor therefore accepts only:
 `current_source_enforcement_successor_accepted=true`.
 
 This successor is stacked on source-clear prerequisite #3500 exact head
-`296647cdbba6b113be12b2cc808e2e9cabeac5f9`. That prerequisite provides self-contained current-generation
-dispatch V2 at blob `35b8b878ba30cfa7567578ab05424d4f827f3220`, with Node 22/24/26 and cross-node GREEN and
-no major Codex findings.
+`4cdf06a58f2d7ef08942af359b44421887e4d12e`. That prerequisite provides self-contained current-generation
+dispatch V2 at blob `35b8b878ba30cfa7567578ab05424d4f827f3220`, with Node 22/24/26 and cross-node GREEN. Its semantic helper remains the
+reviewed blob `35b8b878ba30cfa7567578ab05424d4f827f3220`; the later #3500
+workflow/documentation successor adds downstream-consumer CI classification
+without changing that helper.
 
 This successor's own CI rebuilds the reviewed economic closure on Node 22, 24,
 and 26, runs the self-contained V2 current-generation integration dispatch
