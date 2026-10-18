@@ -45,7 +45,27 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
           case "$EVENT_NAME" in
-            pull_request) base="$PR_BASE" ;;
+            pull_request)
+              base="$PR_BASE"
+              cursor="$EXPECTED_HEAD"
+              while [ -n "$base" ] && [ "$cursor" != "$base" ]; do
+                parent_line="$(git rev-list --parents -n 1 "$cursor")"
+                parent_count="$(awk '{print NF-1}' <<<"$parent_line")"
+                if [ "$parent_count" -gt 1 ]; then
+                  candidate_base="$(git rev-parse "$cursor^1")"
+                  if git merge-base --is-ancestor "$base" "$candidate_base"; then
+                    base="$candidate_base"
+                    break
+                  fi
+                fi
+                [ "$parent_count" -ge 1 ] || break
+                next="$(git rev-parse "$cursor^1")"
+                if ! git merge-base --is-ancestor "$base" "$next"; then
+                  break
+                fi
+                cursor="$next"
+              done
+              ;;
             push) base="$PUSH_BEFORE" ;;
             workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
