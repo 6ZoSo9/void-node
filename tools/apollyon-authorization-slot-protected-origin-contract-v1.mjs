@@ -194,6 +194,7 @@ function canonical(value){
 function exactOwnKeys(value,expected,code){
   if(!value||typeof value!=="object"||Array.isArray(value))fail(code);
   const own=Reflect.ownKeys(value);
+  if(own.length!==expected.length)fail(code);
   if(own.some((key)=>typeof key!=="string"))fail(code);
   const actual=[...own].sort();
   const wanted=[...expected].sort();
