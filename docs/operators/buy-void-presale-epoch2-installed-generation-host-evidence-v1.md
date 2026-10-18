@@ -196,9 +196,9 @@ the environment:
 - `GIT_TERMINAL_PROMPT=0`;
 - `GIT_ATTR_NOSYSTEM=1`.
 
-Those variables are inherited across the installer's fixed `setpriv` Git
-query, so repository-local FSMonitor cannot execute as the runtime UID during a
-root-started qualification. Hosted proof creates a disposable repository with a
+The installer environment contract remains checked. Its query entrypoint is
+replaced with the wrapper's shared UID-dropping, confined Git boundary described
+below. Hosted proof creates a disposable repository with a
 local FSMonitor executable and requires that it is not invoked under the exact
 delegated environment. It separately invokes the wrapper without `-I` and
 requires a machine-readable `python_isolated_mode_required` HOLD.
@@ -296,8 +296,8 @@ Both checks now use one raw checkout verifier:
 These commands do not request content conversion. The wrapper rejects direct
 status commands. The exact installer module's `_run_git` is replaced in memory:
 its original status query calls the same raw verifier, while only an exact
-allowlist of existing ref/object-name queries reaches the original UID-dropping
-Git path. No protected V5 source is modified. Existing Git environment hardening
+allowlist of existing ref/object-name queries reaches the wrapper's confined
+Git path. The original runner is never called. No protected V5 source is modified. Existing Git environment hardening
 remains, and wrapper Git disables protocols, lazy fetch and untracked caching.
 
 Wrapper Git also forces `core.excludesFile=/dev/null` before every query. Local
@@ -343,17 +343,18 @@ checkout identity used by the accepted installer: UID 1000 / GID 1000.
 
 For root callers, fixed `/usr/bin/setpriv` applies `--no-new-privs`, both UID/GID
 changes, `--clear-groups`, and empty inheritable, ambient and bounding capability
-sets before entering fixed `/usr/bin/git`. The child has a closed environment,
+sets before entering a fixed isolated `/usr/bin/python3` in-memory launcher and
+then fixed `/usr/bin/git`. The child has a closed environment,
 cwd `/`, no inherited extra descriptors, and the existing timeout/error-to-HOLD
 handling. An already unprivileged UID-1000 query may run directly; other caller
 UIDs HOLD before spawning. No Git metadata/config parser is entered as root by
 the wrapper. The in-process raw-file verifier and fixed installed qualification
 retain their separately documented descriptor and root requirements.
 
-This prevents local config includes from borrowing the collector's root access;
-it is not a claim that Git never reads configuration available to UID 1000.
-The earlier filter-free observation and delegated query allowlist remain in
-place, and the accepted V5 sources remain unchanged.
+The UID drop prevents local config includes from borrowing the collector's root
+access. The additional filesystem boundary below denies outside reads even when
+the target is readable by UID 1000. The earlier filter-free observation and
+delegated query allowlist remain in place, and the accepted V5 sources remain unchanged.
 
 Hosted CI runs the adversarial proof as root solely for disposable `/tmp`
 fixtures, with `--require-kernel-uid-drop`. It must reproduce a root Git query
@@ -369,3 +370,47 @@ Restricted local user namespaces may run the source/filter tests and command
 construction checks without that kernel fixture. They explicitly print
 `kernel_git_uid_drop_executed=false`; that local result cannot satisfy hosted
 CI or be presented as privilege-drop evidence.
+
+## Fixed Git namespace and kernel read boundary
+
+Every wrapper and delegated metadata query supplies explicit
+`--git-dir=<fixed checkout>/.git` and `--work-tree=<fixed checkout>` arguments.
+A checkout-controlled `core.worktree` cannot redirect the untracked-file scan
+while the raw-byte verifier examines the fixed checkout. A disposable regression
+first demonstrates the old query missing an untracked file after redirection,
+then requires both wrapper and delegated checks to reject that file.
+
+Dropping to UID 1000 alone does not prevent local config includes from reading
+that UID's credentials. Before any Git parser starts, the isolated launcher
+requires Linux x86-64 Landlock ABI 3 or later and installs an inherited read
+policy. It grants directory enumeration beneath the fixed checkout; individual
+regular, single-link metadata files (`config`, `HEAD`, optional `index`,
+`packed-refs`, and `shallow`, plus object/ref leaves); and the fixed executable,
+system library directories, loader cache, `/dev/null`, and process status needed
+by the runtime and disposable identity probe. It grants no checkout executable
+permission or worktree file-content access. The raw tracked-file reader remains
+the separate descriptor-validated boundary described above.
+
+Metadata paths are traversed with no-follow descriptors before inode rules are
+added. Object/ref trees are bounded to 50,000 entries and grant file access per
+inode, not to whole subtrees. Symlink, hardlink, special-file, shared gitfile, or
+unsupported metadata layouts HOLD. Outside includes and alternate object stores
+cannot escape the enforced policy; newly replaced metadata inodes are denied.
+All handled filesystem write rights remain ungranted. Landlock does not restrict
+every metadata syscall, so this is a file-content read boundary, not a general
+claim that every possible filesystem operation is sandboxed.
+
+Missing kernel support, rule construction failures, or enforcement failures HOLD
+before Git execution. There is no runtime fallback. All allowlisted delegated
+metadata queries use this same launcher; `branch --show-current` is mapped to
+the existing symbolic-ref query. Protocols and lazy fetching remain disabled.
+
+Hosted proof must reproduce a demoted Git query blocking on a synthetic
+UID-1000-owned mode-0600 include FIFO, then prove confined wrapper/delegated
+queries cannot block on it. The executable probe must receive `PermissionError`
+for both root-only and same-UID FIFOs while retaining the UID/capability checks.
+Both `kernel_git_read_boundary_executed=true` and
+`query_uid_config_include_denied=true` are mandatory workflow markers. Local
+environments without Landlock exercise only disposable filter/worktree fixtures
+with a test-only launcher substitution and explicitly print false kernel
+markers; they cannot satisfy hosted CI. No real credentials are used.

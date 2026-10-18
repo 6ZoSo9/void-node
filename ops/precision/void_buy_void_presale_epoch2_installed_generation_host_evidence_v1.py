@@ -63,6 +63,7 @@ PARENT_PLAN_ID = (
 FIXED_CHECKOUT = Path("/home/zoso/dev/void-node")
 FIXED_GIT = Path("/usr/bin/git")
 FIXED_SETPRIV = Path("/usr/bin/setpriv")
+FIXED_PYTHON = Path("/usr/bin/python3")
 RUNTIME_UID = 1000
 RUNTIME_GID = 1000
 QUALIFIER_REL = (
@@ -107,7 +108,137 @@ GIT_ENV = {
     "GIT_OPTIONAL_LOCKS": "0",
     "GIT_TERMINAL_PROMPT": "0",
     "GIT_NO_LAZY_FETCH": "1",
+    "GIT_ALLOW_PROTOCOL": "",
 }
+
+# This trusted in-memory launcher runs after the UID/capability drop, with -I.
+# No Git parser runs until Landlock is enforced. Unsupported kernels HOLD.
+GIT_READ_SANDBOX = r'''
+import ctypes
+import json
+import os
+import stat
+import sys
+
+def enter():
+    if os.uname().machine != "x86_64":
+        raise RuntimeError("architecture")
+    request = json.loads(sys.argv[1])
+    argv, checkout = request["argv"], request["checkout"]
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.syscall.restype = ctypes.c_long
+    abi = libc.syscall(444, 0, 0, 1)
+    if abi < 3:
+        raise RuntimeError("landlock_unavailable")
+    class Ruleset(ctypes.Structure):
+        _fields_ = [("handled_access_fs", ctypes.c_uint64)]
+    class Beneath(ctypes.Structure):
+        _pack_ = 1
+        _fields_ = [("allowed_access", ctypes.c_uint64), ("parent_fd", ctypes.c_int32)]
+    # Handle every filesystem right through ABI 3, plus device ioctl on ABI 5+.
+    rules = Ruleset((1 << (16 if abi >= 5 else 15)) - 1)
+    rules_fd = libc.syscall(444, ctypes.byref(rules), ctypes.sizeof(rules), 0)
+    if rules_fd < 0:
+        raise RuntimeError("ruleset")
+    retained = []
+    def open_path(path):
+        if not path.startswith("/"):
+            raise RuntimeError("absolute_path")
+        fd = os.open("/", os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            for component in path.split("/")[1:]:
+                if not component or component in (".", ".."):
+                    raise RuntimeError("path_component")
+                child = os.open(component, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+                os.close(fd)
+                fd = child
+                if stat.S_ISLNK(os.fstat(fd).st_mode):
+                    raise RuntimeError("symlink")
+            retained.append(fd)
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
+    def allow_fd(fd, access):
+        rule = Beneath(access, fd)
+        if libc.syscall(445, rules_fd, 1, ctypes.byref(rule), 0) != 0:
+            raise RuntimeError("rule")
+    def allow_file(path, access=4, optional=False, trusted=False):
+        try:
+            fd = open_path(os.path.realpath(path) if trusted else path)
+        except FileNotFoundError:
+            if optional:
+                return
+            raise
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode) or (not trusted and metadata.st_nlink != 1):
+            raise RuntimeError("metadata_file")
+        allow_fd(fd, access)
+    checkout_fd = open_path(checkout)
+    if not stat.S_ISDIR(os.fstat(checkout_fd).st_mode):
+        raise RuntimeError("checkout_directory")
+    allow_fd(checkout_fd, 8)  # enumeration, never worktree file contents
+    gitdir = checkout + "/.git"
+    git_fd = open_path(gitdir)
+    if not stat.S_ISDIR(os.fstat(git_fd).st_mode):
+        raise RuntimeError("git_directory")
+    for name in ("config", "HEAD", "index", "packed-refs", "shallow"):
+        allow_file(gitdir + "/" + name, optional=name not in ("config", "HEAD"))
+    # Object/ref leaves get individual inode rules, never a subtree READ_FILE
+    # grant. Symlinks and hardlinks cannot import an outside file into this set.
+    pending = [gitdir + "/objects", gitdir + "/refs"]
+    count = 0
+    while pending:
+        path = pending.pop()
+        fd = open_path(path)
+        metadata = os.fstat(fd)
+        count += 1
+        if count > 50000:
+            raise RuntimeError("metadata_limit")
+        if stat.S_ISDIR(metadata.st_mode):
+            scan_fd = os.open(".", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC, dir_fd=fd)
+            try:
+                with os.scandir(scan_fd) as entries:
+                    for entry in entries:
+                        pending.append(path + "/" + entry.name)
+                        if len(pending) + count > 50000:
+                            raise RuntimeError("metadata_limit")
+            finally:
+                os.close(scan_fd)
+        elif stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1:
+            allow_fd(fd, 4)
+        else:
+            raise RuntimeError("metadata_type")
+        retained.remove(fd)
+        os.close(fd)
+    for path in ("/usr/lib", "/usr/lib64", "/lib", "/lib64"):
+        try:
+            fd = open_path(os.path.realpath(path))
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise RuntimeError("runtime_directory")
+        allow_fd(fd, 1 | 4 | 8)
+    allow_file(argv[0], 1 | 4, trusted=True)
+    allow_file("/usr/bin/python3", 1 | 4, trusted=True)
+    allow_file("/etc/ld.so.cache", optional=True, trusted=True)
+    allow_file("/proc/self/status", trusted=True)
+    allow_fd(open_path("/dev/null"), 4)
+    if libc.prctl(38, 1, 0, 0, 0) != 0:
+        raise RuntimeError("no_new_privs")
+    if libc.syscall(446, rules_fd, 0) != 0:
+        raise RuntimeError("restrict_self")
+    for fd in retained:
+        os.close(fd)
+    os.close(rules_fd)
+    os.execve(argv[0], argv, os.environ)
+
+try:
+    enter()
+except BaseException:
+    sys.stderr.write("git_read_boundary_failed\n")
+    sys.exit(125)
+'''
 
 
 EXPECTED_DELEGATED_INSTALLER_GIT_ENV = {
@@ -212,7 +343,6 @@ def _load_verified_installer(expected_head: str) -> types.ModuleType:
 
 
 def _guard_installer_git_queries(installer: types.ModuleType, expected_head: str) -> None:
-    original = installer._run_git
     allowed = {
         ("rev-parse", "--verify", "HEAD"),
         ("branch", "--show-current"),
@@ -230,8 +360,9 @@ def _guard_installer_git_queries(installer: types.ModuleType, expected_head: str
             return ""
         if query not in allowed:
             raise EvidenceError("delegated_git_query_not_allowed")
-        # Only object/ref metadata queries reach the unchanged UID-dropping path.
-        return original(args)
+        if query == ("branch", "--show-current"):
+            args = ["symbolic-ref", "--short", "-q", "HEAD"]
+        return _git(args).decode("utf-8", "strict")
 
     installer._run_git = guarded_run_git
 
@@ -261,14 +392,13 @@ def _git(args: list[str]) -> bytes:
         prefix = []
     else:
         raise EvidenceError("checkout_query_uid_invalid")
-    try:
-        cp = subprocess.run(
-            [
-                *prefix,
+    git_argv = [
                 str(FIXED_GIT),
                 "--no-replace-objects",
                 "-C",
                 str(FIXED_CHECKOUT),
+                "--git-dir=" + str(FIXED_CHECKOUT / ".git"),
+                "--work-tree=" + str(FIXED_CHECKOUT),
                 "-c",
                 "safe.directory=" + str(FIXED_CHECKOUT),
                 "-c",
@@ -282,7 +412,11 @@ def _git(args: list[str]) -> bytes:
                 "-c",
                 "protocol.allow=never",
                 *args,
-            ],
+    ]
+    try:
+        cp = subprocess.run(
+            [*prefix, str(FIXED_PYTHON), "-I", "-B", "-c", GIT_READ_SANDBOX,
+             json.dumps({"argv": git_argv, "checkout": str(FIXED_CHECKOUT)})],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

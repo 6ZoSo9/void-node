@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import ctypes
 import hashlib
 import importlib.util
 import json
@@ -25,15 +26,20 @@ def mapped_id(kind: str, value: int) -> bool:
 
 
 KERNEL_UID_DROP_AVAILABLE = os.geteuid() == 0 and mapped_id("uid", 1000) and mapped_id("gid", 1000)
+libc = ctypes.CDLL(None, use_errno=True)
+libc.syscall.restype = ctypes.c_long
+LANDLOCK_AVAILABLE = os.uname().machine == "x86_64" and libc.syscall(444, 0, 0, 1) >= 3
+KERNEL_READ_BOUNDARY_EXECUTED = KERNEL_UID_DROP_AVAILABLE and LANDLOCK_AVAILABLE
 if REQUIRE_KERNEL_UID_DROP:
     assert KERNEL_UID_DROP_AVAILABLE, "required_kernel_uid_drop_fixture_unavailable"
+    assert LANDLOCK_AVAILABLE, "required_landlock_fixture_unavailable"
 
 MARKER = "VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1"
 TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "30cb007279801858654ca04e7d6114c2b38a136f"
+TARGET_BLOB = "20e057bcf30bd83d1202398e4f5e45cc64eb92d2"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -291,6 +297,7 @@ spec = importlib.util.spec_from_file_location(
 assert spec is not None and spec.loader is not None
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+compile(module.GIT_READ_SANDBOX, "git_read_sandbox", "exec", dont_inherit=True)
 assert module.PARENT_PLAN_ID == PARENT_PLAN_ID
 assert module.PARENT_PLAN_ID == json.loads(
     pin(PARENT_PLAN_REL, PARENT_PLAN_BLOB).decode("utf-8", "strict")
@@ -503,6 +510,11 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
     saved_checkout = module.FIXED_CHECKOUT
     saved_uid, saved_gid = module.RUNTIME_UID, module.RUNTIME_GID
     saved_fixture_geteuid = module.os.geteuid
+    saved_sandbox = module.GIT_READ_SANDBOX
+    if not LANDLOCK_AVAILABLE:
+        # Disposable Git fixture only; runtime has no unsupported-kernel fallback.
+        # Hosted CI requires Landlock above and cannot enter this test branch.
+        module.GIT_READ_SANDBOX = "import json,os,sys; a=json.loads(sys.argv[1])['argv']; os.execve(a[0],a,os.environ)"
     if KERNEL_UID_DROP_AVAILABLE:
         # Only the disposable repository/marker fixture is handed to UID 1000.
         for fixture_path in (root, *root.rglob("*")):
@@ -535,15 +547,15 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
             setattr(delegated, name, value)
         original_calls = []
         def original_query(args):
-            assert args[0] != "status", "delegated_original_status_called"
             original_calls.append(list(args))
-            return expected_head + "\n"
+            raise AssertionError("delegated_original_git_called")
         delegated._run_git = original_query
         module._guard_installer_git_queries(delegated, expected_head)
         assert delegated._run_git(list(module.STATUS_QUERY)) == ""
         assert original_calls == []
         assert delegated._run_git(["rev-parse", "--verify", "HEAD"]).strip() == expected_head
-        assert original_calls == [["rev-parse", "--verify", "HEAD"]]
+        assert delegated._run_git(["branch", "--show-current"]).strip() == "main"
+        assert original_calls == []
         expect_source_hold(lambda: delegated._run_git(["status"]), "delegated_git_query_not_allowed")
         expect_source_hold(lambda: module._git(list(module.STATUS_QUERY)), "git_query_not_allowed")
         assert not marker.exists(), "delegated_observation_executed_filter"
@@ -564,6 +576,14 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
         extra = checkout / "untracked.txt"
         extra.write_text("fixture\n")
         expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_untracked_files")
+        alternate = root / "alternate-worktree"
+        alternate.mkdir()
+        fixture_git("config", "core.worktree", str(alternate))
+        # The unbound old query misses this real checkout's untracked file.
+        assert fixture_git("ls-files", "--others", "--full-name", "-z") == b""
+        expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_untracked_files")
+        expect_source_hold(lambda: delegated._run_git(list(module.STATUS_QUERY)), "checkout_untracked_files")
+        fixture_git("config", "--unset", "core.worktree")
         extra.unlink()
         tracked.chmod(0o755)
         expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_worktree_mode_mismatch")
@@ -625,8 +645,9 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
         module.FIXED_CHECKOUT = saved_checkout
         module.RUNTIME_UID, module.RUNTIME_GID = saved_uid, saved_gid
         module.os.geteuid = saved_fixture_geteuid
+        module.GIT_READ_SANDBOX = saved_sandbox
 
-if KERNEL_UID_DROP_AVAILABLE:
+if KERNEL_READ_BOUNDARY_EXECUTED:
     with tempfile.TemporaryDirectory(prefix="void-epoch2-root-git-include-proof-") as td:
         root = Path(td)
         checkout = root / "checkout"
@@ -635,8 +656,12 @@ if KERNEL_UID_DROP_AVAILABLE:
                        env=module.GIT_ENV, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         fifo = root / "root-only-include"
         os.mkfifo(fifo, 0o600)
+        user_fifo = root / "query-uid-include"
+        os.mkfifo(user_fifo, 0o600)
+        os.chown(user_fifo, 1000, 1000)
         config = checkout / ".git/config"
-        config.write_text(config.read_text() + "\n[include]\npath = " + str(fifo) + "\n")
+        original_config = config.read_text()
+        config.write_text(original_config + "\n[include]\npath = " + str(fifo) + "\n")
         for fixture_path in (root, *checkout.rglob("*"), checkout):
             os.chown(fixture_path, 1000, 1000)
         # A root Git query really opens the synthetic root-only FIFO and stalls.
@@ -662,6 +687,38 @@ if KERNEL_UID_DROP_AVAILABLE:
             else:
                 assert result == b"true\n"
 
+            config.write_text(original_config + "\n[include]\npath = " + str(user_fifo) + "\n")
+            # The same demoted identity can open this FIFO without Landlock.
+            # No credentials or non-fixture files are used in the control.
+            try:
+                subprocess.run(
+                    ["/usr/bin/setpriv", "--no-new-privs", "--reuid=1000", "--regid=1000",
+                     "--clear-groups", "--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all",
+                     "/usr/bin/git", "--git-dir=" + str(checkout / ".git"),
+                     "--work-tree=" + str(checkout), "-c", "safe.directory=" + str(checkout),
+                     "rev-parse", "--is-inside-work-tree"], env=module.GIT_ENV,
+                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    timeout=0.25, check=False,
+                )
+            except subprocess.TimeoutExpired:
+                pass
+            else:
+                raise AssertionError("query_uid_config_fifo_control_did_not_block")
+            for query in (["rev-parse", "--is-inside-work-tree"], ["rev-parse", "--verify", "HEAD"]):
+                try:
+                    module._git(query)
+                except module.EvidenceError as exc:
+                    assert str(exc).startswith("git_command_failed:"), str(exc)
+            delegated = module.types.ModuleType("synthetic_confined_delegate")
+            for name in ("LOCK_REL", "NATIVE_SOURCE_REL", "RUNNER_SOURCE_REL", "SEALED_V2_REL", "QUALIFIER_REL"):
+                setattr(delegated, name, "fixture")
+            delegated._run_git = lambda _args: (_ for _ in ()).throw(AssertionError("unsandboxed_delegate"))
+            module._guard_installer_git_queries(delegated, "a" * 40)
+            try:
+                delegated._run_git(["rev-parse", "--verify", "HEAD"])
+            except module.EvidenceError as exc:
+                assert str(exc).startswith("git_command_failed:"), str(exc)
+
             probe = root / "git-identity-probe.py"
             probe.write_text(
                 "#!/usr/bin/python3 -I\n"
@@ -675,14 +732,49 @@ if KERNEL_UID_DROP_AVAILABLE:
                 "    denied=True\n"
                 "else:\n"
                 "    os.close(fd)\n"
-                "print(json.dumps({'uid':os.getuid(),'euid':os.geteuid(),'gid':os.getgid(),'egid':os.getegid(),'groups':os.getgroups(),'nnp':int(status['NoNewPrivs']), 'caps':[int(status[k],16) for k in ('CapInh','CapPrm','CapEff','CapBnd','CapAmb')], 'root_only_include_denied':denied}))\n"
+                "user_denied=False\n"
+                "try:\n"
+                "    fd=os.open(" + repr(str(user_fifo)) + ",os.O_RDONLY|os.O_NONBLOCK)\n"
+                "except PermissionError:\n"
+                "    user_denied=True\n"
+                "else:\n"
+                "    os.close(fd)\n"
+                "print(json.dumps({'uid':os.getuid(),'euid':os.geteuid(),'gid':os.getgid(),'egid':os.getegid(),'groups':os.getgroups(),'nnp':int(status['NoNewPrivs']), 'caps':[int(status[k],16) for k in ('CapInh','CapPrm','CapEff','CapBnd','CapAmb')], 'root_only_include_denied':denied, 'query_uid_include_denied':user_denied}))\n"
             )
             probe.chmod(0o755)
             module.FIXED_GIT = probe
             identity = json.loads(module._git(["rev-parse", "HEAD"]))
             assert identity == {"uid":1000,"euid":1000,"gid":1000,"egid":1000,
                                 "groups":[],"nnp":1,"caps":[0,0,0,0,0],
-                                "root_only_include_denied":True}, identity
+                                "root_only_include_denied":True,
+                                "query_uid_include_denied":True}, identity
+            # Inode allowlists reject metadata symlinks/hardlinks before Git.
+            config.write_text(original_config)
+            for link_kind in ("symlink", "hardlink"):
+                outside = root / (link_kind + "-outside-fixture")
+                outside.write_text("synthetic data only\n")
+                os.chown(outside, 1000, 1000)
+                metadata = checkout / ".git/objects/unsafe-fixture"
+                if link_kind == "symlink":
+                    metadata.symlink_to(outside)
+                else:
+                    os.link(outside, metadata)
+                expect_source_hold(lambda: module._git(["rev-parse", "HEAD"]),
+                                   "git_command_failed:125:git_read_boundary_failed\n")
+                metadata.unlink()
+
+            saved_sandbox = module.GIT_READ_SANDBOX
+            try:
+                for guarded_line in ("abi = libc.syscall(444, 0, 0, 1)",
+                                     "if libc.syscall(446, rules_fd, 0) != 0:"):
+                    replacement = "abi = -1" if guarded_line.startswith("abi") else "if True:"
+                    assert module.GIT_READ_SANDBOX.count(guarded_line) == 1
+                    module.GIT_READ_SANDBOX = saved_sandbox.replace(guarded_line, replacement)
+                    expect_source_hold(lambda: module._git(["rev-parse", "HEAD"]),
+                                       "git_command_failed:125:git_read_boundary_failed\n")
+                    module.GIT_READ_SANDBOX = saved_sandbox
+            finally:
+                module.GIT_READ_SANDBOX = saved_sandbox
         finally:
             module.FIXED_CHECKOUT, module.FIXED_GIT = saved_checkout, saved_git_path
 
@@ -859,7 +951,14 @@ assert captured[:8] == [
     "/usr/bin/setpriv", "--no-new-privs", "--reuid=1000", "--regid=1000",
     "--clear-groups", "--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all",
 ]
-assert captured[8] == "/usr/bin/git"
+assert captured[8:12] == ["/usr/bin/python3", "-I", "-B", "-c"]
+assert captured[12] == module.GIT_READ_SANDBOX
+request = json.loads(captured[13])
+assert request["checkout"] == str(module.FIXED_CHECKOUT)
+captured = request["argv"]
+assert captured[0] == "/usr/bin/git"
+assert "--git-dir=" + str(module.FIXED_CHECKOUT / ".git") in captured
+assert "--work-tree=" + str(module.FIXED_CHECKOUT) in captured
 assert captured.count("core.fsmonitor=false") == 1
 fsmonitor_index = captured.index("core.fsmonitor=false")
 assert fsmonitor_index > 0
@@ -869,7 +968,7 @@ assert captured.count("core.excludesFile=/dev/null") == 1
 assert captured.index("core.excludesFile=/dev/null") < captured.index("ls-files")
 module.os.geteuid = lambda: 1000
 module._git(["rev-parse", "HEAD"])
-assert captured_git_commands[-1][0] == "/usr/bin/git"
+assert captured_git_commands[-1][:4] == ["/usr/bin/python3", "-I", "-B", "-c"]
 module.os.geteuid = lambda: 1001
 expect_source_hold(lambda: module._git(["rev-parse", "HEAD"]), "checkout_query_uid_invalid")
 assert len(captured_git_commands) == 2
@@ -1074,8 +1173,13 @@ print("configured_global_excludes_file_bypassed=true")
 print("local_excludes_fifo_control_reproduced=true")
 print("repository_local_excludes_not_read=true")
 print("ignored_untracked_files_rejected=true")
-print("kernel_git_uid_drop_executed=" + str(KERNEL_UID_DROP_AVAILABLE).lower())
-print("root_only_git_config_include_denied=" + str(KERNEL_UID_DROP_AVAILABLE).lower())
+print("configured_worktree_cannot_redirect_observation=true")
+print("delegated_original_metadata_queries_bypassed=true")
+print("kernel_git_uid_drop_executed=" + str(KERNEL_READ_BOUNDARY_EXECUTED).lower())
+print("root_only_git_config_include_denied=" + str(KERNEL_READ_BOUNDARY_EXECUTED).lower())
+print("kernel_git_read_boundary_executed=" + str(KERNEL_READ_BOUNDARY_EXECUTED).lower())
+print("query_uid_config_include_denied=" + str(KERNEL_READ_BOUNDARY_EXECUTED).lower())
+print("kernel_metadata_links_and_sandbox_failures_hold=" + str(KERNEL_READ_BOUNDARY_EXECUTED).lower())
 print("filesystem_write_performed=false")
 print("runner_execution=false")
 print("live_composition_execution=false")
