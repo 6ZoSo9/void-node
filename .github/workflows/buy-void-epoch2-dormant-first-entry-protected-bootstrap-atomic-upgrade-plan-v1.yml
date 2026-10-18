@@ -75,9 +75,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = 928568d08f56375911505af635306b715790c1f3
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = 9525616f8fd03ba572bab1886dddd14914ebf3f7
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-plan-v1.md)" = 25eaa32bd0d4fcc17102f6df7d7b20944f6b4792
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = e695ceed29f61f08f480d4dafaad7cc6635adf81
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-plan-v1.md)" = a6176c662a66dda7ac6286b818c45c370cbf0336
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 7d70527d8910881f9973479b89ceef78789ad100
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 9e0b997230943b1ad0a0285e74e82faf049d7d31
@@ -118,6 +118,11 @@ jobs:
             'subprocess_execution_limited_to_sanitized_git=true' \
             'input_reads_read_only_nofollow=true' \
             'temporary_git_metadata_boundary_explicit=true' \
+            'planner_git_callbacks_neutralized=true' \
+            'planner_git_fsmonitor_callback_rejected=true' \
+            'future_apply_source_inline=true' \
+            'future_apply_source_reopens_checkout=false' \
+            'future_apply_mutable_checkout_execution=false' \
             'source_repository_mutation=false' \
             'protected_filesystem_mutation=false' \
             'future_apply_argv_emitted_only=true' \
@@ -155,6 +160,9 @@ jobs:
             'repaired_manifest_identity_bound=true' \
             'upgrader_collect_only=true' \
             'temporary_git_metadata_boundary_explicit=true' \
+            'planner_git_callbacks_neutralized=true' \
+            'future_apply_source_inline=true' \
+            'future_apply_source_reopens_checkout=false' \
             'protected_filesystem_mutation=false' \
             'future_apply_argv_emitted_only=true' \
             'future_apply_authorized=false' \
@@ -172,6 +180,9 @@ jobs:
             'source_only=true' \
             'host_read=false' \
             'host_write=false' \
+            'planner_git_callbacks_neutralized=true' \
+            'future_apply_source_inline=true' \
+            'future_apply_source_reopens_checkout=false' \
             'future_apply_requires_root=true' \
             'future_apply_authorized=false' \
             'bootstrap_execution=false' \
