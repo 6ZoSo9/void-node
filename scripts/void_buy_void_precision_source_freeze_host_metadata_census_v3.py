@@ -23,7 +23,7 @@ FREEZE_ID = (
     "32bd552dc92df07fd391ee3571f92e5efd80cbb50bd79bc4b8952484511db7f1"
 )
 
-SUCCESSOR_REVIEW_HEAD = "caa7daa8ed32143b6884f938d576f795b828684f"
+SUCCESSOR_REVIEW_HEAD = "d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5"
 SUCCESSOR_PATH = "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
 SUCCESSOR_BLOB = "774db38ccb771f393b44d589a455144b99d36f6b"
 SUCCESSOR_ID = (
@@ -31,12 +31,12 @@ SUCCESSOR_ID = (
     "819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef"
 )
 
-ACCEPTANCE_REVIEW_HEAD = "b55efaff7355234ccc51f5c3a216e6befeefa1d5"
+ACCEPTANCE_REVIEW_HEAD = "dd2b04d62474ef35b2512744285fe26e3081018f"
 ACCEPTANCE_PATH = "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
-ACCEPTANCE_BLOB = "5d437a37703a83908a7fa78b78da92151aa1aa99"
+ACCEPTANCE_BLOB = "174d536807f03fd7b6ff44820d4e378c7055150e"
 ACCEPTANCE_ID = (
     "voidbuypresalefreezeaccept2_"
-    "88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4"
+    "427988497e4789465dde1c193668bb140d017c4e3ba3748567ea4e3bacfadb57"
 )
 
 ENFORCEMENT_LOCK_PATH = "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"

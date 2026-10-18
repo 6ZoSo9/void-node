@@ -47,13 +47,13 @@ Successor manifest blob:
 
 Exact hosted successor run:
 
-`39104682530`.
+`39107024613`.
 
 Artifacts:
 
-- Node 22: `12128155696`;
-- Node 24: `12128146272`;
-- Node 26: `12127529856`.
+- Node 22: `12128524197`;
+- Node 24: `12128298547`;
+- Node 26: `12128707222`.
 
 The reviewed successor proves:
 
@@ -72,6 +72,11 @@ Therefore this exact freeze no longer requires a separate current-source
 enforcement successor:
 
 `current_source_enforcement_successor_required=false`.
+
+The final reviewed successor head is
+`d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5`. Its proof is self-contained from reachable
+frozen/current tree bytes plus committed inventories and explicitly reports
+`historical_commit_objects_required=false`.
 
 ## Historical enforcement
 
@@ -107,7 +112,7 @@ authority remains false.
 
 Acceptance ID:
 
-`voidbuypresalefreezeaccept2_88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4`
+`voidbuypresalefreezeaccept2_427988497e4789465dde1c193668bb140d017c4e3ba3748567ea4e3bacfadb57`
 
 The suffix is SHA-256 over canonical JSON of the acceptance body excluding
 `acceptance_id`.
@@ -123,6 +128,13 @@ current_source_enforcement_successor_required=false
 
 It explicitly does **not** accept a customer payment rail and does not interpret
 legacy freeze wording as a payment allowlist.
+
+The acceptance proof content-addresses the repaired #3491 freeze proof,
+architecture and workflow generations. Those reviewed sources bind native USDC
+on Ethereum mainnet (1) and Base mainnet (8453), a 10,000,000 VOID pool at
+2 VOID/USDC, coupled presale/WC-VOID opening, BTC/VOID post-presale, and
+`legacy_btc_coupled_field_payment_asset_authority=false`. This is semantic
+source evidence only; `payment_rail_policy_accepted` remains false here.
 
 All remain false:
 

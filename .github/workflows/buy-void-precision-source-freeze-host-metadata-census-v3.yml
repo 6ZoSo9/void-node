@@ -33,7 +33,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=b55efaff7355234ccc51f5c3a216e6befeefa1d5
+          STACK_PARENT=dd2b04d62474ef35b2512744285fe26e3081018f
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
@@ -48,11 +48,11 @@ jobs:
           git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py)" = b5ddb5799b031de6c42efd3743a0bb6ac9e20ddc
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py)" = d8ea2966d81e43c273d3692f5778143259431f08
           test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py)" = 9dd55390b75bb6c6075efb053b0491b23a52fe60
-          test "$(git rev-parse HEAD:docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md)" = f6d66b7e806c74bafcf1d21a797be4df0c4f86bd
+          test "$(git rev-parse HEAD:docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md)" = 1e7927cfcace8e5823985bff88bb13a9db6c87cc
 
-          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = 5d437a37703a83908a7fa78b78da92151aa1aa99
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = 174d536807f03fd7b6ff44820d4e378c7055150e
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = 774db38ccb771f393b44d589a455144b99d36f6b
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = 589845615654da8b688764377b34296267ac0063
@@ -60,8 +60,8 @@ jobs:
 
           test "$(git rev-parse 05614762b1b4638e05e539fd7d20cbf670e1570b^{tree})" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
           git merge-base --is-ancestor d3e7404791622541a4567ddd506f27caba60cfea "$EXPECTED_HEAD"
-          git merge-base --is-ancestor caa7daa8ed32143b6884f938d576f795b828684f "$EXPECTED_HEAD"
-          git merge-base --is-ancestor b55efaff7355234ccc51f5c3a216e6befeefa1d5 "$EXPECTED_HEAD"
+          git merge-base --is-ancestor d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5 "$EXPECTED_HEAD"
+          git merge-base --is-ancestor dd2b04d62474ef35b2512744285fe26e3081018f "$EXPECTED_HEAD"
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 

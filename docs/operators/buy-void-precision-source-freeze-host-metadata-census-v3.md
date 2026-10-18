@@ -35,11 +35,19 @@ Successor blob:
 
 Source-freeze acceptance:
 
-`voidbuypresalefreezeaccept2_88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4`
+`voidbuypresalefreezeaccept2_427988497e4789465dde1c193668bb140d017c4e3ba3748567ea4e3bacfadb57`
 
 Acceptance blob:
 
-`5d437a37703a83908a7fa78b78da92151aa1aa99`.
+`174d536807f03fd7b6ff44820d4e378c7055150e`.
+
+Final reviewed lineage heads:
+
+- enforcement successor `d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5`;
+- source-freeze acceptance `dd2b04d62474ef35b2512744285fe26e3081018f`.
+
+The acceptance itself content-addresses the repaired #3491 native-USDC/BTC-post-presale
+semantic evidence while leaving payment-rail acceptance false.
 
 V3 also observes, without interpreting as live authority:
 

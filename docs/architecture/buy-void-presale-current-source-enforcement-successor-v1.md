@@ -46,7 +46,11 @@ The proof verifies directly from Git that the frozen source commit has:
 - exactly 49 protected enforcement paths;
 - **0** protected-path blob/mode deltas versus the accepted V2 inventory;
 - exactly 28 reviewed economic source files;
-- **0** reviewed-economic-source blob/mode deltas versus the accepted V2 parent.
+- **0** reviewed-economic-source blob/mode deltas between the reachable frozen
+  source and current HEAD;
+- exact reproduction of the accepted hosted and canonical 28-source inventory
+  SHA-256 values, without reading `candidate.current_enforcement_parent` or
+  requiring any divergent historical commit object.
 
 The existing hosted #3491 exact-head workflows independently prove:
 
@@ -68,9 +72,17 @@ The successor therefore accepts only:
 
 `current_source_enforcement_successor_accepted=true`.
 
+This successor is stacked on source-clear prerequisite #3500 exact head
+`4cdf06a58f2d7ef08942af359b44421887e4d12e`. That prerequisite provides self-contained current-generation
+dispatch V2 at blob `35b8b878ba30cfa7567578ab05424d4f827f3220`, with Node 22/24/26 and cross-node GREEN. Its semantic helper remains the
+reviewed blob `35b8b878ba30cfa7567578ab05424d4f827f3220`; the later #3500
+workflow/documentation successor adds downstream-consumer CI classification
+without changing that helper.
+
 This successor's own CI rebuilds the reviewed economic closure on Node 22, 24,
-and 26, runs the current-generation integration dispatch separately, and then
-copies the exact frozen V2 candidate bytes. All three lanes must require:
+and 26, runs the self-contained V2 current-generation integration dispatch
+separately, and then copies the exact frozen V2 candidate bytes. All three lanes
+must require:
 
 - frozen candidate SHA-256
   `092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb`;
@@ -85,6 +97,10 @@ copies the exact frozen V2 candidate bytes. All three lanes must require:
 The accepted candidate proof is not weakened or repinned to manufacture a new
 current-head candidate. Current source compatibility is proven separately while
 the historical accepted candidate/lock bytes remain exact.
+
+The source proof and current-generation helper are self-contained from reachable
+frozen/current tree bytes plus committed accepted inventories. They do not depend
+on temporary refs retaining historical enforcement/restack commit objects.
 
 ## Successor identity
 
