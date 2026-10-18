@@ -28,7 +28,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="78242e51f5b332d9057bf17d3842328ffd300b65";
+const TARGET_BLOB="0b6dcd9b24390ea749376d757a633c44547ae81d";
 
 const PINNED=Object.freeze({
   [TARGET_REL]:TARGET_BLOB,
@@ -252,6 +252,9 @@ for(const required of [
   "caller_supplied_exclusive_transaction_is_host_proof:false",
   "caller_supplied_revalidator_is_host_proof:false",
   "fs.constants.O_RDWR|fs.constants.O_CREAT",
+  "cleanupUnlinkedPending",
+  "apollyon_claim_store_impl_v2_transaction_outside_wrapper_call",
+  "apollyon_claim_store_impl_v2_transaction_result_substitution",
   "fs.fsyncSync(pendingFd)",
   "fs.linkSync(pendingPath,finalPath)",
   "apollyon_claim_store_impl_v2_orphan_claim_without_slot",
@@ -282,6 +285,8 @@ function fixture({
   mutateGenerationStage=null,
   asyncRevalidator=false,
   asyncTransaction=false,
+  captureTransaction=false,
+  substituteTransactionResult=false,
 }={}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),"void-apollyon-claim-store-v2-"));
   fs.chmodSync(root,0o700);
@@ -303,6 +308,7 @@ function fixture({
   const rootFd=fs.openSync(root,fs.constants.O_RDONLY|O_DIRECTORY|O_CLOEXEC);
   const stages=[];
   let txCount=0;
+  let savedTransaction=null;
   let generation=null;
   const config={
     root_fd:rootFd,
@@ -312,7 +318,12 @@ function fixture({
     withExclusiveStoreTransaction(fn){
       txCount+=1;
       if(asyncTransaction)return Promise.resolve(null);
-      return fn();
+      if(captureTransaction){
+        savedTransaction=fn;
+        return null;
+      }
+      const value=fn();
+      return substituteTransactionResult?structuredClone(value):value;
     },
     revalidate(stage,context){
       stages.push(stage);
@@ -348,7 +359,9 @@ function fixture({
   );
   return {
     root,rootFd,active,core,stages,
-    txCount:()=>txCount,generation,
+    txCount:()=>txCount,
+    savedTransaction:()=>savedTransaction,
+    generation,
     cleanup(){
       try{fs.closeSync(rootFd);}catch{}
       fs.rmSync(root,{recursive:true,force:true});
@@ -561,6 +574,103 @@ function expectError(fn,code){
   }finally{f.cleanup();}
 }
 
+
+{
+  const f=fixture();
+  const record=claimRecord(f.generation);
+  const bundle=requestBundle(record);
+  const originalLink=fs.linkSync;
+  let injected=false;
+  try{
+    fs.linkSync=function injectedLink(oldPath,newPath){
+      if(!injected&&String(oldPath).includes("pending-claim-")){
+        injected=true;
+        const error=new Error("fixture_prelink_failure");
+        error.code="EIO";
+        throw error;
+      }
+      return originalLink(oldPath,newPath);
+    };
+    expectError(
+      ()=>f.core.publishClaim(publishInput(bundle,f.generation)),
+      "apollyon_claim_store_impl_v2_publication_failed",
+    );
+  }finally{
+    fs.linkSync=originalLink;
+  }
+  try{
+    assert.equal(injected,true);
+    const claimFile=path.join(
+      f.root,
+      VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.claim_directory,
+      claimLeaf(record),
+    );
+    assert.equal(fs.existsSync(claimFile),false);
+    assert.equal(
+      fs.readdirSync(
+        path.join(f.root,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.pending_directory)
+      ).some(name=>name.startsWith("pending-claim-")),
+      true,
+    );
+    const retry=f.core.publishClaim(publishInput(bundle,f.generation));
+    assert.equal(retry.slot_publication_outcome,"existing_exact");
+    assert.equal(retry.claim_publication_outcome,"created");
+    assert.equal(retry.success_response.outcome,"created_durable");
+    requireRecordMetadata(claimFile);
+    requirePendingEmpty(f);
+  }finally{f.cleanup();}
+}
+
+{
+  const f=fixture({captureTransaction:true});
+  try{
+    const record=claimRecord(f.generation);
+    const bundle=requestBundle(record);
+    expectError(
+      ()=>f.core.publishClaim(publishInput(bundle,f.generation)),
+      "apollyon_claim_store_impl_v2_transaction_not_exactly_once",
+    );
+    const saved=f.savedTransaction();
+    assert.equal(typeof saved,"function");
+    expectError(
+      ()=>saved(),
+      "apollyon_claim_store_impl_v2_transaction_outside_wrapper_call",
+    );
+    assert.deepEqual(
+      fs.readdirSync(
+        path.join(f.root,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.authorization_slot_directory)
+      ),
+      [],
+    );
+    assert.deepEqual(
+      fs.readdirSync(path.join(f.root,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.claim_directory)),
+      [],
+    );
+  }finally{f.cleanup();}
+}
+
+{
+  const f=fixture({substituteTransactionResult:true});
+  try{
+    const record=claimRecord(f.generation);
+    const bundle=requestBundle(record);
+    expectError(
+      ()=>f.core.publishClaim(publishInput(bundle,f.generation)),
+      "apollyon_claim_store_impl_v2_transaction_result_substitution",
+    );
+    requireRecordMetadata(path.join(
+      f.root,
+      VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.authorization_slot_directory,
+      slotLeaf(bundle.slot),
+    ));
+    requireRecordMetadata(path.join(
+      f.root,
+      VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.claim_directory,
+      claimLeaf(record),
+    ));
+  }finally{f.cleanup();}
+}
+
 {
   const f=fixture({mutateGenerationStage:"before_slot_publication"});
   try{
@@ -652,6 +762,9 @@ for(const [key,value] of Object.entries(
     "directory_fsync_implemented",
     "exact_reread_implemented",
     "crash_recovery_exact_pending_link_cleanup_implemented",
+    "stale_unlinked_pending_recovery_implemented",
+    "transaction_callback_lifetime_guard_implemented",
+    "transaction_result_passthrough_required",
     "exact_same_claim_recovery_implemented",
     "different_claim_in_occupied_slot_rejected_implemented",
     "slot_before_claim_order_implemented",
@@ -683,6 +796,9 @@ console.log("exact_replay_idempotent=true");
 console.log("different_claim_same_authorization_rejected=true");
 console.log("crash_after_slot_exact_recovery_proven=true");
 console.log("post_link_cleanup_failure_recovery_proven=true");
+console.log("prelink_stale_pending_recovery_proven=true");
+console.log("transaction_callback_lifetime_guard_proven=true");
+console.log("transaction_result_substitution_rejected=true");
 console.log("generation_drift_before_mutation_rejected=true");
 console.log("orphan_claim_without_slot_rejected=true");
 console.log("async_revalidator_rejected_before_mutation=true");
