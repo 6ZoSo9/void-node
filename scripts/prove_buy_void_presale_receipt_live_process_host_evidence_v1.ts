@@ -176,7 +176,7 @@ for(const stale of [
 const ancestorRevalidationIndex =
   source.indexOf("revalidateReceiptAncestors(heldDirectories);");
 const canonicalLeafRevalidationIndex =
-  source.indexOf("const canonicalBefore = fs.lstatSync(target);");
+  source.indexOf("const canonicalBefore = fs.lstatSync(target, { bigint: true });");
 assert.ok(ancestorRevalidationIndex >= 0);
 assert.ok(canonicalLeafRevalidationIndex > ancestorRevalidationIndex);
 
