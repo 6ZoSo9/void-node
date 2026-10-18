@@ -107,11 +107,29 @@ Re-addressed source/toolchain/binary/authority/next-gate drift is rejected.
 
 ## Hosted artifact
 
-The focused workflow publishes only the derived candidate report and static ELF
-as a short-retention review artifact after all proofs pass. The proof explicitly
-re-addresses a non-ELF payload and a one-byte-mutated ELF with internally
-consistent report hashes; validation must reject the former during byte
-inspection and the latter because the independent rebuild differs.
+The focused workflow materializes the derived candidate report and static ELF
+only after all proofs pass. The proof explicitly re-addresses a non-ELF payload
+and a one-byte-mutated ELF with internally consistent report hashes; validation
+must reject the former during byte inspection and the latter because the
+independent rebuild differs.
+
+The review handoff is a deterministic POSIX tar archive containing:
+
+- `candidate-v1.json`;
+- `apollyon-claim-protected-first-entry-static-v1`;
+- `SHA256SUMS.txt`;
+- `source-head.txt`.
+
+The tar member for the ELF is required to retain mode `0555`. The workflow
+extracts its own archive into a fresh directory, requires the restored ELF mode
+to be exactly `0555`, and re-runs the relative SHA-256 manifest before upload.
+Only that tar file is sent through `actions/upload-artifact`. The outer hosted
+artifact transport may normalize the tar file's own mode, but it cannot erase
+the authenticated ELF mode stored inside the tar member.
+
+A later handoff must extract the tar before using the candidate and must recheck
+the manifest, source head, and ELF mode. It must not execute a directly restored
+loose file from the hosted artifact wrapper.
 
 That artifact is evidence for a later, separately reviewed candidate acceptance
 lock. Artifact publication is **not** candidate acceptance and grants no host
