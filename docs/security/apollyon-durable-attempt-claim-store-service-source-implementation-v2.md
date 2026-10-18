@@ -63,7 +63,14 @@ training-start-consumption-v1/
 
 The implementation itself does not create those directories or install that root. Host installation remains a separate gate.
 
-Protected root and subdirectories are required mode `0700` and owned by the configured claim service UID/GID. Durable record leaves are required mode `0600`, single-link after completed publication, and exact owner/group.
+The core refuses claim UID 0 or claim GID 0 and admits numeric values only in
+`1..65533`. The fuller separation against training/custody/public/operator
+identities and exact claim-IPC supplementary-group set remains a host-integration
+gate.
+
+Protected root and subdirectories are required mode `0700` and owned by the
+configured non-root claim service UID/GID. Durable record leaves are required
+mode `0600`, single-link after completed publication, and exact owner/group.
 
 The retained root identity is content-addressed as canonical:
 
@@ -195,6 +202,7 @@ caller-supplied wrapper host proof.
 
 The focused proof uses only disposable private temporary roots. It proves:
 
+- root claim UID/GID are rejected before store use;
 - exact publisher bytes are preserved;
 - malformed/noncanonical requests reject;
 - retained root identity is bound to generation records;
