@@ -51,11 +51,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
-            790fb4f5b1f04017d9f7c970d57b25c764d9949b
+            cf133e9a4e3e89bebed35f6f9b1248e19f417114
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
-            86f4d8e16a4d57f246c64b2c8d9ec20ab46ac2b0
+            aa16ca4a119ca766d02f2adade929a41acce5d2a
           test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
-            eaf6e7845d47b36afd8ffbb6cc33d9cae188f868
+            6fee41f8024c4d3d98514b2908a9ace930a8e1f5
 
           external_consumption_ref=refs/heads/ren/apollyon-training-start-consumption-contract-v1-20261016
           external_consumption_head=fdf47e77cd12eee38efe741edb02fa2fd39135e2
@@ -128,6 +128,9 @@ jobs:
           grep -Fx 'activation_generation_bound=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'start_ticks_preclone_length_bound=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'start_ticks_u64_range_bound=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'unknown_object_graph_rejected_before_clone=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'regex_coercion_identifiers_rejected=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'boxed_string_identifiers_rejected=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'trainer_generation_external_validation_performed=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'training_start_consumption_record_origin_proven=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'training_start_consumption_performed=false' /tmp/apollyon-activation-capability-proof.txt
