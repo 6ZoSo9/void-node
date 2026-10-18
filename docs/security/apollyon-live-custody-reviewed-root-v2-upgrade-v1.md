@@ -4,14 +4,22 @@ This is the installed-host source successor for Xiphos after either the initial
 create-only custody deployment **or** the previously accepted reviewed-V2
 upgrade.
 
-The migration contract recognizes only three exact launcher generations:
+The migration contract recognizes four exact fixed-launcher generations:
 
 - original reviewed-v1 launcher:
   `e18124d3109ed63ff50da9c467fb1b798c300460`;
 - previously installed reviewed-v2 launcher:
   `b96f99d6c513405e6f8b87b8f5c3fb1b1cbbf9c7`;
-- current retired-V1-lineage launcher:
-  `820f7151c0f83280b7457f841cee14c3b0c274b6`.
+- previously installed current-root launcher:
+  `820f7151c0f83280b7457f841cee14c3b0c274b6`;
+- current **retired** fixed launcher:
+  `352bd36f2b07091140b990de4170f708eb11fee6`.
+
+The retired fixed launcher is sourced from
+`ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py`
+but is installed at the unchanged fixed launcher pathname. Its live path emits
+negative authority and HOLDs before Node open, reviewed-root materialization,
+runner spawn, lifecycle-lock acquisition, or systemd/service action.
 
 The prior-V2 migration source is not inferred from the launcher alone. The
 manifest carries the complete former reviewed-v2 closure verbatim, and the
@@ -65,6 +73,34 @@ installer layout without weakening collision handling or the legacy-v1 path.
 A service-state query failure, unknown/not-found unit, nonzero MainPID, or any
 `active`, `activating`, `reloading`, `deactivating`, or `failed` state HOLDs.
 No root rename is permitted on a merely "not active" observation.
+
+## Current-root fixed-launcher retirement path
+
+A host may already have the exact current reviewed-v2 source root while its
+fixed launcher is still the formerly supported `820f7151...` generation.
+That state is admitted only when the reviewed root is exact and any preserved
+prior-V2 backup root is either absent or exact.
+
+For this state the executor:
+
+1. proves both custody and training services are exactly
+   `LoadState=loaded`, `ActiveState=inactive`, `SubState=dead`,
+   `MainPID=0`;
+2. verifies the current reviewed root without modifying it;
+3. atomically replaces only the fixed launcher, from
+   `820f7151...` to retired `352bd36f...`;
+4. re-verifies the current reviewed root is byte-identical;
+5. re-attests both services are still exactly dormant.
+
+This path does **not** build a stage, rename the reviewed root, or rewrite any
+reviewed-root file. The reviewed root intentionally still contains historical
+`apollyon_live_custody_source_session_launcher_v2.py` blob
+`820f7151...` as a root-custodied reviewed source file. That file is not the
+installed fixed launcher. Its own fixed-path identity check prevents it from
+being used as the supported launcher from the reviewed-root pathname.
+
+Fresh create-only installation likewise installs the retired successor as the
+fixed launcher while retaining the unchanged reviewed source closure.
 
 ## Interrupted migration recovery
 
