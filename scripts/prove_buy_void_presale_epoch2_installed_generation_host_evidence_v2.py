@@ -17,7 +17,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
 )
-TARGET_BLOB = "004a84d71fe3effeda5856dfcd2d92fb031bdf48"
+TARGET_BLOB = "a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2"
 BASE_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
