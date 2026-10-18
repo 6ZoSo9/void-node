@@ -132,7 +132,7 @@ for (const required of [
   "SEPARATELY_AUTHORIZE_NONCUSTOMER_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_V1",
   "livePolicy.normalized?.installation_high_water_sha256",
   "secondControl.normalized?.replay_high_water_sha256",
-  "ALLOCATION_CUSTODY_POLICY_AND_SECOND_CONTROL_EVIDENCE_GREEN_LIVE_ROLLBACK_ENFORCEMENT_REQUIRED",
+  "ALLOCATION_CUSTODY_PREREQUISITES_GREEN_CONTROLLED_CHALLENGE_REQUIRED",
   "live_policy_enforcement_proven: false",
   "live_rollback_test_performed: false",
   "live_durable_storage_proven: false",
