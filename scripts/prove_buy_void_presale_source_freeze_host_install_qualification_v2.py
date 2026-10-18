@@ -225,7 +225,7 @@ with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     assert "reason=input_metadata_invalid" in cp.stdout
 
     deep = root / "deep.json"
-    deep.write_text("[" * 1200 + "0" + "]" * 1200, encoding="utf-8")
+    deep.write_text("[" * 10_000 + "0" + "]" * 10_000, encoding="utf-8")
     cp = subprocess.run(
         ["/usr/bin/python3", "-I", "-B", str(ROOT / TARGET_REL), "--census-json", str(deep)],
         cwd=ROOT,
