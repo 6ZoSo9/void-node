@@ -7,6 +7,12 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW_REL = (
+    ".github/workflows/"
+    "buy-void-epoch2-dormant-first-entry-protected-bootstrap-"
+    "repaired-installed-qualification-v1.yml"
+)
+EXACT_PARENT = "6ad7b6d3dde9c2131d27389101d3439babb98de9"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
@@ -77,6 +83,12 @@ pin(UPGRADER_REL, UPGRADER_BLOB)
 pin(UPGRADER_PROOF_REL, UPGRADER_PROOF_BLOB)
 pin(PLAN_REL, PLAN_BLOB)
 pin(PLAN_PROOF_REL, PLAN_PROOF_BLOB)
+
+workflow_source = (ROOT / WORKFLOW_REL).read_text("utf-8")
+assert 'base="' + EXACT_PARENT + '"' in workflow_source
+assert 'workflow_dispatch)' in workflow_source
+assert 'EXPECTED_HEAD^1' not in workflow_source
+assert 'git rev-parse "$EXPECTED_HEAD^1"' not in workflow_source
 
 source = target_raw.decode("utf-8", "strict")
 compile(source, TARGET_REL, "exec", dont_inherit=True)
@@ -264,6 +276,8 @@ for mode, expected_lines in (
 
 print(MARKER + "_PROOF_GREEN")
 print("target_blob_bound=true")
+print("workflow_dispatch_exact_parent_bound=true")
+print("workflow_dispatch_first_parent_inference_absent=true")
 print("repaired_upgrader_generation_bound=true")
 print("nonexecuting_upgrade_plan_generation_bound=true")
 print("green_state_classifier_reused=true")
