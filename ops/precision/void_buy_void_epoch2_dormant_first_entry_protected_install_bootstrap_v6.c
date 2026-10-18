@@ -1057,7 +1057,7 @@ static void snapshot_pack_directory(private_git_v5 *reader) {
         if (!strcmp(suffix,".promisor")) hold("bootstrap_git_promisor_storage_unsupported");
         bool pack=!strcmp(suffix,".pack"),index=!strcmp(suffix,".idx");
         if (!pack && !index) {
-            if (strcmp(suffix,".rev") && strcmp(suffix,".bitmap") && strcmp(suffix,".keep"))
+            if (strcmp(suffix,".rev") && strcmp(suffix,".bitmap") && strcmp(suffix,".keep") && strcmp(suffix,".mtimes"))
                 hold("bootstrap_git_pack_auxiliary_unsupported");
             struct stat identity;
             if (fstatat(dirfd(directory),name,&identity,AT_SYMLINK_NOFOLLOW) ||

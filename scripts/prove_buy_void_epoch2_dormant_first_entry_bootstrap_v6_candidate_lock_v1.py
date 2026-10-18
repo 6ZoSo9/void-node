@@ -22,19 +22,19 @@ OLD_V5_LOCK_REL = "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v5
 OLD_V4_LOCK_REL = "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v4-candidate-lock-v1.json"
 
 MARKER = "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_BOOTSTRAP_V6_CANDIDATE_LOCK_V1"
-LOCK_ID = "voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"
-CANDIDATE_HEAD = "02e6e1f7f938d8d7331f32eaca8d2d07c7f7854b"
-CANDIDATE_TREE = "3d77c814e8dbde6d88e824f1b90667d69a39eeaf"
+LOCK_ID = "voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396"
+CANDIDATE_HEAD = "404367eb982fa92a40f3c2fe51d5f172a1e9fac0"
+CANDIDATE_TREE = "724f501caeb7fa888b3b93f55ff5da08a577088a"
 SUPERSEDED_V5_LOCK = "voidbuye2dormantbootstraplock2_f2e419eb1643989a4b881b2d817ff097eff9d68d6d763a933d624301a93930e3"
 SUPERSEDED_V4_LOCK = "voidbuye2dormantbootstraplock1_ffd5e877b4bf594b7af4eac3f03fd7b846686949febcae54318ef08ee5793796"
 
 EXPECTED_REPORT_BYTES = 2745
-EXPECTED_REPORT_SHA256 = "f081e70836f9e6862c6ee207ff2ef1cbad6d36e043b70286443fc9101705912d"
-EXPECTED_REPORT_GIT_BLOB = "1929d4ea5ba5b91f8330c9c8a86c368795245b3a"
-EXPECTED_CANDIDATE_ID = "voidbuye2dormantbootstrapcand3_13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062"
+EXPECTED_REPORT_SHA256 = "14a8c9b60440f81d906070d3efee3248ac60b2a4ae43783fe5c1484ff0847c3d"
+EXPECTED_REPORT_GIT_BLOB = "d0302cf5a1b7af91b46458585784c70e0d37432f"
+EXPECTED_CANDIDATE_ID = "voidbuye2dormantbootstrapcand3_1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2"
 EXPECTED_BINARY_BYTES = 874608
-EXPECTED_BINARY_SHA256 = "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
-EXPECTED_BINARY_GIT_BLOB = "a91707c3e5803071fc73c3451c9bcb3b774f8b48"
+EXPECTED_BINARY_SHA256 = "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
+EXPECTED_BINARY_GIT_BLOB = "b577d70666f98ac59a75b84b3dab741fe7b93a4b"
 
 ENV = {
     "PATH": "/usr/bin:/bin",
@@ -99,41 +99,41 @@ assert subprocess.run(
 ).returncode == 0
 
 assert lock["source_generation"] == {
-    "id": "voidbuye2dormantsourcegen3_aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662",
-    "manifest_git_blob_sha1": "6e0630af72111bd9976dcc38cdcdada1904dd067",
+    "id": "voidbuye2dormantsourcegen3_8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9",
+    "manifest_git_blob_sha1": "de56bacb30bea0adc418e240cf3fb8d900b061ef",
     "manifest_bytes": 2382,
-    "manifest_sha256": "aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662",
-    "bootstrap_source_git_blob_sha1": "a317d3dce324337f107909bd6e33e98622b3ef09",
-    "bootstrap_source_bytes": 106764,
-    "bootstrap_source_sha256": "c87110d83029c5c475a6ed1033dfaa1d94c3c173fe7c2e81c4a0daed88e81088",
+    "manifest_sha256": "8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9",
+    "bootstrap_source_git_blob_sha1": "560726bcae6ea0738502cb5e74b65f9116bd447d",
+    "bootstrap_source_bytes": 106792,
+    "bootstrap_source_sha256": "ac8673f51e4325e3ed1912a4f628cc3715c7199cda1c3cbdacbbcb710ae6b145",
     "inner_installer_git_blob_sha1": "ce6930bc1be8239a3171d4922c44b96a50f5778b",
     "inner_installer_bytes": 127528,
     "inner_installer_sha256": "c9fbb7ce1c1788b52837635243c6393fc731ef12a7217cc9155d6ff86bd97bfb",
 }
 
 assert lock["candidate_hosted_evidence"] == {
-    "workflow_run": 39052446979,
-    "source_proof_job": 117453594171,
-    "derive_job_a": 117453668048,
-    "derive_job_b": 117453668092,
-    "derive_job_c": 117453668080,
-    "compare_job": 117453745953,
-    "artifact_a": 12108395551,
-    "artifact_b": 12108530851,
-    "artifact_c": 12107734752,
+    "workflow_run": 39077019801,
+    "source_proof_job": 117526163023,
+    "derive_job_a": 117526232018,
+    "derive_job_b": 117526232033,
+    "derive_job_c": 117526232057,
+    "compare_job": 117526492254,
+    "artifact_a": 12116918415,
+    "artifact_b": 12117740915,
+    "artifact_c": 12117910498,
     "three_report_byte_identity_verified": True,
     "three_binary_byte_identity_verified": True,
     "independent_rederivation_verified": True,
 }
 
 assert lock["candidate_report"] == {
-    "candidate_id": "voidbuye2dormantbootstrapcand3_13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062",
+    "candidate_id": "voidbuye2dormantbootstrapcand3_1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2",
     "bytes": 2745,
-    "sha256": "f081e70836f9e6862c6ee207ff2ef1cbad6d36e043b70286443fc9101705912d",
-    "git_blob_sha1": "1929d4ea5ba5b91f8330c9c8a86c368795245b3a",
-    "candidate_script_git_blob_sha1": "b963ac9ef0b9c8ac685763b3a82375f970ef12df",
-    "candidate_workflow_git_blob_sha1": "25e958065859772457dfdc148b4ace5a47ab83e8",
-    "candidate_doc_git_blob_sha1": "98b9aee33580249bae8d1a2955b0336563f26ddf",
+    "sha256": "14a8c9b60440f81d906070d3efee3248ac60b2a4ae43783fe5c1484ff0847c3d",
+    "git_blob_sha1": "d0302cf5a1b7af91b46458585784c70e0d37432f",
+    "candidate_script_git_blob_sha1": "e4e8ca7f5ca3fbc935821ce6d607751fcd653658",
+    "candidate_workflow_git_blob_sha1": "cfc99617fb69f6cb945b806c6b3b153086eeb159",
+    "candidate_doc_git_blob_sha1": "e5f4023f0b60ce5ef144f91b8f95bb9094a1dfce",
     "sealed_source_snapshot": True,
     "checkout_path_is_not_build_authority": True,
     "compiler_logical_source_name": "stdin",
@@ -144,7 +144,7 @@ assert lock["candidate_report"] == {
 
 assert lock["native_binary"] == {
     "bytes": 874608,
-    "sha256": "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b",
+    "sha256": "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c",
     "static_no_interp": True,
     "two_builds_byte_identical": True,
     "distinct_source_fd_builds_byte_identical": True,
@@ -152,6 +152,9 @@ assert lock["native_binary"] == {
     "independent_rederivation_verified": True,
 }
 
+assert lock["superseded_sourcegen3_lock"] == "voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"
+assert lock["superseded_sourcegen3_lock_git_blob_sha1"] == "f5b03c6b81016edf21f605099e0ef8976f40e107"
+assert lock["superseded_sourcegen3_lock_install_authority"] is False
 assert lock["superseded_sourcegen2_lock"] == SUPERSEDED_V5_LOCK
 assert lock["superseded_sourcegen2_lock_git_blob_sha1"] == "46f8512395936f5fc81423ce31a5c9b88928a21f"
 assert lock["superseded_sourcegen2_lock_install_authority"] is False
@@ -160,16 +163,21 @@ assert lock["superseded_sourcegen1_lock_git_blob_sha1"] == "471a52641135ee3ce31d
 assert lock["superseded_sourcegen1_lock_install_authority"] is False
 
 expected_blobs = {
-    CANDIDATE_REL: "b963ac9ef0b9c8ac685763b3a82375f970ef12df",
-    WORKFLOW_REL: "25e958065859772457dfdc148b4ace5a47ab83e8",
-    DOC_REL: "98b9aee33580249bae8d1a2955b0336563f26ddf",
-    SOURCE_REL: "a317d3dce324337f107909bd6e33e98622b3ef09",
-    MANIFEST_REL: "6e0630af72111bd9976dcc38cdcdada1904dd067",
+    CANDIDATE_REL: "e4e8ca7f5ca3fbc935821ce6d607751fcd653658",
+    WORKFLOW_REL: "cfc99617fb69f6cb945b806c6b3b153086eeb159",
+    DOC_REL: "e5f4023f0b60ce5ef144f91b8f95bb9094a1dfce",
+    SOURCE_REL: "560726bcae6ea0738502cb5e74b65f9116bd447d",
+    MANIFEST_REL: "de56bacb30bea0adc418e240cf3fb8d900b061ef",
     INSTALLER_REL: "ce6930bc1be8239a3171d4922c44b96a50f5778b",
     OLD_V5_LOCK_REL: "46f8512395936f5fc81423ce31a5c9b88928a21f",
     OLD_V4_LOCK_REL: "471a52641135ee3ce31d521980e6ea37af18ce58",
 }
 for rel, expected in expected_blobs.items():
+    if rel == WORKFLOW_REL:
+        # Hosted candidate evidence binds the exact workflow at CANDIDATE_HEAD.
+        # The current workflow may broaden CI scope without rewriting that evidence.
+        assert git("rev-parse", CANDIDATE_HEAD + ":" + rel) == expected, rel
+        continue
     raw=(ROOT/rel).read_bytes()
     assert git_blob(raw) == expected, (rel, git_blob(raw))
     assert git("rev-parse", "HEAD:" + rel) == expected, rel
@@ -317,7 +325,7 @@ for line in (
 
 print(MARKER + "_PROOF_GREEN")
 print("lock_id=" + LOCK_ID)
-print("canonical_main_push_candidate_bound=true")
+print("exact_pr_head_candidate_evidence_bound=true")
 print("canonical_candidate_merge_rederived=true")
 print("descriptor_independent_candidate_rederived=true")
 print("hosted_three_way_candidate_identity_bound=true")
@@ -326,6 +334,7 @@ print("candidate_report_content_address_bound=true")
 print("source_generation_identity_accepted=true")
 print("candidate_accepted=true")
 print("native_binary_identity_accepted=true")
+print("superseded_sourcegen3_lock_install_authority=false")
 print("superseded_sourcegen2_lock_install_authority=false")
 print("superseded_sourcegen1_lock_install_authority=false")
 print("protected_install_authorized=false")

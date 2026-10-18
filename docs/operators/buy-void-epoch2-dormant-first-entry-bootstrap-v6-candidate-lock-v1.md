@@ -8,38 +8,38 @@ Status: **candidate/source-generation identity acceptance only; not installed an
 
 Source generation:
 
-`voidbuye2dormantsourcegen3_aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`
+`voidbuye2dormantsourcegen3_8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9`
 
 Canonical candidate merge:
 
-`02e6e1f7f938d8d7331f32eaca8d2d07c7f7854b`
+`404367eb982fa92a40f3c2fe51d5f172a1e9fac0`
 
 Tree:
 
 `3d77c814e8dbde6d88e824f1b90667d69a39eeaf`
 
 The source-generation manifest binds bootstrap V6 source blob
-`a317d3dce324337f107909bd6e33e98622b3ef09` and inner installer V5 blob
+`560726bcae6ea0738502cb5e74b65f9116bd447d` and inner installer V5 blob
 `ce6930bc1be8239a3171d4922c44b96a50f5778b`.
 
 ## Canonical hosted evidence
 
-The acceptance lock uses the **post-merge main-push** run, not PR-preview evidence:
+The acceptance lock uses the exact reviewed **PR-head hosted derivation** run. It does not claim post-merge main-push evidence:
 
-- workflow run: `39052446979`;
-- source proof: `117453594171`;
-- derive A: `117453668048`;
-- derive B: `117453668092`;
-- derive C: `117453668080`;
-- compare/rederive: `117453745953`;
+- workflow run: `39077019801`;
+- source proof: `117526163023`;
+- derive A: `117526232018`;
+- derive B: `117526232033`;
+- derive C: `117526232057`;
+- compare/rederive: `117526492254`;
 - artifacts A/B/C:
-  `12108395551`, `12108530851`, `12107734752`.
+  `12116918415`, `12117740915`, `12117910498`.
 
 All three hosted reports and ELFs are byte-identical. The compare job independently
 rederived the report and ELF.
 
 The lock proof also creates a disposable detached worktree at exact canonical
-candidate merge `02e6e1f7f938d8d7331f32eaca8d2d07c7f7854b`, reruns the
+candidate merge `404367eb982fa92a40f3c2fe51d5f172a1e9fac0`, reruns the
 V6 candidate derivation there, and requires the exact report/ELF byte, SHA-256,
 Git-blob and candidate-ID identities below. This prevents the newer lock branch
 HEAD from becoming implicit candidate build authority.
@@ -48,21 +48,21 @@ HEAD from becoming implicit candidate build authority.
 
 Candidate:
 
-`voidbuye2dormantbootstrapcand3_13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062`
+`voidbuye2dormantbootstrapcand3_1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2`
 
 Candidate report:
 
 - bytes: `2745`;
 - SHA-256:
-  `f081e70836f9e6862c6ee207ff2ef1cbad6d36e043b70286443fc9101705912d`;
+  `14a8c9b60440f81d906070d3efee3248ac60b2a4ae43783fe5c1484ff0847c3d`;
 - Git blob:
-  `1929d4ea5ba5b91f8330c9c8a86c368795245b3a`.
+  `d0302cf5a1b7af91b46458585784c70e0d37432f`.
 
 Accepted static bootstrap V6 ELF:
 
 - bytes: `874608`;
 - SHA-256:
-  `c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b`.
+  `618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c`.
 
 The report additionally binds a sealed memfd build input, compiler logical source
 `stdin`, distinct source descriptor numbers, descriptor-number-independent
@@ -74,9 +74,15 @@ report before acceptance.
 
 Lock ID:
 
-`voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b`
+`voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396`
 
 The suffix is SHA-256 over canonical JSON of the lock body excluding `lock_id`.
+
+Superseded prior V6 source-generation V3 lock:
+
+`voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b`
+
+Its lock blob `f5b03c6b81016edf21f605099e0ef8976f40e107` remains immutable historical evidence and has zero install authority for the repaired generation.
 
 Historical source-generation V2 lock:
 
@@ -120,3 +126,7 @@ Next gate:
 `void_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1`.
 
 PROTECT THE CORE.
+
+## Git cruft-pack compatibility
+
+The accepted V6 generation treats `pack-<oid>.mtimes` as non-authoritative cruft-pack metadata under the same regular-file/single-link shape checks as other pack auxiliaries. It is not copied into the private object view and does not grant object authority.

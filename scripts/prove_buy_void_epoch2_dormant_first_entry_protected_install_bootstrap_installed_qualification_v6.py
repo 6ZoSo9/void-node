@@ -13,13 +13,13 @@ import types
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
-TARGET_BLOB = "f8e25ef310ef4493dd23baee70eef6db84ae68f9"
+TARGET_BLOB = "5f7321725b306184567111c0a7831d08243ad052"
 INSTALLER = ROOT / (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v6.py"
 )
-INSTALLER_BLOB = "63e1c973978cfcb67105010e4145f01552673bc3"
+INSTALLER_BLOB = "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84"
 
 
 def blob(raw: bytes) -> str:
@@ -36,7 +36,7 @@ assert blob(INSTALLER.read_bytes()) == INSTALLER_BLOB
 
 for required in (
     "PROTECTED_INSTALL_BOOTSTRAP_INSTALLED_QUALIFICATION_V6",
-    'INSTALLER_SOURCE_GIT_BLOB_SHA1 = "63e1c973978cfcb67105010e4145f01552673bc3"',
+    'INSTALLER_SOURCE_GIT_BLOB_SHA1 = "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84"',
     "double_descriptor_bound_bootstrap_self_test_required=true",
     "before_middle_after_stability_required=true",
     "python_and_git_policy_binding_required=true",
@@ -69,18 +69,18 @@ spec.loader.exec_module(module)
 installer = module._load_installer()
 assert installer.LOCK_ID == (
     "voidbuye2dormantbootstraplock3_"
-    "5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"
+    "4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396"
 )
 assert installer.CANDIDATE_ID == (
     "voidbuye2dormantbootstrapcand3_"
-    "13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062"
+    "1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2"
 )
 assert installer.BOOTSTRAP_BYTES == 874_608
 assert installer.BOOTSTRAP_SHA256 == (
-    "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
+    "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
 )
 assert installer.MANIFEST_SHA256 == (
-    "aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662"
+    "8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9"
 )
 policy = installer.build_policy(
     {"sha256": "1" * 64, "bytes": 123},
@@ -205,6 +205,153 @@ with tempfile.TemporaryDirectory(
     # execution would have used /usr/bin/false; generation drift is still HOLD.
     assert visible.read_bytes() == replacement.read_bytes()
 
+
+# Explicitly simulated collector control flow; retained-FD swap proof above is real.
+import contextlib
+import copy
+import io
+import types
+from unittest import mock
+
+
+def run_cases(module, actual_installer):
+    case_names = (
+        'one_observation_through_both_self_tests',
+        'middle_snapshot_drift',
+        'self_test_output_drift',
+        'final_repository_fence_failure',
+        'private_cleanup_failure',
+        'self_test_io_failure',
+        'nonroot_refusal_before_observation',
+    )
+    for case in case_names:
+        events = []
+        state = {'writes': False, 'cleaned': True}
+        expected_head = '1' * 40
+        shared = object()
+        snapshot = {
+            'bootstrap': {'fixture': 'inert'},
+            'protected_state': actual_installer.GREEN_STATE,
+            'policy_sha256': '2' * 64,
+            'policy_bytes': 200,
+            'python': {'sha256': '3' * 64, 'bytes': 300},
+            'git_tool': {'sha256': '4' * 64, 'bytes': 400},
+        }
+
+        class Reader:
+            def __init__(self, head):
+                assert head == expected_head
+                events.append('reader_constructed')
+
+            def __enter__(self):
+                events.append('reader_entered')
+                state['writes'] = True
+                return shared
+
+            def __exit__(self, kind, error, traceback):
+                events.append('reader_exited')
+                if case == 'private_cleanup_failure':
+                    state['cleaned'] = False
+                    raise actual_installer.InstallError('fixture_cleanup_failure')
+                if case == 'final_repository_fence_failure' and kind is None:
+                    raise actual_installer.InstallError('fixture_final_fence_failure')
+                return False
+
+        def receipt():
+            return {
+                'git_boundary_policy': actual_installer.GIT_BOUNDARY_POLICY,
+                'temporary_git_metadata_write_required': True,
+                'temporary_git_metadata_write_performed': state['writes'],
+                'temporary_git_metadata_cleanup_completed': state['cleaned'],
+                'source_repository_mutation': False,
+                'source_object_fetch': False,
+                'repository_config_loaded': False,
+                'repository_callback_execution': False,
+                'standalone_git_tool_admission': True,
+                'native_parent_authority_claimed': False,
+            }
+
+        fixture_installer = types.SimpleNamespace(
+            **{name: getattr(actual_installer, name) for name in (
+                'InstallError', 'LOCK_ID', 'CANDIDATE_ID', 'BOOTSTRAP_SHA256',
+                'BOOTSTRAP_BYTES', 'BOOTSTRAP_GIT_BLOB_SHA1', 'MANIFEST_SHA256',
+                'MANIFEST_BYTES', 'MANIFEST_GIT_BLOB_SHA1',
+            )},
+            _RepositorySnapshot=Reader,
+            git_boundary_receipt=receipt,
+        )
+
+        def observed(installer, head, *, repository=None):
+            assert installer is fixture_installer and head == expected_head
+            assert repository is shared
+            events.append('snapshot')
+            value = copy.deepcopy(snapshot)
+            if case == 'middle_snapshot_drift' and events.count('snapshot') == 2:
+                value['policy_bytes'] += 1
+            return value
+
+        def self_test(installer, expected):
+            assert installer is fixture_installer and expected == snapshot['bootstrap']
+            events.append('self_test')
+            if case == 'self_test_io_failure':
+                raise OSError('fixture_self_test_io_failure')
+            if case == 'self_test_output_drift' and events.count('self_test') == 2:
+                return 'changed', 'changed'
+            return 'inert-fixture', 'sha256:' + '5' * 64
+
+        output = io.StringIO()
+        error = None
+        result = None
+        uid = 1000 if case == 'nonroot_refusal_before_observation' else 0
+        with mock.patch.object(module, '_load_installer', return_value=fixture_installer), \
+                mock.patch.object(module, '_installed_snapshot', side_effect=observed), \
+                mock.patch.object(module, '_run_bootstrap_self_test', side_effect=self_test), \
+                mock.patch.object(module.os, 'geteuid', return_value=uid), \
+                contextlib.redirect_stdout(output):
+            try:
+                result = module.collect(expected_head)
+            except module.QualifyError as exc:
+                error = str(exc)
+        if case == 'nonroot_refusal_before_observation':
+            assert error == 'root_required_for_installed_qualification'
+            assert events == [] and output.getvalue() == ''
+            assert module._GIT_RECEIPT['temporary_git_metadata_write_performed'] is False
+            continue
+        assert events.count('reader_constructed') == 1
+        assert events.count('reader_entered') == 1
+        assert events.count('reader_exited') == 1
+        assert events[-1] == 'reader_exited'
+        assert 'authority_boundary=PRE_GIT_OBSERVATION' in output.getvalue().splitlines()
+        assert module._GIT_RECEIPT['temporary_git_metadata_write_performed'] is True
+        assert module._GIT_RECEIPT['temporary_git_metadata_cleanup_completed'] is (case != 'private_cleanup_failure')
+        if case == 'one_observation_through_both_self_tests':
+            assert error is None
+            assert events == ['reader_constructed', 'reader_entered', 'snapshot', 'self_test',
+                              'snapshot', 'self_test', 'snapshot', 'reader_exited']
+            assert result['read_only'] is False and result['filesystem_write'] is True
+            assert result['protected_filesystem_mutation'] is False
+            assert result['source_repository_mutation'] is False
+            assert result['temporary_git_metadata_cleanup_completed'] is True
+            emitted = io.StringIO()
+            with contextlib.redirect_stdout(emitted):
+                module.emit(result)
+            assert 'temporary_git_metadata_cleanup_completed=true' in emitted.getvalue().splitlines()
+            assert 'read_only=false' in emitted.getvalue().splitlines()
+        else:
+            assert result is None and error is not None
+            expected = {
+                'middle_snapshot_drift': 'installed_generation_changed_during_qualification',
+                'self_test_output_drift': 'bootstrap_self_test_output_changed',
+                'final_repository_fence_failure': 'installed_repository_observation_failed:fixture_final_fence_failure',
+                'private_cleanup_failure': 'installed_repository_observation_failed:fixture_cleanup_failure',
+                'self_test_io_failure': 'installed_qualification_io_failed:OSError',
+            }[case]
+            assert error == expected, (case, error)
+    return len(case_names)
+
+
+qualifier_control_case_count = run_cases(module, installer)
+
 print("VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_INSTALLED_QUALIFICATION_V6_PROOF_GREEN")
 print("target_blob_bound=true")
 print("installer_v6_blob_bound=true")
@@ -219,9 +366,17 @@ print("double_self_test_required=true")
 print("bootstrap_execution_beyond_self_test=false")
 print("inner_installer_execution=false")
 print("protected_installer_apply=false")
-print("filesystem_write=false")
+print("production_filesystem_write=false")
+print("fixture_filesystem_mutation=true")
 print("credential_access=false")
 print("signing=false")
 print("transaction=false")
 print("rpc_call=false")
 print("funds_movement=false")
+print("qualifier_control_flow_cases=" + str(qualifier_control_case_count))
+print("single_repository_observation_through_both_self_tests_proven=true")
+print("final_repository_fence_failure_rejected=true")
+print("private_cleanup_failure_reported=true")
+print("temporary_metadata_receipts_truthful=true")
+print("qualification_root_admission_simulated=true")
+print("actual_installed_root_qualification=false")

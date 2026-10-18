@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/void-public-seed-tor-native-v1.yml'
+      - 'config/void-public-p2p-bootstrap-introductions-v1.json'
       - 'docs/public/public-seed-tor-native-v1.md'
       - 'scripts/install_void_public_seed_tor_v1.mjs'
       - 'scripts/qualify_void_public_seed_tor_v1.mjs'

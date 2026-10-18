@@ -3,19 +3,63 @@ name: Buy VOID Epoch-2 protected bootstrap installed qualification v6
 on:
   pull_request:
     paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.yml"
       - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.md"
       - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
-      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
       - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py"
   push:
     branches: [main]
     paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.yml"
       - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.md"
       - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md"
-      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
-      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
       - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py"
+      - "ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py"
+      - "scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py"
+      - "scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py"
   workflow_dispatch:
 
 permissions:
@@ -38,30 +82,117 @@ jobs:
 
       - name: Bind exact V6 qualification generation
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=23d76602bac5b1a0cc6563817afd446eb7f0dbe2
+          source_base=abfc9bca33717cda57448672107f1b8d8b3fdfd0
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$source_base" "$EXPECTED_HEAD"
 
-          expected="$RUNNER_TEMP/expected-scope.txt"
-          actual="$RUNNER_TEMP/actual-scope.txt"
-          printf '%s\n' \
-            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml' \
-            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md' \
-            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
-            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
-            | sort > "$expected"
-          git diff --name-only "$parent" "$EXPECTED_HEAD" -- | sort > "$actual"
-          diff -u "$expected" "$actual"
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              test "$PR_BASE" != 0000000000000000000000000000000000000000
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = f8e25ef310ef4493dd23baee70eef6db84ae68f9
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = 3f73380677dfe3736d7e74631893142615914768
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md)" = 0ed0ce3aee33f996adde676ae7020cf86b182ee6
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 63e1c973978cfcb67105010e4145f01552673bc3
+          if test "$EVENT_NAME" = pull_request; then
+            allowed="$RUNNER_TEMP/allowed-scope.txt"
+            actual="$RUNNER_TEMP/actual-scope.txt"
+            printf '%s\n' \
+              '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.yml' \
+              '.github/workflows/buy-void-epoch2-dormant-first-entry-source-generation-v3.yml' \
+              'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.md' \
+              'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.md' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.md' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-materializer-v1.md' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.md' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md' \
+              'docs/operators/buy-void-epoch2-dormant-first-entry-source-generation-v3.md' \
+              'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py' \
+              'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py' \
+              'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
+              'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
+              'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c' \
+              'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
+              'ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json' \
+              'ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf' \
+              'scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py' \
+              'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py' \
+              'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py' \
+              'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_generation.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_lock_v1.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py' \
+              'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py' \
+              | LC_ALL=C sort > "$allowed"
+            git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | LC_ALL=C sort > "$actual"
+            test -s "$actual"
+            unexpected="$RUNNER_TEMP/unexpected-scope.txt"
+            LC_ALL=C comm -23 "$actual" "$allowed" > "$unexpected"
+            if test -s "$unexpected"; then
+              cat "$unexpected" >&2
+              exit 1
+            fi
+          fi
 
-          git diff --check "$parent" "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-install-v6.md)" = d0199166440eb88d394f83889526e043185ae4b6
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-installed-qualification-v6.md)" = d7e2c8d24444a34472904908437cdd9636f21546
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v6.md)" = 683b1a3c16cc457315232db7f865d43cfbfc4f4b
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5.py)" = ce6930bc1be8239a3171d4922c44b96a50f5778b
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v2.c)" = 86dc09e52402c04fb6e4b30a7fcf695833808ca3
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" = f3d6b1559be7490303cf36338c4bfa38fdaa390a
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = 5f7321725b306184567111c0a7831d08243ad052
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = 560726bcae6ea0738502cb5e74b65f9116bd447d
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = 7c3ad1188fca114188a8f9876c7a1b7390280b56
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json)" = 227c2fa449abf1387925373c706ecd07775d5898
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" = 5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = de56bacb30bea0adc418e240cf3fb8d900b061ef
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py)" = 609cde180490f4f5f53ed7e34d73b95f22313bcd
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_binder_native_v2.py)" = 557eb68453d517d78bb3b6c6d8427df9ed36316f
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py)" = c5d083cbf276f59f888aeb79b874bac4480f1506
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_candidate_v2.py)" = de2f487c625cf96c812cb6d4246d3d036a589e89
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v1.py)" = 5ac4264d7f9bdb394cf5be4490aa1eadd1f929ee
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_candidate_v2.py)" = f97cb8aff642f2f3e138fe8e087eece22223b934
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = e4e8ca7f5ca3fbc935821ce6d607751fcd653658
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 5e9924a4f6b5fa9176b0e141b7f7baa3860ad6ec
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py)" = fbabfcec953e2b7b42eb42e81bb39fd6b4c9d8e8
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = 2c2c988891bfacf3d8cf937551a2971ca8a6e5fb
+
+          printf "%s\n" "consumer_v6_exact_source_closure_verified=true" "accepted_c6_c2_native_artifact_inputs_frozen=true"
+
+          git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Syntax and adversarial proof
@@ -95,11 +226,19 @@ jobs:
             'bootstrap_execution_beyond_self_test=false' \
             'inner_installer_execution=false' \
             'protected_installer_apply=false' \
-            'filesystem_write=false' \
             'credential_access=false' \
             'signing=false' \
             'transaction=false' \
             'rpc_call=false' \
+            'qualifier_control_flow_cases=7' \
+            'single_repository_observation_through_both_self_tests_proven=true' \
+            'final_repository_fence_failure_rejected=true' \
+            'private_cleanup_failure_reported=true' \
+            'temporary_metadata_receipts_truthful=true' \
+            'qualification_root_admission_simulated=true' \
+            'actual_installed_root_qualification=false' \
+            'production_filesystem_write=false' \
+            'fixture_filesystem_mutation=true' \
             'funds_movement=false'
           do
             grep -Fx "$marker" "$out"
