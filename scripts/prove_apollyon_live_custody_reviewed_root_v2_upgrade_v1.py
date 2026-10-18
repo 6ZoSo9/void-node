@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import ast, hashlib, json, subprocess
+import ast, hashlib, importlib.util, json, subprocess
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -31,6 +31,87 @@ assert manifest["authority"]["durable_attempt_claim"] is False
 
 source=INSTALLER.read_text()
 ast.parse(source)
+
+spec=importlib.util.spec_from_file_location("upgrade_v1",INSTALLER)
+assert spec and spec.loader
+upgrade=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(upgrade)
+
+class _RootFixture:
+    def __init__(self,present:bool):
+        self.present=present
+    def exists(self)->bool:
+        return self.present
+
+saved=(
+    upgrade.OLD_ROOT,
+    upgrade.socket.gethostname,
+    upgrade.load_upgrade_manifest,
+    upgrade.assert_services_dormant,
+    upgrade.launcher_state,
+    upgrade.reviewed_v2_root_state,
+    upgrade.prior_v2_backup_state,
+    upgrade.read_source,
+    upgrade.verify_tree,
+)
+fixture_manifest={
+    "from":{"closure":{}},
+    "prior_v2":{"closure":{}},
+    "to":{"closure":{}},
+}
+try:
+    upgrade.socket.gethostname=lambda:"Xiphos"
+    upgrade.load_upgrade_manifest=lambda:fixture_manifest
+    upgrade.assert_services_dormant=lambda:None
+    upgrade.read_source=lambda *args,**kwargs:b""
+    upgrade.OLD_ROOT=_RootFixture(False)
+    upgrade.launcher_state=lambda:"prior_v2_exact"
+    upgrade.reviewed_v2_root_state=lambda manifest:"prior_v2_exact"
+    upgrade.prior_v2_backup_state=lambda manifest:"absent"
+    prior_plan=upgrade.plan()
+    assert prior_plan["migration_state"]=="prior_v2_pending"
+    assert prior_plan["old_root_state"]=="absent"
+    assert prior_plan["old_root_verified"] is False
+    assert prior_plan["old_root_preserved"] is False
+
+    upgrade.launcher_state=lambda:"old_exact"
+    upgrade.reviewed_v2_root_state=lambda manifest:"absent"
+    try:
+        upgrade.plan()
+    except upgrade.Hold as exc:
+        assert str(exc)=="legacy_v1_source_root_missing",str(exc)
+    else:
+        raise AssertionError("legacy-v1 accepted missing old root")
+
+    upgrade.OLD_ROOT=_RootFixture(True)
+    upgrade.verify_tree=lambda root,mapping:None
+    legacy_plan=upgrade.plan()
+    assert legacy_plan["migration_state"]=="legacy_v1_pending"
+    assert legacy_plan["old_root_state"]=="old_exact"
+    assert legacy_plan["old_root_verified"] is True
+    assert legacy_plan["old_root_preserved"] is True
+
+    def _reject_old_root(root,mapping):
+        raise upgrade.Hold("fixture_old_root_invalid")
+    upgrade.verify_tree=_reject_old_root
+    try:
+        upgrade.legacy_v1_root_state(fixture_manifest)
+    except upgrade.Hold as exc:
+        assert str(exc)=="legacy_v1_root_collision",str(exc)
+    else:
+        raise AssertionError("malformed optional old root accepted")
+finally:
+    (
+        upgrade.OLD_ROOT,
+        upgrade.socket.gethostname,
+        upgrade.load_upgrade_manifest,
+        upgrade.assert_services_dormant,
+        upgrade.launcher_state,
+        upgrade.reviewed_v2_root_state,
+        upgrade.prior_v2_backup_state,
+        upgrade.read_source,
+        upgrade.verify_tree,
+    )=saved
 for required in (
     'UPGRADE_MANIFEST_BLOB="db64dd321936c90159417959505e958a29596368"',
     'OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")',
@@ -48,6 +129,7 @@ for required in (
     '"SubState":"dead"',
     '"MainPID":"0"',
     'def require_exact_dormant_state(state:dict[str,str],label:str)->None:',
+    'def legacy_v1_root_state(manifest:dict)->str:',
     'def classify_upgrade_state(launcher:str,root:str,backup:str)->str:',
     'return "prior_v2_pending"',
     'return "prior_v2_launcher_switched"',
@@ -58,7 +140,10 @@ for required in (
     'verify_tree(PRIOR_V2_BACKUP_ROOT,manifest["prior_v2"]["closure"])',
     'replace_launcher(\n                read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),\n                ("prior_v2_exact",),',
     'tree_changed=migrate_prior_v2_tree(manifest)',
-    "verify_tree(OLD_ROOT,manifest[\"from\"][\"closure\"])",
+    'old_root=legacy_v1_root_state(manifest)',
+    'if migration.startswith("legacy_v1") and old_root!="old_exact":',
+    'final_old_root=legacy_v1_root_state(manifest)',
+    'if final_old_root!=before["old_root_state"]:',
     "verify_tree(NEW_ROOT,manifest[\"to\"][\"closure\"])",
     "os.replace(temp,FIXED_LAUNCHER)",
     '"service_action":False',
@@ -79,7 +164,9 @@ result=subprocess.run(
 assert result.returncode==0,result.stderr
 for line in (
     "VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1_SELF_TEST_GREEN",
-    "old_root_preserved=true",
+    "legacy_v1_old_root_required_only_for_legacy_source=true",
+    "direct_prior_v2_old_root_absence_allowed=true",
+    "old_root_collision_rejected=true",
     "prior_v2_migration_source_bound=true",
     "prior_v2_launcher_b96_bound=true",
     "prior_v2_backup_preserved=true",
@@ -95,6 +182,9 @@ for line in (
 ):
     assert line in result.stdout,line
 print("VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1_PROOF_GREEN")
+print("direct_prior_v2_without_legacy_root_proven=true")
+print("legacy_v1_missing_old_root_rejected=true")
+print("old_root_collision_rejected=true")
 print("prior_v2_to_current_v2_migration_proven=true")
 print("prior_v2_rollback_root_bound=true")
 print("prior_v2_resume_states_bound=true")
