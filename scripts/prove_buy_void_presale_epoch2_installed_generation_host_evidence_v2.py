@@ -201,6 +201,43 @@ finally:
     module.sys.path[:] = saved_sys_path
 module._require_isolated_python()
 
+# A lexical sys.path entry beneath a protected checkout must remain forbidden
+# even when that entry is a symlink whose resolved target points outside.
+with tempfile.TemporaryDirectory(prefix="void-epoch2-v2-syspath-escape-") as td:
+    root = Path(td)
+    copied_source = root / "copy/ops/precision/target.py"
+    copied_source.parent.mkdir(parents=True)
+    copied_source.write_bytes(source_bytes)
+    fixed_checkout = root / "precision-checkout"
+    fixed_checkout.mkdir()
+    outside = root / "outside-imports"
+    outside.mkdir()
+    marker = root / "symlink-escape-shadow-executed"
+    (outside / "selectors.py").write_text(
+        "from pathlib import Path\nPath(" + repr(str(marker)) + ").write_text('executed')\n",
+        encoding="utf-8",
+    )
+    escape = fixed_checkout / "escape"
+    escape.symlink_to(outside, target_is_directory=True)
+
+    saved_file = module.__file__
+    saved_fixed = module.FIXED_CHECKOUT
+    saved_path = list(module.sys.path)
+    try:
+        module.__file__ = str(copied_source)
+        module.FIXED_CHECKOUT = fixed_checkout
+        module.sys.path.insert(0, str(escape))
+        expect_hold(
+            module._load_patched_base_module,
+            "python_path_source_checkout_exposure",
+        )
+        assert not marker.exists()
+    finally:
+        module.__file__ = saved_file
+        module.FIXED_CHECKOUT = saved_fixed
+        module.sys.path[:] = saved_path
+module._require_isolated_python()
+
 # A copied V2 wrapper must still reject V1's fixed Precision checkout before
 # executing exact V1 bytes. A hostile shadow module therefore cannot run.
 with tempfile.TemporaryDirectory(prefix="void-epoch2-v2-fixed-checkout-") as td:
@@ -435,6 +472,7 @@ print("large_untracked_runtime_tree_compatible=true")
 print("checkout_shadow_modules_outside_isolated_loader=true")
 print("checkout_root_sys_path_injection_rejected=true")
 print("fixed_checkout_sys_path_injection_rejected_before_base_exec=true")
+print("lexical_symlink_escape_sys_path_rejected=true")
 print("delegated_original_status_bypassed=true")
 print("base_native_self_test_contract_inherited=true")
 print("receipt_checkout_clean_overclaim_rejected=true")

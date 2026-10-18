@@ -96,17 +96,29 @@ def _same_stat(a: os.stat_result, b: os.stat_result) -> bool:
 def _require_isolated_python() -> None:
     if sys.flags.isolated != 1 or not getattr(sys.flags, "safe_path", False):
         raise EvidenceError("python_isolated_mode_required")
-    source_checkout = Path(__file__).resolve(strict=False).parents[2]
+    source_checkout_lexical = Path(os.path.abspath(__file__)).parents[2]
+    source_checkout_resolved = Path(__file__).resolve(strict=False).parents[2]
+    fixed_checkout_lexical = Path(os.path.abspath(str(FIXED_CHECKOUT)))
+    fixed_checkout_resolved = FIXED_CHECKOUT.resolve(strict=False)
     protected_roots = (
-        source_checkout,
-        FIXED_CHECKOUT.resolve(strict=False),
+        source_checkout_lexical,
+        source_checkout_resolved,
+        fixed_checkout_lexical,
+        fixed_checkout_resolved,
     )
     for entry in sys.path:
         if not isinstance(entry, str) or entry == "":
             raise EvidenceError("python_path_not_isolated")
-        candidate = Path(entry).resolve(strict=False)
+        path = Path(entry)
+        if not path.is_absolute():
+            raise EvidenceError("python_path_not_isolated")
+        candidates = (
+            Path(os.path.abspath(entry)),
+            path.resolve(strict=False),
+        )
         if any(
             candidate == protected or protected in candidate.parents
+            for candidate in candidates
             for protected in protected_roots
         ):
             raise EvidenceError("python_path_source_checkout_exposure")
@@ -379,6 +391,7 @@ def self_test() -> None:
     print("isolated_loader_blocks_checkout_shadow_modules=true")
     print("checkout_root_sys_path_guard_enabled=true")
     print("fixed_checkout_sys_path_guard_enabled=true")
+    print("lexical_and_resolved_sys_path_guard_enabled=true")
     print("native_self_test_execution_performed_by_future_host_run=true")
     print("runner_execution=false")
     print("live_composition_execution=false")

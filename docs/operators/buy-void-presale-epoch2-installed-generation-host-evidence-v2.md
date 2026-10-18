@@ -84,6 +84,9 @@ Untracked checkout files cannot enter this lane through Python import search:
 - active `sys.path` entries may not equal either the materialized source
   repository root or V1's fixed Precision checkout
   `/home/zoso/dev/void-node`, nor any directory beneath either root;
+- containment is checked against both the normalized lexical search path and its
+  resolved target, so a checkout-local symlink pointing to an outside directory
+  cannot become import authority;
 - the fixed Precision checkout remains protected even when the exact V2 wrapper
   and exact V1 source are copied to another materialization location;
 - the exact V1 source is compiled from descriptor-authenticated bytes;
@@ -97,8 +100,10 @@ The focused proof places untracked `hashlib.py`, `argparse.py`,
 beside an exact tracked fixture and requires GREEN without issuing an untracked
 Git query. It injects both the materialized source root and a descendant of the
 fixed Precision checkout into the imported module's `sys.path`; both must HOLD
-before delegated collection, and the copied-wrapper adversary must not execute
-its hostile `selectors.py`. Tracked byte/index drift still fails closed.
+before delegated collection. It also places a symlink beneath a simulated fixed
+checkout that resolves to an outside directory containing hostile `selectors.py`;
+the lexical checkout path must still HOLD before exact V1 execution and the
+hostile marker must remain absent. Tracked byte/index drift still fails closed.
 
 ## Inherited host execution
 
