@@ -1,0 +1,156 @@
+name: Buy VOID presale Epoch-2 installed-generation host evidence v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-epoch2-installed-generation-host-evidence-v1.yml"
+      - "docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
+      - "scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
+      - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-epoch2-installed-generation-host-evidence-v1.yml"
+      - "docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
+      - "scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
+      - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact installed-generation evidence source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request) test -n "$PR_BASE"; base="$PR_BASE" ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-epoch2-installed-generation-host-evidence-v1.yml' \
+            'docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md' \
+            'ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py' \
+            'scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 25206ece0d67b00391dbac4cdf096ee7c2d851fc
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 73fdf198a791d0419701759a0a986c52d41bef5d
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 5add636c4e62c1767d7f92b2a614fab14dc26eca
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = a04c2e7665294cdd142426e9eb01ee27c5292b8d
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = c14ec00acffbc55630aa68db0013d97cac068ab3
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and adversarial proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py",
+              "scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py",
+          ):
+              compile(
+                  Path(relative).read_text("utf-8"),
+                  relative,
+                  "exec",
+                  dont_inherit=True,
+              )
+          print("VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1_SYNTAX_GREEN")
+          PY
+
+          proof="$RUNNER_TEMP/epoch2-installed-host-evidence-proof.log"
+          python3 -I -B scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py |
+            tee "$proof"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1_PROOF_GREEN' \
+            'parent_host_evidence_plan_bound=true' \
+            'exact_v5_qualifier_source_bound=true' \
+            'exact_v5_qualifier_proof_bound=true' \
+            'delegates_only_to_qualifier_collect=true' \
+            'before_middle_after_generation_stability_inherited=true' \
+            'double_descriptor_bound_native_self_test_inherited=true' \
+            'pathname_swap_adversary_inherited=true' \
+            'required_true_field_downgrade_rejected=true' \
+            'authority_overclaim_rejected=true' \
+            'filesystem_write_performed=false' \
+            'runner_execution=false' \
+            'live_composition_execution=false' \
+            'service_mutation=false' \
+            'network_contact=false' \
+            'credential_access=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Verify source-only self-test
+        run: |
+          set -euo pipefail
+          target="ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
+          out="$RUNNER_TEMP/epoch2-installed-host-evidence-self-test.log"
+          python3 -I -B "$target" --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1_SELF_TEST_GREEN' \
+            'parent_host_evidence_plan_bound=true' \
+            'exact_qualifier_source_and_proof_bound=true' \
+            'root_required_for_future_run=true' \
+            'installed_generation_before_middle_after_stability_required=true' \
+            'double_descriptor_bound_native_self_test_required=true' \
+            'native_self_test_execution_performed_by_future_host_run=true' \
+            'runner_execution=false' \
+            'live_composition_execution=false' \
+            'filesystem_write_performed=false' \
+            'service_mutation=false' \
+            'network_contact=false' \
+            'credential_access=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false' \
+            'production_host_evidence_authority=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
