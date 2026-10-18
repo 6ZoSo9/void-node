@@ -12,6 +12,7 @@ import {
   testOnlyAssertReceiptAncestorStableV1,
   testOnlyAssertReceiptCanonicalAncestorStableV1,
   testOnlyReceiptAncestorRevalidationOrderV1,
+  testOnlyReceiptLeafCustodyTrustedV1,
   testOnlyAssertSameLiveGenerationV1,
 } from "../ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.js";
 
@@ -237,6 +238,32 @@ assert.equal(
   "receipt_parent_not_revalidated_last",
 );
 
+const leafBase=Object.freeze({
+  uid:0,
+  gid:0,
+  nlink:1,
+  mode:0o444,
+  size:128,
+  regular:true,
+  symlink:false,
+});
+assert.equal(testOnlyReceiptLeafCustodyTrustedV1(leafBase,128),true);
+for(const mode of [0o4444,0o2444,0o1444]){
+  assert.equal(
+    testOnlyReceiptLeafCustodyTrustedV1({...leafBase,mode},128),
+    false,
+    "receipt_leaf_special_mode_accepted:"+mode.toString(8),
+  );
+}
+assert.equal(
+  testOnlyReceiptLeafCustodyTrustedV1({...leafBase,mode:0o644},128),
+  false,
+);
+assert.equal(
+  testOnlyReceiptLeafCustodyTrustedV1({...leafBase,uid:1},128),
+  false,
+);
+
 const ancestor = Object.freeze({
   dev: 11,
   ino: 22,
@@ -358,6 +385,8 @@ console.log("receipt_ancestor_post_read_revalidation_required=true");
 console.log("receipt_canonical_ancestor_namespace_revalidated=true");
 console.log("receipt_ancestor_revalidation_root_to_leaf=true");
 console.log("receipt_parent_revalidated_last=true");
+console.log("receipt_leaf_exact_mode_0444=true");
+console.log("receipt_leaf_special_mode_bits_rejected=true");
 console.log("receipt_canonical_namespace_drift_rejected=true");
 console.log("receipt_ancestor_special_mode_drift_rejected=true");
 console.log("receipt_ancestor_drift_rejected=true");

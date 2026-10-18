@@ -115,6 +115,33 @@ function sameStat(a: fs.Stats, b: fs.Stats): boolean {
   );
 }
 
+type ReceiptLeafStat = Readonly<{
+  uid: number;
+  gid: number;
+  nlink: number;
+  mode: number;
+  size: number;
+  isFile(): boolean;
+  isSymbolicLink(): boolean;
+}>;
+
+function receiptLeafCustodyTrusted(
+  current: ReceiptLeafStat,
+  expectedLength: number,
+): boolean {
+  return (
+    current.isFile() &&
+    !current.isSymbolicLink() &&
+    current.uid === 0 &&
+    current.gid === 0 &&
+    current.nlink === 1 &&
+    (current.mode & 0o7777) === 0o444 &&
+    current.size >= 2 &&
+    current.size <= MAX_RECEIPT_BYTES &&
+    current.size === expectedLength
+  );
+}
+
 type HeldReceiptAncestor = Readonly<{
   path: string;
   fd: number;
@@ -271,6 +298,32 @@ function revalidateReceiptAncestors(
   }
 }
 
+export function testOnlyReceiptLeafCustodyTrustedV1(
+  current: Readonly<{
+    uid: number;
+    gid: number;
+    nlink: number;
+    mode: number;
+    size: number;
+    regular: boolean;
+    symlink: boolean;
+  }>,
+  expectedLength: number,
+): boolean {
+  return receiptLeafCustodyTrusted(
+    {
+      uid: current.uid,
+      gid: current.gid,
+      nlink: current.nlink,
+      mode: current.mode,
+      size: current.size,
+      isFile: () => current.regular,
+      isSymbolicLink: () => current.symlink,
+    },
+    expectedLength,
+  );
+}
+
 export function testOnlyReceiptAncestorRevalidationOrderV1(
   paths: readonly string[],
 ): readonly string[] {
@@ -354,17 +407,7 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
       `/proc/self/fd/${parent.fd}/${path.basename(target)}`;
 
     const before = fs.lstatSync(leafViaParent);
-    if (
-      !before.isFile() ||
-      before.isSymbolicLink() ||
-      before.uid !== 0 ||
-      before.gid !== 0 ||
-      before.nlink !== 1 ||
-      (before.mode & 0o777) !== 0o444 ||
-      before.size < 2 ||
-      before.size > MAX_RECEIPT_BYTES ||
-      before.size !== expected.length
-    ) {
+    if (!receiptLeafCustodyTrusted(before, expected.length)) {
       fail("host_evidence_live_receipt_custody_invalid");
     }
 

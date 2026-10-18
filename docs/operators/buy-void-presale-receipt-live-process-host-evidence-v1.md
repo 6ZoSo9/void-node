@@ -213,3 +213,18 @@ canonical adversaries for ordinary permission bits plus special mode bits.
 
 No host write, receipt publication, service mutation, payment, signing,
 transaction, activation, treasury, or funds authority is added.
+
+
+## Exact receipt leaf mode
+
+The installed live-process receipt itself is held to the same fail-closed custody
+standard as its ancestor chain. Its initial retained-parent-relative observation
+requires root:root ownership, one link, regular non-symlink type, exact expected
+size, and exact permission-plus-special bits:
+
+`(mode & 07777) == 00444`.
+
+Setuid, setgid, or sticky bits on the receipt leaf are therefore rejected even
+when ordinary permission bits remain `0444`. The focused adversarial proof
+exercises `04444`, `02444`, and `01444` negatives through the exact
+predicate used by production.
