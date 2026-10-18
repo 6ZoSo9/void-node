@@ -110,6 +110,107 @@ finally:
         upgrade.verify_tree,
     )=saved
 
+# Reject dangling rename targets before any destructive rename.
+saved_paths=(upgrade.NEW_ROOT,upgrade.PRIOR_V2_BACKUP_ROOT)
+try:
+    with tempfile.TemporaryDirectory(prefix="void-apollyon-upgrade-targets-") as td:
+        root=Path(td)
+        upgrade.NEW_ROOT=root/"reviewed-v2"
+        upgrade.PRIOR_V2_BACKUP_ROOT=root/"reviewed-v2-prior"
+        upgrade.NEW_ROOT.symlink_to(root/"missing-current",target_is_directory=True)
+        try:
+            upgrade.reviewed_v2_root_state(fixture_manifest)
+        except upgrade.Hold as exc:
+            assert str(exc)=="reviewed_v2_root_collision",str(exc)
+        else:
+            raise AssertionError("dangling NEW_ROOT accepted as absence")
+        upgrade.NEW_ROOT.unlink()
+        upgrade.PRIOR_V2_BACKUP_ROOT.symlink_to(
+            root/"missing-backup",target_is_directory=True
+        )
+        try:
+            upgrade.prior_v2_backup_state(fixture_manifest)
+        except upgrade.Hold as exc:
+            assert str(exc)=="prior_v2_backup_collision",str(exc)
+        else:
+            raise AssertionError(
+                "dangling PRIOR_V2_BACKUP_ROOT accepted as absence"
+            )
+finally:
+    upgrade.NEW_ROOT,upgrade.PRIOR_V2_BACKUP_ROOT=saved_paths
+
+# Execute the prior-V2 apply path and prove stage construction precedes launcher
+# replacement. A staging failure must occur before any launcher/service/root
+# mutation-capable helper is reached.
+saved_apply=(
+    upgrade.os.geteuid,
+    upgrade.plan,
+    upgrade.load_upgrade_manifest,
+    upgrade.prepare_current_stage,
+    upgrade.launcher_state,
+    upgrade.replace_launcher,
+    upgrade.read_source,
+    upgrade.assert_services_dormant,
+    upgrade.migrate_prior_v2_tree,
+    upgrade.legacy_v1_root_state,
+    upgrade.verify_tree,
+    upgrade.prior_v2_backup_state,
+)
+events=[]
+try:
+    upgrade.os.geteuid=lambda:0
+    upgrade.plan=lambda:{
+        "migration_state":"prior_v2_pending",
+        "old_root_state":"absent",
+    }
+    upgrade.load_upgrade_manifest=lambda:fixture_manifest
+    upgrade.prepare_current_stage=lambda mapping:events.append("stage")
+    upgrade.launcher_state=lambda:"prior_v2_exact"
+    upgrade.replace_launcher=lambda *args,**kwargs:(
+        events.append("replace") or True
+    )
+    upgrade.read_source=lambda *args,**kwargs:b"launcher"
+    upgrade.assert_services_dormant=lambda:events.append("dormant")
+    upgrade.migrate_prior_v2_tree=lambda manifest:(
+        events.append("migrate") or True
+    )
+    upgrade.legacy_v1_root_state=lambda manifest:"absent"
+    upgrade.verify_tree=lambda *args,**kwargs:events.append("verify")
+    upgrade.prior_v2_backup_state=lambda manifest:"prior_v2_exact"
+
+    applied=upgrade.apply()
+    assert events[:4]==["stage","replace","dormant","migrate"],events
+    assert applied["fixed_launcher_replaced"] is True
+    assert applied["reviewed_v2_tree_replaced"] is True
+
+    events.clear()
+    def fail_stage(mapping):
+        events.append("stage")
+        raise upgrade.Hold("fixture_stage_failed")
+    upgrade.prepare_current_stage=fail_stage
+    try:
+        upgrade.apply()
+    except upgrade.Hold as exc:
+        assert str(exc)=="fixture_stage_failed",str(exc)
+    else:
+        raise AssertionError("stage failure unexpectedly accepted")
+    assert events==["stage"],events
+finally:
+    (
+        upgrade.os.geteuid,
+        upgrade.plan,
+        upgrade.load_upgrade_manifest,
+        upgrade.prepare_current_stage,
+        upgrade.launcher_state,
+        upgrade.replace_launcher,
+        upgrade.read_source,
+        upgrade.assert_services_dormant,
+        upgrade.migrate_prior_v2_tree,
+        upgrade.legacy_v1_root_state,
+        upgrade.verify_tree,
+        upgrade.prior_v2_backup_state,
+    )=saved_apply
+
 for required in (
     'UPGRADE_MANIFEST_BLOB="db64dd321936c90159417959505e958a29596368"',
     'OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")',
@@ -128,6 +229,9 @@ for required in (
     '"MainPID":"0"',
     'def require_exact_dormant_state(state:dict[str,str],label:str)->None:',
     'def legacy_v1_root_state(manifest:dict)->str:',
+    'def path_is_absent(path:Path,label:str)->bool:',
+    'def reviewed_v2_root_state(manifest:dict)->str:',
+    'def prior_v2_backup_state(manifest:dict)->str:',
     'def classify_upgrade_state(launcher:str,root:str,backup:str)->str:',
     'return "prior_v2_pending"',
     'return "prior_v2_launcher_switched"',
@@ -136,6 +240,7 @@ for required in (
     'os.rename(NEW_ROOT,PRIOR_V2_BACKUP_ROOT)',
     'os.rename(CURRENT_STAGE,NEW_ROOT)',
     'verify_tree(PRIOR_V2_BACKUP_ROOT,manifest["prior_v2"]["closure"])',
+    'prepare_current_stage(manifest["to"]["closure"])',
     'replace_launcher(\n                read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),\n                ("prior_v2_exact",),',
     'tree_changed=migrate_prior_v2_tree(manifest)',
     'old_root=legacy_v1_root_state(manifest)',
@@ -151,7 +256,7 @@ for required in (
     assert required in source,required
 for forbidden in (
     "subprocess.Popen(","shell=True","PRIVATE KEY-----","eth_sendRawTransaction",
-    '"is-active"',
+    '"is-active"',"NEW_ROOT.exists()","PRIOR_V2_BACKUP_ROOT.exists()",
 ):
     assert forbidden not in source,forbidden
 
@@ -165,10 +270,13 @@ for line in (
     "legacy_v1_old_root_required_only_for_legacy_source=true",
     "direct_prior_v2_old_root_absence_allowed=true",
     "old_root_collision_rejected=true",
+    "dangling_new_root_symlink_rejected=true",
+    "dangling_prior_v2_backup_symlink_rejected=true",
     "prior_v2_migration_source_bound=true",
     "prior_v2_launcher_b96_bound=true",
     "prior_v2_backup_preserved=true",
     "prior_v2_interrupted_states_resumable=true",
+    "current_stage_prepared_before_prior_launcher_swap=true",
     "current_launcher_installed_before_prior_root_swap=true",
     "post_launcher_dormancy_revalidated_before_prior_root_swap=true",
     "exact_inactive_service_states_required=true",
@@ -184,6 +292,10 @@ print("direct_prior_v2_without_legacy_root_proven=true")
 print("legacy_v1_missing_old_root_rejected=true")
 print("old_root_collision_rejected=true")
 print("dangling_old_root_symlink_rejected=true")
+print("dangling_new_root_symlink_rejected=true")
+print("dangling_prior_v2_backup_symlink_rejected=true")
+print("current_stage_prepared_before_prior_launcher_swap=true")
+print("stage_failure_precedes_launcher_swap=true")
 print("prior_v2_to_current_v2_migration_proven=true")
 print("prior_v2_rollback_root_bound=true")
 print("prior_v2_resume_states_bound=true")
