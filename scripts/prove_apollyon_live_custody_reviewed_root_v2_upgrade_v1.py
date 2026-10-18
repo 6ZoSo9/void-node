@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import ast, hashlib, importlib.util, json, subprocess
+import ast, hashlib, importlib.util, json, subprocess, tempfile
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -37,12 +37,6 @@ assert spec and spec.loader
 upgrade=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(upgrade)
 
-class _RootFixture:
-    def __init__(self,present:bool):
-        self.present=present
-    def exists(self)->bool:
-        return self.present
-
 saved=(
     upgrade.OLD_ROOT,
     upgrade.socket.gethostname,
@@ -60,46 +54,49 @@ fixture_manifest={
     "to":{"closure":{}},
 }
 try:
-    upgrade.socket.gethostname=lambda:"Xiphos"
-    upgrade.load_upgrade_manifest=lambda:fixture_manifest
-    upgrade.assert_services_dormant=lambda:None
-    upgrade.read_source=lambda *args,**kwargs:b""
-    upgrade.OLD_ROOT=_RootFixture(False)
-    upgrade.launcher_state=lambda:"prior_v2_exact"
-    upgrade.reviewed_v2_root_state=lambda manifest:"prior_v2_exact"
-    upgrade.prior_v2_backup_state=lambda manifest:"absent"
-    prior_plan=upgrade.plan()
-    assert prior_plan["migration_state"]=="prior_v2_pending"
-    assert prior_plan["old_root_state"]=="absent"
-    assert prior_plan["old_root_verified"] is False
-    assert prior_plan["old_root_preserved"] is False
+    with tempfile.TemporaryDirectory(prefix="void-apollyon-direct-prior-v2-") as td:
+        old_root=Path(td)/"reviewed-v1"
+        upgrade.OLD_ROOT=old_root
+        upgrade.socket.gethostname=lambda:"Xiphos"
+        upgrade.load_upgrade_manifest=lambda:fixture_manifest
+        upgrade.assert_services_dormant=lambda:None
+        upgrade.read_source=lambda *args,**kwargs:b""
+        upgrade.launcher_state=lambda:"prior_v2_exact"
+        upgrade.reviewed_v2_root_state=lambda manifest:"prior_v2_exact"
+        upgrade.prior_v2_backup_state=lambda manifest:"absent"
 
-    upgrade.launcher_state=lambda:"old_exact"
-    upgrade.reviewed_v2_root_state=lambda manifest:"absent"
-    try:
-        upgrade.plan()
-    except upgrade.Hold as exc:
-        assert str(exc)=="legacy_v1_source_root_missing",str(exc)
-    else:
-        raise AssertionError("legacy-v1 accepted missing old root")
+        prior_plan=upgrade.plan()
+        assert prior_plan["migration_state"]=="prior_v2_pending"
+        assert prior_plan["old_root_state"]=="absent"
+        assert prior_plan["old_root_verified"] is False
+        assert prior_plan["old_root_preserved"] is False
 
-    upgrade.OLD_ROOT=_RootFixture(True)
-    upgrade.verify_tree=lambda root,mapping:None
-    legacy_plan=upgrade.plan()
-    assert legacy_plan["migration_state"]=="legacy_v1_pending"
-    assert legacy_plan["old_root_state"]=="old_exact"
-    assert legacy_plan["old_root_verified"] is True
-    assert legacy_plan["old_root_preserved"] is True
+        upgrade.launcher_state=lambda:"old_exact"
+        upgrade.reviewed_v2_root_state=lambda manifest:"absent"
+        try:
+            upgrade.plan()
+        except upgrade.Hold as exc:
+            assert str(exc)=="legacy_v1_source_root_missing",str(exc)
+        else:
+            raise AssertionError("legacy-v1 accepted missing old root")
 
-    def _reject_old_root(root,mapping):
-        raise upgrade.Hold("fixture_old_root_invalid")
-    upgrade.verify_tree=_reject_old_root
-    try:
-        upgrade.legacy_v1_root_state(fixture_manifest)
-    except upgrade.Hold as exc:
-        assert str(exc)=="legacy_v1_root_collision",str(exc)
-    else:
-        raise AssertionError("malformed optional old root accepted")
+        old_root.mkdir(mode=0o755)
+        upgrade.verify_tree=lambda root,mapping:None
+        legacy_plan=upgrade.plan()
+        assert legacy_plan["migration_state"]=="legacy_v1_pending"
+        assert legacy_plan["old_root_state"]=="old_exact"
+        assert legacy_plan["old_root_verified"] is True
+        assert legacy_plan["old_root_preserved"] is True
+
+        old_root.rmdir()
+        old_root.symlink_to(Path(td)/"missing-reviewed-v1",target_is_directory=True)
+        upgrade.verify_tree=saved[-1]
+        try:
+            upgrade.legacy_v1_root_state(fixture_manifest)
+        except upgrade.Hold as exc:
+            assert str(exc)=="legacy_v1_root_collision",str(exc)
+        else:
+            raise AssertionError("dangling old-root symlink accepted as absence")
 finally:
     (
         upgrade.OLD_ROOT,
@@ -112,6 +109,7 @@ finally:
         upgrade.read_source,
         upgrade.verify_tree,
     )=saved
+
 for required in (
     'UPGRADE_MANIFEST_BLOB="db64dd321936c90159417959505e958a29596368"',
     'OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")',
@@ -185,6 +183,7 @@ print("VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1_PROOF_GREEN")
 print("direct_prior_v2_without_legacy_root_proven=true")
 print("legacy_v1_missing_old_root_rejected=true")
 print("old_root_collision_rejected=true")
+print("dangling_old_root_symlink_rejected=true")
 print("prior_v2_to_current_v2_migration_proven=true")
 print("prior_v2_rollback_root_bound=true")
 print("prior_v2_resume_states_bound=true")
