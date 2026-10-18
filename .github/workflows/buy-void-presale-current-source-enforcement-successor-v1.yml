@@ -63,7 +63,7 @@ jobs:
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = bb1144989cd826677f2fc8ea54c97e3bd95cc8ef
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs)" = d37152567b6abbb185008e6c081cf1d645056f36
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-current-source-enforcement-successor-v1.md)" = c42abd31adb16a22fd053cd288dd1252070d71b3
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-current-source-enforcement-successor-v1.md)" = ccdd70a6a40792f341d73f7b6cf8f6ece8be27c3
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json)" = 4e23ecbb64eb26c14f5ab15af85eb86d59c3a718
