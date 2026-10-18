@@ -23,7 +23,7 @@ Instead, it defines the capability that may eventually permit one blocked servic
 
 Current parent:
 
-#3480@1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae
+#3480@81b553a0cd3ab5f75db3d282ffec6a0e536e2977
 
 The #3333 source is not present in that parent lineage. This contract therefore records:
 
@@ -42,7 +42,7 @@ The current contract must not pretend that merely copying #3333 identifiers into
 
 The capability contract pins the current retired-activation boundary:
 
-- retired V2 qualifier blob: 5f67bb3ddcc7f130db4b90ad73f5450b109dbea4
+- retired V2 qualifier blob: b57457435cc691ce576ef090e67ba323af254929
 - retired fixed-launcher source blob: 352bd36f2b07091140b990de4170f708eb11fee6
 - training unit blob: 62fbabe1cf7ae0d940f5d96e19b06282f841267b
 - training pre-entry source blob: 9503d19c8bc0b4f073ba117f6a547d339b7623d0
@@ -188,9 +188,12 @@ non-enumerable properties and symbol keys are rejected by exact
 `Reflect.ownKeys` comparison. The reflected own-key count must equal the fixed
 schema cardinality immediately, before type scanning, copying, or sorting the
 key list, so oversized top-level key sets cannot trigger attacker-controlled
-sorting work. Proxy objects are rejected with Node's `util.types.isProxy`
-before `Object.getPrototypeOf`, own-key enumeration, or descriptor inspection,
-so caller-controlled reflection traps are never invoked.
+sorting work. Proxy objects are rejected with Node's `util.types.isProxy` before
+`Array.isArray`, `Object.getPrototypeOf`, own-key enumeration, or descriptor
+inspection. Active and revoked object/array proxies therefore enter the exact
+namespaced capability/binding rejection contract rather than leaking an
+incidental `IsArray` TypeError, and caller-controlled reflection traps are never
+invoked.
 Preflight copies only already-validated primitive descriptor values into a fresh
 plain snapshot; structured cloning, canonicalization and hashing operate on that
 snapshot rather than re-reading the caller object.
@@ -216,7 +219,7 @@ Hosted proof must establish:
 - regex-backed identifiers reject arrays and boxed strings rather than coercing them
 - accessor descriptors are rejected without invoking their getters
 - unknown non-enumerable properties and symbol keys are rejected rather than silently dropped
-- Proxy inputs are rejected before reflective traps can execute
+- active and revoked object/array Proxy inputs are rejected with the namespaced error before `Array.isArray` or reflective traps can execute
 - oversized top-level own-key sets are rejected before key-list sorting
 - clone/canonical/hash consume only the validated primitive descriptor snapshot
 - #3333 trainer-generation validation remains external and unperformed

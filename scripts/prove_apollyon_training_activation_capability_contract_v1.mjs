@@ -20,8 +20,8 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="fb961c01572a497a7bc3254fc41938e5c794c63e";
-const PARENT_HEAD="1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae";
+const SOURCE_BLOB="b03a62fd2399908a0d2107e4263377279e62899e";
+const PARENT_HEAD="81b553a0cd3ab5f75db3d282ffec6a0e536e2977";
 const CONSUMPTION_HEAD="fdf47e77cd12eee38efe741edb02fa2fd39135e2";
 const CONSUMPTION_BLOB="60987b860fb7159d88f4f601b76878e7d8ccca92";
 
@@ -59,6 +59,11 @@ function reflectionTrapProxy(target){
     trapCalls:()=>trapCalls,
   };
 }
+function revokedProxy(target){
+  const state=Proxy.revocable(target,{});
+  state.revoke();
+  return state.proxy;
+}
 function oversizedKeySet(value,count=4096){
   const bad={...value};
   for(let index=0;index<count;index+=1){
@@ -84,7 +89,7 @@ function expectRejectedBeforeSort(fn,pattern){
 const EXACT_BLOBS=Object.freeze({
   [SOURCE]:SOURCE_BLOB,
   "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py":
-    "5f67bb3ddcc7f130db4b90ad73f5450b109dbea4",
+    "b57457435cc691ce576ef090e67ba323af254929",
   "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py":
     "352bd36f2b07091140b990de4170f708eb11fee6",
   "ops/xiphos/void-apollyon-training-bus-isolation-v1.service":
@@ -216,6 +221,25 @@ assert.equal(capability.training_execution_authorized,false);
     /capability_invalid/u,
   );
   assert.equal(hostile.trapCalls(),0);
+}
+
+for(const makeInput of [
+  ()=>revokedProxy({...capabilityMaterial}),
+  ()=>revokedProxy([]),
+]){
+  expectRejected(
+    ()=>buildApollyonTrainingActivationCapabilityV1(makeInput()),
+    /capability_invalid/u,
+  );
+}
+for(const makeInput of [
+  ()=>revokedProxy({...capability}),
+  ()=>revokedProxy([]),
+]){
+  expectRejected(
+    ()=>qualifyApollyonTrainingActivationCapabilityV1(makeInput()),
+    /capability_invalid/u,
+  );
 }
 
 {
@@ -486,6 +510,31 @@ assert.equal(binding.training_execution_authorized,false);
     /binding_invalid/u,
   );
   assert.equal(hostile.trapCalls(),0);
+}
+
+for(const makeInput of [
+  ()=>revokedProxy({...bindingMaterial}),
+  ()=>revokedProxy([]),
+]){
+  expectRejected(
+    ()=>buildApollyonTrainingActivationGenerationBindingV1(
+      capability,
+      makeInput(),
+    ),
+    /binding_invalid/u,
+  );
+}
+for(const makeInput of [
+  ()=>revokedProxy({...binding}),
+  ()=>revokedProxy([]),
+]){
+  expectRejected(
+    ()=>qualifyApollyonTrainingActivationGenerationBindingV1(
+      capability,
+      makeInput(),
+    ),
+    /binding_invalid/u,
+  );
 }
 
 {
@@ -768,6 +817,7 @@ console.log("nonenumerable_unknown_keys_rejected=true");
 console.log("symbol_keys_rejected=true");
 console.log("proxy_inputs_rejected_before_reflection=true");
 console.log("proxy_reflection_traps_not_invoked=true");
+console.log("revoked_proxy_inputs_rejected_namespaced=true");
 console.log("oversized_keyset_rejected_before_sort=true");
 console.log("trainer_generation_external_validation_performed=false");
 console.log("training_start_consumption_record_origin_proven=false");

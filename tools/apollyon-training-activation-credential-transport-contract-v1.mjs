@@ -8,8 +8,8 @@ export const VOID_APOLLYON_TRAINING_ACTIVATION_CREDENTIAL_TRANSPORT_CONTRACT_V1 
   "VOID_APOLLYON_TRAINING_ACTIVATION_CREDENTIAL_TRANSPORT_CONTRACT_V1";
 
 export const APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1=Object.freeze({
-  head:"afe181f44ad45c5d35388de04b27a56b2488c6a6",
-  capability_contract_blob:"fb961c01572a497a7bc3254fc41938e5c794c63e",
+  head:"5cd7bf7b9a9d35c576eb6b25ea4b5e2a72775d5e",
+  capability_contract_blob:"b03a62fd2399908a0d2107e4263377279e62899e",
   capability_credential_name:"apollyon-training-activation-v1",
   retired_activator_required:true,
 });

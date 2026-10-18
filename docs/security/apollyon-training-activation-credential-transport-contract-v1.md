@@ -12,14 +12,14 @@ This is not a claim that the currently installed Xiphos systemd unit has any cre
 
 ## Exact source parent
 
-- #3525 branch head: `afe181f44ad45c5d35388de04b27a56b2488c6a6`
-- #3525 capability source blob: `fb961c01572a497a7bc3254fc41938e5c794c63e`
-- parent proof blob: `4430537500a2ed39be104dbe8f494fe04295bf0c`
-- parent security document blob: `2a2b5b49e5641f9f2df973002bb67255c4bb83cb`
+- #3525 branch head: `5cd7bf7b9a9d35c576eb6b25ea4b5e2a72775d5e`
+- #3525 capability source blob: `b03a62fd2399908a0d2107e4263377279e62899e`
+- parent proof blob: `2231d477f842973eb63efde223a1fbaaaa737043`
+- parent security document blob: `c1682ea2638202d4610f73beb3347fbc8cba2490`
 - selected fixed candidate credential name: `apollyon-training-activation-v1`
 - bearer secret required length: exactly 32 bytes
 
-Parent #3525 keeps issuance, systemd credential runtime, capability possession, training-start consumption, and training false/unproven. This child cannot promote any of those flags.
+Parent #3525 is rebound to repaired #3480 source and keeps issuance, systemd credential runtime, capability possession, training-start consumption, and training false/unproven. Its own active/revoked Proxy preflight normalization is part of the pinned parent bytes. This child cannot promote any of those flags.
 
 ## One public transport candidate
 

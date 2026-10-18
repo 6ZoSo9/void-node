@@ -9,7 +9,7 @@ export const VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1 =
   "VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1";
 
 export const APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1 = Object.freeze({
-  parent_head:"1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae",
+  parent_head:"81b553a0cd3ab5f75db3d282ffec6a0e536e2977",
   training_start_consumption_contract_head:
     "fdf47e77cd12eee38efe741edb02fa2fd39135e2",
   training_start_consumption_contract_blob_sha1:
@@ -17,7 +17,7 @@ export const APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1 = Object.freeze({
   training_start_consumption_contract_in_parent_lineage:false,
   training_start_consumption_integration_required:true,
   retired_v2_qualifier_blob_sha1:
-    "5f67bb3ddcc7f130db4b90ad73f5450b109dbea4",
+    "b57457435cc691ce576ef090e67ba323af254929",
   retired_fixed_launcher_source_blob_sha1:
     "352bd36f2b07091140b990de4170f708eb11fee6",
   training_unit_blob_sha1:
@@ -285,8 +285,9 @@ function preflightPrimitiveObject(
   booleanKeys,
   code,
 ){
-  if(!value||typeof value!=="object"||Array.isArray(value))fail(code);
+  if(!value||typeof value!=="object")fail(code);
   if(utilTypes.isProxy(value))fail(code);
+  if(Array.isArray(value))fail(code);
   const proto=Object.getPrototypeOf(value);
   if(proto!==Object.prototype&&proto!==null)fail(code);
   exactOwnKeys(value,expectedKeys,code);
