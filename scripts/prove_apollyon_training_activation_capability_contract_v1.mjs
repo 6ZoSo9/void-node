@@ -20,7 +20,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="790fb4f5b1f04017d9f7c970d57b25c764d9949b";
+const SOURCE_BLOB="cf133e9a4e3e89bebed35f6f9b1248e19f417114";
 const PARENT_HEAD="1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae";
 const CONSUMPTION_HEAD="fdf47e77cd12eee38efe741edb02fa2fd39135e2";
 const CONSUMPTION_BLOB="60987b860fb7159d88f4f601b76878e7d8ccca92";
@@ -185,6 +185,65 @@ assert.equal(capabilityText.includes(secret.toString("base64")),false);
     /capability_id_invalid/u,
   );
 }
+{
+  const bad={
+    ...capabilityMaterial,
+    unknown_graph:{payload:"x".repeat(100000)},
+  };
+  const originalClone=globalThis.structuredClone;
+  let cloneCalled=false;
+  globalThis.structuredClone=(value)=>{
+    cloneCalled=true;
+    return originalClone(value);
+  };
+  try{
+    expectRejected(
+      ()=>buildApollyonTrainingActivationCapabilityV1(bad),
+      /capability_invalid/u,
+    );
+    assert.equal(cloneCalled,false);
+  }finally{
+    globalThis.structuredClone=originalClone;
+  }
+}
+for(const key of [
+  "activation_secret_sha256",
+  "authorization_id",
+  "authorization_slot_id",
+  "authorization_slot_record_id",
+  "custody_generation_id",
+  "durable_claim_record_id",
+  "store_contract_id",
+  "store_generation_id",
+  "store_policy_id",
+  "terminal_receipt_id",
+  "training_start_consumption_slot_id",
+]){
+  const bad={...capabilityMaterial,[key]:[capabilityMaterial[key]]};
+  expectRejected(
+    ()=>buildApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
+}
+{
+  const bad={
+    ...capabilityMaterial,
+    authorization_id:new String(capabilityMaterial.authorization_id),
+  };
+  expectRejected(
+    ()=>buildApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
+}
+{
+  const bad=cloned(capability);
+  bad.activation_capability_id=[capability.activation_capability_id];
+  expectRejected(
+    ()=>qualifyApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
+}
+
 for(const [key,value] of [
   ["activation_capability_issuance_performed",true],
   ["external_training_start_consumption_validation_performed",true],
@@ -301,6 +360,53 @@ assert.equal(binding.training_execution_authorized,false);
   bad.training_process_start_time_ticks="1".repeat(100000);
   expectRejected(
     ()=>qualifyApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
+  );
+}
+
+{
+  const bad={
+    ...bindingMaterial,
+    unknown_graph:{payload:"x".repeat(100000)},
+  };
+  const originalClone=globalThis.structuredClone;
+  let cloneCalled=false;
+  globalThis.structuredClone=(value)=>{
+    cloneCalled=true;
+    return originalClone(value);
+  };
+  try{
+    expectRejected(
+      ()=>buildApollyonTrainingActivationGenerationBindingV1(capability,bad),
+      /binding_invalid/u,
+    );
+    assert.equal(cloneCalled,false);
+  }finally{
+    globalThis.structuredClone=originalClone;
+  }
+}
+for(const key of [
+  "activation_capability_id",
+  "activation_secret_sha256",
+  "boot_id_sha256",
+  "systemd_invocation_id",
+  "trainer_generation_id",
+  "training_source_identity_sha256",
+  "training_start_consumption_slot_id",
+]){
+  const bad={...bindingMaterial,[key]:[bindingMaterial[key]]};
+  expectRejected(
+    ()=>buildApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
+  );
+}
+{
+  const bad={
+    ...bindingMaterial,
+    systemd_invocation_id:new String(bindingMaterial.systemd_invocation_id),
+  };
+  expectRejected(
+    ()=>buildApollyonTrainingActivationGenerationBindingV1(capability,bad),
     /binding_invalid/u,
   );
 }
@@ -428,6 +534,9 @@ console.log("activation_secret_possession_proven=false");
 console.log("activation_generation_bound=false");
 console.log("start_ticks_preclone_length_bound=true");
 console.log("start_ticks_u64_range_bound=true");
+console.log("unknown_object_graph_rejected_before_clone=true");
+console.log("regex_coercion_identifiers_rejected=true");
+console.log("boxed_string_identifiers_rejected=true");
 console.log("trainer_generation_external_validation_performed=false");
 console.log("training_start_consumption_record_origin_proven=false");
 console.log("training_start_consumption_performed=false");
