@@ -22,7 +22,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const COLLECTOR_REL=
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
-const COLLECTOR_BLOB="29bed1b9b2e6d1515a5a68c28a89dfd172eec40a";
+const COLLECTOR_BLOB="016f4a1e0ce6cae3009071fdfaef24417d056182";
 
 const PARENT_PLAN_REL="ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
 const PARENT_PLAN_BLOB="ad68175e629fd1cf90180db3a904f84834314fdd";
@@ -99,6 +99,9 @@ for(const required of [
   "parseReviewedSourceFromCmdline(",
   "process_environment_read_performed:false",
   "launch_environment_fields_receipt_attested:true",
+  "receipt.node_path_absent!==true",
+  "receipt.ld_preload_absent!==true",
+  "receipt.ld_library_path_absent!==true",
   "credential_access:false",
   "authenticated_receipt_verified:true",
   "same_live_process_binding_verified:true",

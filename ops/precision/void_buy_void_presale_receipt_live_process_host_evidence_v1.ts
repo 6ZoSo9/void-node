@@ -1017,7 +1017,11 @@ function assertReceiptMatchesLive(
     receipt.cwd_realpath!==live.source.cwd_realpath||
     receipt.cmdline_sha256!==live.service_cmdline_sha256||
     receipt.node_options_sha256!==live.source.node_options_sha256||
-    receipt.canonical_producer_role!==true||receipt.capabilities_zero!==true||
+    receipt.canonical_producer_role!==true||
+    receipt.node_path_absent!==true||
+    receipt.ld_preload_absent!==true||
+    receipt.ld_library_path_absent!==true||
+    receipt.capabilities_zero!==true||
     receipt.no_new_privileges!==true||receipt.source_custody_proven!==true||
     receipt.reviewed_service_contract_proven!==true||
     receipt.reviewed_launcher_contract_proven!==true||
