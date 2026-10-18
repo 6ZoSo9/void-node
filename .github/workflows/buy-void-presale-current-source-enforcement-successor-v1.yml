@@ -1,0 +1,155 @@
+name: Buy VOID presale current-source enforcement successor v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml"
+      - "docs/architecture/buy-void-presale-current-source-enforcement-successor-v1.md"
+      - "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
+      - "scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs"
+      - "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v2.mjs"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact successor scope
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -n "$PR_BASE"
+          git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml' \
+            'docs/architecture/buy-void-presale-current-source-enforcement-successor-v1.md' \
+            'ops/security/buy-void-presale-current-source-enforcement-successor-v1.json' \
+            'scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = bb1144989cd826677f2fc8ea54c97e3bd95cc8ef
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs)" = 7d2fee3a1f1114635158650f7196f83068d53d42
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-current-source-enforcement-successor-v1.md)" = c42abd31adb16a22fd053cd288dd1252070d71b3
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json)" = 4e23ecbb64eb26c14f5ab15af85eb86d59c3a718
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = 589845615654da8b688764377b34296267ac0063
+
+          test "$(git rev-parse 05614762b1b4638e05e539fd7d20cbf670e1570b^{tree})" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
+          git merge-base --is-ancestor 0f5c467253c250a905917e886eb6ae3fb80bff62 "$EXPECTED_HEAD"
+          git diff --check "$PR_BASE" "$EXPECTED_HEAD"
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Rebuild exact enforcement closure
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Prove fixed-source successor
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/successor-proof.log"
+          node scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_CURRENT_SOURCE_ENFORCEMENT_SUCCESSOR_V1_PROOF_GREEN' \
+            'successor_id=voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad' \
+            'protected_path_count=49' \
+            'protected_path_delta_count=0' \
+            'reviewed_economic_source_file_count=28' \
+            'reviewed_economic_source_delta_count=0' \
+            'accepted_enforcement_set_preserved=true' \
+            'current_source_enforcement_successor_accepted=true' \
+            'source_freeze_accepted=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Rederive exact accepted candidate
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/current-source-candidate-node-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v2.mjs --derive > "$candidate"
+          test "$(sha256sum "$candidate" | awk '{print $1}')" = 092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb
+          node --input-type=module - "$candidate" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(c.candidate_enforcement_set_sha256,"05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852");
+          assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
+          assert.equal(c.current_enforcement_tracked_source_inventory_sha256,"224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2");
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          NODE
+          test "$(sha256sum ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json | awk '{print $1}')" = 06af643df1a807a7d2c3582f6650967575d53874d5bf1277a0f1039bbad6ccd9
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-presale-current-source-enforcement-successor-v1-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/current-source-candidate-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-presale-current-source-enforcement-successor-v1-node-*
+          merge-multiple: true
+          path: candidate
+
+      - name: Require Node 22/24/26 identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "candidate/current-source-candidate-node-$node.json"; done
+          cmp candidate/current-source-candidate-node-22.json candidate/current-source-candidate-node-24.json
+          cmp candidate/current-source-candidate-node-22.json candidate/current-source-candidate-node-26.json
+          test "$(sha256sum candidate/current-source-candidate-node-22.json | awk '{print $1}')" = 092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb
+          echo VOID_BUY_VOID_PRESALE_CURRENT_SOURCE_ENFORCEMENT_SUCCESSOR_V1_CROSS_NODE_GREEN
+          echo candidate_enforcement_set_sha256=05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852
+          echo current_source_enforcement_successor_accepted=true
+          echo source_freeze_accepted=false
+          echo funds_movement=false
