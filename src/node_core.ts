@@ -536,6 +536,9 @@ type UdpSwarmAuthenticatedDirectCandidateContextV1 = Readonly<{
   expected_peer_node_id: string;
   relay_node_id: string;
   relay_stream_id: string;
+  control_request_id: string;
+  control_ticket_id: string;
+  control_expires_at_ms: number;
   candidate: VoidUdpSwarmAuthenticatedDirectCandidateV1;
 }>;
 
@@ -1904,6 +1907,27 @@ private liveRelayPeerForUdpSwarmCandidateV1(
   );
 }
 
+private liveUdpSwarmAuthenticatedControlRouteForCandidateV1(
+  sessionId: string,
+  expectedPeerNodeId: string,
+  relayNodeId: string,
+  relayStreamId: string,
+) {
+  const route = this.udpSwarmControl.snapshot().active_routes.find(
+    (entry) => entry.session_id === sessionId,
+  );
+  if (
+    !route ||
+    route.peer_node_id !== expectedPeerNodeId ||
+    route.relay_node_id !== relayNodeId ||
+    route.stream_id !== relayStreamId ||
+    route.offer_received !== true
+  ) {
+    return;
+  }
+  return route;
+}
+
 private sweepUdpSwarmAuthenticatedDirectCandidatesV1(
   reason = "relay_fallback_lost",
 ): void {
@@ -2225,6 +2249,18 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
   if (this.udpSwarmDirectCandidates.has(options.sessionId)) {
     return reject("UDP swarm candidate session already staged");
   }
+  const controlRoute =
+    this.liveUdpSwarmAuthenticatedControlRouteForCandidateV1(
+      options.sessionId,
+      options.expectedPeerNodeId,
+      options.relayNodeId,
+      options.relayStreamId,
+    );
+  if (!controlRoute) {
+    return reject(
+      "exact authenticated control route is required before UDP candidate staging",
+    );
+  }
   if (
     !this.liveRelayPeerForUdpSwarmCandidateV1(
       options.expectedPeerNodeId,
@@ -2263,6 +2299,9 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
       expected_peer_node_id: options.expectedPeerNodeId,
       relay_node_id: options.relayNodeId,
       relay_stream_id: options.relayStreamId,
+      control_request_id: controlRoute.request_id,
+      control_ticket_id: controlRoute.ticket_id,
+      control_expires_at_ms: controlRoute.expires_at_ms,
       candidate,
     });
   try {
@@ -2338,6 +2377,28 @@ promoteUdpSwarmAuthenticatedDirectCandidateV1(
   const context = peer?.udpSwarmDirectCandidate;
   if (!peer || !context || context.session_id !== sessionId) {
     return { ok: false, error: "candidate_not_staged" };
+  }
+
+  const controlRoute =
+    this.liveUdpSwarmAuthenticatedControlRouteForCandidateV1(
+      context.session_id,
+      context.expected_peer_node_id,
+      context.relay_node_id,
+      context.relay_stream_id,
+    );
+  if (
+    !controlRoute ||
+    controlRoute.request_id !== context.control_request_id ||
+    controlRoute.ticket_id !== context.control_ticket_id ||
+    controlRoute.expires_at_ms !== context.control_expires_at_ms
+  ) {
+    context.candidate.discard(
+      "authenticated control route generation is not live at direct-peer promotion",
+    );
+    this.udpSwarmDirectCandidates.delete(sessionId);
+    if (this.peers.get(peer.id) === peer) this.peers.delete(peer.id);
+    delete peer.udpSwarmDirectCandidate;
+    return { ok: false, error: "authenticated_control_route_required" };
   }
 
   const snapshot = context.candidate.snapshot();
