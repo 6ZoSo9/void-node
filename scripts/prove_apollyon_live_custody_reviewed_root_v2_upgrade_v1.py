@@ -158,6 +158,7 @@ saved_apply=(
     upgrade.replace_launcher,
     upgrade.read_source,
     upgrade.assert_services_dormant,
+    upgrade.assert_no_inflight_live_session_processes,
     upgrade.migrate_prior_v2_tree,
     upgrade.legacy_v1_root_state,
     upgrade.verify_tree,
@@ -178,6 +179,12 @@ try:
     )
     upgrade.read_source=lambda *args,**kwargs:b"launcher"
     upgrade.assert_services_dormant=lambda:events.append("dormant")
+    upgrade.assert_no_inflight_live_session_processes=lambda *args,**kwargs:(
+        events.append("quiescence") or {
+            "root_owned_live_session_processes_absent":True,
+            "two_pass_process_census":True,
+        }
+    )
     upgrade.migrate_prior_v2_tree=lambda manifest:(
         events.append("migrate") or True
     )
@@ -186,7 +193,7 @@ try:
     upgrade.prior_v2_backup_state=lambda manifest:"prior_v2_exact"
 
     applied=upgrade.apply()
-    assert events[:4]==["stage","replace","dormant","migrate"],events
+    assert events[:5]==["stage","replace","quiescence","dormant","migrate"],events
     assert applied["fixed_launcher_replaced"] is True
     assert applied["reviewed_v2_tree_replaced"] is True
 
@@ -235,9 +242,12 @@ try:
         upgrade.NEW_LAUNCHER_BLOB,
     ),events
     assert events[1]==("replace",("prior_current_exact",)),events
+    assert events[2]=="quiescence",events
+    assert events.count("quiescence")==2,events
     assert events.count("dormant")==2,events
     assert events.count("verify")==2,events
     assert retired["fixed_launcher_replaced"] is True
+    assert retired["launcher_quiescence_proven"] is True
     assert retired["reviewed_v2_tree_replaced"] is False
     assert retired["prior_v2_backup_preserved"] is False
 finally:
@@ -250,6 +260,7 @@ finally:
         upgrade.replace_launcher,
         upgrade.read_source,
         upgrade.assert_services_dormant,
+        upgrade.assert_no_inflight_live_session_processes,
         upgrade.migrate_prior_v2_tree,
         upgrade.legacy_v1_root_state,
         upgrade.verify_tree,
@@ -276,6 +287,11 @@ for required in (
     '"SubState":"dead"',
     '"MainPID":"0"',
     'def require_exact_dormant_state(state:dict[str,str],label:str)->None:',
+    'def census_inflight_live_session_processes(',
+    'def assert_no_inflight_live_session_processes(',
+    'hold("inflight_live_session_process_present")',
+    '"post_swap_launcher_quiescence_required":True',
+    '"launcher_quiescence_proven":launcher_quiescence_proven',
     'def legacy_v1_root_state(manifest:dict)->str:',
     'def path_is_absent(path:Path,label:str)->bool:',
     'def reviewed_v2_root_state(manifest:dict)->str:',
@@ -327,6 +343,8 @@ for line in (
     "prior_current_launcher_retirement_source_bound=true",
     "prior_current_launcher_only_migration=true",
     "retired_fixed_launcher_blob_bound=true",
+    "post_swap_inflight_process_quiescence_required=true",
+    "root_owned_process_census_two_pass=true",
     "prior_v2_launcher_b96_bound=true",
     "prior_v2_backup_preserved=true",
     "prior_v2_interrupted_states_resumable=true",
@@ -354,6 +372,8 @@ print("prior_v2_to_current_v2_migration_proven=true")
 print("prior_current_launcher_retirement_proven=true")
 print("prior_current_reviewed_root_unchanged=true")
 print("retired_fixed_launcher_blob_bound=true")
+print("post_swap_inflight_process_quiescence_required=true")
+print("root_owned_process_census_two_pass=true")
 print("prior_v2_rollback_root_bound=true")
 print("prior_v2_resume_states_bound=true")
 print("post_launcher_dormancy_revalidation_bound=true")
