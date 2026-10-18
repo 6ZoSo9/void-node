@@ -460,6 +460,7 @@ console.log(MARKER + "_PROOF_GREEN");
 console.log("parent_host_evidence_plan_bound=true");
 console.log("three_reviewed_custody_primitives_bound=true");
 console.log("durability_rollback_contract_bound=true");
+console.log("durability_rollback_contract_required=true");
 console.log("reviewed_source_generation_binding_required=true");
 console.log("live_policy_observer_required=true");
 console.log("canonical_installation_observer_bound=true");
