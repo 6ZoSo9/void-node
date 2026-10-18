@@ -550,7 +550,8 @@ def self_test() -> None:
         for node in ast.walk(parsed)
         if isinstance(node, ast.Constant) and isinstance(node.value, str)
     }
-    assert "--apply" not in string_constants
+    apply_flag = "-" + "-apply"
+    assert apply_flag not in string_constants
     forbidden_os_calls = {
         "mkdir", "rename", "replace", "unlink", "rmdir", "fchmod", "fchown",
     }
