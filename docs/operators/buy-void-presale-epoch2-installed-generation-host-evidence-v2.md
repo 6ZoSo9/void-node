@@ -148,3 +148,38 @@ presale/WC market, or move funds.
 The later host retry remains separately operation-bound.
 
 **PROTECT THE CORE.**
+
+
+## Retained-descriptor close failure normalization
+
+The exact V2 base-source descriptor reader now normalizes close-time failures instead
+of allowing raw `OSError` to escape after a successful read or mask an earlier
+machine-readable evidence failure.
+
+All three owned descriptors are attempted exactly once in deterministic order:
+
+```text
+visible_parent
+file
+parent
+```
+
+A close failure after an otherwise successful read becomes:
+
+```text
+base_source_close_failed:<descriptor-labels>
+```
+
+When an `EvidenceError` already exists, its original reason remains the prefix
+and cleanup failure is appended:
+
+```text
+<primary-reason>:base_source_close_failed:<descriptor-labels>
+```
+
+Hosted proof uses real descriptors and a close-then-error adversary for each owned
+descriptor, proving all closes are attempted once. It also exercises successful-read
+plus cleanup failure and primary-evidence-failure plus cleanup failure.
+
+This is an error-path normalization only. It adds no filesystem write, runtime,
+credential, signing, transaction, payment, activation, or funds authority.

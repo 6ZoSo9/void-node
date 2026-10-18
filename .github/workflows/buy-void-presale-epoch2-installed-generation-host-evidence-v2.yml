@@ -73,9 +73,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = e707d2cececa056f2b4fdc56e2160fad0d851b85
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = 13e24e5e18c67d492da44c831e07a0137d298c9d
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v2.md)" = e59f4c8127722f824b7ff1c18f68bb361b20bd7c
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = 004a84d71fe3effeda5856dfcd2d92fb031bdf48
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = f4baf7be6ec277d09c316fea0696a23465ed191c
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v2.md)" = b8bc5d21aca39fe55b34b2af04b582bdd6f4f739
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 4981ccf99c029a0b90042747f9023107826202ef
@@ -105,6 +105,10 @@ jobs:
             'exact_base_v1_proof_blob_bound=true' \
             'base_v1_fixed_checkout_contract_bound=true' \
             'base_v1_source_descriptor_bound=true' \
+            'base_source_close_failure_normalized=true' \
+            'base_source_primary_failure_preserved_on_cleanup_error=true' \
+            'base_source_all_owned_fds_close_attempted_once=true' \
+            'base_source_close_failure_machine_hold_contract=true' \
             'base_v1_source_symlink_fifo_rejected=true' \
             'tracked_tree_index_worktree_equality_required=true' \
             'tracked_file_byte_and_mode_drift_rejected=true' \
@@ -145,6 +149,8 @@ jobs:
             'parent_host_evidence_plan_bound=true' \
             'exact_base_v1_source_blob_bound=true' \
             'base_v1_source_descriptor_bound=true' \
+            'base_source_close_failure_normalized=true' \
+            'base_source_primary_failure_preserved_on_cleanup_error=true' \
             'base_v1_source_ancestor_symlinks_rejected=true' \
             'tracked_tree_index_worktree_equality_required=true' \
             'delegated_original_status_bypassed=true' \

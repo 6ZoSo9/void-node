@@ -17,7 +17,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
 )
-TARGET_BLOB = "e707d2cececa056f2b4fdc56e2160fad0d851b85"
+TARGET_BLOB = "004a84d71fe3effeda5856dfcd2d92fb031bdf48"
 BASE_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
@@ -58,6 +58,8 @@ assert source.index("raise SystemExit(2)") < shadowable
 for required in (
     'BASE_GIT_BLOB_SHA1 = "' + BASE_BLOB + '"',
     'FIXED_CHECKOUT = Path("/home/zoso/dev/void-node")',
+    "def _close_owned_base_source_fds(",
+    "base_source_close_failed:",
     'getattr(module, "FIXED_CHECKOUT", None) != FIXED_CHECKOUT',
     "def _verify_tracked_checkout_bytes(",
     "base._git(tree_query)",
@@ -128,6 +130,7 @@ functions = {
 for name in (
     "_require_isolated_python",
     "_open_parent_nofollow",
+    "_close_owned_base_source_fds",
     "_read_exact_base_source",
     "_verify_tracked_checkout_bytes",
     "_load_patched_base_module",
@@ -294,6 +297,56 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v2-base-source-") as td:
     candidate.unlink()
     candidate.write_bytes(b"x" * len(base_bytes))
     expect_hold(lambda: module._read_exact_base_source(candidate), "base_source_blob_mismatch")
+
+# Close failures must be normalized after attempting every owned descriptor
+# exactly once. Each synthetic failure closes the real descriptor first and
+# then raises, so the fixture also proves no retry/double-close is required.
+real_close = module.os.close
+for failing_label in ("visible_parent", "file", "parent"):
+    fds = [os.open("/dev/null", os.O_RDONLY) for _ in range(3)]
+    labelled = tuple(zip(("visible_parent", "file", "parent"), fds))
+    target_fd = dict(labelled)[failing_label]
+    calls: list[int] = []
+
+    def close_then_error(fd: int, *, _target: int = target_fd) -> None:
+        calls.append(fd)
+        real_close(fd)
+        if fd == _target:
+            raise OSError(5, "synthetic_close_failure")
+
+    module.os.close = close_then_error
+    try:
+        cleanup = module._close_owned_base_source_fds(labelled)
+    finally:
+        module.os.close = real_close
+    assert cleanup == failing_label
+    assert calls == fds
+
+# A cleanup failure after a successful read becomes a machine-readable
+# EvidenceError. If a primary EvidenceError already exists, its reason remains
+# the prefix and the cleanup failure is appended.
+with tempfile.TemporaryDirectory(prefix="void-epoch2-v2-close-normalize-") as td:
+    candidate = Path(td) / module.BASE_NAME
+    saved_close_owned = module._close_owned_base_source_fds
+
+    def report_file_close_failure(owned):
+        assert saved_close_owned(owned) == ""
+        return "file"
+
+    module._close_owned_base_source_fds = report_file_close_failure
+    try:
+        candidate.write_bytes(base_bytes)
+        expect_hold(
+            lambda: module._read_exact_base_source(candidate),
+            "base_source_close_failed:file",
+        )
+        candidate.write_bytes(b"x" * len(base_bytes))
+        expect_hold(
+            lambda: module._read_exact_base_source(candidate),
+            "base_source_blob_mismatch:base_source_close_failed:file",
+        )
+    finally:
+        module._close_owned_base_source_fds = saved_close_owned
 
 # Exercise the exact tracked-source verifier with hostile/unbounded untracked data
 # present. No Git query may enumerate those paths.
@@ -468,6 +521,10 @@ print("exact_base_v1_source_blob_bound=true")
 print("exact_base_v1_proof_blob_bound=true")
 print("base_v1_fixed_checkout_contract_bound=true")
 print("base_v1_source_descriptor_bound=true")
+print("base_source_close_failure_normalized=true")
+print("base_source_primary_failure_preserved_on_cleanup_error=true")
+print("base_source_all_owned_fds_close_attempted_once=true")
+print("base_source_close_failure_machine_hold_contract=true")
 print("base_v1_source_symlink_fifo_rejected=true")
 print("tracked_tree_index_worktree_equality_required=true")
 print("tracked_file_byte_and_mode_drift_rejected=true")

@@ -143,8 +143,24 @@ def _open_parent_nofollow(path: Path) -> int:
         raise
 
 
+def _close_owned_base_source_fds(
+    owned: tuple[tuple[str, int], ...],
+) -> str:
+    failures: list[str] = []
+    for label, fd in owned:
+        if fd < 0:
+            continue
+        try:
+            os.close(fd)
+        except OSError:
+            failures.append(label)
+    return ",".join(failures)
+
+
 def _read_exact_base_source(path: Path) -> bytes:
     parent_fd = file_fd = visible_parent_fd = -1
+    result: bytes | None = None
+    primary: BaseException | None = None
     try:
         parent_fd = _open_parent_nofollow(path)
         parent_before = os.fstat(parent_fd)
@@ -183,14 +199,40 @@ def _read_exact_base_source(path: Path) -> bytes:
             raise EvidenceError("base_source_visible_generation_changed")
         if git_blob(raw) != BASE_GIT_BLOB_SHA1:
             raise EvidenceError("base_source_blob_mismatch")
-        return raw
+        result = raw
     except OSError as exc:
-        raise EvidenceError("base_source_unavailable") from exc
-    finally:
-        for fd in (visible_parent_fd, file_fd, parent_fd):
-            if fd >= 0:
-                os.close(fd)
+        normalized = EvidenceError("base_source_unavailable")
+        normalized.__cause__ = exc
+        primary = normalized
+    except BaseException as exc:
+        primary = exc
 
+    cleanup = _close_owned_base_source_fds(
+        (
+            ("visible_parent", visible_parent_fd),
+            ("file", file_fd),
+            ("parent", parent_fd),
+        )
+    )
+    if cleanup:
+        if isinstance(primary, EvidenceError):
+            raise EvidenceError(
+                str(primary) + ":base_source_close_failed:" + cleanup
+            ) from primary
+        if primary is not None:
+            raise EvidenceError(
+                "base_source_close_failed_after_"
+                + type(primary).__name__
+                + ":"
+                + cleanup
+            ) from primary
+        raise EvidenceError("base_source_close_failed:" + cleanup)
+
+    if primary is not None:
+        raise primary
+    if result is None:
+        raise EvidenceError("base_source_internal_result_missing")
+    return result
 
 def _verify_tracked_checkout_bytes(base: types.ModuleType, expected_head: str) -> None:
     """Authenticate only tracked source bytes; untracked host data is not authority."""
@@ -382,6 +424,8 @@ def self_test() -> None:
     print("parent_host_evidence_plan_bound=true")
     print("exact_base_v1_source_blob_bound=true")
     print("base_v1_source_descriptor_bound=true")
+    print("base_source_close_failure_normalized=true")
+    print("base_source_primary_failure_preserved_on_cleanup_error=true")
     print("base_v1_source_ancestor_symlinks_rejected=true")
     print("tracked_tree_index_worktree_equality_required=true")
     print("delegated_original_status_bypassed=true")
