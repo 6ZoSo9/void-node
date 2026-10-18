@@ -160,6 +160,92 @@ const BINDING_KEYS=Object.freeze([
   "version",
 ]);
 
+const CAPABILITY_STRING_KEYS=new Set([
+  "activation_capability_id",
+  "activation_secret_sha256",
+  "authorization_id",
+  "authorization_slot_id",
+  "authorization_slot_record_id",
+  "credential_name",
+  "custody_generation_id",
+  "durable_claim_record_id",
+  "durable_claim_record_sha256",
+  "expected_entrypoint_sha256",
+  "expected_preentry_sha256",
+  "expected_unit_git_blob_sha1",
+  "marker",
+  "next_gate",
+  "status",
+  "store_contract_id",
+  "store_generation_id",
+  "store_policy_id",
+  "target_host",
+  "terminal_receipt_id",
+  "training_start_consumption_contract_blob_sha1",
+  "training_start_consumption_contract_head",
+  "training_start_consumption_slot_id",
+]);
+const CAPABILITY_NUMBER_KEYS=new Set([
+  "expected_entrypoint_bytes",
+  "version",
+]);
+const CAPABILITY_BOOLEAN_KEYS=new Set([
+  "activation_capability_issuance_performed",
+  "authorization_slot_external_validation_required",
+  "capability_replay_authorized",
+  "create_once_key_must_equal_training_start_consumption_slot_id",
+  "direct_systemd_start_without_capability_authorized",
+  "external_training_start_consumption_validation_performed",
+  "protected_capability_store_required",
+  "raw_capability_export_authorized",
+  "systemd_caller_identity_authoritative",
+  "systemd_credential_transport_required",
+  "training_execution_authorized",
+  "training_start_consumption_contract_in_parent_lineage",
+  "training_start_consumption_integration_required",
+  "training_start_consumption_slot_external_validation_required",
+]);
+
+const BINDING_STRING_KEYS=new Set([
+  "activation_binding_id",
+  "activation_capability_id",
+  "activation_secret_sha256",
+  "boot_id_sha256",
+  "credential_name",
+  "marker",
+  "next_gate",
+  "observed_preentry_sha256",
+  "status",
+  "systemd_invocation_id",
+  "target_host",
+  "trainer_generation_id",
+  "training_process_start_time_ticks",
+  "training_source_identity_sha256",
+  "training_start_consumption_slot_id",
+]);
+const BINDING_NUMBER_KEYS=new Set([
+  "training_gid",
+  "training_pid",
+  "training_uid",
+  "version",
+]);
+const BINDING_BOOLEAN_KEYS=new Set([
+  "activation_generation_binding_required",
+  "activation_generation_bound",
+  "activation_secret_possession_proof_required",
+  "activation_secret_possession_proven",
+  "systemd_caller_identity_authoritative",
+  "systemd_invocation_generation_observation_performed",
+  "trainer_generation_external_contract_validation_performed",
+  "trainer_generation_external_contract_validation_required",
+  "training_execution_authorized",
+  "training_release_authorized",
+  "training_start_admission",
+  "training_start_consumption_performed",
+  "training_start_consumption_record_origin_proven",
+  "training_start_consumption_record_required",
+]);
+
 function fail(code){throw new Error(code);}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
 function canonicalize(value){
@@ -186,6 +272,53 @@ function exactOwnKeys(value,expected,code){
   if(actual.length!==wanted.length||actual.some((key,index)=>key!==wanted[index])){
     fail(code);
   }
+}
+function preflightPrimitiveObject(
+  value,
+  expectedKeys,
+  stringKeys,
+  numberKeys,
+  booleanKeys,
+  code,
+){
+  if(!value||typeof value!=="object"||Array.isArray(value))fail(code);
+  const proto=Object.getPrototypeOf(value);
+  if(proto!==Object.prototype&&proto!==null)fail(code);
+  exactOwnKeys(value,expectedKeys,code);
+  for(const key of expectedKeys){
+    const item=value[key];
+    if(stringKeys.has(key)){
+      const maxLength=key==="training_process_start_time_ticks"?20:256;
+      if(typeof item!=="string"||item.length<1||item.length>maxLength)fail(code);
+    }else if(numberKeys.has(key)){
+      if(!Number.isSafeInteger(item))fail(code);
+    }else if(booleanKeys.has(key)){
+      if(typeof item!=="boolean")fail(code);
+    }else{
+      fail(code);
+    }
+  }
+}
+function preflightCapabilityInput(value,withId){
+  const keys=withId
+    ?CAPABILITY_KEYS
+    :CAPABILITY_KEYS.filter((key)=>key!=="activation_capability_id");
+  preflightPrimitiveObject(
+    value,keys,
+    CAPABILITY_STRING_KEYS,CAPABILITY_NUMBER_KEYS,CAPABILITY_BOOLEAN_KEYS,
+    "apollyon_training_activation_capability_invalid",
+  );
+}
+function preflightBindingInput(value,withId){
+  const keys=withId
+    ?BINDING_KEYS
+    :BINDING_KEYS.filter((key)=>key!=="activation_binding_id");
+  preflightPrimitiveObject(
+    value,keys,
+    BINDING_STRING_KEYS,BINDING_NUMBER_KEYS,BINDING_BOOLEAN_KEYS,
+    "apollyon_training_activation_binding_invalid",
+  );
+  preflightBindingStartTicks(value);
 }
 function clonePlain(value,code){
   let copy;
@@ -277,6 +410,7 @@ function validateCapabilityMaterial(value){
 }
 
 export function qualifyApollyonTrainingActivationCapabilityV1(input){
+  preflightCapabilityInput(input,true);
   const value=clonePlain(input,"apollyon_training_activation_capability_invalid");
   exactOwnKeys(value,CAPABILITY_KEYS,"apollyon_training_activation_capability_invalid");
   if(!CAPABILITY_ID.test(value.activation_capability_id)){
@@ -293,6 +427,7 @@ export function qualifyApollyonTrainingActivationCapabilityV1(input){
 }
 
 export function buildApollyonTrainingActivationCapabilityV1(materialInput){
+  preflightCapabilityInput(materialInput,false);
   const material=clonePlain(
     materialInput,
     "apollyon_training_activation_capability_invalid",
@@ -354,7 +489,7 @@ export function qualifyApollyonTrainingActivationGenerationBindingV1(
   capabilityInput,
   bindingInput,
 ){
-  preflightBindingStartTicks(bindingInput);
+  preflightBindingInput(bindingInput,true);
   const capability=qualifyApollyonTrainingActivationCapabilityV1(capabilityInput);
   const value=clonePlain(
     bindingInput,
@@ -378,7 +513,7 @@ export function buildApollyonTrainingActivationGenerationBindingV1(
   capabilityInput,
   materialInput,
 ){
-  preflightBindingStartTicks(materialInput);
+  preflightBindingInput(materialInput,false);
   const capability=qualifyApollyonTrainingActivationCapabilityV1(capabilityInput);
   const material=clonePlain(
     materialInput,
