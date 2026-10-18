@@ -16,7 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
-EXPECTED_PLANNER_BLOB_SHA1="ce2f3bfed25523ebb82fa594d42378ecaa6b6143"
+EXPECTED_PLANNER_BLOB_SHA1="9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -42,7 +42,7 @@ assert 'flags.ignore_environment!=1' in source
 assert 'flags.no_user_site!=1' in source
 assert 'flags.dont_write_bytecode!=1' in source
 assert 'getattr(flags,"safe_path",0)!=1' in source
-assert 'PARENT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"' in source
+assert 'PARENT_HEAD="9475035552881f34658a7c8f3a6b336199fda159"' in source
 assert 'PARENT_CONTRACT_BLOB_SHA1="bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc"' in source
 assert '"e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"' in source
 assert '"store_policy_id":PARENT_STORE_POLICY_ID' in source
@@ -441,7 +441,7 @@ CURRENT_HEAD=head_run.stdout.strip()
 assert len(CURRENT_HEAD)==40 and all(ch in "0123456789abcdef" for ch in CURRENT_HEAD)
 source_generation=module.verify_source_generation(CURRENT_HEAD)
 assert source_generation["source_head"]==CURRENT_HEAD
-assert source_generation["parent_head"]=="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"
+assert source_generation["parent_head"]=="9475035552881f34658a7c8f3a6b336199fda159"
 assert source_generation["parent_head_ancestor"] is True
 assert source_generation["planner_git_blob_sha1"]==EXPECTED_PLANNER_BLOB_SHA1
 assert source_generation["parent_contract_git_blob_sha1"]=="bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc"
@@ -661,7 +661,7 @@ for line in (
 
 negative=subprocess.run(
     ["python3","-I","-B",str(PLAN),"--run","--expected-parent-head",
-     "fe7e1ad9b78a24b77a1657067e4d08f7c56a7731",
+     "9475035552881f34658a7c8f3a6b336199fda159",
      "--expected-source-head",CURRENT_HEAD,
      "--expected-host-pid-namespace-dev-ino","1:1",
      "--expected-host-user-namespace-dev-ino","1:1"],
