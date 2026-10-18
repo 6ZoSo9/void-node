@@ -23,7 +23,7 @@ The qualifier is bound to the exact V5 installer source Git blob:
 Checkout and accepted-lock observation use the standalone repository witness
 from the exact outer V6 installer Git blob:
 
-`70dd0e0feaebbea08c63d8c19549f928c8d70b7a`.
+`438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84`.
 
 Both modules are authenticated before use. The frozen V5 installer continues
 to define the installed byte identities, Python generation, policy and

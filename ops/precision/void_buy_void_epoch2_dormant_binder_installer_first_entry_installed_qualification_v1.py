@@ -24,7 +24,7 @@ REPOSITORY_OBSERVER_REL = (
     "protected_install_bootstrap_install_v6.py"
 )
 REPOSITORY_OBSERVER_SOURCE = ROOT / REPOSITORY_OBSERVER_REL
-REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1 = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
+REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1 = "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84"
 ACCEPTED_LOCK_BYTES = 4548
 ACCEPTED_LOCK_SHA256 = "7c4c207fb01d9bb4d8f6ab72b458464bf258373c7601e40e7a8e2719e3b4630a"
 
@@ -596,7 +596,7 @@ def self_test() -> None:
     assert not re_fullmatch_hex40("A" * 40)
     assert not re_fullmatch_hex40("a" * 39)
     assert INSTALLER_SOURCE_GIT_BLOB_SHA1 == "ce6930bc1be8239a3171d4922c44b96a50f5778b"
-    assert REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1 == "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
+    assert REPOSITORY_OBSERVER_SOURCE_GIT_BLOB_SHA1 == "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84"
     print(MARKER + "_SELF_TEST_GREEN")
     print("exact_installer_generation_bound=true")
     print("exact_repository_observer_generation_bound=true")

@@ -19,7 +19,7 @@ TARGET_REL = (
     "installed_qualification_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "5ef5c8768bc2fceb4658613e0e911733bfccdef2"
+TARGET_BLOB = "f0ca6d231ea787eee6b1f9be84000111ef9055a4"
 INSTALLER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_binder_installer_first_entry_"
@@ -32,7 +32,7 @@ OBSERVER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v6.py"
 )
-OBSERVER_BLOB = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
+OBSERVER_BLOB = "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84"
 LOCK_REL = (
     "ops/security/"
     "buy-void-epoch2-dormant-binder-installer-first-entry-candidate-lock-v2.json"

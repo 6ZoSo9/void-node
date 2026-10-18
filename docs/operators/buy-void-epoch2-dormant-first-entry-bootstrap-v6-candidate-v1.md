@@ -6,22 +6,22 @@ Status: **source/CI-only candidate derivation; unaccepted and not installed**.
 
 ## Purpose
 
-Derive one exact static ELF candidate from source-generation V3 merged by #3455.
+Derive one exact static ELF candidate from the source-generation V3 compatibility repair for standard Git cruft-pack `.mtimes` metadata.
 
 Bound source generation:
 
-`voidbuye2dormantsourcegen3_aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`
+`voidbuye2dormantsourcegen3_8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9`
 
 The candidate binds:
 
 - bootstrap V6 source Git blob
-  `a317d3dce324337f107909bd6e33e98622b3ef09`,
-  106,764 bytes, SHA-256
-  `c87110d83029c5c475a6ed1033dfaa1d94c3c173fe7c2e81c4a0daed88e81088`;
+  `560726bcae6ea0738502cb5e74b65f9116bd447d`,
+  106,792 bytes, SHA-256
+  `ac8673f51e4325e3ed1912a4f628cc3715c7199cda1c3cbdacbbcb710ae6b145`;
 - source-generation V3 manifest Git blob
-  `6e0630af72111bd9976dcc38cdcdada1904dd067`,
+  `de56bacb30bea0adc418e240cf3fb8d900b061ef`,
   2,382 bytes, SHA-256
-  `aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`;
+  `8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9`;
 - the exact static V6 compile contract exercised by the merged V3/V6 source proof;
 - a sealed `memfd` source snapshot used as compiler input;
 - a stable compiler logical source name via `-x c -` and sealed-source stdin,
@@ -50,9 +50,18 @@ also proves `compiler_logical_source_name=stdin`,
 `distinct_source_fd_numbers_exercised=true`, and
 `descriptor_number_not_candidate_identity=true`.
 
-The candidate ID is:
+The candidate ID remains content-addressed:
 
 `voidbuye2dormantbootstrapcand3_<sha256(canonical candidate body)>`.
+
+Precision independently derived the repaired generation four times with identical bytes:
+
+- candidate ID `voidbuye2dormantbootstrapcand3_1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2`;
+- ELF SHA-256 `618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c`;
+- ELF bytes `874608`;
+- ELF Git blob `b577d70666f98ac59a75b84b3dab741fe7b93a4b`.
+
+Hosted acceptance still requires the three GitHub derivation lanes and independent compare job to reproduce those identities exactly.
 
 ## Authority
 
@@ -66,7 +75,9 @@ This is candidate evidence only:
 - transaction/RPC/payment/presale/WC/treasury/funds authority false;
 - production-host evidence authority false.
 
-No Precision mutation occurs.
+The observed compatibility defect was a legitimate `pack-<oid>.mtimes` cruft-pack metadata file in Precision's `.git/objects/pack`. The repaired observer treats `.mtimes` exactly like the already non-authoritative `.rev`, `.bitmap`, and `.keep` auxiliaries: it may be present only as a single-link regular file and is never copied into the private object view.
+
+No Precision protected-install mutation occurs.
 
 After hosted V6 identity settles, a separate V3-generation acceptance lock is
 required before any V6 materializer, host-policy, or protected-install work.

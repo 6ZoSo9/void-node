@@ -13,13 +13,13 @@ import types
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_installed_qualification_v6.py"
-TARGET_BLOB = "975fb5444da297f94a73cad1f5f6e4ddff953574"
+TARGET_BLOB = "5f7321725b306184567111c0a7831d08243ad052"
 INSTALLER = ROOT / (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_install_bootstrap_install_v6.py"
 )
-INSTALLER_BLOB = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"
+INSTALLER_BLOB = "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84"
 
 
 def blob(raw: bytes) -> str:
@@ -36,7 +36,7 @@ assert blob(INSTALLER.read_bytes()) == INSTALLER_BLOB
 
 for required in (
     "PROTECTED_INSTALL_BOOTSTRAP_INSTALLED_QUALIFICATION_V6",
-    'INSTALLER_SOURCE_GIT_BLOB_SHA1 = "70dd0e0feaebbea08c63d8c19549f928c8d70b7a"',
+    'INSTALLER_SOURCE_GIT_BLOB_SHA1 = "438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84"',
     "double_descriptor_bound_bootstrap_self_test_required=true",
     "before_middle_after_stability_required=true",
     "python_and_git_policy_binding_required=true",
@@ -69,18 +69,18 @@ spec.loader.exec_module(module)
 installer = module._load_installer()
 assert installer.LOCK_ID == (
     "voidbuye2dormantbootstraplock3_"
-    "5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"
+    "4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396"
 )
 assert installer.CANDIDATE_ID == (
     "voidbuye2dormantbootstrapcand3_"
-    "13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062"
+    "1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2"
 )
 assert installer.BOOTSTRAP_BYTES == 874_608
 assert installer.BOOTSTRAP_SHA256 == (
-    "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
+    "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c"
 )
 assert installer.MANIFEST_SHA256 == (
-    "aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662"
+    "8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9"
 )
 policy = installer.build_policy(
     {"sha256": "1" * 64, "bytes": 123},
