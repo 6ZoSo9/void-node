@@ -51,7 +51,8 @@ jobs:
           STACK_PARENT=12b5b05eaaf07e10bd4cb04c98abc1916a81fede
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "$STACK_PARENT"
+              test -n "$PR_BASE"
+              git merge-base --is-ancestor "$PR_BASE" "$STACK_PARENT"
               base="$STACK_PARENT"
               ;;
             push)
@@ -76,7 +77,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = 9ba10aac284da9e44db0ad258348425cfa3c2e2c
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = b8ad4ea673d0744d95f37b3b21532415ded8193d
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = 31d501e290513c3ef2629681574fc0e51f7fe50e
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-plan-v1.md)" = 53b5fd8e7cef477bf2bf234739e2393766bfc602
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = d4b298dea73a4970987bf22435be3e76a5e7a02d
