@@ -1,0 +1,192 @@
+name: Buy VOID Epoch-2 repaired V6 bootstrap installed qualification v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact repaired qualification generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          STACK_PARENT=441f746d2ee8146b2ad6a62f68639f4451354c84
+          case "$EVENT_NAME" in
+            pull_request)
+              base="$STACK_PARENT"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch) base="$STACK_PARENT" ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
+            d9650aff7af2cb9fc9a8d95a888d8dd52aef1970
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
+            02f51dc92f45571bb8a30df9f49a6ec9c8a54642
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.md)" = \
+            888ccf2c9096564d4db38392f4a4de78f9c45d34
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = \
+            d4b298dea73a4970987bf22435be3e76a5e7a02d
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = \
+            74245f061432efd5383123c111ab481befbe90b5
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = \
+            9ba10aac284da9e44db0ad258348425cfa3c2e2c
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = \
+            31d501e290513c3ef2629681574fc0e51f7fe50e
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py",
+              "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py",
+          ):
+              compile(
+                  Path(relative).read_text("utf-8"),
+                  relative,
+                  "exec",
+                  dont_inherit=True,
+              )
+          print("VOID_BUY_VOID_EPOCH2_REPAIRED_V6_INSTALLED_QUALIFICATION_SYNTAX_GREEN")
+          PY
+
+      - name: Prove repaired installed qualification
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py"
+          out="$RUNNER_TEMP/repaired-v6-installed-qualification-proof.log"
+          python3 -I -B "$proof" | tee "$out"
+
+          markers=(
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_BOOTSTRAP_V6_REPAIRED_INSTALLED_QUALIFICATION_V1_PROOF_GREEN'
+            'target_blob_bound=true'
+            'pull_request_exact_parent_bound=true'
+            'pull_request_stale_base_authority_absent=true'
+            'workflow_dispatch_exact_parent_bound=true'
+            'workflow_dispatch_first_parent_inference_absent=true'
+            'repaired_upgrader_generation_bound=true'
+            'nonexecuting_upgrade_plan_generation_bound=true'
+            'green_state_classifier_reused=true'
+            'repaired_fixed_root_reverified=true'
+            'retained_predecessor_reverified=true'
+            'upgrade_stage_absence_required=true'
+            'temporary_git_metadata_cleanup_required=true'
+            'source_repository_mutation=false'
+            'upgrader_collect_absent=true'
+            'upgrader_apply_absent=true'
+            'temporary_git_metadata_write_required=true'
+            'qualification_git_callbacks_neutralized=true'
+            'qualification_git_fsmonitor_callback_rejected=true'
+            'repaired_plan_immutable_handoff_bound=true'
+            'nonroot_run_required=true'
+            'protected_filesystem_mutation=false'
+            'bootstrap_execution=false'
+            'inner_installer_execution=false'
+            'service_mutation=false'
+            'credential_access=false'
+            'private_key_access=false'
+            'signing=false'
+            'transaction=false'
+            'rpc_call=false'
+            'payment_acceptance=false'
+            'public_presale_activation=false'
+            'wc_void_market_activation=false'
+            'treasury_liquidity_action=false'
+            'funds_movement=false'
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
+      - name: Verify source-only qualification plan
+        run: |
+          set -euo pipefail
+          target="ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py"
+          out="$RUNNER_TEMP/repaired-v6-installed-qualification-source-plan.log"
+          python3 -I -B "$target" --source-plan | tee "$out"
+
+          markers=(
+            'mode=source-plan'
+            'source_only=true'
+            'host_read=false'
+            'host_write=false'
+            'upgrader_git_blob_sha1=d4b298dea73a4970987bf22435be3e76a5e7a02d'
+            'upgrade_plan_git_blob_sha1=9ba10aac284da9e44db0ad258348425cfa3c2e2c'
+            'repaired_fixed_root_required=true'
+            'retained_predecessor_required=true'
+            'upgrade_stage_absent_required=true'
+            'temporary_git_metadata_boundary_explicit=true'
+            'temporary_git_metadata_write_required=true'
+            'qualification_git_callbacks_neutralized=true'
+            'nonroot_run_required=true'
+            'protected_filesystem_mutation=false'
+            'bootstrap_execution=false'
+            'inner_installer_execution=false'
+            'service_mutation=false'
+            'credential_access=false'
+            'funds_movement=false'
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
