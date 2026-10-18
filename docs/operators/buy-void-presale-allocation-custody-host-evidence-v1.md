@@ -28,6 +28,9 @@ The collector is bound to the exact #3507 primitives:
 - live rollback-policy observer:
   `tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs`
   at `cf40d9d4a19d138d74aee849a6c02f96ee362dbb`;
+- canonical live installation/storage observer:
+  `tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs`
+  at `c0c86bc1687fc9a3cb9313b5a68029c35c6a9a63`;
 - reviewed rollback second-control composition:
   `src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts`
   at `97180cc03e3f1b2f9935191ac6aafe4b15307708`.
@@ -99,19 +102,33 @@ A future separately authorized root run:
 2. descriptor-reads the current Precision replay journal and high-water;
 3. descriptor-reads the reviewed Nimo witness journal;
 4. descriptor-reads the reviewed rollback-policy receipt;
-5. invokes the canonical live rollback-policy observer over the fixed replay
+5. invokes the canonical installation/storage observer and requires its
+   read-only storage classification GREEN;
+6. requires the collector's retained journal/high-water reads to match that
+   observer's exact path/dev/ino/hash/bytes/uid/gid/mode/nlink generation;
+7. invokes the canonical live rollback-policy observer over the fixed replay
    roots and current root-owned policy;
-6. requires current live policy observation and storage rebinding GREEN;
-7. invokes the reviewed second-control composition over the exact five
+8. requires current live policy observation and storage rebinding GREEN;
+9. invokes the installation/storage observer again and requires the same
+   qualification ID and high-water generation;
+10. invokes the reviewed second-control composition over the exact five
    artifacts;
-8. requires reviewed external custody, transport/storage provenance, same
+11. requires reviewed external custody, transport/storage provenance, same
    Precision storage identity, same replay high-water, and post-cycle policy
    binding;
-9. cross-checks the fresh live policy observation against the second-control
-   composition.
+12. submits the prerequisite booleans to #3513's challenge contract.
 
-No subprocess, network, filesystem write, mount/backup/snapshot mutation, or
-service mutation is performed by this collector.
+The collector itself contains no direct child-process API, but the canonical
+installation/storage observer transitively executes root-custodied
+`/usr/bin/stat` and `/usr/bin/lsblk` for read-only block-device identity
+observation. A successful host receipt therefore reports
+`process_execution_performed=true`,
+`process_execution_read_only_contract=true`, and
+`transitive_storage_identity_helper_execution_required=true`.
+
+No network, filesystem write, mount/backup/snapshot mutation, or service
+mutation is performed. On a HOLD path, process execution is reported
+`unknown` because a read-only identity helper may already have run.
 
 ## Truthful terminal
 
@@ -176,6 +193,12 @@ Hosted Node 22/24/26 CI performs only:
 - collector `--self-test`.
 
 CI never runs the real root `--run` path.
+
+The hosted proof additionally pins canonical installation-observer blob
+`c0c86bc1687fc9a3cb9313b5a68029c35c6a9a63`, rejects storage-file generation
+mismatches, and verifies the collector has no direct process-launch API even
+though a future host run truthfully includes the observer's bounded read-only
+`stat`/`lsblk` helpers.
 
 ## Authority
 
