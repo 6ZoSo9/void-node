@@ -47,14 +47,13 @@ jobs:
       - name: Bind exact repaired planner generation
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           case "$EVENT_NAME" in
-            pull_request) base="$PR_BASE" ;;
+            pull_request) base="d5e535aa83a94002dbe732e0da2d47feddf434bf" ;;
             push) base="$PUSH_BEFORE" ;;
             workflow_dispatch) base="d5e535aa83a94002dbe732e0da2d47feddf434bf" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
