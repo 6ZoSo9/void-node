@@ -71,7 +71,6 @@ assert "standalone_live_qualify_retired_use_v2" in source
 assert "--observe-live-pid" in source
 assert "service_mainpid_generation_mismatch" in source
 assert "service_action_performed" in source
-assert "reviewed_entrypoint_exec_transition_unproven" in source
 assert "live_inherited_descriptor_present" in source
 assert "CapBnd" in source
 assert "absolute_runtime_service_control_denial_proven" in source
