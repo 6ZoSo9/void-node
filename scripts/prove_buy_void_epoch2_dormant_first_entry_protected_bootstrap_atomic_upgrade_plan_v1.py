@@ -96,13 +96,15 @@ plan_workflow_source = (ROOT / PLAN_WORKFLOW_REL).read_text("utf-8")
 for required in (
     "STACK_PARENT=12b5b05eaaf07e10bd4cb04c98abc1916a81fede",
     """pull_request)
-              test "$PR_BASE" = "$STACK_PARENT"
+              test -n "$PR_BASE"
+              git merge-base --is-ancestor "$PR_BASE" "$STACK_PARENT"
               base="$STACK_PARENT"
               ;;""",
     'workflow_dispatch) base="$STACK_PARENT" ;;',
 ):
     assert required in plan_workflow_source, required
 assert 'workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;' not in plan_workflow_source
+assert 'test "$PR_BASE" = "$STACK_PARENT"' not in plan_workflow_source
 
 correct_proof_trigger = '      - "' + UPGRADER_PROOF_REL + '"'
 assert plan_workflow_source.count(correct_proof_trigger) == 2
