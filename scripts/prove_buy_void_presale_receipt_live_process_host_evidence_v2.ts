@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { createRequire, syncBuiltinESMExports } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +17,8 @@ import {
   SCHEMA,
   VERSION,
   testOnlyBuildRuntimeUserSystemctlInvocationV2,
+  testOnlyOpenExecutableLeaseV2,
+  testOnlyReadExactReviewedSourceV2,
   testOnlyWithRuntimeUserSystemctlIdentityDropV2,
 } from "../ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.js";
 
@@ -115,6 +118,9 @@ for (const required of [
   'const SETPRIV = "/usr/bin/setpriv"',
   "function openExecutableLease(",
   "function revalidateExecutableLease(",
+  "O_NONBLOCK",
+  "testOnlyReadExactReviewedSourceV2",
+  "testOnlyOpenExecutableLeaseV2",
   "`--reuid=${uid}`",
   "`--regid=${gid}`",
   '"--clear-groups"',
@@ -286,6 +292,65 @@ for (const options of [
   );
 }
 
+const fifoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-lane1-v2-fifo-"));
+try {
+  const fifo = path.join(fifoRoot, "swap.fifo");
+  const made = childProcess.spawnSync("/usr/bin/mkfifo", ["--", fifo], {
+    cwd: "/",
+    env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 5_000,
+  });
+  assert.equal(made.error, undefined);
+  assert.equal(made.signal, null);
+  assert.equal(made.status, 0, String(made.stderr || ""));
+
+  const target = "/usr/bin/setpriv";
+  const expectedTargetBlob = gitBlob(fs.readFileSync(target));
+  const realOpenSync = fs.openSync;
+
+  let sourceFlags = 0;
+  fs.openSync = ((file: unknown, flags: unknown, mode?: unknown): number => {
+    if (file === target) {
+      sourceFlags = Number(flags);
+      assert.notEqual(sourceFlags & Number(fs.constants.O_NONBLOCK || 0), 0);
+      return Reflect.apply(realOpenSync, fs, [fifo, flags, mode]) as number;
+    }
+    return Reflect.apply(realOpenSync, fs, [file, flags, mode]) as number;
+  }) as typeof fs.openSync;
+  try {
+    expectReject(
+      () => testOnlyReadExactReviewedSourceV2(target, expectedTargetBlob),
+      "lane1_v2_parent_source_open_identity_mismatch",
+    );
+  } finally {
+    fs.openSync = realOpenSync;
+  }
+  assert.notEqual(sourceFlags & Number(fs.constants.O_NONBLOCK || 0), 0);
+
+  let executableFlags = 0;
+  fs.openSync = ((file: unknown, flags: unknown, mode?: unknown): number => {
+    if (file === target) {
+      executableFlags = Number(flags);
+      assert.notEqual(executableFlags & Number(fs.constants.O_NONBLOCK || 0), 0);
+      return Reflect.apply(realOpenSync, fs, [fifo, flags, mode]) as number;
+    }
+    return Reflect.apply(realOpenSync, fs, [file, flags, mode]) as number;
+  }) as typeof fs.openSync;
+  try {
+    expectReject(
+      () => testOnlyOpenExecutableLeaseV2(target),
+      "lane1_v2_executable_open_identity_mismatch",
+    );
+  } finally {
+    fs.openSync = realOpenSync;
+  }
+  assert.notEqual(executableFlags & Number(fs.constants.O_NONBLOCK || 0), 0);
+} finally {
+  fs.rmSync(fifoRoot, { recursive: true, force: true });
+}
+
 const realSpawnSync = childProcess.spawnSync;
 const calls: SpawnCall[] = [];
 const fakeSpawnSync = ((...raw: unknown[]) => {
@@ -395,6 +460,9 @@ try {
 console.log(MARKER + "_PROOF_GREEN");
 console.log("exact_parent_v1_source_blob_bound=true");
 console.log("exact_parent_v1_proof_blob_bound=true");
+console.log("reviewed_source_open_nonblocking=true");
+console.log("executable_lease_open_nonblocking=true");
+console.log("regular_to_fifo_preopen_race_holds=true");
 console.log("diagnosed_root_peer_credential_failure_repaired=true");
 console.log("systemctl_query_exact_shape_required=true");
 console.log("systemctl_environment_exact_shape_required=true");

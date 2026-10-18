@@ -53,6 +53,20 @@ V2 changes only the user-systemd metadata-query boundary. Root remains required
 for the protected receipt, selector, process, and source-custody observations
 inherited from V1.
 
+## Nonblocking pre-open race boundary
+
+Reviewed source/proof reads and retained executable leases require Linux
+`O_NONBLOCK` together with `O_NOFOLLOW`. Hosted proof swaps a reviewed
+regular pathname to a real temporary FIFO at the exact `openSync` boundary and
+requires the FIFO open to return without blocking, followed by HOLD on the
+existing descriptor type/identity checks.
+
+This closes only the special-file pre-open race. It does **not** close the
+separate execution-generation HOLD: V2 still imports the reviewed V1 module by
+pathname after authenticating V1 bytes. Until a separately reviewed
+generation-bound V1 module-graph execution path exists, this branch remains
+Draft/HOLD and no Precision retry is authorized.
+
 ## Exact parent
 
 V2 is stacked on the exact final V1 generation:

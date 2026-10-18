@@ -150,8 +150,9 @@ function readExactReviewedSource(
 ): Readonly<{ bytes: Buffer; opened: fs.BigIntStats }> {
   proveRootCustodyPath(absolute, false);
   const noFollow = Number(fs.constants.O_NOFOLLOW || 0);
-  if (process.platform !== "linux" || noFollow <= 0) {
-    fail("lane1_v2_nofollow_unavailable");
+  const nonblock = Number(fs.constants.O_NONBLOCK || 0);
+  if (process.platform !== "linux" || noFollow <= 0 || nonblock <= 0) {
+    fail("lane1_v2_nofollow_nonblock_unavailable");
   }
   const before = fs.lstatSync(absolute, { bigint: true });
   if (
@@ -163,7 +164,7 @@ function readExactReviewedSource(
   ) {
     fail("lane1_v2_parent_source_metadata_invalid");
   }
-  const fd = fs.openSync(absolute, fs.constants.O_RDONLY | noFollow);
+  const fd = fs.openSync(absolute, fs.constants.O_RDONLY | noFollow | nonblock);
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
     if (!sameStat(before, opened)) {
@@ -221,12 +222,13 @@ function openExecutableLease(absolute: string): ExecutableLease {
   if (canonical !== absolute) fail("lane1_v2_executable_symlink_forbidden");
   proveRootCustodyPath(canonical, false);
   const noFollow = Number(fs.constants.O_NOFOLLOW || 0);
-  if (process.platform !== "linux" || noFollow <= 0) {
-    fail("lane1_v2_executable_nofollow_unavailable");
+  const nonblock = Number(fs.constants.O_NONBLOCK || 0);
+  if (process.platform !== "linux" || noFollow <= 0 || nonblock <= 0) {
+    fail("lane1_v2_executable_nofollow_nonblock_unavailable");
   }
   const before = fs.lstatSync(canonical, { bigint: true });
   if (!executableTrusted(before)) fail("lane1_v2_executable_custody_invalid");
-  const fd = fs.openSync(canonical, fs.constants.O_RDONLY | noFollow);
+  const fd = fs.openSync(canonical, fs.constants.O_RDONLY | noFollow | nonblock);
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
     if (!executableTrusted(opened) || !sameStat(before, opened)) {
@@ -390,6 +392,22 @@ function exactSystemdEnvironment(raw: unknown, uid: number): NodeJS.ProcessEnv {
     fail("lane1_v2_systemd_environment_invalid");
   }
   return Object.freeze({ ...expected });
+}
+
+export function testOnlyReadExactReviewedSourceV2(
+  absolute: string,
+  expectedBlob: string,
+): number {
+  return readExactReviewedSource(absolute, expectedBlob).bytes.length;
+}
+
+export function testOnlyOpenExecutableLeaseV2(absolute: string): void {
+  const lease = openExecutableLease(absolute);
+  try {
+    revalidateExecutableLease(lease);
+  } finally {
+    closeExecutableLease(lease);
+  }
 }
 
 export function testOnlyBuildRuntimeUserSystemctlInvocationV2(input: {
@@ -715,6 +733,8 @@ function selfTest(): void {
   ]);
   console.log(MARKER + "_SELF_TEST_GREEN");
   console.log("parent_v1_source_and_proof_bound=true");
+  console.log("reviewed_source_open_nonblocking=true");
+  console.log("executable_lease_open_nonblocking=true");
   console.log("root_direct_user_bus_query_replaced=true");
   console.log("numeric_runtime_uid_gid_drop_required=true");
   console.log("supplementary_groups_cleared=true");

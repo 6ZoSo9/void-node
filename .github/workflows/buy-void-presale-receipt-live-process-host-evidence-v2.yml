@@ -83,9 +83,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = a68ec39cb5da6eaf097cef0cce5cadc9dfe2a84e
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = b78d82f11cba8e134273c9eee2c35922e10e1900
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md)" = cb866314053a2b82de27144abaa165a896873e69
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = d1b025694f5f5a4c49bd9eced68666c55f3663f5
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 7658b73be3c5dfa6b4ab23f194bbd410963e05be
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md)" = eaf3159f743ebabb5854a7465803c3c835d65078
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = ba69d46ffa6f7d178de447b469b578fa8e87ea3b
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 350354779caac35d7442b1315826b8b0c27463e2
@@ -105,6 +105,9 @@ jobs:
             'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2_PROOF_GREEN' \
             'exact_parent_v1_source_blob_bound=true' \
             'exact_parent_v1_proof_blob_bound=true' \
+            'reviewed_source_open_nonblocking=true' \
+            'executable_lease_open_nonblocking=true' \
+            'regular_to_fifo_preopen_race_holds=true' \
             'diagnosed_root_peer_credential_failure_repaired=true' \
             'systemctl_query_exact_shape_required=true' \
             'systemctl_environment_exact_shape_required=true' \
@@ -141,6 +144,8 @@ jobs:
           for marker in \
             'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2_SELF_TEST_GREEN' \
             'parent_v1_source_and_proof_bound=true' \
+            'reviewed_source_open_nonblocking=true' \
+            'executable_lease_open_nonblocking=true' \
             'root_direct_user_bus_query_replaced=true' \
             'numeric_runtime_uid_gid_drop_required=true' \
             'supplementary_groups_cleared=true' \
