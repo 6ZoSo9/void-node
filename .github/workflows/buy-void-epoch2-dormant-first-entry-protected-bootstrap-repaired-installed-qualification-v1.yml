@@ -41,26 +41,23 @@ jobs:
       - name: Bind exact repaired qualification generation
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
+          STACK_PARENT=4658a7d6650225d0bfb66e7868cef5646245d6c7
           case "$EVENT_NAME" in
             pull_request)
-              test -n "$PR_BASE"
-              base="$PR_BASE"
+              base="$STACK_PARENT"
               ;;
             push)
               test -n "$PUSH_BEFORE"
               test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
               base="$PUSH_BEFORE"
               ;;
-            workflow_dispatch)
-              base="4658a7d6650225d0bfb66e7868cef5646245d6c7"
-              ;;
+            workflow_dispatch) base="$STACK_PARENT" ;;
             *)
               echo "unsupported_event=$EVENT_NAME" >&2
               exit 1
@@ -82,7 +79,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
             04c7ca5f0d96dcb60faeae8cf4d712435ad65466
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            498ca198461e2d9b263869559a9b36274c55afe5
+            7c96575d721bff1bda7a30b3faaa5c3e126ad51c
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.md)" = \
             409baf527ac9903e13bb9c4dbb58842420800c36
 
@@ -126,6 +123,8 @@ jobs:
           markers=(
             'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_BOOTSTRAP_V6_REPAIRED_INSTALLED_QUALIFICATION_V1_PROOF_GREEN'
             'target_blob_bound=true'
+            'pull_request_exact_parent_bound=true'
+            'pull_request_stale_base_authority_absent=true'
             'workflow_dispatch_exact_parent_bound=true'
             'workflow_dispatch_first_parent_inference_absent=true'
             'repaired_upgrader_generation_bound=true'
