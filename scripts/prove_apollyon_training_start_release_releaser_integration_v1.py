@@ -14,7 +14,7 @@ SOURCE = ROOT / "ops/xiphos/apollyon_training_start_release_releaser_integration
 TRAINER = ROOT / "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
 PIPE_PAIR = ROOT / "ops/xiphos/apollyon_release_pipe_pair_generation_v1.c"
 
-SOURCE_BLOB = "8d5146969160b875d048125118d6fba36762ec1e"
+SOURCE_BLOB = "55ab6d566cfe692d7fcf032dc5569f2ea7c2e0a0"
 TRAINER_BLOB = "265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36"
 PIPE_PAIR_BLOB = "93390eefd1e72e70af7206e9982c8eaa5e042149"
 
@@ -100,6 +100,11 @@ for required in (
     "training_execution_authorized=false",
 ):
     assert required in source_text, required
+
+write_index = source_text.index("if(!write_all(release_pipe[1],frame,sizeof(frame)))")
+close_index = source_text.index("if(close(release_pipe[1])!=0)", write_index)
+detach_index = source_text.index("if(ptrace(PTRACE_DETACH,child,NULL,NULL)!=0)", close_index)
+assert write_index < close_index < detach_index
 
 for forbidden in (
     "systemctl",
@@ -272,6 +277,7 @@ print("direct_parent_same_pipe_fixture=true")
 print("single_threaded_releaser_fixture=true")
 print("trainer_exec_stop_synchronization=true")
 print("frame_budget_starts_after_releaser_proof=true")
+print("frame_and_eof_buffered_before_trainer_resume=true")
 print("late_writer_escape_syscalls_blocked=true")
 print("extra_releaser_thread_rejected=true")
 print("child_retained_writer_rejected=true")
