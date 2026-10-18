@@ -10,10 +10,10 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const MARKER="VOID_BUY_VOID_PRESALE_CURRENT_SOURCE_ENFORCEMENT_SUCCESSOR_V1";
 const SUCCESSOR_REL="ops/security/buy-void-presale-current-source-enforcement-successor-v1.json";
-const SUCCESSOR_BLOB="bb1144989cd826677f2fc8ea54c97e3bd95cc8ef";
-const SUCCESSOR_ID="voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad";
+const SUCCESSOR_BLOB="774db38ccb771f393b44d589a455144b99d36f6b";
+const SUCCESSOR_ID="voidbuypresaleenfsucc1_819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef";
 
-const FREEZE_HEAD="0f5c467253c250a905917e886eb6ae3fb80bff62";
+const FREEZE_HEAD="d3e7404791622541a4567ddd506f27caba60cfea";
 const FREEZE_SOURCE="05614762b1b4638e05e539fd7d20cbf670e1570b";
 const FREEZE_TREE="4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e";
 const FREEZE_REL="ops/security/buy-void-presale-source-freeze-candidate-v2.json";
