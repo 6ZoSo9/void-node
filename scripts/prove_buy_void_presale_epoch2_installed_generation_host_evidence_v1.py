@@ -5,6 +5,7 @@ import ast
 import ctypes
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -39,7 +40,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "a8a8654bca0b789bc07b03e078a357ca2b7eb933"
+TARGET_BLOB = "7dd748dc780ace3cb371603e6e35df84a9c9f768"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -188,6 +189,8 @@ for name in (
     "_read_visible_file",
     "_open_source_parent",
     "_git",
+    "_run_git_bounded",
+    "_emit_hold",
     "checkout_snapshot",
     "exact_git_object",
     "_read_visible_source_exact",
@@ -198,7 +201,7 @@ for name in (
 ):
     assert name in functions, name
 
-run_calls: list[str] = []
+run_calls: list[tuple[str, str]] = []
 for name, fn in functions.items():
     for node in ast.walk(fn):
         if (
@@ -206,10 +209,10 @@ for name, fn in functions.items():
             and isinstance(node.func, ast.Attribute)
             and isinstance(node.func.value, ast.Name)
             and node.func.value.id == "subprocess"
-            and node.func.attr == "run"
+            and node.func.attr in ("run", "Popen")
         ):
-            run_calls.append(name)
-assert run_calls == ["_git"], run_calls
+            run_calls.append((name, node.func.attr))
+assert run_calls == [("_run_git_bounded", "Popen")], run_calls
 
 collect_source = ast.get_source_segment(source, functions["collect"]) or ""
 assert "_require_isolated_python()" in collect_source
@@ -656,7 +659,7 @@ if KERNEL_READ_BOUNDARY_EXECUTED:
                        env=module.GIT_ENV, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         fifo = root / "root-only-include"
         os.mkfifo(fifo, 0o600)
-        user_fifo = root / "query-uid-include"
+        user_fifo = root / "query-uid-include\nstatus=GREEN\npayment_acceptance=true"
         os.mkfifo(user_fifo, 0o600)
         os.chown(user_fifo, 1000, 1000)
         config = checkout / ".git/config"
@@ -687,7 +690,7 @@ if KERNEL_READ_BOUNDARY_EXECUTED:
             else:
                 assert result == b"true\n"
 
-            config.write_text(original_config + "\n[include]\npath = " + str(user_fifo) + "\n")
+            config.write_text(original_config + "\n[include]\npath = " + json.dumps(str(user_fifo)) + "\n")
             # The same demoted identity can open this FIFO without Landlock.
             # No credentials or non-fixture files are used in the control.
             try:
@@ -709,6 +712,7 @@ if KERNEL_READ_BOUNDARY_EXECUTED:
                     module._git(query)
                 except module.EvidenceError as exc:
                     assert str(exc).startswith("git_command_failed:"), str(exc)
+                    assert "\n" not in str(exc) and "status=GREEN" not in str(exc)
             delegated = module.types.ModuleType("synthetic_confined_delegate")
             for name in ("LOCK_REL", "NATIVE_SOURCE_REL", "RUNNER_SOURCE_REL", "SEALED_V2_REL", "QUALIFIER_REL"):
                 setattr(delegated, name, "fixture")
@@ -760,7 +764,7 @@ if KERNEL_READ_BOUNDARY_EXECUTED:
                 else:
                     os.link(outside, metadata)
                 expect_source_hold(lambda: module._git(["rev-parse", "HEAD"]),
-                                   "git_command_failed:125:git_read_boundary_failed\n")
+                                   "git_command_failed:125")
                 metadata.unlink()
 
             saved_sandbox = module.GIT_READ_SANDBOX
@@ -771,7 +775,7 @@ if KERNEL_READ_BOUNDARY_EXECUTED:
                     assert module.GIT_READ_SANDBOX.count(guarded_line) == 1
                     module.GIT_READ_SANDBOX = saved_sandbox.replace(guarded_line, replacement)
                     expect_source_hold(lambda: module._git(["rev-parse", "HEAD"]),
-                                       "git_command_failed:125:git_read_boundary_failed\n")
+                                       "git_command_failed:125")
                     module.GIT_READ_SANDBOX = saved_sandbox
             finally:
                 module.GIT_READ_SANDBOX = saved_sandbox
@@ -928,21 +932,17 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-shadow-import-proof-") as t
     assert not future_marker.exists(), "checkout_local_future_import_executed"
     assert not shadow_marker.exists(), "checkout_local_shadow_import_executed"
 
-original_subprocess_run = module.subprocess.run
+original_bounded_run = module._run_git_bounded
+original_popen = module.subprocess.Popen
 original_geteuid = module.os.geteuid
 
 captured_git_commands: list[list[str]] = []
 
 def _capture_git_command(args, **_kwargs):
     captured_git_commands.append(list(args))
-    return subprocess.CompletedProcess(
-        args=args,
-        returncode=0,
-        stdout=b"",
-        stderr=b"",
-    )
+    return b""
 
-module.subprocess.run = _capture_git_command
+module._run_git_bounded = _capture_git_command
 module.os.geteuid = lambda: 0
 assert module._git(["ls-files", "--stage", "-z"]) == b""
 assert len(captured_git_commands) == 1
@@ -973,6 +973,7 @@ module.os.geteuid = lambda: 1001
 expect_source_hold(lambda: module._git(["rev-parse", "HEAD"]), "checkout_query_uid_invalid")
 assert len(captured_git_commands) == 2
 module.os.geteuid = lambda: 0
+module._run_git_bounded = original_bounded_run
 
 def _raise_git_oserror(*_args, **_kwargs):
     raise OSError("synthetic_git_spawn_failure")
@@ -981,7 +982,7 @@ def _raise_git_timeout(*_args, **_kwargs):
     raise subprocess.TimeoutExpired(cmd=["/usr/bin/git"], timeout=20)
 
 try:
-    module.subprocess.run = _raise_git_oserror
+    module.subprocess.Popen = _raise_git_oserror
     try:
         module._git(["rev-parse", "HEAD"])
     except module.EvidenceError as exc:
@@ -989,7 +990,7 @@ try:
     else:
         raise AssertionError("git_spawn_failure_not_normalized")
 
-    module.subprocess.run = _raise_git_timeout
+    module.subprocess.Popen = _raise_git_timeout
     try:
         module._git(["rev-parse", "HEAD"])
     except module.EvidenceError as exc:
@@ -997,8 +998,66 @@ try:
     else:
         raise AssertionError("git_timeout_not_normalized")
 finally:
-    module.subprocess.run = original_subprocess_run
+    module.subprocess.Popen = original_popen
     module.os.geteuid = original_geteuid
+
+# Real pipe producers exercise limits before buffering and verify cleanup.
+# These disposable Python children do not invoke Git, host qualification, or I/O
+# outside their own stdout/stderr pipes.
+saved_stdout_limit, saved_stderr_limit = module.MAX_GIT_OUTPUT_BYTES, module.MAX_GIT_STDERR_BYTES
+saved_timeout = module.GIT_TIMEOUT_SECONDS
+children = []
+def tracked_popen(*args, **kwargs):
+    child = original_popen(*args, **kwargs)
+    children.append(child)
+    return child
+def output_fixture(program):
+    return module._run_git_bounded(["/usr/bin/python3", "-I", "-B", "-c", program])
+try:
+    module.subprocess.Popen = tracked_popen
+    module.MAX_GIT_OUTPUT_BYTES, module.MAX_GIT_STDERR_BYTES = 4096, 1024
+    assert output_fixture("import os; os.write(1,b'x'*4096)") == b"x" * 4096
+    for fd, reason in ((1, "git_stdout_limit"), (2, "git_stderr_limit")):
+        expect_source_hold(
+            lambda fd=fd: output_fixture("import os\nwhile True: os.write(" + str(fd) + ",b'x'*65536)"),
+            reason,
+        )
+        assert children[-1].returncode == -module.signal.SIGKILL
+        assert children[-1].stdout.closed and children[-1].stderr.closed
+    module.GIT_TIMEOUT_SECONDS = 0.25
+    expect_source_hold(lambda: output_fixture("import time; time.sleep(10)"),
+                       "git_execution_failed:TimeoutExpired")
+    assert children[-1].returncode == -module.signal.SIGKILL
+    assert children[-1].stdout.closed and children[-1].stderr.closed
+    module.GIT_TIMEOUT_SECONDS = saved_timeout
+    forged = b"fatal: fixture\nstatus=GREEN\npayment_acceptance=true\rnetwork_contact=true\x1b"
+    try:
+        output_fixture("import os; os.write(2," + repr(forged) + "); raise SystemExit(128)")
+    except module.EvidenceError as exc:
+        assert str(exc) == "git_command_failed:128"
+    else:
+        raise AssertionError("forged_git_diagnostic_accepted")
+    expect_source_hold(lambda: output_fixture("import os; os.write(2,b'warning\\nstatus=GREEN\\n')"),
+                       "git_stderr")
+finally:
+    module.subprocess.Popen = original_popen
+    module.MAX_GIT_OUTPUT_BYTES, module.MAX_GIT_STDERR_BYTES = saved_stdout_limit, saved_stderr_limit
+    module.GIT_TIMEOUT_SECONDS = saved_timeout
+
+saved_stdout = sys.stdout
+receipt = io.StringIO()
+try:
+    sys.stdout = receipt
+    module._emit_hold(module.EvidenceError(forged.decode() + "\u2028status=GREEN"))
+finally:
+    sys.stdout = saved_stdout
+lines = receipt.getvalue().splitlines()
+assert lines[0] == MARKER
+assert len(lines) == 3 + len(module._BOOTSTRAP_NEGATIVE_AUTHORITY_FIELDS)
+assert [line for line in lines if line.startswith("status=")] == ["status=HOLD"]
+assert lines[2].startswith("reason=") and "\x1b" not in lines[2]
+for field in module._BOOTSTRAP_NEGATIVE_AUTHORITY_FIELDS:
+    assert [line for line in lines if line.startswith(field + "=")] == [field + "=false"]
 
 base = {
     "marker": "VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V5",
@@ -1180,6 +1239,10 @@ print("root_only_git_config_include_denied=" + str(KERNEL_READ_BOUNDARY_EXECUTED
 print("kernel_git_read_boundary_executed=" + str(KERNEL_READ_BOUNDARY_EXECUTED).lower())
 print("query_uid_config_include_denied=" + str(KERNEL_READ_BOUNDARY_EXECUTED).lower())
 print("kernel_metadata_links_and_sandbox_failures_hold=" + str(KERNEL_READ_BOUNDARY_EXECUTED).lower())
+print("git_stdout_and_stderr_bounded_before_buffering=true")
+print("git_limit_timeout_children_killed_and_reaped=true")
+print("git_stderr_cannot_forge_hold_receipt=true")
+print("hold_receipt_single_line_reason_enforced=true")
 print("filesystem_write_performed=false")
 print("runner_execution=false")
 print("live_composition_execution=false")

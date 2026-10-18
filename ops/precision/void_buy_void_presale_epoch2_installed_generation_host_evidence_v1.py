@@ -47,9 +47,12 @@ import json
 import os
 from pathlib import Path
 import re
+import selectors
+import signal
 import stat
 import subprocess
 import sys
+import time
 import types
 from typing import Any
 
@@ -92,6 +95,9 @@ MAX_CHECKOUT_FILE_BYTES = 64 * 1024 * 1024
 MAX_CHECKOUT_TOTAL_BYTES = 512 * 1024 * 1024
 MAX_CHECKOUT_FILES = 50000
 MAX_CHECKOUT_LIST_BYTES = 16 * 1024 * 1024
+MAX_GIT_OUTPUT_BYTES = MAX_CHECKOUT_LIST_BYTES
+MAX_GIT_STDERR_BYTES = 64 * 1024
+GIT_TIMEOUT_SECONDS = 20
 STATUS_QUERY = ("status", "--porcelain=v1", "--untracked-files=all")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
@@ -414,33 +420,79 @@ def _git(args: list[str]) -> bytes:
                 "protocol.allow=never",
                 *args,
     ]
+    return _run_git_bounded(
+        [*prefix, str(FIXED_PYTHON), "-I", "-B", "-c", GIT_READ_SANDBOX,
+         json.dumps({"argv": git_argv, "checkout": str(FIXED_CHECKOUT)})]
+    )
+
+
+def _run_git_bounded(command: list[str]) -> bytes:
+    process = None
+    selector = None
+    buffers = {"stdout": bytearray(), "stderr": bytearray()}
     try:
-        cp = subprocess.run(
-            [*prefix, str(FIXED_PYTHON), "-I", "-B", "-c", GIT_READ_SANDBOX,
-             json.dumps({"argv": git_argv, "checkout": str(FIXED_CHECKOUT)})],
+        selector = selectors.DefaultSelector()
+        process = subprocess.Popen(
+            command,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=GIT_ENV,
             cwd="/",
             close_fds=True,
-            check=False,
-            timeout=20,
+            start_new_session=True,
         )
+        deadline = time.monotonic() + GIT_TIMEOUT_SECONDS
+        for name, limit in (("stdout", MAX_GIT_OUTPUT_BYTES), ("stderr", MAX_GIT_STDERR_BYTES)):
+            stream = getattr(process, name)
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ, (name, limit))
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, GIT_TIMEOUT_SECONDS)
+            ready = selector.select(remaining)
+            if not ready:
+                raise subprocess.TimeoutExpired(command, GIT_TIMEOUT_SECONDS)
+            for key, _events in ready:
+                name, limit = key.data
+                buffer = buffers[name]
+                chunk = os.read(key.fd, min(65536, limit - len(buffer) + 1))
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                elif len(buffer) + len(chunk) > limit:
+                    raise EvidenceError("git_" + name + "_limit")
+                else:
+                    buffer.extend(chunk)
+        process.wait(timeout=max(0.0, deadline - time.monotonic()))
+        if process.returncode != 0:
+            # Git diagnostics contain checkout-controlled bytes, never receipt data.
+            raise EvidenceError("git_command_failed:" + str(process.returncode))
+        if buffers["stderr"]:
+            raise EvidenceError("git_stderr")
+        return bytes(buffers["stdout"])
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise EvidenceError(
             "git_execution_failed:" + type(exc).__name__
         ) from exc
-    if cp.returncode != 0:
-        raise EvidenceError(
-            "git_command_failed:"
-            + str(cp.returncode)
-            + ":"
-            + cp.stderr.decode("utf-8", "replace")[-1000:]
-        )
-    if cp.stderr:
-        raise EvidenceError("git_stderr")
-    return cp.stdout
+    finally:
+        if selector is not None:
+            selector.close()
+        if process is not None:
+            try:
+                if process.returncode is None:
+                    # Do not poll/reap the leader before killing its group: its
+                    # retained PID prevents reuse while descendants hold pipes.
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    process.wait(timeout=1)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise EvidenceError("git_cleanup_failed") from exc
+            finally:
+                process.stdout.close()
+                process.stderr.close()
 
 
 def checkout_snapshot(expected_head: str) -> dict[str, Any]:
@@ -749,9 +801,7 @@ def collect(expected_head: str) -> dict[str, Any]:
     try:
         qualified = qualifier.collect(expected_head)
     except Exception as exc:
-        raise EvidenceError(
-            "epoch2_installed_qualification_failed:" + str(exc)
-        ) from exc
+        raise EvidenceError("epoch2_installed_qualification_failed") from exc
     result = validate_result(qualified, expected_head)
 
     return {
@@ -869,28 +919,18 @@ def main() -> int:
     return 0
 
 
+def _emit_hold(exc: EvidenceError) -> None:
+    reason = re.sub(r"[^A-Za-z0-9_:./-]", "_", str(exc)[:1000])
+    print(MARKER)
+    print("status=HOLD")
+    print("reason=" + (reason or "unspecified_evidence_failure"))
+    for field in _BOOTSTRAP_NEGATIVE_AUTHORITY_FIELDS:
+        print(field + "=false")
+
+
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except EvidenceError as exc:
-        print(MARKER)
-        print("status=HOLD")
-        print("reason=" + str(exc))
-        print("epoch2_installed_generation_qualified=false")
-        print("filesystem_write_performed=false")
-        print("runner_execution=false")
-        print("live_composition_execution=false")
-        print("service_mutation=false")
-        print("network_contact=false")
-        print("credential_access=false")
-        print("private_key_access=false")
-        print("wallet_or_signer_access=false")
-        print("signing=false")
-        print("transaction_submission=false")
-        print("payment_acceptance=false")
-        print("public_presale_activation=false")
-        print("wc_void_market_activation=false")
-        print("treasury_or_liquidity_action=false")
-        print("funds_movement=false")
-        print("production_host_evidence_authority=false")
+        _emit_hold(exc)
         raise SystemExit(2)

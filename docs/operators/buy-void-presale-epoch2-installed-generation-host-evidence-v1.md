@@ -346,7 +346,7 @@ changes, `--clear-groups`, and empty inheritable, ambient and bounding capabilit
 sets before entering a fixed isolated `/usr/bin/python3` in-memory launcher and
 then fixed `/usr/bin/git`. The child has a closed environment,
 cwd `/`, no inherited extra descriptors, and the existing timeout/error-to-HOLD
-handling. An already unprivileged UID-1000 query may run directly; other caller
+handling. An already unprivileged UID-1000 query may enter the launcher directly; other caller
 UIDs HOLD before spawning. No Git metadata/config parser is entered as root by
 the wrapper. The in-process raw-file verifier and fixed installed qualification
 retain their separately documented descriptor and root requirements.
@@ -415,3 +415,28 @@ Both `kernel_git_read_boundary_executed=true` and
 environments without Landlock exercise only disposable filter/worktree fixtures
 with a test-only launcher substitution and explicitly print false kernel
 markers; they cannot satisfy hosted CI. No real credentials are used.
+
+## Bounded Git output and unforgeable HOLD lines
+
+The parent reads Git stdout and stderr concurrently through nonblocking pipes
+and a selector. It retains at most 16 MiB of stdout and 64 KiB of stderr, reading
+only up to the remaining allowance plus one detection byte before rejecting an
+overflow. This limit applies while reading, before listing parsing or allocation
+of an unbounded `communicate()` result. Each query retains a 20-second deadline.
+Limit or timeout failures kill the query's process group, reap the child, and
+close both pipes. Cleanup failure itself produces a fixed HOLD reason.
+
+Git failure receipts contain only `git_command_failed:<numeric status>` or a
+fixed error code; raw stderr never becomes receipt text. Delegated qualifier
+exceptions likewise become a fixed reason. The final HOLD renderer restricts
+every reason to one bounded ASCII line and emits each negative-authority field
+exactly once, preventing newlines, carriage returns, Unicode line separators,
+or terminal controls from forging additional receipt fields.
+
+The source-only proof exercises real disposable pipe producers: exact-limit
+success, endless stdout/stderr overflow, actual timeout with killed/reaped
+children, and forged status/authority lines in failed and successful-process
+diagnostics. The hosted same-UID config-include FIFO also carries forged receipt
+lines in its filename. The kernel denial remains required and none of those
+diagnostics may become authority claims. No real credentials or host collection
+are involved.
