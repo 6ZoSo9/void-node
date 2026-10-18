@@ -214,10 +214,6 @@ def collect(expected_head: str) -> dict[str, Any]:
 
     upgrader = load_upgrader(expected_head)
     try:
-        upgrader._require_secure_apply_context = getattr(
-            upgrader.load_outer(),
-            "_require_secure_apply_context",
-        )
         outer = upgrader.load_outer()
         outer._require_secure_apply_context()
         bindings, policy, receipt = upgrader.bindings(outer, expected_head)
