@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py"
-TARGET_BLOB = "89e2075fff8640f176d1e4338a9f70f4ebf169e1"
+TARGET_BLOB = "21ec67f62c3c303e2362a836602c9a7cfd1af136"
 CENSUS_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py"
 CENSUS_BLOB = "266fe91ee8563efff6116be7f890f19340a0de4c"
 CENSUS_PROOF_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py"
@@ -69,6 +69,15 @@ for required in (
     '"wc_void_market_activation": False',
     '"funds_movement": False',
     "forged_census_authority_accepted",
+    "PATH_METADATA_KEYS",
+    "CUSTODY_PATH_METADATA_KEYS",
+    "PATH_METADATA_STATES",
+    "def _validate_path_metadata_entry(",
+    "source_finality_deployment_receipt_keys_invalid",
+    "allocation_custody_mount_mountpoint_type_invalid",
+    "allocation_custody_mount_nondirectory_mountpoint_must_be_false",
+    "epoch2_live_composition_root_directory_bytes_invalid",
+    "malformed_nested_metadata_accepted:",
 ):
     assert required in source, required
 
@@ -134,6 +143,10 @@ assert cp.stderr == ""
 for line in (
     MARKER + "_SELF_TEST_GREEN",
     "metadata_alignment_classifier=true",
+    "closed_nested_metadata_schema=true",
+    "malformed_nested_metadata_rejected=true",
+    "state_dependent_mode_bytes_validated=true",
+    "custody_mountpoint_type_validated=true",
     "metadata_presence_never_becomes_authenticity=true",
     "independent_receipt_evidence_required=true",
     "independent_custody_evidence_required=true",
@@ -176,6 +189,9 @@ print("host_access_absent=true")
 print("network_access_absent=true")
 print("filesystem_mutation_absent=true")
 print("metadata_cannot_grant_authenticity=true")
+print("closed_nested_metadata_schema_proved=true")
+print("malformed_nested_metadata_regressions_proved=true")
+print("custody_mountpoint_type_contract_proved=true")
 print("independent_receipt_evidence_required=true")
 print("independent_custody_evidence_required=true")
 print("independent_epoch2_installed_evidence_required=true")
