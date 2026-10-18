@@ -110,7 +110,10 @@ only when the expected next layout is already proven.
 
 Cleanup refuses unknown entries or a substituted staging inode. A proven rollback
 reports `publication_state=published_rolled_back_green`; an ambiguous rollback
-reports `published_needs_inspection`. Automatic retry is always false.
+reports `published_needs_inspection`. If post-rename layout observation itself fails,
+the prior SIGINT mask is restored in `finally` and the operation immediately reports
+publication-aware inspection-required state without attempting another destructive
+transition. Automatic retry is always false.
 
 The successful terminal retains the predecessor and reports
 `rollback_available=true`.
@@ -124,10 +127,13 @@ The focused proof:
 - exercises a complete atomic exchange in a temporary directory;
 - verifies repaired fixed root plus retained predecessor;
 - injects a post-exchange binding failure and requires a green automatic rollback;
-- injects `KeyboardInterrupt` immediately after the first exchange has
-  succeeded in the kernel and requires observed-layout reconciliation plus green rollback;
-- injects `KeyboardInterrupt` immediately after predecessor retention has
-  succeeded in the kernel and requires the retained layout to select the correct rollback path;
+- delivers a real pending SIGINT with `os.kill` immediately after the first exchange
+  succeeds in the kernel, requiring layout capture before signal unmask and green rollback;
+- delivers a real pending SIGINT immediately after predecessor retention succeeds,
+  requiring the retained layout to select the correct rollback path;
+- forces post-rename layout inspection to remain unavailable after a successful exchange
+  and requires publication-aware `published_needs_inspection`, no automatic retry,
+  and restoration of the caller's original signal mask;
 - verifies publication truth remains monotonic across every rollback;
 - inserts a foreign staging entry and requires cleanup refusal;
 - rejects subprocess/systemctl/exec-based live execution paths in the upgrader source.

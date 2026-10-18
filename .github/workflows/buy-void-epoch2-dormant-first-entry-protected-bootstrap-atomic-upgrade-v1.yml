@@ -65,9 +65,9 @@ jobs:
           git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = ebea690bfdf4eaa398e2f12b6feb97ce05697a25
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = c32efc743608ff5ed98866fcc5856ed14ca20d9d
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md)" = 74f3c1e0db7e4858429f2ae4d255b6f738519e93
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 29b2eaa8af79b5df65a5ba3890a37dd25d295477
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 0be24b5e2c2436d6ec4debd73d69e9213ada7e12
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md)" = 7fd04168fa4376db97f5f632d914ba7ae4ea7ee4
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
@@ -145,6 +145,11 @@ jobs:
             'rename_outcome_layout_reconciled=true' \
             'interrupt_after_exchange_reconciled=true' \
             'interrupt_after_retention_reconciled=true' \
+            'pending_sigint_after_exchange_reconciled=true' \
+            'pending_sigint_after_retention_reconciled=true' \
+            'layout_inspection_failure_publication_aware=true' \
+            'signal_mask_restored_after_layout_failure=true' \
+            'inspection_failure_automatic_retry_false=true' \
             'foreign_stage_cleanup_refused=true' \
             'bootstrap_execution=false' \
             'inner_installer_execution=false' \

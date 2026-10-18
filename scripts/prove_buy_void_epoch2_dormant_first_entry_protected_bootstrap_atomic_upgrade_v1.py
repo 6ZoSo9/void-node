@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import io
 import os
+import signal
 from pathlib import Path
 import stat
 import tempfile
@@ -39,6 +40,7 @@ for required in (
     "service_mutation=false",
     "credential_access=false",
     "funds_movement=false",
+    "automatic_retry=false",
 ):
     assert required in text,required
 for forbidden in ("import subprocess","subprocess.","os.system(","os.exec","systemctl"):
@@ -176,11 +178,12 @@ try:
         td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
         result=m.collect(boot,man,"c"*40)
         real_rename=fake._renameat2; calls={"n":0}
+        mask_before=signal.pthread_sigmask(signal.SIG_BLOCK,set())
         def interrupt_after_exchange(*args,**kwargs):
             calls["n"]+=1
             real_rename(*args,**kwargs)
             if calls["n"]==1:
-                raise KeyboardInterrupt("synthetic_interrupt_after_exchange")
+                os.kill(os.getpid(),signal.SIGINT)
         fake._renameat2=interrupt_after_exchange
         try:
             m.apply(boot,man,"c"*40,result["plan_id"],m.CONFIRM)
@@ -197,16 +200,18 @@ try:
             raise AssertionError("interrupt after exchange did not reconcile publication")
         finally:
             fake._renameat2=real_rename
+            assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
 
     with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-retention-") as d:
         td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
         result=m.collect(boot,man,"d"*40)
         real_rename=fake._renameat2; calls={"n":0}
+        mask_before=signal.pthread_sigmask(signal.SIG_BLOCK,set())
         def interrupt_after_retention(*args,**kwargs):
             calls["n"]+=1
             real_rename(*args,**kwargs)
             if calls["n"]==2:
-                raise KeyboardInterrupt("synthetic_interrupt_after_retention")
+                os.kill(os.getpid(),signal.SIGINT)
         fake._renameat2=interrupt_after_retention
         try:
             m.apply(boot,man,"d"*40,result["plan_id"],m.CONFIRM)
@@ -223,6 +228,37 @@ try:
             raise AssertionError("interrupt after retention did not reconcile publication")
         finally:
             fake._renameat2=real_rename
+            assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
+
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-layout-inspection-failure-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"e"*40)
+        real_layout=m.root_layout; calls={"n":0}
+        mask_before=signal.pthread_sigmask(signal.SIG_BLOCK,set())
+        def unavailable_after_attempt(*args,**kwargs):
+            calls["n"]+=1
+            if calls["n"]>=2:
+                raise OSError("synthetic_layout_unavailable")
+            return real_layout(*args,**kwargs)
+        m.root_layout=unavailable_after_attempt
+        try:
+            m.apply(boot,man,"e"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="rename_outcome_needs_inspection"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_needs_inspection"
+            assert rec["rollback_attempted"]=="false"
+            assert rec["rollback_green"]=="false"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==new_boot
+            assert (m.STAGE_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert not m.PREDECESSOR_ROOT.exists()
+            assert calls["n"]==2
+        else:
+            raise AssertionError("layout inspection failure lost publication truth")
+        finally:
+            m.root_layout=real_layout
+            assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
 
     with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-foreign-") as d:
         td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
@@ -249,6 +285,11 @@ print("publication_truth_monotonic=true")
 print("rename_outcome_layout_reconciled=true")
 print("interrupt_after_exchange_reconciled=true")
 print("interrupt_after_retention_reconciled=true")
+print("pending_sigint_after_exchange_reconciled=true")
+print("pending_sigint_after_retention_reconciled=true")
+print("layout_inspection_failure_publication_aware=true")
+print("signal_mask_restored_after_layout_failure=true")
+print("inspection_failure_automatic_retry_false=true")
 print("foreign_stage_cleanup_refused=true")
 print("bootstrap_execution=false")
 print("inner_installer_execution=false")

@@ -102,18 +102,25 @@ def root_layout(m,policy,old_id,new_id):
     }
     return known.get(kinds,"ambiguous:"+"/".join(kinds))
 
+def published_inspection_error(reason,cause):
+    e=PublishedError(reason,cause); e.rollback_attempted=False; e.rollback_green=False; e.rollback_final_state_verified=False
+    return e
+
 def observed_rename(m,opt_fd,source,target,flags,policy,old_id,new_id):
-    caught=None
+    caught=None; layout=None; inspection_error=None
     previous=signal.pthread_sigmask(signal.SIG_BLOCK,{signal.SIGINT})
-    try: m._renameat2(opt_fd,source,target,flags)
-    except BaseException as exc: caught=exc
-    layout=root_layout(m,policy,old_id,new_id)
     try:
-        signal.pthread_sigmask(signal.SIG_SETMASK,previous)
-        return layout,caught
-    except BaseException as exc:
-        if caught is None: caught=exc
-        return layout,caught
+        try: m._renameat2(opt_fd,source,target,flags)
+        except BaseException as exc: caught=exc
+        try: layout=root_layout(m,policy,old_id,new_id)
+        except BaseException as exc: inspection_error=exc
+    finally:
+        try: signal.pthread_sigmask(signal.SIG_SETMASK,previous)
+        except BaseException as exc:
+            if caught is None: caught=exc
+    if inspection_error is not None:
+        raise published_inspection_error("rename_outcome_needs_inspection",inspection_error) from inspection_error
+    return layout,caught
 
 def bindings(m,head):
     try:
@@ -218,17 +225,17 @@ def rebind(bootstrap,manifest,head,body):
     except Exception: return False
 
 def rollback_published(m,opt_fd,policy,body,initial,bootstrap,manifest,head,old_id,new_id):
-    layout=root_layout(m,policy,old_id,new_id)
-    if layout==LAYOUT_RETAINED:
-        layout,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
-        if layout!=LAYOUT_ROLLBACK_SWAPPED: return False
-        layout,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,STAGE_NAME,RENAME_NOREPLACE,policy,old_id,new_id)
-        if layout!=LAYOUT_READY: return False
-    elif layout==LAYOUT_EXCHANGED:
-        layout,_=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
-        if layout!=LAYOUT_READY: return False
-    elif layout!=LAYOUT_READY: return False
     try:
+        layout=root_layout(m,policy,old_id,new_id)
+        if layout==LAYOUT_RETAINED:
+            layout,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
+            if layout!=LAYOUT_ROLLBACK_SWAPPED: return False
+            layout,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,STAGE_NAME,RENAME_NOREPLACE,policy,old_id,new_id)
+            if layout!=LAYOUT_READY: return False
+        elif layout==LAYOUT_EXCHANGED:
+            layout,_=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
+            if layout!=LAYOUT_READY: return False
+        elif layout!=LAYOUT_READY: return False
         old_root(m,INSTALL_ROOT,policy,body["current_root_identity"])
         return initial is not None and cleanup(m,opt_fd,initial) and not exists(PREDECESSOR_ROOT) and rebind(bootstrap,manifest,head,body)
     except BaseException:
@@ -276,6 +283,10 @@ def apply(bootstrap,manifest,head,expected_plan,confirm):
         new_root(m,INSTALL_ROOT,policy,new_id); old_root(m,PREDECESSOR_ROOT,policy,old_id)
         if exists(STAGE_ROOT) or not rebind(bootstrap,manifest,head,body): raise UpgradeError("final_state_or_bindings_invalid")
     except BaseException as exc:
+        if isinstance(exc,PublishedError):
+            try: os.close(opt_fd)
+            except OSError: pass
+            raise
         if publication:
             rollback=new_id is not None and rollback_published(m,opt_fd,policy,body,initial,bootstrap,manifest,head,old_id,new_id)
             try: os.close(opt_fd)
@@ -283,7 +294,11 @@ def apply(bootstrap,manifest,head,expected_plan,confirm):
             e=PublishedError("atomic_upgrade_rolled_back_after_failure" if rollback else "atomic_upgrade_rollback_failed",exc); e.rollback_attempted=True; e.rollback_green=rollback; e.rollback_final_state_verified=rollback
             raise e from exc
         if exchange_attempted and new_id is not None:
-            layout=root_layout(m,policy,old_id,new_id)
+            try: layout=root_layout(m,policy,old_id,new_id)
+            except BaseException as inspection_error:
+                try: os.close(opt_fd)
+                except OSError: pass
+                raise published_inspection_error("atomic_upgrade_exchange_outcome_needs_inspection",inspection_error) from exc
             if layout not in (LAYOUT_READY,):
                 try: os.close(opt_fd)
                 except OSError: pass
