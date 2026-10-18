@@ -11,13 +11,13 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 TARGET_REL = "scripts/void_buy_void_presale_independent_host_evidence_collection_plan_v1.py"
-TARGET_BLOB = "e1b42a1b3558c521e1d9856c8645d6300f6329be"
+TARGET_BLOB = "20ae993f9e5d9fec124bf2a38bb626e36cdaed52"
 
 DEPENDENCIES = {
     "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py":
         "1c8299cb38e3a02c5e65c3d38d4863e8ee0c1005",
     "scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py":
-        "d42ad28bc00fe383a20eeb6d1c66a7c39cd1b674",
+        "15813299b38ac146dd4b82b109fef72fbfb868c3",
     "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts":
         "d47a6f99870f385c1bc938adbef74535b78eba1f",
     "src/economic/buy_void_source_finality_generation_provenance_v7.ts":
