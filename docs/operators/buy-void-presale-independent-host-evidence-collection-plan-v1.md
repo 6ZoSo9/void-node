@@ -25,7 +25,7 @@ It does **not** run any collector.
 
 Bound parent head:
 
-`dfcc2c991fb1496debf4ee1e2007ae9f0237d842`
+`45813f0de04ccccb8d12e0f0283096cb2b05843c`
 
 Bound #3503 sources:
 
@@ -36,7 +36,7 @@ Bound #3503 sources:
 - classifier proof:
   `scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py`
   at Git blob
-  `d42ad28bc00fe383a20eeb6d1c66a7c39cd1b674`.
+  `15813299b38ac146dd4b82b109fef72fbfb868c3`.
 
 The parent remains HOLD pending independent evidence.
 
