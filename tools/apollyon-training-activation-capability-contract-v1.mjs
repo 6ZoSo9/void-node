@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import {types as utilTypes} from "node:util";
 
 export const VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1 =
   "VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1";
@@ -284,6 +285,7 @@ function preflightPrimitiveObject(
   code,
 ){
   if(!value||typeof value!=="object"||Array.isArray(value))fail(code);
+  if(utilTypes.isProxy(value))fail(code);
   const proto=Object.getPrototypeOf(value);
   if(proto!==Object.prototype&&proto!==null)fail(code);
   exactOwnKeys(value,expectedKeys,code);
