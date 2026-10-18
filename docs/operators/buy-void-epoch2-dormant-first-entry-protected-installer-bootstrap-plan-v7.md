@@ -23,7 +23,7 @@ Exact qualifier:
 
 Git blob:
 
-`a9cee971d3fd088821124b1349179fdd1cb27516`
+`04c7ca5f0d96dcb60faeae8cf4d712435ad65466`
 
 Its contract requires:
 
@@ -33,6 +33,7 @@ nonroot_execution_required=true
 protected_state_read_only_required=true
 temporary_git_metadata_write_required=true
 temporary_git_metadata_cleanup_required=true
+qualification_git_callbacks_neutralized_required=true
 descriptor_bound_source_execution_required=true
 ```
 
@@ -42,6 +43,7 @@ A GREEN result must prove:
 - upgrade stage absent;
 - repaired lock/candidate exact;
 - temporary private Git metadata write performed and cleaned;
+- qualifier preliminary Git callbacks explicitly neutralized before repository observation;
 - source repository mutation/fetch/config/callback authority false;
 - protected filesystem mutation false;
 - bootstrap execution false;
@@ -152,6 +154,9 @@ production_host_evidence_authority=false
 ```
 
 The later qualification contract truthfully permits temporary private Git
-metadata writes but no protected/source-repository mutation.
+metadata writes but no protected/source-repository mutation. It also requires
+the repaired qualifier's explicit callback-neutralized Git boundary, including
+`core.fsmonitor=false` and `core.hooksPath=/dev/null`, before that
+qualification may satisfy V7.
 
 **PROTECT THE CORE.**
