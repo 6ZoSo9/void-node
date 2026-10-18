@@ -47,10 +47,11 @@ Async/thenable capabilities fail closed.
 ## Sequencing invariants
 
 The controller validates a content-addressed operation record for the exact
-#3516 plan, exact accepted economic tree, and fixed non-customer canary domain
-`void.buyvoid.presale.noncustomer.canary.v1`. That record is **not** treated as
-authenticated authority: protected origin/authentication remains a host-adapter
-requirement.
+#3516 plan, exact accepted economic tree, fixed non-customer canary domain
+`void.buyvoid.presale.noncustomer.canary.v1`, and expected current policy
+fingerprint/generation. The first observation must match that policy record.
+The record is **not** treated as authenticated authority: protected
+origin/authentication remains a host-adapter requirement.
 
 The controller invokes the injected entropy capability after record validation
 and requires exactly 32 bytes. This sequences the entropy requirement but does
@@ -58,6 +59,14 @@ not itself prove unpredictability or kernel entropy provenance.
 
 The journal canary must advance exactly one sequence. High-water must advance
 to at least the journal challenge sequence and may never be rolled back.
+
+The sync/close/reopen checkpoint must preserve host, both physical storage IDs,
+policy fingerprint/generation, accepted source tree, allocation-ledger hash,
+customer-request hash, and the pre-challenge external-witness generation.
+The post-rollback checkpoint must preserve those same bindings while carrying
+the challenge witness and protected high-water generation. The terminal
+checkpoint repeats the binding check and also requires the journal to remain at
+the rolled-back predecessor after stale-replay refusal.
 
 The external witness must bind the exact challenge journal/high-water pair.
 Second-control approval must bind the exact rollback target and protected

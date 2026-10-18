@@ -67,6 +67,8 @@ const authBody={
   customer_request_state_unchanged_required:true,
   reviewed_source_tree:"71c67e62a2b21a98f3f5135ee6aa56e0ef97d262",
   exact_current_policy_bound:true,
+  expected_policy_fingerprint_sha256:sha("policy"),
+  expected_policy_generation:"9",
 };
 const authorization={
   ...authBody,
@@ -169,6 +171,8 @@ const expectedOrder=["entropy","before","append","high","reopen","witness","seco
   assert.equal(result.non_customer_canary_isolation_proven,false);
   assert.equal(result.reviewed_source_generation_requirement_bound,true);
   assert.equal(result.exact_current_policy_requirement_bound,true);
+  assert.equal(result.expected_policy_record_matched,true);
+  assert.equal(result.exact_current_policy_authenticated,false);
   assert.equal(result.challenge_entropy_capability_invoked,true);
   assert.equal(result.challenge_unpredictability_proven,false);
   assert.equal(result.protected_high_water_non_decrease_contract_validated,true);
@@ -197,6 +201,22 @@ function mustFail(label,mutator,pattern){
 }
 mustFail("bad entropy",(c)=>{c.generate_challenge_entropy=()=>Buffer.alloc(31);},/challenge_entropy_invalid/);
 mustFail("async capability",(c)=>{c.observe_before=async()=>({});},/observe_before_async_forbidden/);
+mustFail("reopen policy drift",(c,s,b)=>{c.sync_close_reopen=()=>({...b,
+  journal_sequence:8,journal_tip_sha256:s.append.journal_tip_sha256,
+  high_water_sequence:8,high_water_sha256:s.high.high_water_sha256,
+  policy_fingerprint_sha256:sha("other-policy"),
+});},/sync_reopen_binding_drift:policy_fingerprint_sha256/);
+mustFail("reopen witness drift",(c,s,b)=>{c.sync_close_reopen=()=>({...b,
+  journal_sequence:8,journal_tip_sha256:s.append.journal_tip_sha256,
+  high_water_sequence:8,high_water_sha256:s.high.high_water_sha256,
+  external_witness_sequence:b.external_witness_sequence+1,
+  external_witness_tip_sha256:sha("premature-witness"),
+});},/sync_reopen_external_witness_drift/);
+mustFail("post rollback customer drift",(c,s,b)=>{c.observe_after_rollback=()=>({...b,
+  high_water_sequence:8,high_water_sha256:s.high.high_water_sha256,
+  external_witness_sequence:12,external_witness_tip_sha256:s.witness.external_witness_tip_sha256,
+  customer_request_state_sha256:sha("changed-requests"),
+});},/post_rollback_binding_drift:customer_request_state_sha256/);
 mustFail("high water mutation",(c,s,b)=>{c.attempt_controlled_journal_rollback=({challenge_id})=>({
   attempted:true,challenge_id,controller_id:"void.replay.journal.rollback.controller.v1",
   journal_target_sha256:b.journal_tip_sha256,protected_high_water_sha256:s.high.high_water_sha256,
@@ -226,6 +246,15 @@ mustFail("origin unauthenticated",(c)=>{c.authenticate_evidence_origin=({challen
   origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),evidence_sha256:sha("evidence"),
 });},/evidence_origin_not_authenticated/);
 
+const wrongPolicyBody={...authBody,expected_policy_fingerprint_sha256:sha("wrong-policy")};
+const wrongPolicy={
+  ...wrongPolicyBody,
+  authorization_id:buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV1(wrongPolicyBody),
+};
+assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+  authorization:wrongPolicy,capabilities:makeHarness().caps,
+}),/authorization_policy_observation_mismatch/);
+
 const wrongCanaryBody={...authBody,canary_domain_id:"void.buyvoid.presale.customer.invalid"};
 const wrongCanary={
   ...wrongCanaryBody,
@@ -248,12 +277,16 @@ console.log("operation_bound_authorization_required=true");
 console.log("operation_bound_authorization_authenticated=false");
 console.log("non_customer_canary_domain_bound=true");
 console.log("non_customer_canary_isolation_proven=false");
+console.log("expected_policy_record_matched=true");
+console.log("exact_current_policy_authenticated=false");
 console.log("challenge_entropy_capability_invoked=true");
 console.log("challenge_unpredictability_proven=false");
 console.log("second_control_precedes_rollback=true");
 console.log("protected_high_water_non_decrease_required=true");
 console.log("stale_journal_refusal_required=true");
 console.log("terminal_journal_predecessor_revalidation_required=true");
+console.log("durability_checkpoint_binding_stability_required=true");
+console.log("post_rollback_binding_stability_required=true");
 console.log("allocation_ledger_unchanged_required=true");
 console.log("customer_request_state_unchanged_required=true");
 console.log("evidence_origin_authentication_required=true");

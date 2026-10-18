@@ -66,7 +66,19 @@ const AUTH_KEYS=Object.freeze([
   "marker","version","authorization_id","plan_id","operation_id",
   "non_customer_canary","canary_domain_id","allocation_ledger_unchanged_required",
   "customer_request_state_unchanged_required","reviewed_source_tree",
-  "exact_current_policy_bound",
+  "exact_current_policy_bound","expected_policy_fingerprint_sha256",
+  "expected_policy_generation",
+]);
+
+const STABLE_CONTEXT_KEYS=Object.freeze([
+  "host_id",
+  "journal_storage_id",
+  "high_water_storage_id",
+  "policy_fingerprint_sha256",
+  "policy_generation",
+  "allocation_ledger_sha256",
+  "customer_request_state_sha256",
+  "reviewed_source_tree",
 ]);
 
 function fail(code){ throw new Error(code); }
@@ -130,6 +142,15 @@ function normalizeAuthorization(value){
   if(a.reviewed_source_tree!==
      VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_ACCEPTED_ECONOMIC_TREE_V1)
     fail("authorization_source_generation_invalid");
+  string(
+    a.expected_policy_fingerprint_sha256,
+    SHA,
+    "authorization_policy_fingerprint_invalid",
+  );
+  if(
+    typeof a.expected_policy_generation!=="string"||
+    !/^[1-9][0-9]{0,19}$/u.test(a.expected_policy_generation)
+  )fail("authorization_policy_generation_invalid");
   string(a.authorization_id,AUTH_ID,"authorization_id_invalid");
   const body={...a}; delete body.authorization_id;
   if(a.authorization_id!==contentId("voidbuycustodychallengeauth1_",body))
@@ -171,6 +192,12 @@ function exactResult(value,keys,code){
   return dataObject(value,keys,code+"_shape");
 }
 
+function assertStableContext(reference,observed,code){
+  for(const key of STABLE_CONTEXT_KEYS){
+    if(observed[key]!==reference[key])fail(code+":"+key);
+  }
+}
+
 export function buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV1(input){
   const a=dataObject(input,AUTH_KEYS.filter(k=>k!=="authorization_id"),"authorization_body_invalid");
   return contentId("voidbuycustodychallengeauth1_",a);
@@ -196,6 +223,10 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
   const before=normalizeObservation(callSync(caps.observe_before,
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id}),
     "observe_before"),"before");
+  if(
+    before.policy_fingerprint_sha256!==authorization.expected_policy_fingerprint_sha256||
+    before.policy_generation!==authorization.expected_policy_generation
+  )fail("authorization_policy_observation_mismatch");
 
   const append=exactResult(callSync(caps.append_journal_canary,
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
@@ -236,6 +267,11 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
      reopened.high_water_sequence!==high.high_water_sequence||
      reopened.high_water_sha256!==high.high_water_sha256)
     fail("sync_reopen_durability_mismatch");
+  assertStableContext(before,reopened,"sync_reopen_binding_drift");
+  if(
+    reopened.external_witness_sequence!==before.external_witness_sequence||
+    reopened.external_witness_tip_sha256!==before.external_witness_tip_sha256
+  )fail("sync_reopen_external_witness_drift");
 
   const witness=exactResult(callSync(caps.append_external_witness,
     Object.freeze({challenge_id:challengeId,journal_tip_sha256:append.journal_tip_sha256,
@@ -293,6 +329,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
   if(after.external_witness_sequence<witness.external_witness_sequence||
      after.external_witness_tip_sha256!==witness.external_witness_tip_sha256)
     fail("external_witness_continuity_lost");
+  assertStableContext(before,after,"post_rollback_binding_drift");
 
   const stale=exactResult(callSync(caps.attempt_stale_journal_replay,
     Object.freeze({challenge_id:challengeId,stale_journal_tip_sha256:before.journal_tip_sha256,
@@ -306,11 +343,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
 
   const terminal=normalizeObservation(callSync(caps.reobserve_storage_and_policy,
     Object.freeze({challenge_id:challengeId}),"terminal_reobservation"),"terminal");
-  for(const key of ["host_id","journal_storage_id","high_water_storage_id",
-    "policy_fingerprint_sha256","policy_generation","allocation_ledger_sha256",
-    "customer_request_state_sha256","reviewed_source_tree"]){
-    if(terminal[key]!==before[key])fail("terminal_binding_drift:"+key);
-  }
+  assertStableContext(before,terminal,"terminal_binding_drift");
   if(
     terminal.journal_sequence!==before.journal_sequence||
     terminal.journal_tip_sha256!==before.journal_tip_sha256
@@ -349,6 +382,8 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     non_customer_canary_isolation_proven:false,
     reviewed_source_generation_requirement_bound:true,
     exact_current_policy_requirement_bound:true,
+    expected_policy_record_matched:true,
+    exact_current_policy_authenticated:false,
     challenge_entropy_capability_invoked:true,
     challenge_unpredictability_proven:false,
     journal_append_sequence_contract_validated:true,
