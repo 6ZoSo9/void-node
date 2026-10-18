@@ -95,11 +95,11 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            405fff4ea6ab6158ec2cc3483c317bc5666755ee
+            31d2d7d91e12132651dfa3429499f09b011318a0
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            3987c401c68d859cd5c4e9c137692fa0e8eb4449
+            1718652ad5407a88069f020763ffa520bd78c73a
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            de9a789b2d5e5828f92fea40cd9d3f315bbaa14f
+            4e4368ee36e203a9d2f285318f6803a4c6a71ff0
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
             93582c324ca85aeff56eb61f82b32f1e4c18dfe9
@@ -158,12 +158,27 @@ jobs:
             'crash_after_slot_exact_recovery_proven=true' \
             'post_link_cleanup_failure_recovery_proven=true' \
             'prelink_stale_pending_recovery_proven=true' \
-            'transaction_callback_lifetime_guard_proven=true' \
-            'transaction_result_substitution_rejected=true' \
+            'legacy_promise_wrapper_rejected_without_invocation=true' \
+            'transaction_lease_acquired_before_core_mutation=true' \
+            'invalid_transaction_leases_rejected_before_core_mutation=true' \
+            'transaction_lease_accessors_and_proxies_not_invoked=true' \
+            'transaction_body_private=true' \
+            'transaction_reentry_acquire_revalidate_release_rejected=true' \
+            'transaction_callbacks_and_release_snapshotted=true' \
+            'transaction_release_failure_indeterminate_and_poisoned=true' \
+            'transaction_directories_closed_before_release=true' \
+            'partial_directory_open_cleanup_proven=true' \
+            'all_descriptor_cleanup_roles_report_failures=true' \
+            'primary_failure_preserved_with_all_cleanup_diagnostics=true' \
+            'descriptor_close_failures_are_not_retried=true' \
+            'publisher_forward_private_bytes_survive_all_mutation=true' \
+            'publisher_input_copy_override_not_invoked=true' \
+            'publisher_later_copy_override_not_invoked=true' \
+            'native_promise_rejections_handled_without_caller_then=true' \
             'generation_drift_before_mutation_rejected=true' \
             'orphan_claim_without_slot_rejected=true' \
             'async_revalidator_rejected_before_mutation=true' \
-            'async_transaction_rejected_before_mutation=true' \
+            'async_transaction_acquisition_rejected_before_core_mutation=true' \
             'caller_supplied_revalidator_is_host_proof=false' \
             'caller_supplied_exclusive_transaction_is_host_proof=false' \
             'native_peer_runtime_integration_present=false' \

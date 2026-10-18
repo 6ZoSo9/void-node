@@ -91,7 +91,13 @@ and must equal the active/immutable store-generation record's
 
 `prepareApollyonDurableAttemptClaimPublisherForwardV2()` accepts only a Buffer containing the exact canonical #3285 request frame.
 
-It validates the request and returns a fresh byte copy of the exact original frame plus its digest. It explicitly reports:
+It copies the exact frame into privately owned, unpooled storage before validation.
+The frozen result retains the original digest and a deeply frozen parsed request.
+Every access to `exact_request_bytes` returns a new, unpooled Buffer containing
+the validated frame. Changing the input, a previous returned copy, or that copy's
+entire backing ArrayBuffer cannot change a later access. Copies use captured
+intrinsics so an input-owned `copy` method or a later prototype override cannot
+receive the private buffer. The helper explicitly reports:
 
 - no request reconstruction;
 - no recanonicalization;
@@ -107,10 +113,45 @@ A later publisher process wrapper must obtain those bytes from the reviewed inhe
 
 `createApollyonDurableAttemptClaimStoreServiceCoreV2()` receives a retained root FD, exact claim UID/GID, a source-session binding ID, and two injected synchronous capabilities:
 
-- `withExclusiveStoreTransaction(fn)`;
+- `acquireExclusiveStoreTransaction(context)`;
 - `revalidate(stage, context)`.
 
-The core validates the exact request, claim record, authorization-slot winner, expected generation record, retained root identity, active generation and immutable generation file before mutation.
+This replaces the earlier `withExclusiveStoreTransaction(fn)` source-candidate
+API. The old configuration is rejected explicitly, including when a caller also
+supplies the new interface. It has no compatibility adapter: a wrapper can call
+`fn()` and then return a Promise, after the store has already changed.
+
+Configuration contains exactly the four data fields above and the two capability
+functions as own data properties. The core captures them at construction; later
+changes to the caller's configuration do not replace the approved functions.
+
+The core validates the exact request, claim record, authorization-slot winner,
+expected generation record and root binding before acquisition. It then obtains
+and validates the synchronous lease before entering its private filesystem
+transaction. Acquisition receives only a frozen object containing these strings:
+
+| Field | Binding |
+| --- | --- |
+| `root_identity_sha256` | Retained root identity |
+| `session_binding_id` | Configured source session |
+| `store_generation_id` | Expected generation |
+| `store_generation_record_id` | Exact expected generation record |
+| `authorization_slot_id` | Authorization-wide winner slot |
+| `claim_record_id` | Exact claim |
+| `publish_request_sha256` | Original validated request bytes |
+
+Acquisition must return a plain or null-prototype object with exactly one own,
+enumerable data property, `release`, whose value is a synchronous function.
+Promises, proxies, accessor properties, extra keys, and recognized async or
+generator release functions are rejected before the core transaction. Validation
+does not read caller-provided `then` or `release` getters. The transaction body
+is never passed to acquisition.
+
+The captured `release` is invoked once with the lease as its receiver, no
+arguments, and an exact `undefined` success result. The lease must cover the
+whole store-generation boundary, including recovery, publication, rereads and
+descriptor cleanup. The core checks retained root identity and current active
+and immutable generation records within that lifetime.
 
 The mutation order is fixed:
 
@@ -123,7 +164,8 @@ The mutation order is fixed:
 7. create or recover the exact bound claim;
 8. reread/validate exact claim bytes;
 9. revalidate generation/provenance;
-10. emit a validated standard durable-success response.
+10. close every transaction-owned descriptor, release the lease, and return the
+    validated standard durable-success response only if all cleanup succeeded.
 
 A pre-existing claim without its authorization slot is a hard HOLD.
 
@@ -162,6 +204,43 @@ slot/claim digest. Ambiguous or foreign pending state HOLDs.
 A failure after final publication but before durable cleanup is reported as
 indeterminate, never false success.
 
+## Cleanup and transaction failure semantics
+
+Every successfully opened descriptor is registered immediately, including during
+partial child-directory acquisition. Cleanup attempts all registered closes in
+reverse order, then releases the lease. A failed close is never retried because
+the descriptor may already have been closed or reused.
+
+Cleanup failures carry a frozen `cleanup_errors` array of frozen records with
+`code`, `role`, and a bounded `error_code`. A cleanup failure without a primary
+operation error produces a typed cleanup error. When an operation and cleanup
+both fail, the error preserves the primary message/code and original error in
+the `cause` chain, and appends all cleanup classifications. Cleanup reads error properties through own data descriptors; an error getter, proxy, or frozen error cannot
+interrupt the remaining cleanup attempts. Request bytes and caller arguments
+are not copied into diagnostic records.
+
+A failed acquisition, invalid lease, or cleanup failure makes that core instance
+unusable for subsequent publication. The acquisition provider owns cleanup of
+any partial lock it acquired before throwing or returning an invalid result.
+Rejecting acquisition establishes zero **core** filesystem mutation; it does not
+assert that an injected provider had no side effects.
+
+Release can fail after records have been published. A normal function that
+returns a Promise, a bound async function, or any other non-`undefined` result
+fails during cleanup, suppresses success, and makes the instance unusable. Such
+errors report `core_store_mutation_may_have_occurred=true`; this is conservative
+and is not a rollback claim. Descriptor cleanup errors retain their specific
+primary classification. An otherwise successful transaction followed by failed
+release reports `apollyon_claim_store_impl_v2_transaction_cleanup_indeterminate`.
+Genuine Promise rejections are observed through the captured native Promise
+method while the unsupported result is rejected; arbitrary thenables are never
+invoked or awaited.
+
+The per-core reentry guard starts before request validation and remains active
+through acquisition, all revalidation stages, descriptor cleanup and release.
+It is cleared in the outermost `finally`, independently of the unusable-instance
+state. A provider cannot use a nested call to enter a second core transaction.
+
 ## Source-only revalidation boundary
 
 The three required revalidation stages are:
@@ -183,27 +262,26 @@ The callback receipt is exact-schema and binds:
 - claim-record ID;
 - exact stage.
 
-However, a **caller-supplied callback is not host provenance**. Likewise, a caller-supplied exclusive-transaction wrapper is not proof of system-wide serialization.
+However, a **caller-supplied callback is not host provenance**. Likewise, a caller-supplied acquisition lease is not proof of system-wide serialization.
 
 These are narrow injectable interfaces so the store algorithm can be
 deterministically tested before the later native/Xiphos integration binds them
 to reviewed kernel process/session evidence and a real store-generation
 serialization primitive.
 
-The exclusive-transaction callback is valid only during the synchronous wrapper
-call. A wrapper that merely captures the transaction function and invokes it
-later is rejected before mutation. The wrapper must also return the exact object
-produced by the transaction function; substituting a copied or forged result
-fails closed. Promise-returning wrappers are not accepted as synchronous
-serialization. These checks narrow the interface but still do not make a
-caller-supplied wrapper host proof.
+The source interface enforces acquisition before core mutation and successful
+synchronous cleanup before returning success. Native/runtime integration must
+still prove that the lease actually excludes other writers and migrations for
+that complete lifetime. No JSON receipt or configured UID substitutes for that
+host evidence.
 
 ## Hosted adversarial proof
 
 The focused proof uses only disposable private temporary roots. It proves:
 
 - root claim UID/GID are rejected before store use;
-- exact publisher bytes are preserved;
+- exact publisher bytes survive input mutation, returned Buffer and whole
+  ArrayBuffer mutation, nested request mutation, and overridden copy methods;
 - malformed/noncanonical requests reject;
 - retained root identity is bound to generation records;
 - active and immutable generation records must match;
@@ -217,12 +295,20 @@ The focused proof uses only disposable private temporary roots. It proves:
   state, then exact retry reconciles the nlink-2 generation and succeeds;
 - failure after pending fsync / before claim hard-link leaves an unlinked exact
   pending file, then retry cleans only that exact stale generation and succeeds;
-- a captured transaction callback cannot be invoked after the synchronous
-  wrapper returns;
-- transaction-result substitution is rejected;
+- the earlier Promise-wrapping callback API is rejected without invocation;
+- invalid acquisition results reject before core filesystem mutation;
+- lease fields are checked without invoking caller getters or proxy traps;
+- acquisition, revalidation and release cannot reenter publication;
+- later configuration/lease mutation cannot replace captured functions;
+- release occurs once, after descriptor cleanup, on success and operation failure;
+- partial directory-open failure closes every previously acquired descriptor;
+- failed closes do not prevent later closes or lease release, and are not retried;
+- primary errors survive combined close/release failures with frozen diagnostics;
+- failed or non-void release suppresses success and blocks reuse of that core;
 - generation drift introduced by revalidation callback rejects before mutation;
 - orphan claim without slot rejects;
-- asynchronous revalidation and asynchronous transaction wrappers reject before mutation.
+- asynchronous prepublication revalidation and asynchronous acquisition reject
+  before core publication.
 
 The proof mutates only disposable CI filesystem state. It does not contact Xiphos.
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import {types} from "node:util";
 
 import {
   canonicalApollyonClaimContractJsonV1,
@@ -47,6 +48,7 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTA
     source_implementation_present:true,
     store_core_implementation_present:true,
     publisher_exact_forward_implementation_present:true,
+    publisher_forward_bytes_privately_owned:true,
     fixed_physical_namespace_defined:true,
     non_root_claim_identity_required:true,
     create_only_slot_publication_implemented:true,
@@ -56,8 +58,11 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTA
     exact_reread_implemented:true,
     crash_recovery_exact_pending_link_cleanup_implemented:true,
     stale_unlinked_pending_recovery_implemented:true,
-    transaction_callback_lifetime_guard_implemented:true,
-    transaction_result_passthrough_required:true,
+    transaction_lease_acquired_before_core_mutation:true,
+    transaction_body_private:true,
+    transaction_reentry_guard_implemented:true,
+    transaction_release_synchronous_required:true,
+    cleanup_failures_reported:true,
     exact_same_claim_recovery_implemented:true,
     different_claim_in_occupied_slot_rejected_implemented:true,
     slot_before_claim_order_implemented:true,
@@ -110,8 +115,102 @@ const RECORD_MODE=0o600;
 const O_DIRECTORY=fs.constants.O_DIRECTORY??0;
 const O_NOFOLLOW=fs.constants.O_NOFOLLOW??0;
 const O_CLOEXEC=fs.constants.O_CLOEXEC??0;
+const COPY_BYTES=Buffer.prototype.copy;
+const ALLOC_BYTES=Buffer.alloc;
+const APPLY=Reflect.apply;
+const PROMISE_THEN=Promise.prototype.then;
+const CLEANUP_RECORDS=new WeakMap();
 
-function fail(code){throw new Error(code);}
+function storeError(code,cause){
+  const error=new Error(code,cause===undefined?undefined:{cause});
+  error.code=code;
+  return error;
+}
+function fail(code){throw storeError(code);}
+function errorField(error,key){
+  if(!error||(typeof error!=="object"&&typeof error!=="function")||types.isProxy(error)){
+    return undefined;
+  }
+  const descriptor=Object.getOwnPropertyDescriptor(error,key);
+  return descriptor&&Object.hasOwn(descriptor,"value")?descriptor.value:undefined;
+}
+function observeRejectedPromise(value,code){
+  if(!types.isPromise(value))return;
+  // Observe native rejection without dispatching a caller-supplied .then method.
+  try{APPLY(PROMISE_THEN,value,[undefined,()=>undefined]);}
+  catch(error){throw storeError(code,error);}
+}
+function withCleanup(operation,cleanups,code){
+  let result,primaryError;
+  let failed=false;
+  try{result=operation();}
+  catch(error){failed=true;primaryError=error;}
+  const failures=[];
+  let firstCleanupError;
+  for(let index=cleanups.length-1;index>=0;index-=1){
+    const cleanup=cleanups[index];
+    try{cleanup.run();}
+    catch(error){
+      if(failures.length===0)firstCleanupError=error;
+      const candidateCode=errorField(error,"code");
+      const errorCode=typeof candidateCode==="string"&&
+        /^(?:E[A-Z0-9_]{1,31}|apollyon_claim_store_impl_v2_[a-z0-9_]{1,96})$/u.test(candidateCode)
+        ?candidateCode:null;
+      failures.push(Object.freeze({code:cleanup.code,role:cleanup.role,error_code:errorCode}));
+    }
+  }
+  if(failures.length===0){
+    if(failed)throw primaryError;
+    return result;
+  }
+  const candidateMessage=errorField(primaryError,"message");
+  const primaryMessage=typeof candidateMessage==="string"
+    ?candidateMessage:"apollyon_claim_store_impl_v2_operation_failed";
+  const error=storeError(failed?primaryMessage:code,failed?primaryError:firstCleanupError);
+  const primaryCode=errorField(primaryError,"code");
+  if(failed&&typeof primaryCode==="string")error.code=primaryCode;
+  error.cleanup_errors=Object.freeze([
+    ...(CLEANUP_RECORDS.get(primaryError)??[]),
+    ...failures,
+  ]);
+  CLEANUP_RECORDS.set(error,error.cleanup_errors);
+  throw error;
+}
+function closeCleanup(fd,role){
+  return {
+    code:"apollyon_claim_store_impl_v2_descriptor_close_failed",
+    role,
+    // Never retry close: an error does not establish that the FD is still owned.
+    run(){fs.closeSync(fd);},
+  };
+}
+function freezePlainTree(value){
+  if(value&&typeof value==="object"){
+    for(const child of Object.values(value))freezePlainTree(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+function validateTransactionLease(lease){
+  const code="apollyon_claim_store_impl_v2_transaction_lease_invalid";
+  if(!lease||typeof lease!=="object"||types.isProxy(lease))fail(code);
+  if(types.isPromise(lease)){
+    observeRejectedPromise(
+      lease,"apollyon_claim_store_impl_v2_async_transaction_acquisition_forbidden"
+    );
+    fail("apollyon_claim_store_impl_v2_async_transaction_acquisition_forbidden");
+  }
+  const proto=Object.getPrototypeOf(lease);
+  if(proto!==Object.prototype&&proto!==null)fail(code);
+  const keys=Reflect.ownKeys(lease);
+  if(keys.length!==1||keys[0]!=="release")fail(code);
+  const descriptor=Object.getOwnPropertyDescriptor(lease,"release");
+  if(!descriptor?.enumerable||!Object.hasOwn(descriptor,"value"))fail(code);
+  const release=descriptor.value;
+  if(typeof release!=="function"||types.isProxy(release)||
+     types.isAsyncFunction(release)||types.isGeneratorFunction(release))fail(code);
+  return {lease,release};
+}
 function canonical(value){return canonicalApollyonClaimContractJsonV1(value);}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
 function exactOwnKeys(value,expected,code){
@@ -179,9 +278,12 @@ function openDirectoryAt(parentFd,name,uid,gid,mode,code){
     requireDirectoryFd(fd,uid,gid,mode,code);
     return fd;
   }catch(error){
-    if(fd>=0)try{fs.closeSync(fd);}catch{}
-    if(error?.message===code)throw error;
-    fail(code);
+    const primary=errorField(error,"message")===code?error:storeError(code,error);
+    return withCleanup(
+      ()=>{throw primary;},
+      fd>=0?[closeCleanup(fd,"rejected_directory")]:[],
+      "apollyon_claim_store_impl_v2_descriptor_cleanup_failed",
+    );
   }
 }
 function fsyncDirectory(fd,code){
@@ -233,7 +335,7 @@ function readRecordAt(dirFd,leaf,uid,gid,mode,code,{allowMissing=false}={}){
     if(allowMissing&&error?.code==="ENOENT")return null;
     fail(code);
   }
-  try{
+  return withCleanup(()=>{
     const st=fs.fstatSync(fd);
     if(!st.isFile()||st.uid!==uid||st.gid!==gid||
        modeBits(st)!==mode||st.nlink!==1||st.size<3||st.size>MAX_RECORD_BYTES){
@@ -241,9 +343,7 @@ function readRecordAt(dirFd,leaf,uid,gid,mode,code,{allowMissing=false}={}){
     }
     const bytes=stableReadFd(fd,MAX_RECORD_BYTES,code);
     return Object.freeze({value:parseCanonicalRecordBytes(bytes,code),bytes,identity:identity(st)});
-  }finally{
-    try{fs.closeSync(fd);}catch{}
-  }
+  },[closeCleanup(fd,"record")],"apollyon_claim_store_impl_v2_descriptor_cleanup_failed");
 }
 function validateStoreGenerationRecordV2(input){
   const value=clonePlain(input,"apollyon_claim_store_impl_v2_generation_invalid");
@@ -371,8 +471,8 @@ function cleanupUnlinkedPending(
       name,"apollyon_claim_store_impl_v2_stale_pending_entry_invalid"
     );
     const pathname=procFdPath(pendingDirFd,leaf);
-    let fd=-1;
-    try{
+    const cleanups=[];
+    withCleanup(()=>{
       const st=fs.lstatSync(pathname);
       if(
         !st.isFile()||st.isSymbolicLink()||
@@ -382,7 +482,8 @@ function cleanupUnlinkedPending(
       ){
         fail("apollyon_claim_store_impl_v2_stale_pending_metadata_invalid");
       }
-      fd=fs.openSync(pathname,fs.constants.O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+      const fd=fs.openSync(pathname,fs.constants.O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+      cleanups.push(closeCleanup(fd,"stale_pending"));
       const observed=stableReadFd(
         fd,MAX_RECORD_BYTES,
         "apollyon_claim_store_impl_v2_stale_pending_reread_failed"
@@ -390,9 +491,7 @@ function cleanupUnlinkedPending(
       if(!observed.equals(expectedBytes)){
         fail("apollyon_claim_store_impl_v2_stale_pending_bytes_mismatch");
       }
-    }finally{
-      if(fd>=0)try{fs.closeSync(fd);}catch{}
-    }
+    },cleanups,"apollyon_claim_store_impl_v2_descriptor_cleanup_failed");
     fs.unlinkSync(pathname);
     removed+=1;
   }
@@ -433,49 +532,51 @@ function publishExactRecord({
   const finalPath=procFdPath(targetDirFd,finalLeaf);
   let pendingFd=-1;
   let linked=false;
-  try{
-    pendingFd=fs.openSync(
-      pendingPath,
-      fs.constants.O_RDWR|fs.constants.O_CREAT|fs.constants.O_EXCL|
-        O_NOFOLLOW|O_CLOEXEC,
-      RECORD_MODE,
-    );
-    fs.fchmodSync(pendingFd,RECORD_MODE);
-    const st=fs.fstatSync(pendingFd);
-    if(!st.isFile()||st.uid!==uid||st.gid!==gid||
-       modeBits(st)!==RECORD_MODE||st.nlink!==1){
-      fail("apollyon_claim_store_impl_v2_pending_metadata_invalid");
-    }
-    let offset=0;
-    while(offset<bytes.length){
-      const written=fs.writeSync(pendingFd,bytes,offset,bytes.length-offset,offset);
-      if(written<=0)fail("apollyon_claim_store_impl_v2_pending_write_failed");
-      offset+=written;
-    }
-    fs.fsyncSync(pendingFd);
-    const reread=stableReadFd(pendingFd,MAX_RECORD_BYTES,
-      "apollyon_claim_store_impl_v2_pending_reread_failed");
-    if(!reread.equals(bytes)){
-      fail("apollyon_claim_store_impl_v2_pending_bytes_mismatch");
-    }
+  const cleanups=[];
+  withCleanup(()=>{
     try{
-      fs.linkSync(pendingPath,finalPath);
-      linked=true;
+      pendingFd=fs.openSync(
+        pendingPath,
+        fs.constants.O_RDWR|fs.constants.O_CREAT|fs.constants.O_EXCL|
+          O_NOFOLLOW|O_CLOEXEC,
+        RECORD_MODE,
+      );
+      cleanups.push(closeCleanup(pendingFd,"pending_record"));
+      fs.fchmodSync(pendingFd,RECORD_MODE);
+      const st=fs.fstatSync(pendingFd);
+      if(!st.isFile()||st.uid!==uid||st.gid!==gid||
+         modeBits(st)!==RECORD_MODE||st.nlink!==1){
+        fail("apollyon_claim_store_impl_v2_pending_metadata_invalid");
+      }
+      let offset=0;
+      while(offset<bytes.length){
+        const written=fs.writeSync(pendingFd,bytes,offset,bytes.length-offset,offset);
+        if(written<=0)fail("apollyon_claim_store_impl_v2_pending_write_failed");
+        offset+=written;
+      }
+      fs.fsyncSync(pendingFd);
+      const reread=stableReadFd(pendingFd,MAX_RECORD_BYTES,
+        "apollyon_claim_store_impl_v2_pending_reread_failed");
+      if(!reread.equals(bytes)){
+        fail("apollyon_claim_store_impl_v2_pending_bytes_mismatch");
+      }
+      try{
+        fs.linkSync(pendingPath,finalPath);
+        linked=true;
+      }catch(error){
+        if(classifyLinkError(error)!=="exists")throw error;
+      }
+      if(linked){
+        fsyncDirectory(targetDirFd,"apollyon_claim_store_impl_v2_target_fsync_failed");
+      }
     }catch(error){
-      if(classifyLinkError(error)!=="exists")throw error;
+      if(error?.message?.startsWith("apollyon_claim_store_impl_v2_"))throw error;
+      if(linked){
+        fail("apollyon_claim_store_impl_v2_indeterminate_after_publication");
+      }
+      fail("apollyon_claim_store_impl_v2_publication_failed");
     }
-    if(linked){
-      fsyncDirectory(targetDirFd,"apollyon_claim_store_impl_v2_target_fsync_failed");
-    }
-  }catch(error){
-    if(error?.message?.startsWith("apollyon_claim_store_impl_v2_"))throw error;
-    if(linked){
-      fail("apollyon_claim_store_impl_v2_indeterminate_after_publication");
-    }
-    fail("apollyon_claim_store_impl_v2_publication_failed");
-  }finally{
-    if(pendingFd>=0)try{fs.closeSync(pendingFd);}catch{}
-  }
+  },cleanups,"apollyon_claim_store_impl_v2_descriptor_cleanup_failed");
 
   try{
     fs.unlinkSync(pendingPath);
@@ -627,15 +728,22 @@ export function prepareApollyonDurableAttemptClaimPublisherForwardV2(input){
   if(!Buffer.isBuffer(input)){
     fail("apollyon_claim_store_impl_v2_publisher_input_invalid");
   }
-  const bytes=Buffer.from(input);
+  // Separate allocations also isolate the entire ArrayBuffer exposed by a copy.
+  const frameLength=input.length;
+  const bytes=ALLOC_BYTES(frameLength);
+  APPLY(COPY_BYTES,input,[bytes]);
   const parsed=parseApollyonDurableAttemptClaimPublishRequestBytesV2(bytes);
   return Object.freeze({
     marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_FORWARD_V2",
     version:2,
     status:"exact_validated_request_bytes_ready_for_forward",
     publish_request_sha256:parsed.publish_request_sha256,
-    request:parsed.request,
-    exact_request_bytes:Buffer.from(bytes),
+    request:freezePlainTree(parsed.request),
+    get exact_request_bytes(){
+      const copy=ALLOC_BYTES(frameLength);
+      APPLY(COPY_BYTES,bytes,[copy]);
+      return copy;
+    },
     request_reconstructed:false,
     request_recanonicalized:false,
     argv_request_source:false,
@@ -647,23 +755,32 @@ export function prepareApollyonDurableAttemptClaimPublisherForwardV2(input){
 }
 
 export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
-  const cfg=clonePlain(
-    {
-      root_fd:config?.root_fd,
-      claim_uid:config?.claim_uid,
-      claim_gid:config?.claim_gid,
-      session_binding_id:config?.session_binding_id,
-    },
-    "apollyon_claim_store_impl_v2_config_invalid",
-  );
+  const configCode="apollyon_claim_store_impl_v2_config_invalid";
+  if(!config||typeof config!=="object"||types.isProxy(config))fail(configCode);
+  const descriptors=Object.getOwnPropertyDescriptors(config);
+  if(Object.hasOwn(descriptors,"withExclusiveStoreTransaction")){
+    fail("apollyon_claim_store_impl_v2_legacy_transaction_wrapper_forbidden");
+  }
+  const configKeys=[
+    "root_fd","claim_uid","claim_gid","session_binding_id",
+    "acquireExclusiveStoreTransaction","revalidate",
+  ];
+  if(Reflect.ownKeys(descriptors).length!==configKeys.length)fail(configCode);
+  for(const key of configKeys){
+    if(!descriptors[key]||!Object.hasOwn(descriptors[key],"value"))fail(configCode);
+  }
+  const cfg=Object.freeze(Object.fromEntries(
+    configKeys.map(key=>[key,descriptors[key].value])
+  ));
   if(
     !Number.isSafeInteger(cfg.root_fd)||cfg.root_fd<0||
     !Number.isSafeInteger(cfg.claim_uid)||cfg.claim_uid<1||cfg.claim_uid>65533||
     !Number.isSafeInteger(cfg.claim_gid)||cfg.claim_gid<1||cfg.claim_gid>65533||
     !SESSION_BINDING_ID.test(cfg.session_binding_id)||
-    typeof config?.withExclusiveStoreTransaction!=="function"||
-    typeof config?.revalidate!=="function"
-  )fail("apollyon_claim_store_impl_v2_config_invalid");
+    typeof cfg.acquireExclusiveStoreTransaction!=="function"||
+    types.isProxy(cfg.acquireExclusiveStoreTransaction)||
+    typeof cfg.revalidate!=="function"||types.isProxy(cfg.revalidate)
+  )fail(configCode);
 
   const rootIdentity=requireDirectoryFd(
     cfg.root_fd,cfg.claim_uid,cfg.claim_gid,ROOT_MODE,
@@ -673,7 +790,9 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
     Buffer.from(canonical(rootIdentity),"utf8")
   );
 
-  function publishClaim(input){
+  let publishActive=false;
+  let coreUnusable=false;
+  function publishClaimWithinGuard(input){
     const snapshot=clonePlain(
       input,"apollyon_claim_store_impl_v2_publish_input_invalid"
     );
@@ -703,10 +822,7 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
       generation.root_identity_sha256!==rootIdentitySha256
     )fail("apollyon_claim_store_impl_v2_generation_request_cross_binding_invalid");
 
-    let entered=0;
     const transaction=()=>{
-      entered+=1;
-      if(entered!==1)fail("apollyon_claim_store_impl_v2_transaction_reentry");
       const currentRoot=requireDirectoryFd(
         cfg.root_fd,cfg.claim_uid,cfg.claim_gid,ROOT_MODE,
         "apollyon_claim_store_impl_v2_root_invalid",
@@ -715,28 +831,32 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
         fail("apollyon_claim_store_impl_v2_root_generation_changed");
       }
 
-      const generationDirFd=openDirectoryAt(
-        cfg.root_fd,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.generation_directory,
-        cfg.claim_uid,cfg.claim_gid,DIRECTORY_MODE,
-        "apollyon_claim_store_impl_v2_generation_directory_invalid",
-      );
-      const slotDirFd=openDirectoryAt(
-        cfg.root_fd,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.authorization_slot_directory,
-        cfg.claim_uid,cfg.claim_gid,DIRECTORY_MODE,
-        "apollyon_claim_store_impl_v2_slot_directory_invalid",
-      );
-      const claimDirFd=openDirectoryAt(
-        cfg.root_fd,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.claim_directory,
-        cfg.claim_uid,cfg.claim_gid,DIRECTORY_MODE,
-        "apollyon_claim_store_impl_v2_claim_directory_invalid",
-      );
-      const pendingDirFd=openDirectoryAt(
-        cfg.root_fd,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.pending_directory,
-        cfg.claim_uid,cfg.claim_gid,DIRECTORY_MODE,
-        "apollyon_claim_store_impl_v2_pending_directory_invalid",
-      );
-      let result;
-      try{
+      const directoryCleanups=[];
+      return withCleanup(()=>{
+        const generationDirFd=openDirectoryAt(
+          cfg.root_fd,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.generation_directory,
+          cfg.claim_uid,cfg.claim_gid,DIRECTORY_MODE,
+          "apollyon_claim_store_impl_v2_generation_directory_invalid",
+        );
+        directoryCleanups.push(closeCleanup(generationDirFd,"transaction_directory"));
+        const slotDirFd=openDirectoryAt(
+          cfg.root_fd,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.authorization_slot_directory,
+          cfg.claim_uid,cfg.claim_gid,DIRECTORY_MODE,
+          "apollyon_claim_store_impl_v2_slot_directory_invalid",
+        );
+        directoryCleanups.push(closeCleanup(slotDirFd,"transaction_directory"));
+        const claimDirFd=openDirectoryAt(
+          cfg.root_fd,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.claim_directory,
+          cfg.claim_uid,cfg.claim_gid,DIRECTORY_MODE,
+          "apollyon_claim_store_impl_v2_claim_directory_invalid",
+        );
+        directoryCleanups.push(closeCleanup(claimDirFd,"transaction_directory"));
+        const pendingDirFd=openDirectoryAt(
+          cfg.root_fd,VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.pending_directory,
+          cfg.claim_uid,cfg.claim_gid,DIRECTORY_MODE,
+          "apollyon_claim_store_impl_v2_pending_directory_invalid",
+        );
+        directoryCleanups.push(closeCleanup(pendingDirFd,"transaction_directory"));
         const context={
           publish_request_sha256:parsed.publish_request_sha256,
           generation,slot,record,
@@ -757,7 +877,7 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
         );
 
         generationBracket(
-          config,"before_slot_publication",context,
+          cfg,"before_slot_publication",context,
           cfg.root_fd,generationDirFd,cfg.claim_uid,cfg.claim_gid
         );
 
@@ -802,7 +922,7 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
         );
 
         generationBracket(
-          config,"after_slot_before_claim",context,
+          cfg,"after_slot_before_claim",context,
           cfg.root_fd,generationDirFd,cfg.claim_uid,cfg.claim_gid
         );
 
@@ -823,7 +943,7 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
         }
 
         generationBracket(
-          config,"before_success_ack",context,
+          cfg,"before_success_ack",context,
           cfg.root_fd,generationDirFd,cfg.claim_uid,cfg.claim_gid
         );
 
@@ -833,7 +953,7 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
         const success=createSuccessResponse(
           record,parsed.publish_request_sha256,outcome
         );
-        result=Object.freeze({
+        return Object.freeze({
           marker:VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_V2,
           version:2,
           status:"store_core_transaction_complete_source_only",
@@ -850,46 +970,73 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
           authority:
             VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_AUTHORITY_V2,
         });
-      }finally{
-        for(const fd of [pendingDirFd,claimDirFd,slotDirFd,generationDirFd]){
-          try{fs.closeSync(fd);}catch{}
-        }
-      }
-      return result;
+      },directoryCleanups,"apollyon_claim_store_impl_v2_descriptor_cleanup_failed");
     };
 
-    let result;
-    let transactionResult;
-    let wrapperActive=true;
-    const guardedTransaction=()=>{
-      if(!wrapperActive){
-        fail("apollyon_claim_store_impl_v2_transaction_outside_wrapper_call");
-      }
-      const value=transaction();
-      transactionResult=value;
-      return value;
+    const acquisitionContext=Object.freeze({
+      root_identity_sha256:rootIdentitySha256,
+      session_binding_id:cfg.session_binding_id,
+      store_generation_id:generation.store_generation_id,
+      store_generation_record_id:generation.store_generation_record_id,
+      authorization_slot_id:slot.authorization_slot_id,
+      claim_record_id:record.claim_record_id,
+      publish_request_sha256:parsed.publish_request_sha256,
+    });
+    let acquired;
+    try{
+      acquired=cfg.acquireExclusiveStoreTransaction(acquisitionContext);
+    }catch(error){
+      coreUnusable=true;
+      throw storeError(
+        "apollyon_claim_store_impl_v2_transaction_acquisition_failed",error
+      );
+    }
+    let lease,release;
+    try{({lease,release}=validateTransactionLease(acquired));}
+    catch(error){coreUnusable=true;throw error;}
+    const releaseCleanup={
+      code:"apollyon_claim_store_impl_v2_transaction_release_failed",
+      role:"transaction_release",
+      run(){
+        let result;
+        try{result=APPLY(release,lease,[]);}
+        catch(error){
+          throw storeError("apollyon_claim_store_impl_v2_transaction_release_failed",error);
+        }
+        if(result!==undefined){
+          observeRejectedPromise(
+            result,"apollyon_claim_store_impl_v2_transaction_release_result_invalid"
+          );
+          fail("apollyon_claim_store_impl_v2_transaction_release_result_invalid");
+        }
+      },
     };
     try{
-      result=config.withExclusiveStoreTransaction(guardedTransaction);
-    }catch(error){
-      if(error?.message?.startsWith("apollyon_claim_store_impl_v2_"))throw error;
-      throw new Error(
-        "apollyon_claim_store_impl_v2_transaction_wrapper_failed:"+
-        String(error?.message||error)
+      return withCleanup(
+        transaction,[releaseCleanup],
+        "apollyon_claim_store_impl_v2_transaction_cleanup_indeterminate",
       );
-    }finally{
-      wrapperActive=false;
+    }catch(error){
+      const cleanupRecords=CLEANUP_RECORDS.get(error);
+      if(cleanupRecords?.length>0){
+        coreUnusable=true;
+        const diagnosed=storeError(errorField(error,"message"),error);
+        diagnosed.code=errorField(error,"code");
+        diagnosed.cleanup_errors=cleanupRecords;
+        CLEANUP_RECORDS.set(diagnosed,cleanupRecords);
+        // Cleanup follows entry into the private transaction. It is not a rollback.
+        diagnosed.core_store_mutation_may_have_occurred=true;
+        throw diagnosed;
+      }
+      throw error;
     }
-    if(result&&typeof result.then==="function"){
-      fail("apollyon_claim_store_impl_v2_async_transaction_forbidden");
-    }
-    if(entered!==1){
-      fail("apollyon_claim_store_impl_v2_transaction_not_exactly_once");
-    }
-    if(result!==transactionResult){
-      fail("apollyon_claim_store_impl_v2_transaction_result_substitution");
-    }
-    return result;
+  }
+  function publishClaim(input){
+    if(publishActive)fail("apollyon_claim_store_impl_v2_transaction_reentry");
+    if(coreUnusable)fail("apollyon_claim_store_impl_v2_transaction_core_unusable");
+    publishActive=true;
+    try{return publishClaimWithinGuard(input);}
+    finally{publishActive=false;}
   }
 
   return Object.freeze({
