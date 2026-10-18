@@ -179,6 +179,37 @@ function installLiveRelayFallback(
   return { peer, socket };
 }
 
+function installAuthenticatedControlRoute(
+  node: Node,
+  sessionId: string,
+  remote: TestKeypair,
+  relay: TestKeypair,
+  streamId: string,
+): Readonly<{ requestId: string; ticketId: string; expiresAtMs: number }> {
+  const requestId = crypto.randomBytes(16).toString("hex");
+  const ticketId = crypto.randomBytes(16).toString("hex");
+  const expiresAtMs = Date.now() + 60_000;
+  const core = internals(node);
+  core.udpSwarmControl.activeRoutes.set(sessionId, {
+    request_id: requestId,
+    session_id: sessionId,
+    relay_node_id: relay.nodeId,
+    peer_node_id: remote.nodeId,
+    stream_id: streamId,
+    ticket_id: ticketId,
+    expires_at_ms: expiresAtMs,
+    offer_received: true,
+  });
+  core.udpSwarmControl.ticketSessions.set(ticketId, sessionId);
+  const route = core.udpSwarmControl.snapshot().active_routes.find(
+    (entry: { session_id: string }) => entry.session_id === sessionId,
+  );
+  assert(route);
+  assert.equal(route.request_id, requestId);
+  assert.equal(route.ticket_id, ticketId);
+  return Object.freeze({ requestId, ticketId, expiresAtMs });
+}
+
 async function stageAndAuthenticate(
   nodeA: Node,
   nodeB: Node,
@@ -197,6 +228,13 @@ async function stageAndAuthenticate(
     `127.0.0.1:${endpointBase + 1}`,
   );
   assert(pair.a.socket && pair.b.socket);
+  installAuthenticatedControlRoute(
+    nodeA,
+    sessionId,
+    kpB,
+    relayKp,
+    streamId,
+  );
   assert.equal(
     nodeA.stageUdpSwarmAuthenticatedDirectCandidateV1({
       sessionId,

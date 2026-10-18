@@ -2,6 +2,7 @@
 // Copyright (c) 2025-2026 6ZoSo9
 
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -15,6 +16,12 @@ import {
 } from "../src/p2p/client_transient_clock_v1.js";
 import { VoidUdpSwarmAuthenticatedControlAdapterV1 } from
   "../src/p2p/udp_swarm_authenticated_control_adapter_v1.js";
+import { VoidUdpSwarmAuthenticatedDirectCandidateV1 } from
+  "../src/p2p/udp_swarm_authenticated_direct_candidate_v1.js";
+import { VoidUdpSwarmNodeRuntimeMountV1 } from
+  "../src/p2p/udp_swarm_node_runtime_mount_v1.js";
+import { VoidUdpSwarmSocketRuntimeV1 } from
+  "../src/p2p/udp_swarm_socket_runtime_v1.js";
 
 type Identity = {
   privateKey: crypto.KeyObject;
@@ -51,9 +58,16 @@ const adapterSource = fs.readFileSync(
   ),
   "utf8",
 );
+const runtimeMountSource = fs.readFileSync(
+  path.join(process.cwd(), "src", "p2p", "udp_swarm_node_runtime_mount_v1.ts"),
+  "utf8",
+);
+const socketRuntimeSource = fs.readFileSync(
+  path.join(process.cwd(), "src", "p2p", "udp_swarm_socket_runtime_v1.ts"),
+  "utf8",
+);
 
 for (const required of [
-  'import { VoidP2pClientTransientClockV1 } from "./p2p/client_transient_clock_v1.js";',
   "private readonly relayClientClock = new VoidP2pClientTransientClockV1();",
   "const nowMs = Date.now();\n    this.sweepRelayClientState(nowMs);",
   "const relayClientNowMs = Date.now();\n    this.sweepRelayClientState(relayClientNowMs);",
@@ -62,6 +76,10 @@ for (const required of [
 ]) {
   assert.equal(nodeSource.includes(required), true, required);
 }
+assert.match(
+  nodeSource,
+  /this\.udpSwarmControl\.handleAuthenticatedControl\(\{\s*fromNodeId: peer\.id,\s*message,\s*\}\)/u,
+);
 const relaySweepStart = nodeSource.indexOf(
   "private sweepRelayClientState(nowMs = Date.now()): void",
 );
@@ -76,12 +94,29 @@ assert.equal(relaySweepSource.includes("this.relayPendingReservations.clear()"),
 assert.equal(relaySweepSource.includes("this.relayPendingConnects.clear()"), true);
 assert.equal(relaySweepSource.includes("this.relayClientReservations.clear()"), true);
 
+for (const required of [
+  "liveUdpSwarmAuthenticatedControlRouteForCandidateV1(",
+  "control_request_id: controlRoute.request_id",
+  "control_ticket_id: controlRoute.ticket_id",
+  "control_expires_at_ms: controlRoute.expires_at_ms",
+  'error: "authenticated_control_route_required"',
+]) {
+  assert.equal(nodeSource.includes(required), true, required);
+}
 assert.match(
-  nodeSource,
-  /this[.]udpSwarmControl[.]handleAuthenticatedControl[(][{]\s*fromNodeId: peer[.]id,\s*message,\s*[}][)]/u,
+  runtimeMountSource,
+  /result[.]error === "authenticated_control_route_required"[\s\S]*retireDirectCandidateSession/u,
 );
 for (const required of [
-  'import { VoidP2pClientTransientClockV1 } from "./client_transient_clock_v1.js";',
+  "retireDirectCandidateSession(",
+  "this.sessions.delete(sessionId);",
+  "state.upgrade.failDirectAttempt(failure);",
+  "state.pendingSecurePackets.splice(0);",
+]) {
+  assert.equal(socketRuntimeSource.includes(required), true, required);
+}
+
+for (const required of [
   "private readonly clientClock = new VoidP2pClientTransientClockV1();",
   "const nowMs = this.sweep(input.nowMs ?? Date.now());",
   "this.pendingRequests.clear();",
@@ -90,26 +125,32 @@ for (const required of [
   assert.equal(adapterSource.includes(required), true, required);
 }
 
-const primitiveClock = new VoidP2pClientTransientClockV1();
-assert.deepEqual(primitiveClock.observe(10_000), {
+const primitive = new VoidP2pClientTransientClockV1();
+assert.deepEqual(primitive.observe(10_000), {
   now_ms: 10_000,
   regressed: false,
 });
-for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, -1, Number.MAX_SAFE_INTEGER + 1]) {
-  assert.throws(
-    () => primitiveClock.observe(invalid),
-    /P2P client transient clock is invalid/,
-  );
-}
-assert.deepEqual(primitiveClock.observe(9_000), {
+assert.throws(
+  () => primitive.observe(Number.NaN),
+  /P2P client transient clock is invalid/,
+);
+assert.throws(
+  () => primitive.observe(Number.MAX_SAFE_INTEGER + 1),
+  /P2P client transient clock is invalid/,
+);
+assert.throws(
+  () => primitive.observe(-1),
+  /P2P client transient clock is invalid/,
+);
+assert.deepEqual(primitive.observe(9_000), {
   now_ms: 9_000,
   regressed: true,
 });
-assert.deepEqual(primitiveClock.observe(9_000), {
+assert.deepEqual(primitive.observe(9_000), {
   now_ms: 9_000,
   regressed: false,
 });
-assert.deepEqual(primitiveClock.observe(9_001), {
+assert.deepEqual(primitive.observe(9_001), {
   now_ms: 9_001,
   regressed: false,
 });
@@ -140,6 +181,8 @@ const firstPending = adapter.beginUpgrade({
   streamId,
   nowMs: 20_000,
 });
+assert(firstPending.request_id);
+
 const routeSession = "b".repeat(32);
 const routeTicket = "c".repeat(32);
 (adapter as any).activeRoutes.set(routeSession, {
@@ -183,12 +226,12 @@ assert.equal(adapter.snapshot(19_001).pending_request_count, 1);
 const root = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-p2p-client-clock-regression-v2-"),
 );
-let nodeInstance: Node | undefined;
+let node: Node | undefined;
 try {
   const nodeIdentity = identity();
   configureNodeEnvironment(root);
-  nodeInstance = new Node(0, nodeIdentity);
-  const nodeAny = nodeInstance as any;
+  node = new Node(0, nodeIdentity);
+  const nodeAny = node as any;
 
   const relayNodeId = "d".repeat(32);
   const targetNodeId = "e".repeat(32);
@@ -252,9 +295,175 @@ try {
   nodeAny.sweepRelayClientState(29_001);
   assert.equal(nodeAny.relayPendingConnects.has(freshRequestId), true);
   assert.equal(nodeAny.relayStreams.get(relayStreamKey), establishedStreamSentinel);
+
+  const stagedSessionId = "5".repeat(32);
+  const stagedRequestId = "6".repeat(32);
+  const stagedTicketId = "7".repeat(32);
+  const stagedStreamId = "8".repeat(32);
+  const stagedRouteNow = Date.now();
+  const stagedRouteExpiry = stagedRouteNow + 60_000;
+  const stagedRelaySocket = { destroyed: false };
+  const stagedRelayPeer = {
+    id: relay.nodeId,
+    socket: stagedRelaySocket,
+    handshakeDone: true,
+    transport: "relay",
+    relayViaNodeId: local.nodeId,
+    relayStreamId: stagedStreamId,
+  };
+  const stagedRelayKey = local.nodeId + ":" + stagedStreamId;
+  const stagedRelayStream = {
+    relay_node_id: local.nodeId,
+    remote_node_id: relay.nodeId,
+    stream_id: stagedStreamId,
+    outgoing: true,
+    started: true,
+    socket: stagedRelaySocket,
+  };
+  nodeAny.peers.set(relay.nodeId, stagedRelayPeer);
+  nodeAny.relayStreams.set(stagedRelayKey, stagedRelayStream);
+  nodeAny.udpSwarmControl.activeRoutes.set(stagedSessionId, {
+    request_id: stagedRequestId,
+    session_id: stagedSessionId,
+    relay_node_id: local.nodeId,
+    peer_node_id: relay.nodeId,
+    stream_id: stagedStreamId,
+    ticket_id: stagedTicketId,
+    expires_at_ms: stagedRouteExpiry,
+    offer_received: true,
+  });
+  nodeAny.udpSwarmControl.ticketSessions.set(stagedTicketId, stagedSessionId);
+  nodeAny.udpSwarmControl.sweep(stagedRouteNow);
+
+  const stagedSocket = new EventEmitter() as EventEmitter & {
+    destroyed: boolean;
+    write: (chunk: unknown) => boolean;
+    destroy: (error?: Error) => void;
+  };
+  stagedSocket.destroyed = false;
+  stagedSocket.write = (_chunk: unknown) => true;
+  stagedSocket.destroy = (_error?: Error) => {
+    if (stagedSocket.destroyed) return;
+    stagedSocket.destroyed = true;
+    stagedSocket.emit("close");
+  };
+
+  const stagedCandidate = new VoidUdpSwarmAuthenticatedDirectCandidateV1({
+    sessionId: stagedSessionId,
+    expectedPeerNodeId: relay.nodeId,
+    relayNodeId: local.nodeId,
+    relayStreamId: stagedStreamId,
+    transportHint: "udp-swarm:" + stagedSessionId,
+    socket: stagedSocket as any,
+    isRelayFallbackLive: () => true,
+  });
+  assert.equal(
+    stagedCandidate.acceptNormalVoidAuthentication(
+      relay.nodeId,
+      relay.pubPEM,
+      stagedRouteNow,
+    ),
+    true,
+  );
+  assert.equal(stagedCandidate.phase, "authenticated_candidate");
+
+  const stagedPeer = {
+    id: "?-clock-regression-candidate",
+    socket: stagedSocket,
+    udpSwarmDirectCandidate: {
+      session_id: stagedSessionId,
+      expected_peer_node_id: relay.nodeId,
+      relay_node_id: local.nodeId,
+      relay_stream_id: stagedStreamId,
+      control_request_id: stagedRequestId,
+      control_ticket_id: stagedTicketId,
+      control_expires_at_ms: stagedRouteExpiry,
+      candidate: stagedCandidate,
+    },
+    authenticatedPublicPem: relay.pubPEM,
+    handshakeDone: false,
+    transport: "direct",
+    persistDirectEvidence: false,
+    expectedNodeId: relay.nodeId,
+  };
+  nodeAny.udpSwarmDirectCandidates.set(stagedSessionId, stagedPeer);
+  nodeAny.peers.set(stagedPeer.id, stagedPeer);
+  assert.equal(
+    nodeAny.udpSwarmControl.snapshot(stagedRouteNow).active_route_count,
+    1,
+  );
+
+  let runtimeFailureReason = "";
+  const runtimeFailures: unknown[] = [];
+  const runtimeAny = Object.create(
+    VoidUdpSwarmSocketRuntimeV1.prototype,
+  ) as any;
+  runtimeAny.sessions = new Map();
+  runtimeAny.options = {
+    onUpgradeFailure: (event: unknown) => runtimeFailures.push(event),
+  };
+  const runtimeState = {
+    offer: {
+      session_id: stagedSessionId,
+      peer_node_id: relay.nodeId,
+    },
+    directSocket: stagedSocket,
+    pendingSecurePackets: [{}],
+    failed: false,
+    upgrade: {
+      relayRetirementAuthorized: false,
+      failDirectAttempt(reason: string | Error) {
+        runtimeFailureReason =
+          reason instanceof Error ? reason.message : String(reason);
+      },
+    },
+    punchTimers: [],
+    handshakeTimer: null,
+    attemptTimer: null,
+  };
+  runtimeAny.sessions.set(stagedSessionId, runtimeState);
+
+  const mountAny = Object.create(
+    VoidUdpSwarmNodeRuntimeMountV1.prototype,
+  ) as any;
+  mountAny.node = node;
+  mountAny.runtime = {
+    snapshot: () => ({
+      sessions: [...runtimeAny.sessions.values()].map((state: any) => ({
+        session_id: state.offer.session_id,
+      })),
+    }),
+    retireDirectCandidateSession: (sessionId: string, reason: string) =>
+      runtimeAny.retireDirectCandidateSession(sessionId, reason),
+  };
+  mountAny.candidatePromotions = 0;
+  mountAny.candidatePromotionRejects = 0;
+
+  nodeAny.udpSwarmControl.sweep(stagedRouteNow - 1_000);
+  assert.equal(
+    nodeAny.udpSwarmControl.snapshot(stagedRouteNow - 1_000).active_route_count,
+    0,
+  );
+  mountAny.promoteReadyCandidates();
+
+  assert.equal(mountAny.candidatePromotions, 0);
+  assert.equal(mountAny.candidatePromotionRejects, 1);
+  assert.equal(stagedSocket.destroyed, true);
+  assert.equal(nodeAny.udpSwarmDirectCandidates.has(stagedSessionId), false);
+  assert.equal(nodeAny.peers.has(stagedPeer.id), false);
+  assert.equal(runtimeAny.sessions.has(stagedSessionId), false);
+  assert.equal(runtimeState.failed, true);
+  assert.equal(runtimeState.directSocket, undefined);
+  assert.equal(runtimeState.pendingSecurePackets.length, 0);
+  assert.equal(
+    runtimeFailureReason,
+    "authenticated control route lost before direct promotion",
+  );
+  assert.equal(runtimeFailures.length, 1);
+  assert.equal(nodeAny.relayStreams.get(stagedRelayKey), stagedRelayStream);
 } finally {
   try {
-    nodeInstance?.stop();
+    node?.stop();
   } catch (error) {
     console.warn(
       "[cleanup] node.stop() failed:",
@@ -281,5 +490,11 @@ console.log("fresh_transient_state_after_regression=true");
 console.log("peer_timestamp_is_client_clock_authority=false");
 console.log("production_udp_control_clock_uses_local_default=true");
 console.log("production_relay_control_clock_uses_local_date_now=true");
+console.log("relay_stream_map_not_cleared_by_client_clock_regression=true");
+console.log("staged_direct_candidate_survives_control_route_regression=false");
+console.log("stale_candidate_socket_destroyed=true");
+console.log("stale_socket_runtime_session_retired=true");
+console.log("runtime_mount_promotion_tick_revokes_stale_candidate=true");
+console.log("exact_control_route_generation_required_at_promotion=true");
 console.log("runtime_or_network_mutation=false");
 console.log("wallet_signer_validator_wc_money_authority=0");
