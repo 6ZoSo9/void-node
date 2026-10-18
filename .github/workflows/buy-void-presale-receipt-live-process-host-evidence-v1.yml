@@ -1,0 +1,165 @@
+name: Buy VOID presale receipt live-process host evidence v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-receipt-live-process-host-evidence-v1.yml"
+      - "docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md"
+      - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+      - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+      - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
+      - "scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py"
+      - "docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md"
+      - ".github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-receipt-live-process-host-evidence-v1.yml"
+      - "docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md"
+      - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+      - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+      - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
+      - "scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py"
+      - "docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md"
+      - ".github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Bind exact host-evidence collector generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request) test -n "$PR_BASE"; base="$PR_BASE" ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-receipt-live-process-host-evidence-v1.yml' \
+            'docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md' \
+            'ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts' \
+            'scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 88d309e87d5862302ab0f6ac942a06f75020c9c9
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = a808c43ef819077c7cd5199149c866a3ae89a668
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = 200e2bbfdf1c0c77ee39ac049a3bf5fccc64d1cb
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md)" = 4f5d8a5db1cf1b82991962f5bf90a231c96c6f76
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml)" = 9e7070f89235a3aa401a2c23a5dd3dbafc6a3703
+
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_generation_provenance_v7.ts)" = 390ff1a2ff0437cd8c8693e7807c12275df42573
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_live_process_binding_v2.ts)" = 987c97568a4d1b9814218603df48a65dbfeed18f
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts)" = a334ab29477dec3e36862a512191b9701debb73e
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts)" = d47a6f99870f385c1bc938adbef74535b78eba1f
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Typecheck and prove read-only host collector
+        run: |
+          set -euo pipefail
+          npm run typecheck
+
+          proof="$RUNNER_TEMP/receipt-live-process-host-evidence-proof.log"
+          npx tsx scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts |
+            tee "$proof"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V1_PROOF_GREEN' \
+            'parent_host_evidence_plan_bound=true' \
+            'four_reviewed_primitive_blobs_bound=true' \
+            'deployment_receipt_verified_against_live_source_identity=true' \
+            'two_live_selector_collections_required=true' \
+            'two_source_custody_requalifications_required=true' \
+            'installed_receipt_exact_bytes_match_required=true' \
+            'pre_post_live_generation_drift_rejected=true' \
+            'publisher_write_functions_not_imported=true' \
+            'service_self_verifier_not_misused=true' \
+            'receipt_read_descriptor_nofollow=true' \
+            'filesystem_write_performed=false' \
+            'network_contact_performed=false' \
+            'receipt_publication_performed=false' \
+            'service_mutation_performed=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$proof"
+          done
+
+          self="$RUNNER_TEMP/receipt-live-process-host-evidence-self-test.log"
+          npx tsx ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts --self-test |
+            tee "$self"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V1_SELF_TEST_GREEN' \
+            'parent_host_evidence_plan_bound=true' \
+            'deployment_receipt_verifier_required=true' \
+            'live_selector_collection_required=true' \
+            'source_custody_requalification_required=true' \
+            'installed_live_receipt_exact_byte_match_required=true' \
+            'pre_post_live_generation_stability_required=true' \
+            'selector_process_execution_performed_by_future_host_run=true' \
+            'source_custody_process_execution_performed_by_future_host_run=true' \
+            'filesystem_write_performed=false' \
+            'network_contact_performed=false' \
+            'receipt_publication_performed=false' \
+            'service_mutation_performed=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false' \
+            'production_host_evidence_authority=false'
+          do
+            grep -Fx "$marker" "$self"
+          done
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
