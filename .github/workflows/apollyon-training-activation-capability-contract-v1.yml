@@ -1,0 +1,122 @@
+name: Apollyon training activation capability contract v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-training-activation-capability-contract-v1.mjs"
+      - "scripts/prove_apollyon_training_activation_capability_contract_v1.mjs"
+      - "docs/security/apollyon-training-activation-capability-contract-v1.md"
+      - ".github/workflows/apollyon-training-activation-capability-contract-v1.yml"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
+      - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
+      - "ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
+  push:
+    branches: [main]
+    paths:
+      - "tools/apollyon-training-activation-capability-contract-v1.mjs"
+      - "scripts/prove_apollyon_training_activation_capability_contract_v1.mjs"
+      - "docs/security/apollyon-training-activation-capability-contract-v1.md"
+      - ".github/workflows/apollyon-training-activation-capability-contract-v1.yml"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
+      - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
+      - "ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind activation capability contract generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          test "$(git rev-parse HEAD)" = "$HEAD"
+
+          test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
+            ac286734a0b5ba476ec67713495a77b28f5b1c1d
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
+            11a95ad63a6f6e3ad25d3f2984bbbffd1c5d3ba4
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
+            3ec6022f68249e53d2c1ecfa7ffcf599ece4fc39
+
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-contract-v2.mjs)" = \
+            bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
+            5f67bb3ddcc7f130db4b90ad73f5450b109dbea4
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py)" = \
+            352bd36f2b07091140b990de4170f708eb11fee6
+          test "$(git rev-parse HEAD:ops/xiphos/void-apollyon-training-bus-isolation-v1.service)" = \
+            62fbabe1cf7ae0d940f5d96e19b06282f841267b
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c)" = \
+            9503d19c8bc0b4f073ba117f6a547d339b7623d0
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          git merge-base --is-ancestor "$base" "$HEAD"
+          git diff --check "$base" "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove activation capability contract
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-training-activation-capability-contract-v1.mjs
+          node --check scripts/prove_apollyon_training_activation_capability_contract_v1.mjs
+          node scripts/prove_apollyon_training_activation_capability_contract_v1.mjs | tee /tmp/apollyon-activation-capability-proof.txt
+
+          grep -Fx 'VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1_PROOF_GREEN' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'capability_content_addressed=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'raw_activation_secret_not_in_receipt=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'direct_systemd_start_without_capability_authorized=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'systemd_caller_identity_authoritative=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'systemd_credential_transport_candidate_only=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'systemd_credential_runtime_proven=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'protected_one_time_consumption_required=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'consumption_generation_binding_required=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'consumption_systemd_invocation_id_bound=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'consumption_pid_start_ticks_bound=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'consumption_preentry_identity_bound=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'replay_authorized=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'training_start_admission_after_consumption=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'training_release_authorized=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'training_execution_authorized=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'service_action=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'funds_movement=false' /tmp/apollyon-activation-capability-proof.txt
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
