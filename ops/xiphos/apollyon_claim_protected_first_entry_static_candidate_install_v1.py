@@ -65,6 +65,13 @@ def hold(reason: str) -> None:
     raise Hold(reason)
 
 
+def _close_fd(fd: int, reason: str) -> None:
+    try:
+        _close_fd(fd, "accepted_parent_dependency_close_failed")
+    except OSError as exc:
+        raise Hold(reason) from exc
+
+
 def canonical(value: Any) -> bytes:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
@@ -153,7 +160,7 @@ def _read_parent_dependency_source(
     except OSError as exc:
         raise Hold("accepted_parent_dependency_read_failed") from exc
     finally:
-        os.close(fd)
+        _close_fd(fd, "accepted_parent_source_close_failed")
 
 
 def load_accepted_parent_lock() -> dict[str, Any]:
@@ -190,7 +197,7 @@ def load_accepted_parent_lock() -> dict[str, Any]:
     except OSError as exc:
         raise Hold("accepted_parent_source_read_failed") from exc
     finally:
-        os.close(fd)
+        _close_fd(fd, "archive_file_close_failed")
 
     # The module is compiled from the exact retained bytes, not reopened by name.
     module = types.ModuleType("accepted_apollyon_first_entry_lock")
@@ -419,6 +426,7 @@ def self_test() -> None:
     print("historical_binary_identity_bound=true")
     print("tar_digest_must_match_lock=true")
     print("read_only_artifact_verification=true")
+    print("descriptor_close_failures_machine_readable=true")
     print("host_installation=false")
     print("trainer_release_authorized=false")
     print("training_execution_authorized=false")

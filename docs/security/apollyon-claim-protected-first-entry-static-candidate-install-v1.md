@@ -56,6 +56,12 @@ python3 -I -B ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_i
 
 The second command is **read-only** and requires the operator to supply the exact accepted artifact archive by absolute, direct, non-symlink path. The archive file must be one regular single-link file of at most 4 MiB; file identity is checked before, during and after the read. Both the archive and accepted-parent source are opened with `O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK`, so a pathname swapped to a FIFO after the initial metadata check cannot hang the verifier before descriptor validation. A wrong archive SHA-256 HOLDs before any tar member is parsed. A real accepted tar must actually be supplied; no hosted CI fixture is a substitute.
 
+Descriptor close failures in the archive reader, accepted-parent source reader,
+and authenticated parent-dependency reader are normalized to distinct
+machine-readable HOLD reasons. The readers never retry a close after an error;
+the proof injects a real close followed by a synthetic error to cover that
+boundary.
+
 A successful read-only receipt is content-addressed and records `status=exact_archive_verified_install_blocked`, `archive_verified=true`, `binary_identity_verified=true`, and `protected_install_authorized=false`. It **does not** prove protected installed source origin, root custody of the target path, Xiphos host state, or installer readiness.
 
 ## Hosted adversaries

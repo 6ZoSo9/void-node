@@ -34,9 +34,9 @@ jobs:
           git merge-base --is-ancestor 283f135a826895c8b90b6c973d58a7d7f2447eb4 "$EXACT_HEAD"
           printf '%s\n' \
             '2351eaf1f12317b8ae047ad6dd58f29ba116e0c7 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
-            '2cf4d09059796b3f755a1a647b474de804ad206d ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
-            '538d285c4baf749f76177bda626a7e2910c4099a scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
-            'b763e97e2100f149aa28d32b489fb34642248df8 docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+            '5b6b105b258d779fb3038e18306f1bdb06e48891 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            '5aa18c916a5f5b339421bf993cc42aa9b70f53ff scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            '0bbeb9b3c6e898d4b954564f85750cc338cf9f60 docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
             | while read -r blob path; do
                 test "$(git hash-object "$path")" = "$blob"
                 test "$(git rev-parse "HEAD:$path")" = "$blob"
@@ -61,6 +61,7 @@ jobs:
             --self-test > "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
           grep -Fx 'host_installation=false' "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
           grep -Fx 'training_execution_authorized=false' "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
+          grep -Fx 'descriptor_close_failures_machine_readable=true' "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
 
           python3 -I -B \
             scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py \
@@ -76,6 +77,9 @@ jobs:
             'parent_preopen_fifo_swap_rejected_without_blocking=true' \
             'parent_dependency_descriptor_custody=true' \
             'parent_dependency_fifo_swap_rejected_without_blocking=true' \
+            'archive_close_failure_machine_readable_hold=true' \
+            'parent_source_close_failure_machine_readable_hold=true' \
+            'parent_dependency_close_failure_machine_readable_hold=true' \
             'changed_tar_digest_rejected=true' \
             'wrong_elf_mode_rejected=true' \
             'symlink_member_rejected=true' \

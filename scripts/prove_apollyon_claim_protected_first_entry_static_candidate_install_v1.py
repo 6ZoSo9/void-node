@@ -11,6 +11,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import copy
+import errno
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
@@ -164,6 +165,78 @@ with tempfile.TemporaryDirectory(prefix="apollyon-parent-dependency-race-") as t
         assert nonlocal_git_marker[0] is False
     finally:
         mod.os.open = real_open
+
+# Descriptor close uncertainty must remain inside the machine-readable Hold
+# contract. The fixture performs the real close first, then reports a synthetic
+# close error so the descriptor number is never retried.
+with tempfile.TemporaryDirectory(prefix="apollyon-archive-close-failure-") as td:
+    archive_path = Path(td) / "candidate.tar"
+    archive_path.write_bytes(b"X" * 512)
+    real_close = os.close
+
+    def archive_close_failure(fd: int) -> None:
+        real_close(fd)
+        raise OSError(errno.EIO, "fixture archive close failure")
+
+    mod.os.close = archive_close_failure
+    try:
+        try:
+            mod.read_untrusted_tar(archive_path)
+        except mod.Hold as exc:
+            assert str(exc) == "archive_file_close_failed"
+        else:
+            raise AssertionError("archive close failure escaped Hold")
+    finally:
+        mod.os.close = real_close
+
+real_close = os.close
+
+def parent_close_failure(fd: int) -> None:
+    real_close(fd)
+    raise OSError(errno.EIO, "fixture parent close failure")
+
+mod.os.close = parent_close_failure
+try:
+    try:
+        mod.load_accepted_parent_lock()
+    except mod.Hold as exc:
+        assert str(exc) == "accepted_parent_source_close_failed"
+    else:
+        raise AssertionError("accepted parent close failure escaped Hold")
+finally:
+    mod.os.close = real_close
+
+with tempfile.TemporaryDirectory(prefix="apollyon-parent-dependency-close-failure-") as td:
+    temp_root = Path(td)
+    relative = "candidate/source.py"
+    dependency_path = temp_root / relative
+    dependency_path.parent.mkdir(parents=True)
+    dependency_bytes = b"synthetic-dependency-source"
+    dependency_path.write_bytes(dependency_bytes)
+    expected_blob = mod.git_blob(dependency_bytes)
+
+    class CloseFailureParent:
+        ROOT = temp_root
+        MAX_SOURCE_BYTES = 1024
+
+        @staticmethod
+        def git(*_args: str) -> str:
+            return expected_blob
+
+    mod.os.close = parent_close_failure
+    try:
+        try:
+            mod._read_parent_dependency_source(
+                CloseFailureParent,
+                relative,
+                expected_blob,
+            )
+        except mod.Hold as exc:
+            assert str(exc) == "accepted_parent_dependency_close_failed"
+        else:
+            raise AssertionError("parent dependency close failure escaped Hold")
+    finally:
+        mod.os.close = real_close
 
 source_text = TARGET.read_text(encoding="utf-8")
 assert source_text.index("module.stable_file = lambda") < source_text.index(
@@ -348,6 +421,10 @@ for required in (
     "module.stable_file = lambda",
     "def read_untrusted_tar(path: Path)",
     "os.O_NOFOLLOW | os.O_NONBLOCK",
+    "def _close_fd(fd: int, reason: str)",
+    '"accepted_parent_dependency_close_failed"',
+    '"accepted_parent_source_close_failed"',
+    '"archive_file_close_failed"',
     "def verify_archive_bytes(raw: bytes, lock: dict[str, Any])",
     "digest(raw) != parent[\"artifact_inner_tar_sha256\"]",
     "member.mode != required_mode",
@@ -380,6 +457,9 @@ print("archive_preopen_fifo_swap_rejected_without_blocking=true")
 print("parent_preopen_fifo_swap_rejected_without_blocking=true")
 print("parent_dependency_descriptor_custody=true")
 print("parent_dependency_fifo_swap_rejected_without_blocking=true")
+print("archive_close_failure_machine_readable_hold=true")
+print("parent_source_close_failure_machine_readable_hold=true")
+print("parent_dependency_close_failure_machine_readable_hold=true")
 print("read_only_tar_validation=true")
 print("synthetic_positive_fixture_verified=true")
 print("synthetic_fixture_not_accepted_by_production_lock=true")
