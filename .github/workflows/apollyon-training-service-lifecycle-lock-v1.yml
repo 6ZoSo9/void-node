@@ -1,0 +1,148 @@
+name: Apollyon training-service lifecycle lock v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/apollyon-training-service-lifecycle-lock-v1.yml"
+      - "docs/security/apollyon-training-service-lifecycle-lock-v1.md"
+      - "ops/xiphos/apollyon_training_service_lifecycle_lock_v1.py"
+      - "scripts/prove_apollyon_training_service_lifecycle_lock_v1.py"
+      - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apollyon-training-service-lifecycle-lock-v1.yml"
+      - "docs/security/apollyon-training-service-lifecycle-lock-v1.md"
+      - "ops/xiphos/apollyon_training_service_lifecycle_lock_v1.py"
+      - "scripts/prove_apollyon_training_service_lifecycle_lock_v1.py"
+      - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact lifecycle-lock generation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact additive scope and unit identity
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          parent=05614762b1b4638e05e539fd7d20cbf670e1570b
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+
+          if [ "$EVENT_NAME" = pull_request ]; then
+            test "$PR_BASE" = "$parent"
+            expected="$RUNNER_TEMP/expected.txt"
+            actual="$RUNNER_TEMP/actual.txt"
+            printf '%s\n' \
+              '.github/workflows/apollyon-training-service-lifecycle-lock-v1.yml' \
+              'docs/security/apollyon-training-service-lifecycle-lock-v1.md' \
+              'ops/xiphos/apollyon_training_service_lifecycle_lock_v1.py' \
+              'scripts/prove_apollyon_training_service_lifecycle_lock_v1.py' \
+              | LC_ALL=C sort > "$expected"
+            git diff --no-renames --name-only "$PR_BASE" "$EXPECTED_HEAD" -- \
+              | LC_ALL=C sort > "$actual"
+            test -s "$actual"
+            diff -u "$expected" "$actual"
+            base="$PR_BASE"
+          elif [ "$EVENT_NAME" = push ]; then
+            base="$PUSH_BEFORE"
+            test -n "$base"
+            test "$base" != 0000000000000000000000000000000000000000
+            git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+          elif [ "$EVENT_NAME" = workflow_dispatch ]; then
+            base="$(git rev-parse HEAD^)"
+          else
+            echo "unsupported_event=$EVENT_NAME" >&2
+            exit 1
+          fi
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_service_lifecycle_lock_v1.py)" = \
+            8a97efa384bb8e8576114f35566a6b9dd9317a8a
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_service_lifecycle_lock_v1.py)" = \
+            46553aa8a32fcb4d25a3b63ac0750bdb2056db54
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-service-lifecycle-lock-v1.md)" = \
+            b441917e7b3dcf6b0002a4c65a789ad9885e31ed
+          test "$(git rev-parse HEAD:ops/xiphos/void-apollyon-training-bus-isolation-v1.service)" = \
+            62fbabe1cf7ae0d940f5d96e19b06282f841267b
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove crash-releasing shared lifecycle lock
+        run: |
+          set -euo pipefail
+
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/xiphos/apollyon_training_service_lifecycle_lock_v1.py",
+              "scripts/prove_apollyon_training_service_lifecycle_lock_v1.py",
+          ):
+              compile(
+                  Path(relative).read_text("utf-8"),
+                  relative,
+                  "exec",
+                  dont_inherit=True,
+              )
+          print("VOID_APOLLYON_TRAINING_SERVICE_LIFECYCLE_LOCK_V1_SYNTAX_GREEN")
+          PY
+
+          self_out="$RUNNER_TEMP/apollyon-lifecycle-lock-selftest.log"
+          python3 -I -B \
+            ops/xiphos/apollyon_training_service_lifecycle_lock_v1.py \
+            | tee "$self_out"
+
+          grep -Fx 'VOID_APOLLYON_TRAINING_SERVICE_LIFECYCLE_LOCK_V1_SELF_TEST_GREEN' "$self_out"
+          grep -Fx 'stable_systemd_directory_lock_domain=true' "$self_out"
+          grep -Fx 'nonblocking_exclusive_flock_required=true' "$self_out"
+          grep -Fx 'service_action=false' "$self_out"
+          grep -Fx 'training_execution=false' "$self_out"
+          grep -Fx 'funds_movement=false' "$self_out"
+
+          out="$RUNNER_TEMP/apollyon-lifecycle-lock-proof.log"
+          python3 -I -B \
+            scripts/prove_apollyon_training_service_lifecycle_lock_v1.py \
+            | tee "$out"
+
+          for marker in \
+            'VOID_APOLLYON_TRAINING_SERVICE_LIFECYCLE_LOCK_V1_PROOF_GREEN' \
+            'source_blob_bound=true' \
+            'stable_systemd_directory_lock_domain=true' \
+            'exact_training_unit_identity_bound=true' \
+            'same_process_contention_rejected=true' \
+            'close_release_reacquire_proven=true' \
+            'cross_process_contention_rejected=true' \
+            'process_exit_crash_release_proven=true' \
+            'unit_symlink_rejected=true' \
+            'unit_mode_drift_rejected=true' \
+            'unit_blob_drift_rejected=true' \
+            'lock_root_writable_rejected=true' \
+            'lock_root_replacement_rejected=true' \
+            'fd_cloexec_proven=true' \
+            'filesystem_write_outside_temp=false' \
+            'service_action=false' \
+            'training_execution=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
