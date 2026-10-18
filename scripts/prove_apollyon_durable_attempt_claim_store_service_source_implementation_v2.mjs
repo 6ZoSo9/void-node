@@ -28,7 +28,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="dce36dbb5676d2776ad6f36313a6bd2b8656ab2d";
+const TARGET_BLOB="78242e51f5b332d9057bf17d3842328ffd300b65";
 
 const PINNED=Object.freeze({
   [TARGET_REL]:TARGET_BLOB,
@@ -251,6 +251,7 @@ for(const required of [
   'training_start_consumption_directory:"training-start-consumption-v1"',
   "caller_supplied_exclusive_transaction_is_host_proof:false",
   "caller_supplied_revalidator_is_host_proof:false",
+  "fs.constants.O_RDWR|fs.constants.O_CREAT",
   "fs.fsyncSync(pendingFd)",
   "fs.linkSync(pendingPath,finalPath)",
   "apollyon_claim_store_impl_v2_orphan_claim_without_slot",
@@ -675,6 +676,7 @@ console.log("publisher_request_reconstruction_forbidden=true");
 console.log("retained_root_identity_bound=true");
 console.log("active_and_immutable_generation_cross_bound=true");
 console.log("slot_before_claim_durable_order_proven=true");
+console.log("private_pending_readwrite_same_descriptor_verification=true");
 console.log("private_pending_fsync_link_directory_fsync_proven=true");
 console.log("exact_final_reread_proven=true");
 console.log("exact_replay_idempotent=true");
