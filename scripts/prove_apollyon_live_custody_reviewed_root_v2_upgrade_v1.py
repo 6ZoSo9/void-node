@@ -40,6 +40,14 @@ for required in (
     'OLD_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"',
     'PRIOR_V2_LAUNCHER_BLOB="b96f99d6c513405e6f8b87b8f5c3fb1b1cbbf9c7"',
     'NEW_LAUNCHER_BLOB="820f7151c0f83280b7457f841cee14c3b0c274b6"',
+    'def parse_service_state(text:str)->dict[str,str]:',
+    'def service_state(unit:str)->dict[str,str]:',
+    '"/usr/bin/systemctl","show",unit,',
+    '"LoadState":"loaded"',
+    '"ActiveState":"inactive"',
+    '"SubState":"dead"',
+    '"MainPID":"0"',
+    'def require_exact_dormant_state(state:dict[str,str],label:str)->None:',
     'def classify_upgrade_state(launcher:str,root:str,backup:str)->str:',
     'return "prior_v2_pending"',
     'return "prior_v2_launcher_switched"',
@@ -58,7 +66,10 @@ for required in (
     '"durable_attempt_claim":False',
 ):
     assert required in source,required
-for forbidden in ("subprocess.Popen(","shell=True","PRIVATE KEY-----","eth_sendRawTransaction"):
+for forbidden in (
+    "subprocess.Popen(","shell=True","PRIVATE KEY-----","eth_sendRawTransaction",
+    '"is-active"',
+):
     assert forbidden not in source,forbidden
 
 result=subprocess.run(
@@ -75,6 +86,8 @@ for line in (
     "prior_v2_interrupted_states_resumable=true",
     "current_launcher_installed_before_prior_root_swap=true",
     "post_launcher_dormancy_revalidated_before_prior_root_swap=true",
+    "exact_inactive_service_states_required=true",
+    "transitional_service_states_rejected=true",
     "new_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2",
     "prior_v2_backup_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2-prior-v1",
     "systemd_8_18_reviewed=true",
@@ -86,3 +99,5 @@ print("prior_v2_to_current_v2_migration_proven=true")
 print("prior_v2_rollback_root_bound=true")
 print("prior_v2_resume_states_bound=true")
 print("post_launcher_dormancy_revalidation_bound=true")
+print("exact_inactive_service_states_bound=true")
+print("transitional_service_states_rejected=true")
