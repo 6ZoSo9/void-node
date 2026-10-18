@@ -102,15 +102,15 @@ function canonicalReceiptBytes(
 }
 
 type StableStatIdentity = Readonly<{
-  dev: number;
-  ino: number;
-  uid: number;
-  gid: number;
-  mode: number;
-  nlink: number;
-  size: number;
-  mtimeMs: number;
-  ctimeMs: number;
+  dev: bigint;
+  ino: bigint;
+  uid: bigint;
+  gid: bigint;
+  mode: bigint;
+  nlink: bigint;
+  size: bigint;
+  mtimeNs: bigint;
+  ctimeNs: bigint;
 }>;
 
 function sameStat(a: StableStatIdentity, b: StableStatIdentity): boolean {
@@ -122,17 +122,17 @@ function sameStat(a: StableStatIdentity, b: StableStatIdentity): boolean {
     a.mode === b.mode &&
     a.nlink === b.nlink &&
     a.size === b.size &&
-    a.mtimeMs === b.mtimeMs &&
-    a.ctimeMs === b.ctimeMs
+    a.mtimeNs === b.mtimeNs &&
+    a.ctimeNs === b.ctimeNs
   );
 }
 
 type ReceiptLeafStat = Readonly<{
-  uid: number;
-  gid: number;
-  nlink: number;
-  mode: number;
-  size: number;
+  uid: bigint;
+  gid: bigint;
+  nlink: bigint;
+  mode: bigint;
+  size: bigint;
   isFile(): boolean;
   isSymbolicLink(): boolean;
 }>;
@@ -146,13 +146,13 @@ function receiptLeafCustodyTrusted(
   return (
     current.isFile() &&
     !current.isSymbolicLink() &&
-    current.uid === 0 &&
-    current.gid === 0 &&
-    current.nlink === 1 &&
-    (current.mode & 0o7777) === 0o444 &&
-    current.size >= 2 &&
-    current.size <= MAX_RECEIPT_BYTES &&
-    current.size === expectedLength
+    current.uid === 0n &&
+    current.gid === 0n &&
+    current.nlink === 1n &&
+    (current.mode & 0o7777n) === 0o444n &&
+    current.size >= 2n &&
+    current.size <= BigInt(MAX_RECEIPT_BYTES) &&
+    current.size === BigInt(expectedLength)
   );
 }
 
@@ -170,17 +170,17 @@ function receiptLeafGenerationStillTrusted(
 type HeldReceiptAncestor = Readonly<{
   path: string;
   fd: number;
-  dev: number;
-  ino: number;
-  uid: number;
-  mode: number;
+  dev: bigint;
+  ino: bigint;
+  uid: bigint;
+  mode: bigint;
 }>;
 
 type ReceiptAncestorStat = Readonly<{
-  dev: number;
-  ino: number;
-  uid: number;
-  mode: number;
+  dev: bigint;
+  ino: bigint;
+  uid: bigint;
+  mode: bigint;
   isDirectory(): boolean;
 }>;
 
@@ -193,8 +193,8 @@ function receiptAncestorStillTrusted(
     current.dev === held.dev &&
     current.ino === held.ino &&
     current.uid === held.uid &&
-    (current.mode & 0o7777) === held.mode &&
-    (current.mode & 0o022) === 0
+    (current.mode & 0o7777n) === held.mode &&
+    (current.mode & 0o022n) === 0n
   );
 }
 
@@ -215,12 +215,12 @@ function openRootOwnedReceiptAncestors(file: string): HeldReceiptAncestor[] {
   try {
     let cursor = path.dirname(file);
     for (;;) {
-      const visible = fs.lstatSync(cursor);
+      const visible = fs.lstatSync(cursor, { bigint: true });
       if (
         !visible.isDirectory() ||
         visible.isSymbolicLink() ||
-        visible.uid !== 0 ||
-        (visible.mode & 0o022) !== 0
+        visible.uid !== 0n ||
+        (visible.mode & 0o022n) !== 0n
       ) {
         fail("host_evidence_receipt_ancestor_untrusted");
       }
@@ -228,7 +228,7 @@ function openRootOwnedReceiptAncestors(file: string): HeldReceiptAncestor[] {
         cursor,
         fs.constants.O_RDONLY | directory | noFollow,
       );
-      const held = fs.fstatSync(fd);
+      const held = fs.fstatSync(fd, { bigint: true });
       if (
         !receiptAncestorStillTrusted(
           {
@@ -239,7 +239,7 @@ function openRootOwnedReceiptAncestors(file: string): HeldReceiptAncestor[] {
           },
           held,
         ) ||
-        held.uid !== 0
+        held.uid !== 0n
       ) {
         fs.closeSync(fd);
         fail("host_evidence_receipt_ancestor_identity_mismatch");
@@ -251,7 +251,7 @@ function openRootOwnedReceiptAncestors(file: string): HeldReceiptAncestor[] {
           dev: held.dev,
           ino: held.ino,
           uid: held.uid,
-          mode: held.mode & 0o7777,
+          mode: held.mode & 0o7777n,
         }),
       );
       const next = path.dirname(cursor);
@@ -292,23 +292,23 @@ function revalidateReceiptAncestors(
   const noFollow = fs.constants.O_NOFOLLOW;
   const directory = fs.constants.O_DIRECTORY;
   for (const held of receiptAncestorRevalidationOrder(heldDirectories)) {
-    const current = fs.fstatSync(held.fd);
+    const current = fs.fstatSync(held.fd, { bigint: true });
     if (!receiptAncestorStillTrusted(held, current)) {
       fail("host_evidence_receipt_ancestor_changed_during_read");
     }
 
     let reopenedFd = -1;
-    let visibleBefore: fs.Stats;
-    let reopened: fs.Stats;
-    let visibleAfter: fs.Stats;
+    let visibleBefore: fs.BigIntStats;
+    let reopened: fs.BigIntStats;
+    let visibleAfter: fs.BigIntStats;
     try {
-      visibleBefore = fs.lstatSync(held.path);
+      visibleBefore = fs.lstatSync(held.path, { bigint: true });
       reopenedFd = fs.openSync(
         held.path,
         fs.constants.O_RDONLY | directory | noFollow,
       );
-      reopened = fs.fstatSync(reopenedFd);
-      visibleAfter = fs.lstatSync(held.path);
+      reopened = fs.fstatSync(reopenedFd, { bigint: true });
+      visibleAfter = fs.lstatSync(held.path, { bigint: true });
     } catch {
       fail("host_evidence_receipt_ancestor_namespace_unavailable");
     } finally {
@@ -325,11 +325,11 @@ function revalidateReceiptAncestors(
 
 export function testOnlyReceiptLeafCustodyTrustedV1(
   current: Readonly<{
-    uid: number;
-    gid: number;
-    nlink: number;
-    mode: number;
-    size: number;
+    uid: bigint;
+    gid: bigint;
+    nlink: bigint;
+    mode: bigint;
+    size: bigint;
     regular: boolean;
     symlink: boolean;
   }>,
@@ -374,12 +374,12 @@ export function testOnlyReceiptAncestorRevalidationOrderV1(
 }
 
 export function testOnlyAssertReceiptAncestorStableV1(
-  held: Readonly<{ dev: number; ino: number; uid: number; mode: number }>,
+  held: Readonly<{ dev: bigint; ino: bigint; uid: bigint; mode: bigint }>,
   current: Readonly<{
-    dev: number;
-    ino: number;
-    uid: number;
-    mode: number;
+    dev: bigint;
+    ino: bigint;
+    uid: bigint;
+    mode: bigint;
     directory: boolean;
   }>,
 ): void {
@@ -397,26 +397,26 @@ export function testOnlyAssertReceiptAncestorStableV1(
 }
 
 export function testOnlyAssertReceiptCanonicalAncestorStableV1(
-  held: Readonly<{ dev: number; ino: number; uid: number; mode: number }>,
+  held: Readonly<{ dev: bigint; ino: bigint; uid: bigint; mode: bigint }>,
   before: Readonly<{
-    dev: number;
-    ino: number;
-    uid: number;
-    mode: number;
+    dev: bigint;
+    ino: bigint;
+    uid: bigint;
+    mode: bigint;
     directory: boolean;
   }>,
   reopened: Readonly<{
-    dev: number;
-    ino: number;
-    uid: number;
-    mode: number;
+    dev: bigint;
+    ino: bigint;
+    uid: bigint;
+    mode: bigint;
     directory: boolean;
   }>,
   after: Readonly<{
-    dev: number;
-    ino: number;
-    uid: number;
-    mode: number;
+    dev: bigint;
+    ino: bigint;
+    uid: bigint;
+    mode: bigint;
     directory: boolean;
   }>,
 ): void {
@@ -449,7 +449,7 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
     const leafViaParent =
       `/proc/self/fd/${parent.fd}/${path.basename(target)}`;
 
-    const before = fs.lstatSync(leafViaParent);
+    const before = fs.lstatSync(leafViaParent, { bigint: true });
     if (!receiptLeafCustodyTrusted(before, expected.length)) {
       fail("host_evidence_live_receipt_custody_invalid");
     }
@@ -458,7 +458,7 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
       leafViaParent,
       fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
     );
-    const opened = fs.fstatSync(fd);
+    const opened = fs.fstatSync(fd, { bigint: true });
     if (!sameStat(before, opened)) {
       fail("host_evidence_live_receipt_open_identity_mismatch");
     }
@@ -477,12 +477,12 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
     }
 
     const observed = Buffer.concat(chunks, total);
-    const after = fs.fstatSync(fd);
-    const visible = fs.lstatSync(leafViaParent);
+    const after = fs.fstatSync(fd, { bigint: true });
+    const visible = fs.lstatSync(leafViaParent, { bigint: true });
     if (
       !sameStat(opened, after) ||
       !sameStat(after, visible) ||
-      observed.length !== after.size
+      BigInt(observed.length) !== after.size
     ) {
       fail("host_evidence_live_receipt_changed_during_read");
     }
@@ -491,7 +491,7 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
 
     let canonicalFd = -1;
     try {
-      const canonicalBefore = fs.lstatSync(target);
+      const canonicalBefore = fs.lstatSync(target, { bigint: true });
       if (
         !receiptLeafGenerationStillTrusted(
           opened,
@@ -506,7 +506,7 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
         target,
         fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
       );
-      const canonicalOpened = fs.fstatSync(canonicalFd);
+      const canonicalOpened = fs.fstatSync(canonicalFd, { bigint: true });
       if (
         !receiptLeafGenerationStillTrusted(
           opened,
@@ -543,8 +543,8 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
         canonicalChunks,
         canonicalTotal,
       );
-      const canonicalAfter = fs.fstatSync(canonicalFd);
-      const canonicalVisibleAfter = fs.lstatSync(target);
+      const canonicalAfter = fs.fstatSync(canonicalFd, { bigint: true });
+      const canonicalVisibleAfter = fs.lstatSync(target, { bigint: true });
       for (const current of [canonicalAfter, canonicalVisibleAfter]) {
         if (
           !receiptLeafGenerationStillTrusted(

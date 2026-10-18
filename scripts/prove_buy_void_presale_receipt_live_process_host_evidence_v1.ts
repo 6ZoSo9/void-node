@@ -57,8 +57,8 @@ function pin(relative:string,expected:string):Buffer{
   assert.equal(after.dev,before.dev,relative+":dev");
   assert.equal(after.ino,before.ino,relative+":ino");
   assert.equal(after.size,before.size,relative+":size");
-  assert.equal(after.mtimeMs,before.mtimeMs,relative+":mtime");
-  assert.equal(after.ctimeMs,before.ctimeMs,relative+":ctime");
+  assert.equal(after.mtimeNs,before.mtimeNs,relative+":mtime");
+  assert.equal(after.ctimeNs,before.ctimeNs,relative+":ctime");
   assert.equal(raw.length,before.size,relative+":short");
   assert.equal(gitBlob(raw),expected,relative+":blob");
   return raw;
@@ -260,16 +260,16 @@ assert.equal(
 );
 
 const leafBase=Object.freeze({
-  uid:0,
-  gid:0,
-  nlink:1,
-  mode:0o444,
-  size:128,
+  uid:0n,
+  gid:0n,
+  nlink:1n,
+  mode:0o444n,
+  size:128n,
   regular:true,
   symlink:false,
 });
 assert.equal(testOnlyReceiptLeafCustodyTrustedV1(leafBase,128),true);
-for(const mode of [0o4444,0o2444,0o1444]){
+for(const mode of [0o4444n,0o2444n,0o1444n]){
   assert.equal(
     testOnlyReceiptLeafCustodyTrustedV1({...leafBase,mode},128),
     false,
@@ -277,24 +277,24 @@ for(const mode of [0o4444,0o2444,0o1444]){
   );
 }
 assert.equal(
-  testOnlyReceiptLeafCustodyTrustedV1({...leafBase,mode:0o644},128),
+  testOnlyReceiptLeafCustodyTrustedV1({...leafBase,mode:0o644n},128),
   false,
 );
 assert.equal(
-  testOnlyReceiptLeafCustodyTrustedV1({...leafBase,uid:1},128),
+  testOnlyReceiptLeafCustodyTrustedV1({...leafBase,uid:1n},128),
   false,
 );
 
 const leafGenerationBase = Object.freeze({
-  dev: 41,
-  ino: 42,
-  uid: 0,
-  gid: 0,
-  mode: 0o444,
-  nlink: 1,
-  size: 128,
-  mtimeMs: 100,
-  ctimeMs: 200,
+  dev: 41n,
+  ino: 42n,
+  uid: 0n,
+  gid: 0n,
+  mode: 0o444n,
+  nlink: 1n,
+  size: 128n,
+  mtimeNs: 100n,
+  ctimeNs: 200n,
   regular: true,
   symlink: false,
 });
@@ -304,11 +304,11 @@ testOnlyAssertReceiptCanonicalLeafStableV1(
   128,
 );
 for (const [label,current] of [
-  ["replaced_inode",{...leafGenerationBase,ino:43}],
-  ["changed_ctime",{...leafGenerationBase,ctimeMs:201}],
-  ["changed_mode",{...leafGenerationBase,mode:0o644}],
-  ["special_mode",{...leafGenerationBase,mode:0o4444}],
-  ["changed_size",{...leafGenerationBase,size:127}],
+  ["replaced_inode",{...leafGenerationBase,ino:43n}],
+  ["changed_ctime",{...leafGenerationBase,ctimeNs:201n}],
+  ["changed_mode",{...leafGenerationBase,mode:0o644n}],
+  ["special_mode",{...leafGenerationBase,mode:0o4444n}],
+  ["changed_size",{...leafGenerationBase,size:127n}],
   ["symlink",{...leafGenerationBase,regular:false,symlink:true}],
 ] as const) {
   let rejected=false;
@@ -328,23 +328,47 @@ for (const [label,current] of [
   );
 }
 
+const exactBigIntIdentity = Object.freeze({
+  ...leafGenerationBase,
+  ino: 9_007_199_254_740_992n,
+  mtimeNs: 1_800_000_000_000_000_000n,
+  ctimeNs: 1_800_000_000_000_000_000n,
+});
+for (const [label,current] of [
+  ["inode_above_js_safe_integer",{...exactBigIntIdentity,ino:9_007_199_254_740_993n}],
+  ["one_nanosecond_ctime",{...exactBigIntIdentity,ctimeNs:1_800_000_000_000_000_001n}],
+  ["one_nanosecond_mtime",{...exactBigIntIdentity,mtimeNs:1_800_000_000_000_000_001n}],
+] as const) {
+  let rejected=false;
+  try {
+    testOnlyAssertReceiptCanonicalLeafStableV1(
+      exactBigIntIdentity,
+      current,
+      128,
+    );
+  } catch {
+    rejected=true;
+  }
+  assert.equal(rejected,true,"exact_bigint_stat_drift_not_rejected:"+label);
+}
+
 const ancestor = Object.freeze({
-  dev: 11,
-  ino: 22,
-  uid: 0,
-  mode: 0o755,
+  dev: 11n,
+  ino: 22n,
+  uid: 0n,
+  mode: 0o755n,
 });
 testOnlyAssertReceiptAncestorStableV1(ancestor, {
   ...ancestor,
   directory: true,
 });
 for (const [label, current] of [
-  ["uid", {...ancestor, uid: 1000, directory: true}],
-  ["mode", {...ancestor, mode: 0o777, directory: true}],
-  ["setuid", {...ancestor, mode: 0o4755, directory: true}],
-  ["setgid", {...ancestor, mode: 0o2755, directory: true}],
-  ["sticky", {...ancestor, mode: 0o1755, directory: true}],
-  ["inode", {...ancestor, ino: 23, directory: true}],
+  ["uid", {...ancestor, uid: 1000n, directory: true}],
+  ["mode", {...ancestor, mode: 0o777n, directory: true}],
+  ["setuid", {...ancestor, mode: 0o4755n, directory: true}],
+  ["setgid", {...ancestor, mode: 0o2755n, directory: true}],
+  ["sticky", {...ancestor, mode: 0o1755n, directory: true}],
+  ["inode", {...ancestor, ino: 23n, directory: true}],
   ["type", {...ancestor, directory: false}],
 ] as const) {
   let rejected=false;
@@ -366,51 +390,51 @@ testOnlyAssertReceiptCanonicalAncestorStableV1(
 for (const [label, before, reopened, after] of [
   [
     "before_inode",
-    {...canonicalAncestor, ino: 23},
+    {...canonicalAncestor, ino: 23n},
     {...canonicalAncestor},
     {...canonicalAncestor},
   ],
   [
     "reopened_inode",
     {...canonicalAncestor},
-    {...canonicalAncestor, ino: 23},
+    {...canonicalAncestor, ino: 23n},
     {...canonicalAncestor},
   ],
   [
     "after_inode",
     {...canonicalAncestor},
     {...canonicalAncestor},
-    {...canonicalAncestor, ino: 23},
+    {...canonicalAncestor, ino: 23n},
   ],
   [
     "reopened_uid",
     {...canonicalAncestor},
-    {...canonicalAncestor, uid: 1000},
+    {...canonicalAncestor, uid: 1000n},
     {...canonicalAncestor},
   ],
   [
     "reopened_mode",
     {...canonicalAncestor},
-    {...canonicalAncestor, mode: 0o777},
+    {...canonicalAncestor, mode: 0o777n},
     {...canonicalAncestor},
   ],
   [
     "before_setuid",
-    {...canonicalAncestor, mode: 0o4755},
+    {...canonicalAncestor, mode: 0o4755n},
     {...canonicalAncestor},
     {...canonicalAncestor},
   ],
   [
     "reopened_setgid",
     {...canonicalAncestor},
-    {...canonicalAncestor, mode: 0o2755},
+    {...canonicalAncestor, mode: 0o2755n},
     {...canonicalAncestor},
   ],
   [
     "after_sticky",
     {...canonicalAncestor},
     {...canonicalAncestor},
-    {...canonicalAncestor, mode: 0o1755},
+    {...canonicalAncestor, mode: 0o1755n},
   ],
   [
     "reopened_type",
@@ -454,6 +478,9 @@ console.log("receipt_canonical_leaf_replacement_rejected=true");
 console.log("receipt_leaf_exact_mode_0444=true");
 console.log("receipt_leaf_special_mode_bits_rejected=true");
 console.log("receipt_canonical_namespace_drift_rejected=true");
+console.log("receipt_stat_identity_bigint=true");
+console.log("receipt_inode_above_js_safe_integer_drift_rejected=true");
+console.log("receipt_one_nanosecond_timestamp_drift_rejected=true");
 console.log("receipt_ancestor_special_mode_drift_rejected=true");
 console.log("receipt_ancestor_drift_rejected=true");
 console.log("pre_post_live_generation_drift_rejected=true");

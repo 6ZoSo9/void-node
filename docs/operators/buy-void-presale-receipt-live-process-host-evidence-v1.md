@@ -250,3 +250,14 @@ special-mode, size, and symlink/type drift are rejected as well.
 
 No host write, receipt publication, service mutation, payment, signing,
 transaction, activation, treasury, or funds authority is added.
+ 
+## Exact filesystem-generation identity
+
+Receipt leaf and ancestor identity uses BigInt stat observations end to end.
+`dev`, `ino`, `uid`, `gid`, `mode`, `nlink`, `size`,
+`mtimeNs`, and `ctimeNs` are compared without floating-point conversion.
+Only the already bounded receipt length (`<= 64 KiB`) is converted at the
+Buffer-read boundary.
+
+Hosted adversaries reject adjacent inode values above `2^53-1` and
+one-nanosecond mtime/ctime changes.
