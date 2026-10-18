@@ -14,7 +14,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 TARGET_REL="ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
 TARGET=ROOT/TARGET_REL
-TARGET_BLOB="7d70527d8910881f9973479b89ceef78789ad100"
+TARGET_BLOB="d4b298dea73a4970987bf22435be3e76a5e7a02d"
 
 def git_blob(raw:bytes)->str:
     return hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
@@ -31,6 +31,10 @@ for required in (
     "plan_bindings_changed_after_exchange",
     "published_rolled_back_green",
     "rename_outcome_reconciliation_required=true",
+    "rename_succeeded=False",
+    "rename_succeeded=True",
+    "return layout,caught,rename_succeeded",
+    "atomic_exchange_succeeded_but_layout_reverted",
     "exchange_attempted=False",
     "retention_attempted=False",
     "rollback_available=true",
@@ -207,11 +211,11 @@ try:
         result=m.collect(boot,man,"f"*40)
         real_observed=m.observed_rename; calls={"n":0}
         def interrupt_after_observation(*args,**kwargs):
-            layout,handoff_error=real_observed(*args,**kwargs)
+            layout,handoff_error,rename_succeeded=real_observed(*args,**kwargs)
             calls["n"]+=1
             if calls["n"]==1:
                 raise KeyboardInterrupt("synthetic_post_return_exchange_interrupt")
-            return layout,handoff_error
+            return layout,handoff_error,rename_succeeded
         m.observed_rename=interrupt_after_observation
         try:
             m.apply(boot,man,"f"*40,result["plan_id"],m.CONFIRM)
@@ -231,6 +235,40 @@ try:
             raise AssertionError("post-return exchange interrupt did not rollback")
         finally:
             m.observed_rename=real_observed
+
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-success-reverted-before-observation-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"9"*40)
+        real_layout=m.root_layout; calls={"n":0}
+        mask_before=signal.pthread_sigmask(signal.SIG_BLOCK,set())
+        def restore_ready_before_observation(*args,**kwargs):
+            calls["n"]+=1
+            if calls["n"]==2:
+                fd=os.open(m.INSTALL_PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+                try:
+                    fake._renameat2(fd,m.STAGE_NAME,m.INSTALL_NAME,m.RENAME_EXCHANGE)
+                finally:
+                    os.close(fd)
+            return real_layout(*args,**kwargs)
+        m.root_layout=restore_ready_before_observation
+        try:
+            m.apply(boot,man,"9"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="atomic_exchange_succeeded_but_layout_reverted"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_needs_inspection"
+            assert rec["rollback_attempted"]=="false"
+            assert rec["rollback_green"]=="false"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert (m.STAGE_ROOT/m.BIN/m.BOOT).read_bytes()==new_boot
+            assert not m.PREDECESSOR_ROOT.exists()
+            assert calls["n"]==2
+        else:
+            raise AssertionError("successful exchange reverted to READY lost publication truth")
+        finally:
+            m.root_layout=real_layout
+            assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
 
     with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-retention-") as d:
         td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
@@ -318,6 +356,8 @@ print("interrupt_after_retention_reconciled=true")
 print("pending_sigint_after_exchange_reconciled=true")
 print("post_return_exchange_interrupt_rollback_exercised=true")
 print("pending_sigint_after_retention_reconciled=true")
+print("successful_exchange_reverted_layout_publication_aware=true")
+print("successful_exchange_reverted_layout_prepublication_cleanup=false")
 print("layout_inspection_failure_publication_aware=true")
 print("signal_mask_restored_after_layout_failure=true")
 print("inspection_failure_automatic_retry_false=true")
