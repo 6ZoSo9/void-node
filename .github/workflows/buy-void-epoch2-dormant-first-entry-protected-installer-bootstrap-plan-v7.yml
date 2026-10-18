@@ -53,9 +53,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           case "$EVENT_NAME" in
-            pull_request) base="d5e535aa83a94002dbe732e0da2d47feddf434bf" ;;
+            pull_request) base="1d2968fc4a6cfbb3edebbab25a9250826370480a" ;;
             push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="d5e535aa83a94002dbe732e0da2d47feddf434bf" ;;
+            workflow_dispatch) base="1d2968fc4a6cfbb3edebbab25a9250826370480a" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           test -n "$base"
