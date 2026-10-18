@@ -55,6 +55,7 @@ type EvidenceReport = Readonly<{
   selector_generation_verified: true;
   same_live_process_binding_verified: true;
   installed_live_process_receipt_exact_bytes_match: true;
+  receipt_ancestor_custody_revalidated: true;
   pre_post_live_generation_stable: true;
   final_post_validation_generation_revalidated: true;
   process_environment_read_performed: true;
@@ -114,21 +115,135 @@ function sameStat(a: fs.Stats, b: fs.Stats): boolean {
   );
 }
 
-function proveRootAncestors(file: string): void {
-  let cursor = path.dirname(file);
-  for (;;) {
-    const st = fs.lstatSync(cursor);
-    if (
-      !st.isDirectory() ||
-      st.isSymbolicLink() ||
-      st.uid !== 0 ||
-      (st.mode & 0o022) !== 0
-    ) {
-      fail("host_evidence_receipt_ancestor_untrusted");
+type HeldReceiptAncestor = Readonly<{
+  fd: number;
+  dev: number;
+  ino: number;
+  uid: number;
+  mode: number;
+}>;
+
+type ReceiptAncestorStat = Readonly<{
+  dev: number;
+  ino: number;
+  uid: number;
+  mode: number;
+  isDirectory(): boolean;
+}>;
+
+function receiptAncestorStillTrusted(
+  held: Pick<HeldReceiptAncestor, "dev" | "ino" | "uid" | "mode">,
+  current: ReceiptAncestorStat,
+): boolean {
+  return (
+    current.isDirectory() &&
+    current.dev === held.dev &&
+    current.ino === held.ino &&
+    current.uid === held.uid &&
+    (current.mode & 0o777) === held.mode &&
+    (current.mode & 0o022) === 0
+  );
+}
+
+function openRootOwnedReceiptAncestors(file: string): HeldReceiptAncestor[] {
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directory = fs.constants.O_DIRECTORY;
+  if (
+    process.platform !== "linux" ||
+    typeof noFollow !== "number" ||
+    noFollow <= 0 ||
+    typeof directory !== "number" ||
+    directory <= 0
+  ) {
+    fail("host_evidence_receipt_custody_platform_unavailable");
+  }
+
+  const heldDirectories: HeldReceiptAncestor[] = [];
+  try {
+    let cursor = path.dirname(file);
+    for (;;) {
+      const visible = fs.lstatSync(cursor);
+      if (
+        !visible.isDirectory() ||
+        visible.isSymbolicLink() ||
+        visible.uid !== 0 ||
+        (visible.mode & 0o022) !== 0
+      ) {
+        fail("host_evidence_receipt_ancestor_untrusted");
+      }
+      const fd = fs.openSync(
+        cursor,
+        fs.constants.O_RDONLY | directory | noFollow,
+      );
+      const held = fs.fstatSync(fd);
+      if (
+        !receiptAncestorStillTrusted(
+          {
+            dev: visible.dev,
+            ino: visible.ino,
+            uid: visible.uid,
+            mode: visible.mode & 0o777,
+          },
+          held,
+        ) ||
+        held.uid !== 0
+      ) {
+        fs.closeSync(fd);
+        fail("host_evidence_receipt_ancestor_identity_mismatch");
+      }
+      heldDirectories.push(
+        Object.freeze({
+          fd,
+          dev: held.dev,
+          ino: held.ino,
+          uid: held.uid,
+          mode: held.mode & 0o777,
+        }),
+      );
+      const next = path.dirname(cursor);
+      if (next === cursor) break;
+      cursor = next;
     }
-    const next = path.dirname(cursor);
-    if (next === cursor) break;
-    cursor = next;
+    return heldDirectories;
+  } catch (error) {
+    for (let index = heldDirectories.length - 1; index >= 0; index -= 1) {
+      fs.closeSync(heldDirectories[index]!.fd);
+    }
+    throw error;
+  }
+}
+
+function revalidateReceiptAncestors(
+  heldDirectories: readonly HeldReceiptAncestor[],
+): void {
+  for (const held of heldDirectories) {
+    const current = fs.fstatSync(held.fd);
+    if (!receiptAncestorStillTrusted(held, current)) {
+      fail("host_evidence_receipt_ancestor_changed_during_read");
+    }
+  }
+}
+
+export function testOnlyAssertReceiptAncestorStableV1(
+  held: Readonly<{ dev: number; ino: number; uid: number; mode: number }>,
+  current: Readonly<{
+    dev: number;
+    ino: number;
+    uid: number;
+    mode: number;
+    directory: boolean;
+  }>,
+): void {
+  if (
+    !receiptAncestorStillTrusted(held, {
+      dev: current.dev,
+      ino: current.ino,
+      uid: current.uid,
+      mode: current.mode,
+      isDirectory: () => current.directory,
+    })
+  ) {
+    fail("host_evidence_receipt_ancestor_changed_during_read");
   }
 }
 
@@ -137,31 +252,39 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
   if (!path.isAbsolute(target) || path.resolve(target) !== target) {
     fail("host_evidence_live_receipt_path_invalid");
   }
-  proveRootAncestors(target);
-  const before = fs.lstatSync(target);
-  if (
-    !before.isFile() ||
-    before.isSymbolicLink() ||
-    before.uid !== 0 ||
-    before.gid !== 0 ||
-    before.nlink !== 1 ||
-    (before.mode & 0o777) !== 0o444 ||
-    before.size < 2 ||
-    before.size > MAX_RECEIPT_BYTES ||
-    before.size !== expected.length
-  ) {
-    fail("host_evidence_live_receipt_custody_invalid");
-  }
 
-  const fd = fs.openSync(
-    target,
-    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
-  );
+  const heldDirectories = openRootOwnedReceiptAncestors(target);
+  let fd = -1;
   try {
+    const parent = heldDirectories[0];
+    if (!parent) fail("host_evidence_receipt_parent_missing");
+    const leafViaParent =
+      `/proc/self/fd/${parent.fd}/${path.basename(target)}`;
+
+    const before = fs.lstatSync(leafViaParent);
+    if (
+      !before.isFile() ||
+      before.isSymbolicLink() ||
+      before.uid !== 0 ||
+      before.gid !== 0 ||
+      before.nlink !== 1 ||
+      (before.mode & 0o777) !== 0o444 ||
+      before.size < 2 ||
+      before.size > MAX_RECEIPT_BYTES ||
+      before.size !== expected.length
+    ) {
+      fail("host_evidence_live_receipt_custody_invalid");
+    }
+
+    fd = fs.openSync(
+      leafViaParent,
+      fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+    );
     const opened = fs.fstatSync(fd);
     if (!sameStat(before, opened)) {
       fail("host_evidence_live_receipt_open_identity_mismatch");
     }
+
     const chunks: Buffer[] = [];
     let total = 0;
     for (;;) {
@@ -174,9 +297,10 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
       }
       chunks.push(chunk.subarray(0, count));
     }
+
     const observed = Buffer.concat(chunks, total);
     const after = fs.fstatSync(fd);
-    const visible = fs.lstatSync(target);
+    const visible = fs.lstatSync(leafViaParent);
     if (
       !sameStat(opened, after) ||
       !sameStat(after, visible) ||
@@ -184,11 +308,17 @@ function readInstalledLiveReceiptExact(expected: Buffer): void {
     ) {
       fail("host_evidence_live_receipt_changed_during_read");
     }
+
+    revalidateReceiptAncestors(heldDirectories);
+
     if (!observed.equals(expected)) {
       fail("host_evidence_live_receipt_not_current_process_generation");
     }
   } finally {
-    fs.closeSync(fd);
+    if (fd >= 0) fs.closeSync(fd);
+    for (let index = heldDirectories.length - 1; index >= 0; index -= 1) {
+      fs.closeSync(heldDirectories[index]!.fd);
+    }
   }
 }
 
@@ -355,6 +485,7 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
     selector_generation_verified: true,
     same_live_process_binding_verified: true,
     installed_live_process_receipt_exact_bytes_match: true,
+    receipt_ancestor_custody_revalidated: true,
     pre_post_live_generation_stable: true,
     final_post_validation_generation_revalidated: true,
     process_environment_read_performed: true,
@@ -412,6 +543,8 @@ function selfTest(): void {
   console.log("live_selector_collection_required=true");
   console.log("source_custody_requalification_required=true");
   console.log("installed_live_receipt_exact_byte_match_required=true");
+  console.log("receipt_ancestor_descriptor_custody_required=true");
+  console.log("receipt_ancestor_post_read_revalidation_required=true");
   console.log("pre_post_live_generation_stability_required=true");
   console.log("final_post_validation_generation_revalidation_required=true");
   console.log("three_selector_observations_required=true");

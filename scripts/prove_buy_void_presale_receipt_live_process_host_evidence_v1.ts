@@ -9,6 +9,7 @@ import {
   MARKER,
   PARENT_PLAN_ID,
   testOnlyAssertFinalLiveGenerationV1,
+  testOnlyAssertReceiptAncestorStableV1,
   testOnlyAssertSameLiveGenerationV1,
 } from "../ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.js";
 
@@ -79,6 +80,13 @@ for(const required of [
   "buildBuyVoidV2LiveProcessReceiptFromPlanV1",
   "readInstalledLiveReceiptExact(derivedFirstBytes)",
   "readInstalledLiveReceiptExact(derivedSecondBytes)",
+  "openRootOwnedReceiptAncestors(target)",
+  "fs.constants.O_DIRECTORY",
+  "fs.constants.O_NOFOLLOW",
+  "const leafViaParent =",
+  "revalidateReceiptAncestors(heldDirectories)",
+  "host_evidence_receipt_ancestor_changed_during_read",
+  "for (let index = heldDirectories.length - 1; index >= 0; index -= 1)",
   "const finalGeneration = await collectBuyVoidV2LiveProcessCollectionPlanV1({",
   "assertSameLiveGeneration(first, finalGeneration)",
   "assertSameLiveGeneration(second, finalGeneration)",
@@ -88,6 +96,7 @@ for(const required of [
   "authenticated_receipt_verified: true",
   "same_live_process_binding_verified: true",
   "installed_live_process_receipt_exact_bytes_match: true",
+  "receipt_ancestor_custody_revalidated: true",
   "pre_post_live_generation_stable: true",
   "final_post_validation_generation_revalidated: true",
   "selector_process_execution_performed: true",
@@ -200,6 +209,31 @@ try{
 assert.equal(finalPhaseDriftRejected,true,"final_phase_generation_drift_not_rejected");
 testOnlyAssertFinalLiveGenerationV1(base,{...base},{...base});
 
+const ancestor = Object.freeze({
+  dev: 11,
+  ino: 22,
+  uid: 0,
+  mode: 0o755,
+});
+testOnlyAssertReceiptAncestorStableV1(ancestor, {
+  ...ancestor,
+  directory: true,
+});
+for (const [label, current] of [
+  ["uid", {...ancestor, uid: 1000, directory: true}],
+  ["mode", {...ancestor, mode: 0o777, directory: true}],
+  ["inode", {...ancestor, ino: 23, directory: true}],
+  ["type", {...ancestor, directory: false}],
+] as const) {
+  let rejected=false;
+  try{
+    testOnlyAssertReceiptAncestorStableV1(ancestor,current);
+  }catch{
+    rejected=true;
+  }
+  assert.equal(rejected,true,"ancestor_drift_not_rejected:"+label);
+}
+
 console.log(MARKER+"_PROOF_GREEN");
 console.log("parent_host_evidence_plan_bound=true");
 console.log("four_reviewed_primitive_blobs_bound=true");
@@ -207,6 +241,9 @@ console.log("deployment_receipt_verified_against_live_source_identity=true");
 console.log("three_live_selector_collections_required=true");
 console.log("two_source_custody_requalifications_required=true");
 console.log("installed_receipt_exact_bytes_match_required=true");
+console.log("receipt_ancestor_descriptor_custody_required=true");
+console.log("receipt_ancestor_post_read_revalidation_required=true");
+console.log("receipt_ancestor_drift_rejected=true");
 console.log("pre_post_live_generation_drift_rejected=true");
 console.log("final_post_validation_generation_revalidated=true");
 console.log("restart_during_final_validation_rejected=true");

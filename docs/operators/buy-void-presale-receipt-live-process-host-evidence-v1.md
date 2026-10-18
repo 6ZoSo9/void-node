@@ -75,8 +75,12 @@ The collector performs this sequence:
 5. derive, in memory, the exact V2 live-process binding receipt for generation A;
 6. descriptor-read the fixed installed receipt
    `/var/lib/void-source-finality-v7/live-process-binding-v2.json`
-   with root-owned/non-writable ancestry, `O_RDONLY|O_NOFOLLOW`, root:root
-   `0444`, bounded size, and pre/post generation checks;
+   through a retained no-follow descriptor for its parent after every ancestor
+   directory has been opened with `O_DIRECTORY|O_NOFOLLOW`; require the
+   retained ancestor device/inode/uid/mode generations to remain root-owned,
+   non-group/world-writable and unchanged after the leaf read; also require the
+   root:root `0444` leaf to retain exact pre/post descriptor and visible
+   identity with bounded size;
 7. require installed receipt bytes to exactly equal the derived canonical
    receipt bytes;
 8. collect live generation B through a second independent selector session;
@@ -142,6 +146,7 @@ source_custody_requalified=true
 selector_generation_verified=true
 same_live_process_binding_verified=true
 installed_live_process_receipt_exact_bytes_match=true
+receipt_ancestor_custody_revalidated=true
 pre_post_live_generation_stable=true
 final_post_validation_generation_revalidated=true
 ```

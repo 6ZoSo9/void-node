@@ -89,9 +89,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 29fe60635437e5d21e1a47a54467ec876ca1e853
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 8f23e8a052cd61390af50bc7f1859f4dfc6b7de1
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = b4e9e6f735e16bcceff9671dcb5b17b2811d8b5f
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 3da00cd7af1a962e3beade49c8ecad712c3cff0d
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 4d5820cb187bba734ac565374423b06cbf420b59
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = a8d15fb3f64a959d9a865bc02947cf522acadbba
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -122,6 +122,9 @@ jobs:
             'three_live_selector_collections_required=true' \
             'two_source_custody_requalifications_required=true' \
             'installed_receipt_exact_bytes_match_required=true' \
+            'receipt_ancestor_descriptor_custody_required=true' \
+            'receipt_ancestor_post_read_revalidation_required=true' \
+            'receipt_ancestor_drift_rejected=true' \
             'pre_post_live_generation_drift_rejected=true' \
             'final_post_validation_generation_revalidated=true' \
             'restart_during_final_validation_rejected=true' \
@@ -149,6 +152,8 @@ jobs:
             'live_selector_collection_required=true' \
             'source_custody_requalification_required=true' \
             'installed_live_receipt_exact_byte_match_required=true' \
+            'receipt_ancestor_descriptor_custody_required=true' \
+            'receipt_ancestor_post_read_revalidation_required=true' \
             'pre_post_live_generation_stability_required=true' \
             'final_post_validation_generation_revalidation_required=true' \
             'three_selector_observations_required=true' \
