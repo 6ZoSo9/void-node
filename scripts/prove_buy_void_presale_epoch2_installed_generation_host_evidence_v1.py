@@ -447,7 +447,7 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
 
     def fixture_git(*args):
         return subprocess.run(
-            ["/usr/bin/git", "-C", str(checkout), *args],
+            ["/usr/bin/git", "-C", str(checkout), "-c", "safe.directory=" + str(checkout), *args],
             env=module.GIT_ENV, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             check=True, timeout=20,
