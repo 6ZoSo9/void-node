@@ -14,7 +14,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 TARGET_REL="ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
 TARGET=ROOT/TARGET_REL
-TARGET_BLOB="29b2eaa8af79b5df65a5ba3890a37dd25d295477"
+TARGET_BLOB="7d70527d8910881f9973479b89ceef78789ad100"
 
 def git_blob(raw:bytes)->str:
     return hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
@@ -202,6 +202,36 @@ try:
             fake._renameat2=real_rename
             assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
 
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-post-return-exchange-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"f"*40)
+        real_observed=m.observed_rename; calls={"n":0}
+        def interrupt_after_observation(*args,**kwargs):
+            layout,handoff_error=real_observed(*args,**kwargs)
+            calls["n"]+=1
+            if calls["n"]==1:
+                raise KeyboardInterrupt("synthetic_post_return_exchange_interrupt")
+            return layout,handoff_error
+        m.observed_rename=interrupt_after_observation
+        try:
+            m.apply(boot,man,"f"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="atomic_upgrade_rolled_back_after_failure"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_rolled_back_green"
+            assert rec["rollback_attempted"]=="true"
+            assert rec["rollback_green"]=="true"
+            assert rec["rollback_final_state_verified"]=="true"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert not m.STAGE_ROOT.exists()
+            assert not m.PREDECESSOR_ROOT.exists()
+            assert calls["n"]>=2
+        else:
+            raise AssertionError("post-return exchange interrupt did not rollback")
+        finally:
+            m.observed_rename=real_observed
+
     with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-retention-") as d:
         td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
         result=m.collect(boot,man,"d"*40)
@@ -286,6 +316,7 @@ print("rename_outcome_layout_reconciled=true")
 print("interrupt_after_exchange_reconciled=true")
 print("interrupt_after_retention_reconciled=true")
 print("pending_sigint_after_exchange_reconciled=true")
+print("post_return_exchange_interrupt_rollback_exercised=true")
 print("pending_sigint_after_retention_reconciled=true")
 print("layout_inspection_failure_publication_aware=true")
 print("signal_mask_restored_after_layout_failure=true")
