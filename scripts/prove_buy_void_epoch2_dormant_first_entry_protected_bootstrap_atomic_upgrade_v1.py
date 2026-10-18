@@ -124,11 +124,12 @@ def configure(td:Path):
     make_root(m.INSTALL_ROOT,old_boot,old_man)
     return boot,man,old_boot,new_boot,old_man,new_man
 
-saved=(m.load_outer,m.bindings,m.os.geteuid,m.INSTALL_PARENT,m.INSTALL_NAME,m.INSTALL_ROOT,m.STAGE_NAME,m.STAGE_ROOT,m.PREDECESSOR_NAME,m.PREDECESSOR_ROOT,m.OLD_BOOT,m.NEW_BOOT,m.OLD_MAN,m.NEW_MAN,m.rebind)
+saved=(m.load_outer,m.bindings,m.os.geteuid,m.os.fchown,m.INSTALL_PARENT,m.INSTALL_NAME,m.INSTALL_ROOT,m.STAGE_NAME,m.STAGE_ROOT,m.PREDECESSOR_NAME,m.PREDECESSOR_ROOT,m.OLD_BOOT,m.NEW_BOOT,m.OLD_MAN,m.NEW_MAN,m.rebind)
 try:
     m.load_outer=lambda: fake
     m.bindings=fake_bindings
     m.os.geteuid=lambda:0
+    m.os.fchown=lambda fd,uid,gid: None
     with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-success-") as d:
         td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
         result=m.collect(boot,man,"a"*40)
@@ -182,7 +183,7 @@ try:
             assert x.exists()
         finally: os.close(fd)
 finally:
-    (m.load_outer,m.bindings,m.os.geteuid,m.INSTALL_PARENT,m.INSTALL_NAME,m.INSTALL_ROOT,m.STAGE_NAME,m.STAGE_ROOT,m.PREDECESSOR_NAME,m.PREDECESSOR_ROOT,m.OLD_BOOT,m.NEW_BOOT,m.OLD_MAN,m.NEW_MAN,m.rebind)=saved
+    (m.load_outer,m.bindings,m.os.geteuid,m.os.fchown,m.INSTALL_PARENT,m.INSTALL_NAME,m.INSTALL_ROOT,m.STAGE_NAME,m.STAGE_ROOT,m.PREDECESSOR_NAME,m.PREDECESSOR_ROOT,m.OLD_BOOT,m.NEW_BOOT,m.OLD_MAN,m.NEW_MAN,m.rebind)=saved
 
 print("VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_BOOTSTRAP_ATOMIC_UPGRADE_V1_PROOF_GREEN")
 print("target_blob_bound=true")
