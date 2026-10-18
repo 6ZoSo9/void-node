@@ -126,11 +126,13 @@ A different valid claim for the same occupied authorization slot is a hard colli
 
 Both slot and claim records use the same bounded publication primitive:
 
-1. create a private random pending leaf in `.pending-v2` with `O_EXCL|O_NOFOLLOW`;
+1. create a private random pending leaf in `.pending-v2` with
+   `O_RDWR|O_EXCL|O_NOFOLLOW`; read/write access is retained only so the
+   service can verify the exact bytes through that same private descriptor;
 2. enforce mode/owner/link-count metadata;
 3. write exact canonical bytes;
 4. file `fsync`;
-5. exact descriptor-relative reread from byte offset zero;
+5. exact same-descriptor reread from byte offset zero;
 6. create-only hard-link pending → final;
 7. final-directory `fsync`;
 8. unlink the pending name;
