@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import {types as utilTypes} from "node:util";
 import {
   canonicalApollyonClaimContractJsonV1,
 } from "./apollyon-candidate-training-attempt-claim-contract-v1.mjs";
@@ -215,6 +216,9 @@ function preflightSlotRecord(input){
   if(!input||typeof input!=="object"||Array.isArray(input)){
     fail("apollyon_authorization_slot_origin_v1_slot_invalid");
   }
+  if(utilTypes.isProxy(input)){
+    fail("apollyon_authorization_slot_origin_v1_slot_invalid");
+  }
   const proto=Object.getPrototypeOf(input);
   if(proto!==Object.prototype&&proto!==null){
     fail("apollyon_authorization_slot_origin_v1_slot_invalid");
@@ -305,6 +309,9 @@ function preflightRequirements(input){
   if(!input||typeof input!=="object"||Array.isArray(input)){
     fail("apollyon_authorization_slot_origin_v1_requirements_invalid");
   }
+  if(utilTypes.isProxy(input)){
+    fail("apollyon_authorization_slot_origin_v1_requirements_invalid");
+  }
   const proto=Object.getPrototypeOf(input);
   if(proto!==Object.prototype&&proto!==null){
     fail("apollyon_authorization_slot_origin_v1_requirements_invalid");
@@ -340,6 +347,9 @@ function preflightRequirements(input){
 
 function preflightCandidate(input){
   if(!input||typeof input!=="object"||Array.isArray(input)){
+    fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
+  }
+  if(utilTypes.isProxy(input)){
     fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
   }
   const proto=Object.getPrototypeOf(input);
