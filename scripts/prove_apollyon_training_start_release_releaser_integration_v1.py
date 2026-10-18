@@ -14,7 +14,7 @@ SOURCE = ROOT / "ops/xiphos/apollyon_training_start_release_releaser_integration
 TRAINER = ROOT / "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
 PIPE_PAIR = ROOT / "ops/xiphos/apollyon_release_pipe_pair_generation_v1.c"
 
-SOURCE_BLOB = "36565023b8c181cad9a41711f29364dd09b51189"
+SOURCE_BLOB = "8d5146969160b875d048125118d6fba36762ec1e"
 TRAINER_BLOB = "265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36"
 PIPE_PAIR_BLOB = "93390eefd1e72e70af7206e9982c8eaa5e042149"
 
@@ -77,6 +77,9 @@ for required in (
     "own_fd_set_exact",
     "install_writer_continuity_filter",
     "X32_SYSCALL_BIT_V1",
+    "PTRACE_SEIZE",
+    "PTRACE_O_TRACEEXEC",
+    "PTRACE_DETACH",
     "__NR_clone",
     "__NR_dup",
     "__NR_fcntl",
@@ -199,6 +202,8 @@ with tempfile.TemporaryDirectory(
         "duplicate_releaser_writer_rejected=true",
         "direct_parent_same_pipe_actual_trainer_fixture=true",
         "single_thread_writer_continuity_fixture=true",
+        "trainer_exec_stop_synchronization=true",
+        "frame_budget_starts_after_releaser_proof=true",
         "protected_releaser_origin_proven=false",
         "writer_exclusivity_host_proven=false",
         "trainer_release_authorized=false",
@@ -265,6 +270,8 @@ print("integration_sha256=" + integration_sha256)
 print("actual_trainer_run_composed=true")
 print("direct_parent_same_pipe_fixture=true")
 print("single_threaded_releaser_fixture=true")
+print("trainer_exec_stop_synchronization=true")
+print("frame_budget_starts_after_releaser_proof=true")
 print("late_writer_escape_syscalls_blocked=true")
 print("extra_releaser_thread_rejected=true")
 print("child_retained_writer_rejected=true")
