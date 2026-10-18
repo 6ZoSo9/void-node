@@ -43,13 +43,12 @@ jobs:
 
       - name: Bind exact successor scope
         env:
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          STACK_PARENT=d3e7404791622541a4567ddd506f27caba60cfea
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test -n "$PR_BASE"
-          git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
           expected="$RUNNER_TEMP/expected.txt"
           actual="$RUNNER_TEMP/actual.txt"
@@ -59,7 +58,7 @@ jobs:
             'ops/security/buy-void-presale-current-source-enforcement-successor-v1.json' \
             'scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs' \
             | sort > "$expected"
-          git diff --no-renames --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
+          git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = 774db38ccb771f393b44d589a455144b99d36f6b
@@ -73,7 +72,7 @@ jobs:
 
           test "$(git rev-parse 05614762b1b4638e05e539fd7d20cbf670e1570b^{tree})" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
           git merge-base --is-ancestor d3e7404791622541a4567ddd506f27caba60cfea "$EXPECTED_HEAD"
-          git diff --check "$PR_BASE" "$EXPECTED_HEAD"
+          git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
 
