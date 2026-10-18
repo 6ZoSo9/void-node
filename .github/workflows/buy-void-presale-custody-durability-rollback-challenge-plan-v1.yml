@@ -1,0 +1,129 @@
+name: Buy VOID presale custody durability rollback challenge plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v1.yml"
+      - "docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v1.md"
+      - "ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json"
+      - "scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v1.py"
+      - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
+      - "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
+      - "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts"
+      - "scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts"
+      - "docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md"
+      - ".github/workflows/buy-void-presale-allocation-custody-host-evidence-v1.yml"
+      - "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-live-durability-rollback-contract-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v1.yml"
+      - "docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v1.md"
+      - "ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json"
+      - "scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v1.py"
+      - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
+      - "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
+      - "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts"
+      - "scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts"
+      - "docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md"
+      - ".github/workflows/buy-void-presale-allocation-custody-host-evidence-v1.yml"
+      - "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-live-durability-rollback-contract-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact challenge-plan generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v1.yml' \
+            'docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v1.md' \
+            'ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json' \
+            'scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json)" = bf2cd9350da1cbd3670f77d6cd4fab8532846b82
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v1.py)" = 1efe1d29c83d5bdb915abdb9a68fe3d51a10dd06
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v1.md)" = 822b867de77539bec3cb75c3cb320e5f73e5c99e
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = 174d536807f03fd7b6ff44820d4e378c7055150e
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 216928e1810cb25ce1c331e2edfece629fff76cf
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = f2566d76972262db35f60d049f79ae6f2d34f47e
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = e346269a7cb74a849bd24ec88ed8d7bfee060be7
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-allocation-custody-host-evidence-v1.yml)" = 1c31cc09d750d14b0ae0fdef142d46f39b881f89
+
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs)" = 7ced5fb56a22cd546aab30c466021b01b1c6a84d
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md)" = 16a8a755888abd7b9ad4f0377468d6a403f80a70
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-live-durability-rollback-contract-v1.yml)" = b3426f40577ff1ca1bbab8ca46232ae1ca0a8148
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove challenge plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/custody-challenge-plan-v1.log"
+          python3 -I -B scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v1.py | tee "$out"
+
+          markers=(
+            'VOID_BUY_VOID_PRESALE_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V1_PROOF_GREEN'
+            'plan_id=voidbuycustodychallengeplan1_d9a72732d690a09731e7d4d65f4024156acf4813e6550bf72e5f03d5b383d4d0'
+            'accepted_presale_source_bound=true'
+            'read_only_prerequisite_collector_bound=true'
+            'durability_contract_bound=true'
+            'required_future_evidence_count=20'
+            'non_customer_canary_domain_required=true'
+            'allocation_ledger_unchanged_required=true'
+            'customer_request_state_unchanged_required=true'
+            'challenge_plan_only=true'
+            'host_execution_authorized=false'
+            'storage_mutation_authorized=false'
+            'rollback_test_authorized=false'
+            'payment_acceptance_authorized=false'
+            'public_presale_activation_authorized=false'
+            'funds_movement=false'
+            'next_gate=SEPARATELY_AUTHORIZE_NONCUSTOMER_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_V1'
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
