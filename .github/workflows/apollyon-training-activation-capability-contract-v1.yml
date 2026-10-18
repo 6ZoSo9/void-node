@@ -7,7 +7,6 @@ on:
       - "scripts/prove_apollyon_training_activation_capability_contract_v1.mjs"
       - "docs/security/apollyon-training-activation-capability-contract-v1.md"
       - ".github/workflows/apollyon-training-activation-capability-contract-v1.yml"
-      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
       - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py"
       - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
       - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
@@ -19,7 +18,6 @@ on:
       - "scripts/prove_apollyon_training_activation_capability_contract_v1.mjs"
       - "docs/security/apollyon-training-activation-capability-contract-v1.md"
       - ".github/workflows/apollyon-training-activation-capability-contract-v1.yml"
-      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
       - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py"
       - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
       - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
@@ -53,14 +51,18 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
-            ac286734a0b5ba476ec67713495a77b28f5b1c1d
+            094419cb5708ade5768f2b68c86541949f183d4f
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
-            11a95ad63a6f6e3ad25d3f2984bbbffd1c5d3ba4
+            3ff8f544627a353f629a6728863d1420132804f0
           test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
-            3ec6022f68249e53d2c1ecfa7ffcf599ece4fc39
+            f70351803ec89227fd345f6e1a423542402eba87
 
-          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-contract-v2.mjs)" = \
-            bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc
+          external_consumption_head=fdf47e77cd12eee38efe741edb02fa2fd39135e2
+          external_consumption_blob=60987b860fb7159d88f4f601b76878e7d8ccca92
+          test "$(git cat-file -t "$external_consumption_head")" = commit
+          test "$(git rev-parse "$external_consumption_head:tools/apollyon-training-start-consumption-contract-v1.mjs")" = \
+            "$external_consumption_blob"
+
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
             5f67bb3ddcc7f130db4b90ad73f5450b109dbea4
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py)" = \
@@ -107,13 +109,18 @@ jobs:
           grep -Fx 'systemd_caller_identity_authoritative=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'systemd_credential_transport_candidate_only=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'systemd_credential_runtime_proven=false' /tmp/apollyon-activation-capability-proof.txt
-          grep -Fx 'protected_one_time_consumption_required=true' /tmp/apollyon-activation-capability-proof.txt
-          grep -Fx 'consumption_generation_binding_required=true' /tmp/apollyon-activation-capability-proof.txt
-          grep -Fx 'consumption_systemd_invocation_id_bound=true' /tmp/apollyon-activation-capability-proof.txt
-          grep -Fx 'consumption_pid_start_ticks_bound=true' /tmp/apollyon-activation-capability-proof.txt
-          grep -Fx 'consumption_preentry_identity_bound=true' /tmp/apollyon-activation-capability-proof.txt
-          grep -Fx 'replay_authorized=false' /tmp/apollyon-activation-capability-proof.txt
-          grep -Fx 'training_start_admission_after_consumption=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'existing_training_start_consumption_contract_reused=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'second_consumption_namespace_defined=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'activation_capability_issuance_performed=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'protected_capability_store_required=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'create_once_key_is_training_start_consumption_slot=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'external_consumption_validation_performed=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'activation_secret_possession_proven=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'activation_generation_bound=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'trainer_generation_external_validation_performed=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'training_start_consumption_record_origin_proven=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'training_start_consumption_performed=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'training_start_admission=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'training_release_authorized=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'training_execution_authorized=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'service_action=false' /tmp/apollyon-activation-capability-proof.txt
