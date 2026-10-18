@@ -129,6 +129,10 @@ The focused proof:
 - injects a post-exchange binding failure and requires a green automatic rollback;
 - delivers a real pending SIGINT with `os.kill` immediately after the first exchange
   succeeds in the kernel, requiring layout capture before signal unmask and green rollback;
+- injects an interruption after `observed_rename()` has returned the proven
+  `LAYOUT_EXCHANGED` result but before the caller can assign its publication Boolean,
+  requiring the fallback observer to infer publication from layout and perform the same
+  green automatic rollback;
 - delivers a real pending SIGINT immediately after predecessor retention succeeds,
   requiring the retained layout to select the correct rollback path;
 - forces post-rename layout inspection to remain unavailable after a successful exchange
