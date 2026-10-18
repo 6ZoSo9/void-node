@@ -87,6 +87,7 @@ const CAPABILITY_KEYS=Object.freeze([
   "activation_capability_issuance_performed",
   "activation_secret_sha256",
   "authorization_id",
+  "authorization_slot_external_validation_required",
   "authorization_slot_id",
   "authorization_slot_record_id",
   "capability_replay_authorized",
@@ -100,6 +101,7 @@ const CAPABILITY_KEYS=Object.freeze([
   "expected_entrypoint_sha256",
   "expected_preentry_sha256",
   "expected_unit_git_blob_sha1",
+  "external_training_start_consumption_validation_performed",
   "marker",
   "next_gate",
   "protected_capability_store_required",
@@ -117,6 +119,7 @@ const CAPABILITY_KEYS=Object.freeze([
   "training_start_consumption_contract_head",
   "training_start_consumption_contract_in_parent_lineage",
   "training_start_consumption_integration_required",
+  "training_start_consumption_slot_external_validation_required",
   "training_start_consumption_slot_id",
   "version",
 ]);
