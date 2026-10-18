@@ -100,11 +100,11 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
-            b1f87514956f944aa85b8d483963aa93663643b8
+            2ff81973b10c176523b0bf172a14fe1495a83986
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
-            ad6857d310fd1f4e25d7f379db9bae9f55c1f9f2
+            4d31e52fe32a7ca9567bf7c2f0f8e6228caf9bea
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = \
-            ec973c47dcb2ff6452b5c22a5d95fad4e4ffd704
+            fc7cf98be5b907729f95021d16139e455413d787
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_v1.py)" = \
             598c195252a17b7e4839763387c1970ea13c3b45
 
@@ -154,6 +154,7 @@ jobs:
             'readdressed_source_drift_rejected=true' \
             'readdressed_toolchain_drift_rejected=true' \
             'readdressed_binary_drift_rejected=true' \
+            'readdressed_binary_extra_key_rejected=true' \
             'readdressed_authority_overclaim_rejected=true' \
             'readdressed_next_gate_drift_rejected=true' \
             'forged_non_elf_bytes_rejected=true' \
