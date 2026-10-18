@@ -15,7 +15,7 @@ WORKFLOW_REL = (
     "buy-void-epoch2-dormant-first-entry-protected-bootstrap-"
     "repaired-installed-qualification-v1.yml"
 )
-EXACT_PARENT = "4658a7d6650225d0bfb66e7868cef5646245d6c7"
+EXACT_PARENT = "441f746d2ee8146b2ad6a62f68639f4451354c84"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
@@ -27,31 +27,31 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-TARGET_BLOB = "04c7ca5f0d96dcb60faeae8cf4d712435ad65466"
+TARGET_BLOB = "d9650aff7af2cb9fc9a8d95a888d8dd52aef1970"
 
 UPGRADER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_v1.py"
 )
-UPGRADER_BLOB = "7d70527d8910881f9973479b89ceef78789ad100"
+UPGRADER_BLOB = "d4b298dea73a4970987bf22435be3e76a5e7a02d"
 UPGRADER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_v1.py"
 )
-UPGRADER_PROOF_BLOB = "9e0b997230943b1ad0a0285e74e82faf049d7d31"
+UPGRADER_PROOF_BLOB = "74245f061432efd5383123c111ab481befbe90b5"
 
 PLAN_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_plan_v1.py"
 )
-PLAN_BLOB = "ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78"
+PLAN_BLOB = "9ba10aac284da9e44db0ad258348425cfa3c2e2c"
 PLAN_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_plan_v1.py"
 )
-PLAN_PROOF_BLOB = "e695ceed29f61f08f480d4dafaad7cc6635adf81"
+PLAN_PROOF_BLOB = "31d501e290513c3ef2629681574fc0e51f7fe50e"
 
 OLD_LOCK = (
     "voidbuye2dormantbootstraplock3_"
