@@ -161,7 +161,7 @@ def cleanup(m,opt_fd,expected):
                 bfd=os.open(BIN,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW,dir_fd=fd)
                 try:
                     bst=os.fstat(bfd)
-                    if not stat.S_ISDIR(bst.st_mode) or bst.st_uid!=0 or bst.st_gid!=0 or stat.S_IMODE(bst.st_mode)!=0o755: return False
+                    if not stat.S_ISDIR(bst.st_mode) or (bst.st_uid,bst.st_gid)!=(expected.st_uid,expected.st_gid) or stat.S_IMODE(bst.st_mode)!=0o755: return False
                     ben=sorted(os.listdir(bfd))
                     if not set(ben).issubset({BOOT}): return False
                     if BOOT in ben: os.unlink(BOOT,dir_fd=bfd)
