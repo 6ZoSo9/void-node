@@ -8,6 +8,9 @@ on:
       - "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
       - "scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
       - ".github/workflows/buy-void-current-presale-source-tuple-v3.yml"
+      - "README.md"
+      - "docs/architecture/buy-void-dual-rail-server-policy-v1.md"
+      - "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
       - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
@@ -21,6 +24,9 @@ on:
       - "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
       - "scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
       - ".github/workflows/buy-void-current-presale-source-tuple-v3.yml"
+      - "README.md"
+      - "docs/architecture/buy-void-dual-rail-server-policy-v1.md"
+      - "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
       - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
@@ -66,10 +72,13 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 5b41f53e00ba070edc35dcbbf179d8b537832f09
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-candidate-v2.md)" = 5adceb7394770bacb79bac108b6618c5bd0e0255
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 668eab35bca38b8ed90b1e11f75647f80b677436
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-candidate-v2.md)" = e0862b321d7af50ea1ca06d9c4eb45a462b42446
 
           test "$(git rev-parse HEAD:.github/workflows/buy-void-current-presale-source-tuple-v3.yml)" = e7d73fb5cea73164909c99c5d8585acd48822155
+          test "$(git rev-parse HEAD:README.md)" = 6b52c555eb7d93b9ea6652d50aa946f6a319d7de
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-dual-rail-server-policy-v1.md)" = a8c2300f7f2b1296790bf496e02a997f7126310f
+          test "$(git rev-parse HEAD:docs/operators/wc-void-coupled-launch-regeneration-census-v2.md)" = 0a0479fe6f22d3b09458749a31a63f90a510ce5a
           test "$(git rev-parse HEAD:.github/workflows/buy-void-runtime-integration-v1.yml)" = 780e4ecaf826cf1cc620d67a3c733470db48d714
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = 589845615654da8b688764377b34296267ac0063
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
@@ -94,6 +103,13 @@ jobs:
             'later_main_changes_require_separate_review=true' \
             'current_presale_tuple_v3_bound=true' \
             'current_presale_tuple_cross_node_reexecution_required=true' \
+            'presale_payment_asset=native_usdc' \
+            'presale_source_chains=ethereum_mainnet_1,base_mainnet_8453' \
+            'presale_pool_void=10000000' \
+            'presale_rate_void_per_usdc=2' \
+            'wc_void_launch_coupled_to_presale=true' \
+            'btc_void_post_presale=true' \
+            'legacy_btc_coupled_field_payment_asset_authority=false' \
             'historical_enforcement_v2_accepted=true' \
             'current_source_enforcement_successor_required=true' \
             'epoch2_repaired_v6_bootstrap_bound=true' \

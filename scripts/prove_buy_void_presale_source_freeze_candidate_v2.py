@@ -32,6 +32,13 @@ PACKAGE_BLOB = "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f"
 PACKAGE_LOCK_REL = "package-lock.json"
 PACKAGE_LOCK_BLOB = "15b5c82ea36f13079a2f9e8863722f654eb3f201"
 
+README_REL = "README.md"
+README_BLOB = "6b52c555eb7d93b9ea6652d50aa946f6a319d7de"
+DUAL_RAIL_POLICY_REL = "docs/architecture/buy-void-dual-rail-server-policy-v1.md"
+DUAL_RAIL_POLICY_BLOB = "a8c2300f7f2b1296790bf496e02a997f7126310f"
+WC_COUPLED_REL = "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
+WC_COUPLED_BLOB = "0a0479fe6f22d3b09458749a31a63f90a510ce5a"
+
 ENFORCEMENT_REL = "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
 ENFORCEMENT_BLOB = "589845615654da8b688764377b34296267ac0063"
 ENFORCEMENT_SET = "05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852"
@@ -223,6 +230,7 @@ def verify_tuple(manifest: dict) -> None:
         "prove_buy_void_operator_verified_allocation_dispatch_v5.ts",
         "prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts",
         "VOID_BUY_VOID_CURRENT_PRESALE_SOURCE_TUPLE_V3_CROSS_NODE_GREEN",
+        "both_native_usdc_rails_admitted=2",
         "production_gate_ready=false",
         "presale_activation=false",
         "funds_moved=false",
@@ -241,6 +249,39 @@ def verify_tuple(manifest: dict) -> None:
         "production_gate_ready": False,
     }
     require(binding == expected, "manifest_tuple_binding_invalid")
+
+
+def verify_payment_policy() -> None:
+    readme = read_pinned(README_REL, README_BLOB).decode("utf-8", "strict")
+    dual_rail = read_pinned(DUAL_RAIL_POLICY_REL, DUAL_RAIL_POLICY_BLOB).decode(
+        "utf-8", "strict"
+    )
+    wc_coupled = read_pinned(WC_COUPLED_REL, WC_COUPLED_BLOB).decode(
+        "utf-8", "strict"
+    )
+
+    for required in (
+        "Public presale intake and production WC/VOID market activation are coupled and remain closed.",
+        "The Buy VOID payment policy is source-allowlisted to native USDC on Ethereum mainnet (chain ID `1`) and Base mainnet (chain ID `8453`) only.",
+        "BTC/VOID remains post-presale and separately launch-gated.",
+    ):
+        require(required in readme, "readme_payment_policy_missing:" + required)
+
+    for required in (
+        "**Base mainnet**, EVM chain ID `8453`;",
+        "**Ethereum mainnet**, EVM chain ID `1`.",
+        "finite presale maximum: **10,000,000 VOID**;",
+        "fixed rate: **2 VOID per 1 USDC**, equivalent to `$0.50` per VOID;",
+        "accepted source asset: USDC;",
+    ):
+        require(required in dual_rail, "dual_rail_policy_missing:" + required)
+
+    for required in (
+        "canonical presale pool: 10,000,000 VOID;",
+        "canonical rate: 2 VOID per 1 USDC;",
+        "simultaneous presale/WC-VOID launch ordering.",
+    ):
+        require(required in wc_coupled, "wc_coupled_policy_missing:" + required)
 
 
 def verify_historical_enforcement(manifest: dict) -> None:
@@ -333,9 +374,12 @@ def verify_release_gate(manifest: dict) -> None:
         gate.get("current_enforcement_successor_required") is True,
         "release_enforcement_successor_missing",
     )
+    # Legacy compatibility key only. Frozen payment-asset authority is proven
+    # independently by verify_payment_policy(); this field must not be used as
+    # an allowlist for BTC presale acceptance.
     require(
         gate.get("btc_void_presale_and_wc_void_pool_coupled") is True,
-        "coupled_launch_missing",
+        "legacy_coupled_launch_compatibility_marker_missing",
     )
     for key in (
         "host_install_qualified",
@@ -356,6 +400,7 @@ def verify() -> None:
     verify_scope()
     manifest = verify_manifest()
     verify_tuple(manifest)
+    verify_payment_policy()
     verify_historical_enforcement(manifest)
     verify_epoch2(manifest)
     verify_release_gate(manifest)
@@ -373,6 +418,13 @@ def main() -> int:
     print("later_main_changes_require_separate_review=true")
     print("current_presale_tuple_v3_bound=true")
     print("current_presale_tuple_cross_node_reexecution_required=true")
+    print("presale_payment_asset=native_usdc")
+    print("presale_source_chains=ethereum_mainnet_1,base_mainnet_8453")
+    print("presale_pool_void=10000000")
+    print("presale_rate_void_per_usdc=2")
+    print("wc_void_launch_coupled_to_presale=true")
+    print("btc_void_post_presale=true")
+    print("legacy_btc_coupled_field_payment_asset_authority=false")
     print("historical_enforcement_v2_accepted=true")
     print("current_source_enforcement_successor_required=true")
     print("epoch2_repaired_v6_bootstrap_bound=true")

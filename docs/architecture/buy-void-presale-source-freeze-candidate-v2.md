@@ -109,9 +109,30 @@ funds authority remain false.
 
 ## Coupled launch boundary
 
-The freeze retains the project launch rule:
+The frozen source binds the current payment and launch policy rather than
+inferring payment assets from a legacy field name:
 
-`BTC/VOID presale + WC/VOID pool are one coupled launch gate.`
+- Buy VOID presale payment is source-allowlisted to native USDC on Ethereum
+  mainnet (chain ID `1`) and Base mainnet (chain ID `8453`) only;
+- the fixed presale pool is `10,000,000 VOID` at `2 VOID per 1 USDC`
+  (`$0.50/VOID`);
+- public presale intake and production WC/VOID market activation are one coupled
+  opening and remain closed; and
+- BTC/VOID is post-presale and separately launch-gated.
+
+The manifest key `btc_void_presale_and_wc_void_pool_coupled` is retained
+byte-for-byte only as a legacy compatibility marker. It is **not** a payment
+asset allowlist and must not be interpreted as BTC presale authority.
+
+Frozen policy evidence is pinned to:
+
+- `README.md` blob `6b52c555eb7d93b9ea6652d50aa946f6a319d7de`;
+- `docs/architecture/buy-void-dual-rail-server-policy-v1.md` blob
+  `a8c2300f7f2b1296790bf496e02a997f7126310f`;
+- `docs/operators/wc-void-coupled-launch-regeneration-census-v2.md` blob
+  `0a0479fe6f22d3b09458749a31a63f90a510ce5a`; and
+- current presale tuple V3 workflow blob
+  `e7d73fb5cea73164909c99c5d8585acd48822155`.
 
 V2 does not claim a fixed WC-to-VOID conversion ratio.
 
