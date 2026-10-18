@@ -1,196 +1,194 @@
 # Apollyon training activation capability contract v1
 
-Marker: `VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1`
+Marker: VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1
 
-Status: **source/test/CI contract only; no training-service activation, installation, protected consumption store, release, or training execution**.
+Status: source/test/CI contract only; no capability issuance, protected capability store, service activation, training-start consumption, release, or training execution exists here.
 
 ## Purpose
 
-Accepted #3480 leaves the supported Apollyon generation with no reviewed
-training-service activator. That retirement is intentional: a userspace caller
-cannot prove it created a systemd service generation merely because its own
-`systemctl start` returned success. A direct or otherwise non-review-aware start
-can win the interval between a dormancy observation and the reviewed caller's
-start.
+Accepted #3480 leaves the supported Apollyon generation with no reviewed training-service activator. That retirement is intentional: a userspace caller cannot prove it created a systemd generation merely because its own start request returned success.
 
-This gate defines the authority object a future activation implementation must
-consume. It does **not** restore any activation path.
+A separate accepted Draft stack already defines the one-time training-start consumption authority:
 
-Authority is derived from possession and protected one-time consumption of an
-exact activation capability, not from the identity or timing of the caller that
-asks PID 1 to start the unit.
+- PR #3333 exact head: fdf47e77cd12eee38efe741edb02fa2fd39135e2
+- exact consumption-contract source blob: 60987b860fb7159d88f4f601b76878e7d8ccca92
 
-## Exact parent and reviewed dependencies
+That contract owns the authorization-wide apollyon_training_start_slot_v1 namespace, the content-addressed blocked pre-training generation, create-once protected consumption, replay/collision/lost-ACK behavior, the exact apollyon_training_start_consumption_v1 record, and the release/no-retry boundary.
 
-Parent #3480:
+This gate does not define a second consumption namespace or consumption record.
 
-`1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae`
+Instead, it defines the capability that may eventually permit one blocked service generation to exist so that the already-reviewed #3333 consumption boundary can bind and consume that generation.
 
-The contract pins:
+## Stack boundary
 
-- durable claim-store contract blob:
-  `bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc`;
-- retired V2 qualifier blob:
-  `5f67bb3ddcc7f130db4b90ad73f5450b109dbea4`;
-- retired fixed-launcher source blob:
-  `352bd36f2b07091140b990de4170f708eb11fee6`;
-- training unit blob:
-  `62fbabe1cf7ae0d940f5d96e19b06282f841267b`;
-- training pre-entry source blob:
-  `9503d19c8bc0b4f073ba117f6a547d339b7623d0`;
-- installed pre-entry SHA-256:
-  `6e2885ceddf83bc9bf4636768ce6f046ab357268b0959cfa71bcbb766909cb47`;
-- installed entrypoint bytes: `17384`;
-- installed entrypoint SHA-256:
-  `7a1ec91b612998824e37aa0f8522a94d7ceffe9f4f21e0702fe0a0d5ca5bdd9a`.
+Current parent:
 
-## Capability
+#3480@1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae
 
-The future issuer generates a fresh 32-byte random secret. The raw secret is
-**not** part of the content-addressed receipt. The receipt contains only
-`activation_secret_sha256`.
+The #3333 source is not present in that parent lineage. This contract therefore records:
 
-The capability binds:
+    training_start_consumption_contract_in_parent_lineage=false
+    training_start_consumption_integration_required=true
+    external_training_start_consumption_validation_performed=false
 
-- exact authorization ID;
-- exact custody generation ID;
-- exact durable claim-record ID and SHA-256;
-- exact store contract, policy, and generation;
-- exact terminal receipt ID;
-- exact reviewed unit/pre-entry/entrypoint identities;
-- one fixed credential name:
-  `apollyon-training-activation-v1`;
-- `direct_systemd_start_without_capability_authorized=false`;
-- `systemd_caller_identity_authoritative=false`;
-- `capability_replay_authorized=false`;
-- `raw_capability_export_authorized=false`;
-- `training_start_consumption_required=true`;
-- `training_execution_authorized=false`.
+A later integration gate must bring the exact #3333 contract into the active stack or otherwise execute that exact reviewed source before any capability may be issued.
 
-The capability ID is the SHA-256 content address of the canonical capability
-material:
+The current contract must not pretend that merely copying #3333 identifiers into a caller-supplied object proves their protected origin.
 
-`apollyon_training_activation_capability_v1:<64 lowercase hex>`.
+## Reviewed local dependencies
 
-A raw capability is bearer-sensitive material. Logging, returning, or embedding
-the raw 32-byte secret in a public receipt is forbidden.
+The capability contract pins the current retired-activation boundary:
+
+- retired V2 qualifier blob: 5f67bb3ddcc7f130db4b90ad73f5450b109dbea4
+- retired fixed-launcher source blob: 352bd36f2b07091140b990de4170f708eb11fee6
+- training unit blob: 62fbabe1cf7ae0d940f5d96e19b06282f841267b
+- training pre-entry source blob: 9503d19c8bc0b4f073ba117f6a547d339b7623d0
+- installed pre-entry SHA-256: 6e2885ceddf83bc9bf4636768ce6f046ab357268b0959cfa71bcbb766909cb47
+- installed entrypoint bytes: 17384
+- installed entrypoint SHA-256: 7a1ec91b612998824e37aa0f8522a94d7ceffe9f4f21e0702fe0a0d5ca5bdd9a
+
+No unit or binary is changed by this gate.
+
+## Capability candidate
+
+A future protected issuer generates a fresh 32-byte secret. The raw secret is bearer-sensitive and must not appear in the content-addressed candidate.
+
+The candidate carries only activation_secret_sha256 and binds:
+
+- authorization ID
+- exact authorization-slot ID
+- exact authorization-slot-record ID
+- the existing #3333 training-start-consumption slot ID
+- custody generation
+- durable claim record ID/hash
+- store contract/policy/generation
+- terminal receipt
+- exact reviewed unit/pre-entry/entrypoint identities
+- fixed future credential name apollyon-training-activation-v1
+- exact #3333 source head/blob
+
+The candidate requires:
+
+    authorization_slot_external_validation_required=true
+    training_start_consumption_slot_external_validation_required=true
+    external_training_start_consumption_validation_performed=false
+    protected_capability_store_required=true
+    create_once_key_must_equal_training_start_consumption_slot_id=true
+    activation_capability_issuance_performed=false
+    direct_systemd_start_without_capability_authorized=false
+    systemd_caller_identity_authoritative=false
+    capability_replay_authorized=false
+    raw_capability_export_authorized=false
+    training_execution_authorized=false
+
+The capability candidate ID is content-addressed as apollyon_training_activation_capability_v1:<64 lowercase hex>.
+
+The future issuance store must use the already-reviewed #3333 training_start_consumption_slot_id as its create-once namespace key. Two different candidate secrets for one authorization-wide slot must collide at issuance rather than create two activation namespaces.
+
+This source contract does not implement that store and therefore does not claim issuance occurred.
+
+## Why this is not a second consumption ledger
+
+The activation capability store has one narrow purpose: prevent multiple activation bearer secrets from being issued for the same existing #3333 authorization-wide start slot.
+
+It does not replace #3333 protected training-start consumption.
+
+After a blocked generation exists:
+
+1. the exact #3333 contract must validate the authorization slot and authorization-slot record
+2. the exact #3333 contract must derive/revalidate the same training_start_consumption_slot_id
+3. protected #3333 consumption must bind the exact blocked trainer generation
+4. create-once consumption/recovery/collision rules remain entirely #3333 authority
+
+This gate exports no apollyon_training_activation_consumption_v1 identity and defines no alternate consumption-record schema.
+
+## Candidate generation binding
+
+The contract also defines a non-authoritative generation-binding candidate that carries the evidence a later implementation must prove:
+
+- activation capability ID
+- activation-secret SHA-256
+- boot-ID SHA-256
+- systemd InvocationID
+- PID
+- process start-time ticks
+- non-root training UID/GID
+- source-identity SHA-256
+- exact pre-entry SHA-256
+- exact #3333 apollyon_pretraining_generation_v1 identifier
+- exact #3333 training-start-consumption slot ID
+
+Because this source-only module neither possesses the raw secret nor observes a live service generation, it requires:
+
+    activation_generation_binding_required=true
+    activation_generation_bound=false
+    activation_secret_possession_proof_required=true
+    activation_secret_possession_proven=false
+    systemd_invocation_generation_observation_performed=false
+    trainer_generation_external_contract_validation_required=true
+    trainer_generation_external_contract_validation_performed=false
+    training_start_consumption_record_required=true
+    training_start_consumption_record_origin_proven=false
+    training_start_consumption_performed=false
+    training_start_admission=false
+    training_release_authorized=false
+    training_execution_authorized=false
+
+The binding candidate ID is content-addressed as apollyon_training_activation_binding_v1:<64 lowercase hex>.
+
+It is evidence-shape only, not activation or admission authority.
 
 ## Candidate transport: systemd credentials
 
-A future implementation may use systemd's per-service credential mechanism as
-the transport from protected root custody into the non-root service generation.
+Systemd per-service credentials remain a candidate future transport from protected root custody into the non-root service generation.
 
-This gate records only:
+This gate deliberately records:
 
-`systemd_credential_transport_selected_as_candidate=true`
+    systemd_credential_transport_selected_as_candidate=true
+    systemd_credential_runtime_proven=false
 
-and deliberately records:
+No LoadCredential or related unit change is made here. No claim is made that the currently installed Xiphos systemd version, service unit, pre-entry, credential path, ownership, lifetime, or restart behavior satisfies this contract.
 
-`systemd_credential_runtime_proven=false`.
-
-No `LoadCredential=` or related unit change is made here. No claim is made that
-the currently installed Xiphos systemd version, unit, pre-entry, mount namespace,
-credential path, ownership, lifetime, zeroization, or restart behavior satisfies
-this contract.
-
-Those properties require a separate source gate and then a separate live Xiphos
-qualification.
-
-## One-time consumption
-
-A structurally valid capability is still not sufficient to authorize training.
-The future protected consumption boundary must atomically consume it exactly
-once and bind that consumption to the exact service process generation.
-
-The consumption receipt binds:
-
-- activation capability ID;
-- activation secret SHA-256;
-- durable claim record ID;
-- store generation ID;
-- boot-ID SHA-256;
-- exact systemd invocation ID;
-- exact training PID;
-- exact process start-time ticks;
-- exact observed pre-entry SHA-256;
-- `activation_generation_bound=true`;
-- `consumed_once=true`;
-- `replay_authorized=false`;
-- `protected_consumption_store_required=true`;
-- `caller_supplied_consumption_receipt_sufficient=false`;
-- `training_start_consumption_performed=true`;
-- `training_start_admission=true`.
-
-The consumption ID is separately content-addressed:
-
-`apollyon_training_activation_consumption_v1:<64 lowercase hex>`.
-
-The future protected store—not a caller-supplied JSON object—must prove that the
-same capability cannot be consumed for a second service generation.
+Those properties require separate source and live-host qualification.
 
 ## Direct/manual systemd starts
 
-The identity of the systemd caller is deliberately non-authoritative.
+Systemd caller identity is deliberately non-authoritative.
 
-A direct/manual start that lacks a valid capability cannot satisfy this contract.
-A direct/manual start that happens while a capability exists also does not gain
-authority from being first. Only a service generation that proves possession of
-the exact secret **and** obtains the protected one-time consumption bound to its
-InvocationID/PID/start-ticks/pre-entry generation can proceed to the next gate.
+A direct/manual start with no valid protected capability cannot satisfy the future activation contract. Being the first caller to reach PID 1 grants no authority.
 
-This makes ownership a property of the consumed capability and process
-generation rather than a race over which caller reached `systemctl start`
-first.
+A future service generation must instead prove raw-secret possession against the single protected capability issued for the existing #3333 slot, and that exact generation must then be bound into the existing #3333 pre-training generation and protected consumption flow.
 
-## Deliberate stop before release
+## Next gates
 
-Even successful one-time consumption keeps:
+The immediate next gate is apollyon_training_activation_capability_protected_issuance_v1.
 
-- `training_release_authorized=false`;
-- `training_execution_authorized=false`.
+That gate must integrate/revalidate the external #3333 authorization-slot and training-start-slot rules and implement create-once protected capability issuance. It still must not release or execute training.
 
-The next source gate is:
-
-`apollyon_training_start_release_v1`.
-
-A later release gate must independently bind the accepted consumption receipt to
-the trainer/releaser boundary. This contract does not write a release frame,
-resume a trainer, execute training, or mutate model/candidate weights.
+Only after a blocked generation exists and #3333 protected consumption is proven can the already-reviewed release chain become relevant.
 
 ## Hosted proof
 
-Hosted proof is required to demonstrate:
+Hosted proof must establish:
 
-- exact dependency blobs;
-- deterministic content addressing;
-- exact schema / no unknown keys;
-- 32-byte secret hashing;
-- raw-secret absence from receipts;
-- tampered content-address rejection;
-- direct-start authority remains false;
-- systemd caller identity remains non-authoritative;
-- capability replay rejection;
-- protected one-time-consumption requirement;
-- generation binding to InvocationID/PID/start ticks/pre-entry identity;
-- wrong capability/secret/claim/store/process identities reject;
-- caller-supplied consumption is insufficient;
-- release and training remain unauthorized;
-- production source contains no filesystem, network, child-process, systemctl,
-  service-action, signing, wallet, transaction, or funds implementation.
+- current parent and local dependency blobs
+- exact external #3333 head/blob identity
+- deterministic candidate content addressing
+- exact schemas and no unknown keys
+- exact 32-byte secret hashing
+- raw-secret absence from public candidates
+- tampered candidate-ID rejection
+- direct-start/caller identity/replay remain non-authoritative
+- issuance and external #3333 validation remain unperformed
+- the create-once issuance key is the existing #3333 start slot
+- no second consumption namespace exists
+- generation binding remains unproven without raw-secret/live evidence
+- #3333 trainer-generation validation remains external and unperformed
+- training-start consumption/admission, release, and execution remain false
+- production source contains no filesystem, network, child-process, systemctl, service-action, signing, wallet, transaction, or funds implementation
 
 ## Authority
 
-This gate performs no:
-
-- Xiphos read or write;
-- filesystem mutation;
-- service/systemd action;
-- activation capability issuance;
-- protected consumption-store write;
-- durable claim publication;
-- trainer release;
-- training/model/candidate-weight execution;
-- credential/private-key/signing/wallet action;
-- transaction or funds action.
+This gate performs no Xiphos read/write, filesystem mutation, service/systemd action, activation capability issuance, protected capability-store write, #3333 protected training-start consumption, trainer release, training/model/candidate-weight execution, credential/private-key/signing/wallet action, transaction, or funds action.
 
 PROTECT THE CORE.
