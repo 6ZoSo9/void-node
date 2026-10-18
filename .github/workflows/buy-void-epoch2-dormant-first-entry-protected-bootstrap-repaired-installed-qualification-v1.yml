@@ -59,7 +59,7 @@ jobs:
               base="$PUSH_BEFORE"
               ;;
             workflow_dispatch)
-              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              base="6ad7b6d3dde9c2131d27389101d3439babb98de9"
               ;;
             *)
               echo "unsupported_event=$EVENT_NAME" >&2
