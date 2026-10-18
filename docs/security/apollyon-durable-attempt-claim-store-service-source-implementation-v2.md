@@ -16,7 +16,11 @@ The accepted Apollyon claim-store stack defined all of the pieces surrounding a 
 
 Without this implementation, later training-start protected-store revalidation could not truthfully name concrete claim/slot/generation leaf paths.
 
-This gate provides the reusable synchronous store/publisher core and fixes the physical protected-store namespace. It deliberately does **not** supply an installed service wrapper or claim that caller-provided provenance/serialization callbacks are host authority.
+This gate provides the reusable synchronous store/publisher core, an actual
+read-only authorization-winner observation method, and the physical store
+namespace. Both operations bind record reads to held descriptors and recheck
+the visible names within the caller-supplied root. An installed service wrapper
+and proof of host provenance or system-wide serialization remain separate work.
 
 ## Exact parent
 
@@ -87,6 +91,58 @@ size
 and must equal the active/immutable store-generation record's
 `root_identity_sha256`.
 
+The persisted identity scheme remains
+`canonical_dev_ino_mode_uid_gid_nlink_size_v1`. Filesystem observations use
+BigInt stat: device and inode values become exact decimal strings, while the
+other persisted fields must fit safe integers. No timestamp fields are added
+to existing generation records and no generation is rewritten. A generation
+created with a rounded, inaccurate inode identity will fail comparison.
+
+## Descriptor and namespace binding
+
+The backend requires Linux, procfs descriptor traversal, and available
+`O_DIRECTORY`, `O_NOFOLLOW` and `O_NONBLOCK` flags. Unsupported platform/flag
+combinations fail with `apollyon_claim_store_impl_v2_backend_unsupported`.
+An unavailable procfs traversal also fails; it is not replaced with ordinary
+caller-supplied pathname traversal.
+
+After acquiring a valid lease, each operation opens its own root-directory
+descriptor through the supplied FD. It compares the caller descriptor before
+and after that open with the owned descriptor and the retained root identity.
+Subsequent traversal uses the owned descriptor. Closing and reusing the
+caller's original FD during an operation cannot redirect that operation. A
+later operation still requires a valid caller FD for the original root.
+
+Each record read retains the first validated metadata snapshot through the
+read. That snapshot includes exact device/inode identity, mode, UID, GID,
+link count, size, and nanosecond modification/change timestamps. The reader
+checks it before reading, reads from offset zero within the 256 KiB bound,
+probes for EOF at the expected length, and checks it again afterward. A
+nofollow stat of the visible leaf must match the held file. Record opens are
+nonblocking so a FIFO can be rejected by type without waiting for a writer.
+Access time is excluded because the read itself may change it.
+
+Active and immutable generation descriptors remain open through the operation.
+Publication also holds the persisted slot and claim as soon as each is
+validated. Every revalidation bracket rereads the held records and checks
+their visible bindings. The final checks run **after** `before_success_ack`
+returns, so that callback cannot change a final record's permissions or
+replace its inode and still obtain success.
+
+The root and every opened child directory are rechecked at those boundaries.
+The visible child name must still identify the held directory, with the
+required owner, group, mode and link count. Publication permits child-directory
+length and timestamp changes caused by its own create/link/unlink operations.
+The read-only operation requires the full transient directory snapshots to
+remain unchanged. The owned root's full transient snapshot remains fixed
+during both operations.
+
+These checks detect changes across the observed boundaries. A trustworthy
+store-wide lease must still exclude concurrent writers and generation changes;
+sequential filesystem checks alone do not create an atomic multi-file snapshot.
+The supplied root FD is an anchor, not evidence that it was opened from the
+protected installed path.
+
 ## Exact publisher forwarding
 
 `prepareApollyonDurableAttemptClaimPublisherForwardV2()` accepts only a Buffer containing the exact canonical #3285 request frame.
@@ -125,7 +181,7 @@ Configuration contains exactly the four data fields above and the two capability
 functions as own data properties. The core captures them at construction; later
 changes to the caller's configuration do not replace the approved functions.
 
-The core validates the exact request, claim record, authorization-slot winner,
+The publisher validates the exact request, claim record, authorization-slot winner,
 expected generation record and root binding before acquisition. It then obtains
 and validates the synchronous lease before entering its private filesystem
 transaction. Acquisition receives only a frozen object containing these strings:
@@ -163,13 +219,84 @@ The mutation order is fixed:
 6. revalidate generation/provenance;
 7. create or recover the exact bound claim;
 8. reread/validate exact claim bytes;
-9. revalidate generation/provenance;
+9. revalidate generation/provenance, then recheck all held records and directory
+   bindings after the final callback;
 10. close every transaction-owned descriptor, release the lease, and return the
     validated standard durable-success response only if all cleanup succeeded.
 
 A pre-existing claim without its authorization slot is a hard HOLD.
 
 A different valid claim for the same occupied authorization slot is a hard collision/HOLD before a second claim can be published.
+
+## Read-only authorization-winner observation
+
+The same core exposes:
+
+```javascript
+core.observeAuthorizationWinner({
+  authorization_id,
+  expected_store_generation_record,
+  request_bytes,
+});
+```
+
+Input contains exactly those three own enumerable data properties. Proxies,
+accessors, extra fields and a non-Buffer request are rejected. The request is
+copied into private, unpooled storage using captured copy intrinsics before it
+is parsed. Later caller changes to the request or its entire backing buffer
+cannot change the validated request used by this operation.
+
+The method derives the authorization-slot ID with the accepted V1 parent
+helper from the validated authorization ID, `attempt_limit:1` and
+`automatic_retry_authorized:false`. It accepts no caller-selected slot record
+or filename. It obtains the same synchronous lease using the same seven-field
+acquisition context, and shares the publisher's guard and unusable-instance
+state. It invokes no publication revalidation callbacks.
+
+Within the lease, it holds its owned root, the generation/slot/claim
+directories, and four files: active generation, immutable generation, the
+derived slot, and the claim named by that validated slot. The accepted parent
+validators check the records' schemas and content-addressed IDs. Active and
+immutable generation bytes must match the expected generation. The slot must
+bind the exact claim and original publish-request digest, and the persisted
+claim must exactly equal the canonical claim from that request. A final
+bounded reread and visible-name check runs with all four file descriptors
+still held. All eight owned descriptors close before the lease is released
+and the result is returned.
+
+The core issues no write, fsync, link, unlink, rename, truncate, chmod or chown
+for observation. It does not open or scan `.pending-v2`, repair interrupted
+publication, or create an absent winner. Missing, malformed, replaced,
+misbound or incompletely published records produce an error. In particular,
+a final record still linked to pending state is rejected by the single-link
+policy. Normal filesystem access-time effects and side effects of an injected
+lease provider are outside this explicit core-mutation claim.
+
+The deeply frozen plain result has marker
+`VOID_APOLLYON_AUTHORIZATION_WINNER_OBSERVATION_V1` and status
+`authorization_winner_observed_source_only`. It contains the authorization,
+slot, slot-record, claim, generation and generation-record IDs; SHA-256 hashes
+for the slot record, claim record, original publish request and retained root;
+and validated copies of the slot, claim and generation records. It exposes no
+FD or Buffer. Its explicit boundary fields are:
+
+| Field | Value |
+| --- | --- |
+| `descriptor_stable_reread_performed` | `true` |
+| `visible_namespace_rebind_performed` | `true` |
+| `source_filesystem_read_performed` | `true` |
+| `source_core_filesystem_mutation_performed` | `false` |
+| `protected_store_origin_proven` | `false` |
+| `privileged_terminal_receipt_revalidation_performed` | `false` |
+| `activation_capability_issuance_authorized` | `false` |
+| `training_start_admission` | `false` |
+| `training_execution_authorized` | `false` |
+
+This result describes the files observed during that call. It is not a durable
+success response, an issuance capability, a privileged terminal-receipt
+revalidation, or a guarantee that the namespace will remain unchanged after
+return. Runtime integration must establish those distinct prerequisites
+before any activation or training decision.
 
 ## Create-only durability algorithm
 
@@ -182,13 +309,30 @@ Both slot and claim records use the same bounded publication primitive:
 3. write exact canonical bytes;
 4. file `fsync`;
 5. exact same-descriptor reread from byte offset zero;
-6. create-only hard-link pending → final;
+6. create-only hard-link pending → final and verify that the final name identifies
+   the held inode that was fsynced;
 7. final-directory `fsync`;
 8. unlink the pending name;
 9. pending-directory `fsync`;
-10. exact final reread.
+10. exact final reread and identity comparison while the private descriptor is
+    still held, followed by descriptor cleanup.
 
 Hard-link publication is used so the final leaf is never directly partially written and no overwrite API is required.
+
+The link/unlink transition may change link count and change time. Device/inode,
+mode, owner/group, size and modification time must still match the file that was
+fsynced, and the held inode must match the visible final leaf. The completed
+final snapshot is also checked when the transaction acquires its longer-lived
+slot/claim observation. Replacing the pending or final name with an identical
+byte copy therefore cannot substitute an unflushed inode or pass unnoticed
+between the publication primitive and the final revalidation brackets.
+
+An existing exact record, including the `EEXIST` path during publication, is
+opened and validated through a held descriptor, then that descriptor and the
+target directory are fsynced before a stable reread. Recovery establishes the
+durability of the actual existing inode/name; equal bytes or a prior failed
+publication alone do not establish it. The observer does not use this recovery
+primitive and issues no fsync.
 
 If a crash occurs after the private pending file is durable but **before** its
 final hard link is created, retry scans only the deterministic pending prefix
@@ -220,7 +364,7 @@ interrupt the remaining cleanup attempts. Request bytes and caller arguments
 are not copied into diagnostic records.
 
 A failed acquisition, invalid lease, or cleanup failure makes that core instance
-unusable for subsequent publication. The acquisition provider owns cleanup of
+unusable for either operation. The acquisition provider owns cleanup of
 any partial lock it acquired before throwing or returning an invalid result.
 Rejecting acquisition establishes zero **core** filesystem mutation; it does not
 assert that an injected provider had no side effects.
@@ -228,8 +372,10 @@ assert that an injected provider had no side effects.
 Release can fail after records have been published. A normal function that
 returns a Promise, a bound async function, or any other non-`undefined` result
 fails during cleanup, suppresses success, and makes the instance unusable. Such
-errors report `core_store_mutation_may_have_occurred=true`; this is conservative
-and is not a rollback claim. Descriptor cleanup errors retain their specific
+publisher errors report `core_store_mutation_may_have_occurred=true`; this is
+conservative and is not a rollback claim. Observation cleanup errors report
+`core_store_mutation_may_have_occurred=false`, while still suppressing the
+result and poisoning the shared instance. Descriptor cleanup errors retain their specific
 primary classification. An otherwise successful transaction followed by failed
 release reports `apollyon_claim_store_impl_v2_transaction_cleanup_indeterminate`.
 Genuine Promise rejections are observed through the captured native Promise
@@ -239,7 +385,8 @@ invoked or awaited.
 The per-core reentry guard starts before request validation and remains active
 through acquisition, all revalidation stages, descriptor cleanup and release.
 It is cleared in the outermost `finally`, independently of the unusable-instance
-state. A provider cannot use a nested call to enter a second core transaction.
+state. A provider cannot use a nested publish or observe call to enter a second
+operation on that core.
 
 ## Source-only revalidation boundary
 
@@ -251,7 +398,8 @@ after_slot_before_claim
 before_success_ack
 ```
 
-Each stage is bracketed by active + immutable generation rereads.
+Each publication stage is bracketed by held active + immutable generation
+rereads, persisted slot/claim rereads when present, and namespace checks.
 
 The callback receipt is exact-schema and binds:
 
@@ -306,6 +454,24 @@ The focused proof uses only disposable private temporary roots. It proves:
 - primary errors survive combined close/release failures with frozen diagnostics;
 - failed or non-void release suppresses success and blocks reuse of that core;
 - generation drift introduced by revalidation callback rejects before mutation;
+- initial-to-read permission/link-count drift and same-byte inode or timestamp
+  changes reject;
+- directory replacement at every publication revalidation stage rejects;
+- final slot/claim permission changes inside `before_success_ack` reject;
+- same-byte pending/final inode substitution at publication and during handoff
+  to the held transaction records rejects;
+- recovery fsyncs the actual validated existing inode and its target directory
+  before returning durable success;
+- read-only observation succeeds on an exact published winner with no core
+  mutation syscall, pending recovery, or revalidation callback;
+- observation holds and closes all eight descriptors before releasing its lease;
+- absence, partial publication, symlinks, FIFO/socket entries, oversize or
+  malformed records cannot produce a winner observation;
+- bounded EOF, nanosecond metadata and visible-leaf rechecks reject changed
+  records, including device/inode values outside Number's exact range;
+- caller FD reuse cannot redirect an operation after root duplication;
+- observation cleanup failure reports no core mutation and blocks both APIs;
+- the shared guard rejects nested calls across publishing and observing;
 - orphan claim without slot rejects;
 - asynchronous prepublication revalidation and asynchronous acquisition reject
   before core publication.

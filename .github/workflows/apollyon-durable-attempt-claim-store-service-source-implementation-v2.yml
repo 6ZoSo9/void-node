@@ -95,11 +95,11 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            31d2d7d91e12132651dfa3429499f09b011318a0
+            e1329dece0caa2c8c3db142589b5c1c83e6c1076
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            1718652ad5407a88069f020763ffa520bd78c73a
+            10745c2897041720fa53ad5e62314f694ac96e65
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            4e4368ee36e203a9d2f285318f6803a4c6a71ff0
+            793475a5fc242373a023450476289e75ad1116d1
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
             93582c324ca85aeff56eb61f82b32f1e4c18dfe9
@@ -179,6 +179,29 @@ jobs:
             'orphan_claim_without_slot_rejected=true' \
             'async_revalidator_rejected_before_mutation=true' \
             'async_transaction_acquisition_rejected_before_core_mutation=true' \
+            'held_directory_replacement_rejected_at_all_revalidation_stages=true' \
+            'final_slot_and_claim_checked_after_success_revalidator=true' \
+            'record_initial_metadata_drift_rejected=true' \
+            'record_same_bytes_inode_and_timestamp_drift_rejected=true' \
+            'record_eof_growth_rejected=true' \
+            'bigint_inode_precision_preserved=true' \
+            'readonly_authorization_winner_observation_proven=true' \
+            'observation_request_bytes_privately_copied=true' \
+            'observation_all_descriptors_held_through_final_reread=true' \
+            'observation_missing_partial_and_malformed_state_rejected_without_repair=true' \
+            'observation_fifo_and_socket_refused_without_blocking=true' \
+            'observation_caller_selected_paths_and_slot_records_forbidden=true' \
+            'observation_request_and_persisted_winner_cross_bound=true' \
+            'observation_directory_and_root_transient_drift_rejected=true' \
+            'caller_root_descriptor_reuse_cannot_redirect_active_operation=true' \
+            'mixed_publish_observe_reentry_rejected=true' \
+            'observation_cleanup_errors_preserve_readonly_classification=true' \
+            'unsupported_reader_backend_rejected=true' \
+            'publication_fsynced_inode_bound_before_and_after_link=true' \
+            'publication_handoff_inode_replacement_rejected=true' \
+            'existing_recovery_fsyncs_actual_final_inode_and_directory=true' \
+            'eexist_recovery_fsyncs_actual_final_inode_and_directory=true' \
+            'session_binding_coercion_forbidden_before_store_access=true' \
             'caller_supplied_revalidator_is_host_proof=false' \
             'caller_supplied_exclusive_transaction_is_host_proof=false' \
             'native_peer_runtime_integration_present=false' \
