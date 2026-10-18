@@ -97,7 +97,7 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
             dce36dbb5676d2776ad6f36313a6bd2b8656ab2d
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            eab9b5f3ffad3a7a1e83163c88cb200da82e3412
+            978cee26fc8071f3caf48283c2c68607aa193961
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
             87a0b1cd5536ab7e55453ec404692e0c2abfb712
 
@@ -140,6 +140,8 @@ jobs:
           for marker in \
             'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_V2_PROOF_GREEN' \
             'exact_source_and_parent_blobs_pinned=true' \
+            'pr_push_trigger_closure_exact=true' \
+            'pr_push_trigger_parity=true' \
             'fixed_physical_namespace_defined=true' \
             'publisher_exact_request_bytes_preserved=true' \
             'publisher_request_reconstruction_forbidden=true' \
