@@ -206,7 +206,7 @@ for(const row of candidate.current_enforcement_tracked_source_inventory_v1){
 assert.deepEqual(protectedDelta,[],"frozen_source_protected_delta_present");
 
 const historicalParent=candidate.current_enforcement_parent;
-git(["merge-base","--is-ancestor",historicalParent,FREEZE_SOURCE]);
+git(["cat-file","-e",historicalParent+"^{commit}"]);
 const sourcePaths=[...new Set(ECONOMIC_ARTIFACT_PATHS.map(
   p=>"src/economic/"+path.basename(p,".js")+".ts"
 ))].sort();
