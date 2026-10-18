@@ -69,6 +69,8 @@ def _git(args: list[str]) -> bytes:
                 str(FIXED_CHECKOUT),
                 "-c",
                 "safe.directory=" + str(FIXED_CHECKOUT),
+                "-c",
+                "core.fsmonitor=false",
                 *args,
             ],
             stdin=subprocess.DEVNULL,

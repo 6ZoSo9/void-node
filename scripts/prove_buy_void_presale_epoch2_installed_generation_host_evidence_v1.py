@@ -80,6 +80,7 @@ for required in (
     "stat.S_ISLNK(before.st_mode)",
     "except (OSError, subprocess.TimeoutExpired) as exc:",
     '"git_execution_failed:" + type(exc).__name__',
+    '"core.fsmonitor=false"',
 ):
     assert required in source, required
 
@@ -202,6 +203,27 @@ assert module.PARENT_PLAN_ID == json.loads(
 )["plan_id"]
 
 original_subprocess_run = module.subprocess.run
+
+captured_git_commands: list[list[str]] = []
+
+def _capture_git_command(args, **_kwargs):
+    captured_git_commands.append(list(args))
+    return subprocess.CompletedProcess(
+        args=args,
+        returncode=0,
+        stdout=b"",
+        stderr=b"",
+    )
+
+module.subprocess.run = _capture_git_command
+assert module._git(["status", "--porcelain=v1"]) == b""
+assert len(captured_git_commands) == 1
+captured = captured_git_commands[0]
+assert captured.count("core.fsmonitor=false") == 1
+fsmonitor_index = captured.index("core.fsmonitor=false")
+assert fsmonitor_index > 0
+assert captured[fsmonitor_index - 1] == "-c"
+assert captured.index("status") > fsmonitor_index
 
 def _raise_git_oserror(*_args, **_kwargs):
     raise OSError("synthetic_git_spawn_failure")
@@ -352,6 +374,7 @@ print("double_descriptor_bound_native_self_test_inherited=true")
 print("pathname_swap_adversary_inherited=true")
 print("required_true_field_downgrade_rejected=true")
 print("authority_overclaim_rejected=true")
+print("git_fsmonitor_disabled=true")
 print("git_spawn_failure_maps_to_hold=true")
 print("git_timeout_maps_to_hold=true")
 print("filesystem_write_performed=false")

@@ -157,10 +157,17 @@ The wrapper does not rely on nonexistent pathlib-style methods on
 ## Git observation failure contract
 
 Every checkout/source query uses the fixed reviewed `/usr/bin/git` invocation
-with a 20-second timeout. Failure to start Git and Git timeout are both caught
-and converted to `EvidenceError`, so a future separately authorized host run
-emits the same machine-readable `status=HOLD` contract instead of a traceback.
-Hosted proof injects both an `OSError` spawn failure and
+with a 20-second timeout. The wrapper supplies `-c core.fsmonitor=false` on
+every Git invocation so an owner-controlled repository-local
+`core.fsmonitor=<executable>` cannot run under the future root observation
+boundary. System and global Git config remain disabled; replacement objects and
+optional locks remain disabled as well.
+
+Failure to start Git and Git timeout are both caught and converted to
+`EvidenceError`, so a future separately authorized host run emits the same
+machine-readable `status=HOLD` contract instead of a traceback. Hosted proof
+captures the constructed Git argv and requires the FSMonitor override before
+the subcommand, then separately injects both an `OSError` spawn failure and
 `subprocess.TimeoutExpired` and requires those normalized HOLD reasons.
 
 No host execution authority changes.
