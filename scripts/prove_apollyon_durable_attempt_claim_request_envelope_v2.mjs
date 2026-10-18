@@ -28,9 +28,9 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
-    "0b40e86ce05bf10da3e25ae9352488d59789d879",
+    "b2cc538a20ab8fa03ee4c91051d654e4b0273fe9",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "0d620a77a465007505c3a0415062699a220b8437",
+    "7654ddb2d5875d1aa42e8f41398afb727ba3832d",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
     "bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
@@ -39,7 +39,7 @@ for(const [relative,expected] of Object.entries({
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
 
-assert.equal(PARENT_CANDIDATE_BLOB_SHA1,"0d620a77a465007505c3a0415062699a220b8437");
+assert.equal(PARENT_CANDIDATE_BLOB_SHA1,"7654ddb2d5875d1aa42e8f41398afb727ba3832d");
 assert.notEqual(PARENT_CANDIDATE_BLOB_SHA1,"d67ef39c4cd034844fb0862e180de46ed4cd0c88");
 assert.equal(PARENT_STORE_CONTRACT_BLOB_SHA1,"bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc");
 assert.equal(CANONICALIZER_V1_BLOB_SHA1,"f97fafb0148527ae3a954e2752faef8c7fc9e88e");
