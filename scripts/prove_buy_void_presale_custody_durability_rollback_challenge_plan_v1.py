@@ -8,8 +8,8 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN_REL = "ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json"
-PLAN_BLOB = "bf2cd9350da1cbd3670f77d6cd4fab8532846b82"
-PLAN_ID = "voidbuycustodychallengeplan1_d9a72732d690a09731e7d4d65f4024156acf4813e6550bf72e5f03d5b383d4d0"
+PLAN_BLOB = "5face2022dc2cbc573e32e99f88623f381a8a174"
+PLAN_ID = "voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006"
 MARKER = "VOID_BUY_VOID_PRESALE_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V1"
 
 EXPECTED_FUTURE_EVIDENCE = (
@@ -41,13 +41,13 @@ EXPECTED_BLOBS = {
     "ops/security/buy-void-presale-source-freeze-acceptance-v2.json":
         "174d536807f03fd7b6ff44820d4e378c7055150e",
     "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts":
-        "216928e1810cb25ce1c331e2edfece629fff76cf",
+        "7efc48397d96ae38ab4577e28ca3f26ef9254dd1",
     "scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts":
-        "f2566d76972262db35f60d049f79ae6f2d34f47e",
+        "0f2cffc11cf0c730e24a78a504c99ece47fc6f06",
     "docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md":
-        "e346269a7cb74a849bd24ec88ed8d7bfee060be7",
+        "e776529abc8ce6dc7ba21864b48b923aafddf079",
     ".github/workflows/buy-void-presale-allocation-custody-host-evidence-v1.yml":
-        "1c31cc09d750d14b0ae0fdef142d46f39b881f89",
+        "56dc995e6ee380971a3ae6939cb42e4be1a16301",
     "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs":
         "eef7c4e1db7401ba82fda96aa1e8da40c1981b7d",
     "scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs":
@@ -153,7 +153,7 @@ assert accepted["public_presale_activation"] is False
 assert accepted["funds_movement"] is False
 
 collector = plan["read_only_prerequisite_collector"]
-assert collector["review_head"] == "06c8262abb18ec13d256143ca500f09dbc3632ac"
+assert collector["review_head"] == "4558e33f12fd2c60b1a26a5847516c762d427a71"
 assert collector["expected_success_status"] == "ALLOCATION_CUSTODY_PREREQUISITES_GREEN_CONTROLLED_CHALLENGE_REQUIRED"
 assert collector["collector_receipt_required"] is True
 assert collector["read_only_collection_sufficient"] is False

@@ -106,9 +106,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 216928e1810cb25ce1c331e2edfece629fff76cf
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = f2566d76972262db35f60d049f79ae6f2d34f47e
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = e346269a7cb74a849bd24ec88ed8d7bfee060be7
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 7efc48397d96ae38ab4577e28ca3f26ef9254dd1
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 0f2cffc11cf0c730e24a78a504c99ece47fc6f06
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = e776529abc8ce6dc7ba21864b48b923aafddf079
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -157,6 +157,10 @@ jobs:
             'installation_evidence_boundary_downgrades_rejected=true' \
             'storage_file_generation_mismatches_rejected=true' \
             'second_control_boundary_downgrades_rejected=true' \
+            'normalized_receipt_schemas_bound=true' \
+            'normalized_payload_mutations_rejected=true' \
+            'cross_receipt_binding_direct=true' \
+            'one_sided_normalized_omission_rejected=true' \
             'durability_contract_boundary_downgrades_rejected=true' \
             'controlled_live_challenge_required=true' \
             'filesystem_write_performed=false' \

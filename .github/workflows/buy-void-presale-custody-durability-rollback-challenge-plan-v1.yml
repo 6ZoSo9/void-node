@@ -63,7 +63,7 @@ jobs:
           case "$EVENT_NAME" in
             pull_request) base="$PR_BASE" ;;
             push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            workflow_dispatch) base="4558e33f12fd2c60b1a26a5847516c762d427a71" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
@@ -79,16 +79,16 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json)" = bf2cd9350da1cbd3670f77d6cd4fab8532846b82
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v1.py)" = 1efe1d29c83d5bdb915abdb9a68fe3d51a10dd06
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v1.md)" = 822b867de77539bec3cb75c3cb320e5f73e5c99e
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json)" = 5face2022dc2cbc573e32e99f88623f381a8a174
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v1.py)" = ecc2b6e41b37521fdfe97a4df7136625c8be86e6
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v1.md)" = 4906f0ca9e732a07ed90ddeccfe5c15d875fc124
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = 174d536807f03fd7b6ff44820d4e378c7055150e
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 216928e1810cb25ce1c331e2edfece629fff76cf
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = f2566d76972262db35f60d049f79ae6f2d34f47e
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = e346269a7cb74a849bd24ec88ed8d7bfee060be7
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-allocation-custody-host-evidence-v1.yml)" = 1c31cc09d750d14b0ae0fdef142d46f39b881f89
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 7efc48397d96ae38ab4577e28ca3f26ef9254dd1
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 0f2cffc11cf0c730e24a78a504c99ece47fc6f06
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = e776529abc8ce6dc7ba21864b48b923aafddf079
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-allocation-custody-host-evidence-v1.yml)" = 56dc995e6ee380971a3ae6939cb42e4be1a16301
 
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
           test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs)" = 7ced5fb56a22cd546aab30c466021b01b1c6a84d
@@ -106,7 +106,7 @@ jobs:
 
           markers=(
             'VOID_BUY_VOID_PRESALE_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V1_PROOF_GREEN'
-            'plan_id=voidbuycustodychallengeplan1_d9a72732d690a09731e7d4d65f4024156acf4813e6550bf72e5f03d5b383d4d0'
+            'plan_id=voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006'
             'accepted_presale_source_bound=true'
             'read_only_prerequisite_collector_bound=true'
             'durability_contract_bound=true'

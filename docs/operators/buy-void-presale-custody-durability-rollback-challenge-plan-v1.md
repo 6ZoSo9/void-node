@@ -7,7 +7,7 @@ Status: **plan-only source/CI evidence; no host execution or storage mutation au
 
 Plan ID:
 
-`voidbuycustodychallengeplan1_d9a72732d690a09731e7d4d65f4024156acf4813e6550bf72e5f03d5b383d4d0`.
+`voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006`.
 
 ## Purpose
 
@@ -48,15 +48,15 @@ presale activation and funds authority remain false.
 The plan binds repaired #3515 generation:
 
 - review head:
-  `06c8262abb18ec13d256143ca500f09dbc3632ac`;
+  `4558e33f12fd2c60b1a26a5847516c762d427a71`;
 - collector blob:
-  `216928e1810cb25ce1c331e2edfece629fff76cf`;
+  `7efc48397d96ae38ab4577e28ca3f26ef9254dd1`;
 - proof blob:
-  `f2566d76972262db35f60d049f79ae6f2d34f47e`;
+  `0f2cffc11cf0c730e24a78a504c99ece47fc6f06`;
 - operator contract blob:
-  `e346269a7cb74a849bd24ec88ed8d7bfee060be7`;
+  `e776529abc8ce6dc7ba21864b48b923aafddf079`;
 - workflow blob:
-  `1c31cc09d750d14b0ae0fdef142d46f39b881f89`.
+  `56dc995e6ee380971a3ae6939cb42e4be1a16301`.
 
 A future challenge requires a successful collector receipt with terminal:
 

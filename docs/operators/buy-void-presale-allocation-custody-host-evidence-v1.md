@@ -209,3 +209,20 @@ No payment acceptance, presale/WC activation, wallet/signing, transaction,
 treasury/liquidity action, or funds movement is authorized by this lane.
 
 **PROTECT THE CORE.**
+
+## Closed normalized receipt interface
+
+The rollback-policy and second-control receipts are validated at their
+machine-readable normalized boundary before any cross-receipt comparison.
+The collector requires exact normalized key sets, exact schema/marker/version
+identities, formatted qualification IDs and SHA-256 fields, bounded policy
+generation/time values, and the designated Precision source hostname.
+
+Cross-receipt binding is direct after validation: high-water SHA-256, source
+hostname, policy qualification ID, policy fingerprint, and policy generation
+must agree. Missing, null, wrong-type, extra-key, one-sided omission, and
+cross-receipt mismatch fixtures fail closed.
+
+This changes no host authority. The future host run remains read-only collection
+with truthfully reported transitive `stat`/`lsblk` helper execution and still
+terminates at the separately authorized controlled-challenge boundary.
