@@ -13,7 +13,7 @@ import sys
 
 MARKER = "VOID_BUY_VOID_PRECISION_SOURCE_FREEZE_HOST_METADATA_CENSUS_V3"
 
-FREEZE_REVIEW_HEAD = "0f5c467253c250a905917e886eb6ae3fb80bff62"
+FREEZE_REVIEW_HEAD = "d3e7404791622541a4567ddd506f27caba60cfea"
 FREEZE_SOURCE_COMMIT = "05614762b1b4638e05e539fd7d20cbf670e1570b"
 FREEZE_SOURCE_TREE = "4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e"
 FREEZE_MANIFEST_PATH = "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
@@ -23,20 +23,20 @@ FREEZE_ID = (
     "32bd552dc92df07fd391ee3571f92e5efd80cbb50bd79bc4b8952484511db7f1"
 )
 
-SUCCESSOR_REVIEW_HEAD = "26534cd19c670cd30b3cefda13ef8dcb62e05dab"
+SUCCESSOR_REVIEW_HEAD = "caa7daa8ed32143b6884f938d576f795b828684f"
 SUCCESSOR_PATH = "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
-SUCCESSOR_BLOB = "bb1144989cd826677f2fc8ea54c97e3bd95cc8ef"
+SUCCESSOR_BLOB = "774db38ccb771f393b44d589a455144b99d36f6b"
 SUCCESSOR_ID = (
     "voidbuypresaleenfsucc1_"
-    "2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad"
+    "819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef"
 )
 
-ACCEPTANCE_REVIEW_HEAD = "d9c2cbc7e8d838083325d389beac2e95a16b5bfa"
+ACCEPTANCE_REVIEW_HEAD = "b55efaff7355234ccc51f5c3a216e6befeefa1d5"
 ACCEPTANCE_PATH = "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
-ACCEPTANCE_BLOB = "c0752dfe4fe3b4616cba799bbe5053ac0b435f8b"
+ACCEPTANCE_BLOB = "5d437a37703a83908a7fa78b78da92151aa1aa99"
 ACCEPTANCE_ID = (
     "voidbuypresalefreezeaccept2_"
-    "c35af2c739290a82f612043465717db0b109546168e364f349f88c79c284476e"
+    "88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4"
 )
 
 ENFORCEMENT_LOCK_PATH = "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
