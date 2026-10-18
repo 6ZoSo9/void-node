@@ -11,6 +11,7 @@ import stat
 import shutil
 import subprocess
 import sys
+import time
 
 MARKER="VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1"
 TARGET_HOST="Xiphos"
@@ -34,6 +35,15 @@ PRIOR_CURRENT_LAUNCHER_BLOB="820f7151c0f83280b7457f841cee14c3b0c274b6"
 NEW_LAUNCHER_BLOB="352bd36f2b07091140b990de4170f708eb11fee6"
 CUSTODY_UNIT="void-apollyon-authorization-custody-v1.service"
 TRAINING_UNIT="void-apollyon-training-bus-isolation-v1.service"
+FIXED_PREENTRY=Path(
+    "/opt/void-apollyon-live-custody-binding-v2-preentry-v1/"
+    "apollyon_live_custody_source_session_preentry_v2"
+)
+PROC_ROOT=Path("/proc")
+PROC_CMDLINE_MAX_BYTES=256*1024
+MAX_PROC_ROWS=262144
+RUNNER_ARG_SUFFIX=b"/tools/apollyon-live-custody-source-session-runner-v2.mjs"
+RUNNER_ARG_REL=b"tools/apollyon-live-custody-source-session-runner-v2.mjs"
 
 class Hold(RuntimeError): pass
 def hold(reason:str)->None: raise Hold(reason)
@@ -135,6 +145,105 @@ def parse_service_state(text:str)->dict[str,str]:
     if set(observed)!=expected:
         hold("service_state_shape_invalid")
     return observed
+
+def _read_proc_cmdline(path:Path)->list[bytes]|None:
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_NOFOLLOW",0)
+    try:
+        fd=os.open(path,flags)
+    except FileNotFoundError:
+        return None
+    except ProcessLookupError:
+        return None
+    except OSError as exc:
+        raise Hold("live_session_process_cmdline_open_failed") from exc
+    try:
+        chunks:list[bytes]=[]
+        total=0
+        while True:
+            try:
+                chunk=os.read(fd,min(65536,PROC_CMDLINE_MAX_BYTES+1-total))
+            except OSError as exc:
+                raise Hold("live_session_process_cmdline_read_failed") from exc
+            if not chunk:
+                break
+            total+=len(chunk)
+            if total>PROC_CMDLINE_MAX_BYTES:
+                hold("live_session_process_cmdline_too_large")
+            chunks.append(chunk)
+        raw=b"".join(chunks)
+    finally:
+        os.close(fd)
+    if not raw:
+        return []
+    return [arg for arg in raw.split(b"\0") if arg]
+
+
+def census_inflight_live_session_processes(
+    proc_root:Path=PROC_ROOT,
+)->list[dict[str,object]]:
+    try:
+        entries=list(proc_root.iterdir())
+    except OSError as exc:
+        raise Hold("live_session_process_census_unavailable") from exc
+    rows:list[dict[str,object]]=[]
+    numeric_seen=0
+    fixed_preentry=os.fsencode(FIXED_PREENTRY)
+    fixed_launcher=os.fsencode(FIXED_LAUNCHER)
+    for entry in entries:
+        if not entry.name.isdigit() or entry.name=="0":
+            continue
+        numeric_seen+=1
+        if numeric_seen>MAX_PROC_ROWS:
+            hold("live_session_process_census_too_large")
+        try:
+            meta=entry.stat(follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        except ProcessLookupError:
+            continue
+        except OSError as exc:
+            raise Hold("live_session_process_metadata_unreadable") from exc
+        # The reviewed preentry and launcher both require root. Restrict the
+        # quiescence barrier to that authority domain so unprivileged argv
+        # spoofing cannot indefinitely block retirement.
+        if meta.st_uid!=0:
+            continue
+        args=_read_proc_cmdline(entry/"cmdline")
+        if args is None or not args:
+            continue
+        role:str|None=None
+        if fixed_preentry in args:
+            role="native_preentry"
+        elif fixed_launcher in args:
+            role="fixed_launcher"
+        elif any(
+            arg==RUNNER_ARG_REL or arg.endswith(RUNNER_ARG_SUFFIX)
+            for arg in args
+        ):
+            role="private_runner"
+        if role is not None:
+            rows.append({"pid":int(entry.name),"role":role})
+    return sorted(rows,key=lambda row:(int(row["pid"]),str(row["role"])))
+
+
+def assert_no_inflight_live_session_processes(
+    proc_root:Path=PROC_ROOT,
+    *,
+    settle_seconds:float=0.05,
+)->dict[str,object]:
+    first=census_inflight_live_session_processes(proc_root)
+    if first:
+        hold("inflight_live_session_process_present")
+    if settle_seconds>0:
+        time.sleep(settle_seconds)
+    second=census_inflight_live_session_processes(proc_root)
+    if second:
+        hold("inflight_live_session_process_present")
+    return {
+        "root_owned_live_session_processes_absent":True,
+        "two_pass_process_census":True,
+    }
+
 
 def service_state(unit:str)->dict[str,str]:
     result=run([
@@ -454,6 +563,10 @@ def plan()->dict:
     root=reviewed_v2_root_state(manifest)
     backup=prior_v2_backup_state(manifest)
     migration=classify_upgrade_state(launcher,root,backup)
+    launcher_quiescence_proven=False
+    if launcher=="new_exact":
+        assert_no_inflight_live_session_processes()
+        launcher_quiescence_proven=True
     if migration.startswith("legacy_v1") and old_root!="old_exact":
         hold("legacy_v1_source_root_missing")
     for rel,blob in manifest["to"]["closure"].items(): read_source(rel,blob)
@@ -482,6 +595,8 @@ def plan()->dict:
         "migration_state":migration,
         "prior_v2_migration_source_bound":True,
         "prior_current_launcher_retirement_source_bound":True,
+        "post_swap_launcher_quiescence_required":True,
+        "launcher_quiescence_proven":launcher_quiescence_proven,
         "prior_v2_backup_root":str(PRIOR_V2_BACKUP_ROOT),
         "new_closure_source_verified":True,
         "service_action":False,"systemd_mutation":False,
@@ -503,6 +618,7 @@ def apply()->dict:
             read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),
             ("old_exact",),
         )
+        assert_no_inflight_live_session_processes()
     elif migration in (
         "prior_v2_pending",
         "prior_v2_launcher_switched",
@@ -517,6 +633,7 @@ def apply()->dict:
                 read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),
                 ("prior_v2_exact",),
             )
+        assert_no_inflight_live_session_processes()
         # Close the prior-launcher race before the first root rename. Once the
         # current launcher is visible, it fail-closes against a still-prior V2
         # reviewed root; this second observation proves no raced old session is
@@ -528,6 +645,7 @@ def apply()->dict:
             read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),
             ("prior_current_exact",),
         )
+        assert_no_inflight_live_session_processes()
         assert_services_dormant()
         verify_tree(NEW_ROOT,manifest["to"]["closure"])
     elif migration in ("current_exact","current_exact_from_prior_v2"):
@@ -541,6 +659,7 @@ def apply()->dict:
     final_backup=prior_v2_backup_state(manifest)
     if migration.startswith("prior_v2") and final_backup!="prior_v2_exact":
         hold("prior_v2_backup_missing_after_migration")
+    assert_no_inflight_live_session_processes()
     assert_services_dormant()
     return {
         **before,"mode":"--apply",
@@ -554,6 +673,7 @@ def apply()->dict:
         "old_root_preserved":final_old_root=="old_exact",
         "prior_v2_backup_preserved":final_backup=="prior_v2_exact",
         "reviewed_root_v2_upgrade_complete":True,
+        "launcher_quiescence_proven":True,
         "service_action":False,"systemd_mutation":False,
         "training_execution":False,"durable_attempt_claim":False,
         "operator_private_key_access":False,"funds_movement":False,
@@ -593,6 +713,40 @@ def self_test()->None:
     assert parse_service_state(
         "LoadState=loaded\nActiveState=inactive\nSubState=dead\nMainPID=0\n"
     )==good_state
+    with tempfile.TemporaryDirectory(
+        prefix="void-apollyon-upgrade-process-census-"
+    ) as td:
+        proc=Path(td)
+        for pid,args in (
+            ("101",[os.fsencode(FIXED_PREENTRY)]),
+            ("102",[b"/usr/bin/python3",b"-I",b"-B",os.fsencode(FIXED_LAUNCHER)]),
+            ("103",[b"/opt/void-apollyon-node-runtime-v1/node",
+                    b"/run/private/tools/apollyon-live-custody-source-session-runner-v2.mjs"]),
+            ("104",[b"/usr/bin/sleep",b"1"]),
+        ):
+            row=proc/pid
+            row.mkdir()
+            (row/"cmdline").write_bytes(b"\0".join(args)+b"\0")
+        observed=census_inflight_live_session_processes(proc)
+        assert [row["role"] for row in observed]==[
+            "native_preentry","fixed_launcher","private_runner"
+        ]
+        try:
+            assert_no_inflight_live_session_processes(
+                proc,settle_seconds=0.0
+            )
+        except Hold as exc:
+            assert str(exc)=="inflight_live_session_process_present",str(exc)
+        else:
+            raise AssertionError("in-flight live-session fixture accepted")
+        for pid in ("101","102","103"):
+            shutil.rmtree(proc/pid)
+        empty=assert_no_inflight_live_session_processes(
+            proc,settle_seconds=0.0
+        )
+        assert empty["root_owned_live_session_processes_absent"] is True
+        assert empty["two_pass_process_census"] is True
+
     for bad_state in (
         {**good_state,"ActiveState":"active","SubState":"running","MainPID":"42"},
         {**good_state,"ActiveState":"activating","SubState":"start"},
@@ -633,7 +787,14 @@ def self_test()->None:
     )
     post_replace_dormant_index=source.index("assert_services_dormant()",replace_index)
     migrate_index=source.index("tree_changed=migrate_prior_v2_tree(manifest)",post_replace_dormant_index)
-    assert stage_index < replace_index < post_replace_dormant_index < migrate_index
+    post_replace_quiescence_index=source.index(
+        "assert_no_inflight_live_session_processes()",
+        replace_index,
+    )
+    assert (
+        stage_index < replace_index < post_replace_quiescence_index <
+        post_replace_dormant_index < migrate_index
+    )
     apply_source_index=source.index("def apply()->dict:")
     prior_current_index=source.index(
         'elif migration=="prior_current_pending":',
@@ -656,7 +817,15 @@ def self_test()->None:
         prior_current_verify,
     )
     prior_current_body=source[prior_current_index:next_branch]
-    assert prior_current_index < prior_current_replace < prior_current_dormant < prior_current_verify
+    prior_current_quiescence=source.index(
+        "assert_no_inflight_live_session_processes()",
+        prior_current_replace,
+    )
+    assert (
+        prior_current_index < prior_current_replace <
+        prior_current_quiescence < prior_current_dormant <
+        prior_current_verify
+    )
     assert "prepare_current_stage(" not in prior_current_body
     assert "migrate_prior_v2_tree(" not in prior_current_body
     for forbidden_parts in (
@@ -676,6 +845,8 @@ def self_test()->None:
     print("prior_current_launcher_retirement_source_bound=true")
     print("prior_current_launcher_only_migration=true")
     print("retired_fixed_launcher_blob_bound=true")
+    print("post_swap_inflight_process_quiescence_required=true")
+    print("root_owned_process_census_two_pass=true")
     print("prior_v2_launcher_b96_bound=true")
     print("prior_v2_backup_preserved=true")
     print("prior_v2_interrupted_states_resumable=true")
