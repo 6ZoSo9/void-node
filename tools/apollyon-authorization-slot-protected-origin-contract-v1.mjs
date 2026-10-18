@@ -128,6 +128,35 @@ const CANDIDATE_KEYS=Object.freeze([
   "version",
 ]);
 
+const CANDIDATE_STRING_KEYS=new Set([
+  "authorization_id",
+  "authorization_slot_id",
+  "authorization_slot_record_id",
+  "authorization_slot_record_sha256",
+  "canonicalizer_v1_blob_sha1",
+  "claim_record_id",
+  "claim_record_sha256",
+  "marker",
+  "next_gate",
+  "parent_authorization_slot_blob_sha1",
+  "parent_head",
+  "protected_origin_contract_id",
+  "publish_request_sha256",
+  "status",
+  "store_contract_id",
+  "store_generation_id",
+  "store_policy_id",
+  "target_host",
+  "terminal_receipt_id",
+]);
+const CANDIDATE_NUMBER_KEYS=new Set(["version"]);
+const CANDIDATE_BOOLEAN_KEYS=new Set([
+  "activation_capability_issuance_authorized",
+  "authorization_slot_protected_origin_proven",
+  "authorization_slot_revalidation_performed",
+  "automatic_retry_authorized",
+]);
+
 const SLOT_STRING_KEYS=new Set([
   "authorization_id",
   "authorization_slot_id",
@@ -270,7 +299,44 @@ function validateCandidateMaterial(value){
   }
 }
 
-export function qualifyApollyonAuthorizationSlotProtectedOriginCandidateV1(input){
+function preflightRequirements(input){
+  if(!input||typeof input!=="object"||Array.isArray(input)){
+    fail("apollyon_authorization_slot_origin_v1_requirements_invalid");
+  }
+  const proto=Object.getPrototypeOf(input);
+  if(proto!==Object.prototype&&proto!==null){
+    fail("apollyon_authorization_slot_origin_v1_requirements_invalid");
+  }
+  const expected=Object.keys(
+    VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_REQUIREMENTS_V1
+  );
+  exactOwnKeys(
+    input,
+    expected,
+    "apollyon_authorization_slot_origin_v1_requirements_invalid",
+  );
+  const descriptors=Object.getOwnPropertyDescriptors(input);
+  const snapshot={};
+  for(const key of expected){
+    const descriptor=descriptors[key];
+    if(
+      !descriptor||
+      descriptor.enumerable!==true||
+      !Object.prototype.hasOwnProperty.call(descriptor,"value")||
+      typeof descriptor.get==="function"||
+      typeof descriptor.set==="function"||
+      typeof descriptor.value!=="boolean"||
+      descriptor.value!==
+        VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_REQUIREMENTS_V1[key]
+    ){
+      fail("apollyon_authorization_slot_origin_v1_requirements_invalid");
+    }
+    snapshot[key]=descriptor.value;
+  }
+  return snapshot;
+}
+
+function preflightCandidate(input){
   if(!input||typeof input!=="object"||Array.isArray(input)){
     fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
   }
@@ -284,6 +350,7 @@ export function qualifyApollyonAuthorizationSlotProtectedOriginCandidateV1(input
     "apollyon_authorization_slot_origin_v1_candidate_invalid",
   );
   const descriptors=Object.getOwnPropertyDescriptors(input);
+  const snapshot={};
   for(const key of CANDIDATE_KEYS){
     const descriptor=descriptors[key];
     if(
@@ -295,9 +362,34 @@ export function qualifyApollyonAuthorizationSlotProtectedOriginCandidateV1(input
     ){
       fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
     }
+    const value=descriptor.value;
+    if(key==="requirements"){
+      snapshot[key]=preflightRequirements(value);
+    }else if(CANDIDATE_STRING_KEYS.has(key)){
+      if(typeof value!=="string"||value.length<1||value.length>256){
+        fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
+      }
+      snapshot[key]=value;
+    }else if(CANDIDATE_NUMBER_KEYS.has(key)){
+      if(!Number.isSafeInteger(value)){
+        fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
+      }
+      snapshot[key]=value;
+    }else if(CANDIDATE_BOOLEAN_KEYS.has(key)){
+      if(typeof value!=="boolean"){
+        fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
+      }
+      snapshot[key]=value;
+    }else{
+      fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
+    }
   }
+  return snapshot;
+}
 
-  const value=structuredClone(input);
+export function qualifyApollyonAuthorizationSlotProtectedOriginCandidateV1(input){
+  const snapshot=preflightCandidate(input);
+  const value=structuredClone(snapshot);
   if(!CONTRACT_ID.test(value.protected_origin_contract_id)){
     fail("apollyon_authorization_slot_origin_v1_contract_id_invalid");
   }
