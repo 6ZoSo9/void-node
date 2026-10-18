@@ -26,15 +26,31 @@ jobs:
   proof:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before || github.sha }}
+      HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      BASE_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.repo.full_name || github.repository }}
+      HEAD_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Materialize exact base and head without external actions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add base "https://github.com/${BASE_REPO}.git"
+          git remote add head "https://github.com/${HEAD_REPO}.git"
+          git fetch --no-tags --depth=1 base "${BASE_SHA}"
+          git fetch --no-tags --depth=1 head "${HEAD_SHA}"
+          git checkout --detach "${HEAD_SHA}"
+          test "$(git rev-parse HEAD)" = "${HEAD_SHA}"
+          git cat-file -e "${BASE_SHA}^{commit}"
 
       - name: Verify exact source generation
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py)" = "b722e2f7fdd41e2b20257f60c3a99e991fe1acc8"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py)" = "56c0fcf352defa201c854101d08f8d4b50b5b85a"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py)" = "f56a8fbd06d31afd1f6a275ed8a02bcae9db0d05"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-policy-chain-rebind-v2.md)" = "086db9bca7bf0c04b775d7df6b8e65321eb93a0b"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = "37ab46ca5b77a642d84ad18c61388c30f4d63881"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
