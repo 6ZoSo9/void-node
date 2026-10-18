@@ -875,10 +875,52 @@ static int fixture_run(
     }
 
     errno=0;
-    if(dup(release_pipe[1])>=0 || errno!=EPERM) {
+    pid_t unexpected=fork();
+    if(unexpected==0) _exit(201);
+    if(unexpected>0) {
+        (void)kill(unexpected,SIGKILL);
+        (void)waitpid(unexpected,NULL,0);
         cleanup_child(child);
         return 129;
     }
+    if(errno!=EPERM) {
+        cleanup_child(child);
+        return 130;
+    }
+
+    errno=0;
+    if(dup(release_pipe[1])>=0 || errno!=EPERM) {
+        cleanup_child(child);
+        return 131;
+    }
+
+    errno=0;
+    if(
+        fcntl(release_pipe[1],F_DUPFD_CLOEXEC,4)>=0 ||
+        errno!=EPERM
+    ) {
+        cleanup_child(child);
+        return 132;
+    }
+
+    struct msghdr denied_message;
+    memset(&denied_message,0,sizeof(denied_message));
+    errno=0;
+    if(sendmsg(1,&denied_message,0)>=0 || errno!=EPERM) {
+        cleanup_child(child);
+        return 133;
+    }
+
+#ifdef SYS_pidfd_getfd
+    errno=0;
+    if(
+        syscall(SYS_pidfd_getfd,pidfd,RELEASE_FD,0)>=0 ||
+        errno!=EPERM
+    ) {
+        cleanup_child(child);
+        return 134;
+    }
+#endif
 
     char reopen_path[64];
     int pn=snprintf(
@@ -887,7 +929,7 @@ static int fixture_run(
     );
     if(pn<=0 || (size_t)pn>=sizeof(reopen_path)) {
         cleanup_child(child);
-        return 130;
+        return 135;
     }
     errno=0;
     if(
@@ -895,7 +937,7 @@ static int fixture_run(
         errno!=EPERM
     ) {
         cleanup_child(child);
-        return 131;
+        return 136;
     }
 
     errno=0;
@@ -904,27 +946,27 @@ static int fixture_run(
         errno!=EPERM
     ) {
         cleanup_child(child);
-        return 132;
+        return 137;
     }
 
     unsigned char frame[64];
     if(!decode_frame(frame_hex,frame)) {
         cleanup_child(child);
-        return 133;
+        return 138;
     }
     if(!write_all(release_pipe[1],frame,sizeof(frame))) {
         cleanup_child(child);
-        return 134;
+        return 139;
     }
     if(close(release_pipe[1])!=0) {
         cleanup_child(child);
-        return 135;
+        return 140;
     }
     release_pipe[1]=-1;
 
     int status=0;
-    if(waitpid(child,&status,0)!=child) return 136;
-    if(!WIFEXITED(status) || WEXITSTATUS(status)!=0) return 137;
+    if(waitpid(child,&status,0)!=child) return 141;
+    if(!WIFEXITED(status) || WEXITSTATUS(status)!=0) return 142;
 
     close_if_open(&pidfd);
     close_proc_context(&proc);
