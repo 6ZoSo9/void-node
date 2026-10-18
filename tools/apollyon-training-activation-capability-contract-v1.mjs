@@ -285,8 +285,20 @@ function preflightPrimitiveObject(
   const proto=Object.getPrototypeOf(value);
   if(proto!==Object.prototype&&proto!==null)fail(code);
   exactOwnKeys(value,expectedKeys,code);
+
+  const descriptors=Object.getOwnPropertyDescriptors(value);
+  const snapshot={};
   for(const key of expectedKeys){
-    const item=value[key];
+    const descriptor=descriptors[key];
+    if(
+      !descriptor||
+      descriptor.enumerable!==true||
+      !Object.prototype.hasOwnProperty.call(descriptor,"value")||
+      typeof descriptor.get==="function"||
+      typeof descriptor.set==="function"
+    )fail(code);
+
+    const item=descriptor.value;
     if(stringKeys.has(key)){
       const maxLength=key==="training_process_start_time_ticks"?20:256;
       if(typeof item!=="string"||item.length<1||item.length>maxLength)fail(code);
@@ -297,13 +309,15 @@ function preflightPrimitiveObject(
     }else{
       fail(code);
     }
+    snapshot[key]=item;
   }
+  return snapshot;
 }
 function preflightCapabilityInput(value,withId){
   const keys=withId
     ?CAPABILITY_KEYS
     :CAPABILITY_KEYS.filter((key)=>key!=="activation_capability_id");
-  preflightPrimitiveObject(
+  return preflightPrimitiveObject(
     value,keys,
     CAPABILITY_STRING_KEYS,CAPABILITY_NUMBER_KEYS,CAPABILITY_BOOLEAN_KEYS,
     "apollyon_training_activation_capability_invalid",
@@ -313,12 +327,13 @@ function preflightBindingInput(value,withId){
   const keys=withId
     ?BINDING_KEYS
     :BINDING_KEYS.filter((key)=>key!=="activation_binding_id");
-  preflightPrimitiveObject(
+  const snapshot=preflightPrimitiveObject(
     value,keys,
     BINDING_STRING_KEYS,BINDING_NUMBER_KEYS,BINDING_BOOLEAN_KEYS,
     "apollyon_training_activation_binding_invalid",
   );
-  preflightBindingStartTicks(value);
+  preflightBindingStartTicks(snapshot);
+  return snapshot;
 }
 function clonePlain(value,code){
   let copy;
@@ -410,8 +425,11 @@ function validateCapabilityMaterial(value){
 }
 
 export function qualifyApollyonTrainingActivationCapabilityV1(input){
-  preflightCapabilityInput(input,true);
-  const value=clonePlain(input,"apollyon_training_activation_capability_invalid");
+  const preflight=preflightCapabilityInput(input,true);
+  const value=clonePlain(
+    preflight,
+    "apollyon_training_activation_capability_invalid",
+  );
   exactOwnKeys(value,CAPABILITY_KEYS,"apollyon_training_activation_capability_invalid");
   if(!CAPABILITY_ID.test(value.activation_capability_id)){
     fail("apollyon_training_activation_capability_id_invalid");
@@ -427,9 +445,9 @@ export function qualifyApollyonTrainingActivationCapabilityV1(input){
 }
 
 export function buildApollyonTrainingActivationCapabilityV1(materialInput){
-  preflightCapabilityInput(materialInput,false);
+  const preflight=preflightCapabilityInput(materialInput,false);
   const material=clonePlain(
-    materialInput,
+    preflight,
     "apollyon_training_activation_capability_invalid",
   );
   exactOwnKeys(
@@ -489,10 +507,10 @@ export function qualifyApollyonTrainingActivationGenerationBindingV1(
   capabilityInput,
   bindingInput,
 ){
-  preflightBindingInput(bindingInput,true);
+  const preflight=preflightBindingInput(bindingInput,true);
   const capability=qualifyApollyonTrainingActivationCapabilityV1(capabilityInput);
   const value=clonePlain(
-    bindingInput,
+    preflight,
     "apollyon_training_activation_binding_invalid",
   );
   exactOwnKeys(value,BINDING_KEYS,"apollyon_training_activation_binding_invalid");
@@ -513,10 +531,10 @@ export function buildApollyonTrainingActivationGenerationBindingV1(
   capabilityInput,
   materialInput,
 ){
-  preflightBindingInput(materialInput,false);
+  const preflight=preflightBindingInput(materialInput,false);
   const capability=qualifyApollyonTrainingActivationCapabilityV1(capabilityInput);
   const material=clonePlain(
-    materialInput,
+    preflight,
     "apollyon_training_activation_binding_invalid",
   );
   exactOwnKeys(
