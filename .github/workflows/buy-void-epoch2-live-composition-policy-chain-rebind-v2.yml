@@ -1,0 +1,90 @@
+name: Buy VOID Epoch-2 V6R2 policy chain rebind v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py"
+      - "docs/operators/buy-void-epoch2-live-composition-policy-chain-rebind-v2.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-policy-chain-rebind-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_policy_head_rebind_v1.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+  push:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py"
+      - "docs/operators/buy-void-epoch2-live-composition-policy-chain-rebind-v2.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-policy-chain-rebind-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_policy_head_rebind_v1.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify exact source generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py)" = "b722e2f7fdd41e2b20257f60c3a99e991fe1acc8"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py)" = "56c0fcf352defa201c854101d08f8d4b50b5b85a"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-policy-chain-rebind-v2.md)" = "086db9bca7bf0c04b775d7df6b8e65321eb93a0b"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = "37ab46ca5b77a642d84ad18c61388c30f4d63881"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
+
+      - name: Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for p in (
+              Path("ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py"),
+              Path("scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py"),
+          ):
+              compile(p.read_bytes(), str(p), "exec")
+          print("VOID_EPOCH2_POLICY_CHAIN_REBIND_V2_SYNTAX_GREEN")
+          PY
+
+      - name: Production self-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(mktemp)"
+          python3 -I -B ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py --self-test | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_V6R2_POLICY_CHAIN_REBIND_V2_SELF_TEST_GREEN' "$out"
+          grep -Fx 'original_65b_policy_identity_bound=true' "$out"
+          grep -Fx 'previous_b92_policy_identity_bound=true' "$out"
+          grep -Fx 'two_predecessor_retention_required=true' "$out"
+          grep -Fx 'publication_aware_failure_receipt=true' "$out"
+          grep -Fx 'credential_access_authorized=false' "$out"
+          grep -Fx 'transaction_authorized=false' "$out"
+          grep -Fx 'funds_movement_authorized=false' "$out"
+
+      - name: Source plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(mktemp)"
+          python3 -I -B ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py --source-plan | tee "$out"
+          grep -Fx 'host_read=false' "$out"
+          grep -Fx 'host_write=false' "$out"
+          grep -Fx 'original_policy_retained_required=true' "$out"
+          grep -Fx 'previous_policy_retention_required=true' "$out"
+          grep -Fx 'policy_atomic_exchange_required=true' "$out"
+          grep -Fx 'live_execution_authorized=false' "$out"
+          grep -Fx 'credential_access_authorized=false' "$out"
+          grep -Fx 'funds_movement_authorized=false' "$out"
+
+      - name: Focused adversarial proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py
