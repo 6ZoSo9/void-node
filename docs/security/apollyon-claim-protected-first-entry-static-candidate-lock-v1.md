@@ -39,26 +39,32 @@ The accepted protected-first-entry source parent remains:
 
 `a149fe2fbac4cb8bb11ed049dfb12a1d0110bfae`.
 
-## Historical candidate reproduction
+## Historical evidence lock, not mutable re-compilation
 
-The #3482 candidate report is intentionally head-addressed. Running the parent
-derivation unchanged on a child branch would therefore create a different
-candidate ID merely because the repository HEAD changed.
+The #3482 candidate was already derived, independently rebuilt, ELF-inspected,
+content-addressed, archived with mode preservation, and accepted as source
+evidence on its exact historical generation. Recompiling that historical
+candidate again on an unpinned hosted image would make this acceptance gate
+depend on mutable GCC, binutils, libc/crt and static-link inputs.
 
-This lock avoids that ambiguity deliberately.
+This lock therefore **does not recompile** the candidate.
 
-Before reproducing the historical candidate, the lock:
+Instead it:
 
 1. proves the accepted #3482 head is an ancestor of the lock head;
 2. proves the accepted #3467 base is an ancestor of #3482;
-3. re-reads every #3482-owned file and requires the exact accepted Git blob;
-4. executes the exact verified parent candidate tool bytes; and
-5. reproduces the parent report with its historical repository generation
-   fixed to #3482 only for that verified derivation.
+3. re-reads every #3482-owned source/proof/doc/workflow file and requires its
+   exact accepted Git blob;
+4. binds the exact accepted candidate ID and both raw/canonical report digests;
+5. binds the exact mode-preserving inner archive and hosted-wrapper digests;
+6. binds the exact accepted binary byte count, SHA-256 and Git-blob identity;
+7. records the accepted historical compiler/readelf/runner-image evidence; and
+8. performs no compiler, linker or readelf execution during lock derivation.
 
-The parent validator then re-runs its full source/toolchain/static-ELF and
-independent rebuild checks. This is not a generic caller override and does not
-permit a different candidate generation to inherit the accepted identity.
+The proof guards the lock's subprocess boundary and permits only local
+read-only Git commands needed for ancestry and parent-blob authentication.
+Consequently a future hosted-runner toolchain update cannot silently change the
+accepted binary or make the acceptance lock non-executable.
 
 ## Accepted identity
 
@@ -77,9 +83,26 @@ The lock accepts exactly:
 - no dynamic `NEEDED`;
 - production fixed-self path embedded.
 
-The hosted artifact ID and wrapper digest from #3482 are review transport
-evidence, not the durable trust root. The lock is instead bound to the stable
-candidate/report/source/binary identities above.
+The lock also binds the accepted #3482 evidence envelope:
+
+- canonical candidate-report SHA-256:
+  `8e96b53161b0b5447e5b02499537803ffd680b5f01d6520ec1653fee52c75649`;
+- raw candidate-report SHA-256:
+  `dffdd2ce32fcf9dee765f8a6d17b455e100022012c7cd17d9cec1f5d436b484a`;
+- deterministic inner tar SHA-256:
+  `ca21d9f28b66c408f857ee00480a63585080025a6a76a84efca472e188390944`;
+- hosted wrapper SHA-256:
+  `ae1a062c6bd6a74d446a4cc7bf25242e11f2638f2c17c30dc1b2ae08017fc417`;
+- accepted runner image: `ubuntu24/20261012.334`;
+- accepted GCC SHA-256:
+  `1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26`;
+- accepted readelf SHA-256:
+  `64c58e15274bbbb5153f31078e455e9e77ee5f51489e709bba5bb788ce9df2b0`.
+
+These values are historical identity evidence, not a request to reproduce that
+hosted image. Artifact availability is not required to derive or validate the
+lock; the later install gate must supply candidate bytes and require them to
+match the locked binary identity before any protected filesystem mutation.
 
 ## Acceptance transition
 
@@ -87,7 +110,14 @@ The source-only lock may assert:
 
 - `candidate_accepted=true`;
 - `binary_identity_accepted=true`;
-- `static_first_instruction_candidate_evidence_accepted=true`.
+- `static_first_instruction_candidate_evidence_accepted=true`;
+- `accepted_parent_evidence_identity_bound=true`;
+- `accepted_parent_toolchain_identity_bound=true`.
+
+It explicitly records:
+
+- `historical_parent_candidate_rederived=false`;
+- `mutable_runner_toolchain_used=false`.
 
 These statements mean only that the exact reviewed binary is the accepted input
 to the next protected-install gate.
@@ -112,9 +142,13 @@ Hosted proof re-addresses forged records and requires rejection for:
 - extra top-level fields;
 - parent-head drift;
 - parent candidate-ID drift;
+- accepted report-digest drift;
+- accepted artifact-digest drift;
+- accepted historical toolchain-identity drift;
 - binary SHA drift;
 - extra nested binary fields;
 - protected-install authority overclaim;
+- false historical-rederivation or mutable-toolchain claims;
 - rollback of candidate acceptance; and
 - next-gate drift.
 
