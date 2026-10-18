@@ -54,6 +54,9 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTA
     directory_fsync_implemented:true,
     exact_reread_implemented:true,
     crash_recovery_exact_pending_link_cleanup_implemented:true,
+    stale_unlinked_pending_recovery_implemented:true,
+    transaction_callback_lifetime_guard_implemented:true,
+    transaction_result_passthrough_required:true,
     exact_same_claim_recovery_implemented:true,
     different_claim_in_occupied_slot_rejected_implemented:true,
     slot_before_claim_order_implemented:true,
@@ -351,6 +354,55 @@ function reconcilePendingLink(targetDirFd,pendingDirFd,finalLeaf,kind,digest,uid
   }
   return true;
 }
+
+function cleanupUnlinkedPending(
+  pendingDirFd,kind,digest,expectedBytes,uid,gid
+){
+  const prefix=pendingPrefix(kind,digest);
+  const matches=fs.readdirSync(procFdPath(pendingDirFd))
+    .filter(name=>name.startsWith(prefix));
+  if(matches.length>32){
+    fail("apollyon_claim_store_impl_v2_stale_pending_excessive");
+  }
+  let removed=0;
+  for(const name of matches){
+    const leaf=safeLeaf(
+      name,"apollyon_claim_store_impl_v2_stale_pending_entry_invalid"
+    );
+    const pathname=procFdPath(pendingDirFd,leaf);
+    let fd=-1;
+    try{
+      const st=fs.lstatSync(pathname);
+      if(
+        !st.isFile()||st.isSymbolicLink()||
+        st.uid!==uid||st.gid!==gid||
+        modeBits(st)!==RECORD_MODE||st.nlink!==1||
+        st.size!==expectedBytes.length
+      ){
+        fail("apollyon_claim_store_impl_v2_stale_pending_metadata_invalid");
+      }
+      fd=fs.openSync(pathname,fs.constants.O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+      const observed=stableReadFd(
+        fd,MAX_RECORD_BYTES,
+        "apollyon_claim_store_impl_v2_stale_pending_reread_failed"
+      );
+      if(!observed.equals(expectedBytes)){
+        fail("apollyon_claim_store_impl_v2_stale_pending_bytes_mismatch");
+      }
+    }finally{
+      if(fd>=0)try{fs.closeSync(fd);}catch{}
+    }
+    fs.unlinkSync(pathname);
+    removed+=1;
+  }
+  if(removed>0){
+    fsyncDirectory(
+      pendingDirFd,
+      "apollyon_claim_store_impl_v2_stale_pending_cleanup_fsync_failed"
+    );
+  }
+  return removed;
+}
 function publishExactRecord({
   targetDirFd,pendingDirFd,finalLeaf,kind,digest,bytes,uid,gid,
 }){
@@ -370,6 +422,10 @@ function publishExactRecord({
     }
     return Object.freeze({outcome:"existing_exact",bytes:row.bytes});
   }
+
+  cleanupUnlinkedPending(
+    pendingDirFd,kind,digest,bytes,uid,gid
+  );
 
   const pending=pendingLeaf(kind,digest);
   const pendingPath=procFdPath(pendingDirFd,pending);
@@ -802,19 +858,35 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
     };
 
     let result;
-    try{result=config.withExclusiveStoreTransaction(transaction);}
-    catch(error){
+    let transactionResult;
+    let wrapperActive=true;
+    const guardedTransaction=()=>{
+      if(!wrapperActive){
+        fail("apollyon_claim_store_impl_v2_transaction_outside_wrapper_call");
+      }
+      const value=transaction();
+      transactionResult=value;
+      return value;
+    };
+    try{
+      result=config.withExclusiveStoreTransaction(guardedTransaction);
+    }catch(error){
       if(error?.message?.startsWith("apollyon_claim_store_impl_v2_"))throw error;
       throw new Error(
         "apollyon_claim_store_impl_v2_transaction_wrapper_failed:"+
         String(error?.message||error)
       );
+    }finally{
+      wrapperActive=false;
     }
     if(result&&typeof result.then==="function"){
       fail("apollyon_claim_store_impl_v2_async_transaction_forbidden");
     }
     if(entered!==1){
       fail("apollyon_claim_store_impl_v2_transaction_not_exactly_once");
+    }
+    if(result!==transactionResult){
+      fail("apollyon_claim_store_impl_v2_transaction_result_substitution");
     }
     return result;
   }
