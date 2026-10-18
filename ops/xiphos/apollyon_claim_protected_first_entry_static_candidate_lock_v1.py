@@ -355,7 +355,14 @@ def validate_lock(lock: dict[str, Any]) -> None:
     if observed_binary != expected_binary:
         hold("candidate_lock_binary_identity_invalid")
 
-    if lock.get("authority") != expected_authority():
+    observed_authority = lock.get("authority")
+    expected = expected_authority()
+    if (
+        not isinstance(observed_authority, dict)
+        or set(observed_authority) != set(expected)
+        or any(type(observed_authority[key]) is not bool for key in expected)
+        or observed_authority != expected
+    ):
         hold("candidate_lock_authority_invalid")
     if lock.get("next_gate") != NEXT_GATE:
         hold("candidate_lock_next_gate_invalid")
