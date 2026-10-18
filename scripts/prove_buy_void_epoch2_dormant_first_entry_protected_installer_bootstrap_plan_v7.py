@@ -135,8 +135,11 @@ pin(PREDECESSOR_PROOF_REL, PREDECESSOR_PROOF_BLOB)
 qualifier_raw = pin(QUALIFIER_REL, QUALIFIER_BLOB)
 
 workflow_source = (ROOT / WORKFLOW_REL).read_text("utf-8")
-assert 'base="' + EXACT_PARENT + '"' in workflow_source
+assert workflow_source.count('base="' + EXACT_PARENT + '"') == 2
+assert 'pull_request)' in workflow_source
 assert 'workflow_dispatch)' in workflow_source
+assert 'base="$PR_BASE"' not in workflow_source
+assert 'PR_BASE:' not in workflow_source
 assert 'EXPECTED_HEAD^1' not in workflow_source
 assert 'git rev-parse "$EXPECTED_HEAD^1"' not in workflow_source
 
@@ -404,6 +407,7 @@ else:
 
 print(MARKER + "_PROOF_GREEN")
 print("target_blob_bound=true")
+print("workflow_pull_request_exact_parent_bound=true")
 print("workflow_dispatch_exact_parent_bound=true")
 print("workflow_dispatch_first_parent_inference_absent=true")
 print("predecessor_v6_plan_bound=true")
