@@ -23,7 +23,7 @@ Exact qualifier:
 
 Git blob:
 
-`04c7ca5f0d96dcb60faeae8cf4d712435ad65466`
+`d9650aff7af2cb9fc9a8d95a888d8dd52aef1970`
 
 Its contract requires:
 
@@ -160,3 +160,13 @@ the repaired qualifier's explicit callback-neutralized Git boundary, including
 qualification may satisfy V7.
 
 **PROTECT THE CORE.**
+
+
+## Repaired qualification parent
+
+This V7 planner generation is reviewed directly against repaired qualification
+head `190fae8c410d7fe3ae4af5551ea78a5523bcd7fb`.
+
+The qualifier is itself bound to the monotonic-publication atomic upgrader and
+the trigger-corrected non-executing upgrade planner. V7 therefore does not
+inherit the superseded pre-repair parent identities.
