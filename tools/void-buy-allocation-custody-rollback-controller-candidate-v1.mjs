@@ -38,6 +38,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_AUTHORITY_V1 =
   });
 
 const AUTH_MARKER="VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_AUTHORIZATION_V1";
+const CANARY_DOMAIN="void.buyvoid.presale.noncustomer.canary.v1";
 const OP_ID=/^voidbuycustodychallengeop1_[0-9a-f]{64}$/u;
 const AUTH_ID=/^voidbuycustodychallengeauth1_[0-9a-f]{64}$/u;
 const SHA=/^sha256:[0-9a-f]{64}$/u;
@@ -63,7 +64,7 @@ const CAPABILITY_KEYS=Object.freeze([
 
 const AUTH_KEYS=Object.freeze([
   "marker","version","authorization_id","plan_id","operation_id",
-  "non_customer_canary","allocation_ledger_unchanged_required",
+  "non_customer_canary","canary_domain_id","allocation_ledger_unchanged_required",
   "customer_request_state_unchanged_required","reviewed_source_tree",
   "exact_current_policy_bound",
 ]);
@@ -122,7 +123,7 @@ function normalizeAuthorization(value){
   if(a.plan_id!==VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_PLAN_ID_V1)
     fail("authorization_plan_invalid");
   string(a.operation_id,OP_ID,"authorization_operation_id_invalid");
-  if(a.non_customer_canary!==true||
+  if(a.non_customer_canary!==true||a.canary_domain_id!==CANARY_DOMAIN||
      a.allocation_ledger_unchanged_required!==true||
      a.customer_request_state_unchanged_required!==true||
      a.exact_current_policy_bound!==true)fail("authorization_scope_invalid");
@@ -198,12 +199,16 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
 
   const append=exactResult(callSync(caps.append_journal_canary,
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
+      canary_domain_id:authorization.canary_domain_id,
       before_journal_sequence:before.journal_sequence,
       before_journal_tip_sha256:before.journal_tip_sha256}),
     "append_journal_canary"),
-    ["challenge_id","journal_sequence","journal_tip_sha256","event_sha256"],
+    ["challenge_id","canary_domain_id","journal_sequence","journal_tip_sha256","event_sha256"],
     "append_journal");
-  if(append.challenge_id!==challengeId)fail("append_challenge_mismatch");
+  if(
+    append.challenge_id!==challengeId||
+    append.canary_domain_id!==authorization.canary_domain_id
+  )fail("append_challenge_mismatch");
   if(append.journal_sequence!==before.journal_sequence+1)fail("journal_sequence_not_advanced");
   string(append.journal_tip_sha256,SHA,"append_journal_tip_invalid");
   string(append.event_sha256,SHA,"append_event_invalid");
@@ -334,23 +339,28 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     operation_id:authorization.operation_id,
     challenge_id:challengeId,
     controller_id:"void.replay.journal.rollback.controller.v1",
-    non_customer_canary_verified:true,
-    operation_bound_authorization_verified:true,
-    reviewed_source_generation_bound:true,
-    exact_current_policy_bound:true,
-    challenge_entropy_generated:true,
-    journal_append_sequenced:true,
-    high_water_advance_sequenced:true,
-    sync_close_reopen_sequenced:true,
-    external_witness_continuity_sequenced:true,
-    second_control_approval_sequenced:true,
-    controlled_journal_rollback_sequenced:true,
-    protected_high_water_non_decrease_verified:true,
-    stale_journal_refusal_verified:true,
-    storage_policy_reobservation_verified:true,
-    allocation_ledger_unchanged_verified:true,
-    customer_request_state_unchanged_verified:true,
-    evidence_origin_authenticated:true,
+    authorization_record_validated:true,
+    operation_bound_authorization_authenticated:false,
+    non_customer_canary_domain_bound:true,
+    non_customer_canary_isolation_proven:false,
+    reviewed_source_generation_requirement_bound:true,
+    exact_current_policy_requirement_bound:true,
+    challenge_entropy_capability_invoked:true,
+    challenge_unpredictability_proven:false,
+    journal_append_sequence_contract_validated:true,
+    high_water_advance_sequence_contract_validated:true,
+    sync_close_reopen_contract_validated:true,
+    external_witness_continuity_contract_validated:true,
+    second_control_approval_contract_validated:true,
+    controlled_journal_rollback_contract_validated:true,
+    protected_high_water_non_decrease_contract_validated:true,
+    stale_journal_refusal_contract_validated:true,
+    storage_policy_reobservation_contract_validated:true,
+    allocation_ledger_unchanged_contract_validated:true,
+    customer_request_state_unchanged_contract_validated:true,
+    evidence_origin_capability_report_validated:true,
+    evidence_origin_authenticated:false,
+    injected_capabilities_authenticated:false,
     live_durable_storage_proven:false,
     rollback_resistance_proven:false,
     protected_high_water_custody_proven:false,

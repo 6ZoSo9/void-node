@@ -46,9 +46,15 @@ Async/thenable capabilities fail closed.
 
 ## Sequencing invariants
 
-The controller requires a content-addressed, operation-bound authorization for
-the exact #3516 plan and exact accepted economic tree. It generates a 32-byte
-challenge through the injected entropy capability after authorization.
+The controller validates a content-addressed operation record for the exact
+#3516 plan, exact accepted economic tree, and fixed non-customer canary domain
+`void.buyvoid.presale.noncustomer.canary.v1`. That record is **not** treated as
+authenticated authority: protected origin/authentication remains a host-adapter
+requirement.
+
+The controller invokes the injected entropy capability after record validation
+and requires exactly 32 bytes. This sequences the entropy requirement but does
+not itself prove unpredictability or kernel entropy provenance.
 
 The journal canary must advance exactly one sequence. High-water must advance
 to at least the journal challenge sequence and may never be rolled back.
@@ -97,8 +103,16 @@ production_host_evidence_authority=false
 ```
 
 This is intentional: in-memory callback success is not proof that a protected
-host adapter, rollback controller, second-control authority, storage devices, or
-external witness were authentic.
+host adapter, operation authorization, non-customer isolation, entropy source,
+rollback controller, second-control authority, storage devices, evidence origin,
+or external witness were authentic.
+
+The candidate therefore also keeps:
+`operation_bound_authorization_authenticated=false`,
+`non_customer_canary_isolation_proven=false`,
+`challenge_unpredictability_proven=false`,
+`evidence_origin_authenticated=false`, and
+`injected_capabilities_authenticated=false`.
 
 Next gate:
 

@@ -62,6 +62,7 @@ const authBody={
   plan_id:"voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006",
   operation_id:op,
   non_customer_canary:true,
+  canary_domain_id:"void.buyvoid.presale.noncustomer.canary.v1",
   allocation_ledger_unchanged_required:true,
   customer_request_state_unchanged_required:true,
   reviewed_source_tree:"71c67e62a2b21a98f3f5135ee6aa56e0ef97d262",
@@ -95,10 +96,17 @@ function makeHarness(mutator=()=>{}){
   const caps={
     generate_challenge_entropy(){order.push("entropy");return Buffer.alloc(32,0x5a);},
     observe_before({challenge_id}){order.push("before");challenge=challenge_id;return before;},
-    append_journal_canary({challenge_id}){
+    append_journal_canary({challenge_id,canary_domain_id}){
       order.push("append");
       assert.equal(challenge_id,challenge);
-      state.append={challenge_id,journal_sequence:8,journal_tip_sha256:sha("journal-canary"),event_sha256:sha("event")};
+      assert.equal(canary_domain_id,"void.buyvoid.presale.noncustomer.canary.v1");
+      state.append={
+        challenge_id,
+        canary_domain_id,
+        journal_sequence:8,
+        journal_tip_sha256:sha("journal-canary"),
+        event_sha256:sha("event"),
+      };
       return state.append;
     },
     advance_high_water({challenge_id}){
@@ -155,12 +163,21 @@ const expectedOrder=["entropy","before","append","high","reopen","witness","seco
   assert.equal(result.marker,VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_CANDIDATE_V1);
   assert.equal(result.status,"controller_candidate_sequence_green_host_adapter_required");
   assert.deepEqual(h.order,expectedOrder);
-  assert.equal(result.non_customer_canary_verified,true);
-  assert.equal(result.protected_high_water_non_decrease_verified,true);
-  assert.equal(result.stale_journal_refusal_verified,true);
-  assert.equal(result.allocation_ledger_unchanged_verified,true);
-  assert.equal(result.customer_request_state_unchanged_verified,true);
-  assert.equal(result.evidence_origin_authenticated,true);
+  assert.equal(result.authorization_record_validated,true);
+  assert.equal(result.operation_bound_authorization_authenticated,false);
+  assert.equal(result.non_customer_canary_domain_bound,true);
+  assert.equal(result.non_customer_canary_isolation_proven,false);
+  assert.equal(result.reviewed_source_generation_requirement_bound,true);
+  assert.equal(result.exact_current_policy_requirement_bound,true);
+  assert.equal(result.challenge_entropy_capability_invoked,true);
+  assert.equal(result.challenge_unpredictability_proven,false);
+  assert.equal(result.protected_high_water_non_decrease_contract_validated,true);
+  assert.equal(result.stale_journal_refusal_contract_validated,true);
+  assert.equal(result.allocation_ledger_unchanged_contract_validated,true);
+  assert.equal(result.customer_request_state_unchanged_contract_validated,true);
+  assert.equal(result.evidence_origin_capability_report_validated,true);
+  assert.equal(result.evidence_origin_authenticated,false);
+  assert.equal(result.injected_capabilities_authenticated,false);
   for(const key of [
     "live_durable_storage_proven","rollback_resistance_proven",
     "protected_high_water_custody_proven","independent_custody_proven",
@@ -203,6 +220,15 @@ mustFail("origin unauthenticated",(c)=>{c.authenticate_evidence_origin=({challen
   origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),evidence_sha256:sha("evidence"),
 });},/evidence_origin_not_authenticated/);
 
+const wrongCanaryBody={...authBody,canary_domain_id:"void.buyvoid.presale.customer.invalid"};
+const wrongCanary={
+  ...wrongCanaryBody,
+  authorization_id:buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV1(wrongCanaryBody),
+};
+assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+  authorization:wrongCanary,capabilities:makeHarness().caps,
+}),/authorization_scope_invalid/);
+
 const wrong={...authorization,plan_id:"voidbuycustodychallengeplan1_"+"0".repeat(64)};
 assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
   authorization:wrong,capabilities:makeHarness().caps,
@@ -213,13 +239,19 @@ console.log("plan_id=voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc15
 console.log("challenge_requirement_count=20");
 console.log("deterministic_controller_sequence=true");
 console.log("operation_bound_authorization_required=true");
-console.log("challenge_entropy_generated_inside_controller=true");
+console.log("operation_bound_authorization_authenticated=false");
+console.log("non_customer_canary_domain_bound=true");
+console.log("non_customer_canary_isolation_proven=false");
+console.log("challenge_entropy_capability_invoked=true");
+console.log("challenge_unpredictability_proven=false");
 console.log("second_control_precedes_rollback=true");
 console.log("protected_high_water_non_decrease_required=true");
 console.log("stale_journal_refusal_required=true");
 console.log("allocation_ledger_unchanged_required=true");
 console.log("customer_request_state_unchanged_required=true");
 console.log("evidence_origin_authentication_required=true");
+console.log("evidence_origin_authenticated=false");
+console.log("injected_capabilities_authenticated=false");
 console.log("direct_host_filesystem_api_present=false");
 console.log("direct_process_api_present=false");
 console.log("direct_network_api_present=false");
