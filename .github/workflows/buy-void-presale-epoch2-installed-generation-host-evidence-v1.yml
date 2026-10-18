@@ -73,9 +73,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 771c3e852a77025d44071dd0653f5ec7762c9f65
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 077b1361b4800cfd3ddf33de552eeb241002983b
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 4645e7a98b3fb2a3a2c8c7a62c4986681a01e02d
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = ed143ef9c3e2e3eac442e9788fe27115596d1169
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 63d7f2159112977ed659931c06da69706d07c177
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 7aedcc432e57961475650ec350a97d504e41a717
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = a04c2e7665294cdd142426e9eb01ee27c5292b8d
@@ -164,6 +164,7 @@ jobs:
             'hold_receipt_single_line_reason_enforced=true' \
             'git_non_utf8_metadata_maps_to_hold=true' \
             'unicode_whitespace_cannot_alias_main=true' \
+            'git_full_branch_namespace_and_aliases_bound=true' \
             'filesystem_write_performed=false' \
             'runner_execution=false' \
             'live_composition_execution=false' \

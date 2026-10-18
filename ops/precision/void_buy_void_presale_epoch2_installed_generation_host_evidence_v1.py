@@ -368,10 +368,7 @@ def _guard_installer_git_queries(installer: types.ModuleType, expected_head: str
         if query not in allowed:
             raise EvidenceError("delegated_git_query_not_allowed")
         if query == ("branch", "--show-current"):
-            branch = _git_text(["symbolic-ref", "--short", "-q", "HEAD"])
-            if branch != "main\n":
-                raise EvidenceError("checkout_branch_not_main")
-            return branch
+            return _main_branch() + "\n"
         return _git_text(args)
 
     installer._run_git = guarded_run_git
@@ -505,12 +502,21 @@ def _git_text(args: list[str]) -> str:
         raise EvidenceError("git_output_not_utf8") from exc
 
 
+def _main_branch() -> str:
+    # Short output loses namespaces; recursive output alone loses HEAD aliases.
+    for args in (["symbolic-ref", "--no-recurse", "-q", "HEAD"],
+                 ["symbolic-ref", "-q", "HEAD"]):
+        if _git_text(args) != "refs/heads/main\n":
+            raise EvidenceError("checkout_branch_not_main")
+    return "main"
+
+
 def checkout_snapshot(expected_head: str) -> dict[str, Any]:
     if HEX40.fullmatch(expected_head) is None:
         raise EvidenceError("expected_head_invalid")
     head = _git_text(["rev-parse", "--verify", "HEAD^{commit}"]).removesuffix("\n")
     tree = _git_text(["rev-parse", "--verify", "HEAD^{tree}"]).removesuffix("\n")
-    branch = _git_text(["symbolic-ref", "--short", "-q", "HEAD"]).removesuffix("\n")
+    branch = _main_branch()
     if head != expected_head:
         raise EvidenceError("checkout_head_mismatch")
     if branch != "main":
@@ -590,7 +596,7 @@ def _verify_checkout_bytes(expected_head: str) -> None:
     # Reobserve the same head, index, and untracked-file boundary after reads.
     if (
         _git_text(["rev-parse", "--verify", "HEAD^{commit}"]).removesuffix("\n") != expected_head
-        or _git_text(["symbolic-ref", "--short", "-q", "HEAD"]).removesuffix("\n") != "main"
+        or _main_branch() != "main"
         or _git(index_query) != raw_index
         or _git(others_query)
     ):

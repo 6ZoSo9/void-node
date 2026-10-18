@@ -450,3 +450,12 @@ must HOLD without a traceback. Binary Git-object reads remain byte-preserving.
 Text parsing removes only Git's final newline, not arbitrary Unicode whitespace.
 A distinct `main` ref followed by a nonbreaking space must also fail every
 wrapper/delegated branch check rather than being stripped into a `main` match.
+
+Branch identity uses full symbolic-ref output. Both the direct HEAD target
+(`--no-recurse`) and recursively resolved target must equal `refs/heads/main`
+exactly, including Git's single final LF. Short names cannot establish a branch
+namespace. The delegated adapter returns its expected `main` line only after
+this shared check. Disposable regressions reject a tag named `main`, a HEAD
+alias that resolves to main, and main itself redirecting to another ref, all
+while the expected commit remains unchanged. A direct ordinary main ref must
+still pass after every fixture is restored.
