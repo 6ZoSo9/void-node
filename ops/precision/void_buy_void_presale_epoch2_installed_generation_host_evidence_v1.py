@@ -84,6 +84,11 @@ EXPECTED_INSTALLER_MARKER = (
 LOCK_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
 LOCK_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 MAX_REVIEWED_SOURCE_BYTES = 2 * 1024 * 1024
+MAX_CHECKOUT_FILE_BYTES = 64 * 1024 * 1024
+MAX_CHECKOUT_TOTAL_BYTES = 512 * 1024 * 1024
+MAX_CHECKOUT_FILES = 50000
+MAX_CHECKOUT_LIST_BYTES = 16 * 1024 * 1024
+STATUS_QUERY = ("status", "--porcelain=v1", "--untracked-files=all")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
 GIT_ENV = {
@@ -98,6 +103,7 @@ GIT_ENV = {
     "GIT_NO_REPLACE_OBJECTS": "1",
     "GIT_OPTIONAL_LOCKS": "0",
     "GIT_TERMINAL_PROMPT": "0",
+    "GIT_NO_LAZY_FETCH": "1",
 }
 
 
@@ -186,6 +192,7 @@ def _load_verified_installer(expected_head: str) -> types.ModuleType:
         or getattr(installer, "LOCK_PATH", None) != FIXED_CHECKOUT / LOCK_REL
         or getattr(installer, "LOCK_GIT_BLOB_SHA1", None) != LOCK_BLOB
         or not callable(getattr(installer, "_direct_repo_bytes", None))
+        or not callable(getattr(installer, "_run_git", None))
     ):
         raise EvidenceError("installer_source_contract_invalid")
 
@@ -197,7 +204,33 @@ def _load_verified_installer(expected_head: str) -> types.ModuleType:
         return _read_visible_source_exact(path, lock)
 
     installer._direct_repo_bytes = guarded_repository_bytes
+    _guard_installer_git_queries(installer, expected_head)
     return _harden_installer_git_environment(installer)
+
+
+def _guard_installer_git_queries(installer: types.ModuleType, expected_head: str) -> None:
+    original = installer._run_git
+    allowed = {
+        ("rev-parse", "--verify", "HEAD"),
+        ("branch", "--show-current"),
+    }
+    for name in ("LOCK_REL", "NATIVE_SOURCE_REL", "RUNNER_SOURCE_REL", "SEALED_V2_REL", "QUALIFIER_REL"):
+        relative = getattr(installer, name, None)
+        if not isinstance(relative, str) or not relative or relative.startswith("/") or ".." in relative.split("/"):
+            raise EvidenceError("installer_git_query_contract_invalid")
+        allowed.add(("rev-parse", "HEAD:" + relative))
+
+    def guarded_run_git(args: list[str]) -> str:
+        query = tuple(args)
+        if query == STATUS_QUERY:
+            _verify_checkout_bytes(expected_head)
+            return ""
+        if query not in allowed:
+            raise EvidenceError("delegated_git_query_not_allowed")
+        # Only object/ref metadata queries reach the unchanged UID-dropping path.
+        return original(args)
+
+    installer._run_git = guarded_run_git
 
 
 def git_blob(raw: bytes) -> str:
@@ -207,6 +240,9 @@ def git_blob(raw: bytes) -> str:
 
 
 def _git(args: list[str]) -> bytes:
+    # No content conversion, diff, status, checkout, or user-selected command.
+    if not args or args[0] not in ("rev-parse", "symbolic-ref", "show", "ls-tree", "ls-files"):
+        raise EvidenceError("git_query_not_allowed")
     try:
         cp = subprocess.run(
             [
@@ -218,6 +254,12 @@ def _git(args: list[str]) -> bytes:
                 "safe.directory=" + str(FIXED_CHECKOUT),
                 "-c",
                 "core.fsmonitor=false",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "core.untrackedCache=false",
+                "-c",
+                "protocol.allow=never",
                 *args,
             ],
             stdin=subprocess.DEVNULL,
@@ -249,16 +291,88 @@ def checkout_snapshot(expected_head: str) -> dict[str, Any]:
     head = _git(["rev-parse", "--verify", "HEAD^{commit}"]).decode().strip()
     tree = _git(["rev-parse", "--verify", "HEAD^{tree}"]).decode().strip()
     branch = _git(["symbolic-ref", "--short", "-q", "HEAD"]).decode().strip()
-    status = _git(["status", "--porcelain=v1", "--untracked-files=all"])
     if head != expected_head:
         raise EvidenceError("checkout_head_mismatch")
     if branch != "main":
         raise EvidenceError("checkout_branch_not_main")
-    if status != b"":
-        raise EvidenceError("checkout_not_clean")
     if HEX40.fullmatch(tree) is None:
         raise EvidenceError("checkout_tree_invalid")
+    _verify_checkout_bytes(expected_head)
     return {"head": head, "tree": tree, "branch": branch, "clean": True}
+
+
+def _checkout_records(raw: bytes) -> list[bytes]:
+    if len(raw) > MAX_CHECKOUT_LIST_BYTES or (raw and not raw.endswith(b"\0")):
+        raise EvidenceError("checkout_listing_invalid")
+    records = raw[:-1].split(b"\0") if raw else []
+    if len(records) > MAX_CHECKOUT_FILES:
+        raise EvidenceError("checkout_listing_limit")
+    return records
+
+
+def _checkout_path(raw: bytes) -> str:
+    try:
+        relative = raw.decode("utf-8", "strict")
+    except UnicodeError as exc:
+        raise EvidenceError("checkout_path_invalid") from exc
+    if not relative or any(part in ("", ".", "..", ".git") for part in relative.split("/")):
+        raise EvidenceError("checkout_path_invalid")
+    return relative
+
+
+def _verify_checkout_bytes(expected_head: str) -> None:
+    """Compare raw tree/index/worktree bytes without invoking content filters."""
+    if HEX40.fullmatch(expected_head) is None:
+        raise EvidenceError("expected_head_invalid")
+    tree_query = ["ls-tree", "-r", "-l", "-z", "--full-tree", expected_head]
+    index_query = ["ls-files", "--stage", "--full-name", "-z"]
+    others_query = ["ls-files", "--others", "--exclude-standard", "--full-name", "-z"]
+    raw_tree = _git(tree_query)
+    raw_index = _git(index_query)
+    entries: dict[str, tuple[str, str, int]] = {}
+    total = 0
+    try:
+        for record in _checkout_records(raw_tree):
+            header, name = record.split(b"\t", 1)
+            mode, kind, blob, size_raw = header.decode("ascii").split()
+            relative = _checkout_path(name)
+            if mode not in ("100644", "100755") or kind != "blob":
+                raise EvidenceError("checkout_entry_type_unsupported")
+            if HEX40.fullmatch(blob) is None or not size_raw.isdecimal():
+                raise EvidenceError("checkout_tree_record_invalid")
+            size = int(size_raw)
+            total += size
+            if size > MAX_CHECKOUT_FILE_BYTES or total > MAX_CHECKOUT_TOTAL_BYTES:
+                raise EvidenceError("checkout_content_limit")
+            if relative in entries:
+                raise EvidenceError("checkout_duplicate_path")
+            entries[relative] = (mode, blob, size)
+        index: dict[str, tuple[str, str]] = {}
+        for record in _checkout_records(raw_index):
+            header, name = record.split(b"\t", 1)
+            mode, blob, stage = header.decode("ascii").split()
+            relative = _checkout_path(name)
+            if stage != "0" or relative in index:
+                raise EvidenceError("checkout_index_unmerged_or_duplicate")
+            index[relative] = (mode, blob)
+    except (ValueError, UnicodeError) as exc:
+        raise EvidenceError("checkout_listing_invalid") from exc
+    if not entries or index != {path: (entry[0], entry[1]) for path, entry in entries.items()}:
+        raise EvidenceError("checkout_index_differs_from_head")
+    if _git(others_query):
+        raise EvidenceError("checkout_untracked_files")
+    for relative, (mode, blob, size) in entries.items():
+        raw = _read_visible_file(FIXED_CHECKOUT / relative, size, MAX_CHECKOUT_FILE_BYTES, mode)
+        if git_blob(raw) != blob:
+            raise EvidenceError("checkout_worktree_bytes_mismatch")
+    # Reobserve the same head, index, and untracked-file boundary after reads.
+    if (
+        _git(["rev-parse", "--verify", "HEAD^{commit}"]).decode().strip() != expected_head
+        or _git(["symbolic-ref", "--short", "-q", "HEAD"]).decode().strip() != "main"
+        or _git(index_query) != raw_index
+        or _git(others_query)
+    ):
+        raise EvidenceError("checkout_generation_changed")
 
 
 def exact_git_object(expected_head: str, relative: str, blob: str) -> bytes:
@@ -290,6 +404,17 @@ def _open_source_parent(path: Path) -> int:
 def _read_visible_source_exact(path: Path, expected: bytes) -> bytes:
     if not 0 < len(expected) <= MAX_REVIEWED_SOURCE_BYTES:
         raise EvidenceError("reviewed_source_expected_size_invalid")
+    direct = _read_visible_file(path, len(expected), MAX_REVIEWED_SOURCE_BYTES)
+    if direct != expected:
+        raise EvidenceError("reviewed_source_bytes_mismatch")
+    return direct
+
+
+def _read_visible_file(
+    path: Path, expected_size: int, maximum: int, expected_mode: str | None = None
+) -> bytes:
+    if not 0 <= expected_size <= maximum:
+        raise EvidenceError("reviewed_source_expected_size_invalid")
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     parent_fd = fd = visible_parent_fd = -1
     try:
@@ -299,12 +424,15 @@ def _read_visible_source_exact(path: Path, expected: bytes) -> bytes:
         if (
             not stat.S_ISREG(before.st_mode)
             or before.st_nlink != 1
-            or before.st_size != len(expected)
+            or before.st_size != expected_size
         ):
             raise EvidenceError("reviewed_source_metadata_invalid")
+        mode = "100755" if before.st_mode & stat.S_IXUSR else "100644"
+        if expected_mode is not None and mode != expected_mode:
+            raise EvidenceError("checkout_worktree_mode_mismatch")
 
         chunks: list[bytes] = []
-        remaining = len(expected) + 1
+        remaining = expected_size + 1
         while remaining > 0:
             chunk = os.read(fd, min(64 * 1024, remaining))
             if not chunk:
@@ -314,7 +442,7 @@ def _read_visible_source_exact(path: Path, expected: bytes) -> bytes:
         after = os.fstat(fd)
 
         direct = b"".join(chunks)
-        if len(direct) != len(expected):
+        if len(direct) != expected_size:
             raise EvidenceError("reviewed_source_size_changed")
         for field in (
             "st_dev",
@@ -351,8 +479,6 @@ def _read_visible_source_exact(path: Path, expected: bytes) -> bytes:
             or visible.st_ctime_ns != after.st_ctime_ns
         ):
             raise EvidenceError("reviewed_source_visible_generation_changed")
-        if direct != expected:
-            raise EvidenceError("reviewed_source_bytes_mismatch")
         return direct
     except OSError as exc:
         raise EvidenceError("reviewed_source_unavailable") from exc
@@ -533,6 +659,9 @@ def self_test() -> None:
     print(MARKER + "_SELF_TEST_GREEN")
     print("parent_host_evidence_plan_bound=true")
     print("exact_qualifier_source_and_proof_bound=true")
+    print("checkout_observation_avoids_content_filters=true")
+    print("delegated_original_status_bypassed=true")
+    print("raw_tree_index_worktree_equality_required=true")
     print("qualifier_source_descriptor_bound=true")
     print("qualifier_source_nofollow_bounded_read=true")
     print("delegated_installer_source_descriptor_bound=true")

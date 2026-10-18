@@ -272,3 +272,49 @@ lookup in a disposable directory. It proves the original loader/reader cannot
 be called, symlink/FIFO/changed-byte sources reject, and path swaps, ancestor
 symlinks, and growth fail closed. The real installer, host qualification, native
 self-test, credentials, and economic paths are not executed by these fixtures.
+
+## Checkout observation without content filters
+
+The wrapper no longer invokes `git status`. A repository-owned clean or process
+filter can execute during status, even when FSMonitor and hooks are disabled,
+and can return original bytes while hiding a worktree change. The same risk
+applies to the delegated installer's otherwise unchanged status query.
+
+Both checks now use one raw checkout verifier:
+
+- `git ls-tree -r -l -z --full-tree` lists the exact expected commit's paths,
+  modes, blob identities, and sizes;
+- `git ls-files --stage --full-name -z` must match that tree exactly, with only
+  stage-zero entries;
+- `git ls-files --others --exclude-standard --full-name -z` must be empty;
+- every tracked regular file is read through the existing no-follow ancestor
+  and retained-descriptor boundary, with exact size/EOF, mode, stable-generation,
+  and raw Git-blob equality checks;
+- head, branch, index, and untracked-file observations are repeated after the
+  content reads. Detected drift is HOLD.
+
+These commands do not request content conversion. The wrapper rejects direct
+status commands. The exact installer module's `_run_git` is replaced in memory:
+its original status query calls the same raw verifier, while only an exact
+allowlist of existing ref/object-name queries reaches the original UID-dropping
+Git path. No protected V5 source is modified. Existing Git environment hardening
+remains, and wrapper Git disables protocols, lazy fetch and untracked caching.
+
+This intentionally requires raw bytes and executable modes to match the commit.
+Filtered/normalized or CRLF worktrees, symlinks, gitlinks, unmerged or different
+index entries, invalid paths, special files, and hardlinks HOLD. Ignored untracked
+files remain outside the clean-check contract, as with the former status query.
+The bounds are 50,000 tracked files, 64 MiB per file, 512 MiB total tracked
+content, and 16 MiB per parsed listing. This is a sequence of revalidated
+observations, not an atomic filesystem snapshot.
+
+The disposable hosted fixture first reproduces the old defect: status returns
+empty while its configured clean filter writes a marker. The repaired wrapper
+and delegated checks must accept unchanged raw files without running either a
+clean or required process filter. Changed bytes, executable modes, staged or
+untracked changes, symlink/FIFO replacements, and path traversal are rejected;
+assume-unchanged and skip-worktree flags cannot hide changed bytes.
+
+This is source/proof coverage only. It grants no real host qualification,
+installation, native self-test, runtime, credential, signing, transaction,
+payment, activation, or funds authority.

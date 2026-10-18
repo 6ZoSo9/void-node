@@ -17,7 +17,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "8eb596041c6e0858e63135dde71923a2355d4e13"
+TARGET_BLOB = "190e25659caa5bf8a627e36a7e793d2a68ed4cad"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -160,6 +160,9 @@ for name in (
     "_harden_installer_git_environment",
     "_guard_qualifier_installer_loader",
     "_load_verified_installer",
+    "_guard_installer_git_queries",
+    "_verify_checkout_bytes",
+    "_read_visible_file",
     "_open_source_parent",
     "_git",
     "checkout_snapshot",
@@ -195,9 +198,9 @@ assert "qualifier.collect(expected_head)" in collect_source
 assert "qualifier.main" not in collect_source
 assert "subprocess." not in collect_source
 
-read_source = ast.get_source_segment(
-    source, functions["_read_visible_source_exact"]
-) or ""
+read_source = "\n".join(ast.get_source_segment(source, functions[name]) or "" for name in (
+    "_read_visible_source_exact", "_read_visible_file"
+))
 for required in (
     "os.open(path.name, flags, dir_fd=parent_fd)",
     "os.fstat(fd)",
@@ -315,9 +318,15 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-delegated-loader-proof-") a
         "LOCK_REL = " + repr(LOCK_REL) + "\n"
         "LOCK_PATH = ROOT / LOCK_REL\n"
         "LOCK_GIT_BLOB_SHA1 = " + repr(LOCK_BLOB) + "\n"
+        "NATIVE_SOURCE_REL = 'synthetic/native.c'\n"
+        "RUNNER_SOURCE_REL = 'synthetic/runner.mjs'\n"
+        "SEALED_V2_REL = 'synthetic/sealed.mjs'\n"
+        "QUALIFIER_REL = 'synthetic/qualifier.py'\n"
         "CLEAN_GIT_ENV = " + repr(module.EXPECTED_DELEGATED_INSTALLER_GIT_ENV) + "\n"
         "def _direct_repo_bytes(path):\n"
         "    raise AssertionError('unsafe_original_repository_reader_called')\n"
+        "def _run_git(args):\n"
+        "    raise AssertionError('original_git_query_called')\n"
     ).encode()
     lock_bytes = b'{"synthetic_accepted_lock":true}\n'
     installer_path.write_bytes(fixture)
@@ -414,6 +423,131 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-fsmonitor-proof-") as td:
     )
     assert cp_git.returncode == 0, cp_git.stderr
     assert not marker.exists(), "delegated_local_fsmonitor_executed"
+
+with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td:
+    root = Path(td)
+    checkout = root / "checkout"
+    checkout.mkdir()
+
+    def fixture_git(*args):
+        return subprocess.run(
+            ["/usr/bin/git", "-C", str(checkout), *args],
+            env=module.GIT_ENV, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            check=True, timeout=20,
+        ).stdout
+
+    def fixture_index_mutation(*args):
+        # Fixture setup must not run the hostile filter either.
+        return fixture_git("-c", "filter.hostile.process=", "-c", "filter.hostile.clean=",
+                           "-c", "filter.hostile.required=false", *args)
+
+    fixture_git("init", "-q", "-b", "main")
+    tracked = checkout / "tracked.txt"
+    original = b"reviewed fixture\n"
+    tracked.write_bytes(original)
+    (checkout / "empty.txt").write_bytes(b"")
+    fixture_git("add", "--", "tracked.txt", "empty.txt")
+    fixture_git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                "-c", "commit.gpgsign=false", "commit", "-qm", "fixture")
+    expected_head = fixture_git("rev-parse", "HEAD").decode().strip()
+    marker = root / "filter-executed"
+    helper = root / "filter.sh"
+    helper.write_text(
+        "#!/bin/sh\nprintf executed >> " + str(marker) + "\ncat\n",
+        encoding="utf-8",
+    )
+    helper.chmod(0o700)
+    fixture_git("config", "filter.hostile.clean", str(helper))
+    (checkout / ".git/info/attributes").write_text("* filter=hostile\n")
+    st = tracked.stat()
+    os.utime(tracked, ns=(st.st_atime_ns, st.st_mtime_ns + 2000000000))
+    # Positive exploit control in this disposable fixture only.
+    assert fixture_git("-c", "core.fsmonitor=false", "status", "--porcelain=v1") == b""
+    assert marker.exists(), "clean_filter_exploit_control_did_not_execute"
+    marker.unlink()
+
+    saved_checkout = module.FIXED_CHECKOUT
+    try:
+        module.FIXED_CHECKOUT = checkout
+        module._verify_checkout_bytes(expected_head)
+        assert module.checkout_snapshot(expected_head)["clean"] is True
+        assert not marker.exists(), "root_observation_executed_clean_filter"
+
+        # Even a required long-running process filter is never entered.
+        fixture_git("config", "filter.hostile.process", str(helper))
+        fixture_git("config", "filter.hostile.required", "true")
+        module._verify_checkout_bytes(expected_head)
+        assert not marker.exists(), "root_observation_executed_process_filter"
+
+        delegated = module.types.ModuleType("synthetic_git_delegate")
+        for name, value in (
+            ("LOCK_REL", LOCK_REL), ("NATIVE_SOURCE_REL", "native.c"),
+            ("RUNNER_SOURCE_REL", "runner.mjs"), ("SEALED_V2_REL", "sealed.mjs"),
+            ("QUALIFIER_REL", QUALIFIER_REL),
+        ):
+            setattr(delegated, name, value)
+        original_calls = []
+        def original_query(args):
+            assert args[0] != "status", "delegated_original_status_called"
+            original_calls.append(list(args))
+            return expected_head + "\n"
+        delegated._run_git = original_query
+        module._guard_installer_git_queries(delegated, expected_head)
+        assert delegated._run_git(list(module.STATUS_QUERY)) == ""
+        assert original_calls == []
+        assert delegated._run_git(["rev-parse", "--verify", "HEAD"]).strip() == expected_head
+        assert original_calls == [["rev-parse", "--verify", "HEAD"]]
+        expect_source_hold(lambda: delegated._run_git(["status"]), "delegated_git_query_not_allowed")
+        expect_source_hold(lambda: module._git(list(module.STATUS_QUERY)), "git_query_not_allowed")
+        assert not marker.exists(), "delegated_observation_executed_filter"
+
+        # Raw equality cannot be hidden by filters, assume-unchanged, or skip-worktree.
+        for flag in ("--assume-unchanged", "--skip-worktree"):
+            fixture_index_mutation("update-index", flag, "--", "tracked.txt")
+            tracked.write_bytes(b"x" * len(original))
+            expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_worktree_bytes_mismatch")
+            expect_source_hold(lambda: delegated._run_git(list(module.STATUS_QUERY)), "checkout_worktree_bytes_mismatch")
+            tracked.write_bytes(original)
+            fixture_index_mutation("read-tree", "HEAD")
+        assert not marker.exists(), "dirty_observation_executed_filter"
+
+        fixture_index_mutation("update-index", "--force-remove", "--", "tracked.txt")
+        expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_index_differs_from_head")
+        fixture_index_mutation("read-tree", "HEAD")
+        extra = checkout / "untracked.txt"
+        extra.write_text("fixture\n")
+        expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_untracked_files")
+        extra.unlink()
+        tracked.chmod(0o755)
+        expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_worktree_mode_mismatch")
+        tracked.chmod(0o644)
+
+        target = root / "synthetic-sensitive-target"
+        target.write_bytes(original)
+        tracked.unlink()
+        tracked.symlink_to(target)
+        expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "reviewed_source_unavailable")
+        tracked.unlink()
+        os.mkfifo(tracked, 0o600)
+        expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "reviewed_source_metadata_invalid")
+        tracked.unlink()
+        tracked.write_bytes(original)
+        module._verify_checkout_bytes(expected_head)
+        assert not marker.exists()
+
+        saved_git = module._git
+        def malformed_tree(args):
+            if args[0] == "ls-tree":
+                return b"100644 blob " + b"a" * 40 + b" 1\t../escape\0"
+            return saved_git(args)
+        try:
+            module._git = malformed_tree
+            expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_path_invalid")
+        finally:
+            module._git = saved_git
+    finally:
+        module.FIXED_CHECKOUT = saved_checkout
 
 with tempfile.TemporaryDirectory(prefix="void-epoch2-qualifier-fd-proof-") as td:
     root = Path(td)
@@ -579,14 +713,14 @@ def _capture_git_command(args, **_kwargs):
     )
 
 module.subprocess.run = _capture_git_command
-assert module._git(["status", "--porcelain=v1"]) == b""
+assert module._git(["ls-files", "--stage", "-z"]) == b""
 assert len(captured_git_commands) == 1
 captured = captured_git_commands[0]
 assert captured.count("core.fsmonitor=false") == 1
 fsmonitor_index = captured.index("core.fsmonitor=false")
 assert fsmonitor_index > 0
 assert captured[fsmonitor_index - 1] == "-c"
-assert captured.index("status") > fsmonitor_index
+assert captured.index("ls-files") > fsmonitor_index
 
 def _raise_git_oserror(*_args, **_kwargs):
     raise OSError("synthetic_git_spawn_failure")
@@ -597,7 +731,7 @@ def _raise_git_timeout(*_args, **_kwargs):
 try:
     module.subprocess.run = _raise_git_oserror
     try:
-        module._git(["status"])
+        module._git(["rev-parse", "HEAD"])
     except module.EvidenceError as exc:
         assert str(exc) == "git_execution_failed:OSError"
     else:
@@ -605,7 +739,7 @@ try:
 
     module.subprocess.run = _raise_git_timeout
     try:
-        module._git(["status"])
+        module._git(["rev-parse", "HEAD"])
     except module.EvidenceError as exc:
         assert str(exc) == "git_execution_failed:TimeoutExpired"
     else:
@@ -710,6 +844,9 @@ for marker in (
     MARKER + "_SELF_TEST_GREEN",
     "parent_host_evidence_plan_bound=true",
     "exact_qualifier_source_and_proof_bound=true",
+    "checkout_observation_avoids_content_filters=true",
+    "delegated_original_status_bypassed=true",
+    "raw_tree_index_worktree_equality_required=true",
     "root_required_for_future_run=true",
     "python_isolated_mode_required_for_future_run=true",
     "delegated_installer_git_fsmonitor_disabled=true",
@@ -768,6 +905,13 @@ print("delegated_local_fsmonitor_execution_rejected=true")
 print("git_fsmonitor_disabled=true")
 print("git_spawn_failure_maps_to_hold=true")
 print("git_timeout_maps_to_hold=true")
+print("clean_filter_exploit_control_reproduced=true")
+print("root_checkout_clean_process_filters_not_executed=true")
+print("delegated_checkout_clean_process_filters_not_executed=true")
+print("delegated_original_status_bypassed=true")
+print("raw_worktree_bytes_and_executable_mode_required=true")
+print("index_and_untracked_changes_rejected=true")
+print("assume_unchanged_skip_worktree_cannot_hide_changes=true")
 print("filesystem_write_performed=false")
 print("runner_execution=false")
 print("live_composition_execution=false")
