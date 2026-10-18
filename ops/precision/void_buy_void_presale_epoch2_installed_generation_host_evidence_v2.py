@@ -95,12 +95,12 @@ def _same_stat(a: os.stat_result, b: os.stat_result) -> bool:
 def _require_isolated_python() -> None:
     if sys.flags.isolated != 1 or not getattr(sys.flags, "safe_path", False):
         raise EvidenceError("python_isolated_mode_required")
-    source_root = Path(__file__).resolve(strict=False).parent
+    checkout_root = Path(__file__).resolve(strict=False).parents[2]
     for entry in sys.path:
         if not isinstance(entry, str) or entry == "":
             raise EvidenceError("python_path_not_isolated")
         candidate = Path(entry).resolve(strict=False)
-        if candidate == source_root or source_root in candidate.parents:
+        if candidate == checkout_root or checkout_root in candidate.parents:
             raise EvidenceError("python_path_source_checkout_exposure")
 
 
@@ -368,6 +368,7 @@ def self_test() -> None:
     print("untracked_paths_source_authority=false")
     print("checkout_clean_claimed=false")
     print("isolated_loader_blocks_checkout_shadow_modules=true")
+    print("checkout_root_sys_path_guard_enabled=true")
     print("native_self_test_execution_performed_by_future_host_run=true")
     print("runner_execution=false")
     print("live_composition_execution=false")

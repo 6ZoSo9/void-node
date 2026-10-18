@@ -81,7 +81,9 @@ or execution authority.
 Untracked checkout files cannot enter this lane through Python import search:
 
 - V2 enforces isolated/safe-path Python before any shadowable import;
-- active `sys.path` entries may not resolve inside the materialized source root;
+- active `sys.path` entries may not equal the materialized repository root or
+  any directory beneath it, so checkout-local untracked modules cannot become
+  import authority through an injected search root;
 - the exact V1 source is compiled from descriptor-authenticated bytes;
 - V1 loads the exact qualifier and installer from authenticated Git objects and
   descriptor-matched tracked files;
@@ -91,7 +93,9 @@ Untracked checkout files cannot enter this lane through Python import search:
 The focused proof places untracked `hashlib.py`, `argparse.py`,
 `sitecustomize.py`, `__future__.py`, `data_a/...`, and `node_modules/...` files
 beside an exact tracked fixture and requires GREEN without issuing an untracked
-Git query. It separately proves that tracked byte/index drift still fails.
+Git query. It also injects the exact repository root into the imported module's
+`sys.path` and requires `python_path_source_checkout_exposure` before any
+delegated collection. Tracked byte/index drift still fails closed.
 
 ## Inherited host execution
 

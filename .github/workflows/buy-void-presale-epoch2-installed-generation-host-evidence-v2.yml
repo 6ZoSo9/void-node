@@ -73,9 +73,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = 8396b136b337b6834df76c8064e39c506959ce42
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = 866749f9de5b5951b67aa73b4e9436fc84700ff8
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v2.md)" = 01a0b76159ec30a571436e8ce7e12ff92713f6e2
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = 21bff27aa7634823f827477222a93d736d91ec38
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = a783df741dd0b0b669cd39600a3e9f7cdbac23ff
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v2.md)" = fcb3bb3b5543f7988e3ba116c6e26e1a9b73ccb2
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 4981ccf99c029a0b90042747f9023107826202ef
@@ -112,6 +112,7 @@ jobs:
             'untracked_paths_source_authority=false' \
             'large_untracked_runtime_tree_compatible=true' \
             'checkout_shadow_modules_outside_isolated_loader=true' \
+            'checkout_root_sys_path_injection_rejected=true' \
             'delegated_original_status_bypassed=true' \
             'base_native_self_test_contract_inherited=true' \
             'receipt_checkout_clean_overclaim_rejected=true' \
@@ -148,6 +149,7 @@ jobs:
             'untracked_paths_source_authority=false' \
             'checkout_clean_claimed=false' \
             'isolated_loader_blocks_checkout_shadow_modules=true' \
+            'checkout_root_sys_path_guard_enabled=true' \
             'native_self_test_execution_performed_by_future_host_run=true' \
             'runner_execution=false' \
             'live_composition_execution=false' \

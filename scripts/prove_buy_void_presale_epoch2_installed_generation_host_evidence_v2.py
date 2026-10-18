@@ -144,6 +144,12 @@ assert "_read_visible_file" in tracked_source
 assert "--others" not in tracked_source
 assert "status" not in tracked_source
 
+isolation_source = ast.get_source_segment(
+    source, functions["_require_isolated_python"]
+) or ""
+assert "checkout_root = Path(__file__).resolve(strict=False).parents[2]" in isolation_source
+assert "candidate == checkout_root or checkout_root in candidate.parents" in isolation_source
+
 load_source = ast.get_source_segment(source, functions["_load_patched_base_module"]) or ""
 assert load_source.index("_read_exact_base_source(source_path)") < load_source.index("exec(")
 assert load_source.index("module._verify_checkout_bytes = tracked_verifier") < load_source.index("return module")
@@ -172,6 +178,20 @@ def expect_hold(action, reason: str) -> None:
         assert str(exc).startswith(reason), (str(exc), reason)
     else:
         raise AssertionError("expected_hold_missing:" + reason)
+
+
+# Even under isolated Python, a site-provided search path must not expose the
+# materialized checkout as import authority.
+saved_sys_path = list(module.sys.path)
+try:
+    module.sys.path.insert(0, str(ROOT))
+    expect_hold(
+        module._require_isolated_python,
+        "python_path_source_checkout_exposure",
+    )
+finally:
+    module.sys.path[:] = saved_sys_path
+module._require_isolated_python()
 
 
 # The base source reader is descriptor-bound and rejects path substitution.
@@ -372,6 +392,7 @@ print("untracked_paths_enumerated=false")
 print("untracked_paths_source_authority=false")
 print("large_untracked_runtime_tree_compatible=true")
 print("checkout_shadow_modules_outside_isolated_loader=true")
+print("checkout_root_sys_path_injection_rejected=true")
 print("delegated_original_status_bypassed=true")
 print("base_native_self_test_contract_inherited=true")
 print("receipt_checkout_clean_overclaim_rejected=true")
