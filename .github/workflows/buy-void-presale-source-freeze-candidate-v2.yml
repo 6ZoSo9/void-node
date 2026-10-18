@@ -143,30 +143,28 @@ jobs:
           npm run typecheck
           npm run build
 
-          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs > crash-${{ matrix.node }}.json
-          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts > handoff-${{ matrix.node }}.txt
-          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v5.ts > dispatch-${{ matrix.node }}.txt
-          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts > dualrail-${{ matrix.node }}.txt
+          evidence="$RUNNER_TEMP/presale-freeze-v2"
+          mkdir -p "$evidence"
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs > "$evidence/crash-${{ matrix.node }}.json"
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts > "$evidence/handoff-${{ matrix.node }}.txt"
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v5.ts > "$evidence/dispatch-${{ matrix.node }}.txt"
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts > "$evidence/dualrail-${{ matrix.node }}.txt"
 
-          grep -Fq 'VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6' crash-${{ matrix.node }}.json
-          grep -Fxq 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V4_GREEN' handoff-${{ matrix.node }}.txt
-          grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V5_GREEN' dispatch-${{ matrix.node }}.txt
-          grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN' dualrail-${{ matrix.node }}.txt
-          grep -Fxq 'production_gate_ready=false' handoff-${{ matrix.node }}.txt
-          grep -Fxq 'mounted_verified_allocation_dispatch=false' dispatch-${{ matrix.node }}.txt
-          grep -Fxq 'actual_live_provider_finality_verified=false' dualrail-${{ matrix.node }}.txt
-          grep -Fxq 'funds_movement=false' dualrail-${{ matrix.node }}.txt
+          grep -Fq 'VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6' "$evidence/crash-${{ matrix.node }}.json"
+          grep -Fxq 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V4_GREEN' "$evidence/handoff-${{ matrix.node }}.txt"
+          grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V5_GREEN' "$evidence/dispatch-${{ matrix.node }}.txt"
+          grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN' "$evidence/dualrail-${{ matrix.node }}.txt"
+          grep -Fxq 'production_gate_ready=false' "$evidence/handoff-${{ matrix.node }}.txt"
+          grep -Fxq 'mounted_verified_allocation_dispatch=false' "$evidence/dispatch-${{ matrix.node }}.txt"
+          grep -Fxq 'actual_live_provider_finality_verified=false' "$evidence/dualrail-${{ matrix.node }}.txt"
+          grep -Fxq 'funds_movement=false' "$evidence/dualrail-${{ matrix.node }}.txt"
 
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: presale-freeze-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: |
-            crash-${{ matrix.node }}.json
-            handoff-${{ matrix.node }}.txt
-            dispatch-${{ matrix.node }}.txt
-            dualrail-${{ matrix.node }}.txt
+          path: ${{ runner.temp }}/presale-freeze-v2
           if-no-files-found: error
           retention-days: 3
 
