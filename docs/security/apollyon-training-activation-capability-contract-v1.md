@@ -182,6 +182,12 @@ expression is applied; JavaScript array or boxed-string coercion is not accepted
 Known strings are bounded to 256 characters, with process start ticks bounded to
 20 decimal digits before clone and then range-checked as a positive uint64.
 
+Known fields must also be enumerable own **data** properties. Accessor
+descriptors are rejected without invoking their getter/setter. Preflight copies
+only already-validated primitive descriptor values into a fresh plain snapshot;
+structured cloning, canonicalization and hashing operate on that snapshot rather
+than re-reading the caller object.
+
 ## Hosted proof
 
 Hosted proof must establish:
@@ -201,6 +207,8 @@ Hosted proof must establish:
 - process start ticks are rejected before structured cloning when longer than 20 decimal digits and are range-checked as positive uint64
 - unknown oversized object graphs are rejected before structured cloning
 - regex-backed identifiers reject arrays and boxed strings rather than coercing them
+- accessor descriptors are rejected without invoking their getters
+- clone/canonical/hash consume only the validated primitive descriptor snapshot
 - #3333 trainer-generation validation remains external and unperformed
 - training-start consumption/admission, release, and execution remain false
 - production source contains no filesystem, network, child-process, systemctl, service-action, signing, wallet, transaction, or funds implementation
