@@ -151,11 +151,24 @@ for forbidden in (
 ):
     assert forbidden not in source, forbidden
 
+static_assignments = {}
+for node in tree.body:
+    if (
+        isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+    ):
+        try:
+            static_assignments[node.targets[0].id] = ast.literal_eval(node.value)
+        except (ValueError, TypeError):
+            pass
+
+assert static_assignments.get("OLD_LOCK_ID") == OLD_LOCK_ID
+assert static_assignments.get("NEW_LOCK_ID") == NEW_LOCK_ID
+assert static_assignments.get("NEW_CANDIDATE_ID") == NEW_CANDIDATE_ID
+
 for required in (
     'HELPER_BLOB = "' + HELPER_BLOB + '"',
-    OLD_LOCK_ID,
-    NEW_LOCK_ID,
-    NEW_CANDIDATE_ID,
     OLD_BOOTSTRAP_SHA256,
     OLD_BOOTSTRAP_GIT_BLOB,
     OLD_MANIFEST_SHA256,
@@ -319,6 +332,7 @@ for mode, expected_lines in (
 
 print(MARKER + "_PROOF_GREEN")
 print("target_blob_bound=true")
+print("content_id_ast_values_bound=true")
 print("merged_v6_install_helper_bound=true")
 print("repaired_candidate_lock_bound=true")
 print("repaired_materializer_bound=true")
