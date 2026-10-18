@@ -37,8 +37,6 @@ required = (
     'ORIGINAL_POLICY_SHA256 = "dd27149ac4faa950843b16a39824bb77ec88cdab63593d7ee836ca879ddc6cd9"',
     'PREVIOUS_HEAD = "b92ba19cf16ea5f147c441e15de12b9932ca94c3"',
     'PREVIOUS_POLICY_SHA256 = "9d18271055dc430335a6607a426c3082f950148087b87a6bc790a818d8b6286d"',
-    '"policy-predecessor-65b4515b"',
-    '"policy-predecessor-b92ba19c"',
     'READY_STATE = "EPOCH2_V6R2_POLICY_B92_READY_FOR_CHAIN_REBIND"',
     'GREEN_STATE = "EPOCH2_V6R2_POLICY_HEAD_REBOUND_WITH_65B_AND_B92_POLICIES_RETAINED"',
     "original_policy_retained_required",
@@ -118,6 +116,13 @@ spec = importlib.util.spec_from_file_location("chain_rebind_v2", TARGET)
 assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+
+assert module.ORIGINAL_BACKUP_NAME == (
+    ".void-buy-void-epoch2-live-composition-v3.policy-predecessor-65b4515b"
+)
+assert module.PREVIOUS_BACKUP_NAME == (
+    ".void-buy-void-epoch2-live-composition-v3.policy-predecessor-b92ba19c"
+)
 
 
 class FakeInstaller:
