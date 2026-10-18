@@ -16,7 +16,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "fed9c15bcf0cd81009e2d6e8817b7d3afb8fb190"
+TARGET_BLOB = "f8090cc48efc52f83fc76a6fc1cfd5e96852739e"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -99,6 +99,11 @@ for required in (
     "reason=python_isolated_mode_required",
     "_BOOTSTRAP_NEGATIVE_AUTHORITY_FIELDS",
     "_guard_qualifier_installer_loader(module)",
+    "os.O_NOFOLLOW",
+    "os.O_CLOEXEC",
+    "os.O_NONBLOCK",
+    "os.fstat(fd)",
+    "os.read(fd",
 ):
     assert required in source, required
 
@@ -140,6 +145,7 @@ for name in (
     "_git",
     "checkout_snapshot",
     "exact_git_object",
+    "_read_visible_qualifier_exact",
     "load_qualifier",
     "validate_result",
     "collect",
@@ -170,7 +176,23 @@ assert "qualifier.collect(expected_head)" in collect_source
 assert "qualifier.main" not in collect_source
 assert "subprocess." not in collect_source
 
+read_source = ast.get_source_segment(
+    source, functions["_read_visible_qualifier_exact"]
+) or ""
+for required in (
+    "os.open(str(path), flags)",
+    "os.fstat(fd)",
+    "os.read(fd",
+    "stat.S_ISREG(before.st_mode)",
+    "path.lstat()",
+    "direct != expected",
+):
+    assert required in read_source, required
+assert ".read_bytes()" not in read_source
+
 load_source = ast.get_source_segment(source, functions["load_qualifier"]) or ""
+assert "_read_visible_qualifier_exact(visible, raw)" in load_source
+assert ".read_bytes()" not in load_source
 assert "_guard_qualifier_installer_loader(module)" in load_source
 assert load_source.index("_guard_qualifier_installer_loader(module)") < load_source.index("return module")
 
@@ -285,6 +307,43 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-fsmonitor-proof-") as td:
     )
     assert cp_git.returncode == 0, cp_git.stderr
     assert not marker.exists(), "delegated_local_fsmonitor_executed"
+
+with tempfile.TemporaryDirectory(prefix="void-epoch2-qualifier-fd-proof-") as td:
+    root = Path(td)
+    expected = b"print('reviewed qualifier')\n"
+
+    regular = root / "qualifier.py"
+    regular.write_bytes(expected)
+    assert module._read_visible_qualifier_exact(regular, expected) == expected
+
+    sensitive = root / "sensitive-target"
+    sensitive.write_bytes(expected)
+    symlink = root / "qualifier-symlink.py"
+    symlink.symlink_to(sensitive)
+    try:
+        module._read_visible_qualifier_exact(symlink, expected)
+    except module.EvidenceError as exc:
+        assert str(exc) == "qualifier_source_unavailable"
+    else:
+        raise AssertionError("qualifier_symlink_followed")
+
+    fifo = root / "qualifier-fifo.py"
+    os.mkfifo(fifo, 0o600)
+    try:
+        module._read_visible_qualifier_exact(fifo, expected)
+    except module.EvidenceError as exc:
+        assert str(exc) == "qualifier_source_metadata_invalid"
+    else:
+        raise AssertionError("qualifier_fifo_accepted")
+
+    wrong = root / "qualifier-wrong.py"
+    wrong.write_bytes(b"x" * len(expected))
+    try:
+        module._read_visible_qualifier_exact(wrong, expected)
+    except module.EvidenceError as exc:
+        assert str(exc) == "qualifier_source_bytes_mismatch"
+    else:
+        raise AssertionError("qualifier_wrong_bytes_accepted")
 
 with tempfile.TemporaryDirectory(prefix="void-epoch2-shadow-import-proof-") as td:
     shadow_root = Path(td)
@@ -499,6 +558,10 @@ print("required_true_field_downgrade_rejected=true")
 print("authority_overclaim_rejected=true")
 print("python_isolated_mode_enforced=true")
 print("preimport_python_isolation_enforced=true")
+print("qualifier_source_descriptor_bound=true")
+print("qualifier_source_symlink_rejected_before_read=true")
+print("qualifier_source_fifo_rejected_without_blocking=true")
+print("qualifier_source_exact_bytes_required=true")
 print("unisolated_shadow_module_blocked=true")
 print("delegated_installer_git_fsmonitor_disabled=true")
 print("delegated_installer_git_hooks_disabled=true")

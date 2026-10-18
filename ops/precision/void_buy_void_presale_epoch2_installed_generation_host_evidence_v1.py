@@ -224,30 +224,78 @@ def exact_git_object(expected_head: str, relative: str, blob: str) -> bytes:
     return raw
 
 
+def _read_visible_qualifier_exact(path: Path, expected: bytes) -> bytes:
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+    try:
+        fd = os.open(str(path), flags)
+    except OSError as exc:
+        raise EvidenceError("qualifier_source_unavailable") from exc
+    try:
+        before = os.fstat(fd)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size != len(expected)
+        ):
+            raise EvidenceError("qualifier_source_metadata_invalid")
+
+        chunks: list[bytes] = []
+        remaining = len(expected) + 1
+        while remaining > 0:
+            try:
+                chunk = os.read(fd, min(64 * 1024, remaining))
+            except OSError as exc:
+                raise EvidenceError("qualifier_source_read_failed") from exc
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        after = os.fstat(fd)
+
+        direct = b"".join(chunks)
+        if len(direct) != len(expected):
+            raise EvidenceError("qualifier_source_size_changed")
+        for field in (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_nlink",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+        ):
+            if getattr(before, field) != getattr(after, field):
+                raise EvidenceError("qualifier_source_generation_unstable:" + field)
+
+        try:
+            visible = path.lstat()
+        except OSError as exc:
+            raise EvidenceError("qualifier_source_visible_unavailable") from exc
+        if (
+            not stat.S_ISREG(visible.st_mode)
+            or stat.S_ISLNK(visible.st_mode)
+            or visible.st_nlink != 1
+            or visible.st_dev != after.st_dev
+            or visible.st_ino != after.st_ino
+            or visible.st_mode != after.st_mode
+            or visible.st_size != after.st_size
+            or visible.st_mtime_ns != after.st_mtime_ns
+            or visible.st_ctime_ns != after.st_ctime_ns
+        ):
+            raise EvidenceError("qualifier_source_visible_generation_changed")
+        if direct != expected:
+            raise EvidenceError("qualifier_source_bytes_mismatch")
+        return direct
+    finally:
+        os.close(fd)
+
+
 def load_qualifier(expected_head: str) -> types.ModuleType:
     raw = exact_git_object(expected_head, QUALIFIER_REL, QUALIFIER_BLOB)
     exact_git_object(expected_head, QUALIFIER_PROOF_REL, QUALIFIER_PROOF_BLOB)
 
     visible = FIXED_CHECKOUT / QUALIFIER_REL
-    try:
-        before = visible.lstat()
-        direct = visible.read_bytes()
-        after = visible.lstat()
-    except OSError as exc:
-        raise EvidenceError("qualifier_source_unavailable") from exc
-    if (
-        not stat.S_ISREG(before.st_mode)
-        or stat.S_ISLNK(before.st_mode)
-        or before.st_nlink != 1
-        or before.st_size != len(direct)
-        or before.st_dev != after.st_dev
-        or before.st_ino != after.st_ino
-        or before.st_size != after.st_size
-        or before.st_mtime_ns != after.st_mtime_ns
-        or before.st_ctime_ns != after.st_ctime_ns
-        or direct != raw
-    ):
-        raise EvidenceError("qualifier_source_generation_unstable")
+    direct = _read_visible_qualifier_exact(visible, raw)
 
     module = types.ModuleType("void_presale_verified_epoch2_installed_qualifier_v5")
     module.__file__ = str(visible)
@@ -405,6 +453,8 @@ def self_test() -> None:
     print(MARKER + "_SELF_TEST_GREEN")
     print("parent_host_evidence_plan_bound=true")
     print("exact_qualifier_source_and_proof_bound=true")
+    print("qualifier_source_descriptor_bound=true")
+    print("qualifier_source_nofollow_bounded_read=true")
     print("root_required_for_future_run=true")
     print("python_isolated_mode_required_for_future_run=true")
     print("preimport_python_isolation_enforced=true")

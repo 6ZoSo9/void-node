@@ -224,3 +224,20 @@ later full `sys.path` checkout-exposure check remains in place for isolated
 execution.
 
 No host/runtime/payment authority changes.
+
+## Descriptor-bound qualifier source
+
+Before executing the reviewed qualifier module, the wrapper opens the fixed
+checkout qualifier path exactly once with
+`O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK`. The retained descriptor must be a
+regular single-link file whose size is exactly the already-authenticated Git
+object byte length before any content read occurs.
+
+The wrapper bounded-reads only through that descriptor, checks exact EOF/bytes,
+revalidates descriptor generation, and then requires the canonical visible path
+to still name the same generation. A symlink is rejected before its target can
+be consumed, and FIFO/special-file inputs are rejected from descriptor metadata
+without blocking.
+
+The exact Git object remains compile authority; the visible checkout file must
+be byte-identical. This adds no host mutation or runtime/economic authority.
