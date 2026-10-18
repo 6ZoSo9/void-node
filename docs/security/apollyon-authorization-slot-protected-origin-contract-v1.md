@@ -110,6 +110,8 @@ the exact shallow #3357 key set with primitive data properties only:
 - booleans must be primitive booleans;
 - every own key is accounted for with `Reflect.ownKeys`; unknown enumerable,
   non-enumerable and symbol keys fail closed;
+- reflected own-key cardinality must equal the fixed schema before key scanning,
+  copying, or sorting;
 - accessor descriptors fail without getter invocation;
 - array / boxed-string regex coercion is rejected;
 - Proxy inputs are rejected with Node `util.types.isProxy` before prototype,
@@ -137,6 +139,7 @@ Hosted proof must establish:
 - regex-coercible arrays are rejected;
 - unknown non-enumerable properties and symbol keys are rejected;
 - slot, candidate, and nested-requirements Proxy inputs are rejected before reflection with zero trap invocations;
+- oversized top-level key sets are rejected before attacker-controlled key sorting;
 - no filesystem, network, child-process, systemd or service implementation exists;
 - claim publication, capability issuance, #3333 consumption, admission, release,
   training, keys, transactions and funds remain false.
