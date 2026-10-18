@@ -107,7 +107,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 6a654b555bd6c2bce35a21dfcbd90e4c22bece75
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 2267f970f11464e973aade351c81f09867da2716
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = a6e79fc10f1bb7f76aab52366ce4924e78d21ec7
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = e346269a7cb74a849bd24ec88ed8d7bfee060be7
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
@@ -146,6 +146,7 @@ jobs:
             'reviewed_source_generation_binding_required=true' \
             'live_policy_observer_required=true' \
             'canonical_installation_observer_bound=true' \
+            'installation_observer_read_only_helper_contract_proven=true' \
             'installation_storage_generation_bound=true' \
             'reviewed_second_control_composition_required=true' \
             'durability_rollback_contract_required=true' \
