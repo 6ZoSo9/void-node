@@ -67,8 +67,9 @@ The unchanged `--observe-live-pid` receipt reports:
 training_execution=false
 attempt_claim=false
 candidate_weight_mutation=false
+service_action_performed=false
 service_enabled=false
-service_active_after_qualification=false
+service_active_after_observation=true
 ```
 
 The next source gate is a versioned preclaim successor that must compose this
