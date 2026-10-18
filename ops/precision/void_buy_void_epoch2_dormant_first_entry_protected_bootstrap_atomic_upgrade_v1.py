@@ -299,6 +299,13 @@ def apply(bootstrap,manifest,head,expected_plan,confirm):
                 try: os.close(opt_fd)
                 except OSError: pass
                 raise published_inspection_error("atomic_upgrade_exchange_outcome_needs_inspection",inspection_error) from exc
+            if layout==LAYOUT_EXCHANGED:
+                rollback=rollback_published(m,opt_fd,policy,body,initial,bootstrap,manifest,head,old_id,new_id)
+                try: os.close(opt_fd)
+                except OSError: pass
+                e=PublishedError("atomic_upgrade_rolled_back_after_failure" if rollback else "atomic_upgrade_rollback_failed",exc)
+                e.rollback_attempted=True; e.rollback_green=rollback; e.rollback_final_state_verified=rollback
+                raise e from exc
             if layout not in (LAYOUT_READY,):
                 try: os.close(opt_fd)
                 except OSError: pass
