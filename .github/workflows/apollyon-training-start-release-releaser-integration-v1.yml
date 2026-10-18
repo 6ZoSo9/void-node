@@ -83,9 +83,9 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_releaser_integration_v1.c)" = \
-            92cb4ea31e13e8fa95c1953cf7e8c8dfabbfa49a
+            36565023b8c181cad9a41711f29364dd09b51189
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_releaser_integration_v1.py)" = \
-            f5b004b164f7c5fc36b0e700d2be5cf721fdbeb9
+            a1a3975cd7dc6886a7ee7ec8b99cafdff4328d00
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-releaser-integration-v1.md)" = \
             cceb24eeadbc3030c5cc27e5a17dbab499243034
 
