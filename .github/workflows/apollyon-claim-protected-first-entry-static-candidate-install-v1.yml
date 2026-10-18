@@ -1,0 +1,105 @@
+name: Apollyon protected first-entry static candidate install handoff v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
+      - "docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md"
+      - ".github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-archive-admission-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact reviewed source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Verify accepted source generation and owned blobs
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          git merge-base --is-ancestor 283f135a826895c8b90b6c973d58a7d7f2447eb4 "$EXACT_HEAD"
+          printf '%s\n' \
+            '2351eaf1f12317b8ae047ad6dd58f29ba116e0c7 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+            'f1b685caa10bed7611f8feb5c1c88304ce7f9892 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            'ae94999d31f573139213e0e1efb5d2c343cc5347 scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            '887fdf9cc4050013471887efe583b953a74acac4 docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+            | while read -r blob path; do
+                test "$(git hash-object "$path")" = "$blob"
+                test "$(git rev-parse "HEAD:$path")" = "$blob"
+              done
+          echo 'exact_parent_and_owned_source_blobs_bound=true'
+
+      - name: Execute offline in-memory archive adversaries
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for path in (
+            "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py",
+            "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py",
+          ):
+              compile(Path(path).read_bytes(), path, "exec")
+          print("source_syntax_green=true")
+          PY
+
+          python3 -I -B \
+            ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py \
+            --self-test > "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
+          grep -Fx 'host_installation=false' "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
+          grep -Fx 'training_execution_authorized=false' "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
+
+          python3 -I -B \
+            scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py \
+            > "$RUNNER_TEMP/apollyon-install-handoff-proof.log"
+          grep -Fx 'VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1_PROOF_GREEN' \
+            "$RUNNER_TEMP/apollyon-install-handoff-proof.log"
+          for marker in \
+            'accepted_parent_lock_bound=true' \
+            'synthetic_positive_fixture_verified=true' \
+            'synthetic_fixture_not_accepted_by_production_lock=true' \
+            'changed_tar_digest_rejected=true' \
+            'wrong_elf_mode_rejected=true' \
+            'symlink_member_rejected=true' \
+            'extra_member_rejected=true' \
+            'missing_member_rejected=true' \
+            'wrong_source_head_rejected=true' \
+            'manifest_drift_rejected=true' \
+            'report_drift_rejected=true' \
+            'binary_size_drift_rejected=true' \
+            'archive_not_extracted=true' \
+            'host_installation=false' \
+            'protected_install_authorized=false' \
+            'training_execution_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$RUNNER_TEMP/apollyon-install-handoff-proof.log"
+          done
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Committed range hygiene
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if test -n "$PR_BASE"; then
+            git merge-base --is-ancestor "$PR_BASE" HEAD
+            git diff --check "$PR_BASE" HEAD
+          else
+            git diff --check 283f135a826895c8b90b6c973d58a7d7f2447eb4 HEAD
+          fi
