@@ -1,5 +1,8 @@
 import crypto from "node:crypto";
 import {types as utilTypes} from "node:util";
+import {
+  qualifyApollyonTrainingActivationCapabilityV1,
+} from "./apollyon-training-activation-capability-contract-v1.mjs";
 
 export const VOID_APOLLYON_TRAINING_ACTIVATION_CREDENTIAL_TRANSPORT_CONTRACT_V1 =
   "VOID_APOLLYON_TRAINING_ACTIVATION_CREDENTIAL_TRANSPORT_CONTRACT_V1";
@@ -208,6 +211,28 @@ export function qualifyApollyonActivationCredentialTransportCandidateV1(input){
     fail("apollyon_activation_credential_transport_id_invalid");
   }
   return Object.freeze({...value});
+}
+
+/**
+ * Bind two untrusted, publicly content-addressed candidate shapes.
+ * This is mathematical/source-level candidate consistency ONLY: it proves
+ * neither protected issuance nor bearer possession nor systemd transport.
+ */
+export function qualifyApollyonActivationTransportAgainstCapabilityV1(
+  capabilityInput,transportInput,
+){
+  const capability=qualifyApollyonTrainingActivationCapabilityV1(capabilityInput);
+  const transport=qualifyApollyonActivationCredentialTransportCandidateV1(transportInput);
+  if(
+    transport.activation_capability_id!==capability.activation_capability_id||
+    transport.activation_secret_sha256!==capability.activation_secret_sha256||
+    transport.training_start_consumption_slot_id!==
+      capability.training_start_consumption_slot_id||
+    transport.credential_name!==capability.credential_name
+  ){
+    fail("apollyon_activation_credential_transport_parent_candidate_mismatch");
+  }
+  return transport;
 }
 
 export const APOLLYON_ACTIVATION_TRANSPORT_MATERIAL_KEYS_V1=MATERIAL_KEYS;
