@@ -6,13 +6,15 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tarfile
+import tempfile
 import copy
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
-SOURCE_BLOB = "337eac04852549a20e946b73bfa91d62e205171b"
+SOURCE_BLOB = "88d7a5559377758232ecd432657a37e1838fcaf9"
 
 
 def git_blob(raw: bytes) -> str:
@@ -53,6 +55,62 @@ assert real_lock["authority"]["protected_install_authorized"] is False
 assert real_lock["authority"]["training_execution_authorized"] is False
 assert real_lock["binary"]["bytes"] == 808472
 assert real_lock["binary"]["expected_install_mode"] == "0555"
+
+# A regular pathname replaced with a FIFO after lstat must never block at open.
+# The production readers use O_NONBLOCK so the retained descriptor can be
+# fstat-rejected immediately.
+with tempfile.TemporaryDirectory(prefix="apollyon-archive-open-race-") as td:
+    archive_path = Path(td) / "candidate.tar"
+    archive_path.write_bytes(b"X" * 512)
+    real_open = os.open
+
+    def archive_raced_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
+        if Path(os.fspath(path)) == archive_path:
+            assert flags & os.O_NOFOLLOW
+            assert flags & os.O_NONBLOCK
+            archive_path.unlink()
+            os.mkfifo(archive_path, 0o600)
+        return real_open(path, flags, *args, **kwargs)
+
+    mod.os.open = archive_raced_open
+    try:
+        try:
+            mod.read_untrusted_tar(archive_path)
+        except mod.Hold as exc:
+            assert str(exc) == "archive_file_changed"
+        else:
+            raise AssertionError("archive FIFO pre-open race admitted")
+    finally:
+        mod.os.open = real_open
+
+with tempfile.TemporaryDirectory(prefix="apollyon-parent-open-race-") as td:
+    original_root = mod.ROOT
+    temp_root = Path(td)
+    parent_path = temp_root / mod.PARENT_REL
+    parent_path.parent.mkdir(parents=True)
+    parent_path.write_bytes(b"synthetic-parent-source")
+    real_open = os.open
+
+    def parent_raced_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
+        if Path(os.fspath(path)) == parent_path:
+            assert flags & os.O_NOFOLLOW
+            assert flags & os.O_NONBLOCK
+            parent_path.unlink()
+            os.mkfifo(parent_path, 0o600)
+        return real_open(path, flags, *args, **kwargs)
+
+    mod.ROOT = temp_root
+    mod.os.open = parent_raced_open
+    try:
+        try:
+            mod.load_accepted_parent_lock()
+        except mod.Hold as exc:
+            assert str(exc) == "accepted_parent_source_drift"
+        else:
+            raise AssertionError("parent source FIFO pre-open race admitted")
+    finally:
+        mod.os.open = real_open
+        mod.ROOT = original_root
 
 # These deliberately synthetic BytesIO fixtures are never accepted production
 # bytes; only the public CLI sources the real immutable lock before verifying
@@ -228,6 +286,7 @@ for required in (
     "git_blob(raw) != PARENT_BLOB",
     "exec(compile(raw, os.fspath(target), \"exec\")",
     "def read_untrusted_tar(path: Path)",
+    "os.O_NOFOLLOW | os.O_NONBLOCK",
     "def verify_archive_bytes(raw: bytes, lock: dict[str, Any])",
     "digest(raw) != parent[\"artifact_inner_tar_sha256\"]",
     "member.mode != required_mode",
@@ -236,6 +295,7 @@ for required in (
     "protected_install_authorized\": False",
 ):
     assert required in source, required
+assert source.count("os.O_NONBLOCK") == 2
 
 for forbidden in (
     "os.rename(",
@@ -255,6 +315,8 @@ for forbidden in (
 print("VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1_PROOF_GREEN")
 print("accepted_parent_lock_bound=true")
 print("parent_failure_machine_readable_hold=true")
+print("archive_preopen_fifo_swap_rejected_without_blocking=true")
+print("parent_preopen_fifo_swap_rejected_without_blocking=true")
 print("read_only_tar_validation=true")
 print("synthetic_positive_fixture_verified=true")
 print("synthetic_fixture_not_accepted_by_production_lock=true")

@@ -106,7 +106,7 @@ def load_accepted_parent_lock() -> dict[str, Any]:
         ):
             hold("accepted_parent_source_metadata_invalid")
         fd = os.open(
-            target, os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+            target, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
         )
     except OSError as exc:
         raise Hold("accepted_parent_source_unavailable") from exc
@@ -166,7 +166,7 @@ def read_untrusted_tar(path: Path) -> bytes:
         ):
             hold("archive_file_metadata_invalid")
         fd = os.open(
-            path, os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+            path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
         )
     except OSError as exc:
         raise Hold("archive_file_unavailable") from exc
