@@ -132,14 +132,35 @@ def _open_parent_nofollow(path: Path) -> int:
     try:
         for component in path.parts[1:-1]:
             child = os.open(component, flags, dir_fd=fd)
-            os.close(fd)
+            old_fd = fd
             fd = child
+            try:
+                os.close(old_fd)
+            except OSError as exc:
+                cleanup = _close_owned_base_source_fds((("child", fd),))
+                fd = -1
+                reason = "base_source_ancestor_close_failed"
+                if cleanup:
+                    reason += ":base_source_close_failed:" + cleanup
+                raise EvidenceError(reason) from exc
             metadata = os.fstat(fd)
             if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
                 raise EvidenceError("base_source_ancestor_invalid")
-        return fd
-    except BaseException:
-        os.close(fd)
+        result = fd
+        fd = -1
+        return result
+    except BaseException as exc:
+        cleanup = _close_owned_base_source_fds((("ancestor", fd),))
+        fd = -1
+        if cleanup and isinstance(exc, EvidenceError):
+            raise EvidenceError(
+                str(exc) + ":base_source_close_failed:" + cleanup
+            ) from exc
+        if cleanup:
+            try:
+                exc.add_note("base_source_close_failed:" + cleanup)
+            except AttributeError:
+                pass
         raise
 
 
@@ -426,6 +447,7 @@ def self_test() -> None:
     print("base_v1_source_descriptor_bound=true")
     print("base_source_close_failure_normalized=true")
     print("base_source_primary_failure_preserved_on_cleanup_error=true")
+    print("base_source_ancestor_close_failure_no_retry=true")
     print("base_v1_source_ancestor_symlinks_rejected=true")
     print("tracked_tree_index_worktree_equality_required=true")
     print("delegated_original_status_bypassed=true")

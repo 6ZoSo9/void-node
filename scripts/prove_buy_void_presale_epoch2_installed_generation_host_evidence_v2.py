@@ -298,6 +298,33 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v2-base-source-") as td:
     candidate.write_bytes(b"x" * len(base_bytes))
     expect_hold(lambda: module._read_exact_base_source(candidate), "base_source_blob_mismatch")
 
+# An ancestor close error must never retry the consumed numeric descriptor.
+with tempfile.TemporaryDirectory(prefix="void-epoch2-v2-ancestor-close-") as td:
+    leaf = Path(td) / "leaf.py"
+    real_close = module.os.close
+    calls: list[int] = []
+    failed_fd: list[int] = []
+
+    def close_first_then_error(fd: int) -> None:
+        calls.append(fd)
+        real_close(fd)
+        if not failed_fd:
+            failed_fd.append(fd)
+            raise OSError(5, "synthetic_ancestor_close_failure")
+
+    module.os.close = close_first_then_error
+    try:
+        expect_hold(
+            lambda: module._open_parent_nofollow(leaf),
+            "base_source_ancestor_close_failed",
+        )
+    finally:
+        module.os.close = real_close
+    assert len(failed_fd) == 1
+    assert calls.count(failed_fd[0]) == 1
+    assert len(calls) == 2
+    assert calls[0] != calls[1]
+
 # Close failures must be normalized after attempting every owned descriptor
 # exactly once. Each synthetic failure closes the real descriptor first and
 # then raises, so the fixture also proves no retry/double-close is required.
@@ -525,6 +552,7 @@ print("base_source_close_failure_normalized=true")
 print("base_source_primary_failure_preserved_on_cleanup_error=true")
 print("base_source_all_owned_fds_close_attempted_once=true")
 print("base_source_close_failure_machine_hold_contract=true")
+print("base_source_ancestor_close_failure_no_retry=true")
 print("base_v1_source_symlink_fifo_rejected=true")
 print("tracked_tree_index_worktree_equality_required=true")
 print("tracked_file_byte_and_mode_drift_rejected=true")

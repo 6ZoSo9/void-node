@@ -156,6 +156,11 @@ The exact V2 base-source descriptor reader now normalizes close-time failures in
 of allowing raw `OSError` to escape after a successful read or mask an earlier
 machine-readable evidence failure.
 
+Ancestor traversal follows the same no-retry rule. Ownership transfers to the newly
+opened child before the previous ancestor descriptor is closed. If that close
+reports failure, the consumed numeric descriptor is never retried; only the
+still-owned child is closed once before HOLD.
+
 All three owned descriptors are attempted exactly once in deterministic order:
 
 ```text
