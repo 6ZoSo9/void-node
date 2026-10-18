@@ -95,11 +95,11 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            0b6dcd9b24390ea749376d757a633c44547ae81d
+            405fff4ea6ab6158ec2cc3483c317bc5666755ee
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            b0e702f9838d5831218bbf18f5e6db8aebb9ad57
+            3987c401c68d859cd5c4e9c137692fa0e8eb4449
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            5ffbf015182f05e58351a854ab43d59172c15294
+            de9a789b2d5e5828f92fea40cd9d3f315bbaa14f
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
             93582c324ca85aeff56eb61f82b32f1e4c18dfe9
@@ -143,6 +143,8 @@ jobs:
             'pr_push_trigger_closure_exact=true' \
             'pr_push_trigger_parity=true' \
             'fixed_physical_namespace_defined=true' \
+            'non_root_claim_identity_required=true' \
+            'root_claim_uid_gid_rejected=true' \
             'publisher_exact_request_bytes_preserved=true' \
             'publisher_request_reconstruction_forbidden=true' \
             'retained_root_identity_bound=true' \
