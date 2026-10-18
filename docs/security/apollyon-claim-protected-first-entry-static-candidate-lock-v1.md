@@ -140,7 +140,9 @@ The lock record is content-addressed and schema-closed.
 Authority data is also non-aliased. Each derivation receives a fresh authority
 mapping, and validation compares against a separately reconstructed expected
 mapping. Mutating a returned lock therefore cannot mutate the validator's
-authority oracle.
+authority oracle. Every authority value must also have exact Boolean type;
+numeric JSON values such as `1` and `0` are rejected even though Python
+normally compares them equal to `True` and `False`.
 
 Hosted proof re-addresses forged records and requires rejection for:
 
