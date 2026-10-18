@@ -548,6 +548,36 @@ export class VoidUdpSwarmSocketRuntimeV1 {
     });
   }
 
+  retireDirectCandidateSession(
+    sessionId: string,
+    reason = "authenticated control route lost before direct promotion",
+  ): boolean {
+    const state = this.sessions.get(sessionId);
+    if (!state || state.upgrade.relayRetirementAuthorized) return false;
+
+    this.sessions.delete(sessionId);
+    const failure = new Error(reason);
+    this.clearSessionTimers(state);
+    state.upgrade.failDirectAttempt(failure);
+    if (state.directSocket && !state.directSocket.destroyed) {
+      state.directSocket.destroy(failure);
+    }
+    state.directSocket = undefined;
+    state.pendingSecurePackets.splice(0);
+    state.failed = true;
+
+    try {
+      this.options.onUpgradeFailure?.(Object.freeze({
+        session_id: state.offer.session_id,
+        peer_node_id: state.offer.peer_node_id,
+        reason,
+      }));
+    } catch (error) {
+      this.reportRuntimeError(callbackError(error));
+    }
+    return true;
+  }
+
   private requireStarted(): void {
     if (!this.started || this.stopped || !this.boundValue) {
       throw new Error("UDP swarm socket runtime is not started");
