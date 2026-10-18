@@ -5,7 +5,7 @@
   "repository": "6ZoSo9/void-node",
   "purpose": "accept_exact_fixed_source_identity_for_release_review_without_runtime_or_economic_activation",
   "source_freeze": {
-    "candidate_review_head": "0f5c467253c250a905917e886eb6ae3fb80bff62",
+    "candidate_review_head": "d3e7404791622541a4567ddd506f27caba60cfea",
     "manifest_path": "ops/security/buy-void-presale-source-freeze-candidate-v2.json",
     "manifest_git_blob_sha1": "ca9c42e2d3ab4c50ac54badadb9efde6180ad241",
     "freeze_id": "voidbuypresalefreeze2_32bd552dc92df07fd391ee3571f92e5efd80cbb50bd79bc4b8952484511db7f1",
@@ -16,14 +16,14 @@
     "later_main_changes_require_separate_review": true
   },
   "enforcement_successor": {
-    "review_head": "26534cd19c670cd30b3cefda13ef8dcb62e05dab",
+    "review_head": "caa7daa8ed32143b6884f938d576f795b828684f",
     "path": "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json",
-    "git_blob_sha1": "bb1144989cd826677f2fc8ea54c97e3bd95cc8ef",
-    "successor_id": "voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad",
-    "hosted_workflow_run": 39091307446,
-    "artifact_node22": 12123012167,
-    "artifact_node24": 12122583607,
-    "artifact_node26": 12122798019,
+    "git_blob_sha1": "774db38ccb771f393b44d589a455144b99d36f6b",
+    "successor_id": "voidbuypresaleenfsucc1_819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef",
+    "hosted_workflow_run": 39104682530,
+    "artifact_node22": 12128155696,
+    "artifact_node24": 12128146272,
+    "artifact_node26": 12127529856,
     "cross_node_candidate_identity_verified": true,
     "cross_node_current_integration_identity_verified": true,
     "protected_path_count": 49,
@@ -71,5 +71,5 @@
     "production_host_evidence_authority": false
   },
   "next_gate": "void_buy_void_presale_source_freeze_host_install_qualification_v2",
-  "acceptance_id": "voidbuypresalefreezeaccept2_c35af2c739290a82f612043465717db0b109546168e364f349f88c79c284476e"
+  "acceptance_id": "voidbuypresalefreezeaccept2_88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4"
 }
