@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py"
-TARGET_BLOB = "3ef904efcdcc19c88ba861942076a5536a229b2b"
+TARGET_BLOB = "64e6e5733f1f85da342f8c2da9c5e2c5e5e41a09"
 CENSUS_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py"
 CENSUS_BLOB = "d8ea2966d81e43c273d3692f5778143259431f08"
 CENSUS_PROOF_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py"
