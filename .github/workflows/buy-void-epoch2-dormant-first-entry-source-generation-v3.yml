@@ -182,6 +182,7 @@ jobs:
               b'scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py',
               b'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_current_head_plan_v1.py',
               b'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_installed_qualification_v1.py',
+              b'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_generation.py',
               b'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_lock_v1.py',
               b'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py',
               b'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_materializer_v1.py',
@@ -235,7 +236,7 @@ jobs:
               'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v2_terminal.py': '7b2ddaeddf844d98aa4eb7006ee371ea6a455f57',
               'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_generation.py': 'ffa111fbe6bca7306e57e044fc88a26b1da7a334',
               'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v4_terminal.py': 'c7cd7a3ed91486ee1272f051634ed00c4f8ca79d',
-              'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_generation.py': '1abba5e95d519b945adb06fa1ad629551771f803',
+              'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_generation.py': 'edf87c8556081c80a02b507448041f3175e4c74c',
               'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v5_terminal.py': '6411aa291657a23425f77e7a8f6f81b7e6b3b8f2',
               'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v2.py': 'a6574e2d52f267d4a595c8cad0004d4797fd6f93',
               'scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_lock_v1.py': '39243210c9dae4111fa3f62acf610b8c2c09abf9',
@@ -308,7 +309,7 @@ jobs:
           print("manual_exact_state_replay=" + str(manual).lower())
           print("event_diff_scope_verified=" + str(not manual).lower())
           print("three_modified_evidence_paths_verified=" + str(not manual and not repair).lower())
-          print("repair_exact_36_paths_verified=" + str(not manual and repair).lower())
+          print("repair_exact_37_paths_verified=" + str(not manual and repair).lower())
           PY
           git diff --check
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
