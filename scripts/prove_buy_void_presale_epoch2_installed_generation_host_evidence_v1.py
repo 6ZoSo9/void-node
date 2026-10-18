@@ -40,7 +40,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "ed143ef9c3e2e3eac442e9788fe27115596d1169"
+TARGET_BLOB = "6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -655,10 +655,12 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
         try:
             assert fixture_git("rev-parse", "HEAD").decode().strip() == expected_head
             assert fixture_git("symbolic-ref", "--short", "-q", "HEAD") == b"invalid-\xff\n"
-            expect_source_hold(lambda: module.checkout_snapshot(expected_head), "git_output_not_utf8")
-            expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "git_output_not_utf8")
-            expect_source_hold(lambda: delegated._run_git(["branch", "--show-current"]),
+            expect_source_hold(lambda: module._git_text(["symbolic-ref", "-q", "HEAD"]),
                                "git_output_not_utf8")
+            expect_source_hold(lambda: module.checkout_snapshot(expected_head), "checkout_branch_not_main")
+            expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_branch_not_main")
+            expect_source_hold(lambda: delegated._run_git(["branch", "--show-current"]),
+                               "checkout_branch_not_main")
         finally:
             fixture_git("symbolic-ref", "HEAD", "refs/heads/main")
             fixture_git("update-ref", "-d", bad_ref)
@@ -714,6 +716,51 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
             fixture_git("update-ref", "-d", "refs/heads/other")
         assert module.checkout_snapshot(expected_head)["branch"] == "main"
         assert delegated._run_git(["branch", "--show-current"]) == "main\n"
+
+        fixture_git("symbolic-ref", "refs/heads/alias", "refs/heads/main")
+        saved_text = module._git_text
+        head_path = checkout / ".git/HEAD"
+        actions = (
+            lambda: module.checkout_snapshot(expected_head),
+            lambda: module._verify_checkout_bytes(expected_head),
+            lambda: delegated._run_git(["branch", "--show-current"]),
+        )
+        try:
+            for race in ("replace_head", "restore_head_bytes_and_mtime", "restore_ancestor_mtime"):
+                for action in actions:
+                    original_head = head_path.read_bytes()
+                    head_stat, ancestor_stat = head_path.stat(), checkout.stat()
+                    observed = []
+                    def racing_text(args):
+                        output = saved_text(args)
+                        if args == ["symbolic-ref", "--no-recurse", "-q", "HEAD"]:
+                            observed.append(output)
+                            if race == "replace_head":
+                                fixture_git("symbolic-ref", "HEAD", "refs/heads/alias")
+                            elif race == "restore_head_bytes_and_mtime":
+                                head_path.write_bytes(b"ref: refs/heads/alias\n")
+                            else:
+                                os.utime(checkout, ns=(ancestor_stat.st_atime_ns, ancestor_stat.st_mtime_ns + 2000000000))
+                        elif args == ["symbolic-ref", "-q", "HEAD"]:
+                            observed.append(output)
+                            if race == "restore_head_bytes_and_mtime":
+                                head_path.write_bytes(original_head)
+                                os.utime(head_path, ns=(head_stat.st_atime_ns, head_stat.st_mtime_ns))
+                            elif race == "restore_ancestor_mtime":
+                                os.utime(checkout, ns=(ancestor_stat.st_atime_ns, ancestor_stat.st_mtime_ns))
+                        return output
+                    try:
+                        module._git_text = racing_text
+                        expect_source_hold(action, "checkout_branch_not_main")
+                        assert observed == ["refs/heads/main\n", "refs/heads/main\n"]
+                    finally:
+                        module._git_text = saved_text
+                        fixture_git("symbolic-ref", "HEAD", "refs/heads/main")
+        finally:
+            module._git_text = saved_text
+            fixture_git("symbolic-ref", "HEAD", "refs/heads/main")
+            fixture_git("symbolic-ref", "--delete", "refs/heads/alias")
+        assert module.checkout_snapshot(expected_head)["branch"] == "main"
     finally:
         module.FIXED_CHECKOUT = saved_checkout
         module.RUNTIME_UID, module.RUNTIME_GID = saved_uid, saved_gid
@@ -1316,6 +1363,8 @@ print("hold_receipt_single_line_reason_enforced=true")
 print("git_non_utf8_metadata_maps_to_hold=true")
 print("unicode_whitespace_cannot_alias_main=true")
 print("git_full_branch_namespace_and_aliases_bound=true")
+print("branch_queries_share_retained_head_generation=true")
+print("branch_head_and_ancestor_aba_changes_rejected=true")
 print("filesystem_write_performed=false")
 print("runner_execution=false")
 print("live_composition_execution=false")

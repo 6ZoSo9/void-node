@@ -54,7 +54,7 @@ import subprocess
 import sys
 import time
 import types
-from typing import Any
+from typing import Any, Callable
 
 MARKER = _BOOTSTRAP_MARKER
 SCHEMA = "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1"
@@ -503,11 +503,25 @@ def _git_text(args: list[str]) -> str:
 
 
 def _main_branch() -> str:
-    # Short output loses namespaces; recursive output alone loses HEAD aliases.
-    for args in (["symbolic-ref", "--no-recurse", "-q", "HEAD"],
-                 ["symbolic-ref", "-q", "HEAD"]):
-        if _git_text(args) != "refs/heads/main\n":
+    expected = b"ref: refs/heads/main\n"
+
+    def observe(raw: bytes) -> None:
+        if raw != expected:
             raise EvidenceError("checkout_branch_not_main")
+        # Hold the validated HEAD descriptor and its ancestor generations across
+        # both queries; a swap, rewrite, or ABA restoration must invalidate them.
+        for args in (["symbolic-ref", "--no-recurse", "-q", "HEAD"],
+                     ["symbolic-ref", "-q", "HEAD"]):
+            if _git_text(args) != "refs/heads/main\n":
+                raise EvidenceError("checkout_branch_not_main")
+
+    try:
+        _read_visible_file(FIXED_CHECKOUT / ".git/HEAD", len(expected), len(expected),
+                           observer=observe)
+    except EvidenceError as exc:
+        if str(exc).startswith("reviewed_source_"):
+            raise EvidenceError("checkout_branch_not_main") from exc
+        raise
     return "main"
 
 
@@ -613,15 +627,21 @@ def exact_git_object(expected_head: str, relative: str, blob: str) -> bytes:
     return raw
 
 
-def _open_source_parent(path: Path) -> int:
+def _open_source_parent(
+    path: Path, ancestors: list[tuple[int, os.stat_result]] | None = None
+) -> int:
     if not path.is_absolute() or ".." in path.parts or not path.name:
         raise EvidenceError("reviewed_source_path_invalid")
     flags = os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
     fd = os.open("/", flags)
     try:
         for part in path.parts[1:-1]:
+            initial = os.fstat(fd) if ancestors is not None else None
             child = os.open(part, flags, dir_fd=fd)
-            os.close(fd)
+            if ancestors is None:
+                os.close(fd)
+            else:
+                ancestors.append((fd, initial))
             fd = child
         return fd
     except BaseException:
@@ -639,14 +659,17 @@ def _read_visible_source_exact(path: Path, expected: bytes) -> bytes:
 
 
 def _read_visible_file(
-    path: Path, expected_size: int, maximum: int, expected_mode: str | None = None
+    path: Path, expected_size: int, maximum: int, expected_mode: str | None = None,
+    observer: Callable[[bytes], None] | None = None,
 ) -> bytes:
     if not 0 <= expected_size <= maximum:
         raise EvidenceError("reviewed_source_expected_size_invalid")
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     parent_fd = fd = visible_parent_fd = -1
+    ancestors: list[tuple[int, os.stat_result]] = []
     try:
-        parent_fd = _open_source_parent(path)
+        parent_fd = _open_source_parent(path, ancestors if observer is not None else None)
+        parent_before = os.fstat(parent_fd)
         fd = os.open(path.name, flags, dir_fd=parent_fd)
         before = os.fstat(fd)
         if (
@@ -667,11 +690,21 @@ def _read_visible_file(
                 break
             chunks.append(chunk)
             remaining -= len(chunk)
-        after = os.fstat(fd)
-
         direct = b"".join(chunks)
         if len(direct) != expected_size:
             raise EvidenceError("reviewed_source_size_changed")
+        if observer is not None:
+            observer(direct)
+            os.lseek(fd, 0, os.SEEK_SET)
+            if os.read(fd, expected_size + 1) != direct:
+                raise EvidenceError("reviewed_source_observed_bytes_changed")
+            for retained, initial in [*ancestors, (parent_fd, parent_before)]:
+                current = os.fstat(retained)
+                for field in ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid",
+                              "st_nlink", "st_mtime_ns", "st_ctime_ns"):
+                    if getattr(initial, field) != getattr(current, field):
+                        raise EvidenceError("reviewed_source_ancestor_generation_changed")
+        after = os.fstat(fd)
         for field in (
             "st_dev",
             "st_ino",
@@ -712,7 +745,7 @@ def _read_visible_file(
         raise EvidenceError("reviewed_source_unavailable") from exc
     finally:
         close_error = None
-        for retained in (visible_parent_fd, fd, parent_fd):
+        for retained in (visible_parent_fd, fd, parent_fd, *(entry[0] for entry in ancestors)):
             if retained >= 0:
                 try:
                     os.close(retained)

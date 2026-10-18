@@ -459,3 +459,19 @@ this shared check. Disposable regressions reject a tag named `main`, a HEAD
 alias that resolves to main, and main itself redirecting to another ref, all
 while the expected commit remains unchanged. A direct ordinary main ref must
 still pass after every fixture is restored.
+
+Both branch queries run while a no-follow, regular, single-link HEAD descriptor
+is retained with exact canonical `ref: refs/heads/main` bytes. All ancestor
+directory descriptors/generations are retained for this observation as well.
+After the queries, the reader checks retained HEAD bytes again, file identity,
+mode, ownership, link count, size, mtime and ctime; ancestor identity/generation;
+and the current visible path through a fresh no-follow walk. Detected drift is
+HOLD, including a switch to an alias between queries even if both Git outputs
+look correct. This is a revalidated observation, not a lock or an atomic snapshot
+of the entire repository.
+
+Disposable regressions switch HEAD after the direct query, restore HEAD bytes
+and mtime after the recursive query, or restore an ancestor's mtime after changing
+it. Both Git outputs are verified to look like main in every adversary, while
+wrapper and delegated checks must reject the changed retained generation. No
+filesystem locking or production mutation is introduced.
