@@ -13,7 +13,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 TARGET_REL="ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
 TARGET=ROOT/TARGET_REL
-TARGET_BLOB="3487ab6a401047c21be60dd28bda8e29e1137789"
+TARGET_BLOB="3fe1158a0fdf19fa4307c2a8122314b75ee36345"
 
 def git_blob(raw:bytes)->str:
     return hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
