@@ -13,6 +13,7 @@ on:
       - ".github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml"
       - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.ts"
       - "tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs"
       - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts"
       - "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs"
       - "scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs"
@@ -31,6 +32,7 @@ on:
       - ".github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml"
       - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.ts"
       - "tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs"
       - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts"
       - "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs"
       - "scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs"
@@ -104,9 +106,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 1279b6d9a613b856c9fb5520a09019a7b73c25a7
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = a184aca8834d0cad25283aa1c11b9b2983d6d94c
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = 26f8c86879d5f633f7ad94d40cda994775ace7b3
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 6a654b555bd6c2bce35a21dfcbd90e4c22bece75
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 2267f970f11464e973aade351c81f09867da2716
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = e346269a7cb74a849bd24ec88ed8d7bfee060be7
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -115,6 +117,7 @@ jobs:
 
           test "$(git rev-parse HEAD:src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.ts)" = 2d5fc24498b569f20701445d6214a8ca31e4f701
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs)" = cf40d9d4a19d138d74aee849a6c02f96ee362dbb
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs)" = c0c86bc1687fc9a3cb9313b5a68029c35c6a9a63
           test "$(git rev-parse HEAD:src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts)" = 97180cc03e3f1b2f9935191ac6aafe4b15307708
 
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
@@ -142,17 +145,23 @@ jobs:
             'durability_rollback_contract_bound=true' \
             'reviewed_source_generation_binding_required=true' \
             'live_policy_observer_required=true' \
+            'canonical_installation_observer_bound=true' \
+            'installation_storage_generation_bound=true' \
             'reviewed_second_control_composition_required=true' \
             'durability_rollback_contract_required=true' \
             'reviewed_source_generation_binding_required=true' \
             'fixed_precision_replay_roots_bound=true' \
             'descriptor_nofollow_reads_required=true' \
             'live_policy_boundary_downgrades_rejected=true' \
+            'installation_evidence_boundary_downgrades_rejected=true' \
+            'storage_file_generation_mismatches_rejected=true' \
             'second_control_boundary_downgrades_rejected=true' \
             'durability_contract_boundary_downgrades_rejected=true' \
             'controlled_live_challenge_required=true' \
             'filesystem_write_performed=false' \
-            'process_execution_performed=false' \
+            'collector_direct_process_execution_absent=true' \
+            'transitive_storage_identity_helper_execution_required=true' \
+            'process_execution_read_only_contract=true' \
             'network_contact_performed=false' \
             'live_policy_enforcement_proven=false' \
             'live_rollback_test_performed=false' \
@@ -181,7 +190,10 @@ jobs:
             'descriptor_stable_artifact_reads_required=true' \
             'filesystem_read_performed_by_future_host_run=true' \
             'filesystem_write_performed=false' \
-            'process_execution_performed=false' \
+            'process_execution_performed_by_future_host_run=true' \
+            'process_execution_read_only_contract=true' \
+            'transitive_storage_identity_helper_execution_required=true' \
+            'installation_storage_generation_binding_required=true' \
             'network_contact_performed=false' \
             'live_policy_enforcement_proven=false' \
             'live_rollback_test_performed=false' \
