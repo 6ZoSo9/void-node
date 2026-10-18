@@ -15,7 +15,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "913d2d7f766429a983c30cfa376c2767d26edabc"
+TARGET_BLOB = "3c9909b7032106eb5f2ed1f0e859052c1b218403"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -78,6 +78,8 @@ for required in (
     '"production_host_evidence_authority": False',
     "stat.S_ISREG(before.st_mode)",
     "stat.S_ISLNK(before.st_mode)",
+    "except (OSError, subprocess.TimeoutExpired) as exc:",
+    '"git_execution_failed:" + type(exc).__name__',
 ):
     assert required in source, required
 
@@ -198,6 +200,33 @@ assert module.PARENT_PLAN_ID == PARENT_PLAN_ID
 assert module.PARENT_PLAN_ID == json.loads(
     pin(PARENT_PLAN_REL, PARENT_PLAN_BLOB).decode("utf-8", "strict")
 )["plan_id"]
+
+original_subprocess_run = module.subprocess.run
+
+def _raise_git_oserror(*_args, **_kwargs):
+    raise OSError("synthetic_git_spawn_failure")
+
+def _raise_git_timeout(*_args, **_kwargs):
+    raise subprocess.TimeoutExpired(cmd=["/usr/bin/git"], timeout=20)
+
+try:
+    module.subprocess.run = _raise_git_oserror
+    try:
+        module._git(["status"])
+    except module.EvidenceError as exc:
+        assert str(exc) == "git_execution_failed:OSError"
+    else:
+        raise AssertionError("git_spawn_failure_not_normalized")
+
+    module.subprocess.run = _raise_git_timeout
+    try:
+        module._git(["status"])
+    except module.EvidenceError as exc:
+        assert str(exc) == "git_execution_failed:TimeoutExpired"
+    else:
+        raise AssertionError("git_timeout_not_normalized")
+finally:
+    module.subprocess.run = original_subprocess_run
 
 base = {
     "marker": "VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V5",
@@ -323,6 +352,8 @@ print("double_descriptor_bound_native_self_test_inherited=true")
 print("pathname_swap_adversary_inherited=true")
 print("required_true_field_downgrade_rejected=true")
 print("authority_overclaim_rejected=true")
+print("git_spawn_failure_maps_to_hold=true")
+print("git_timeout_maps_to_hold=true")
 print("filesystem_write_performed=false")
 print("runner_execution=false")
 print("live_composition_execution=false")

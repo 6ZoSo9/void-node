@@ -53,7 +53,7 @@ jobs:
               test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
               base="$PUSH_BEFORE"
               ;;
-            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            workflow_dispatch) base="89fba1e80c2441bc90ff0387543177e0eb5b5788" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
@@ -69,9 +69,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 913d2d7f766429a983c30cfa376c2767d26edabc
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 95784dd287482e85dfc4de340b79d2cfa792ef8b
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 09424f8c36dab2fd3a51b813582e072bfc7fc7df
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 3c9909b7032106eb5f2ed1f0e859052c1b218403
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 29948d309a5553851a5e015b9a89649ce5fb639a
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 88d1f31d5033dcb79cfc0255b31877997210362f
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = a04c2e7665294cdd142426e9eb01ee27c5292b8d
@@ -112,6 +112,8 @@ jobs:
             'pathname_swap_adversary_inherited=true' \
             'required_true_field_downgrade_rejected=true' \
             'authority_overclaim_rejected=true' \
+            'git_spawn_failure_maps_to_hold=true' \
+            'git_timeout_maps_to_hold=true' \
             'filesystem_write_performed=false' \
             'runner_execution=false' \
             'live_composition_execution=false' \

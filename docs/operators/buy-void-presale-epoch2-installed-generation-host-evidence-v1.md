@@ -154,4 +154,13 @@ classification therefore uses Python's stat-mode predicates
 The wrapper does not rely on nonexistent pathlib-style methods on
 `os.stat_result`; malformed or drifting source metadata remains fail-closed.
 
+## Git observation failure contract
+
+Every checkout/source query uses the fixed reviewed `/usr/bin/git` invocation
+with a 20-second timeout. Failure to start Git and Git timeout are both caught
+and converted to `EvidenceError`, so a future separately authorized host run
+emits the same machine-readable `status=HOLD` contract instead of a traceback.
+Hosted proof injects both an `OSError` spawn failure and
+`subprocess.TimeoutExpired` and requires those normalized HOLD reasons.
+
 No host execution authority changes.

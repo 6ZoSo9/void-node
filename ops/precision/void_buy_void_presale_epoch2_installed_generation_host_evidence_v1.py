@@ -60,23 +60,28 @@ def git_blob(raw: bytes) -> str:
 
 
 def _git(args: list[str]) -> bytes:
-    cp = subprocess.run(
-        [
-            str(FIXED_GIT),
-            "--no-replace-objects",
-            "-C",
-            str(FIXED_CHECKOUT),
-            "-c",
-            "safe.directory=" + str(FIXED_CHECKOUT),
-            *args,
-        ],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=GIT_ENV,
-        check=False,
-        timeout=20,
-    )
+    try:
+        cp = subprocess.run(
+            [
+                str(FIXED_GIT),
+                "--no-replace-objects",
+                "-C",
+                str(FIXED_CHECKOUT),
+                "-c",
+                "safe.directory=" + str(FIXED_CHECKOUT),
+                *args,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=GIT_ENV,
+            check=False,
+            timeout=20,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise EvidenceError(
+            "git_execution_failed:" + type(exc).__name__
+        ) from exc
     if cp.returncode != 0:
         raise EvidenceError(
             "git_command_failed:"
