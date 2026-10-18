@@ -225,11 +225,15 @@ def fsync_tree(root:Path)->None:
             os.close(fd)
 
 def legacy_v1_root_state(manifest:dict)->str:
-    if not OLD_ROOT.exists():
+    try:
+        os.lstat(OLD_ROOT)
+    except FileNotFoundError:
         return "absent"
+    except OSError as exc:
+        raise Hold("legacy_v1_root_observation_failed") from exc
     try:
         verify_tree(OLD_ROOT,manifest["from"]["closure"])
-    except (Hold,FileNotFoundError) as exc:
+    except (Hold,FileNotFoundError,OSError) as exc:
         raise Hold("legacy_v1_root_collision") from exc
     return "old_exact"
 
