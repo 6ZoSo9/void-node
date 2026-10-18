@@ -84,10 +84,12 @@ with `PTRACE_SEIZE|PTRACE_O_TRACEEXEC`. The child then stops at the kernel exec
 event after the exact trainer image is installed but before trainer user code
 runs. While that trainer generation is stopped, the releaser proves exact
 PPid/start/executable/same-pipe identity, installs the writer-continuity filter,
-and executes the late-writer adversaries. Only after all releaser-side proof is
-complete does the parent `PTRACE_DETACH` and immediately write+close the exact
-frame. The trainer's own frame timeout therefore does not include releaser proof
-latency.
+and executes the late-writer adversaries. After all releaser-side proof is complete, the parent writes the exact 64-byte
+frame and closes its sole release writer **while the trainer remains stopped at
+the exec event**. Only after frame+EOF are already buffered does the parent
+`PTRACE_DETACH` and resume trainer user code. The trainer's own one-second frame
+timeout therefore includes neither releaser proof latency nor a scheduler gap
+between resume and frame publication.
 
 The releaser then proves representative late duplication/reopen/socket attempts
 return EPERM before it resumes the trainer and writes the frame.
