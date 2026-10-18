@@ -36,12 +36,12 @@ PLAN_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_plan_v1.py"
 )
-PLAN_BLOB = "928568d08f56375911505af635306b715790c1f3"
+PLAN_BLOB = "ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78"
 PLAN_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_plan_v1.py"
 )
-PLAN_PROOF_BLOB = "9525616f8fd03ba572bab1886dddd14914ebf3f7"
+PLAN_PROOF_BLOB = "e695ceed29f61f08f480d4dafaad7cc6635adf81"
 
 OLD_LOCK = (
     "voidbuye2dormantbootstraplock3_"
@@ -92,6 +92,17 @@ GIT_ENV = {
     "GIT_NO_REPLACE_OBJECTS": "1",
     "GIT_OPTIONAL_LOCKS": "0",
     "GIT_TERMINAL_PROMPT": "0",
+    "GIT_CONFIG_COUNT": "5",
+    "GIT_CONFIG_KEY_0": "core.fsmonitor",
+    "GIT_CONFIG_VALUE_0": "false",
+    "GIT_CONFIG_KEY_1": "core.hooksPath",
+    "GIT_CONFIG_VALUE_1": "/dev/null",
+    "GIT_CONFIG_KEY_2": "credential.helper",
+    "GIT_CONFIG_VALUE_2": "",
+    "GIT_CONFIG_KEY_3": "credential.interactive",
+    "GIT_CONFIG_VALUE_3": "never",
+    "GIT_CONFIG_KEY_4": "core.sshCommand",
+    "GIT_CONFIG_VALUE_4": "/bin/false",
 }
 
 
@@ -273,6 +284,7 @@ def collect(expected_head: str) -> dict[str, Any]:
         "predecessor_retained_verified": True,
         "upgrade_stage_absent_verified": True,
         "temporary_git_metadata_write_required": True,
+        "qualification_git_callbacks_neutralized": True,
         "filesystem_write": True,
         "protected_filesystem_mutation": False,
         "bootstrap_execution": False,
@@ -308,6 +320,7 @@ def source_plan() -> None:
     print("upgrade_stage_absent_required=true")
     print("temporary_git_metadata_boundary_explicit=true")
     print("temporary_git_metadata_write_required=true")
+    print("qualification_git_callbacks_neutralized=true")
     print("nonroot_run_required=true")
     print("protected_filesystem_mutation=false")
     print("bootstrap_execution=false")
@@ -340,6 +353,7 @@ def emit(result: dict[str, Any]) -> None:
     print("upgrade_stage_absent_verified=true")
     print("nonroot_run_required=true")
     print("temporary_git_metadata_write_required=true")
+    print("qualification_git_callbacks_neutralized=true")
     print("filesystem_write=true")
     print("protected_filesystem_mutation=false")
     print("repaired_bootstrap_sha256=" + NEW_BOOT[1])
@@ -386,6 +400,7 @@ def self_test() -> None:
     print("upgrade_stage_absent_required=true")
     print("temporary_git_metadata_cleanup_required=true")
     print("temporary_git_metadata_write_required=true")
+    print("qualification_git_callbacks_neutralized=true")
     print("nonroot_run_required=true")
     print("upgrader_apply_not_called=true")
     print("protected_filesystem_mutation=false")
