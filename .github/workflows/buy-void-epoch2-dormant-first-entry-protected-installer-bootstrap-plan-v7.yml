@@ -53,9 +53,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           case "$EVENT_NAME" in
-            pull_request) base="594bb9b8bdd3b303c6402afe29ad2715e9217aa3" ;;
+            pull_request) base="190fae8c410d7fe3ae4af5551ea78a5523bcd7fb" ;;
             push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="594bb9b8bdd3b303c6402afe29ad2715e9217aa3" ;;
+            workflow_dispatch) base="190fae8c410d7fe3ae4af5551ea78a5523bcd7fb" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           test -n "$base"
@@ -73,14 +73,14 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            7f218580ea47897290c32b3fe5cb788f16a3ecc1
+            2130c520d1854b0e2d4162759be5a796c697e433
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            7b2ec582059ae3a9d87c8668246093f4bb20e14f
+            e0c152ee1284a104fe64d725c04f87673ae06b5d
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v7.md)" = \
-            0720ac788badf3c61e1a779f868022c9587bdd1b
+            313953d03653a44885a43cc4d9a5ddcdd5665abb
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            04c7ca5f0d96dcb60faeae8cf4d712435ad65466
+            d9650aff7af2cb9fc9a8d95a888d8dd52aef1970
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
             7c3ad1188fca114188a8f9876c7a1b7390280b56
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
@@ -154,7 +154,7 @@ jobs:
             'source_only=true'
             'host_read=false'
             'host_write=false'
-            'qualifier_git_blob_sha1=04c7ca5f0d96dcb60faeae8cf4d712435ad65466'
+            'qualifier_git_blob_sha1=d9650aff7af2cb9fc9a8d95a888d8dd52aef1970'
             'installed_qualification_performed=false'
             'qualification_nonroot_execution_required=true'
             'qualification_protected_state_read_only_required=true'
