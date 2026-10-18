@@ -27,24 +27,24 @@ SUCCESSOR_ID = (
 )
 ACCEPTANCE_ID = (
     "voidbuypresalefreezeaccept2_"
-    "88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4"
+    "427988497e4789465dde1c193668bb140d017c4e3ba3748567ea4e3bacfadb57"
 )
 
 CENSUS_SOURCE_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py"
-CENSUS_SOURCE_BLOB = "b5ddb5799b031de6c42efd3743a0bb6ac9e20ddc"
+CENSUS_SOURCE_BLOB = "d8ea2966d81e43c273d3692f5778143259431f08"
 CENSUS_PROOF_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py"
 CENSUS_PROOF_BLOB = "9dd55390b75bb6c6075efb053b0491b23a52fe60"
 CENSUS_DOC_REL = "docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md"
-CENSUS_DOC_BLOB = "f6d66b7e806c74bafcf1d21a797be4df0c4f86bd"
+CENSUS_DOC_BLOB = "1e7927cfcace8e5823985bff88bb13a9db6c87cc"
 CENSUS_WORKFLOW_REL = ".github/workflows/buy-void-precision-source-freeze-host-metadata-census-v3.yml"
-CENSUS_WORKFLOW_BLOB = "57d4fee9ed0b2c7785433e3db61ed8fe472b19ba"
+CENSUS_WORKFLOW_BLOB = "20106d90410490dc4e82055c871f90654cd5d0b0"
 
 FREEZE_REL = "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
 FREEZE_BLOB = "ca9c42e2d3ab4c50ac54badadb9efde6180ad241"
 SUCCESSOR_REL = "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
 SUCCESSOR_BLOB = "774db38ccb771f393b44d589a455144b99d36f6b"
 ACCEPTANCE_REL = "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
-ACCEPTANCE_BLOB = "5d437a37703a83908a7fa78b78da92151aa1aa99"
+ACCEPTANCE_BLOB = "174d536807f03fd7b6ff44820d4e378c7055150e"
 
 MAX_INPUT_BYTES = 256 * 1024
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
