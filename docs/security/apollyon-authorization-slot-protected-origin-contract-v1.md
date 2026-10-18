@@ -111,10 +111,12 @@ the exact shallow #3357 key set with primitive data properties only:
 - every own key is accounted for with `Reflect.ownKeys`; unknown enumerable,
   non-enumerable and symbol keys fail closed;
 - accessor descriptors fail without getter invocation;
-- array / boxed-string regex coercion is rejected.
+- array / boxed-string regex coercion is rejected;
+- Proxy inputs are rejected with Node `util.types.isProxy` before prototype,
+  own-key, or descriptor reflection, so caller traps are never invoked.
 
-The candidate and its nested requirements object use the same descriptor-snapshot
-boundary before structured cloning.
+The slot record, candidate, and nested requirements object use the same
+descriptor-snapshot boundary before structured cloning.
 
 This prevents the protected-origin prerequisite from reintroducing the
 clone/coercion/time-of-check issues already closed in the activation-capability
@@ -134,6 +136,7 @@ Hosted proof must establish:
 - slot, candidate and requirements accessors are rejected without invocation;
 - regex-coercible arrays are rejected;
 - unknown non-enumerable properties and symbol keys are rejected;
+- slot, candidate, and nested-requirements Proxy inputs are rejected before reflection with zero trap invocations;
 - no filesystem, network, child-process, systemd or service implementation exists;
 - claim publication, capability issuance, #3333 consumption, admission, release,
   training, keys, transactions and funds remain false.
