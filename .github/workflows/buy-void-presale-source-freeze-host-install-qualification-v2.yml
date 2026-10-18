@@ -1,0 +1,144 @@
+name: Buy VOID presale source-freeze host-install qualification v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-source-freeze-host-install-qualification-v2.yml"
+      - "docs/operators/buy-void-presale-source-freeze-host-install-qualification-v2.md"
+      - "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py"
+      - "scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py"
+      - "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py"
+      - "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py"
+      - "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
+      - "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
+      - "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact qualification generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          STACK_PARENT=8f11ccd90cf7fde5633d67e81d4819822774a247
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-source-freeze-host-install-qualification-v2.yml' \
+            'docs/operators/buy-void-presale-source-freeze-host-install-qualification-v2.md' \
+            'scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py' \
+            'scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
+            21ec67f62c3c303e2362a836602c9a7cfd1af136
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
+            8f6ff030efea364315cba67c8c8390a583bbb228
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-source-freeze-host-install-qualification-v2.md)" = \
+            5f88446c0e72f77053edec456c362d028cfa303f
+
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py)" = \
+            266fe91ee8563efff6116be7f890f19340a0de4c
+          test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py)" = \
+            9a8446a3d1f02d94277606c2858ec7abd30b3b94
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = \
+            5d437a37703a83908a7fa78b78da92151aa1aa99
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = \
+            774db38ccb771f393b44d589a455144b99d36f6b
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = \
+            ca9c42e2d3ab4c50ac54badadb9efde6180ad241
+
+          git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py",
+              "scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py",
+          ):
+              compile(
+                  Path(relative).read_text("utf-8"),
+                  relative,
+                  "exec",
+                  dont_inherit=True,
+              )
+          print("VOID_BUY_VOID_PRESALE_HOST_INSTALL_QUALIFICATION_V2_SYNTAX_GREEN")
+          PY
+
+      - name: Prove fail-closed offline qualification
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/host-install-q-v2-proof.log"
+          python3 -I -B scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_HOST_INSTALL_QUALIFICATION_V2_PROOF_GREEN' \
+            'census_source_generation_bound=true' \
+            'census_behavioral_proof_bound=true' \
+            'accepted_freeze_generation_bound=true' \
+            'current_enforcement_successor_bound=true' \
+            'offline_input_only=true' \
+            'host_access_absent=true' \
+            'network_access_absent=true' \
+            'filesystem_mutation_absent=true' \
+            'metadata_cannot_grant_authenticity=true' \
+            'closed_nested_metadata_schema_proved=true' \
+            'malformed_nested_metadata_regressions_proved=true' \
+            'custody_mountpoint_type_contract_proved=true' \
+            'independent_receipt_evidence_required=true' \
+            'independent_custody_evidence_required=true' \
+            'independent_epoch2_installed_evidence_required=true' \
+            'host_install_qualified=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Self-test classifier
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/host-install-q-v2-self-test.log"
+          python3 -I -B scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_HOST_INSTALL_QUALIFICATION_V2_SELF_TEST_GREEN' \
+            'metadata_alignment_classifier=true' \
+            'closed_nested_metadata_schema=true' \
+            'malformed_nested_metadata_rejected=true' \
+            'state_dependent_mode_bytes_validated=true' \
+            'custody_mountpoint_type_validated=true' \
+            'metadata_presence_never_becomes_authenticity=true' \
+            'independent_receipt_evidence_required=true' \
+            'independent_custody_evidence_required=true' \
+            'independent_epoch2_installed_evidence_required=true' \
+            'host_install_qualified=false' \
+            'payment_rail_policy_accepted=false' \
+            'customer_payment_acceptance_authorized=false' \
+            'public_presale_activation=false' \
+            'wc_void_market_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
