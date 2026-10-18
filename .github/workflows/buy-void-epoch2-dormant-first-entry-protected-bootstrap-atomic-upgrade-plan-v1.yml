@@ -48,14 +48,18 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
+          STACK_PARENT=99600d3cce99c7e0a7281a48bbcdcecb66bc54f7
           case "$EVENT_NAME" in
-            pull_request) test -n "$PR_BASE"; base="$PR_BASE" ;;
+            pull_request)
+              test "$PR_BASE" = "$STACK_PARENT"
+              base="$STACK_PARENT"
+              ;;
             push)
               test -n "$PUSH_BEFORE"
               test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
               base="$PUSH_BEFORE"
               ;;
-            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            workflow_dispatch) base="$STACK_PARENT" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
@@ -72,7 +76,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = 928568d08f56375911505af635306b715790c1f3
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = a012b69e8d4b1c8e8cb9b201eec6ef61c57d6dfe
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_plan_v1.py)" = 14ffc3c8e36e58e23d2ba5282954be6ec0103a36
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-plan-v1.md)" = 25eaa32bd0d4fcc17102f6df7d7b20944f6b4792
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 7d70527d8910881f9973479b89ceef78789ad100
@@ -107,6 +111,8 @@ jobs:
             'planner_target_blob_bound=true' \
             'repaired_upgrader_generation_bound=true' \
             'upgrader_proof_doc_workflow_generation_bound=true' \
+            'fixed_stack_parent_bound=true' \
+            'manual_dispatch_base_bound=true' \
             'nonroot_run_required=true' \
             'upgrader_collect_only=true' \
             'subprocess_execution_limited_to_sanitized_git=true' \

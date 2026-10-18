@@ -42,6 +42,12 @@ UPGRADER_WORKFLOW_REL = (
 )
 UPGRADER_WORKFLOW_BLOB = "a89be3f29d758811362c81c9dbc7d2b69f74c147"
 
+PLAN_WORKFLOW_REL = (
+    ".github/workflows/buy-void-epoch2-dormant-first-entry-"
+    "protected-bootstrap-atomic-upgrade-plan-v1.yml"
+)
+STACK_PARENT = "99600d3cce99c7e0a7281a48bbcdcecb66bc54f7"
+
 OLD_LOCK = (
     "voidbuye2dormantbootstraplock3_"
     "5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b"
@@ -82,6 +88,15 @@ pin(UPGRADER_REL, UPGRADER_BLOB)
 pin(UPGRADER_PROOF_REL, UPGRADER_PROOF_BLOB)
 pin(UPGRADER_DOC_REL, UPGRADER_DOC_BLOB)
 pin(UPGRADER_WORKFLOW_REL, UPGRADER_WORKFLOW_BLOB)
+
+plan_workflow_source = (ROOT / PLAN_WORKFLOW_REL).read_text("utf-8")
+for required in (
+    "STACK_PARENT=99600d3cce99c7e0a7281a48bbcdcecb66bc54f7",
+    'pull_request) test "$PR_BASE" = "$STACK_PARENT"; base="$STACK_PARENT" ;;',
+    'workflow_dispatch) base="$STACK_PARENT" ;;',
+):
+    assert required in plan_workflow_source, required
+assert 'workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;' not in plan_workflow_source
 
 source = target_raw.decode("utf-8", "strict")
 compile(source, TARGET_REL, "exec", dont_inherit=True)
@@ -276,6 +291,8 @@ print(MARKER + "_PROOF_GREEN")
 print("planner_target_blob_bound=true")
 print("repaired_upgrader_generation_bound=true")
 print("upgrader_proof_doc_workflow_generation_bound=true")
+print("fixed_stack_parent_bound=true")
+print("manual_dispatch_base_bound=true")
 print("nonroot_run_required=true")
 print("upgrader_collect_only=true")
 print("subprocess_execution_limited_to_sanitized_git=true")
