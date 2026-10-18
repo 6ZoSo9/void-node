@@ -174,3 +174,15 @@ The next source gate is:
 `apollyon_durable_attempt_claim_store_service_source_candidate_v2`
 
 A plan is not installation authority.
+
+## Bounded raw-commit ancestry on merge-forwarded source
+
+The read-only source-generation proof uses a breadth-first traversal of raw Git
+commit-object parents. This ensures a nearby reviewed #3233 ancestor remains
+reachable after a legitimate non-force two-parent reconciliation, even if the
+other parent is the repository's very deep current-main history. Every traversed
+object is still checked as type commit with replacement objects, graft shortcuts,
+and lazy fetch disabled. The unchanged 4,096-commit visited-object ceiling fails
+closed for distant, ambiguous or unbounded history; it is not raised to admit
+this reconciliation. Hosted adversaries exercise both the nearby reviewed-parent
+positive and a missing ancestor on a >cap lineage.
