@@ -31,7 +31,11 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
-          git merge-base --is-ancestor "$BASE" "$HEAD"
+          base="$BASE"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse HEAD^)"
+          fi
+          git merge-base --is-ancestor "$base" "$HEAD"
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py)" = \
             1fdb495aafa136119d50f41410b015930d9fc90d
           test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py)" = \
@@ -73,5 +77,9 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
-          git merge-base --is-ancestor "$BASE" "$HEAD"
-          git diff --check "$BASE" "$HEAD"
+          base="$BASE"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse HEAD^)"
+          fi
+          git merge-base --is-ancestor "$base" "$HEAD"
+          git diff --check "$base" "$HEAD"
