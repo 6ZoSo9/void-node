@@ -1,0 +1,165 @@
+name: Buy VOID presale independent host evidence collection plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-independent-host-evidence-collection-plan-v1.yml"
+      - "docs/operators/buy-void-presale-independent-host-evidence-collection-plan-v1.md"
+      - "scripts/prove_buy_void_presale_independent_host_evidence_collection_plan_v1.py"
+      - "scripts/void_buy_void_presale_independent_host_evidence_collection_plan_v1.py"
+      - "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py"
+      - "scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py"
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "tools/void-buy-allocation-custody-host-evidence-v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-host-evidence-v1.md"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-independent-host-evidence-collection-plan-v1.yml"
+      - "docs/operators/buy-void-presale-independent-host-evidence-collection-plan-v1.md"
+      - "scripts/prove_buy_void_presale_independent_host_evidence_collection_plan_v1.py"
+      - "scripts/void_buy_void_presale_independent_host_evidence_collection_plan_v1.py"
+      - "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py"
+      - "scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py"
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "tools/void-buy-allocation-custody-host-evidence-v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-host-evidence-v1.md"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact collection-plan generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          test -n "$base"
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-independent-host-evidence-collection-plan-v1.yml' \
+            'docs/operators/buy-void-presale-independent-host-evidence-collection-plan-v1.md' \
+            'scripts/prove_buy_void_presale_independent_host_evidence_collection_plan_v1.py' \
+            'scripts/void_buy_void_presale_independent_host_evidence_collection_plan_v1.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/void_buy_void_presale_independent_host_evidence_collection_plan_v1.py)" = \
+            20ae993f9e5d9fec124bf2a38bb626e36cdaed52
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_independent_host_evidence_collection_plan_v1.py)" = \
+            a28074ac069d2da4a1087073bb53818f65b9474f
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-independent-host-evidence-collection-plan-v1.md)" = \
+            b4723d5ca6765cddd31dc4628107324ace55d2d7
+
+          test "$(git rev-parse HEAD:scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
+            1c8299cb38e3a02c5e65c3d38d4863e8ee0c1005
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
+            15813299b38ac146dd4b82b109fef72fbfb868c3
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts)" = \
+            d47a6f99870f385c1bc938adbef74535b78eba1f
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_generation_provenance_v7.ts)" = \
+            390ff1a2ff0437cd8c8693e7807c12275df42573
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_live_process_binding_v2.ts)" = \
+            987c97568a4d1b9814218603df48a65dbfeed18f
+
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-host-evidence-v1.mjs)" = \
+            ce2892d50a1e5e2a31fc1dd7d8b9974a9034a712
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-host-evidence-v1.md)" = \
+            10a95c941da517a0ba2e071c6845b17cebf0f708
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = \
+            a04c2e7665294cdd142426e9eb01ee27c5292b8d
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = \
+            c14ec00acffbc55630aa68db0013d97cac068ab3
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "scripts/void_buy_void_presale_independent_host_evidence_collection_plan_v1.py",
+              "scripts/prove_buy_void_presale_independent_host_evidence_collection_plan_v1.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_PRESALE_INDEPENDENT_HOST_EVIDENCE_PLAN_SYNTAX_GREEN")
+          PY
+
+          out="$RUNNER_TEMP/host-evidence-plan-proof.log"
+          python3 -I -B scripts/prove_buy_void_presale_independent_host_evidence_collection_plan_v1.py |
+            tee "$out"
+
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_INDEPENDENT_HOST_EVIDENCE_COLLECTION_PLAN_V1_PROOF_GREEN' \
+            'parent_host_classifier_bound=true' \
+            'receipt_collection_source_bound=true' \
+            'deployment_receipt_verifier_bound=true' \
+            'live_process_receipt_verifier_bound=true' \
+            'allocation_custody_host_collector_bound=true' \
+            'epoch2_installed_qualifier_bound=true' \
+            'receipt_publisher_excluded=true' \
+            'host_execution_absent=true' \
+            'filesystem_write_absent=true' \
+            'network_client_absent=true' \
+            'host_execution_authorized=false' \
+            'payment_acceptance_authorized=false' \
+            'public_presale_activation_authorized=false' \
+            'funds_movement_authorized=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Synthetic non-executing plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/host-evidence-plan.log"
+          python3 -I -B scripts/void_buy_void_presale_independent_host_evidence_collection_plan_v1.py \
+            --plan \
+            --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+            --runtime-uid 1000 \
+            --runtime-gid 1000 |
+            tee "$out"
+          grep -Fx 'status=PLAN_GREEN' "$out"
+          grep -Fx 'host_execution_authorized=false' "$out"
+          grep -Fx 'receipt_publication_authorized=false' "$out"
+          grep -Fx 'payment_acceptance_authorized=false' "$out"
+          grep -Fx 'public_presale_activation_authorized=false' "$out"
+          grep -Fx 'funds_movement_authorized=false' "$out"
