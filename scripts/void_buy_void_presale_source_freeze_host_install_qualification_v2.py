@@ -31,13 +31,13 @@ ACCEPTANCE_ID = (
 )
 
 CENSUS_SOURCE_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py"
-CENSUS_SOURCE_BLOB = "266fe91ee8563efff6116be7f890f19340a0de4c"
+CENSUS_SOURCE_BLOB = "b5ddb5799b031de6c42efd3743a0bb6ac9e20ddc"
 CENSUS_PROOF_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py"
-CENSUS_PROOF_BLOB = "9a8446a3d1f02d94277606c2858ec7abd30b3b94"
+CENSUS_PROOF_BLOB = "9dd55390b75bb6c6075efb053b0491b23a52fe60"
 CENSUS_DOC_REL = "docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md"
-CENSUS_DOC_BLOB = "b7d216e4623b0918a2aef35f138b412b3eba12ac"
+CENSUS_DOC_BLOB = "f6d66b7e806c74bafcf1d21a797be4df0c4f86bd"
 CENSUS_WORKFLOW_REL = ".github/workflows/buy-void-precision-source-freeze-host-metadata-census-v3.yml"
-CENSUS_WORKFLOW_BLOB = "000808f88aa4139d764f00bbc15a4272323991f3"
+CENSUS_WORKFLOW_BLOB = "57d4fee9ed0b2c7785433e3db61ed8fe472b19ba"
 
 FREEZE_REL = "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
 FREEZE_BLOB = "ca9c42e2d3ab4c50ac54badadb9efde6180ad241"
@@ -121,11 +121,13 @@ PATH_METADATA_STATES = frozenset(
         "METADATA_UNAVAILABLE_HOLD",
         "SYMLINK_HOLD",
         "REGULAR_METADATA_ONLY",
+        "REGULAR_SIZE_RANGE_HOLD",
         "DIRECTORY_METADATA_ONLY",
         "SPECIAL_FILE_HOLD",
     }
 )
 MODE4 = re.compile(r"^[0-7]{4}$")
+MAX_JSON_SAFE_INTEGER = 9_007_199_254_740_991
 
 
 class QualificationError(RuntimeError):
@@ -169,7 +171,9 @@ def _validate_path_metadata_entry(
             label + "_regular_mode_invalid",
         )
         _require(
-            isinstance(size, int) and not isinstance(size, bool) and size >= 0,
+            isinstance(size, int)
+            and not isinstance(size, bool)
+            and 0 <= size <= MAX_JSON_SAFE_INTEGER,
             label + "_regular_bytes_invalid",
         )
     elif state == "DIRECTORY_METADATA_ONLY":
@@ -480,6 +484,13 @@ def self_test() -> None:
     }
     result = evaluate(census)
     assert result["metadata_alignment_green"] is True
+
+    max_safe = json.loads(json.dumps(census))
+    max_safe["fixed_path_metadata"]["source_finality_deployment_receipt"][
+        "bytes"
+    ] = MAX_JSON_SAFE_INTEGER
+    max_safe_result = evaluate(max_safe)
+    assert max_safe_result["metadata_alignment_green"] is True
     assert (
         result["status"]
         == "HOST_INSTALL_QUALIFICATION_HOLD_INDEPENDENT_EVIDENCE_REQUIRED"
@@ -519,6 +530,42 @@ def self_test() -> None:
     extra["fixed_path_metadata"]["epoch2_live_composition_root"]["unexpected"] = True
     malformed_cases.append(
         ("epoch2_extra_key", extra, "epoch2_live_composition_root_keys_invalid")
+    )
+
+    too_large_receipt = json.loads(json.dumps(census))
+    too_large_receipt["fixed_path_metadata"]["source_finality_deployment_receipt"][
+        "bytes"
+    ] = MAX_JSON_SAFE_INTEGER + 1
+    malformed_cases.append(
+        (
+            "receipt_bytes_above_json_safe_integer",
+            too_large_receipt,
+            "source_finality_deployment_receipt_regular_bytes_invalid",
+        )
+    )
+
+    negative_receipt = json.loads(json.dumps(census))
+    negative_receipt["fixed_path_metadata"]["source_finality_deployment_receipt"][
+        "bytes"
+    ] = -1
+    malformed_cases.append(
+        (
+            "receipt_bytes_negative",
+            negative_receipt,
+            "source_finality_deployment_receipt_regular_bytes_invalid",
+        )
+    )
+
+    bool_receipt = json.loads(json.dumps(census))
+    bool_receipt["fixed_path_metadata"]["source_finality_deployment_receipt"][
+        "bytes"
+    ] = True
+    malformed_cases.append(
+        (
+            "receipt_bytes_bool",
+            bool_receipt,
+            "source_finality_deployment_receipt_regular_bytes_invalid",
+        )
     )
 
     wrong_receipt_bytes = json.loads(json.dumps(census))
@@ -621,6 +668,9 @@ def self_test() -> None:
     print("closed_nested_metadata_schema=true")
     print("malformed_nested_metadata_rejected=true")
     print("state_dependent_mode_bytes_validated=true")
+    print("json_safe_integer_byte_domain=true")
+    print("max_safe_integer_boundary_tested=true")
+    print("regular_size_range_hold_accepted_as_hold=true")
     print("custody_mountpoint_type_validated=true")
     print("metadata_presence_never_becomes_authenticity=true")
     print("independent_receipt_evidence_required=true")
