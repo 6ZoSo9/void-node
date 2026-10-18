@@ -137,6 +137,11 @@ The lock keeps false:
 
 The lock record is content-addressed and schema-closed.
 
+Authority data is also non-aliased. Each derivation receives a fresh authority
+mapping, and validation compares against a separately reconstructed expected
+mapping. Mutating a returned lock therefore cannot mutate the validator's
+authority oracle.
+
 Hosted proof re-addresses forged records and requires rejection for:
 
 - extra top-level fields;
@@ -147,7 +152,7 @@ Hosted proof re-addresses forged records and requires rejection for:
 - accepted historical toolchain-identity drift;
 - binary SHA drift;
 - extra nested binary fields;
-- protected-install authority overclaim;
+- derived-authority alias mutation and protected-install authority overclaim;
 - false historical-rederivation or mutable-toolchain claims;
 - rollback of candidate acceptance; and
 - next-gate drift.
