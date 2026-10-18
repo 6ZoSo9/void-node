@@ -12,19 +12,25 @@ def git_blob(path:Path)->str:
 
 manifest=json.loads(MANIFEST.read_text())
 assert manifest["marker"]=="VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1"
-assert git_blob(MANIFEST)=="db64dd321936c90159417959505e958a29596368"
+assert git_blob(MANIFEST)=="e78f1709c81775b881ab8f54291bd470ff9e1353"
 assert manifest["from"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v1"
 assert manifest["prior_v2"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v2"
+assert manifest["prior_current"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v2"
 assert manifest["to"]["reviewed_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v2"
 assert manifest["prior_v2_backup_root"]=="/opt/void-apollyon-live-custody-binding-v2-reviewed-v2-prior-v1"
 assert manifest["from"]["fixed_launcher_blob_sha1"]=="e18124d3109ed63ff50da9c467fb1b798c300460"
 assert manifest["prior_v2"]["fixed_launcher_blob_sha1"]=="b96f99d6c513405e6f8b87b8f5c3fb1b1cbbf9c7"
-assert manifest["to"]["fixed_launcher_blob_sha1"]=="820f7151c0f83280b7457f841cee14c3b0c274b6"
+assert manifest["prior_current"]["fixed_launcher_blob_sha1"]=="820f7151c0f83280b7457f841cee14c3b0c274b6"
+assert manifest["prior_current"]["fixed_launcher_source_rel"]=="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+assert manifest["to"]["fixed_launcher_blob_sha1"]=="352bd36f2b07091140b990de4170f708eb11fee6"
+assert manifest["to"]["fixed_launcher_source_rel"]=="ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
+assert manifest["prior_current"]["closure"]==manifest["to"]["closure"]
+assert manifest["to"]["closure"]["ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"]=="820f7151c0f83280b7457f841cee14c3b0c274b6"
 assert manifest["prior_v2"]["closure"]["ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py"]=="0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7"
 assert manifest["prior_v2"]["closure"]["tools/apollyon-candidate-training-preclaim-v2.mjs"]=="33a7f0d51d7ce1ab6e7ee48e4e205c0b639cca82"
 assert manifest["prior_v2"]["closure"]["tools/apollyon-candidate-training-attempt-claim-contract-v2.mjs"]=="b61f2f0982de47c5e11cc1f82e6ea7946ab4a8b2"
 assert manifest["prior_v2"]["closure"]["tools/apollyon-live-custody-service-source-session-binding-v2.mjs"]=="981935515e08634be96446e58922c16be56d33ad"
-assert manifest["prior_v2"]["systemd_reviewed_versions"]==manifest["to"]["systemd_reviewed_versions"]==["255.4-1ubuntu8.11","255.4-1ubuntu8.18"]
+assert manifest["prior_v2"]["systemd_reviewed_versions"]==manifest["prior_current"]["systemd_reviewed_versions"]==manifest["to"]["systemd_reviewed_versions"]==["255.4-1ubuntu8.11","255.4-1ubuntu8.18"]
 assert manifest["authority"]["service_action"] is False
 assert manifest["authority"]["training_execution"] is False
 assert manifest["authority"]["durable_attempt_claim"] is False
@@ -51,6 +57,7 @@ saved=(
 fixture_manifest={
     "from":{"closure":{}},
     "prior_v2":{"closure":{}},
+    "prior_current":{"closure":{}},
     "to":{"closure":{}},
 }
 try:
@@ -195,6 +202,44 @@ try:
     else:
         raise AssertionError("stage failure unexpectedly accepted")
     assert events==["stage"],events
+
+    # Execute the already-current-root launcher-only retirement path. It must
+    # replace only the fixed launcher, never stage or rename the reviewed root.
+    events.clear()
+    upgrade.plan=lambda:{
+        "migration_state":"prior_current_pending",
+        "old_root_state":"absent",
+    }
+    upgrade.prepare_current_stage=lambda mapping:events.append("UNEXPECTED_STAGE")
+    upgrade.launcher_state=lambda:"prior_current_exact"
+    upgrade.replace_launcher=lambda *args,**kwargs:(
+        events.append(("replace",args[1])) or True
+    )
+    upgrade.read_source=lambda rel,blob:(
+        events.append(("read_source",rel,blob)) or b"retired-launcher"
+    )
+    upgrade.assert_services_dormant=lambda:events.append("dormant")
+    upgrade.migrate_prior_v2_tree=lambda manifest:(
+        events.append("UNEXPECTED_MIGRATE") or True
+    )
+    upgrade.legacy_v1_root_state=lambda manifest:"absent"
+    upgrade.verify_tree=lambda *args,**kwargs:events.append("verify")
+    upgrade.prior_v2_backup_state=lambda manifest:"absent"
+
+    retired=upgrade.apply()
+    assert "UNEXPECTED_STAGE" not in events,events
+    assert "UNEXPECTED_MIGRATE" not in events,events
+    assert events[0]==(
+        "read_source",
+        upgrade.LAUNCHER_REL,
+        upgrade.NEW_LAUNCHER_BLOB,
+    ),events
+    assert events[1]==("replace",("prior_current_exact",)),events
+    assert events.count("dormant")==2,events
+    assert events.count("verify")==2,events
+    assert retired["fixed_launcher_replaced"] is True
+    assert retired["reviewed_v2_tree_replaced"] is False
+    assert retired["prior_v2_backup_preserved"] is False
 finally:
     (
         upgrade.os.geteuid,
@@ -212,14 +257,17 @@ finally:
     )=saved_apply
 
 for required in (
-    'UPGRADE_MANIFEST_BLOB="db64dd321936c90159417959505e958a29596368"',
+    'UPGRADE_MANIFEST_BLOB="e78f1709c81775b881ab8f54291bd470ff9e1353"',
     'OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")',
     'NEW_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")',
     'PRIOR_V2_BACKUP_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2-prior-v1")',
     'CURRENT_STAGE=Path("/opt/.void-apollyon-live-custody-binding-v2-reviewed-v2.current-stage-v1")',
     'OLD_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"',
     'PRIOR_V2_LAUNCHER_BLOB="b96f99d6c513405e6f8b87b8f5c3fb1b1cbbf9c7"',
-    'NEW_LAUNCHER_BLOB="820f7151c0f83280b7457f841cee14c3b0c274b6"',
+    'PRIOR_CURRENT_LAUNCHER_BLOB="820f7151c0f83280b7457f841cee14c3b0c274b6"',
+    'NEW_LAUNCHER_BLOB="352bd36f2b07091140b990de4170f708eb11fee6"',
+    'LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"',
+    'REVIEWED_ROOT_LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"',
     'def parse_service_state(text:str)->dict[str,str]:',
     'def service_state(unit:str)->dict[str,str]:',
     '"/usr/bin/systemctl","show",unit,',
@@ -234,6 +282,7 @@ for required in (
     'def prior_v2_backup_state(manifest:dict)->str:',
     'def classify_upgrade_state(launcher:str,root:str,backup:str)->str:',
     'return "prior_v2_pending"',
+    'return "prior_current_pending"',
     'return "prior_v2_launcher_switched"',
     'return "prior_v2_root_swap_resume"',
     'return "current_exact_from_prior_v2"',
@@ -243,6 +292,8 @@ for required in (
     'prepare_current_stage(manifest["to"]["closure"])',
     'replace_launcher(\n                read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),\n                ("prior_v2_exact",),',
     'tree_changed=migrate_prior_v2_tree(manifest)',
+    'elif migration=="prior_current_pending":',
+    '("prior_current_exact",),',
     'old_root=legacy_v1_root_state(manifest)',
     'if migration.startswith("legacy_v1") and old_root!="old_exact":',
     'final_old_root=legacy_v1_root_state(manifest)',
@@ -273,6 +324,9 @@ for line in (
     "dangling_new_root_symlink_rejected=true",
     "dangling_prior_v2_backup_symlink_rejected=true",
     "prior_v2_migration_source_bound=true",
+    "prior_current_launcher_retirement_source_bound=true",
+    "prior_current_launcher_only_migration=true",
+    "retired_fixed_launcher_blob_bound=true",
     "prior_v2_launcher_b96_bound=true",
     "prior_v2_backup_preserved=true",
     "prior_v2_interrupted_states_resumable=true",
@@ -297,6 +351,9 @@ print("dangling_prior_v2_backup_symlink_rejected=true")
 print("current_stage_prepared_before_prior_launcher_swap=true")
 print("stage_failure_precedes_launcher_swap=true")
 print("prior_v2_to_current_v2_migration_proven=true")
+print("prior_current_launcher_retirement_proven=true")
+print("prior_current_reviewed_root_unchanged=true")
+print("retired_fixed_launcher_blob_bound=true")
 print("prior_v2_rollback_root_bound=true")
 print("prior_v2_resume_states_bound=true")
 print("post_launcher_dormancy_revalidation_bound=true")
