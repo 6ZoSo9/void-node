@@ -10,6 +10,10 @@ import {
 import {
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackSecondControlCompositionV1,
 } from "../../src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.js";
+import {
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_REQUIRED_FUTURE_EVIDENCE_V1,
+  classifyBuyVoidAllocationCustodyLiveDurabilityRollbackContractV1,
+} from "../../tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
 
 export const MARKER =
   "VOID_BUY_VOID_PRESALE_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1";
@@ -55,7 +59,7 @@ type EvidenceReport = Readonly<{
   version: 1;
   parent_host_evidence_plan_id: typeof PARENT_PLAN_ID;
   status:
-    "ALLOCATION_CUSTODY_POLICY_AND_SECOND_CONTROL_EVIDENCE_GREEN_LIVE_ROLLBACK_ENFORCEMENT_REQUIRED";
+    "ALLOCATION_CUSTODY_PREREQUISITES_GREEN_CONTROLLED_CHALLENGE_REQUIRED";
   expected_hostname: typeof HOSTNAME;
   journal_root: typeof JOURNAL_ROOT;
   high_water_root: typeof HIGH_WATER_ROOT;
@@ -75,6 +79,13 @@ type EvidenceReport = Readonly<{
   external_second_control_domain_qualified: true;
   external_second_control_policy_binding_proven: true;
   post_cycle_live_policy_observation_bound: true;
+  source_contract_ready: true;
+  reviewed_prerequisites_bound: true;
+  read_only_collection_sufficient: false;
+  controlled_live_challenge_required: true;
+  reviewed_source_generation_binding_required: true;
+  next_action:
+    "SEPARATELY_AUTHORIZE_NONCUSTOMER_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_V1";
   live_policy_enforcement_proven: false;
   live_rollback_test_performed: false;
   live_durable_storage_proven: false;
@@ -267,6 +278,53 @@ export function testOnlyAssertSecondControlV1(result: unknown): void {
   assertSecondControl(result);
 }
 
+function assertDurabilityContract(result: any): void {
+  if (
+    !result ||
+    result.status !==
+      "source_prerequisites_bound_controlled_challenge_required" ||
+    result.reason !== "reviewed_prerequisites_bound" ||
+    result.source_contract_ready !== true ||
+    result.reviewed_prerequisites_bound !== true ||
+    !Array.isArray(result.missing_prerequisites) ||
+    result.missing_prerequisites.length !== 0 ||
+    result.read_only_collection_sufficient !== false ||
+    result.controlled_live_challenge_required !== true ||
+    result.live_durable_storage_proven !== false ||
+    result.rollback_resistance_proven !== false ||
+    result.protected_high_water_custody_proven !== false ||
+    result.independent_custody_proven !== false ||
+    result.production_gate_ready !== false ||
+    result.host_execution_authorized !== false ||
+    result.storage_mutation_authorized !== false ||
+    result.rollback_test_authorized !== false ||
+    result.payment_acceptance_authorized !== false ||
+    result.public_presale_activation_authorized !== false ||
+    result.wc_void_market_activation_authorized !== false ||
+    result.transaction_submission_authorized !== false ||
+    result.treasury_or_liquidity_action_authorized !== false ||
+    result.funds_movement !== false ||
+    result.production_host_evidence_authority !== false ||
+    result.next_action !==
+      "SEPARATELY_AUTHORIZE_NONCUSTOMER_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_V1"
+  ) {
+    fail(
+      "allocation_custody_durability_contract_hold:" +
+        String(result?.reason || result?.status || "invalid"),
+    );
+  }
+  if (
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_REQUIRED_FUTURE_EVIDENCE_V1
+      .reviewed_source_generation_binding_required !== true
+  ) {
+    fail("allocation_custody_reviewed_source_generation_requirement_missing");
+  }
+}
+
+export function testOnlyAssertDurabilityContractV1(result: unknown): void {
+  assertDurabilityContract(result);
+}
+
 
 export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
   operator_receipt_path: string;
@@ -324,6 +382,31 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
     );
   assertSecondControl(secondControl);
 
+  const durabilityContract =
+    classifyBuyVoidAllocationCustodyLiveDurabilityRollbackContractV1({
+      rollback_independence_policy_qualified:
+        secondControl.rollback_independence_policy_qualified,
+      live_policy_observation_proven:
+        secondControl.live_policy_observation_proven,
+      policy_file_installation_proven:
+        secondControl.policy_file_installation_proven,
+      external_transport_authenticated:
+        secondControl.external_transport_authenticated,
+      external_witness_storage_proven:
+        secondControl.external_witness_storage_proven,
+      live_remote_read_performed:
+        secondControl.live_remote_read_performed,
+      live_remote_append_performed:
+        secondControl.live_remote_append_performed,
+      external_second_control_domain_qualified:
+        secondControl.external_second_control_domain_qualified,
+      external_second_control_policy_binding_proven:
+        secondControl.external_second_control_policy_binding_proven,
+      post_cycle_live_policy_observation_bound:
+        secondControl.post_cycle_live_policy_observation_bound,
+    });
+  assertDurabilityContract(durabilityContract);
+
   if (
     livePolicy.normalized?.installation_high_water_sha256 !==
     secondControl.normalized?.replay_high_water_sha256
@@ -343,7 +426,7 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
     version: 1,
     parent_host_evidence_plan_id: PARENT_PLAN_ID,
     status:
-      "ALLOCATION_CUSTODY_POLICY_AND_SECOND_CONTROL_EVIDENCE_GREEN_LIVE_ROLLBACK_ENFORCEMENT_REQUIRED",
+      "ALLOCATION_CUSTODY_PREREQUISITES_GREEN_CONTROLLED_CHALLENGE_REQUIRED",
     expected_hostname: HOSTNAME,
     journal_root: JOURNAL_ROOT,
     high_water_root: HIGH_WATER_ROOT,
@@ -363,6 +446,13 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
     external_second_control_domain_qualified: true,
     external_second_control_policy_binding_proven: true,
     post_cycle_live_policy_observation_bound: true,
+    source_contract_ready: true,
+    reviewed_prerequisites_bound: true,
+    read_only_collection_sufficient: false,
+    controlled_live_challenge_required: true,
+    reviewed_source_generation_binding_required: true,
+    next_action:
+      "SEPARATELY_AUTHORIZE_NONCUSTOMER_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_V1",
     live_policy_enforcement_proven: false,
     live_rollback_test_performed: false,
     live_durable_storage_proven: false,
@@ -408,6 +498,8 @@ function selfTest(): void {
   console.log("parent_host_evidence_plan_bound=true");
   console.log("current_live_policy_observation_required=true");
   console.log("reviewed_second_control_composition_required=true");
+  console.log("durability_rollback_contract_required=true");
+  console.log("reviewed_source_generation_binding_required=true");
   console.log("fixed_precision_storage_roots_required=true");
   console.log("descriptor_stable_artifact_reads_required=true");
   console.log("filesystem_read_performed_by_future_host_run=true");
@@ -424,6 +516,9 @@ function selfTest(): void {
   console.log("public_presale_activation=false");
   console.log("funds_movement=false");
   console.log("production_host_evidence_authority=false");
+  console.log(
+    "next_action=SEPARATELY_AUTHORIZE_NONCUSTOMER_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_V1",
+  );
 }
 
 function argument(args: string[], name: string): string {
