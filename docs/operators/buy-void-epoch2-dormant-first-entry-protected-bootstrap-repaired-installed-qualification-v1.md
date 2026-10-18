@@ -123,7 +123,11 @@ This qualification never executes:
 - native/binder payloads;
 - services/systemd.
 
-It performs no protected filesystem mutation.
+It performs no protected filesystem mutation. The authenticated repository
+observer may create temporary private Git metadata while verifying immutable
+object bytes. That temporary write is required to be cleaned before GREEN, and
+the source repository itself remains unmodified. The qualification is
+non-root-only.
 
 A GREEN host qualification advances only to the separately reviewed:
 
@@ -136,7 +140,11 @@ That future plan is still distinct from execution/apply authority.
 All remain false:
 
 ```text
-filesystem_write=false
+temporary_git_metadata_write_required=true
+temporary_git_metadata_cleanup_completed=true
+source_repository_mutation=false
+nonroot_run_required=true
+protected_filesystem_mutation=false
 bootstrap_execution=false
 inner_installer_execution=false
 service_mutation=false
