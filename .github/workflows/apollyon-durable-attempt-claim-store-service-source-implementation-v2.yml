@@ -8,6 +8,11 @@ on:
       - "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs"
       - "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c"
+      - "scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h"
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
@@ -27,6 +32,11 @@ on:
       - "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs"
       - "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c"
+      - "scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h"
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
@@ -76,6 +86,9 @@ jobs:
               printf '%s\n' \
                 '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \
                 'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \
+                'tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs' \
+                'ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c' \
+                'scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs' \
                 'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \
                 'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
                 'tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs' \
@@ -102,9 +115,20 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            04faf8145851dd702f7af02375464cb8c731cabe
+            ed479d7dfd29d68c44edcf0ebbe3cfda4d64532b
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            962c04b8c5a43b0b5fae0ee59549569bd941c125
+            ae89fb6c14c20125d51cb58a65a02445abb33735
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
+            db37030d21b7e16c5b018b2003b1d4952bffbb77
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
+            4531f91225a760aefa35873e1b24f62e21b17394
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
+            7e4f86f6f17c02171bcd5ea3361b098bd2e3fb0d
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
+            ecc262686cdc388d08775c735c68430e737e40d5
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
+            5355ffd2856e0f0c57f6e52fd1b347441b94e4d7
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
             93582c324ca85aeff56eb61f82b32f1e4c18dfe9
@@ -240,5 +264,51 @@ jobs:
             grep -Fx "$marker" "$out"
           done
 
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  native_bridge:
+    name: Native bridge on Node ${{ matrix.node }}
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Use supported Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove native pipe and retained peer composition
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs
+          node --check scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs
+          node_headers="$(node -p 'require("node:path").resolve(require("node:path").dirname(process.execPath), "../include/node")')"
+          test -f "$node_headers/node_api.h"
+          out="$RUNNER_TEMP/apollyon-claim-store-native-bridge-v2.log"
+          node scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs \
+            --node-headers "$node_headers" | tee "$out"
+          grep -Fx 'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_NATIVE_BRIDGE_V2_PROOF_GREEN' "$out"
+
+      - name: Prove root-created pipe survives the publisher credential drop
+        run: |
+          set -euo pipefail
+          node_binary="$(node -p 'process.execPath')"
+          node_headers="$(node -p 'require("node:path").resolve(require("node:path").dirname(process.execPath), "../include/node")')"
+          out="$RUNNER_TEMP/apollyon-claim-store-root-owned-pipe-v2.log"
+          sudo -n "$node_binary" scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs \
+            --node-headers "$node_headers" --root-owned-pipe-only | tee "$out"
+          grep -Fx 'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_ROOT_OWNED_PIPE_V2_PROOF_GREEN' "$out"
           git diff --check
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

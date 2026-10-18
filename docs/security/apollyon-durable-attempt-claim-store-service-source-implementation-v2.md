@@ -3,7 +3,7 @@
 Marker:
 `VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_V2`.
 
-Status: **source/test/CI core and Linux transaction composition; no installed service, AF_UNIX listener, Xiphos mutation, or production claim publication**.
+Status: **source/test integration of the durable core, Linux transaction lease, inherited publisher-pipe reader and retained native peer checks. Installed service and privileged host qualification remain unproven**.
 
 ## Purpose
 
@@ -18,12 +18,15 @@ Without this implementation, later training-start protected-store revalidation c
 
 This gate provides the reusable synchronous store/publisher core, an actual
 read-only authorization-winner observation method, the physical store namespace,
-and a Linux composition that supplies a real advisory transaction lock. Both
-operations bind record reads to held descriptors and recheck the visible names
-within the caller-supplied root. The Linux composition serializes cooperating
-operations on that same root inode. An installed service wrapper, protected-root
-origin, privileged revalidation and exclusion of other writers or root migrations
-remain separate work.
+a Linux composition that supplies a real advisory transaction lock, and a native
+bridge that reads the actual inherited publisher pipe and retains kernel peer
+handles across store operations. Both store operations bind record reads to held
+descriptors and recheck the visible names within the supplied root. The Linux
+composition serializes cooperating operations on that same root inode. The native
+bridge reuses the accepted process observer in the Node process. An installed
+service wrapper, protected expected-identity/root origin, privileged role admission
+and revalidation, challenge exchange, and exclusion of other writers or root
+migrations remain separate work.
 
 ## Exact parent
 
@@ -54,8 +57,20 @@ Important exact source generations:
 The Linux composition is added over the unchanged core blob
 `e1329dece0caa2c8c3db142589b5c1c83e6c1076`. Its source is
 `tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs`, blob
-`f485b9e6fc29eab549ebba07e1b49f24c7659092`. The existing PR owns five files: core, transaction
-composition, focused proof, this document and the focused workflow.
+`f485b9e6fc29eab549ebba07e1b49f24c7659092`. Both executable blobs remain unchanged
+by the native bridge. The bridge links these exact accepted #3309 sources,
+already present in the base, without modifying them:
+
+- `ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c`:
+  `ecc262686cdc388d08775c735c68430e737e40d5`;
+- `ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h`:
+  `5355ffd2856e0f0c57f6e52fd1b347441b94e4d7`.
+
+The existing PR owns eight ADD-only files relative to #3357: the core, Linux
+lease, native C bridge, native JS adapter, the two focused proofs, this document
+and the focused workflow. The older proof changes only its trigger-closure list;
+its 92 existing proof markers remain required. The focused workflow pins the
+final native source/proof blobs and the unchanged dependency generation.
 
 ## Fixed physical namespace
 
@@ -174,7 +189,146 @@ receive the private buffer. The helper explicitly reports:
 - no filesystem source;
 - no network source.
 
-A later publisher process wrapper must obtain those bytes from the reviewed inherited private pipe. This source function alone is not that runtime proof.
+The native adapter now supplies this helper with bytes read from the actual
+inherited pipe, through
+`readApollyonDurableAttemptClaimPublisherForwardFromInheritedPipeV2()`.
+The helper alone remains an in-memory operation; the new entrypoint is the
+concrete pipe reader described below.
+
+## Native inherited publisher pipe
+
+`tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs` lazily loads the
+single fixed build output
+`build/Release/apollyon_claim_store_native_bridge_v2.node`. It accepts no runtime
+module path, request path, descriptor selector or alternate input source. Import
+alone does not load the addon or consume a pipe.
+
+The public pipe entrypoint accepts no arguments and calls the native
+`readInheritedPublisherRequest()` once. Native code consumes one process-wide
+attempt, including failed or partial reads, across environments loading the same
+canonical addon image. Initialization pins that already-loaded image with
+`RTLD_NOLOAD | RTLD_NOW | RTLD_NODELETE` and balances the temporary loader
+reference. A Worker unloading its environment therefore cannot reset the atomic
+limit before another environment loads the same addon. Pinning failure prevents
+module initialization; `RTLD_NOLOAD` does not load a new library. A second read
+cannot resume a partial request. This is a source invariant for that addon; it
+does not establish custody over arbitrary other native code loaded into the
+process or confer protected origin on the addon itself.
+
+The native reader requires inherited **FD 3**, an anonymous Linux pipe on
+`PIPEFS_MAGIC`, with FIFO type and read-only, already-`O_NONBLOCK` access. A
+regular file, named FIFO, socket, writable pipe or blocking pipe is rejected.
+It duplicates the descriptor with `F_DUPFD_CLOEXEC`, compares the borrowed and
+private identities around duplication, and keeps only the private duplicate as
+its reader. The original FD 3 remains borrowed and is not closed by this API.
+
+Descriptor duplication is necessary here: a root-created mode-0600 pipe remains
+readable through its inherited descriptor after the child drops privileges,
+while reopening `/proc/self/fd/3` would apply a new pathname permission check.
+The native reader never reopens that path and never changes the pipe's status
+flags. Its duplicate shares the original open-file description; the handoff must
+preserve `O_NONBLOCK` and exclusive reader custody for the operation. The source
+rechecks identity/flags before reads, but does not claim to constrain an arbitrary
+other thread or holder that changes shared flags between a check and a syscall.
+
+Reading uses `CLOCK_MONOTONIC` and `poll` under one five-second total deadline.
+At most 65,536 bytes plus a one-byte oversize probe are read. Success requires
+EOF within the deadline, final descriptor validation and clean closure of the
+private descriptor. Oversize input, missing EOF, invalid poll/read outcomes,
+identity drift and uncertain cleanup fail closed. Native cleanup sets a descriptor
+aside before any close and never retries a close result.
+
+Only after native cleanup succeeds is a copied Buffer returned directly to the
+existing canonical request parser and private forwarding helper. Truncated,
+malformed, noncanonical and trailing request data therefore fail through the
+same accepted parser. There is no request reconstruction or digest substitution.
+
+This implements actual inherited-pipe I/O. It does not authenticate the pipe's
+producer, establish the privileged launcher's installed source, or implement the
+remaining publisher socket/challenge protocol.
+
+## Retained native peer and canonical store composition
+
+`createApollyonDurableAttemptClaimStoreServiceWithNativePeerV2(config)` accepts
+exactly the Linux factory's five own data fields plus `peer_identity`:
+
+| Field | Required source input |
+| --- | --- |
+| `root_fd` | Retained root descriptor accepted by the existing core |
+| `claim_uid`, `claim_gid` | Existing non-root claim identity policy |
+| `session_binding_id` | Existing exact source-session ID |
+| `revalidate` | Synchronous local policy callback |
+| `peer_identity` | Exact expected-peer data below |
+
+The exact peer data comprises `socket_fd`, `expected_ppid`, `expected_uid`,
+`expected_gid`, `expected_supplementary_gids`, `expected_executable_fd` and
+`expected_cmdline_bytes`. Peer UIDs/GIDs may include zero as observation inputs;
+this does not admit a privileged role. The store's separate non-root identity
+rule is unchanged. The adapter rejects proxies, accessors, extra keys, sparse or
+duplicate groups, shared cmdline backing, and non-Buffer or unbounded cmdline
+input. The cmdline is copied with a captured typed-array intrinsic before native
+acquisition; an input-owned `byteLength` or copy method is not invoked.
+
+The C addon obtains the actual peer PID/UID/GID from `SO_PEERCRED` on a connected
+AF_UNIX stream socket. The caller does not provide an asserted peer PID. The
+addon privately duplicates the socket and expected-executable descriptors,
+copies the exact cmdline/group policy, and invokes the unchanged #3309 observer.
+That observer checks PPid, PID/start generation, all UID/GID slots, the exact
+supplementary group set, raw cmdline and executable inode, while retaining a
+pidfd for the observed generation.
+
+The native handle is an environment-owned, type-tagged opaque object. It exposes
+no PID, pidfd, descriptor number or caller-editable identity receipt. Every
+revalidation checks the original retained pidfd and descriptors, repeats kernel
+socket credentials, invokes a fresh #3309 observation, compares it to the original
+generation, explicitly closes the temporary pidfd, and checks the original
+retained state again. Closing or reusing the caller's original socket/executable
+FD numbers after construction cannot redirect the private handle. Executable
+metadata is also retained, including size and nanosecond modification/change
+timestamps. These observations do not confer protected origin on the expected
+executable FD or identify the body of an interpreted script.
+
+A peer may half-close its write side to supply the accepted EOF framing while
+remaining alive. That condition is accepted; a full transport hangup or an exited
+pidfd is rejected. The addon does not consume socket request bytes or send a
+challenge in this generation.
+
+The JS factory creates the real Linux transaction core and keeps its raw methods
+private. Its wrapped publication method performs native checks before and after
+each existing local revalidation callback and before/after the whole operation.
+Its read-only observation method performs native checks around that operation
+without adding a local revalidation callback or store mutation. The original
+native handle remains owned through core descriptor cleanup and lock release.
+A peer failure even at that final boundary suppresses the result.
+
+Local callback receipts are captured as a frozen null-prototype object containing
+only the existing 13 primitive fields before the native post-check. Thus neither
+an inherited `then` getter nor nested property getters can execute later through
+the core's receipt processing. Async/generator callbacks are refused; a returned
+native Promise is rejected and its rejection is observed through the captured
+Promise intrinsic. The core still validates the exact accepted receipt values.
+
+A successful source operation leaves the native session available for the next
+operation. Call `close()` explicitly when the session is finished; success does
+not depend on garbage collection. Every failure after an operation starts closes and poisons the
+adapter. Later publish/observe/close calls fail without revisiting released FD
+numbers. Reentry, including closing during an active operation, is refused.
+Native failure attempts all owned descriptor cleanups and reports frozen error
+rows with resource, code and errno. A prior failed close can be reported again
+without retrying the underlying close. Environment cleanup is only a fallback.
+
+Publication errors after entering the core conservatively report that store
+mutation may have occurred; this is not rollback. Observation errors retain a
+false core-mutation classification. The underlying core's successful outcomes and
+authority fields are returned unchanged. The adapter itself reports native peer
+integration present, with protected expected-identity origin, privileged peer
+role admission and challenge exchange explicitly false.
+
+The tests use controlled same-UID peer processes. Linux permission failures while
+observing a root revalidator from a non-root capability-empty process must still
+fail closed. This addon does not bypass cross-UID `/proc` permissions, install
+single-thread process guards in Node, or satisfy full privileged current-host
+revalidation merely because its source fixture passes.
 
 ## Durable slot-first publication
 
@@ -528,10 +682,11 @@ caller-supplied acquisition lease is not proof of system-wide serialization.
 The Linux composition supplies an actual advisory lock for cooperating callers;
 it does not establish universal participation or authenticate the revalidator.
 
-These are narrow injectable interfaces so the store algorithm can be
-deterministically tested before the later native/Xiphos integration binds them
-to reviewed kernel process/session evidence and the installed store's complete
-serialization policy.
+The native bridge now composes actual retained kernel process/peer checks around
+that callback through the same core. The callback still supplies local policy
+evidence; the bridge does not turn it into privileged terminal/custody/current-host
+revalidation. Installed role admission and the complete serialization policy remain
+separate requirements.
 
 The source interface enforces acquisition before core mutation and successful
 synchronous cleanup before returning success. Native/runtime integration must
@@ -606,14 +761,52 @@ The proof mutates only disposable CI filesystem state. It does not contact Xipho
 The composed-provider cases also run the fixed local `flock` helper and disposable
 contender processes; the core-only cases retain their injected lease seam.
 
+The separate native proof compiles the exact addon and unchanged #3309 observer
+using only C Node-API version 8 and public Node headers. It copies the imported
+source closure into a disposable snapshot; neither a compiled addon nor test
+fixture is added to the repository. The focused workflow runs this proof on all
+supported Node majors, **22, 24 and 26**.
+
+Its regular fixtures cover actual anonymous pipes, fragmented canonical input,
+the exact byte limit, oversize input, a five-second missing-EOF failure, wrong
+descriptor types/directions/flags, malformed frames and clean private-descriptor
+release. A first Worker consumes the request and exits before the main
+environment first loads the addon; the second read must still reject.
+
+The peer creates its own connected socketpair and transfers a descriptor over a
+separate fixture control socket, so the kernel peer credentials identify the
+intended process. These fixtures prove retained descriptors, private policy
+copies, wrong identity rejection, peer exit and exec, opaque/closed handle
+rejection, half-close compatibility and full connection failure. Composed tests
+publish and read an exact winner through the actual Linux lease, reject input and
+receipt getter attacks, preserve read-only observation, and suppress success when
+the peer fails at any publication boundary or during the final core cleanup.
+
+After those ordinary fixtures pass against the production build, a second
+temporary build uses a test-only `--wrap=close` linker wrapper. Three cases
+actually close a retained or temporary pidfd, recycle its number to `/dev/null`,
+and return `EIO`. The proof checks cleanup of the other private descriptors,
+frozen diagnostics, preservation of a simultaneous primary transport error, and
+that repeated close/revalidation never touches the recycled descriptor. The
+production source has no injection hook or additional export.
+
+A separate root-owned pipe mode begins with UID0, creates a mode-0600 anonymous
+pipe and launches only a disposable UID/GID1000 reader. That child proves that
+pathname reopening is denied while inherited-descriptor duplication reads the
+exact fragmented frame and EOF. This is a credential-drop I/O fixture, not
+privileged revalidator or installed-host qualification. The CI workflow confines
+its temporary UID0 invocation to this pipe fixture.
+
 ## Deliberate non-authority
 
-This generation reports implementation source as present, but keeps all live authority false:
+The core-only API retains `native_peer_runtime_integration_present=false`; the
+new adapter reports its own native integration as present. The native source proof
+does not promote the core outcome to installed or privileged authority. Live
+authority remains false:
 
 ```text
 caller_supplied_exclusive_transaction_is_host_proof=false
 caller_supplied_revalidator_is_host_proof=false
-native_peer_runtime_integration_present=false
 af_unix_listener_implementation_present=false
 privileged_revalidator_runtime_integration_present=false
 publisher_runtime_process_integration_present=false
@@ -642,11 +835,13 @@ funds_movement=false
 
 `apollyon_durable_attempt_claim_store_service_runtime_integration_v2`.
 
-That gate must bind the source core and transaction composition to the accepted
-native peer/process/revalidator primitives, authenticate installed helper/source
-custody and the root capability, and prove that all permitted writers and
-migrations share the required lock domain. Separate installed Xiphos
-qualification remains required before any production claim mutation can be
-considered.
+The next executable step can use the retained native handle for the accepted
+single-use challenge/response and exact socket framing, then admit the distinct
+publisher and privileged revalidator roles from protected expected-identity
+evidence. The full privileged terminal/custody/current-host checks, installed
+helper/source custody and root capability still require integration and
+qualification. All permitted writers and migrations must share the required lock
+domain. Separate installed Xiphos qualification remains required before any
+production claim mutation can be considered.
 
 **PROTECT THE CORE.**
