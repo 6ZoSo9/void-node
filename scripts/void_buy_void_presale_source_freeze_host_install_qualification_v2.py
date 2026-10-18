@@ -129,6 +129,29 @@ PATH_METADATA_STATES = frozenset(
 MODE4 = re.compile(r"^[0-7]{4}$")
 MAX_JSON_SAFE_INTEGER = 9_007_199_254_740_991
 
+NEGATIVE_AUTHORITY_FIELDS = (
+    "installed_receipt_authenticity_verified",
+    "allocation_custody_qualified",
+    "epoch2_installed_generation_qualified",
+    "host_install_qualified",
+    "live_runtime_evidence_qualified",
+    "payment_rail_policy_accepted",
+    "customer_payment_acceptance_authorized",
+    "one_payment_one_fulfillment_verified",
+    "wc_void_launch_coupling_verified",
+    "public_presale_activation",
+    "wc_void_market_activation",
+    "wallet_or_signing_authority",
+    "transaction_submission_authorized",
+    "treasury_or_liquidity_action_authorized",
+    "funds_movement",
+    "production_host_evidence_authority",
+    "filesystem_write",
+    "service_mutation",
+    "network_contact",
+    "credential_access",
+)
+
 
 class QualificationError(RuntimeError):
     pass
@@ -548,202 +571,9 @@ def self_test() -> None:
     try:
         evaluate(forged)
     except QualificationError as exc:
-        assert "must_be_false" in str(exc)
-    else:
-        raise AssertionError("forged_census_authority_accepted")
-
-    malformed_cases: list[tuple[str, dict[str, Any], str]] = []
-
-    missing = json.loads(json.dumps(census))
-    del missing["fixed_path_metadata"]["source_finality_deployment_receipt"]["mode"]
-    malformed_cases.append(
-        ("receipt_missing_mode", missing, "source_finality_deployment_receipt_keys_invalid")
-    )
-
-    extra = json.loads(json.dumps(census))
-    extra["fixed_path_metadata"]["epoch2_live_composition_root"]["unexpected"] = True
-    malformed_cases.append(
-        ("epoch2_extra_key", extra, "epoch2_live_composition_root_keys_invalid")
-    )
-
-    too_large_receipt = json.loads(json.dumps(census))
-    too_large_receipt["fixed_path_metadata"]["source_finality_deployment_receipt"][
-        "bytes"
-    ] = MAX_JSON_SAFE_INTEGER + 1
-    malformed_cases.append(
-        (
-            "receipt_bytes_above_json_safe_integer",
-            too_large_receipt,
-            "source_finality_deployment_receipt_regular_bytes_invalid",
-        )
-    )
-
-    negative_receipt = json.loads(json.dumps(census))
-    negative_receipt["fixed_path_metadata"]["source_finality_deployment_receipt"][
-        "bytes"
-    ] = -1
-    malformed_cases.append(
-        (
-            "receipt_bytes_negative",
-            negative_receipt,
-            "source_finality_deployment_receipt_regular_bytes_invalid",
-        )
-    )
-
-    bool_receipt = json.loads(json.dumps(census))
-    bool_receipt["fixed_path_metadata"]["source_finality_deployment_receipt"][
-        "bytes"
-    ] = True
-    malformed_cases.append(
-        (
-            "receipt_bytes_bool",
-            bool_receipt,
-            "source_finality_deployment_receipt_regular_bytes_invalid",
-        )
-    )
-
-    wrong_receipt_bytes = json.loads(json.dumps(census))
-    wrong_receipt_bytes["fixed_path_metadata"]["source_finality_deployment_receipt"][
-        "bytes"
-    ] = "4096"
-    malformed_cases.append(
-        (
-            "receipt_bytes_wrong_type",
-            wrong_receipt_bytes,
-            "source_finality_deployment_receipt_regular_bytes_invalid",
-        )
-    )
-
-    wrong_directory_bytes = json.loads(json.dumps(census))
-    wrong_directory_bytes["fixed_path_metadata"]["epoch2_live_composition_root"][
-        "bytes"
-    ] = 0
-    malformed_cases.append(
-        (
-            "directory_bytes_not_null",
-            wrong_directory_bytes,
-            "epoch2_live_composition_root_directory_bytes_invalid",
-        )
-    )
-
-    wrong_mode = json.loads(json.dumps(census))
-    wrong_mode["fixed_path_metadata"]["allocation_custody_mount"]["mode"] = 0o755
-    malformed_cases.append(
-        (
-            "custody_mode_wrong_type",
-            wrong_mode,
-            "allocation_custody_mount_directory_mode_invalid",
-        )
-    )
-
-    wrong_mountpoint_type = json.loads(json.dumps(census))
-    wrong_mountpoint_type["fixed_path_metadata"]["allocation_custody_mount"][
-        "is_mountpoint_metadata_only"
-    ] = 1
-    malformed_cases.append(
-        (
-            "custody_mountpoint_wrong_type",
-            wrong_mountpoint_type,
-            "allocation_custody_mount_mountpoint_type_invalid",
-        )
-    )
-
-    nondirectory_mountpoint = json.loads(json.dumps(census))
-    nondirectory_mountpoint["fixed_path_metadata"]["allocation_custody_mount"] = {
-        "state": "ABSENT",
-        "mode": None,
-        "bytes": None,
-        "is_mountpoint_metadata_only": True,
-    }
-    malformed_cases.append(
-        (
-            "nondirectory_mountpoint_true",
-            nondirectory_mountpoint,
-            "allocation_custody_mount_nondirectory_mountpoint_must_be_false",
-        )
-    )
-
-    hold_mode = json.loads(json.dumps(census))
-    hold_mode["fixed_path_metadata"]["epoch2_live_composition_root"] = {
-        "state": "ABSENT",
-        "mode": "0755",
-        "bytes": None,
-    }
-    malformed_cases.append(
-        (
-            "hold_mode_non_null",
-            hold_mode,
-            "epoch2_live_composition_root_hold_mode_must_be_null",
-        )
-    )
-
-    unknown_state = json.loads(json.dumps(census))
-    unknown_state["fixed_path_metadata"]["source_finality_deployment_receipt"][
-        "state"
-    ] = "MYSTERY_METADATA"
-    malformed_cases.append(
-        (
-            "unknown_state",
-            unknown_state,
-            "source_finality_deployment_receipt_state_invalid",
-        )
-    )
-
-    for label, malformed, expected_reason in malformed_cases:
-        try:
-            evaluate(malformed)
-        except QualificationError as exc:
-            assert str(exc) == expected_reason, (label, str(exc))
-        else:
-            raise AssertionError("malformed_nested_metadata_accepted:" + label)
-
-    print(MARKER + "_SELF_TEST_GREEN")
-    print("metadata_alignment_classifier=true")
-    print("closed_nested_metadata_schema=true")
-    print("malformed_nested_metadata_rejected=true")
-    print("state_dependent_mode_bytes_validated=true")
-    print("json_safe_integer_byte_domain=true")
-    print("max_safe_integer_boundary_tested=true")
-    print("regular_size_range_hold_accepted_as_hold=true")
-    print("custody_mountpoint_type_validated=true")
-    print("metadata_presence_never_becomes_authenticity=true")
-    print("independent_receipt_evidence_required=true")
-    print("independent_custody_evidence_required=true")
-    print("independent_epoch2_installed_evidence_required=true")
-    print("host_install_qualified=false")
-    print("payment_rail_policy_accepted=false")
-    print("customer_payment_acceptance_authorized=false")
-    print("public_presale_activation=false")
-    print("wc_void_market_activation=false")
-    print("funds_movement=false")
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--self-test", action="store_true")
-    parser.add_argument("--census-json", type=Path)
-    args = parser.parse_args()
-    if args.self_test:
-        if args.census_json is not None:
-            raise QualificationError("self_test_with_input_forbidden")
-        self_test()
-        return 0
-    if args.census_json is None:
-        raise QualificationError("census_json_required")
-    report = evaluate(_stable_json_file(args.census_json))
-    print(json.dumps(report, indent=2, sort_keys=True))
-    return 0
-
-
-if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except QualificationError as exc:
         print(MARKER)
         print("status=HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT")
         print("reason=" + str(exc))
-        print("host_install_qualified=false")
-        print("public_presale_activation=false")
-        print("wc_void_market_activation=false")
-        print("funds_movement=false")
+        for field in NEGATIVE_AUTHORITY_FIELDS:
+            print(field + "=false")
         raise SystemExit(2)

@@ -40,8 +40,13 @@ descriptor generation after the read. Symlink substitution and FIFO/special-file
 inputs therefore fail closed before their contents can be consumed.
 
 UTF-8/JSON parser failures, including excessive nesting/resource recursion, are
-normalized to `HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT` with explicit
-false host/payment/activation/funds authority rather than escaping as tracebacks.
+normalized to `HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT` rather than
+escaping as tracebacks. That INVALID_INPUT receipt emits the same complete
+negative authority field set as ordinary qualification HOLD output:
+receipt/custody/Epoch-2, host/runtime, payment/canary, market activation,
+wallet/signing, transaction, treasury/liquidity, funds, production-host,
+filesystem/service/network, and credential authority are all explicitly
+`false`.
 
 The input must be an exact
 `VOID_BUY_VOID_PRECISION_SOURCE_FREEZE_HOST_METADATA_CENSUS_V3` report and

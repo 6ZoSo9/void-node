@@ -92,6 +92,7 @@ for required in (
     "input_grew_during_read",
     "RecursionError",
     "MemoryError",
+    "NEGATIVE_AUTHORITY_FIELDS",
 ):
     assert required in source, required
 
@@ -183,6 +184,8 @@ for line in (
 ):
     assert line in cp.stdout.splitlines(), line
 
+    for field in module.NEGATIVE_AUTHORITY_FIELDS:
+        assert f"{field}=false" in cp.stdout
 with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     root = Path(td)
     target = root / "census.json"
@@ -206,6 +209,8 @@ with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     assert "reason=input_unavailable" in cp.stdout
     assert "host_install_qualified=false" in cp.stdout
     assert "funds_movement=false" in cp.stdout
+    for field in module.NEGATIVE_AUTHORITY_FIELDS:
+        assert f"{field}=false" in cp.stdout
 
     fifo = root / "fifo.json"
     os.mkfifo(fifo, 0o600)
@@ -223,6 +228,8 @@ with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     assert cp.stderr == ""
     assert "status=HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT" in cp.stdout
     assert "reason=input_metadata_invalid" in cp.stdout
+    for field in module.NEGATIVE_AUTHORITY_FIELDS:
+        assert f"{field}=false" in cp.stdout
 
     deep = root / "deep.json"
     deep.write_text("[" * 10_000 + "0" + "]" * 10_000, encoding="utf-8")
@@ -258,6 +265,7 @@ print("descriptor_bound_input_read_proved=true")
 print("input_symlink_rejected_before_read=true")
 print("input_fifo_rejected_without_blocking=true")
 print("recursive_json_maps_to_invalid_input=true")
+print("invalid_input_full_negative_authority_schema=true")
 print("closed_nested_metadata_schema_proved=true")
 print("malformed_nested_metadata_regressions_proved=true")
 print("custody_mountpoint_type_contract_proved=true")
