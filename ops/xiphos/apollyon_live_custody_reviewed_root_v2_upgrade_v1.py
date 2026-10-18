@@ -104,12 +104,41 @@ def run(argv:list[str],check=True)->subprocess.CompletedProcess[str]:
     if check and r.returncode!=0: hold("command_failed:"+Path(argv[0]).name)
     return r
 
-def active(unit:str)->bool:
-    return run(["/usr/bin/systemctl","is-active",unit],check=False).stdout.strip()=="active"
+def parse_service_state(text:str)->dict[str,str]:
+    expected={"LoadState","ActiveState","SubState","MainPID"}
+    observed:dict[str,str]={}
+    for raw in text.splitlines():
+        if not raw:
+            continue
+        if "=" not in raw:
+            hold("service_state_shape_invalid")
+        key,value=raw.split("=",1)
+        if key not in expected or key in observed:
+            hold("service_state_shape_invalid")
+        observed[key]=value
+    if set(observed)!=expected:
+        hold("service_state_shape_invalid")
+    return observed
+
+def service_state(unit:str)->dict[str,str]:
+    result=run([
+        "/usr/bin/systemctl","show",unit,
+        "-p","LoadState","-p","ActiveState","-p","SubState","-p","MainPID",
+    ],check=True)
+    return parse_service_state(result.stdout)
+
+def require_exact_dormant_state(state:dict[str,str],label:str)->None:
+    if state != {
+        "LoadState":"loaded",
+        "ActiveState":"inactive",
+        "SubState":"dead",
+        "MainPID":"0",
+    }:
+        hold(label+"_service_not_exactly_inactive")
 
 def assert_services_dormant()->None:
-    if active(CUSTODY_UNIT): hold("custody_service_active")
-    if active(TRAINING_UNIT): hold("training_service_active")
+    require_exact_dormant_state(service_state(CUSTODY_UNIT),"custody")
+    require_exact_dormant_state(service_state(TRAINING_UNIT),"training")
 
 def exact_root_dir(path:Path)->None:
     st=os.lstat(path)
@@ -478,6 +507,31 @@ def self_test()->None:
     assert classify_upgrade_state("new_exact","absent","prior_v2_exact")=="prior_v2_root_swap_resume"
     assert classify_upgrade_state("new_exact","current_exact","absent")=="current_exact"
     assert classify_upgrade_state("new_exact","current_exact","prior_v2_exact")=="current_exact_from_prior_v2"
+    good_state={
+        "LoadState":"loaded",
+        "ActiveState":"inactive",
+        "SubState":"dead",
+        "MainPID":"0",
+    }
+    require_exact_dormant_state(good_state,"fixture")
+    assert parse_service_state(
+        "LoadState=loaded\nActiveState=inactive\nSubState=dead\nMainPID=0\n"
+    )==good_state
+    for bad_state in (
+        {**good_state,"ActiveState":"active","SubState":"running","MainPID":"42"},
+        {**good_state,"ActiveState":"activating","SubState":"start"},
+        {**good_state,"ActiveState":"reloading","SubState":"reload"},
+        {**good_state,"ActiveState":"deactivating","SubState":"stop"},
+        {**good_state,"ActiveState":"failed","SubState":"failed"},
+        {**good_state,"LoadState":"not-found"},
+        {**good_state,"MainPID":"42"},
+    ):
+        try:
+            require_exact_dormant_state(bad_state,"fixture")
+        except Hold:
+            pass
+        else:
+            raise AssertionError("non-dormant service state accepted")
     for bad in (
         ("old_exact","prior_v2_exact","absent"),
         ("prior_v2_exact","current_exact","absent"),
@@ -513,6 +567,8 @@ def self_test()->None:
     print("prior_v2_interrupted_states_resumable=true")
     print("current_launcher_installed_before_prior_root_swap=true")
     print("post_launcher_dormancy_revalidated_before_prior_root_swap=true")
+    print("exact_inactive_service_states_required=true")
+    print("transitional_service_states_rejected=true")
     print("new_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")
     print("prior_v2_backup_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2-prior-v1")
     print("systemd_8_18_reviewed=true")
