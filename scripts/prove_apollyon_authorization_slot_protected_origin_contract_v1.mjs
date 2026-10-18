@@ -23,7 +23,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs";
-const SOURCE_BLOB="036252c32f5456610f3c42bdf387450ef3a8b7c4";
+const SOURCE_BLOB="04ade367f7fbfa5915b29648ff051f08b56c306d";
 const PARENT_SLOT_BLOB="93582c324ca85aeff56eb61f82b32f1e4c18dfe9";
 const CANONICALIZER_BLOB="f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 const PARENT_SERVICE_CANDIDATE_BLOB=
@@ -43,6 +43,16 @@ function sha256(value){
 }
 function canonical(value){
   return canonicalApollyonClaimContractJsonV1(value);
+}
+function readdressCandidate(value){
+  const material=structuredClone(value);
+  delete material.protected_origin_contract_id;
+  return {
+    ...material,
+    protected_origin_contract_id:
+      "apollyon_authorization_slot_protected_origin_v1:"+
+      sha256(Buffer.from(canonical(material),"utf8")),
+  };
 }
 function expectRejected(fn,pattern){
   assert.throws(fn,pattern);
@@ -147,6 +157,23 @@ assert.equal(candidate.authorization_slot_protected_origin_proven,false);
 assert.equal(candidate.authorization_slot_revalidation_performed,false);
 assert.equal(candidate.activation_capability_issuance_authorized,false);
 assert.equal(candidate.automatic_retry_authorized,false);
+
+for(const [key,value] of [
+  ["authorization_id","apollyon_authz_v1:"+"a".repeat(64)],
+  ["authorization_slot_id","apollyon_attempt_claim_auth_slot_v1:"+"b".repeat(64)],
+  ["authorization_slot_record_id",
+    "apollyon_attempt_claim_auth_slot_record_v1:"+"c".repeat(64)],
+  ["authorization_slot_record_sha256","d".repeat(64)],
+]){
+  const bad=structuredClone(candidate);
+  bad[key]=value;
+  expectRejected(
+    ()=>qualifyApollyonAuthorizationSlotProtectedOriginCandidateV1(
+      readdressCandidate(bad),
+    ),
+    /candidate_invalid/u,
+  );
+}
 
 {
   const bad=structuredClone(candidate);
@@ -450,6 +477,8 @@ console.log("candidate_proxy_rejected_before_reflection=true");
 console.log("requirements_proxy_rejected_before_reflection=true");
 console.log("proxy_reflection_traps_not_invoked=true");
 console.log("oversized_keyset_rejected_before_sort=true");
+console.log("embedded_slot_bindings_revalidated=true");
+console.log("readdressed_slot_binding_drift_rejected=true");
 console.log("activation_capability_issuance_authorized=false");
 console.log("activation_capability_issuance_performed=false");
 console.log("training_start_consumption_performed=false");
