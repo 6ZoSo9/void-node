@@ -12,7 +12,7 @@ import copy
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
-SOURCE_BLOB = "f1b685caa10bed7611f8feb5c1c88304ce7f9892"
+SOURCE_BLOB = "337eac04852549a20e946b73bfa91d62e205171b"
 
 
 def git_blob(raw: bytes) -> str:
@@ -30,6 +30,23 @@ spec.loader.exec_module(mod)
 assert mod.MAX_ARCHIVE_BYTES <= 4 * 1024 * 1024
 
 real_lock = mod.load_accepted_parent_lock()
+
+# A predecessor qualification exception must enter the machine-readable HOLD
+# contract rather than escaping as a Python traceback.
+def failed_compile(*_args: object, **_kwargs: object) -> object:
+    raise RuntimeError("synthetic predecessor revalidation failure")
+
+
+mod.compile = failed_compile
+try:
+    try:
+        mod.load_accepted_parent_lock()
+    except mod.Hold as exc:
+        assert str(exc) == "accepted_parent_lock_revalidation_failed"
+    else:
+        raise AssertionError("parent runtime failure escaped HOLD")
+finally:
+    del mod.compile
 assert real_lock["authority"]["candidate_accepted"] is True
 assert real_lock["authority"]["binary_identity_accepted"] is True
 assert real_lock["authority"]["protected_install_authorized"] is False
@@ -170,6 +187,28 @@ wrong_binary = dict(normal_members)
 wrong_binary[mod.ACCEPTED_BINARY] = (fake_elf + b"X", 0o555, tarfile.REGTYPE)
 expect_hold(make_archive(wrong_binary), "archive_member_metadata_invalid")
 
+# Re-addressed synthetic report bytes can pass checksum and canonical framing;
+# malformed top-level JSON types must still return an exact HOLD, not AttributeError.
+wrong_type_bytes = b"[]\n"
+wrong_type_members = dict(normal_members)
+wrong_type_members["candidate-v1.json"] = (
+    wrong_type_bytes, 0o644, tarfile.REGTYPE,
+)
+wrong_type_archive = make_archive(wrong_type_members)
+wrong_type_lock = make_fixture_lock(wrong_type_archive)
+wrong_type_lock["parent_candidate"]["candidate_report_raw_sha256"] = (
+    mod.digest(wrong_type_bytes)
+)
+wrong_type_lock["parent_candidate"]["candidate_report_canonical_sha256"] = (
+    mod.digest(wrong_type_bytes[:-1])
+)
+try:
+    mod.verify_archive_bytes(wrong_type_archive, wrong_type_lock)
+except mod.Hold as exc:
+    assert str(exc) == "archive_report_semantics_invalid"
+else:
+    raise AssertionError("malformed report type admitted")
+
 nonmember = dict(normal_members)
 nonmember["source-head.txt/"] = nonmember.pop("source-head.txt")
 expect_hold(make_archive(nonmember), "archive_members_invalid")
@@ -215,6 +254,7 @@ for forbidden in (
 
 print("VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1_PROOF_GREEN")
 print("accepted_parent_lock_bound=true")
+print("parent_failure_machine_readable_hold=true")
 print("read_only_tar_validation=true")
 print("synthetic_positive_fixture_verified=true")
 print("synthetic_fixture_not_accepted_by_production_lock=true")
@@ -226,6 +266,7 @@ print("missing_member_rejected=true")
 print("wrong_source_head_rejected=true")
 print("manifest_drift_rejected=true")
 print("report_drift_rejected=true")
+print("malformed_report_type_rejected=true")
 print("binary_size_drift_rejected=true")
 print("archive_not_extracted=true")
 print("host_installation=false")
