@@ -20,7 +20,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="fe8f66d291eec7c6c3cf99c313a20dfbde1e606d";
+const SOURCE_BLOB="c5ceb336c3db97aa141f9d442286130f4a462c46";
 const PARENT_HEAD="1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae";
 const CONSUMPTION_HEAD="fdf47e77cd12eee38efe741edb02fa2fd39135e2";
 const CONSUMPTION_BLOB="60987b860fb7159d88f4f601b76878e7d8ccca92";
@@ -185,6 +185,27 @@ assert.equal(capabilityText.includes(secret.toString("base64")),false);
     /capability_id_invalid/u,
   );
 }
+{
+  const bad={...capabilityMaterial};
+  Object.defineProperty(bad,"hidden_unknown",{
+    enumerable:false,
+    configurable:true,
+    value:"hidden",
+  });
+  expectRejected(
+    ()=>buildApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
+}
+{
+  const bad={...capabilityMaterial};
+  bad[Symbol("hidden_unknown")]="hidden";
+  expectRejected(
+    ()=>buildApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
+}
+
 {
   const bad={
     ...capabilityMaterial,
@@ -397,6 +418,27 @@ assert.equal(binding.training_execution_authorized,false);
   bad.training_process_start_time_ticks="1".repeat(100000);
   expectRejected(
     ()=>qualifyApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
+  );
+}
+
+{
+  const bad={...bindingMaterial};
+  Object.defineProperty(bad,"hidden_unknown",{
+    enumerable:false,
+    configurable:true,
+    value:"hidden",
+  });
+  expectRejected(
+    ()=>buildApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
+  );
+}
+{
+  const bad={...bindingMaterial};
+  bad[Symbol("hidden_unknown")]="hidden";
+  expectRejected(
+    ()=>buildApollyonTrainingActivationGenerationBindingV1(capability,bad),
     /binding_invalid/u,
   );
 }
@@ -615,6 +657,8 @@ console.log("regex_coercion_identifiers_rejected=true");
 console.log("boxed_string_identifiers_rejected=true");
 console.log("accessor_fields_rejected_before_read=true");
 console.log("validated_descriptor_snapshot_cloned=true");
+console.log("nonenumerable_unknown_keys_rejected=true");
+console.log("symbol_keys_rejected=true");
 console.log("trainer_generation_external_validation_performed=false");
 console.log("training_start_consumption_record_origin_proven=false");
 console.log("training_start_consumption_performed=false");
