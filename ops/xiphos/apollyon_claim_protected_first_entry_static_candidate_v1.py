@@ -414,6 +414,24 @@ def validate(report: dict[str, Any], binary: bytes) -> None:
         hold("candidate_toolchain_generation_invalid")
 
     observed = report.get("binary", {})
+    expected_binary_keys = {
+        "bytes",
+        "sha256",
+        "git_blob_sha1",
+        "three_builds_byte_identical",
+        "elf_static_no_interp",
+        "elf_dynamic_needed_absent",
+        "elf_type_exec",
+        "elf_machine_x86_64",
+        "production_fixed_self_embedded",
+        "validator_reinspected_supplied_binary",
+        "validator_independent_rebuild_byte_identical",
+    }
+    if (
+        not isinstance(observed, dict)
+        or set(observed) != expected_binary_keys
+    ):
+        hold("candidate_binary_keys_invalid")
     if (
         observed.get("bytes") != len(binary)
         or observed.get("sha256") != sha256(binary)
