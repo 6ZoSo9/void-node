@@ -74,6 +74,7 @@ for line in (
     "prior_v2_backup_preserved=true",
     "prior_v2_interrupted_states_resumable=true",
     "current_launcher_installed_before_prior_root_swap=true",
+    "post_launcher_dormancy_revalidated_before_prior_root_swap=true",
     "new_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2",
     "prior_v2_backup_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2-prior-v1",
     "systemd_8_18_reviewed=true",
@@ -83,4 +84,4 @@ for line in (
 print("VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1_PROOF_GREEN")
 print("prior_v2_to_current_v2_migration_proven=true")
 print("prior_v2_rollback_root_bound=true")
-print("prior_v2_resume_states_bound=true")
+print("prior_v2_resume_states_bound=true")\nprint("post_launcher_dormancy_revalidation_bound=true")
