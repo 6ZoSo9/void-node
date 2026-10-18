@@ -612,6 +612,9 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
     cfg.root_fd,cfg.claim_uid,cfg.claim_gid,ROOT_MODE,
     "apollyon_claim_store_impl_v2_root_invalid",
   );
+  const rootIdentitySha256=sha256(
+    Buffer.from(canonical(rootIdentity),"utf8")
+  );
 
   function publishClaim(input){
     const snapshot=clonePlain(
@@ -639,7 +642,8 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
     requireSlotMatchesRequest(slot,record,parsed.publish_request_sha256);
     if(
       generation.store_generation_id!==record.store_generation_id||
-      generation.store_policy_id!==record.store_policy_id
+      generation.store_policy_id!==record.store_policy_id||
+      generation.root_identity_sha256!==rootIdentitySha256
     )fail("apollyon_claim_store_impl_v2_generation_request_cross_binding_invalid");
 
     let entered=0;
@@ -811,6 +815,8 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
     version:2,
     status:"store_service_core_source_ready_host_integration_unproven",
     root_identity:rootIdentity,
+    root_identity_sha256:rootIdentitySha256,
+    root_identity_scheme:"canonical_dev_ino_mode_uid_gid_nlink_size_v1",
     physical_layout:VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2,
     publishClaim,
     host_provenance_performed:false,
