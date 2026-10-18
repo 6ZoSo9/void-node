@@ -1073,27 +1073,28 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
     assertReceiptMatchesLive(receipt,live,systemdDuring,uid,gid);
     const canonicalBytes=canonicalReceiptBytes(receipt);
     readInstalledLiveReceiptExact(canonicalBytes);
+    const systemdAfter=serviceSnapshot(uid);
+    assertServiceSnapshotStable(systemdBefore,systemdAfter);
+    const finalLive=observeLiveGeneration(session.ready,uid,gid);
+    assertReceiptMatchesLive(receipt,finalLive,systemdAfter,uid,gid);
+    readInstalledLiveReceiptExact(canonicalBytes);
     const green=await finishSelectorSession(session);
     finished=true;
     testOnlyAssertSelectorGenerationStableV1(session.ready,green);
-    const systemdAfter=serviceSnapshot(uid);
-    assertServiceSnapshotStable(systemdBefore,systemdAfter);
-    const finalLive=observeLiveGeneration(green,uid,gid);
-    assertReceiptMatchesLive(receipt,finalLive,systemdAfter,uid,gid);
-    readInstalledLiveReceiptExact(canonicalBytes);
+    testOnlyAssertSelectorGenerationStableV1(finalLive.selector,green);
     return Object.freeze({
       schema:SCHEMA,marker:MARKER,version:1,parent_host_evidence_plan_id:PARENT_PLAN_ID,
       status:"AUTHENTICATED_RECEIPT_AND_SAME_LIVE_PROCESS_EVIDENCE_GREEN_PRODUCTION_AUTHORITY_STILL_HOLD",
       runtime_uid:uid,runtime_gid:gid,deployment_receipt_id:receipt.deployment_receipt_id,
       live_process_selector_contract_id:VOID_BUY_VOID_SOURCE_FINALITY_SERVICE_PROCESS_SELECTOR_CONTRACT_ID_V2,
       live_process_binding_receipt_id:receipt.receipt_id,
-      process_source_commit:live.source.process_source_commit,
-      process_source_tree:live.source.process_source_tree,
-      systemd_invocation_id:systemdBefore.invocation_id,
-      service_pid:live.selector.service_pid,
-      service_start_time_ticks:live.selector.service_start_ticks,
-      manager_pid:live.selector.manager_pid,
-      manager_start_time_ticks:live.selector.manager_start_ticks,
+      process_source_commit:finalLive.source.process_source_commit,
+      process_source_tree:finalLive.source.process_source_tree,
+      systemd_invocation_id:systemdAfter.invocation_id,
+      service_pid:finalLive.selector.service_pid,
+      service_start_time_ticks:finalLive.selector.service_start_ticks,
+      manager_pid:finalLive.selector.manager_pid,
+      manager_start_time_ticks:finalLive.selector.manager_start_ticks,
       authenticated_receipt_verified:true,source_custody_requalified:true,
       selector_generation_verified:true,same_live_process_binding_verified:true,
       installed_live_process_receipt_exact_bytes_match:true,
@@ -1140,6 +1141,8 @@ function selfTest(): void {
   console.log("pre_post_live_generation_stability_required=true");
   console.log("final_post_validation_generation_revalidation_required=true");
   console.log("selector_pidfd_session_spans_validation=true");
+  console.log("selector_pidfd_session_spans_final_receipt_read=true");
+  console.log("final_selector_verify_after_last_receipt_read=true");
   console.log("selector_process_execution_performed_by_future_host_run=true");
   console.log("source_custody_process_execution_performed_by_future_host_run=true");
   console.log("filesystem_write_performed=false");

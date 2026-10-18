@@ -63,41 +63,27 @@ Inputs:
 
 The collector performs this sequence:
 
-1. collect live manager/service generation A using the reviewed installed
-   selector;
-2. require the collection plan's source/launcher/generation flags and all
-   publication/presale/funds authorities remain fail-closed;
-3. verify the fixed deployment receipt
-   `/var/lib/void-source-finality-v7/deployment-receipt.json`
-   against generation A's exact source commit/tree;
-4. requalify reviewed live source custody using the existing non-mutating
-   source-custody helper;
-5. derive, in memory, the exact V2 live-process binding receipt for generation A;
-6. descriptor-read the fixed installed receipt
-   `/var/lib/void-source-finality-v7/live-process-binding-v2.json`
-   through a retained no-follow descriptor for its parent after every ancestor
-   directory has been opened with `O_DIRECTORY|O_NOFOLLOW`; require the
-   retained ancestor device/inode/uid/mode generations to remain root-owned,
-   non-group/world-writable and unchanged after the leaf read; also require the
-   root:root `0444` leaf to retain exact pre/post descriptor and visible
-   identity with bounded size;
-7. require installed receipt bytes to exactly equal the derived canonical
-   receipt bytes;
-8. collect live generation B through a second independent selector session;
-9. require A and B to match on plan ID, manager/service PID generations,
-   source commit/tree, invocation ID, cgroup/cmdline identity and runtime IDs;
-10. reverify the deployment receipt and source custody for generation B;
-11. independently rederive the V2 receipt and require identical receipt bytes;
-12. reread the installed receipt and require the same exact bytes;
-13. **after every B-side check above has completed**, collect live generation C
-    through a third independent selector session; and
-14. require A = B = C across the complete manager/service/source/invocation
-    identity.
+1. start one reviewed installed selector session and retain its manager/service
+   pidfds from READY through the complete validation interval;
+2. observe the READY generation and require exact systemd/MainPID/source
+   identity, then verify the fixed deployment receipt against that source;
+3. requalify reviewed live source custody through fixed
+   `/usr/bin/setpriv --clear-groups --no-new-privs` without reading the service
+   environment;
+4. derive, in memory, the exact V2 live-process binding receipt and
+   descriptor-read the installed canonical receipt through retained/root-owned
+   ancestor custody;
+5. require exact receipt bytes and stable systemd/source identity while the
+   selector session is still holding the same pidfds;
+6. perform the **final canonical receipt reread while that same selector
+   session remains open**;
+7. only after the final receipt reread, send selector `VERIFY`, require GREEN,
+   and require GREEN to match both READY and the final observed generation; and
+8. return the report without any later receipt/source/systemd read.
 
-The selector does not return a lifecycle lease or retained pidfd to this
-collector. The final C observation therefore closes the interval that B alone
-could not bound: a restart during deployment/custody/receipt validation must
-HOLD instead of being reported as a stable live generation.
+The terminal selector GREEN is therefore the final host-generation check. A
+service restart during the final receipt-validation phase must change/fail the
+pidfd-held selector generation and HOLD instead of being reported as current.
 
 Any source/process/receipt generation drift causes HOLD.
 
@@ -107,8 +93,9 @@ This collector is read-only with respect to persistent host state, but it is
 **not metadata-only**.
 
 A future authorized host run executes:
-- the existing reviewed selector process three times;
-- the existing reviewed source-custody requalification child twice.
+- one reviewed selector session retained across the complete validation interval;
+- the reviewed source-custody requalification child as required by the
+  credential-free source observations.
 
 The report therefore states:
 

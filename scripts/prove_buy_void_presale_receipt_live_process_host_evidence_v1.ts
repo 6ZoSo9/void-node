@@ -96,6 +96,9 @@ for(const required of [
   "systemd_metadata_query_performed:true",
   "readInstalledLiveReceiptCandidate()",
   "readInstalledLiveReceiptExact(canonicalBytes)",
+  "const finalLive=observeLiveGeneration(session.ready,uid,gid);",
+  "const green=await finishSelectorSession(session);",
+  "testOnlyAssertSelectorGenerationStableV1(finalLive.selector,green);",
   "parseReviewedSourceFromCmdline(",
   'spawnSync("/usr/bin/setpriv"',
   '"--clear-groups"',
@@ -180,6 +183,20 @@ const canonicalLeafRevalidationIndex =
 assert.ok(ancestorRevalidationIndex >= 0);
 assert.ok(canonicalLeafRevalidationIndex > ancestorRevalidationIndex);
 
+const finalReceiptReadIndex =
+  source.lastIndexOf("readInstalledLiveReceiptExact(canonicalBytes);");
+const terminalSelectorVerifyIndex =
+  source.lastIndexOf("const green=await finishSelectorSession(session);");
+const reportReturnIndex =
+  source.indexOf("return Object.freeze({",terminalSelectorVerifyIndex);
+assert.ok(finalReceiptReadIndex >= 0);
+assert.ok(terminalSelectorVerifyIndex > finalReceiptReadIndex);
+assert.ok(reportReturnIndex > terminalSelectorVerifyIndex);
+assert.equal(
+  source.indexOf("readInstalledLiveReceiptExact(canonicalBytes);",terminalSelectorVerifyIndex),
+  -1,
+);
+
 const selectorBase=Object.freeze({
   manager_pid:101,
   manager_start_ticks:"1001",
@@ -201,6 +218,15 @@ for(const [label,current] of [
   try{testOnlyAssertSelectorGenerationStableV1(selectorBase,current);}catch{rejected=true;}
   assert.equal(rejected,true,"selector_generation_drift_not_rejected:"+label);
 }
+let terminalSelectorDriftRejected=false;
+try{
+  testOnlyAssertSelectorGenerationStableV1(
+    selectorBase,
+    {...selectorBase,service_start_ticks:"terminal-drift"},
+  );
+}catch{terminalSelectorDriftRejected=true;}
+assert.equal(terminalSelectorDriftRejected,true,"terminal_selector_drift_after_final_receipt_not_rejected");
+
 const snapshotBase=Object.freeze({
   main_pid:202,
   invocation_id:"6".repeat(32),
@@ -475,6 +501,9 @@ console.log("receipt_ancestor_special_mode_drift_rejected=true");
 console.log("receipt_ancestor_drift_rejected=true");
 console.log("pre_post_live_generation_drift_rejected=true");
 console.log("final_post_validation_generation_revalidated=true");
+console.log("selector_pidfd_session_spans_final_receipt_read=true");
+console.log("final_selector_verify_after_last_receipt_read=true");
+console.log("terminal_selector_drift_after_final_receipt_rejected=true");
 console.log("selector_and_systemd_generation_drift_rejected=true");
 console.log("publisher_write_functions_not_imported=true");
 console.log("service_self_verifier_not_misused=true");

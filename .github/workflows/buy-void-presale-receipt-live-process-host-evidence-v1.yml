@@ -95,9 +95,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = ed821f06fc89370982edb0c36b4a0da3951d7217
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = b15de62a7a3776a3bc4c2f6ecd1cc47597f94000
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = 43337025c4f81b7733996c897f784287c8148990
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 7f7183e5f33450fc9cdfee81614955c053ac860f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 06bdc23f6c1baf4fbd9ae437368be0cf4bb6a93d
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = 76effa6110e6ce7c1c677928b618eed4860c6edf
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -153,6 +153,9 @@ jobs:
             'receipt_ancestor_drift_rejected=true' \
             'pre_post_live_generation_drift_rejected=true' \
             'final_post_validation_generation_revalidated=true' \
+            'selector_pidfd_session_spans_final_receipt_read=true' \
+            'final_selector_verify_after_last_receipt_read=true' \
+            'terminal_selector_drift_after_final_receipt_rejected=true' \
             'selector_and_systemd_generation_drift_rejected=true' \
             'publisher_write_functions_not_imported=true' \
             'service_self_verifier_not_misused=true' \
@@ -187,6 +190,8 @@ jobs:
             'pre_post_live_generation_stability_required=true' \
             'final_post_validation_generation_revalidation_required=true' \
             'selector_pidfd_session_spans_validation=true' \
+            'selector_pidfd_session_spans_final_receipt_read=true' \
+            'final_selector_verify_after_last_receipt_read=true' \
             'selector_process_execution_performed_by_future_host_run=true' \
             'source_custody_process_execution_performed_by_future_host_run=true' \
             'filesystem_write_performed=false' \
