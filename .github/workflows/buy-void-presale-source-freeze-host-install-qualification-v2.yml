@@ -33,41 +33,10 @@ jobs:
       - name: Bind exact qualification generation
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
+          STACK_PARENT=f18018945a2facd25adc683d85f4cf8d09ce5716
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-
-          base="${PR_BASE:-}"
-          cursor="$EXPECTED_HEAD"
-          resolved=""
-          while :; do
-            parent_line="$(git rev-list --parents -n 1 "$cursor")"
-            parent_count="$(awk '{print NF-1}' <<<"$parent_line")"
-            if [ "$parent_count" -gt 1 ]; then
-              candidate="$(git rev-parse "$cursor^1")"
-              if [ -z "$base" ] || git merge-base --is-ancestor "$base" "$candidate"; then
-                resolved="$candidate"
-                break
-              fi
-            fi
-            if [ "$parent_count" -lt 1 ]; then
-              break
-            fi
-            next="$(git rev-parse "$cursor^1")"
-            if [ -n "$base" ] && ! git merge-base --is-ancestor "$base" "$next"; then
-              break
-            fi
-            cursor="$next"
-          done
-
-          if [ -n "$resolved" ]; then
-            STACK_PARENT="$resolved"
-          elif [ -n "$base" ]; then
-            STACK_PARENT="$base"
-          else
-            STACK_PARENT="$(git rev-parse "$EXPECTED_HEAD^1")"
-          fi
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
           expected="$RUNNER_TEMP/expected.txt"
