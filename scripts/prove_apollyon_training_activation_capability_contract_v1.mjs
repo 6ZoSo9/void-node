@@ -20,7 +20,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="4fbecc137f5ee08a4a471cd2b45944285810a7e8";
+const SOURCE_BLOB="790fb4f5b1f04017d9f7c970d57b25c764d9949b";
 const PARENT_HEAD="1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae";
 const CONSUMPTION_HEAD="fdf47e77cd12eee38efe741edb02fa2fd39135e2";
 const CONSUMPTION_BLOB="60987b860fb7159d88f4f601b76878e7d8ccca92";
@@ -296,6 +296,15 @@ assert.equal(binding.training_execution_authorized,false);
     /binding_invalid/u,
   );
 }
+{
+  const bad=cloned(binding);
+  bad.training_process_start_time_ticks="1".repeat(100000);
+  expectRejected(
+    ()=>qualifyApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
+  );
+}
+
 for(const [key,value] of [
   ["activation_capability_id","apollyon_training_activation_capability_v1:"+"f".repeat(64)],
   ["activation_secret_sha256","f".repeat(64)],
@@ -303,6 +312,8 @@ for(const [key,value] of [
   ["systemd_invocation_id","BAD"],
   ["training_pid",1],
   ["training_process_start_time_ticks","0"],
+  ["training_process_start_time_ticks","18446744073709551616"],
+  ["training_process_start_time_ticks","1".repeat(21)],
   ["training_uid",0],
   ["training_gid",0],
   ["training_source_identity_sha256","f".repeat(63)],
@@ -415,6 +426,8 @@ console.log("systemd_credential_transport_candidate_only=true");
 console.log("systemd_credential_runtime_proven=false");
 console.log("activation_secret_possession_proven=false");
 console.log("activation_generation_bound=false");
+console.log("start_ticks_preclone_length_bound=true");
+console.log("start_ticks_u64_range_bound=true");
 console.log("trainer_generation_external_validation_performed=false");
 console.log("training_start_consumption_record_origin_proven=false");
 console.log("training_start_consumption_performed=false");
