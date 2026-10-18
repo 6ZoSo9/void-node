@@ -2,7 +2,9 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -22,7 +24,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const COLLECTOR_REL=
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
-const COLLECTOR_BLOB="51d164857be3966576b25b8627b02ead166afd73";
+const COLLECTOR_BLOB="b448bd542dc65f1b2eed58d0be295b5a1f0170a4";
 
 const PARENT_PLAN_REL="ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
 const PARENT_PLAN_BLOB="ad68175e629fd1cf90180db3a904f84834314fdd";
@@ -92,6 +94,10 @@ for(const required of [
   "buildBuyVoidSourceFinalityLiveProcessBindingReceiptV2",
   "VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1",
   "parseBuyVoidV2SelectorLineV1",
+  "openSelectorBinaryLease()",
+  'spawn("/proc/self/fd/3"',
+  'stdio:["pipe","pipe","pipe",selector.fd]',
+  "revalidateSelectorBinaryLease(selector)",
   "startSelectorSession(",
   "finishSelectorSession(",
   "pidfds_retained_during_collection=true",
@@ -137,6 +143,7 @@ for(const forbiddenCredentialRead of [
 ])assert.equal(source.includes(forbiddenCredentialRead),false,forbiddenCredentialRead);
 
 for(const forbidden of [
+  "spawn(VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1",
   "verifyBuyVoidSourceFinalityDeploymentReceiptV7",
   "deployment_receipt_path:VOID_BUY_VOID_V7_DEPLOYMENT_RECEIPT_PATH_V1",
   "installBuyVoidV2LiveProcessReceiptCreateOnceV1",
@@ -210,6 +217,45 @@ assert.equal(
   source.indexOf("readInstalledLiveReceiptExact(canonicalBytes);",terminalSelectorVerifyIndex),
   -1,
 );
+
+withDescriptorSelectorExecProof();
+function withDescriptorSelectorExecProof():void{
+  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-selector-fd-exec-proof-"));
+  let fd=-1;
+  try{
+    const selectorPath=path.join(tmp,"selector");
+    const replacementPath=path.join(tmp,"replacement");
+    fs.copyFileSync("/bin/true",selectorPath);
+    fs.chmodSync(selectorPath,0o755);
+    fd=fs.openSync(
+      selectorPath,
+      fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0)|
+        Number(fs.constants.O_CLOEXEC||0),
+    );
+    fs.copyFileSync("/bin/false",replacementPath);
+    fs.chmodSync(replacementPath,0o755);
+    fs.renameSync(replacementPath,selectorPath);
+
+    const retained=spawnSync("/proc/self/fd/3",[],{
+      stdio:["ignore","pipe","pipe",fd],
+      env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC"},
+      timeout:10_000,
+    });
+    assert.equal(retained.error,undefined,String(retained.error||""));
+    assert.equal(retained.status,0,String(retained.stderr||retained.stdout||""));
+
+    const pathname=spawnSync(selectorPath,[],{
+      stdio:["ignore","pipe","pipe"],
+      env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC"},
+      timeout:10_000,
+    });
+    assert.equal(pathname.error,undefined,String(pathname.error||""));
+    assert.notEqual(pathname.status,0,"replacement_path_unexpectedly_executed_as_retained_generation");
+  }finally{
+    if(fd>=0)fs.closeSync(fd);
+    fs.rmSync(tmp,{recursive:true,force:true});
+  }
+}
 
 const selectorBase=Object.freeze({
   manager_pid:101,
@@ -510,6 +556,9 @@ console.log("receipt_stat_identity_bigint=true");
 console.log("receipt_inode_above_js_safe_integer_drift_rejected=true");
 console.log("receipt_one_nanosecond_timestamp_drift_rejected=true");
 console.log("selector_pidfd_session_generation_stability_proved=true");
+console.log("selector_binary_retained_descriptor_verified=true");
+console.log("selector_binary_descriptor_execution_verified=true");
+console.log("selector_path_replacement_cannot_substitute_executed_generation=true");
 console.log("process_environment_read_performed=false");
 console.log("credential_access=false");
 console.log("systemd_metadata_query_read_only=true");

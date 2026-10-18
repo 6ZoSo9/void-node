@@ -95,9 +95,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 51d164857be3966576b25b8627b02ead166afd73
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 4542fd56bb77268be9f6acb2332a8e233d3c2a52
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = 6b03623245314204b04007cd962af62142aac263
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = b448bd542dc65f1b2eed58d0be295b5a1f0170a4
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 06e056c20d8fe5338675aa386fac5f3c3f1810d6
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = abd0c90f3f4c4da10f6f6adc8c24a3334fa819dc
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -148,6 +148,9 @@ jobs:
             'receipt_inode_above_js_safe_integer_drift_rejected=true' \
             'receipt_one_nanosecond_timestamp_drift_rejected=true' \
             'selector_pidfd_session_generation_stability_proved=true' \
+            'selector_binary_retained_descriptor_verified=true' \
+            'selector_binary_descriptor_execution_verified=true' \
+            'selector_path_replacement_cannot_substitute_executed_generation=true' \
             'process_environment_read_performed=false' \
             'credential_access=false' \
             'systemd_metadata_query_read_only=true' \
@@ -190,6 +193,9 @@ jobs:
             'deployment_receipt_semantic_revalidation_required=true' \
             'deployment_receipt_post_selector_identity_revalidation_required=true' \
             'credential_free_native_selector_session_required=true' \
+            'selector_binary_retained_descriptor_required=true' \
+            'selector_binary_descriptor_execution_required=true' \
+            'selector_binary_path_spawn_forbidden=true' \
             'process_environment_read_performed=false' \
             'credential_access=false' \
             'systemd_metadata_query_read_only=true' \

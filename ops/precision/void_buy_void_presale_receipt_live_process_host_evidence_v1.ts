@@ -917,7 +917,39 @@ function procLink(pid:number,leaf:"exe"|"cwd"): string {
   if(!path.isAbsolute(value))fail("host_evidence_proc_link_invalid:"+leaf);
   return value;
 }
-function assertSelectorBinary(): void {
+type SelectorBinaryStat = StableStatIdentity & Readonly<{
+  isFile(): boolean;
+  isSymbolicLink(): boolean;
+}>;
+type SelectorBinaryLease = Readonly<{
+  fd:number;
+  opened:StableStatIdentity;
+}>;
+
+function selectorBinaryTrusted(current:SelectorBinaryStat):boolean{
+  return (
+    current.isFile() &&
+    !current.isSymbolicLink() &&
+    current.uid===0n &&
+    current.gid===0n &&
+    current.nlink===1n &&
+    (current.mode&0o022n)===0n &&
+    (current.mode&0o111n)!==0n &&
+    current.size===BigInt(SELECTOR_BYTES)
+  );
+}
+function readSelectorFdExact(fd:number):Buffer{
+  const buffer=Buffer.alloc(SELECTOR_BYTES+1);
+  let total=0;
+  while(total<buffer.length){
+    const count=fs.readSync(fd,buffer,total,buffer.length-total,total);
+    if(count===0)break;
+    total+=count;
+  }
+  if(total!==SELECTOR_BYTES)fail("host_evidence_selector_binary_size_changed");
+  return buffer.subarray(0,total);
+}
+function openSelectorBinaryLease():SelectorBinaryLease{
   const lockPath=path.join(ROOT,SELECTOR_LOCK_REL);
   const st=fs.lstatSync(lockPath,{bigint:true});
   if(!st.isFile()||st.isSymbolicLink()||st.uid!==0n||(st.mode&0o022n)!==0n){
@@ -931,16 +963,73 @@ function assertSelectorBinary(): void {
     lock.accepted_binary_bytes!==SELECTOR_BYTES ||
     lock.selector_elf_identity_accepted!==true || lock.install_authorized!==false
   ) fail("host_evidence_selector_lock_invalid");
+
   proveRootCustodyPath(VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,false);
-  const binary=fs.lstatSync(VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,{bigint:true});
-  if(
-    binary.uid!==0n||binary.gid!==0n||binary.nlink!==1n||
-    (binary.mode&0o022n)!==0n||(binary.mode&0o111n)===0n||
-    binary.size!==BigInt(SELECTOR_BYTES)
-  ) fail("host_evidence_selector_binary_custody_invalid");
-  if(sha256(fs.readFileSync(VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1))!==SELECTOR_SHA){
-    fail("host_evidence_selector_binary_sha256_mismatch");
+  const noFollow=Number(fs.constants.O_NOFOLLOW||0);
+  const closeOnExec=Number(fs.constants.O_CLOEXEC||0);
+  if(process.platform!=="linux"||noFollow<=0||closeOnExec<=0){
+    fail("host_evidence_selector_descriptor_execution_unavailable");
   }
+
+  const before=fs.lstatSync(
+    VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,{bigint:true},
+  );
+  if(!selectorBinaryTrusted(before)){
+    fail("host_evidence_selector_binary_custody_invalid");
+  }
+  let fd=-1;
+  try{
+    fd=fs.openSync(
+      VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,
+      fs.constants.O_RDONLY|noFollow|closeOnExec,
+    );
+    const opened=fs.fstatSync(fd,{bigint:true});
+    if(!selectorBinaryTrusted(opened)||!sameStat(before,opened)){
+      fail("host_evidence_selector_binary_open_identity_mismatch");
+    }
+    const bytes=readSelectorFdExact(fd);
+    const after=fs.fstatSync(fd,{bigint:true});
+    const visibleAfter=fs.lstatSync(
+      VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,{bigint:true},
+    );
+    if(!sameStat(opened,after)||!sameStat(after,visibleAfter)){
+      fail("host_evidence_selector_binary_changed_during_hash");
+    }
+    if(sha256(bytes)!==SELECTOR_SHA){
+      fail("host_evidence_selector_binary_sha256_mismatch");
+    }
+    return Object.freeze({
+      fd,
+      opened:Object.freeze({
+        dev:opened.dev,ino:opened.ino,uid:opened.uid,gid:opened.gid,
+        mode:opened.mode,nlink:opened.nlink,size:opened.size,
+        mtimeNs:opened.mtimeNs,ctimeNs:opened.ctimeNs,
+      }),
+    });
+  }catch(error){
+    if(fd>=0)fs.closeSync(fd);
+    throw error;
+  }
+}
+function revalidateSelectorBinaryLease(lease:SelectorBinaryLease):void{
+  const current=fs.fstatSync(lease.fd,{bigint:true});
+  const visible=fs.lstatSync(
+    VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,{bigint:true},
+  );
+  if(
+    !selectorBinaryTrusted(current)||
+    !selectorBinaryTrusted(visible)||
+    !sameStat(lease.opened,current)||
+    !sameStat(current,visible)
+  ){
+    fail("host_evidence_selector_binary_generation_changed");
+  }
+  if(sha256(readSelectorFdExact(lease.fd))!==SELECTOR_SHA){
+    fail("host_evidence_selector_binary_retained_sha256_mismatch");
+  }
+}
+function closeSelectorBinaryLease(lease:SelectorBinaryLease):void{
+  fs.closeSync(lease.fd);
 }
 async function nextSelectorLine(iterator: AsyncIterator<string>,label:string): Promise<string> {
   let timer:NodeJS.Timeout|undefined;
@@ -962,13 +1051,28 @@ type SelectorSession=Readonly<{
   stderr:string[];
 }>;
 async function startSelectorSession(uid:number,gid:number): Promise<SelectorSession> {
-  assertSelectorBinary();
-  const child=spawn(VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,[
-    "--select","--runtime-uid",String(uid),"--runtime-gid",String(gid),
-  ],{
-    stdio:["pipe","pipe","pipe"],
-    env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC"},
-  });
+  const selector=openSelectorBinaryLease();
+  let child:ChildProcessWithoutNullStreams|null=null;
+  try{
+    child=spawn("/proc/self/fd/3",[
+      "--select","--runtime-uid",String(uid),"--runtime-gid",String(gid),
+    ],{
+      stdio:["pipe","pipe","pipe",selector.fd],
+      env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC"},
+    }) as ChildProcessWithoutNullStreams;
+    await new Promise<void>((resolve,reject)=>{
+      child!.once("spawn",resolve);
+      child!.once("error",reject);
+    });
+    revalidateSelectorBinaryLease(selector);
+  }catch(error){
+    if(child&&child.exitCode===null){
+      try{child.kill("SIGKILL");}catch{}
+    }
+    throw error;
+  }finally{
+    closeSelectorBinaryLease(selector);
+  }
   const stderr:string[]=[];
   child.stderr.setEncoding("utf8");
   child.stderr.on("data",chunk=>stderr.push(String(chunk)));
@@ -1310,6 +1414,9 @@ function selfTest(): void {
   console.log("deployment_receipt_semantic_revalidation_required=true");
   console.log("deployment_receipt_post_selector_identity_revalidation_required=true");
   console.log("credential_free_native_selector_session_required=true");
+  console.log("selector_binary_retained_descriptor_required=true");
+  console.log("selector_binary_descriptor_execution_required=true");
+  console.log("selector_binary_path_spawn_forbidden=true");
   console.log("source_custody_requalification_required=true");
   console.log("process_environment_read_performed=false");
   console.log("credential_access=false");

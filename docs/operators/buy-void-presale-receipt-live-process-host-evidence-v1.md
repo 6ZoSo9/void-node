@@ -336,3 +336,26 @@ the deployment receipt pathname.
 
 All read-only/no-credential/no-write and false economic authority boundaries are
 unchanged.
+
+## Descriptor-executed selector generation
+
+The installed native selector is no longer hashed and then reopened by pathname.
+The collector opens the reviewed root-custodied selector once with
+`O_RDONLY|O_NOFOLLOW|O_CLOEXEC`, requires the exact accepted size and SHA-256
+on that retained descriptor, and records the full bigint inode/stat generation.
+
+The selector child receives that retained descriptor as child FD 3 and is
+started as `/proc/self/fd/3`. The parent waits for successful spawn, then
+revalidates both the retained descriptor and the canonical installed pathname
+against the authenticated generation before closing its copy. Atomic pathname
+replacement therefore cannot substitute a different compatible selector between
+hashing and execution.
+
+Hosted proof opens a temporary copy of `/bin/true`, atomically replaces its
+pathname with `/bin/false`, and requires descriptor execution through child
+FD 3 to retain the original successful generation while pathname execution sees
+the replacement.
+
+No selector semantics, credential access, host mutation, payment, signing,
+transaction, activation, treasury or funds authority is added.
+
