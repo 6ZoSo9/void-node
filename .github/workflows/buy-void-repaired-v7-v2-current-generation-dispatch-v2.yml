@@ -174,4 +174,3 @@ jobs:
           echo source_freeze_accepted=false
           echo public_presale_activation=false
           echo funds_movement=false
-
