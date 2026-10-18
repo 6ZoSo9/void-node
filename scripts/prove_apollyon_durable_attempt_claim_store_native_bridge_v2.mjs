@@ -1160,4 +1160,3 @@ if(process.argv[2]==="--pipe-child"){
   assert.equal(process.argv.length,4);
   await peerChild(JSON.parse(process.argv[3]));
 }else await main(process.argv.slice(2));
-

@@ -124,7 +124,7 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
             4531f91225a760aefa35873e1b24f62e21b17394
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            7e4f86f6f17c02171bcd5ea3361b098bd2e3fb0d
+            7a5a34cc427e745bade226cfcb02f2ba1eed8dbd
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
