@@ -21,6 +21,13 @@ This plan names the exact existing source primitives for the three independent
 host-evidence classes still required after #3503. It does not execute them and
 does not convert source availability into host evidence.
 
+The machine-readable `evidence_lanes` interface is closed: the proof requires
+exact lane names, exact status fields, exact role names, and exact
+`{path,blob}` pairs. Flattening all lane roles must produce exactly the nine
+`PRIMITIVE_PINS` entries with no duplicate path. A synthetic in-memory
+path/blob mutation is required to fail while the underlying pinned source files
+remain unchanged.
+
 All nine pinned primitive blobs are byte-identical on the accepted #3503 stack
 and review reference `main@e64049c3f460eae077364567f63aa3298ecf9c31`.
 Hosted CI independently checks both `HEAD:<path>` and

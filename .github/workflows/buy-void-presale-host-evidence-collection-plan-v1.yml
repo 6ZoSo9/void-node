@@ -44,8 +44,8 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = fbd51ba00d760330b30f3df70eee1d7021affaa1
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md)" = 7b448ce7f247c15494dd52d601ef771e8702d4be
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md)" = 4f5d8a5db1cf1b82991962f5bf90a231c96c6f76
 
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -90,6 +90,8 @@ jobs:
             'VOID_BUY_VOID_PRESALE_HOST_EVIDENCE_COLLECTION_PLAN_V1_PROOF_GREEN' \
             'plan_id=voidbuyhostevplan1_665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab' \
             'primitive_path_count=9' \
+            'lane_mapping_exact=true' \
+            'lane_mapping_mutation_rejected=true' \
             'all_pinned_primitive_blobs_match_current_stack=true' \
             'receipt_evidence_collected=false' \
             'custody_evidence_collected=false' \

@@ -31,6 +31,109 @@ PRIMITIVE_PINS = {
     "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py": "c14ec00acffbc55630aa68db0013d97cac068ab3",
 }
 
+
+LANE_SPECS = {
+    "authenticated_receipt_and_live_process": {
+        "keys": frozenset({
+            "required",
+            "evidence_collected",
+            "authenticated_receipt_verified",
+            "same_live_process_binding_verified",
+            "paths",
+        }),
+        "paths": {
+            "deployment_receipt_installer": {
+                "path": "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts",
+                "blob": "3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0",
+            },
+            "live_process_receipt_publisher": {
+                "path": "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts",
+                "blob": "a334ab29477dec3e36862a512191b9701debb73e",
+            },
+            "live_process_binding": {
+                "path": "src/economic/buy_void_source_finality_live_process_binding_v2.ts",
+                "blob": "987c97568a4d1b9814218603df48a65dbfeed18f",
+            },
+            "collection_plan": {
+                "path": "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts",
+                "blob": "d47a6f99870f385c1bc938adbef74535b78eba1f",
+            },
+        },
+    },
+    "allocation_custody_storage_and_rollback": {
+        "keys": frozenset({
+            "required",
+            "evidence_collected",
+            "live_durable_storage_proven",
+            "rollback_resistance_proven",
+            "independent_custody_proven",
+            "paths",
+        }),
+        "paths": {
+            "rollback_independence": {
+                "path": "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.ts",
+                "blob": "2d5fc24498b569f20701445d6214a8ca31e4f701",
+            },
+            "rollback_policy_evidence": {
+                "path": "tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs",
+                "blob": "cf40d9d4a19d138d74aee849a6c02f96ee362dbb",
+            },
+            "second_control_composition": {
+                "path": "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts",
+                "blob": "97180cc03e3f1b2f9935191ac6aafe4b15307708",
+            },
+        },
+    },
+    "epoch2_installed_generation": {
+        "keys": frozenset({
+            "required",
+            "evidence_collected",
+            "installed_generation_qualified",
+            "paths",
+        }),
+        "paths": {
+            "installed_qualifier": {
+                "path": "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py",
+                "blob": "a04c2e7665294cdd142426e9eb01ee27c5292b8d",
+            },
+            "installed_qualifier_proof": {
+                "path": "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py",
+                "blob": "c14ec00acffbc55630aa68db0013d97cac068ab3",
+            },
+        },
+    },
+}
+
+def validate_lane_mapping(value: object) -> dict[str, str]:
+    assert isinstance(value, dict)
+    assert set(value) == set(LANE_SPECS)
+
+    flattened: dict[str, str] = {}
+    for lane_name, spec in LANE_SPECS.items():
+        lane = value[lane_name]
+        assert isinstance(lane, dict), lane_name
+        assert set(lane) == spec["keys"], lane_name
+
+        paths = lane["paths"]
+        expected_paths = spec["paths"]
+        assert isinstance(paths, dict), lane_name + ":paths"
+        assert set(paths) == set(expected_paths), lane_name + ":roles"
+
+        for role, expected in expected_paths.items():
+            entry = paths[role]
+            assert isinstance(entry, dict), lane_name + ":" + role
+            assert set(entry) == {"path", "blob"}, lane_name + ":" + role
+            assert entry == expected, lane_name + ":" + role
+            relative = entry["path"]
+            blob = entry["blob"]
+            assert isinstance(relative, str) and isinstance(blob, str)
+            assert relative not in flattened, "duplicate_primitive_path:" + relative
+            flattened[relative] = blob
+
+    assert flattened == PRIMITIVE_PINS
+    assert len(flattened) == len(PRIMITIVE_PINS)
+    return flattened
+
 def git_blob(raw: bytes) -> str:
     return hashlib.sha1(
         b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw
@@ -84,6 +187,7 @@ for relative, expected in PRIMITIVE_PINS.items():
     read_pinned(relative, expected, 2 * 1024 * 1024)
 
 lanes = plan["evidence_lanes"]
+validated_primitive_pins = validate_lane_mapping(lanes)
 receipt = lanes["authenticated_receipt_and_live_process"]
 assert receipt["required"] is True
 assert receipt["evidence_collected"] is False
@@ -102,6 +206,20 @@ assert epoch2["required"] is True
 assert epoch2["evidence_collected"] is False
 assert epoch2["installed_generation_qualified"] is False
 
+mutated_lanes = json.loads(json.dumps(lanes))
+mutated_lanes["authenticated_receipt_and_live_process"]["paths"][
+    "live_process_binding"
+] = {
+    "path": "src/economic/buy_void_source_finality_live_process_binding_v2.ts.mutated",
+    "blob": "0" * 40,
+}
+try:
+    validate_lane_mapping(mutated_lanes)
+except AssertionError:
+    pass
+else:
+    raise AssertionError("mutated_lane_mapping_accepted")
+
 authority = plan["authority"]
 assert authority["plan_only"] is True
 for key, value in authority.items():
@@ -111,7 +229,9 @@ assert plan["next_gate"] == "SEPARATELY_AUTHORIZE_READ_ONLY_HOST_EVIDENCE_COLLEC
 
 print("VOID_BUY_VOID_PRESALE_HOST_EVIDENCE_COLLECTION_PLAN_V1_PROOF_GREEN")
 print("plan_id=" + PLAN_ID)
-print("primitive_path_count=9")
+print("primitive_path_count=" + str(len(validated_primitive_pins)))
+print("lane_mapping_exact=true")
+print("lane_mapping_mutation_rejected=true")
 print("all_pinned_primitive_blobs_match_current_stack=true")
 print("receipt_evidence_collected=false")
 print("custody_evidence_collected=false")
