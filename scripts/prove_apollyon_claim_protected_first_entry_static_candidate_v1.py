@@ -9,7 +9,7 @@ import types
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "b1f87514956f944aa85b8d483963aa93663643b8"
+TARGET_BLOB = "2ff81973b10c176523b0bf172a14fe1495a83986"
 FIXED_SELF = (
     "/opt/void-apollyon-claim-protected-first-entry-v1/bin/"
     "apollyon_claim_protected_first_entry_v1"
@@ -111,6 +111,13 @@ forged_binary = json.loads(json.dumps(report_a))
 forged_binary["binary"]["sha256"] = "0" * 64
 expect_rejected(readdress(forged_binary), "candidate_binary_identity_invalid")
 
+forged_binary_extra_key = json.loads(json.dumps(report_a))
+forged_binary_extra_key["binary"]["candidate_accepted"] = True
+expect_rejected(
+    readdress(forged_binary_extra_key),
+    "candidate_binary_keys_invalid",
+)
+
 forged_authority = json.loads(json.dumps(report_a))
 forged_authority["authority"]["candidate_accepted"] = True
 expect_rejected(readdress(forged_authority), "candidate_authority_invalid")
@@ -188,6 +195,7 @@ print("dynamic_needed_absent=true")
 print("readdressed_source_drift_rejected=true")
 print("readdressed_toolchain_drift_rejected=true")
 print("readdressed_binary_drift_rejected=true")
+print("readdressed_binary_extra_key_rejected=true")
 print("readdressed_authority_overclaim_rejected=true")
 print("readdressed_next_gate_drift_rejected=true")
 print("forged_non_elf_bytes_rejected=true")
