@@ -20,7 +20,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="cf133e9a4e3e89bebed35f6f9b1248e19f417114";
+const SOURCE_BLOB="fe8f66d291eec7c6c3cf99c313a20dfbde1e606d";
 const PARENT_HEAD="1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae";
 const CONSUMPTION_HEAD="fdf47e77cd12eee38efe741edb02fa2fd39135e2";
 const CONSUMPTION_BLOB="60987b860fb7159d88f4f601b76878e7d8ccca92";
@@ -206,6 +206,43 @@ assert.equal(capabilityText.includes(secret.toString("base64")),false);
     globalThis.structuredClone=originalClone;
   }
 }
+{
+  const bad={...capabilityMaterial};
+  let getterCalls=0;
+  Object.defineProperty(bad,"activation_secret_sha256",{
+    enumerable:true,
+    configurable:true,
+    get(){
+      getterCalls+=1;
+      return getterCalls===1?secretHash:"x".repeat(100000);
+    },
+  });
+  expectRejected(
+    ()=>buildApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
+  assert.equal(getterCalls,0);
+}
+{
+  const bad={...capability};
+  let getterCalls=0;
+  Object.defineProperty(bad,"authorization_id",{
+    enumerable:true,
+    configurable:true,
+    get(){
+      getterCalls+=1;
+      return getterCalls===1
+        ?capability.authorization_id
+        :"x".repeat(100000);
+    },
+  });
+  expectRejected(
+    ()=>qualifyApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
+  assert.equal(getterCalls,0);
+}
+
 for(const key of [
   "activation_secret_sha256",
   "authorization_id",
@@ -385,6 +422,45 @@ assert.equal(binding.training_execution_authorized,false);
     globalThis.structuredClone=originalClone;
   }
 }
+{
+  const bad={...bindingMaterial};
+  let getterCalls=0;
+  Object.defineProperty(bad,"systemd_invocation_id",{
+    enumerable:true,
+    configurable:true,
+    get(){
+      getterCalls+=1;
+      return getterCalls===1
+        ?bindingMaterial.systemd_invocation_id
+        :"x".repeat(100000);
+    },
+  });
+  expectRejected(
+    ()=>buildApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
+  );
+  assert.equal(getterCalls,0);
+}
+{
+  const bad={...binding};
+  let getterCalls=0;
+  Object.defineProperty(bad,"training_source_identity_sha256",{
+    enumerable:true,
+    configurable:true,
+    get(){
+      getterCalls+=1;
+      return getterCalls===1
+        ?binding.training_source_identity_sha256
+        :"x".repeat(100000);
+    },
+  });
+  expectRejected(
+    ()=>qualifyApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
+  );
+  assert.equal(getterCalls,0);
+}
+
 for(const key of [
   "activation_capability_id",
   "activation_secret_sha256",
@@ -537,6 +613,8 @@ console.log("start_ticks_u64_range_bound=true");
 console.log("unknown_object_graph_rejected_before_clone=true");
 console.log("regex_coercion_identifiers_rejected=true");
 console.log("boxed_string_identifiers_rejected=true");
+console.log("accessor_fields_rejected_before_read=true");
+console.log("validated_descriptor_snapshot_cloned=true");
 console.log("trainer_generation_external_validation_performed=false");
 console.log("training_start_consumption_record_origin_proven=false");
 console.log("training_start_consumption_performed=false");
