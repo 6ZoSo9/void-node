@@ -95,6 +95,17 @@ GIT_ENV = {
     "GIT_NO_REPLACE_OBJECTS": "1",
     "GIT_OPTIONAL_LOCKS": "0",
     "GIT_TERMINAL_PROMPT": "0",
+    "GIT_CONFIG_COUNT": "5",
+    "GIT_CONFIG_KEY_0": "core.fsmonitor",
+    "GIT_CONFIG_VALUE_0": "false",
+    "GIT_CONFIG_KEY_1": "core.hooksPath",
+    "GIT_CONFIG_VALUE_1": "/dev/null",
+    "GIT_CONFIG_KEY_2": "credential.helper",
+    "GIT_CONFIG_VALUE_2": "",
+    "GIT_CONFIG_KEY_3": "credential.interactive",
+    "GIT_CONFIG_VALUE_3": "never",
+    "GIT_CONFIG_KEY_4": "core.sshCommand",
+    "GIT_CONFIG_VALUE_4": "/bin/false",
 }
 
 
@@ -253,7 +264,7 @@ def stable_regular_input(
     }
 
 
-def load_upgrader(expected_head: str) -> types.ModuleType:
+def load_upgrader(expected_head: str) -> tuple[types.ModuleType, bytes]:
     raw = exact_git_object(expected_head, UPGRADER_REL, UPGRADER_BLOB)
     module = types.ModuleType("void_verified_bootstrap_atomic_upgrade_v1")
     module.__file__ = str(FIXED_CHECKOUT / UPGRADER_REL)
@@ -295,7 +306,7 @@ def load_upgrader(expected_head: str) -> types.ModuleType:
         NEW_MANIFEST_GIT_BLOB,
     ):
         raise PlanError("upgrader_manifest_identity_mismatch")
-    return module
+    return module, raw
 
 
 def collect(
@@ -325,7 +336,7 @@ def collect(
         expected_mode=0o444,
     )
 
-    upgrader = load_upgrader(expected_head)
+    upgrader, upgrader_raw = load_upgrader(expected_head)
     result = upgrader.collect(bootstrap, manifest, expected_head)
     if not isinstance(result, dict):
         raise PlanError("upgrader_collect_result_invalid")
@@ -376,11 +387,19 @@ def collect(
         if receipt.get(key) != expected:
             raise PlanError("git_boundary_mismatch:" + key)
 
+    upgrader_source = upgrader_raw.decode("utf-8", "strict")
+    future_apply_code = (
+        "source=" + repr(upgrader_source) + "\n"
+        "filename=" + repr(str(FIXED_CHECKOUT / UPGRADER_REL)) + "\n"
+        'ns={"__name__":"__main__","__file__":filename,"__package__":""}\n'
+        'exec(compile(source,filename,"exec",dont_inherit=True,optimize=0),ns,ns)\n'
+    )
     future_apply = [
         str(FIXED_PYTHON),
         "-I",
         "-B",
-        str(FIXED_CHECKOUT / UPGRADER_REL),
+        "-c",
+        future_apply_code,
         "--apply",
         "--bootstrap",
         str(bootstrap),
@@ -408,6 +427,11 @@ def collect(
         "manifest_input": manifest_input,
         "git_boundary_receipt": receipt,
         "future_apply_argv": future_apply,
+        "future_apply_source_inline": True,
+        "future_apply_source_git_blob_sha1": UPGRADER_BLOB,
+        "future_apply_source_bytes": len(upgrader_raw),
+        "future_apply_source_reopens_checkout": False,
+        "planner_git_callbacks_neutralized": True,
         "future_apply_requires_root": True,
         "future_apply_authorized": False,
         "protected_filesystem_mutation": False,
@@ -444,6 +468,9 @@ def emit_source_plan() -> None:
     print("old_lock_id=" + OLD_LOCK)
     print("new_lock_id=" + NEW_LOCK)
     print("new_candidate_id=" + NEW_CAND)
+    print("planner_git_callbacks_neutralized=true")
+    print("future_apply_source_inline=true")
+    print("future_apply_source_reopens_checkout=false")
     print("future_apply_requires_root=true")
     print("future_apply_authorized=false")
     print("bootstrap_execution=false")
@@ -489,6 +516,11 @@ def emit_run(result: dict[str, Any]) -> None:
         value = receipt[key]
         print(key + "=" + (str(value).lower() if isinstance(value, bool) else str(value)))
     print("protected_filesystem_mutation=false")
+    print("planner_git_callbacks_neutralized=true")
+    print("future_apply_source_inline=true")
+    print("future_apply_source_git_blob_sha1=" + str(body["future_apply_source_git_blob_sha1"]))
+    print("future_apply_source_bytes=" + str(body["future_apply_source_bytes"]))
+    print("future_apply_source_reopens_checkout=false")
     print("future_apply_requires_root=true")
     print("future_apply_authorized=false")
     print("future_apply_argv_json=" + json.dumps(body["future_apply_argv"], separators=(",", ":")))
@@ -540,6 +572,9 @@ def self_test() -> None:
     print("repaired_manifest_identity_bound=true")
     print("upgrader_collect_only=true")
     print("temporary_git_metadata_boundary_explicit=true")
+    print("planner_git_callbacks_neutralized=true")
+    print("future_apply_source_inline=true")
+    print("future_apply_source_reopens_checkout=false")
     print("protected_filesystem_mutation=false")
     print("future_apply_argv_emitted_only=true")
     print("future_apply_authorized=false")
