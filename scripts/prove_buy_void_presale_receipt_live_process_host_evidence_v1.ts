@@ -24,7 +24,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const COLLECTOR_REL=
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
-const COLLECTOR_BLOB="b448bd542dc65f1b2eed58d0be295b5a1f0170a4";
+const COLLECTOR_BLOB="d890b3b833fba712601ea9e5d0eb1261fc207641";
 
 const PARENT_PLAN_REL="ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
 const PARENT_PLAN_BLOB="ad68175e629fd1cf90180db3a904f84834314fdd";
@@ -229,8 +229,7 @@ function withDescriptorSelectorExecProof():void{
     fs.chmodSync(selectorPath,0o755);
     fd=fs.openSync(
       selectorPath,
-      fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0)|
-        Number(fs.constants.O_CLOEXEC||0),
+      fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
     );
     fs.copyFileSync("/bin/false",replacementPath);
     fs.chmodSync(replacementPath,0o755);

@@ -966,8 +966,7 @@ function openSelectorBinaryLease():SelectorBinaryLease{
 
   proveRootCustodyPath(VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,false);
   const noFollow=Number(fs.constants.O_NOFOLLOW||0);
-  const closeOnExec=Number(fs.constants.O_CLOEXEC||0);
-  if(process.platform!=="linux"||noFollow<=0||closeOnExec<=0){
+  if(process.platform!=="linux"||noFollow<=0){
     fail("host_evidence_selector_descriptor_execution_unavailable");
   }
 
@@ -981,7 +980,7 @@ function openSelectorBinaryLease():SelectorBinaryLease{
   try{
     fd=fs.openSync(
       VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,
-      fs.constants.O_RDONLY|noFollow|closeOnExec,
+      fs.constants.O_RDONLY|noFollow,
     );
     const opened=fs.fstatSync(fd,{bigint:true});
     if(!selectorBinaryTrusted(opened)||!sameStat(before,opened)){
