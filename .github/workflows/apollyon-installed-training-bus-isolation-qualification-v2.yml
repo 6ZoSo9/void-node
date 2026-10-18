@@ -1,0 +1,176 @@
+name: Apollyon installed training bus isolation qualification v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py"
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+      - "ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
+      - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
+      - "scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md"
+      - ".github/workflows/apollyon-installed-training-bus-isolation-qualification-v2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py"
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+      - "ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
+      - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+      - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
+      - "scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md"
+      - ".github/workflows/apollyon-installed-training-bus-isolation-qualification-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind additive V2 scope and V1 dependency
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          v1_blob=1fdb495aafa136119d50f41410b015930d9fc90d
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py)" = "$v1_blob"
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
+            6d4068bdf4486def8af4ef31d1a5bf94e6523c6e
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
+            79d39dd7f1d3c8f1c510e46a5f1f8da9e31ec9e3
+          test "$(git rev-parse HEAD:docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md)" = \
+            e5f3e38541cac887890cff088f55d16cda603be4
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py)" = \
+            2496644ecc13b425c0885d9e38887d845a5824ef
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py)" = \
+            820f7151c0f83280b7457f841cee14c3b0c274b6
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py)" = \
+            e2052cc7d3562c8e18e2a125c729e74b23d39d69
+          test "$(git rev-parse HEAD:tools/apollyon-live-custody-source-session-runner-v2.mjs)" = \
+            8c2c92055ab05c074653cee971e095934b5cb85c
+
+          if [ "$EVENT_NAME" = pull_request ]; then
+            base="$PR_BASE"
+            git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+            expected="$RUNNER_TEMP/expected.txt"
+            actual="$RUNNER_TEMP/actual.txt"
+            printf '%s\n' \
+              '.github/workflows/apollyon-installed-training-bus-isolation-qualification-v2.yml' \
+              'docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md' \
+              'ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py' \
+              'ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py' \
+              'scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py' \
+              | LC_ALL=C sort > "$expected"
+            git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | LC_ALL=C sort > "$actual"
+            test -s "$actual"
+            diff -u "$expected" "$actual"
+          elif [ "$EVENT_NAME" = push ]; then
+            base="$PUSH_BEFORE"
+            test -n "$base"
+            test "$base" != 0000000000000000000000000000000000000000
+            git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+          elif [ "$EVENT_NAME" = workflow_dispatch ]; then
+            base="$(git rev-parse HEAD^)"
+          else
+            echo "unsupported_event=$EVENT_NAME" >&2
+            exit 1
+          fi
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove fail-closed shutdown lifecycle
+        run: |
+          set -euo pipefail
+
+          node --check tools/apollyon-live-custody-source-session-runner-v2.mjs
+
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py",
+              "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py",
+              "scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_APOLLYON_INSTALLED_TRAINING_BUS_ISOLATION_QUALIFICATION_V2_SYNTAX_GREEN")
+          PY
+
+          out="$RUNNER_TEMP/apollyon-training-isolation-shutdown-v2.log"
+          python3 -I -B scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py | tee "$out"
+
+          for marker in \
+            'VOID_APOLLYON_INSTALLED_TRAINING_BUS_ISOLATION_QUALIFICATION_V2_PROOF_GREEN' \
+            'v1_source_blob_bound=true' \
+            'missing_v1_dependency_hold=true' \
+            'authority_receipt_before_service_action=true' \
+            'authority_call_order_executed=true' \
+            'single_systemctl_state_snapshot=true' \
+            'state_change_between_snapshots_rejected=true' \
+            'final_service_state_revalidation=true' \
+            'effective_systemd_unit_properties_bound=true' \
+            'effective_systemd_unit_revalidated_before_start=true' \
+            'effective_systemd_unit_revalidated_before_success=true' \
+            'qualifier_lifecycle_flock_exclusive=true' \
+            'launcher_qualifier_shared_flock_exclusive=true' \
+            'launcher_wraps_unchanged_runner_under_lock=true' \
+            'launcher_lock_inherited_by_node_runner=true' \
+            'replacement_stable_lifecycle_lock_inode=true' \
+            'root_only_lifecycle_lock_inode=true' \
+            'unprivileged_lifecycle_lock_open_rejected=true' \
+            'unit_file_replacement_does_not_split_lock=true' \
+            'runner_abnormal_exit_stop_attested=true' \
+            'runner_interrupt_stop_attested=true' \
+            'runner_positive_nonzero_stop_attested=true' \
+            'launcher_authority_receipt_contents_verified=true' \
+            'launcher_authority_call_order_executed=true' \
+            'launcher_operational_errors_hold=true' \
+            'accepted_runner_blob_unchanged=true' \
+            'legacy_launcher_source_unchanged=true' \
+            'lock_aware_live_launcher_installed_required=true' \
+            'launcher_identity_revalidation_failure_hold=true' \
+            'launcher_validated_after_lifecycle_lock=true' \
+            'launcher_revalidated_before_start=true' \
+            'launcher_revalidated_before_success=true' \
+            'legacy_upgrade_refuses_lock_aware_successor=true' \
+            'shared_training_service_lifecycle_serialized=true' \
+            'unreviewed_systemd_unit_path_rejected=true' \
+            'unreviewed_dependency_entry_rejected=true' \
+            'nonzero_stop_rejected=true' \
+            'active_after_stop_rejected=true' \
+            'old_pid_generation_survival_rejected=true' \
+            'nondead_substate_rejected=true' \
+            'inactive_dead_mainpid_zero_accepted=true' \
+            'reenabled_service_rejected=true' \
+            'v1_observe_live_pid_receipt_unchanged=true' \
+            'training_execution=false' \
+            'attempt_claim=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
