@@ -16,14 +16,14 @@ WORKFLOW_REL = (
     "buy-void-epoch2-dormant-first-entry-protected-installer-"
     "bootstrap-plan-v7.yml"
 )
-EXACT_PARENT = "1d2968fc4a6cfbb3edebbab25a9250826370480a"
+EXACT_PARENT = "594bb9b8bdd3b303c6402afe29ad2715e9217aa3"
 
 TARGET_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-TARGET_BLOB = "ea276889645376bfa16c2dfac6b0e48d81cab42d"
+TARGET_BLOB = "7f218580ea47897290c32b3fe5cb788f16a3ecc1"
 
 PREDECESSOR_REL = (
     "ops/precision/"
@@ -42,7 +42,7 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "a9cee971d3fd088821124b1349179fdd1cb27516"
+QUALIFIER_BLOB = "04c7ca5f0d96dcb60faeae8cf4d712435ad65466"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
@@ -191,6 +191,8 @@ for required in (
     '"protected_state_read_only_required": True',
     '"temporary_git_metadata_write_required": True',
     '"temporary_git_metadata_cleanup_required": True',
+    '"qualification_git_callbacks_neutralized_required": True',
+    '"qualification_git_callbacks_neutralized": True',
     '"filesystem_write": True',
     '"protected_filesystem_mutation": False',
     '"bootstrap_execution": False',
@@ -252,6 +254,16 @@ assert tuple(qualifier.NEW_BOOT) == (
 )
 assert qualifier.NEW_MAN[1] == EXPECTED_MANIFEST_SHA256
 assert qualifier.GREEN_STATE == EXPECTED_GREEN_STATE
+assert qualifier.PLAN_BLOB == "ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78"
+qualifier_source = qualifier_raw.decode("utf-8", "strict")
+for required in (
+    '"qualification_git_callbacks_neutralized": True',
+    '"GIT_CONFIG_KEY_0": "core.fsmonitor"',
+    '"GIT_CONFIG_VALUE_0": "false"',
+    '"GIT_CONFIG_KEY_1": "core.hooksPath"',
+    '"GIT_CONFIG_VALUE_1": "/dev/null"',
+):
+    assert required in qualifier_source, required
 
 # Exercise the actual V7 loader with exact qualifier bytes without touching Git.
 original_repository_blob = module.repository_blob
@@ -345,6 +357,7 @@ assert contract["nonroot_execution_required"] is True
 assert contract["protected_state_read_only_required"] is True
 assert contract["temporary_git_metadata_write_required"] is True
 assert contract["temporary_git_metadata_cleanup_required"] is True
+assert contract["qualification_git_callbacks_neutralized_required"] is True
 assert contract["descriptor_bound_source_execution_required"] is True
 
 required_result = contract["required_result"]
@@ -357,6 +370,7 @@ assert required_result["upgrade_stage_absent_verified"] is True
 assert required_result["temporary_git_metadata_write_required"] is True
 assert required_result["temporary_git_metadata_write_performed"] is True
 assert required_result["temporary_git_metadata_cleanup_completed"] is True
+assert required_result["qualification_git_callbacks_neutralized"] is True
 assert required_result["source_repository_mutation"] is False
 assert required_result["filesystem_write"] is True
 assert required_result["protected_filesystem_mutation"] is False
@@ -395,6 +409,7 @@ assert json.loads(fields["qualification_contract_json"]) == contract
 assert fields["qualification_nonroot_execution_required"] == "true"
 assert fields["qualification_protected_state_read_only_required"] == "true"
 assert fields["qualification_temporary_git_metadata_write_required"] == "true"
+assert fields["qualification_git_callbacks_neutralized_required"] == "true"
 
 # Root planner invocation must fail closed before host observations.
 module.os.geteuid = lambda: 0
@@ -419,6 +434,7 @@ print("qualification_nonroot_execution_required=true")
 print("qualification_protected_state_read_only_required=true")
 print("qualification_temporary_git_metadata_write_required=true")
 print("qualification_temporary_git_metadata_cleanup_required=true")
+print("qualification_git_callbacks_neutralized_required=true")
 print("qualification_bootstrap_self_test_absent=true")
 print("complete_plan_body_content_addressed=true")
 print("structured_bootstrap_argv_only=true")
