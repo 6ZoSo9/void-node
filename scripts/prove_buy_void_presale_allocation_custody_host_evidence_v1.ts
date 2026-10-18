@@ -10,6 +10,8 @@ import {
   PARENT_PLAN_ID,
   testOnlyAssertLivePolicyV1,
   testOnlyAssertSecondControlV1,
+  testOnlyAssertInstallationEvidenceV1,
+  testOnlyAssertObservedFileMatchesV1,
   testOnlyAssertDurabilityContractV1,
 } from "../ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.js";
 
@@ -17,7 +19,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const COLLECTOR_REL =
   "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts";
-const COLLECTOR_BLOB = "1279b6d9a613b856c9fb5520a09019a7b73c25a7";
+const COLLECTOR_BLOB = "6a654b555bd6c2bce35a21dfcbd90e4c22bece75";
 
 const PARENT_PLAN_REL =
   "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
@@ -31,6 +33,11 @@ const PARENT_DOC_BLOB = "4f5d8a5db1cf1b82991962f5bf90a231c96c6f76";
 const PARENT_WORKFLOW_REL =
   ".github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml";
 const PARENT_WORKFLOW_BLOB = "9e7070f89235a3aa401a2c23a5dd3dbafc6a3703";
+
+const INSTALLATION_EVIDENCE_REL =
+  "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs";
+const INSTALLATION_EVIDENCE_BLOB =
+  "c0c86bc1687fc9a3cb9313b5a68029c35c6a9a63";
 
 const DURABILITY_CONTRACT = Object.freeze({
   "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs":
@@ -86,6 +93,7 @@ const parentPlan = JSON.parse(
 pin(PARENT_PROOF_REL, PARENT_PROOF_BLOB);
 pin(PARENT_DOC_REL, PARENT_DOC_BLOB);
 pin(PARENT_WORKFLOW_REL, PARENT_WORKFLOW_BLOB);
+pin(INSTALLATION_EVIDENCE_REL, INSTALLATION_EVIDENCE_BLOB);
 for (const [relative, blob] of Object.entries(PRIMITIVES)) {
   pin(relative, blob);
 }
@@ -113,7 +121,12 @@ assert.equal(
 );
 
 for (const required of [
+  "inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1",
   "inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV1",
+  "assertInstallationEvidence(installationBefore)",
+  "assertInstallationEvidence(installationAfter)",
+  "assertObservedFileMatches(",
+  "installationBefore.qualification_id !== installationAfter.qualification_id",
   "classifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackSecondControlCompositionV1",
   "/var/lib/void-allocation-ledger-v1/witness-live-read-replay-v1",
   "/var/lib/void-allocation-custody-v1/witness-live-read-replay-v1",
@@ -140,7 +153,10 @@ for (const required of [
   "protected_high_water_custody_proven: false",
   "independent_custody_proven: false",
   "filesystem_write_performed: false",
-  "process_execution_performed: false",
+  "process_execution_performed: true",
+  "process_execution_read_only_contract: true",
+  "transitive_storage_identity_helper_execution_required: true",
+  "installation_storage_generation_bound: true",
   "network_contact_performed: false",
   "public_presale_activation: false",
   "funds_movement: false",
@@ -176,6 +192,114 @@ for (const forbidden of [
   "fetch(",
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
+}
+
+const goodInstallation: Record<string, unknown> = {
+  ok: true,
+  status: "LIVE_REPLAY_STORAGE_DOMAINS_QUALIFIED",
+  qualification_id: "voidwlrie1_" + "1".repeat(64),
+  normalized: {
+    high_water_sha256: "sha256:" + "2".repeat(64),
+    journal_file: {},
+    high_water_file: {},
+  },
+  operation_performed: false,
+  storage_domain_classification_green: true,
+  live_storage_observation_proven: true,
+  distinct_local_storage_domains_proven: true,
+  distinct_parent_block_devices_proven: true,
+  canonical_journal_high_water_binding_proven: true,
+  no_pending_publication_intent_observed: true,
+  double_census_stability_proven: true,
+  live_durable_storage_proven: false,
+  rollback_resistance_proven: false,
+  protected_high_water_custody_proven: false,
+  independent_custody_proven: false,
+  runtime_integration: false,
+  production_gate_ready: false,
+  funds_movement: false,
+};
+testOnlyAssertInstallationEvidenceV1(goodInstallation);
+
+for (const [key, value] of [
+  ["storage_domain_classification_green", false],
+  ["live_storage_observation_proven", false],
+  ["distinct_local_storage_domains_proven", false],
+  ["distinct_parent_block_devices_proven", false],
+  ["canonical_journal_high_water_binding_proven", false],
+  ["no_pending_publication_intent_observed", false],
+  ["double_census_stability_proven", false],
+  ["live_durable_storage_proven", true],
+  ["rollback_resistance_proven", true],
+  ["protected_high_water_custody_proven", true],
+  ["independent_custody_proven", true],
+  ["runtime_integration", true],
+  ["production_gate_ready", true],
+  ["funds_movement", true],
+] as const) {
+  assert.throws(
+    () =>
+      testOnlyAssertInstallationEvidenceV1({
+        ...goodInstallation,
+        [key]: value,
+      }),
+    /allocation_custody_installation_evidence_hold/u,
+    "installation_evidence_boundary_not_rejected:" + key,
+  );
+}
+
+const stableObserved = {
+  path: "/tmp/current.json",
+  bytes: Buffer.from("{}\n", "utf8"),
+  sha256:
+    "sha256:" +
+    crypto.createHash("sha256").update(Buffer.from("{}\n", "utf8")).digest("hex"),
+  dev: 2050,
+  ino: 12345,
+  uid: 0,
+  gid: 0,
+  mode: 0o600,
+  nlink: 1,
+  size: 3,
+  mtime_ms: 1,
+  ctime_ms: 1,
+};
+const normalizedObserved = {
+  path: stableObserved.path,
+  dev: String(stableObserved.dev),
+  ino: String(stableObserved.ino),
+  sha256: stableObserved.sha256,
+  bytes: stableObserved.size,
+  uid: stableObserved.uid,
+  gid: stableObserved.gid,
+  mode: stableObserved.mode,
+  nlink: stableObserved.nlink,
+  regular_file: true,
+  symlink: false,
+};
+testOnlyAssertObservedFileMatchesV1(
+  stableObserved,
+  normalizedObserved,
+  stableObserved.path,
+);
+for (const [key, value] of [
+  ["dev", "9999"],
+  ["ino", "9999"],
+  ["sha256", "sha256:" + "0".repeat(64)],
+  ["bytes", 4],
+  ["mode", 0o644],
+  ["nlink", 2],
+] as const) {
+  assert.throws(
+    () =>
+      testOnlyAssertObservedFileMatchesV1(
+        stableObserved,
+        { ...normalizedObserved, [key]: value },
+        stableObserved.path,
+      ),
+    /allocation_custody_test_file_generation_mismatch/u,
+    "file_generation_mismatch_not_rejected:" + key,
+  );
 }
 
 const goodPolicy: Record<string, unknown> = {
@@ -338,15 +462,21 @@ console.log("three_reviewed_custody_primitives_bound=true");
 console.log("durability_rollback_contract_bound=true");
 console.log("reviewed_source_generation_binding_required=true");
 console.log("live_policy_observer_required=true");
+console.log("canonical_installation_observer_bound=true");
+console.log("installation_storage_generation_bound=true");
 console.log("reviewed_second_control_composition_required=true");
 console.log("fixed_precision_replay_roots_bound=true");
 console.log("descriptor_nofollow_reads_required=true");
 console.log("live_policy_boundary_downgrades_rejected=true");
+console.log("installation_evidence_boundary_downgrades_rejected=true");
+console.log("storage_file_generation_mismatches_rejected=true");
 console.log("second_control_boundary_downgrades_rejected=true");
 console.log("durability_contract_boundary_downgrades_rejected=true");
 console.log("controlled_live_challenge_required=true");
 console.log("filesystem_write_performed=false");
-console.log("process_execution_performed=false");
+console.log("collector_direct_process_execution_absent=true");
+console.log("transitive_storage_identity_helper_execution_required=true");
+console.log("process_execution_read_only_contract=true");
 console.log("network_contact_performed=false");
 console.log("live_policy_enforcement_proven=false");
 console.log("live_rollback_test_performed=false");
