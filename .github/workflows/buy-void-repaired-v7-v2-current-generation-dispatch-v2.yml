@@ -1,0 +1,135 @@
+name: Buy VOID repaired V7 V2 current-generation dispatch v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-repaired-v7-v2-current-generation-dispatch-v2.yml"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v2.mjs"
+      - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REVIEWED_BASE: d3e7404791622541a4567ddd506f27caba60cfea
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact V2 scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$REVIEWED_BASE" "$EXPECTED_HEAD"
+          test "$(git rev-parse "$REVIEWED_BASE:src/economic")" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-repaired-v7-v2-current-generation-dispatch-v2.yml' \
+            'docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md' \
+            'scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$REVIEWED_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs)" = 35b8b878ba30cfa7567578ab05424d4f827f3220
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md)" = f7d2ba9a7653b208fdf404ba7f279b3a03b47bdc
+          git diff --check "$REVIEWED_BASE" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build exact current generation
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Verify self-contained current generation
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
+          receipt="$RUNNER_TEMP/current-generation-v2-node-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --receipt > "$receipt"
+          node --input-type=module - "$receipt" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const r=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(r.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(r.current_economic_tree_identity_preserved,true);
+          assert.equal(r.protected_path_count,49);
+          assert.equal(r.protected_path_identity_preserved,true);
+          assert.equal(r.frozen_candidate_rederived_on_current_head,false);
+          assert.equal(r.current_built_census_identity_matches_frozen_v4,true);
+          assert.equal(r.provider_source_identity_preserved,true);
+          assert.equal(r.provider_built_artifact_identity_preserved,true);
+          assert.equal(r.historical_commit_objects_required,false);
+          assert.equal(r.current_generation_integration_verified,true);
+          assert.equal(r.source_freeze_accepted,false);
+          assert.equal(r.customer_payment_acceptance,false);
+          assert.equal(r.public_presale_activation,false);
+          assert.equal(r.wc_void_market_activation,false);
+          assert.equal(r.signing,false);
+          assert.equal(r.transaction,false);
+          assert.equal(r.funds_movement,false);
+          NODE
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-current-generation-dispatch-v2-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/current-generation-v2-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-current-generation-dispatch-v2-node-*
+          merge-multiple: true
+          path: evidence
+      - name: Require Node 22 24 26 byte identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "evidence/current-generation-v2-node-$node.json"
+          done
+          cmp evidence/current-generation-v2-node-22.json evidence/current-generation-v2-node-24.json
+          cmp evidence/current-generation-v2-node-22.json evidence/current-generation-v2-node-26.json
+          echo VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2_CROSS_NODE_GREEN
+          echo historical_commit_objects_required=false
+          echo source_freeze_accepted=false
+          echo public_presale_activation=false
+          echo funds_movement=false
