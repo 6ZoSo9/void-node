@@ -11,7 +11,7 @@ TARGET_REL = (
     "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "0aede98a070309ca9052badcea28923c44219536"
+TARGET_BLOB = "4b1085d1b957d47285d983a35443aab69b581015"
 
 EXPECTED_PARENT_HEAD = "2aec1d7a30e9c6b20b7d1cf0831f34c240674727"
 EXPECTED_CANDIDATE_ID = (
@@ -230,6 +230,38 @@ fresh_after_alias_attack = module.derive_lock()
 assert fresh_after_alias_attack["authority"]["protected_install_authorized"] is False
 module.validate_lock(fresh_after_alias_attack)
 
+aliased_build_attack = module.derive_lock()
+assert (
+    aliased_build_attack["parent_candidate"]["accepted_build_evidence"]
+    is not module.EXPECTED_PARENT_BUILD_EVIDENCE
+)
+aliased_build_attack["parent_candidate"]["accepted_build_evidence"]["gcc"][
+    "sha256"
+] = "0" * 64
+expect_rejected(
+    readdress(aliased_build_attack),
+    "candidate_lock_parent_identity_invalid",
+)
+assert (
+    module.EXPECTED_PARENT_BUILD_EVIDENCE["gcc"]["sha256"]
+    == EXPECTED_GCC_SHA256
+)
+fresh_after_build_alias_attack = module.derive_lock()
+assert (
+    fresh_after_build_alias_attack["parent_candidate"]["accepted_build_evidence"][
+        "gcc"
+    ]["sha256"]
+    == EXPECTED_GCC_SHA256
+)
+module.validate_lock(fresh_after_build_alias_attack)
+
+boolean_version = json.loads(json.dumps(lock))
+boolean_version["version"] = True
+expect_rejected(
+    readdress(boolean_version),
+    "candidate_lock_identity_invalid",
+)
+
 install_overclaim = json.loads(json.dumps(lock))
 install_overclaim["authority"]["protected_install_authorized"] = True
 expect_rejected(
@@ -296,6 +328,9 @@ for required in (
     'def expected_authority() -> dict[str, bool]:',
     '"authority": expected_authority(),',
     'lock.get("authority") != expected_authority()',
+    'def expected_parent_build_evidence() -> dict[str, Any]:',
+    '"accepted_build_evidence": expected_parent_build_evidence(),',
+    'type(version) is not int',
 ):
     assert required in source, required
 
@@ -343,6 +378,9 @@ print("readdressed_binary_drift_rejected=true")
 print("readdressed_binary_extra_key_rejected=true")
 print("derived_authority_alias_attack_rejected=true")
 print("authority_oracle_isolated=true")
+print("build_evidence_alias_attack_rejected=true")
+print("build_evidence_oracle_isolated=true")
+print("boolean_version_rejected=true")
 print("readdressed_install_overclaim_rejected=true")
 print("readdressed_rederivation_overclaim_rejected=true")
 print("readdressed_mutable_toolchain_overclaim_rejected=true")
