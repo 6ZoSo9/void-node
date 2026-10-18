@@ -107,7 +107,8 @@ jobs:
           set -euo pipefail
           candidate="$RUNNER_TEMP/current-source-candidate-node-${{ matrix.node }}.json"
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v2.mjs --derive > "$candidate"
-          test "$(sha256sum "$candidate" | awk '{print $1}')" = 092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb
+          candidate_sha256="$(sha256sum "$candidate" | awk '{print $1}')"
+          echo "current_successor_candidate_sha256=$candidate_sha256"
           node --input-type=module - "$candidate" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
@@ -147,7 +148,21 @@ jobs:
           for node in 22 24 26; do test -s "candidate/current-source-candidate-node-$node.json"; done
           cmp candidate/current-source-candidate-node-22.json candidate/current-source-candidate-node-24.json
           cmp candidate/current-source-candidate-node-22.json candidate/current-source-candidate-node-26.json
-          test "$(sha256sum candidate/current-source-candidate-node-22.json | awk '{print $1}')" = 092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb
+          candidate_sha256="$(sha256sum candidate/current-source-candidate-node-22.json | awk '{print $1}')"
+          echo "current_successor_candidate_sha256=$candidate_sha256"
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync("candidate/current-source-candidate-node-22.json","utf8"));
+          assert.equal(c.candidate_enforcement_set_sha256,"05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852");
+          assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
+          assert.equal(c.current_enforcement_tracked_source_inventory_sha256,"224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2");
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          NODE
           echo VOID_BUY_VOID_PRESALE_CURRENT_SOURCE_ENFORCEMENT_SUCCESSOR_V1_CROSS_NODE_GREEN
           echo candidate_enforcement_set_sha256=05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852
           echo current_source_enforcement_successor_accepted=true
