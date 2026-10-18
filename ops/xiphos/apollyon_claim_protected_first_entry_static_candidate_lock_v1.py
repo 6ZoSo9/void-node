@@ -290,6 +290,26 @@ def lock_material(lock: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def exact_typed_equal(observed: object, expected: object) -> bool:
+    if type(observed) is not type(expected):
+        return False
+    if isinstance(expected, dict):
+        if set(observed) != set(expected):  # type: ignore[arg-type]
+            return False
+        return all(
+            exact_typed_equal(observed[key], value)  # type: ignore[index]
+            for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        if len(observed) != len(expected):  # type: ignore[arg-type]
+            return False
+        return all(
+            exact_typed_equal(actual, wanted)
+            for actual, wanted in zip(observed, expected, strict=True)  # type: ignore[arg-type]
+        )
+    return observed == expected
+
+
 def validate_lock(lock: dict[str, Any]) -> None:
     expected_keys = {
         "marker",
@@ -321,7 +341,9 @@ def validate_lock(lock: dict[str, Any]) -> None:
     if lock.get("repository") != repository_lineage():
         hold("candidate_lock_repository_invalid")
 
-    if lock.get("parent_candidate") != accepted_parent_evidence():
+    observed_parent = lock.get("parent_candidate")
+    expected_parent = accepted_parent_evidence()
+    if not exact_typed_equal(observed_parent, expected_parent):
         hold("candidate_lock_parent_identity_invalid")
 
     observed_binary = lock.get("binary")
@@ -352,7 +374,7 @@ def validate_lock(lock: dict[str, Any]) -> None:
         "elf_machine_x86_64": True,
         "production_fixed_self_embedded": True,
     }
-    if observed_binary != expected_binary:
+    if not exact_typed_equal(observed_binary, expected_binary):
         hold("candidate_lock_binary_identity_invalid")
 
     observed_authority = lock.get("authority")
