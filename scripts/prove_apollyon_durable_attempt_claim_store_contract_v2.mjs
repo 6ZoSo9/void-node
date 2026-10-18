@@ -44,13 +44,13 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
-    "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
+    "974a383f4904b6b223a2143d5f7a19322f3d1f66",
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
-    "981935515e08634be96446e58922c16be56d33ad",
+    "5ee36c89275c29b008094ad030b8664ed9d7b60b",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
+    "bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
@@ -62,7 +62,7 @@ function terminalReceipt(){
     status:"live_source_session_terminal_shutdown_qualified_unclaimed",
     target_host:"Xiphos",
     runner_v2_blob_sha1:"8c2c92055ab05c074653cee971e095934b5cb85c",
-    binding_v2_blob_sha1:"981935515e08634be96446e58922c16be56d33ad",
+    binding_v2_blob_sha1:"5ee36c89275c29b008094ad030b8664ed9d7b60b",
     live_binding_id:"apollyon_live_binding_v2:"+"1".repeat(64),
     claim_contract_id:"apollyon_claim_contract_v2:"+"2".repeat(64),
     preclaim_id:"apollyon_preclaim_v2:"+"3".repeat(64),
