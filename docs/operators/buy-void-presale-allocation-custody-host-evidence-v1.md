@@ -32,6 +32,20 @@ The collector is bound to the exact #3507 primitives:
   `src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts`
   at `97180cc03e3f1b2f9935191ac6aafe4b15307708`.
 
+## Durability / rollback contract
+
+The collector also binds #3513's machine-readable challenge contract:
+
+- contract blob `eef7c4e1db7401ba82fda96aa1e8da40c1981b7d`;
+- proof blob `7ced5fb56a22cd546aab30c466021b01b1c6a84d`;
+- operator doc blob `3954439eb39015baaf598c8e36a23865e0555e8f`;
+- workflow blob `9fccecd0701499b774585b0b8e3c80e1005f273f`.
+
+That contract explicitly requires
+`reviewed_source_generation_binding_required=true` in addition to current
+rollback-policy binding. Read-only evidence cannot satisfy the future
+durability/rollback challenge by itself.
+
 The parent plan/proof/doc/workflow are pinned independently.
 
 ## Fixed Precision storage identity
@@ -103,7 +117,7 @@ service mutation is performed by this collector.
 
 A successful host collection returns:
 
-`ALLOCATION_CUSTODY_POLICY_AND_SECOND_CONTROL_EVIDENCE_GREEN_LIVE_ROLLBACK_ENFORCEMENT_REQUIRED`.
+`ALLOCATION_CUSTODY_PREREQUISITES_GREEN_CONTROLLED_CHALLENGE_REQUIRED`.
 
 It proves:
 
@@ -119,7 +133,16 @@ live_remote_append_performed=true
 external_second_control_domain_qualified=true
 external_second_control_policy_binding_proven=true
 post_cycle_live_policy_observation_bound=true
+source_contract_ready=true
+reviewed_prerequisites_bound=true
+read_only_collection_sufficient=false
+controlled_live_challenge_required=true
+reviewed_source_generation_binding_required=true
 ```
+
+The next action remains exactly:
+
+`SEPARATELY_AUTHORIZE_NONCUSTOMER_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_V1`.
 
 It deliberately keeps:
 
