@@ -13,13 +13,17 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py"
-TARGET_BLOB = "21ec67f62c3c303e2362a836602c9a7cfd1af136"
+TARGET_BLOB = "f8ab3942bf0ddea62a7a6711fee9c1af843134d0"
 CENSUS_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py"
-CENSUS_BLOB = "266fe91ee8563efff6116be7f890f19340a0de4c"
+CENSUS_BLOB = "d8ea2966d81e43c273d3692f5778143259431f08"
 CENSUS_PROOF_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py"
-CENSUS_PROOF_BLOB = "9a8446a3d1f02d94277606c2858ec7abd30b3b94"
+CENSUS_PROOF_BLOB = "9dd55390b75bb6c6075efb053b0491b23a52fe60"
+CENSUS_DOC_REL = "docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md"
+CENSUS_DOC_BLOB = "1e7927cfcace8e5823985bff88bb13a9db6c87cc"
+CENSUS_WORKFLOW_REL = ".github/workflows/buy-void-precision-source-freeze-host-metadata-census-v3.yml"
+CENSUS_WORKFLOW_BLOB = "20106d90410490dc4e82055c871f90654cd5d0b0"
 ACCEPTANCE_REL = "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
-ACCEPTANCE_BLOB = "5d437a37703a83908a7fa78b78da92151aa1aa99"
+ACCEPTANCE_BLOB = "174d536807f03fd7b6ff44820d4e378c7055150e"
 SUCCESSOR_REL = "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
 SUCCESSOR_BLOB = "774db38ccb771f393b44d589a455144b99d36f6b"
 FREEZE_REL = "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
@@ -44,6 +48,8 @@ def pin(relative: str, expected: str) -> bytes:
 source = pin(TARGET_REL, TARGET_BLOB).decode("utf-8", "strict")
 pin(CENSUS_REL, CENSUS_BLOB)
 pin(CENSUS_PROOF_REL, CENSUS_PROOF_BLOB)
+pin(CENSUS_DOC_REL, CENSUS_DOC_BLOB)
+pin(CENSUS_WORKFLOW_REL, CENSUS_WORKFLOW_BLOB)
 pin(ACCEPTANCE_REL, ACCEPTANCE_BLOB)
 pin(SUCCESSOR_REL, SUCCESSOR_BLOB)
 pin(FREEZE_REL, FREEZE_BLOB)
@@ -124,6 +130,8 @@ spec.loader.exec_module(module)
 
 assert module.CENSUS_SOURCE_BLOB == CENSUS_BLOB
 assert module.CENSUS_PROOF_BLOB == CENSUS_PROOF_BLOB
+assert module.CENSUS_DOC_BLOB == CENSUS_DOC_BLOB
+assert module.CENSUS_WORKFLOW_BLOB == CENSUS_WORKFLOW_BLOB
 assert module.ACCEPTANCE_BLOB == ACCEPTANCE_BLOB
 assert module.SUCCESSOR_BLOB == SUCCESSOR_BLOB
 assert module.FREEZE_BLOB == FREEZE_BLOB
