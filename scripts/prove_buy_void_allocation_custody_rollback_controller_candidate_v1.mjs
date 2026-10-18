@@ -1,0 +1,232 @@
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import {
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_AUTHORITY_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_CANDIDATE_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_PLAN_ID_V1,
+  buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV1,
+  executeBuyVoidAllocationCustodyRollbackControllerCandidateV1,
+} from "../tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
+
+const ROOT=new URL("../",import.meta.url);
+const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
+const SOURCE_BLOB="2203ed6ba632595f311bc7302badd85944202ce1";
+const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json";
+const PLAN_BLOB="5face2022dc2cbc573e32e99f88623f381a8a174";
+const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
+const CONTRACT_BLOB="eef7c4e1db7401ba82fda96aa1e8da40c1981b7d";
+
+function gitBlob(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+bytes.length+"\0","utf8"))
+    .update(bytes).digest("hex");
+}
+function pin(relative,expected){
+  const bytes=fs.readFileSync(new URL(relative,ROOT));
+  assert.equal(gitBlob(bytes),expected,relative);
+  return bytes;
+}
+pin(SOURCE_REL,SOURCE_BLOB);
+const plan=JSON.parse(pin(PLAN_REL,PLAN_BLOB).toString("utf8"));
+pin(CONTRACT_REL,CONTRACT_BLOB);
+assert.equal(plan.plan_id,VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_PLAN_ID_V1);
+assert.equal(plan.plan_id,"voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006");
+assert.equal(Object.keys(plan.durability_contract.required_future_evidence).length,20);
+assert.equal(plan.durability_contract.required_future_evidence.reviewed_rollback_controller_required,true);
+for(const value of Object.values(plan.authority)) assert.equal(value,false);
+
+for(const [key,value] of Object.entries(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_AUTHORITY_V1
+)){
+  if(key==="source_only_candidate"||key==="injected_capabilities_required"||
+     key==="protected_host_adapter_required") assert.equal(value,true,key);
+  else assert.equal(value,false,key);
+}
+
+const source=pin(SOURCE_REL,SOURCE_BLOB).toString("utf8");
+for(const forbidden of [
+  'from "node:fs"','from "node:child_process"','from "node:net"',
+  'from "node:http"','from "node:https"','/var/lib/','/opt/','/proc/',
+  'spawn(','spawnSync(','execFile(','systemctl','sudo ',
+]){
+  assert.equal(source.includes(forbidden),false,forbidden);
+}
+
+const sha=(x)=>"sha256:"+crypto.createHash("sha256").update(String(x)).digest("hex");
+const storage=(x)=>"storage:"+x;
+const op="voidbuycustodychallengeop1_"+"1".repeat(64);
+const authBody={
+  marker:"VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_AUTHORIZATION_V1",
+  version:1,
+  plan_id:"voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006",
+  operation_id:op,
+  non_customer_canary:true,
+  allocation_ledger_unchanged_required:true,
+  customer_request_state_unchanged_required:true,
+  reviewed_source_tree:"71c67e62a2b21a98f3f5135ee6aa56e0ef97d262",
+  exact_current_policy_bound:true,
+};
+const authorization={
+  ...authBody,
+  authorization_id:buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV1(authBody),
+};
+
+function makeHarness(mutator=()=>{}){
+  const order=[];
+  const before={
+    host_id:"precision-fixture",
+    journal_sequence:7,
+    journal_tip_sha256:sha("journal-before"),
+    high_water_sequence:7,
+    high_water_sha256:sha("high-before"),
+    external_witness_sequence:11,
+    external_witness_tip_sha256:sha("witness-before"),
+    journal_storage_id:storage("journal-disk-A"),
+    high_water_storage_id:storage("high-water-disk-B"),
+    policy_fingerprint_sha256:sha("policy"),
+    policy_generation:"9",
+    allocation_ledger_sha256:sha("ledger"),
+    customer_request_state_sha256:sha("requests"),
+    reviewed_source_tree:"71c67e62a2b21a98f3f5135ee6aa56e0ef97d262",
+  };
+  let challenge="";
+  const state={before};
+  const caps={
+    generate_challenge_entropy(){order.push("entropy");return Buffer.alloc(32,0x5a);},
+    observe_before({challenge_id}){order.push("before");challenge=challenge_id;return before;},
+    append_journal_canary({challenge_id}){
+      order.push("append");
+      assert.equal(challenge_id,challenge);
+      state.append={challenge_id,journal_sequence:8,journal_tip_sha256:sha("journal-canary"),event_sha256:sha("event")};
+      return state.append;
+    },
+    advance_high_water({challenge_id}){
+      order.push("high");
+      state.high={challenge_id,high_water_sequence:8,high_water_sha256:sha("high-after")};
+      return state.high;
+    },
+    sync_close_reopen(){order.push("reopen");return {...before,
+      journal_sequence:8,journal_tip_sha256:state.append.journal_tip_sha256,
+      high_water_sequence:8,high_water_sha256:state.high.high_water_sha256};},
+    append_external_witness({challenge_id}){
+      order.push("witness");
+      state.witness={challenge_id,external_witness_sequence:12,
+        external_witness_tip_sha256:sha("witness-after"),
+        source_journal_tip_sha256:state.append.journal_tip_sha256,
+        source_high_water_sha256:state.high.high_water_sha256};
+      return state.witness;
+    },
+    obtain_second_control_approval({challenge_id}){
+      order.push("second");
+      return {approved:true,approval_id:"voidbuycustodysecondcontrol1_"+"2".repeat(64),
+        challenge_id,rollback_target_journal_tip_sha256:before.journal_tip_sha256,
+        protected_high_water_sha256:state.high.high_water_sha256};
+    },
+    attempt_controlled_journal_rollback({challenge_id}){
+      order.push("rollback");
+      return {attempted:true,challenge_id,controller_id:"void.replay.journal.rollback.controller.v1",
+        journal_target_sha256:before.journal_tip_sha256,
+        protected_high_water_sha256:state.high.high_water_sha256,high_water_mutated:false};
+    },
+    observe_after_rollback(){order.push("after");return {...before,
+      high_water_sequence:8,high_water_sha256:state.high.high_water_sha256,
+      external_witness_sequence:12,external_witness_tip_sha256:state.witness.external_witness_tip_sha256};},
+    attempt_stale_journal_replay({challenge_id}){order.push("stale");
+      return {attempted:true,challenge_id,refused:true,reason:"high_water_ahead_of_journal"};},
+    reobserve_storage_and_policy(){order.push("terminal");return {...before,
+      high_water_sequence:8,high_water_sha256:state.high.high_water_sha256,
+      external_witness_sequence:12,external_witness_tip_sha256:state.witness.external_witness_tip_sha256};},
+    authenticate_evidence_origin({challenge_id,operation_id}){order.push("origin");
+      return {authenticated:true,challenge_id,operation_id,
+        origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),
+        evidence_sha256:sha("evidence")};},
+  };
+  mutator(caps,state,before);
+  return {caps,order};
+}
+
+const expectedOrder=["entropy","before","append","high","reopen","witness","second","rollback","after","stale","terminal","origin"];
+{
+  const h=makeHarness();
+  const result=executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:h.caps,
+  });
+  assert.equal(result.marker,VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_CANDIDATE_V1);
+  assert.equal(result.status,"controller_candidate_sequence_green_host_adapter_required");
+  assert.deepEqual(h.order,expectedOrder);
+  assert.equal(result.non_customer_canary_verified,true);
+  assert.equal(result.protected_high_water_non_decrease_verified,true);
+  assert.equal(result.stale_journal_refusal_verified,true);
+  assert.equal(result.allocation_ledger_unchanged_verified,true);
+  assert.equal(result.customer_request_state_unchanged_verified,true);
+  assert.equal(result.evidence_origin_authenticated,true);
+  for(const key of [
+    "live_durable_storage_proven","rollback_resistance_proven",
+    "protected_high_water_custody_proven","independent_custody_proven",
+    "production_gate_ready","host_execution_authorized","filesystem_write_authorized",
+    "storage_mutation_authorized","rollback_test_authorized","payment_acceptance_authorized",
+    "public_presale_activation_authorized","wc_void_market_activation_authorized",
+    "funds_movement","production_host_evidence_authority",
+  ]) assert.equal(result[key],false,key);
+}
+
+function mustFail(label,mutator,pattern){
+  const h=makeHarness(mutator);
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:h.caps,
+  }),pattern,label);
+}
+mustFail("bad entropy",(c)=>{c.generate_challenge_entropy=()=>Buffer.alloc(31);},/challenge_entropy_invalid/);
+mustFail("async capability",(c)=>{c.observe_before=async()=>({});},/observe_before_async_forbidden/);
+mustFail("high water mutation",(c,s,b)=>{c.attempt_controlled_journal_rollback=({challenge_id})=>({
+  attempted:true,challenge_id,controller_id:"void.replay.journal.rollback.controller.v1",
+  journal_target_sha256:b.journal_tip_sha256,protected_high_water_sha256:s.high.high_water_sha256,
+  high_water_mutated:true,
+});},/controlled_rollback_result_invalid/);
+mustFail("high water decrease",(c,s,b)=>{c.observe_after_rollback=()=>({...b,
+  high_water_sequence:7,high_water_sha256:b.high_water_sha256,
+  external_witness_sequence:12,external_witness_tip_sha256:s.witness.external_witness_tip_sha256,
+});},/protected_high_water_decreased/);
+mustFail("stale replay accepted",(c)=>{c.attempt_stale_journal_replay=({challenge_id})=>({
+  attempted:true,challenge_id,refused:false,reason:"accepted",
+});},/stale_journal_not_refused/);
+mustFail("ledger drift",(c,s,b)=>{c.reobserve_storage_and_policy=()=>({...b,
+  high_water_sequence:8,high_water_sha256:s.high.high_water_sha256,
+  external_witness_sequence:12,external_witness_tip_sha256:s.witness.external_witness_tip_sha256,
+  allocation_ledger_sha256:sha("changed-ledger"),
+});},/terminal_binding_drift:allocation_ledger_sha256/);
+mustFail("collapsed storage",(c,s,b)=>{c.observe_before=()=>({...b,high_water_storage_id:b.journal_storage_id});},
+  /before_storage_domains_not_distinct/);
+mustFail("origin unauthenticated",(c)=>{c.authenticate_evidence_origin=({challenge_id,operation_id})=>({
+  authenticated:false,challenge_id,operation_id,
+  origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),evidence_sha256:sha("evidence"),
+});},/evidence_origin_not_authenticated/);
+
+const wrong={...authorization,plan_id:"voidbuycustodychallengeplan1_"+"0".repeat(64)};
+assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+  authorization:wrong,capabilities:makeHarness().caps,
+}),/authorization_plan_invalid/);
+
+console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_CANDIDATE_V1_PROOF_GREEN");
+console.log("plan_id=voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006");
+console.log("challenge_requirement_count=20");
+console.log("deterministic_controller_sequence=true");
+console.log("operation_bound_authorization_required=true");
+console.log("challenge_entropy_generated_inside_controller=true");
+console.log("second_control_precedes_rollback=true");
+console.log("protected_high_water_non_decrease_required=true");
+console.log("stale_journal_refusal_required=true");
+console.log("allocation_ledger_unchanged_required=true");
+console.log("customer_request_state_unchanged_required=true");
+console.log("evidence_origin_authentication_required=true");
+console.log("direct_host_filesystem_api_present=false");
+console.log("direct_process_api_present=false");
+console.log("direct_network_api_present=false");
+console.log("protected_host_adapter_required=true");
+console.log("host_execution_authorized=false");
+console.log("storage_mutation_authorized=false");
+console.log("rollback_test_authorized=false");
+console.log("payment_acceptance_authorized=false");
+console.log("public_presale_activation_authorized=false");
+console.log("funds_movement=false");

@@ -1,0 +1,91 @@
+name: Buy VOID allocation-custody rollback controller candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-rollback-controller-candidate-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact source-only generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          STACK_PARENT=28ff80a88dc766994a92c941d1e41fe5e38bedaa
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            'tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs' \
+            'scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs' \
+            'docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md' \
+            '.github/workflows/buy-void-allocation-custody-rollback-controller-candidate-v1.yml' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json)" = 5face2022dc2cbc573e32e99f88623f381a8a174
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
+          test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = 2203ed6ba632595f311bc7302badd85944202ce1
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 5ff95450d0b40fd61731ef1f21a31902f28f4981
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = a09a6131c8eed068502d4b4f20f4cc720c930f6a
+          git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove controller candidate
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/controller-node-${{ matrix.node }}.log"
+          node scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_CANDIDATE_V1_PROOF_GREEN' \
+            'plan_id=voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006' \
+            'challenge_requirement_count=20' \
+            'deterministic_controller_sequence=true' \
+            'second_control_precedes_rollback=true' \
+            'protected_high_water_non_decrease_required=true' \
+            'stale_journal_refusal_required=true' \
+            'allocation_ledger_unchanged_required=true' \
+            'customer_request_state_unchanged_required=true' \
+            'evidence_origin_authentication_required=true' \
+            'direct_host_filesystem_api_present=false' \
+            'direct_process_api_present=false' \
+            'direct_network_api_present=false' \
+            'protected_host_adapter_required=true' \
+            'host_execution_authorized=false' \
+            'storage_mutation_authorized=false' \
+            'rollback_test_authorized=false' \
+            'payment_acceptance_authorized=false' \
+            'public_presale_activation_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
