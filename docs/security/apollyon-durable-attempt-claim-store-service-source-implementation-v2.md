@@ -141,9 +141,19 @@ Both slot and claim records use the same bounded publication primitive:
 
 Hard-link publication is used so the final leaf is never directly partially written and no overwrite API is required.
 
-If a crash or cleanup failure leaves a final link with `nlink=2`, retry may remove only the single pending entry whose device/inode exactly equals that final record and whose deterministic pending prefix matches the expected slot/claim digest. Ambiguous or foreign pending state HOLDs.
+If a crash occurs after the private pending file is durable but **before** its
+final hard link is created, retry scans only the deterministic pending prefix
+for that exact slot/claim digest. A stale unlinked pending entry is removable
+only when mode/owner/link-count/size and exact bytes match the requested record.
+Mismatched or excessive stale pending state HOLDs.
 
-A failure after final publication but before durable cleanup is reported as indeterminate, never false success.
+If a crash or cleanup failure leaves a final link with `nlink=2`, retry may
+remove only the single pending entry whose device/inode exactly equals that
+final record and whose deterministic pending prefix matches the expected
+slot/claim digest. Ambiguous or foreign pending state HOLDs.
+
+A failure after final publication but before durable cleanup is reported as
+indeterminate, never false success.
 
 ## Source-only revalidation boundary
 
@@ -168,7 +178,18 @@ The callback receipt is exact-schema and binds:
 
 However, a **caller-supplied callback is not host provenance**. Likewise, a caller-supplied exclusive-transaction wrapper is not proof of system-wide serialization.
 
-These are narrow injectable interfaces so the store algorithm can be deterministically tested before the later native/Xiphos integration binds them to reviewed kernel process/session evidence and a real store-generation serialization primitive.
+These are narrow injectable interfaces so the store algorithm can be
+deterministically tested before the later native/Xiphos integration binds them
+to reviewed kernel process/session evidence and a real store-generation
+serialization primitive.
+
+The exclusive-transaction callback is valid only during the synchronous wrapper
+call. A wrapper that merely captures the transaction function and invokes it
+later is rejected before mutation. The wrapper must also return the exact object
+produced by the transaction function; substituting a copied or forged result
+fails closed. Promise-returning wrappers are not accepted as synchronous
+serialization. These checks narrow the interface but still do not make a
+caller-supplied wrapper host proof.
 
 ## Hosted adversarial proof
 
@@ -184,7 +205,13 @@ The focused proof uses only disposable private temporary roots. It proves:
 - exact replay is idempotent;
 - a different claim for the same authorization is rejected;
 - failure after durable slot / before claim recovers only that same bound claim;
-- failure after claim hard-link / before pending cleanup produces indeterminate state, then exact retry reconciles the nlink-2 generation and succeeds;
+- failure after claim hard-link / before pending cleanup produces indeterminate
+  state, then exact retry reconciles the nlink-2 generation and succeeds;
+- failure after pending fsync / before claim hard-link leaves an unlinked exact
+  pending file, then retry cleans only that exact stale generation and succeeds;
+- a captured transaction callback cannot be invoked after the synchronous
+  wrapper returns;
+- transaction-result substitution is rejected;
 - generation drift introduced by revalidation callback rejects before mutation;
 - orphan claim without slot rejects;
 - asynchronous revalidation and asynchronous transaction wrappers reject before mutation.
