@@ -396,7 +396,8 @@ added. Object/ref trees are bounded to 50,000 entries and grant file access per
 inode, not to whole subtrees. Symlink, hardlink, special-file, shared gitfile, or
 unsupported metadata layouts HOLD. Outside includes and alternate object stores
 cannot escape the enforced policy; newly replaced metadata inodes are denied.
-All handled filesystem write rights remain ungranted. Landlock does not restrict
+Only the `/dev/null` discard device may be opened read/write; persistent paths
+receive no write rights. Landlock does not restrict
 every metadata syscall, so this is a file-content read boundary, not a general
 claim that every possible filesystem operation is sandboxed.
 

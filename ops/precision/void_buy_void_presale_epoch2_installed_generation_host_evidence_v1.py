@@ -223,7 +223,8 @@ def enter():
     allow_file("/usr/bin/python3", 1 | 4, trusted=True)
     allow_file("/etc/ld.so.cache", optional=True, trusted=True)
     allow_file("/proc/self/status", trusted=True)
-    allow_fd(open_path("/dev/null"), 4)
+    # Git opens this discard device O_RDWR even for read-only queries.
+    allow_fd(open_path("/dev/null"), 2 | 4)
     if libc.prctl(38, 1, 0, 0, 0) != 0:
         raise RuntimeError("no_new_privs")
     if libc.syscall(446, rules_fd, 0) != 0:
