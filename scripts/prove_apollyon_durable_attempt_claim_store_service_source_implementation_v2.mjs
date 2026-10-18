@@ -46,6 +46,26 @@ const PINNED=Object.freeze({
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
 });
 
+const WORKFLOW_REL=
+  ".github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml";
+const EXPECTED_TRIGGER_PATHS=Object.freeze([
+  WORKFLOW_REL,
+  "docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md",
+  TARGET_REL,
+  "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs",
+  "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs",
+  "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs",
+  "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs",
+  "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs",
+  "tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs",
+  "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs",
+  "tools/apollyon-live-source-session-terminal-receipt-v2.mjs",
+  "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
+  "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c",
+  "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs",
+]);
+
 const SESSION_ID="apollyon_claim_source_session_v2:"+"e".repeat(64);
 const uid=process.getuid();
 const gid=process.getgid();
@@ -191,6 +211,34 @@ for(const [relative,expected] of Object.entries(PINNED)){
   const file=path.join(ROOT,relative);
   assert.equal(gitBlob(fs.readFileSync(file)),expected,relative);
 }
+
+const workflow=fs.readFileSync(path.join(ROOT,WORKFLOW_REL),"utf8");
+function eventTriggerPaths(eventName,nextEventName){
+  const lines=workflow.split("\n");
+  const start=lines.indexOf("  "+eventName+":");
+  const end=lines.indexOf("  "+nextEventName+":",start+1);
+  assert.notEqual(start,-1,eventName+" marker");
+  assert.notEqual(end,-1,nextEventName+" marker");
+  const section=lines.slice(start+1,end);
+  const pathsIndex=section.indexOf("    paths:");
+  assert.notEqual(pathsIndex,-1,eventName+" paths");
+  const values=[];
+  for(let index=pathsIndex+1;index<section.length;index++){
+    const line=section[index];
+    const match=/^      - "([^"]+)"$/u.exec(line);
+    if(match){values.push(match[1]);continue;}
+    if(/^\s*$/u.test(line))continue;
+    if(!line.startsWith("      "))break;
+    assert.fail(eventName+" malformed path entry: "+line);
+  }
+  assert.equal(values.length,new Set(values).size,eventName+" duplicate path");
+  return values;
+}
+const pullPaths=eventTriggerPaths("pull_request","push");
+const pushPaths=eventTriggerPaths("push","workflow_dispatch");
+assert.deepEqual([...pullPaths].sort(),[...EXPECTED_TRIGGER_PATHS].sort());
+assert.deepEqual([...pushPaths].sort(),[...EXPECTED_TRIGGER_PATHS].sort());
+assert.deepEqual([...pullPaths].sort(),[...pushPaths].sort());
 
 const targetSource=fs.readFileSync(path.join(ROOT,TARGET_REL),"utf8");
 for(const required of [
@@ -619,6 +667,8 @@ console.log(
   "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_V2_PROOF_GREEN"
 );
 console.log("exact_source_and_parent_blobs_pinned=true");
+console.log("pr_push_trigger_closure_exact=true");
+console.log("pr_push_trigger_parity=true");
 console.log("fixed_physical_namespace_defined=true");
 console.log("publisher_exact_request_bytes_preserved=true");
 console.log("publisher_request_reconstruction_forbidden=true");
