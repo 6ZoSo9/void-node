@@ -38,9 +38,9 @@ const DURABILITY_CONTRACT = Object.freeze({
   "scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs":
     "7ced5fb56a22cd546aab30c466021b01b1c6a84d",
   "docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md":
-    "3954439eb39015baaf598c8e36a23865e0555e8f",
+    "16a8a755888abd7b9ad4f0377468d6a403f80a70",
   ".github/workflows/buy-void-allocation-custody-live-durability-rollback-contract-v1.yml":
-    "9fccecd0701499b774585b0b8e3c80e1005f273f",
+    "b3426f40577ff1ca1bbab8ca46232ae1ca0a8148",
 });
 
 const PRIMITIVES = Object.freeze({
