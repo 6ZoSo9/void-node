@@ -11,7 +11,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
-const SOURCE_BLOB="2203ed6ba632595f311bc7302badd85944202ce1";
+const SOURCE_BLOB="bd21f56631c4187c89ca9ddeca34be09bd07a5c4";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json";
 const PLAN_BLOB="5face2022dc2cbc573e32e99f88623f381a8a174";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";

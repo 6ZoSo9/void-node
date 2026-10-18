@@ -55,7 +55,7 @@ jobs:
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
           test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = bd21f56631c4187c89ca9ddeca34be09bd07a5c4
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 064b2f9ec76e2b04d338e179d97a384fd7ed6ea8
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 58f7c0736ca7675c38a750ea621466e5ee1e42cc
           test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = aaf9f2b5559c6290de7c4949d558d9376b81c848
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
