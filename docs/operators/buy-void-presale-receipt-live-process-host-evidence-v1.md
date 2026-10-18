@@ -200,6 +200,12 @@ for every receipt ancestor:
    observations must match the retained generation and remain root-owned and
    non-group/world-writable.
 
+The canonical revalidation traversal is deliberately **root-to-leaf** even
+though descriptor acquisition is leaf-to-root. The receipt's immediate parent,
+`/var/lib/void-source-finality-v7`, is therefore revalidated last. A concurrent
+rename/replacement after an earlier root check cannot be hidden by spending the
+remainder of the validation interval walking less-specific ancestors.
+
 A missing path, symlink/type change, uid/mode drift, setuid/setgid/sticky-bit
 drift, or canonical inode replacement causes HOLD even when the old retained
 descriptor is unchanged. Hosted proof includes retained and before/open/after

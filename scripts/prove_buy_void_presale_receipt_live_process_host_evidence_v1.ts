@@ -11,6 +11,7 @@ import {
   testOnlyAssertFinalLiveGenerationV1,
   testOnlyAssertReceiptAncestorStableV1,
   testOnlyAssertReceiptCanonicalAncestorStableV1,
+  testOnlyReceiptAncestorRevalidationOrderV1,
   testOnlyAssertSameLiveGenerationV1,
 } from "../ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.js";
 
@@ -216,6 +217,26 @@ try{
 assert.equal(finalPhaseDriftRejected,true,"final_phase_generation_drift_not_rejected");
 testOnlyAssertFinalLiveGenerationV1(base,{...base},{...base});
 
+const receiptParent="/var/lib/void-source-finality-v7";
+const leafToRootOrder=[
+  receiptParent,
+  "/var/lib",
+  "/var",
+  "/",
+] as const;
+const revalidationOrder=testOnlyReceiptAncestorRevalidationOrderV1(
+  leafToRootOrder,
+);
+assert.deepEqual(
+  revalidationOrder,
+  ["/","/var","/var/lib",receiptParent],
+);
+assert.equal(
+  revalidationOrder[revalidationOrder.length-1],
+  receiptParent,
+  "receipt_parent_not_revalidated_last",
+);
+
 const ancestor = Object.freeze({
   dev: 11,
   ino: 22,
@@ -335,6 +356,8 @@ console.log("installed_receipt_exact_bytes_match_required=true");
 console.log("receipt_ancestor_descriptor_custody_required=true");
 console.log("receipt_ancestor_post_read_revalidation_required=true");
 console.log("receipt_canonical_ancestor_namespace_revalidated=true");
+console.log("receipt_ancestor_revalidation_root_to_leaf=true");
+console.log("receipt_parent_revalidated_last=true");
 console.log("receipt_canonical_namespace_drift_rejected=true");
 console.log("receipt_ancestor_special_mode_drift_rejected=true");
 console.log("receipt_ancestor_drift_rejected=true");

@@ -228,12 +228,18 @@ function assertCanonicalReceiptAncestorObservations(
   }
 }
 
+function receiptAncestorRevalidationOrder<T>(
+  heldDirectories: readonly T[],
+): readonly T[] {
+  return [...heldDirectories].reverse();
+}
+
 function revalidateReceiptAncestors(
   heldDirectories: readonly HeldReceiptAncestor[],
 ): void {
   const noFollow = fs.constants.O_NOFOLLOW;
   const directory = fs.constants.O_DIRECTORY;
-  for (const held of heldDirectories) {
+  for (const held of receiptAncestorRevalidationOrder(heldDirectories)) {
     const current = fs.fstatSync(held.fd);
     if (!receiptAncestorStillTrusted(held, current)) {
       fail("host_evidence_receipt_ancestor_changed_during_read");
@@ -263,6 +269,12 @@ function revalidateReceiptAncestors(
       visibleAfter!,
     );
   }
+}
+
+export function testOnlyReceiptAncestorRevalidationOrderV1(
+  paths: readonly string[],
+): readonly string[] {
+  return receiptAncestorRevalidationOrder(paths);
 }
 
 export function testOnlyAssertReceiptAncestorStableV1(
