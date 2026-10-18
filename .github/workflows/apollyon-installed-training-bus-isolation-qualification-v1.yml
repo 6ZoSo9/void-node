@@ -39,7 +39,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py)" = \
             1fdb495aafa136119d50f41410b015930d9fc90d
           test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py)" = \
-            6db8908d5cf7fcce93b2d3e7bc25cc63ef4a258f
+            0621f8a918f5eb2f60681d62344d0db94394bd34
 
       - name: Syntax and inert proof
         run: |
