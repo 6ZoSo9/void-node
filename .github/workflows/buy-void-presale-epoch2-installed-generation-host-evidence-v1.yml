@@ -73,9 +73,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 190e25659caa5bf8a627e36a7e793d2a68ed4cad
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 5bcb86d274788d0abcd9d47c6c2fb2520ef89552
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 12e183410ef378da7f793182528a6dbd77421766
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 8b19008c9620f7d5374ee6214fc7ba9bd6a8f2f0
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = bd341c9b882e8b087b94122ecf9a84065a600f85
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 39c3966624b79411cded9d594310dda48b113014
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = a04c2e7665294cdd142426e9eb01ee27c5292b8d
@@ -105,7 +105,7 @@ jobs:
           PY
 
           proof="$RUNNER_TEMP/epoch2-installed-host-evidence-proof.log"
-          python3 -I -B scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py |
+          sudo -n /usr/bin/python3 -I -B scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py --require-kernel-uid-drop |
             tee "$proof"
           for marker in \
             'VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1_PROOF_GREEN' \
@@ -144,6 +144,10 @@ jobs:
             'raw_worktree_bytes_and_executable_mode_required=true' \
             'index_and_untracked_changes_rejected=true' \
             'assume_unchanged_skip_worktree_cannot_hide_changes=true' \
+            'root_git_query_uid_gid_and_capability_drop_required=true' \
+            'unexpected_query_uid_rejected=true' \
+            'kernel_git_uid_drop_executed=true' \
+            'root_only_git_config_include_denied=true' \
             'filesystem_write_performed=false' \
             'runner_execution=false' \
             'live_composition_execution=false' \

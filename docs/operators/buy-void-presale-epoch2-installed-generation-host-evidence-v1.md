@@ -318,3 +318,39 @@ assume-unchanged and skip-worktree flags cannot hide changed bytes.
 This is source/proof coverage only. It grants no real host qualification,
 installation, native self-test, runtime, credential, signing, transaction,
 payment, activation, or funds authority.
+
+## Git metadata privilege boundary
+
+Disabling system/global configuration does not disable a checkout's local Git
+configuration. A local include can name a root-readable file or FIFO even for
+`rev-parse`. Every wrapper Git subprocess therefore drops to the same fixed
+checkout identity used by the accepted installer: UID 1000 / GID 1000.
+
+For root callers, fixed `/usr/bin/setpriv` applies `--no-new-privs`, both UID/GID
+changes, `--clear-groups`, and empty inheritable, ambient and bounding capability
+sets before entering fixed `/usr/bin/git`. The child has a closed environment,
+cwd `/`, no inherited extra descriptors, and the existing timeout/error-to-HOLD
+handling. An already unprivileged UID-1000 query may run directly; other caller
+UIDs HOLD before spawning. No Git metadata/config parser is entered as root by
+the wrapper. The in-process raw-file verifier and fixed installed qualification
+retain their separately documented descriptor and root requirements.
+
+This prevents local config includes from borrowing the collector's root access;
+it is not a claim that Git never reads configuration available to UID 1000.
+The earlier filter-free observation and delegated query allowlist remain in
+place, and the accepted V5 sources remain unchanged.
+
+Hosted CI runs the adversarial proof as root solely for disposable `/tmp`
+fixtures, with `--require-kernel-uid-drop`. It must reproduce a root Git query
+blocking on a synthetic root-owned mode-0600 include FIFO, then prove the
+repaired query cannot open that FIFO. A disposable executable probe verifies
+real/effective UID/GID 1000, no supplementary groups, no-new-privs set, zero
+inheritable/permitted/effective/bounding/ambient capabilities, and denial of the
+root-only include. The workflow requires both kernel-evidence markers to be
+true. It never invokes the collector's real `--run`, host qualifier, installed
+native self-test, or installer apply.
+
+Restricted local user namespaces may run the source/filter tests and command
+construction checks without that kernel fixture. They explicitly print
+`kernel_git_uid_drop_executed=false`; that local result cannot satisfy hosted
+CI or be presented as privilege-drop evidence.

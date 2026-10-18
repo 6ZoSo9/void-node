@@ -8,16 +8,32 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+assert set(sys.argv[1:]) <= {"--require-kernel-uid-drop"}
+REQUIRE_KERNEL_UID_DROP = "--require-kernel-uid-drop" in sys.argv[1:]
+
+
+def mapped_id(kind: str, value: int) -> bool:
+    return any(
+        int(parts[0]) <= value < int(parts[0]) + int(parts[2])
+        for line in Path("/proc/self/" + kind + "_map").read_text().splitlines()
+        if len(parts := line.split()) == 3
+    )
+
+
+KERNEL_UID_DROP_AVAILABLE = os.geteuid() == 0 and mapped_id("uid", 1000) and mapped_id("gid", 1000)
+if REQUIRE_KERNEL_UID_DROP:
+    assert KERNEL_UID_DROP_AVAILABLE, "required_kernel_uid_drop_fixture_unavailable"
 
 MARKER = "VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1"
 TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "190e25659caa5bf8a627e36a7e793d2a68ed4cad"
+TARGET_BLOB = "8b19008c9620f7d5374ee6214fc7ba9bd6a8f2f0"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -468,6 +484,19 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
     marker.unlink()
 
     saved_checkout = module.FIXED_CHECKOUT
+    saved_uid, saved_gid = module.RUNTIME_UID, module.RUNTIME_GID
+    saved_fixture_geteuid = module.os.geteuid
+    if KERNEL_UID_DROP_AVAILABLE:
+        # Only the disposable repository/marker fixture is handed to UID 1000.
+        for fixture_path in (root, *root.rglob("*")):
+            os.chown(fixture_path, module.RUNTIME_UID, module.RUNTIME_GID)
+    elif os.geteuid() != 0:
+        module.RUNTIME_UID, module.RUNTIME_GID = os.geteuid(), os.getegid()
+    else:
+        # Root-only user namespaces cannot map UID 1000 or call setgroups.
+        # These fixtures still test raw-byte/filter behavior; CI separately
+        # requires actual kernel demotion and cannot take this fallback.
+        module.os.geteuid = lambda: module.RUNTIME_UID
     try:
         module.FIXED_CHECKOUT = checkout
         module._verify_checkout_bytes(expected_head)
@@ -548,6 +577,68 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
             module._git = saved_git
     finally:
         module.FIXED_CHECKOUT = saved_checkout
+        module.RUNTIME_UID, module.RUNTIME_GID = saved_uid, saved_gid
+        module.os.geteuid = saved_fixture_geteuid
+
+if KERNEL_UID_DROP_AVAILABLE:
+    with tempfile.TemporaryDirectory(prefix="void-epoch2-root-git-include-proof-") as td:
+        root = Path(td)
+        checkout = root / "checkout"
+        checkout.mkdir()
+        subprocess.run(["/usr/bin/git", "-C", str(checkout), "init", "-q", "-b", "main"],
+                       env=module.GIT_ENV, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        fifo = root / "root-only-include"
+        os.mkfifo(fifo, 0o600)
+        config = checkout / ".git/config"
+        config.write_text(config.read_text() + "\n[include]\npath = " + str(fifo) + "\n")
+        for fixture_path in (root, *checkout.rglob("*"), checkout):
+            os.chown(fixture_path, 1000, 1000)
+        # A root Git query really opens the synthetic root-only FIFO and stalls.
+        try:
+            subprocess.run(["/usr/bin/git", "-C", str(checkout), "-c",
+                            "safe.directory=" + str(checkout), "-c", "core.fsmonitor=false",
+                            "rev-parse", "--is-inside-work-tree"], env=module.GIT_ENV,
+                           stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, timeout=0.25, check=False)
+        except subprocess.TimeoutExpired:
+            pass
+        else:
+            raise AssertionError("root_config_fifo_exploit_control_did_not_block")
+        saved_checkout, saved_git_path = module.FIXED_CHECKOUT, module.FIXED_GIT
+        try:
+            module.FIXED_CHECKOUT = checkout
+            # The repaired Git cannot open the root-owned mode-0600 FIFO. Git
+            # may either reject an unreadable include or ignore it, by version.
+            try:
+                result = module._git(["rev-parse", "--is-inside-work-tree"])
+            except module.EvidenceError as exc:
+                assert str(exc).startswith("git_command_failed:"), str(exc)
+            else:
+                assert result == b"true\n"
+
+            probe = root / "git-identity-probe.py"
+            probe.write_text(
+                "#!/usr/bin/python3 -I\n"
+                "import json,os\n"
+                "from pathlib import Path\n"
+                "status=dict(line.split(':',1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)\n"
+                "denied=False\n"
+                "try:\n"
+                "    fd=os.open(" + repr(str(fifo)) + ",os.O_RDONLY|os.O_NONBLOCK)\n"
+                "except PermissionError:\n"
+                "    denied=True\n"
+                "else:\n"
+                "    os.close(fd)\n"
+                "print(json.dumps({'uid':os.getuid(),'euid':os.geteuid(),'gid':os.getgid(),'egid':os.getegid(),'groups':os.getgroups(),'nnp':int(status['NoNewPrivs']), 'caps':[int(status[k],16) for k in ('CapInh','CapPrm','CapEff','CapBnd','CapAmb')], 'root_only_include_denied':denied}))\n"
+            )
+            probe.chmod(0o755)
+            module.FIXED_GIT = probe
+            identity = json.loads(module._git(["rev-parse", "HEAD"]))
+            assert identity == {"uid":1000,"euid":1000,"gid":1000,"egid":1000,
+                                "groups":[],"nnp":1,"caps":[0,0,0,0,0],
+                                "root_only_include_denied":True}, identity
+        finally:
+            module.FIXED_CHECKOUT, module.FIXED_GIT = saved_checkout, saved_git_path
 
 with tempfile.TemporaryDirectory(prefix="void-epoch2-qualifier-fd-proof-") as td:
     root = Path(td)
@@ -700,6 +791,7 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-shadow-import-proof-") as t
     assert not shadow_marker.exists(), "checkout_local_shadow_import_executed"
 
 original_subprocess_run = module.subprocess.run
+original_geteuid = module.os.geteuid
 
 captured_git_commands: list[list[str]] = []
 
@@ -713,14 +805,27 @@ def _capture_git_command(args, **_kwargs):
     )
 
 module.subprocess.run = _capture_git_command
+module.os.geteuid = lambda: 0
 assert module._git(["ls-files", "--stage", "-z"]) == b""
 assert len(captured_git_commands) == 1
 captured = captured_git_commands[0]
+assert captured[:8] == [
+    "/usr/bin/setpriv", "--no-new-privs", "--reuid=1000", "--regid=1000",
+    "--clear-groups", "--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all",
+]
+assert captured[8] == "/usr/bin/git"
 assert captured.count("core.fsmonitor=false") == 1
 fsmonitor_index = captured.index("core.fsmonitor=false")
 assert fsmonitor_index > 0
 assert captured[fsmonitor_index - 1] == "-c"
 assert captured.index("ls-files") > fsmonitor_index
+module.os.geteuid = lambda: 1000
+module._git(["rev-parse", "HEAD"])
+assert captured_git_commands[-1][0] == "/usr/bin/git"
+module.os.geteuid = lambda: 1001
+expect_source_hold(lambda: module._git(["rev-parse", "HEAD"]), "checkout_query_uid_invalid")
+assert len(captured_git_commands) == 2
+module.os.geteuid = lambda: 0
 
 def _raise_git_oserror(*_args, **_kwargs):
     raise OSError("synthetic_git_spawn_failure")
@@ -746,6 +851,7 @@ try:
         raise AssertionError("git_timeout_not_normalized")
 finally:
     module.subprocess.run = original_subprocess_run
+    module.os.geteuid = original_geteuid
 
 base = {
     "marker": "VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V5",
@@ -847,6 +953,7 @@ for marker in (
     "checkout_observation_avoids_content_filters=true",
     "delegated_original_status_bypassed=true",
     "raw_tree_index_worktree_equality_required=true",
+    "git_metadata_queries_drop_root_privileges=true",
     "root_required_for_future_run=true",
     "python_isolated_mode_required_for_future_run=true",
     "delegated_installer_git_fsmonitor_disabled=true",
@@ -912,6 +1019,10 @@ print("delegated_original_status_bypassed=true")
 print("raw_worktree_bytes_and_executable_mode_required=true")
 print("index_and_untracked_changes_rejected=true")
 print("assume_unchanged_skip_worktree_cannot_hide_changes=true")
+print("root_git_query_uid_gid_and_capability_drop_required=true")
+print("unexpected_query_uid_rejected=true")
+print("kernel_git_uid_drop_executed=" + str(KERNEL_UID_DROP_AVAILABLE).lower())
+print("root_only_git_config_include_denied=" + str(KERNEL_UID_DROP_AVAILABLE).lower())
 print("filesystem_write_performed=false")
 print("runner_execution=false")
 print("live_composition_execution=false")

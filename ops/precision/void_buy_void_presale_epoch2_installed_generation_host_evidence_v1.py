@@ -62,6 +62,9 @@ PARENT_PLAN_ID = (
 
 FIXED_CHECKOUT = Path("/home/zoso/dev/void-node")
 FIXED_GIT = Path("/usr/bin/git")
+FIXED_SETPRIV = Path("/usr/bin/setpriv")
+RUNTIME_UID = 1000
+RUNTIME_GID = 1000
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
@@ -243,9 +246,25 @@ def _git(args: list[str]) -> bytes:
     # No content conversion, diff, status, checkout, or user-selected command.
     if not args or args[0] not in ("rev-parse", "symbolic-ref", "show", "ls-tree", "ls-files"):
         raise EvidenceError("git_query_not_allowed")
+    if os.geteuid() == 0:
+        prefix = [
+            str(FIXED_SETPRIV),
+            "--no-new-privs",
+            "--reuid=" + str(RUNTIME_UID),
+            "--regid=" + str(RUNTIME_GID),
+            "--clear-groups",
+            "--inh-caps=-all",
+            "--ambient-caps=-all",
+            "--bounding-set=-all",
+        ]
+    elif os.geteuid() == RUNTIME_UID:
+        prefix = []
+    else:
+        raise EvidenceError("checkout_query_uid_invalid")
     try:
         cp = subprocess.run(
             [
+                *prefix,
                 str(FIXED_GIT),
                 "--no-replace-objects",
                 "-C",
@@ -266,6 +285,8 @@ def _git(args: list[str]) -> bytes:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=GIT_ENV,
+            cwd="/",
+            close_fds=True,
             check=False,
             timeout=20,
         )
@@ -662,6 +683,7 @@ def self_test() -> None:
     print("checkout_observation_avoids_content_filters=true")
     print("delegated_original_status_bypassed=true")
     print("raw_tree_index_worktree_equality_required=true")
+    print("git_metadata_queries_drop_root_privileges=true")
     print("qualifier_source_descriptor_bound=true")
     print("qualifier_source_nofollow_bounded_read=true")
     print("delegated_installer_source_descriptor_bound=true")
