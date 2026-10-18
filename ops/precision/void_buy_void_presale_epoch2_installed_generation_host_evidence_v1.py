@@ -1,6 +1,47 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+# Bootstrap isolation must run before any shadowable standard-library import.
+# Only `sys` is used here; it is a built-in module and cannot be replaced by a
+# checkout-local Python file.
+import sys as _bootstrap_sys
+
+_BOOTSTRAP_MARKER = (
+    "VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1"
+)
+_BOOTSTRAP_NEGATIVE_AUTHORITY_FIELDS = (
+    "epoch2_installed_generation_qualified",
+    "filesystem_write_performed",
+    "runner_execution",
+    "live_composition_execution",
+    "service_mutation",
+    "network_contact",
+    "credential_access",
+    "private_key_access",
+    "wallet_or_signer_access",
+    "signing",
+    "transaction_submission",
+    "payment_acceptance",
+    "public_presale_activation",
+    "wc_void_market_activation",
+    "treasury_or_liquidity_action",
+    "funds_movement",
+    "production_host_evidence_authority",
+)
+
+if (
+    _bootstrap_sys.flags.isolated != 1
+    or not getattr(_bootstrap_sys.flags, "safe_path", False)
+):
+    if __name__ == "__main__":
+        print(_BOOTSTRAP_MARKER)
+        print("status=HOLD")
+        print("reason=python_isolated_mode_required")
+        for _field in _BOOTSTRAP_NEGATIVE_AUTHORITY_FIELDS:
+            print(_field + "=false")
+        raise SystemExit(2)
+    raise RuntimeError("python_isolated_mode_required")
+
 import argparse
 import hashlib
 import json
@@ -13,7 +54,7 @@ import sys
 import types
 from typing import Any
 
-MARKER = "VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1"
+MARKER = _BOOTSTRAP_MARKER
 SCHEMA = "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1"
 PARENT_PLAN_ID = (
     "voidbuyhostevplan1_"
@@ -366,6 +407,8 @@ def self_test() -> None:
     print("exact_qualifier_source_and_proof_bound=true")
     print("root_required_for_future_run=true")
     print("python_isolated_mode_required_for_future_run=true")
+    print("preimport_python_isolation_enforced=true")
+    print("unisolated_shadow_module_blocked=true")
     print("delegated_installer_git_fsmonitor_disabled=true")
     print("delegated_installer_git_hooks_disabled=true")
     print("installed_generation_before_middle_after_stability_required=true")

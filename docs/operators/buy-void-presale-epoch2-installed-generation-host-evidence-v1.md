@@ -204,3 +204,24 @@ requires a machine-readable `python_isolated_mode_required` HOLD.
 
 No accepted qualifier/installer source blob is rewritten and no additional
 runtime/payment authority is granted.
+
+## Pre-import isolation bootstrap
+
+The root-started wrapper now performs its isolation/safe-path check before any
+shadowable standard-library import. The only module loaded before that check is
+built-in `sys`, which cannot be replaced by a checkout-local `sys.py`.
+
+If Python was not started in isolated/safe-path mode, direct execution emits the
+same machine-readable `status=HOLD` negative-authority receipt and exits before
+`argparse`, `hashlib`, `json`, `pathlib`, or any other shadowable module
+is imported. Non-main import under an unisolated interpreter is rejected
+immediately as well.
+
+Hosted proof executes a disposable copy of the wrapper beside a hostile
+`hashlib.py` that would create a marker if imported. An unisolated
+`python3 -B` launch must HOLD and the hostile marker must remain absent. The
+later full `sys.path` checkout-exposure check remains in place for isolated
+execution.
+
+No host/runtime/payment authority changes.
+

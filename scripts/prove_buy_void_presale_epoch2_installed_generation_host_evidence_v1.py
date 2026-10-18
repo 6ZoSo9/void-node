@@ -58,6 +58,12 @@ pin(PARENT_PLAN_REL, PARENT_PLAN_BLOB)
 
 compile(source, TARGET_REL, "exec", dont_inherit=True)
 
+bootstrap_guard_index = source.index("import sys as _bootstrap_sys")
+first_shadowable_import_index = source.index("import argparse")
+assert bootstrap_guard_index >= 0
+assert source.index("_bootstrap_sys.flags.isolated != 1") > bootstrap_guard_index
+assert source.index("raise SystemExit(2)") < first_shadowable_import_index
+
 for required in (
     'QUALIFIER_BLOB = "' + QUALIFIER_BLOB + '"',
     'QUALIFIER_PROOF_BLOB = "' + QUALIFIER_PROOF_BLOB + '"',
@@ -88,6 +94,10 @@ for required in (
     '"GIT_CONFIG_KEY_1": "core.hooksPath"',
     '"GIT_CONFIG_VALUE_1": "/dev/null"',
     "sys.flags.isolated != 1",
+    "import sys as _bootstrap_sys",
+    "_bootstrap_sys.flags.isolated != 1",
+    "reason=python_isolated_mode_required",
+    "_BOOTSTRAP_NEGATIVE_AUTHORITY_FIELDS",
     "_guard_qualifier_installer_loader(module)",
 ):
     assert required in source, required
@@ -276,31 +286,41 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-fsmonitor-proof-") as td:
     assert cp_git.returncode == 0, cp_git.stderr
     assert not marker.exists(), "delegated_local_fsmonitor_executed"
 
-cp_unisolated = subprocess.run(
-    [
-        "/usr/bin/python3",
-        "-B",
-        str(ROOT / TARGET_REL),
-        "--run",
-        "--expected-head",
-        "a" * 40,
-    ],
-    cwd=ROOT,
-    stdin=subprocess.DEVNULL,
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
-    text=True,
-    check=False,
-    timeout=30,
-)
-assert cp_unisolated.returncode == 2
-assert cp_unisolated.stderr == ""
-assert "status=HOLD" in cp_unisolated.stdout
-assert "reason=python_isolated_mode_required" in cp_unisolated.stdout
-assert "epoch2_installed_generation_qualified=false" in cp_unisolated.stdout
-assert "filesystem_write_performed=false" in cp_unisolated.stdout
-assert "network_contact=false" in cp_unisolated.stdout
-assert "funds_movement=false" in cp_unisolated.stdout
+with tempfile.TemporaryDirectory(prefix="void-epoch2-shadow-import-proof-") as td:
+    shadow_root = Path(td)
+    shadow_wrapper = shadow_root / "collector.py"
+    shadow_wrapper.write_text(source, encoding="utf-8")
+    shadow_marker = shadow_root / "shadow-import-executed"
+    (shadow_root / "hashlib.py").write_text(
+        "open(" + repr(str(shadow_marker)) + ", 'w').write('executed')\n",
+        encoding="utf-8",
+    )
+    cp_unisolated = subprocess.run(
+        [
+            "/usr/bin/python3",
+            "-B",
+            str(shadow_wrapper),
+            "--run",
+            "--expected-head",
+            "a" * 40,
+        ],
+        cwd=shadow_root,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert cp_unisolated.returncode == 2
+    assert cp_unisolated.stderr == ""
+    assert "status=HOLD" in cp_unisolated.stdout
+    assert "reason=python_isolated_mode_required" in cp_unisolated.stdout
+    assert "epoch2_installed_generation_qualified=false" in cp_unisolated.stdout
+    assert "filesystem_write_performed=false" in cp_unisolated.stdout
+    assert "network_contact=false" in cp_unisolated.stdout
+    assert "funds_movement=false" in cp_unisolated.stdout
+    assert not shadow_marker.exists(), "checkout_local_shadow_import_executed"
 
 original_subprocess_run = module.subprocess.run
 
@@ -478,6 +498,8 @@ print("pathname_swap_adversary_inherited=true")
 print("required_true_field_downgrade_rejected=true")
 print("authority_overclaim_rejected=true")
 print("python_isolated_mode_enforced=true")
+print("preimport_python_isolation_enforced=true")
+print("unisolated_shadow_module_blocked=true")
 print("delegated_installer_git_fsmonitor_disabled=true")
 print("delegated_installer_git_hooks_disabled=true")
 print("delegated_local_fsmonitor_execution_rejected=true")
