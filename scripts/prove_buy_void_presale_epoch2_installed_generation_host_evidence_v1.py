@@ -17,7 +17,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "f8090cc48efc52f83fc76a6fc1cfd5e96852739e"
+TARGET_BLOB = "756c6081f9713cdf4b17433b2998cac3d5bfa929"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -355,6 +355,12 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-shadow-import-proof-") as t
         "open(" + repr(str(shadow_marker)) + ", 'w').write('executed')\n",
         encoding="utf-8",
     )
+    future_marker = shadow_root / "future-import-executed"
+    (shadow_root / "__future__.py").write_text(
+        "open(" + repr(str(future_marker)) + ", 'w').write('executed')\n"
+        "annotations = None\n",
+        encoding="utf-8",
+    )
     cp_unisolated = subprocess.run(
         [
             "/usr/bin/python3",
@@ -380,6 +386,7 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-shadow-import-proof-") as t
     assert "filesystem_write_performed=false" in cp_unisolated.stdout
     assert "network_contact=false" in cp_unisolated.stdout
     assert "funds_movement=false" in cp_unisolated.stdout
+    assert not future_marker.exists(), "checkout_local_future_import_executed"
     assert not shadow_marker.exists(), "checkout_local_shadow_import_executed"
 
 original_subprocess_run = module.subprocess.run
@@ -564,6 +571,7 @@ print("qualifier_source_symlink_rejected_before_read=true")
 print("qualifier_source_fifo_rejected_without_blocking=true")
 print("qualifier_source_exact_bytes_required=true")
 print("unisolated_shadow_module_blocked=true")
+print("unisolated_future_module_blocked=true")
 print("delegated_installer_git_fsmonitor_disabled=true")
 print("delegated_installer_git_hooks_disabled=true")
 print("delegated_local_fsmonitor_execution_rejected=true")

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import annotations
 
 # Bootstrap isolation must run before any shadowable standard-library import.
 # Only `sys` is used here; it is a built-in module and cannot be replaced by a

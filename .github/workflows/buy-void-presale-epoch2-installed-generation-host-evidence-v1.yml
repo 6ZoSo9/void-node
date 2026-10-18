@@ -69,8 +69,8 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = f8090cc48efc52f83fc76a6fc1cfd5e96852739e
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 5f6321c17e2f3127226ecaa86dced7b108b0b3c5
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 756c6081f9713cdf4b17433b2998cac3d5bfa929
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 9ebf8c16798dd31113287b5715fc9fc92716529f
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 045d6bba02162f0bf9d41897e97bf86f37ee08f3
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
@@ -115,6 +115,7 @@ jobs:
             'python_isolated_mode_enforced=true' \
             'preimport_python_isolation_enforced=true' \
             'unisolated_shadow_module_blocked=true' \
+            'unisolated_future_module_blocked=true' \
             'delegated_installer_git_fsmonitor_disabled=true' \
             'delegated_installer_git_hooks_disabled=true' \
             'delegated_local_fsmonitor_execution_rejected=true' \
