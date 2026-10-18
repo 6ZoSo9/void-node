@@ -27,19 +27,19 @@ Fixed source:
 
 Current-source enforcement successor:
 
-`voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad`
+`voidbuypresaleenfsucc1_819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef`
 
 Successor blob:
 
-`bb1144989cd826677f2fc8ea54c97e3bd95cc8ef`.
+`774db38ccb771f393b44d589a455144b99d36f6b`.
 
 Source-freeze acceptance:
 
-`voidbuypresalefreezeaccept2_c35af2c739290a82f612043465717db0b109546168e364f349f88c79c284476e`
+`voidbuypresalefreezeaccept2_88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4`
 
 Acceptance blob:
 
-`c0752dfe4fe3b4616cba799bbe5053ac0b435f8b`.
+`5d437a37703a83908a7fa78b78da92151aa1aa99`.
 
 V3 also observes, without interpreting as live authority:
 
