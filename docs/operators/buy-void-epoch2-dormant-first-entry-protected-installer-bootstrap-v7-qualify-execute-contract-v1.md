@@ -28,14 +28,14 @@ Exact reviewed planner source:
 - path:
   `ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py`;
 - Git blob:
-  `ea276889645376bfa16c2dfac6b0e48d81cab42d`.
+  `7f218580ea47897290c32b3fe5cb788f16a3ecc1`.
 
 Exact reviewed planner proof:
 
 - path:
   `scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py`;
 - Git blob:
-  `090af92bf0f0362bd86dd63b7a0583363ca56c63`.
+  `7b2ec582059ae3a9d87c8668246093f4bb20e14f`.
 
 The captured planner output must contain canonical
 `plan_body_json` and a matching
@@ -53,7 +53,7 @@ The phase-1 source is exactly:
 
 Git blob:
 
-`a9cee971d3fd088821124b1349179fdd1cb27516`.
+`04c7ca5f0d96dcb60faeae8cf4d712435ad65466`.
 
 The execution contract records:
 
@@ -156,6 +156,14 @@ A GREEN contract advances only to:
 `SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALLER_BOOTSTRAP_V7_EXECUTE_QUALIFICATION_AND_ROOT_PLAN`.
 
 That future action is not implemented or authorized here.
+
+## Callback-neutralized qualification prerequisite
+
+Phase 1 binds the repaired qualifier generation and requires
+`qualification_git_callbacks_neutralized_required=true`; its accepted GREEN
+result must include `qualification_git_callbacks_neutralized=true`.
+An older V7 planner/qualifier output without those fields fails closed before
+any root-phase representation.
 
 ## Authority
 
