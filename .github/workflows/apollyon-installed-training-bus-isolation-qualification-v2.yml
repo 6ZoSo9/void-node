@@ -59,7 +59,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
             6d4068bdf4486def8af4ef31d1a5bf94e6523c6e
           test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
-            9d5b8fcd717e540471c81d5305f745b60b417de9
+            93b44c496179e44b65fe0af2d5896b55263534d0
           test "$(git rev-parse HEAD:docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md)" = \
             e5f3e38541cac887890cff088f55d16cda603be4
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py)" = \
