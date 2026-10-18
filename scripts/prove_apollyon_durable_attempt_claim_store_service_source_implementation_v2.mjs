@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import {execFileSync} from "node:child_process";
+import childProcess, {execFileSync,spawn,spawnSync} from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import {syncBuiltinESMExports} from "node:module";
 import os from "node:os";
 import path from "node:path";
-import {fileURLToPath} from "node:url";
+import {fileURLToPath,pathToFileURL} from "node:url";
 
 import {
   canonicalApollyonClaimContractJsonV1,
@@ -25,14 +26,20 @@ import {
   createApollyonDurableAttemptClaimStoreServiceCoreV2,
   prepareApollyonDurableAttemptClaimPublisherForwardV2,
 } from "../tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
+import {
+  createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2,
+} from "../tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
 const TARGET_BLOB="e1329dece0caa2c8c3db142589b5c1c83e6c1076";
+const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
+const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
 const PINNED=Object.freeze({
   [TARGET_REL]:TARGET_BLOB,
+  [LEASE_REL]:LEASE_BLOB,
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
     "93582c324ca85aeff56eb61f82b32f1e4c18dfe9",
   "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
@@ -53,6 +60,7 @@ const EXPECTED_TRIGGER_PATHS=Object.freeze([
   WORKFLOW_REL,
   "docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md",
   TARGET_REL,
+  LEASE_REL,
   "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs",
   "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs",
@@ -418,7 +426,11 @@ function storeSnapshot(root){
       row[key]=String(st[key]);
     }
     row.type=st.isDirectory()?"directory":st.isFile()?"file":st.isSymbolicLink()?"symlink":"other";
-    if(st.isFile())row.sha256=sha256(fs.readFileSync(absolute));
+    if(st.isFile()){
+      const fd=fs.openSync(absolute,fs.constants.O_RDONLY);
+      try{row.sha256=sha256(fs.readFileSync(fd));}
+      finally{fs.closeSync(fd);}
+    }
     if(st.isSymbolicLink())row.target=fs.readlinkSync(absolute);
     rows.push(row);
     if(st.isDirectory()){
@@ -627,6 +639,184 @@ function requireFinalDurabilityTrace(file,trace){
   assert.ok(fileIndex>=0,"the actual final inode was fsynced before durable success");
   assert.ok(trace.some((row,index)=>index>fileIndex&&row.type==="directory"&&
     row.identity===directoryIdentity),"target directory was fsynced after its final inode");
+}
+
+function linuxLeaseConfig(f,revalidate=f.config.revalidate){
+  return {
+    root_fd:f.rootFd,
+    claim_uid:uid,
+    claim_gid:gid,
+    session_binding_id:SESSION_ID,
+    revalidate,
+  };
+}
+function linuxLeaseCore(f,revalidate=f.config.revalidate){
+  return createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2(
+    linuxLeaseConfig(f,revalidate),
+  );
+}
+function invokeStoreOperation(core,operation,bundle,generation){
+  return core[operation](operation==="publishClaim"
+    ?publishInput(bundle,generation):observationInput(bundle,generation));
+}
+function errorChainMessages(error){
+  const messages=[];
+  for(let cursor=error;cursor!==undefined&&cursor!==null&&messages.length<8;cursor=cursor.cause){
+    messages.push(String(cursor.message));
+  }
+  return messages;
+}
+function expectLeaseAcquisitionError(run,code){
+  const error=expectError(run,"apollyon_claim_store_impl_v2_transaction_acquisition_failed");
+  assert.ok(errorChainMessages(error).includes("apollyon_claim_store_lease_v2_"+code),
+    "the bounded lease failure survives the core acquisition wrapper: "+code);
+  return error;
+}
+function requireLeaseCorePoisoned(core,bundle,generation){
+  for(const operation of ["publishClaim","observeAuthorizationWinner"]){
+    expectError(()=>invokeStoreOperation(core,operation,bundle,generation),
+      "apollyon_claim_store_impl_v2_transaction_core_unusable");
+  }
+}
+function requireSameProcessLeaseBusy(f,bundle,operation){
+  const contender=createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2({
+    ...linuxLeaseConfig(f),
+    session_binding_id:"apollyon_claim_source_session_v2:"+"d".repeat(64),
+  });
+  const before=storeSnapshot(f.root);
+  expectLeaseAcquisitionError(
+    ()=>invokeStoreOperation(contender,operation,bundle,f.generation),"busy",
+  );
+  requireLeaseCorePoisoned(contender,bundle,f.generation);
+  assert.deepEqual(storeSnapshot(f.root),before,
+    "a contending core changes neither records nor directory metadata");
+}
+const LEASE_CHILD_COMMON=`
+import fs from "node:fs";
+const {createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2}=await import(process.argv[1]);
+const input=JSON.parse(fs.readFileSync(0,"utf8"));
+const SESSION_ID=input.session_binding_id;
+${revalidationReceipt.toString()}
+${errorChainMessages.toString()}
+const rootFd=fs.openSync(input.root,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
+let revalidationCalls=0;
+const core=createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2({
+  root_fd:rootFd,claim_uid:process.getuid(),claim_gid:process.getgid(),
+  session_binding_id:SESSION_ID,
+  revalidate(stage,context){
+    revalidationCalls+=1;
+    if(input.hold){
+      fs.writeSync(1,"lease_held\\n");
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,30000);
+      throw new Error("fixture_lease_owner_was_not_terminated");
+    }
+    return revalidationReceipt(stage,context);
+  },
+});
+function invoke(operation){
+  const common={
+    expected_store_generation_record:input.generation,
+    request_bytes:Buffer.from(input.request_base64,"base64"),
+  };
+  return operation==="publishClaim"
+    ?core.publishClaim({...common,authorization_slot_record:input.slot})
+    :core.observeAuthorizationWinner({...common,authorization_id:input.authorization_id});
+}
+`;
+const LEASE_CONTENDER_SCRIPT=LEASE_CHILD_COMMON+`
+try{
+  let failure;
+  try{invoke(input.operation);}
+  catch(error){failure=error;}
+  const poisoned=[];
+  for(const operation of ["publishClaim","observeAuthorizationWinner"]){
+    try{invoke(operation);poisoned.push(false);}
+    catch(error){poisoned.push(error.message==="apollyon_claim_store_impl_v2_transaction_core_unusable");}
+  }
+  process.stdout.write(JSON.stringify({
+    messages:errorChainMessages(failure),poisoned,revalidation_calls:revalidationCalls,
+  }));
+}finally{fs.closeSync(rootFd);}
+`;
+function leaseChildInput(f,bundle,extra={}){
+  return JSON.stringify({
+    root:f.root,
+    session_binding_id:SESSION_ID,
+    generation:f.generation,
+    request_base64:bundle.requestBytes.toString("base64"),
+    slot:bundle.slot,
+    authorization_id:bundle.request.claim_record.authorization_id,
+    ...extra,
+  });
+}
+function requireCrossProcessLeaseBusy(f,bundle,operation){
+  const before=storeSnapshot(f.root);
+  const result=JSON.parse(execFileSync(process.execPath,[
+    "--input-type=module","-e",LEASE_CONTENDER_SCRIPT,
+    pathToFileURL(path.join(ROOT,LEASE_REL)).href,
+  ],{
+    input:leaseChildInput(f,bundle,{operation}),
+    cwd:"/",
+    env:{PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"},
+    timeout:5000,
+    killSignal:"SIGKILL",
+    maxBuffer:8192,
+    encoding:"utf8",
+    stdio:["pipe","pipe","pipe"],
+  }));
+  assert.ok(result.messages.includes("apollyon_claim_store_lease_v2_busy"),
+    "an independent Node process observes the retained kernel lock");
+  assert.deepEqual(result.poisoned,[true,true]);
+  assert.equal(result.revalidation_calls,0);
+  assert.deepEqual(storeSnapshot(f.root),before,
+    "a contending process does not change store bytes or metadata");
+}
+function requireIndependentFlock(f,expectedStatus){
+  const contenderFd=fs.openSync(f.root,fs.constants.O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+  try{
+    const result=spawnSync("/usr/bin/flock",[
+      "--exclusive","--nonblock","--conflict-exit-code","75","3",
+    ],{
+      stdio:["ignore","ignore","pipe",contenderFd],
+      cwd:"/",env:{PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"},
+      shell:false,timeout:5000,killSignal:"SIGKILL",maxBuffer:8192,encoding:"utf8",
+    });
+    assert.equal(result.error,undefined);
+    assert.equal(result.signal,null);
+    assert.equal(result.status,expectedStatus,
+      "an independently opened file description has the expected kernel lock result");
+  }finally{fs.closeSync(contenderFd);}
+}
+let leaseModuleSequence=0;
+async function leaseFactoryWithCapturedSpawn(replacement){
+  const original=childProcess.spawnSync;
+  childProcess.spawnSync=replacement;
+  syncBuiltinESMExports();
+  try{
+    const url=pathToFileURL(path.join(ROOT,LEASE_REL));
+    url.searchParams.set("lease_proof",String(++leaseModuleSequence));
+    return (await import(url.href))
+      .createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2;
+  }finally{
+    childProcess.spawnSync=original;
+    syncBuiltinESMExports();
+  }
+}
+function requireFixedLeaseHelperCall(executable,args,options){
+  assert.equal(executable,"/usr/bin/flock");
+  assert.deepEqual(args,["--exclusive","--nonblock","--conflict-exit-code","75","3"]);
+  assert.deepEqual(options.stdio.slice(0,3),["ignore","ignore","pipe"]);
+  assert.equal(options.stdio.length,4);
+  assert.equal(Number.isSafeInteger(options.stdio[3]),true);
+  assert.deepEqual({...options.env},{PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"});
+  assert.equal(Object.getPrototypeOf(options.env),null,
+    "the helper cannot inherit environment keys through a prototype");
+  assert.equal(options.cwd,"/");
+  assert.equal(options.shell,false);
+  assert.equal(options.timeout,5000);
+  assert.equal(options.killSignal,"SIGKILL");
+  assert.equal(options.maxBuffer,8192);
+  assert.equal(options.encoding,"utf8");
 }
 
 {
@@ -2104,6 +2294,431 @@ for(const kind of ["slot","claim"]){
   }finally{fs.fstatSync=originalStat;f.cleanup();}
 }
 
+// This adapter uses real kernel locks. Its proof stores and child processes are disposable.
+{
+  const f=fixture();
+  const originalStat=fs.fstatSync;
+  let statCalls=0;
+  let getterCalls=0;
+  let proxyTraps=0;
+  let coercions=0;
+  try{
+    const valid=linuxLeaseConfig(f);
+    const accessor={...valid};
+    Object.defineProperty(accessor,"root_fd",{
+      enumerable:true,get(){getterCalls+=1;return f.rootFd;},
+    });
+    const nonenumerable={...valid};
+    Object.defineProperty(nonenumerable,"root_fd",{...Object.getOwnPropertyDescriptor(valid,"root_fd"),
+      enumerable:false});
+    const proxy=new Proxy(valid,{
+      get(){proxyTraps+=1;assert.fail("lease configuration proxy get trap");},
+      ownKeys(){proxyTraps+=1;assert.fail("lease configuration proxy ownKeys trap");},
+      getPrototypeOf(){proxyTraps+=1;assert.fail("lease configuration proxy prototype trap");},
+      getOwnPropertyDescriptor(){proxyTraps+=1;assert.fail("lease configuration proxy descriptor trap");},
+    });
+    const revoked=Proxy.revocable(valid,{});
+    revoked.revoke();
+    const missing={...valid};delete missing.root_fd;
+    const invalid=[
+      null,[],accessor,nonenumerable,proxy,revoked.proxy,missing,Object.create(valid),
+      {...valid,backend:"caller"},{...valid,acquireExclusiveStoreTransaction(){assert.fail();}},
+      {...valid,withExclusiveStoreTransaction(){assert.fail();}},
+      {...valid,[Symbol("caller_capability")]:true},
+      {...valid,root_fd:-1},{...valid,claim_uid:0},{...valid,claim_gid:0},
+      {...valid,revalidate:new Proxy(valid.revalidate,{apply(){proxyTraps+=1;assert.fail();}})},
+      {...valid,session_binding_id:{toString(){coercions+=1;return SESSION_ID;}}},
+    ];
+    fs.fstatSync=(...args)=>{statCalls+=1;return originalStat(...args);};
+    withObservedFs({},({opened})=>{
+      for(const config of invalid){
+        expectError(()=>createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2(config),
+          "_config_invalid");
+      }
+      assert.equal(opened.length,0,"invalid adapter configuration opens no descriptor");
+    });
+    assert.equal(statCalls,0,"invalid adapter configuration reads no store metadata");
+    assert.equal(getterCalls,0);
+    assert.equal(proxyTraps,0);
+    assert.equal(coercions,0);
+    fs.fstatSync=originalStat;
+    const composed=createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2(
+      Object.assign(Object.create(null),valid),
+    );
+    assert.equal(Object.isFrozen(composed),true);
+    assert.deepEqual(Object.keys(composed).sort(),Object.keys(f.core).sort(),
+      "composition exposes the unchanged core API, without a raw lock capability");
+    assert.equal(composed.root_identity_sha256,f.core.root_identity_sha256);
+    requireStoreUnchanged(f);
+  }finally{fs.fstatSync=originalStat;f.cleanup();}
+}
+
+{
+  const f=fixture();
+  const calls=[];
+  const realSpawn=childProcess.spawnSync;
+  const factory=await leaseFactoryWithCapturedSpawn((executable,args,options)=>{
+    requireFixedLeaseHelperCall(executable,args,options);
+    assert.notEqual(options.stdio[3],f.rootFd,"the helper never borrows the caller's open description");
+    calls.push({fd:options.stdio[3],identity:inodeKey(fs.fstatSync(options.stdio[3],{bigint:true}))});
+    return realSpawn(executable,args,options);
+  });
+  try{
+    const core=factory(linuxLeaseConfig(f));
+    assert.equal(calls.length,0,"factory construction does not run a helper");
+    const bundle=requestBundle(claimRecord(f.generation));
+    core.publishClaim(publishInput(bundle,f.generation));
+    const before=storeSnapshot(f.root);
+    const observed=withReadOnlyFs(()=>core.observeAuthorizationWinner(observationInput(bundle,f.generation)));
+    requireFrozenObservation(observed);
+    assert.deepEqual(storeSnapshot(f.root),before);
+    assert.equal(calls.length,2,"each operation makes one bounded synchronous helper call");
+    assert.ok(calls.every(row=>row.identity===inodeKey(fs.fstatSync(f.rootFd,{bigint:true}))));
+    requireIndependentFlock(f,0);
+  }finally{f.cleanup();}
+}
+
+for(const operation of ["publishClaim","observeAuthorizationWinner"]){
+  const f=fixture();
+  const independent=fixture();
+  let lockRoot;
+  let coreRoot;
+  let activeProbeCount=0;
+  let cleanupProbeCount=0;
+  const bundle=requestBundle(claimRecord(f.generation));
+  const independentBundle=requestBundle(claimRecord(independent.generation));
+  const independentCore=linuxLeaseCore(independent);
+  try{
+    independentCore.publishClaim(publishInput(independentBundle,independent.generation));
+    if(operation==="observeAuthorizationWinner"){
+      linuxLeaseCore(f).publishClaim(publishInput(bundle,f.generation));
+    }
+    const probeActive=()=>{
+      activeProbeCount+=1;
+      for(const contenderOperation of ["publishClaim","observeAuthorizationWinner"]){
+        requireSameProcessLeaseBusy(f,bundle,contenderOperation);
+        requireCrossProcessLeaseBusy(f,bundle,contenderOperation);
+      }
+      const out=independentCore.observeAuthorizationWinner(
+        observationInput(independentBundle,independent.generation),
+      );
+      assert.equal(out.status,"authorization_winner_observed_source_only",
+        "a different retained store root remains independently usable");
+    };
+    const core=linuxLeaseCore(f,(stage,context)=>{
+      if(stage==="before_slot_publication")probeActive();
+      requireIndependentFlock(f,75);
+      return revalidationReceipt(stage,context);
+    });
+    const before=operation==="observeAuthorizationWinner"?storeSnapshot(f.root):null;
+    const result=withObservedFs({
+      afterOpen(entry){
+        if(isOwnedRoot(entry,f)){
+          if(lockRoot===undefined)lockRoot=entry;
+          else if(coreRoot===undefined)coreRoot=entry;
+        }
+        if(operation==="observeAuthorizationWinner"&&activeProbeCount===0&&
+           path.basename(entry.pathname)===VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.active_generation_leaf){
+          probeActive();
+        }
+      },
+      afterClose(entry){
+        if(entry===coreRoot){
+          cleanupProbeCount+=1;
+          requireCrossProcessLeaseBusy(f,bundle,
+            operation==="publishClaim"?"observeAuthorizationWinner":"publishClaim");
+          requireIndependentFlock(f,75);
+        }
+      },
+    },({opened,closed})=>{
+      const invoke=()=>invokeStoreOperation(core,operation,bundle,f.generation);
+      const out=operation==="observeAuthorizationWinner"?withReadOnlyFs(invoke):invoke();
+      assert.notEqual(lockRoot,undefined);
+      assert.notEqual(coreRoot,undefined);
+      assert.notEqual(lockRoot.fd,coreRoot.fd);
+      assert.equal(closed.at(-1),lockRoot,
+        "the kernel lock owner is closed after the core's final descriptor cleanup");
+      for(const owned of [lockRoot,coreRoot]){
+        assert.equal(closed.filter(row=>row.serial===owned.serial).length,1);
+      }
+      assert.equal(opened.filter(row=>row.serial===lockRoot.serial).length,1);
+      return out;
+    });
+    assert.equal(result.status,operation==="publishClaim"
+      ?"store_core_transaction_complete_source_only":"authorization_winner_observed_source_only");
+    assert.equal(activeProbeCount,1);
+    assert.equal(cleanupProbeCount,1);
+    if(before!==null)assert.deepEqual(storeSnapshot(f.root),before);
+    requireIndependentFlock(f,0);
+    const recovered=linuxLeaseCore(f);
+    assert.equal(recovered.publishClaim(publishInput(bundle,f.generation)).status,
+      "store_core_transaction_complete_source_only");
+    assert.equal(withReadOnlyFs(()=>recovered.observeAuthorizationWinner(
+      observationInput(bundle,f.generation))).status,"authorization_winner_observed_source_only");
+  }finally{f.cleanup();independent.cleanup();}
+}
+
+for(const failure of ["startup","nonzero","signal","timeout","throw"]){
+  const f=fixture();
+  let helperCalls=0;
+  const realSpawn=childProcess.spawnSync;
+  const factory=await leaseFactoryWithCapturedSpawn((executable,args,options)=>{
+    helperCalls+=1;
+    requireFixedLeaseHelperCall(executable,args,options);
+    if(failure==="throw"){
+      const acquired=realSpawn(executable,args,options);
+      assert.equal(acquired.status,0);
+      requireIndependentFlock(f,75);
+      throw ioError("fixture_flock_spawn_throw_after_kernel_acquisition");
+    }
+    if(failure==="startup"||failure==="timeout"){
+      const error=new Error("fixture_flock_"+failure);
+      error.code=failure==="startup"?"ENOENT":"ETIMEDOUT";
+      return {error,status:null,signal:failure==="timeout"?"SIGKILL":null};
+    }
+    return {status:failure==="nonzero"?1:null,signal:failure==="signal"?"SIGKILL":null};
+  });
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const before=storeSnapshot(f.root);
+    const core=factory(linuxLeaseConfig(f));
+    withObservedFs({},({opened,closed})=>{
+      expectLeaseAcquisitionError(()=>core.publishClaim(publishInput(bundle,f.generation)),"helper_failed");
+      const privateRoots=opened.filter(entry=>isOwnedRoot(entry,f));
+      assert.equal(privateRoots.length,1,"helper failure occurs before the core duplicates its root");
+      assert.ok(opened.every(entry=>entry===privateRoots[0]||
+        (failure==="throw"&&entry.pathname===f.root)),
+      "only the private lock root and the independent proof contender are opened");
+      assert.equal(closed.length,opened.length);
+      assert.equal(closed.filter(entry=>entry===privateRoots[0]).length,1,
+        "failed acquisition closes its private root exactly once");
+    });
+    assert.equal(helperCalls,1);
+    requireLeaseCorePoisoned(core,bundle,f.generation);
+    assert.equal(helperCalls,1,"poisoned adapter does not retry the helper");
+    assert.deepEqual(storeSnapshot(f.root),before);
+    requireIndependentFlock(f,0);
+    linuxLeaseCore(f).publishClaim(publishInput(bundle,f.generation));
+  }finally{f.cleanup();}
+}
+
+{
+  const f=fixture();
+  const factory=await leaseFactoryWithCapturedSpawn(()=>({status:1,signal:null}));
+  let closeFaults=0;
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const core=factory(linuxLeaseConfig(f));
+    const before=storeSnapshot(f.root);
+    withObservedFs({afterClose(entry){
+      if(isOwnedRoot(entry,f)){closeFaults+=1;throw ioError("fixture_failed_acquisition_close");}
+    }},({opened,closed})=>{
+      const error=expectLeaseAcquisitionError(
+        ()=>core.publishClaim(publishInput(bundle,f.generation)),"acquisition_cleanup_failed",
+      );
+      assert.ok(errorChainMessages(error).includes("apollyon_claim_store_lease_v2_helper_failed"));
+      assert.equal(error.cause.cleanup_errors[0].code,"apollyon_claim_store_lease_v2_descriptor_close_failed");
+      assert.equal(Object.isFrozen(error.cause.cleanup_errors),true);
+      assert.equal(Object.isFrozen(error.cause.cleanup_errors[0]),true);
+      assert.equal(opened.length,1);
+      assert.equal(closed.length,1);
+    });
+    assert.equal(closeFaults,1,"failed acquisition never retries an uncertain descriptor close");
+    requireLeaseCorePoisoned(core,bundle,f.generation);
+    assert.deepEqual(storeSnapshot(f.root),before);
+    requireIndependentFlock(f,0);
+  }finally{f.cleanup();}
+}
+
+for(const operation of ["publishClaim","observeAuthorizationWinner"]){
+  const f=fixture();
+  let lockRoot;
+  let closeFaults=0;
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    if(operation==="observeAuthorizationWinner"){
+      linuxLeaseCore(f).publishClaim(publishInput(bundle,f.generation));
+    }
+    const core=linuxLeaseCore(f);
+    const before=operation==="observeAuthorizationWinner"?storeSnapshot(f.root):null;
+    withObservedFs({
+      afterOpen(entry){if(lockRoot===undefined&&isOwnedRoot(entry,f))lockRoot=entry;},
+      afterClose(entry){
+        if(entry===lockRoot){closeFaults+=1;throw ioError("fixture_kernel_lock_owner_close");}
+      },
+    },({opened,closed})=>{
+      const invoke=()=>invokeStoreOperation(core,operation,bundle,f.generation);
+      const error=expectError(()=>operation==="observeAuthorizationWinner"?withReadOnlyFs(invoke):invoke(),
+        "apollyon_claim_store_impl_v2_transaction_cleanup_indeterminate");
+      assert.equal(error.core_store_mutation_may_have_occurred,operation==="publishClaim");
+      requireCleanupDiagnostics(error,"transaction_release",
+        "apollyon_claim_store_impl_v2_transaction_release_failed");
+      assert.equal(closed.length,opened.length);
+      assert.equal(closed.at(-1),lockRoot);
+      assert.equal(closed.filter(entry=>entry===lockRoot).length,1);
+    });
+    assert.equal(closeFaults,1);
+    requireLeaseCorePoisoned(core,bundle,f.generation);
+    if(before!==null)assert.deepEqual(storeSnapshot(f.root),before);
+    requireIndependentFlock(f,0);
+    const recovered=linuxLeaseCore(f);
+    recovered.publishClaim(publishInput(bundle,f.generation));
+    withReadOnlyFs(()=>recovered.observeAuthorizationWinner(observationInput(bundle,f.generation)));
+  }finally{f.cleanup();}
+}
+
+for(const point of ["before_helper","after_helper"]){
+  const f=fixture();
+  const outside=fs.mkdtempSync(path.join(os.tmpdir(),"void-apollyon-lease-fd-reuse-"));
+  let reused=false;
+  let helperCalls=0;
+  const realSpawn=childProcess.spawnSync;
+  const replaceBorrowed=()=>{
+    fs.closeSync(f.rootFd);
+    const replacement=fs.openSync(outside,fs.constants.O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    assert.equal(replacement,f.rootFd,"borrowed descriptor number was actually recycled");
+    reused=true;
+  };
+  const factory=await leaseFactoryWithCapturedSpawn((...args)=>{
+    helperCalls+=1;
+    const result=realSpawn(...args);
+    if(point==="after_helper")replaceBorrowed();
+    return result;
+  });
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const before=storeSnapshot(f.root);
+    const core=factory(linuxLeaseConfig(f));
+    withObservedFs({afterOpen(entry){
+      if(point==="before_helper"&&!reused&&isOwnedRoot(entry,f))replaceBorrowed();
+    }},()=>expectLeaseAcquisitionError(
+      ()=>core.publishClaim(publishInput(bundle,f.generation)),"root_changed",
+    ));
+    assert.equal(reused,true);
+    assert.equal(helperCalls,point==="before_helper"?0:1);
+    requireLeaseCorePoisoned(core,bundle,f.generation);
+    assert.deepEqual(fs.readdirSync(outside),[]);
+    assert.deepEqual(storeSnapshot(f.root),before);
+    requireIndependentFlock(f,0);
+  }finally{f.cleanup();fs.rmSync(outside,{recursive:true,force:true});}
+}
+
+{
+  const f=fixture();
+  const realSpawn=childProcess.spawnSync;
+  let drifted=false;
+  const factory=await leaseFactoryWithCapturedSpawn((...args)=>{
+    const result=realSpawn(...args);
+    fs.chmodSync(f.root,0o755);
+    fs.chmodSync(f.root,0o700);
+    drifted=true;
+    return result;
+  });
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const before=rootIdentity(fs.fstatSync(f.rootFd));
+    const core=factory(linuxLeaseConfig(f));
+    expectLeaseAcquisitionError(()=>core.publishClaim(publishInput(bundle,f.generation)),"root_changed");
+    assert.equal(drifted,true);
+    assert.deepEqual(rootIdentity(fs.fstatSync(f.rootFd)),before,
+      "helper-boundary drift is detected even when the persisted identity fields are restored");
+    requireStoreUnchanged(f);
+    requireLeaseCorePoisoned(core,bundle,f.generation);
+    requireIndependentFlock(f,0);
+  }finally{f.cleanup();}
+}
+
+for(const operation of ["publishClaim","observeAuthorizationWinner"]){
+  const f=fixture();
+  const outside=fs.mkdtempSync(path.join(os.tmpdir(),"void-apollyon-held-lease-root-"));
+  let reused=false;
+  const replaceBorrowed=()=>{
+    if(reused)return;
+    fs.closeSync(f.rootFd);
+    const replacement=fs.openSync(outside,fs.constants.O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    assert.equal(replacement,f.rootFd);
+    reused=true;
+    requireIndependentFlock(f,75);
+  };
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    if(operation==="observeAuthorizationWinner"){
+      linuxLeaseCore(f).publishClaim(publishInput(bundle,f.generation));
+    }
+    const core=linuxLeaseCore(f,(stage,context)=>{
+      if(stage==="before_slot_publication")replaceBorrowed();
+      return revalidationReceipt(stage,context);
+    });
+    const result=withObservedFs({afterOpen(entry){
+      if(operation==="observeAuthorizationWinner"&&
+         path.basename(entry.pathname)===VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.active_generation_leaf){
+        replaceBorrowed();
+      }
+    }},()=>invokeStoreOperation(core,operation,bundle,f.generation));
+    assert.equal(reused,true);
+    assert.equal(result.status,operation==="publishClaim"
+      ?"store_core_transaction_complete_source_only":"authorization_winner_observed_source_only");
+    assert.deepEqual(fs.readdirSync(outside),[]);
+    requireRecordMetadata(recordPaths(f,bundle).slot);
+    requireRecordMetadata(recordPaths(f,bundle).claim);
+    requireIndependentFlock(f,0);
+    expectLeaseAcquisitionError(()=>core.observeAuthorizationWinner(observationInput(bundle,f.generation)),
+      "root_changed");
+    requireLeaseCorePoisoned(core,bundle,f.generation);
+  }finally{f.cleanup();fs.rmSync(outside,{recursive:true,force:true});}
+}
+
+{
+  const f=fixture();
+  const bundle=requestBundle(claimRecord(f.generation));
+  const before=storeSnapshot(f.root);
+  const child=spawn(process.execPath,[
+    "--input-type=module","-e",LEASE_CHILD_COMMON+"invoke('publishClaim');",
+    pathToFileURL(path.join(ROOT,LEASE_REL)).href,
+  ],{
+    cwd:"/",env:{PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"},
+    stdio:["pipe","pipe","pipe"],
+  });
+  let exited=false;
+  let stderr="";
+  child.stderr.on("data",chunk=>{stderr=(stderr+String(chunk)).slice(-4096);});
+  const completion=new Promise((resolve,reject)=>{
+    child.once("error",reject);
+    child.once("close",(code,signal)=>{exited=true;resolve({code,signal});});
+  });
+  try{
+    const ready=new Promise((resolve,reject)=>{
+      let received="";
+      const timer=setTimeout(()=>reject(new Error("fixture_lease_owner_ready_timeout:"+stderr)),5000);
+      const cleanup=()=>{clearTimeout(timer);child.stdout.off("data",onData);};
+      const onData=chunk=>{
+        received+=String(chunk);
+        if(received==="lease_held\n"){cleanup();resolve();}
+        else if(received.length>64){cleanup();reject(new Error("fixture_lease_owner_invalid_ready"));}
+      };
+      child.stdout.on("data",onData);
+      completion.then(()=>{cleanup();reject(new Error("fixture_lease_owner_exited_before_ready:"+stderr));},
+        error=>{cleanup();reject(error);});
+    });
+    child.stdin.end(leaseChildInput(f,bundle,{hold:true}));
+    await ready;
+    requireCrossProcessLeaseBusy(f,bundle,"publishClaim");
+    requireCrossProcessLeaseBusy(f,bundle,"observeAuthorizationWinner");
+    requireIndependentFlock(f,75);
+    assert.deepEqual(storeSnapshot(f.root),before,"the owner pauses before its first publication");
+    assert.equal(child.kill("SIGKILL"),true,"terminate only the disposable proof child");
+    const ended=await completion;
+    assert.equal(ended.signal,"SIGKILL");
+    requireIndependentFlock(f,0);
+    const recovered=linuxLeaseCore(f);
+    recovered.publishClaim(publishInput(bundle,f.generation));
+    withReadOnlyFs(()=>recovered.observeAuthorizationWinner(observationInput(bundle,f.generation)));
+  }finally{
+    if(!exited){child.kill("SIGKILL");await completion;}
+    f.cleanup();
+  }
+}
+
 for(const [key,value] of Object.entries(
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_AUTHORITY_V2
 )){
@@ -2208,6 +2823,24 @@ console.log("publication_handoff_inode_replacement_rejected=true");
 console.log("existing_recovery_fsyncs_actual_final_inode_and_directory=true");
 console.log("eexist_recovery_fsyncs_actual_final_inode_and_directory=true");
 console.log("session_binding_coercion_forbidden_before_store_access=true");
+console.log("linux_lease_factory_exact_data_configuration_proven=true");
+console.log("linux_lease_factory_preserves_core_api_without_raw_lock_export=true");
+console.log("linux_lease_fixed_bounded_helper_and_clean_environment_proven=true");
+console.log("linux_lease_helper_exits_while_private_description_retains_lock=true");
+console.log("linux_lease_same_process_mixed_core_contention_proven=true");
+console.log("linux_lease_cross_process_publish_and_observe_contention_proven=true");
+console.log("linux_lease_different_store_roots_remain_independent=true");
+console.log("linux_lease_held_through_core_descriptor_cleanup=true");
+console.log("linux_lease_busy_leaves_store_unchanged_and_poisons_contender=true");
+console.log("linux_lease_release_allows_fresh_publish_and_observe=true");
+console.log("linux_lease_observation_preserves_readonly_filesystem_boundary=true");
+console.log("linux_lease_helper_failures_fail_closed_and_release_private_fd=true");
+console.log("linux_lease_acquisition_cleanup_failure_preserves_primary_cause=true");
+console.log("linux_lease_release_close_error_is_not_retried_and_poisons_core=true");
+console.log("linux_lease_borrowed_fd_reuse_around_helper_rejected=true");
+console.log("linux_lease_helper_boundary_transient_root_drift_rejected=true");
+console.log("linux_lease_active_borrowed_fd_reuse_cannot_redirect_or_release_lock=true");
+console.log("linux_lease_abrupt_owner_exit_releases_kernel_lock=true");
 console.log("caller_supplied_revalidator_is_host_proof=false");
 console.log("caller_supplied_exclusive_transaction_is_host_proof=false");
 console.log("native_peer_runtime_integration_present=false");

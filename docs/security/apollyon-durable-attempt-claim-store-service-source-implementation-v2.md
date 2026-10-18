@@ -3,7 +3,7 @@
 Marker:
 `VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_V2`.
 
-Status: **source/test/CI implementation core only; no installed service, AF_UNIX listener, Xiphos mutation, or production claim publication**.
+Status: **source/test/CI core and Linux transaction composition; no installed service, AF_UNIX listener, Xiphos mutation, or production claim publication**.
 
 ## Purpose
 
@@ -17,10 +17,13 @@ The accepted Apollyon claim-store stack defined all of the pieces surrounding a 
 Without this implementation, later training-start protected-store revalidation could not truthfully name concrete claim/slot/generation leaf paths.
 
 This gate provides the reusable synchronous store/publisher core, an actual
-read-only authorization-winner observation method, and the physical store
-namespace. Both operations bind record reads to held descriptors and recheck
-the visible names within the caller-supplied root. An installed service wrapper
-and proof of host provenance or system-wide serialization remain separate work.
+read-only authorization-winner observation method, the physical store namespace,
+and a Linux composition that supplies a real advisory transaction lock. Both
+operations bind record reads to held descriptors and recheck the visible names
+within the caller-supplied root. The Linux composition serializes cooperating
+operations on that same root inode. An installed service wrapper, protected-root
+origin, privileged revalidation and exclusion of other writers or root migrations
+remain separate work.
 
 ## Exact parent
 
@@ -47,6 +50,12 @@ Important exact source generations:
   `981935515e08634be96446e58922c16be56d33ad`;
 - revalidation handoff:
   `5d913eb08d79c76ed926d8b88be05b12f475abd5`.
+
+The Linux composition is added over the unchanged core blob
+`e1329dece0caa2c8c3db142589b5c1c83e6c1076`. Its source is
+`tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs`, blob
+`f485b9e6fc29eab549ebba07e1b49f24c7659092`. The existing PR owns five files: core, transaction
+composition, focused proof, this document and the focused workflow.
 
 ## Fixed physical namespace
 
@@ -141,7 +150,9 @@ These checks detect changes across the observed boundaries. A trustworthy
 store-wide lease must still exclude concurrent writers and generation changes;
 sequential filesystem checks alone do not create an atomic multi-file snapshot.
 The supplied root FD is an anchor, not evidence that it was opened from the
-protected installed path.
+protected installed path. The Linux composition below supplies same-inode
+advisory exclusion for participants using its lock, without proving that all
+host writers and migrations participate.
 
 ## Exact publisher forwarding
 
@@ -228,6 +239,105 @@ A pre-existing claim without its authorization slot is a hard HOLD.
 
 A different valid claim for the same occupied authorization slot is a hard collision/HOLD before a second claim can be published.
 
+## Linux transaction composition
+
+`tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs` exports
+`createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2()`.
+Its configuration contains exactly five own enumerable data properties:
+`root_fd`, `claim_uid`, `claim_gid`, `session_binding_id` and `revalidate`.
+The factory captures those values, supplies its private acquisition function to
+the existing core, and returns that same frozen core with the same two methods
+and authority fields. It exposes no lock descriptor, unlock function, extra
+receipt or caller-selected helper. The original six-field core factory remains
+available for explicit dependency injection and its existing proofs.
+
+For a service wrapper that already retains the claim-root descriptor and the
+required request/generation material, composition is:
+
+```javascript
+import {
+  createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2,
+} from "./apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
+
+const core = createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2({
+  root_fd: retainedClaimRootFd,
+  claim_uid: claimServiceUid,
+  claim_gid: claimServiceGid,
+  session_binding_id: sourceSessionBindingId,
+  revalidate: revalidateClaimContext,
+});
+
+const observed = core.observeAuthorizationWinner({
+  authorization_id,
+  expected_store_generation_record,
+  request_bytes,
+});
+```
+
+`publishClaim()` uses the same transaction provider. The example supplies no
+host provenance: the wrapper must separately establish the root's origin and
+the privilege and evidence behind `revalidateClaimContext`. Importing the module
+and constructing the core start no process and acquire no lock. Each operation
+that passes the provider's acquisition prechecks does launch the fixed helper
+described below, including read-only observation.
+
+### Acquisition and lifetime
+
+The provider checks the exact seven-string acquisition context supplied by the
+core, including its retained root hash and source-session binding. It opens
+`/proc/self/fd/<root_fd>` to obtain a **fresh private open-file description** for
+each acquisition. A duplicate of an already locked description would share that
+lock; a fresh open lets independent core instances contend even when they use
+the same caller FD. Exact BigInt root identity and timestamps are checked across
+the borrowed and private descriptors before and after acquisition.
+
+The only helper invocation is:
+
+```text
+/usr/bin/flock --exclusive --nonblock --conflict-exit-code 75 3
+```
+
+The parent's private descriptor is passed as child FD 3. Linux associates this
+advisory lock with the open-file description, so the parent's retained reference
+keeps the lock after the helper exits. The provider holds it through recovery,
+publication or observation, final record rereads, and all core-owned descriptor
+cleanup. It then rechecks its private root snapshot and attempts one close.
+There is no unlock subprocess or lock-file unlink/recreation. Linux releases
+the lock when its last descriptor reference closes; abrupt process exit likewise
+releases it once no reference remains. These lifetime semantics follow
+[`flock(2)`](https://man7.org/linux/man-pages/man2/flock.2.html), with the inherited
+FD handoff supported by Node's
+[`options.stdio`](https://nodejs.org/api/child_process.html#optionsstdio).
+
+The helper runs directly with `shell:false`, working directory `/`, and only
+`PATH=/usr/bin:/bin`, `LANG=C` and `LC_ALL=C` in its environment. Stdin and stdout
+are ignored; stderr has an 8,192-byte capture limit. The synchronous launch
+specifies a 5,000 ms timeout and `SIGKILL`. A spawn error, timeout, signal,
+buffer-limit failure or unexpected exit fails acquisition. These are the configured
+[`spawnSync` limits](https://nodejs.org/api/child_process.html#child_processspawnsynccommand-args-options);
+the call waits for helper termination and supplies no lock-wait retry loop.
+
+### Failure and authority boundary
+
+Exit 75 produces `apollyon_claim_store_lease_v2_busy`. The core wraps failed
+acquisition as `apollyon_claim_store_impl_v2_transaction_acquisition_failed`,
+retaining the provider error as its cause. BUSY, other acquisition failures and
+release failures make that instance unusable. Acquisition failure closes any
+private descriptor already opened; every close is attempted once because a
+failed close may already have recycled the FD. There is no automatic retry.
+A transaction-body error followed by successful cleanup/release retains the
+core's existing retry/recovery behavior. Release failure suppresses success,
+preserves the core's cleanup classification and does not imply rollback.
+
+This is **advisory exclusion among cooperating operations on the same inode**.
+It does not prevent an actor that ignores the lock from writing, replacing the
+root or starting a migration. It does not authenticate `/usr/bin/flock`, the
+installed source or the caller's root path. Those installed-custody and policy
+checks remain unproven, as do privileged terminal revalidation, exclusion of
+nonparticipating writers, and serialization across root replacement/migration.
+No protected-origin, capability-issuance, training or production authority field
+is promoted by selecting this factory.
+
 ## Read-only authorization-winner observation
 
 The same core exposes:
@@ -261,8 +371,9 @@ immutable generation bytes must match the expected generation. The slot must
 bind the exact claim and original publish-request digest, and the persisted
 claim must exactly equal the canonical claim from that request. A final
 bounded reread and visible-name check runs with all four file descriptors
-still held. All eight owned descriptors close before the lease is released
-and the result is returned.
+still held. All eight core-owned descriptors close before the lease is released
+and the result is returned. The Linux composition retains one additional private
+root descriptor until that release.
 
 The core issues no write, fsync, link, unlink, rename, truncate, chmod or chown
 for observation. It does not open or scan `.pending-v2`, repair interrupted
@@ -270,7 +381,9 @@ publication, or create an absent winner. Missing, malformed, replaced,
 misbound or incompletely published records produce an error. In particular,
 a final record still linked to pending state is rejected by the single-link
 policy. Normal filesystem access-time effects and side effects of an injected
-lease provider are outside this explicit core-mutation claim.
+lease provider are outside this explicit core-mutation claim. With the Linux
+composition, the fixed `flock` process and advisory lock acquisition/release
+occur even though observation performs no core store mutation.
 
 The deeply frozen plain result has marker
 `VOID_APOLLYON_AUTHORIZATION_WINNER_OBSERVATION_V1` and status
@@ -410,18 +523,21 @@ The callback receipt is exact-schema and binds:
 - claim-record ID;
 - exact stage.
 
-However, a **caller-supplied callback is not host provenance**. Likewise, a caller-supplied acquisition lease is not proof of system-wide serialization.
+However, a **caller-supplied callback is not host provenance**. Likewise, a
+caller-supplied acquisition lease is not proof of system-wide serialization.
+The Linux composition supplies an actual advisory lock for cooperating callers;
+it does not establish universal participation or authenticate the revalidator.
 
 These are narrow injectable interfaces so the store algorithm can be
 deterministically tested before the later native/Xiphos integration binds them
-to reviewed kernel process/session evidence and a real store-generation
-serialization primitive.
+to reviewed kernel process/session evidence and the installed store's complete
+serialization policy.
 
 The source interface enforces acquisition before core mutation and successful
 synchronous cleanup before returning success. Native/runtime integration must
-still prove that the lease actually excludes other writers and migrations for
-that complete lifetime. No JSON receipt or configured UID substitutes for that
-host evidence.
+still prove that every permitted writer and migration uses the same lock domain
+for that complete lifetime. No JSON receipt or configured UID substitutes for
+that host evidence.
 
 ## Hosted adversarial proof
 
@@ -464,7 +580,7 @@ The focused proof uses only disposable private temporary roots. It proves:
   before returning durable success;
 - read-only observation succeeds on an exact published winner with no core
   mutation syscall, pending recovery, or revalidation callback;
-- observation holds and closes all eight descriptors before releasing its lease;
+- observation holds and closes all eight core descriptors before releasing its lease;
 - absence, partial publication, symlinks, FIFO/socket entries, oversize or
   malformed records cannot produce a winner observation;
 - bounded EOF, nanosecond metadata and visible-leaf rechecks reject changed
@@ -476,7 +592,19 @@ The focused proof uses only disposable private temporary roots. It proves:
 - asynchronous prepublication revalidation and asynchronous acquisition reject
   before core publication.
 
+The Linux composition adds real same-process and cross-process contention
+checks for publishing and observing, including distinct sessions using the
+same borrowed root FD, independent store roots, all three publication stages
+and the end of core descriptor cleanup. It verifies availability after release
+and after terminating only a disposable owner process. It also exercises
+read-only observation, exact helper options, invalid factory configurations,
+borrowed-FD reuse, root drift, injected helper failures and uncertain close
+results. Acquisition failures must preserve the store and reject poisoned-instance
+reuse; release errors after publication remain indeterminate and do not imply rollback.
+
 The proof mutates only disposable CI filesystem state. It does not contact Xiphos.
+The composed-provider cases also run the fixed local `flock` helper and disposable
+contender processes; the core-only cases retain their injected lease seam.
 
 ## Deliberate non-authority
 
@@ -514,6 +642,11 @@ funds_movement=false
 
 `apollyon_durable_attempt_claim_store_service_runtime_integration_v2`.
 
-That gate must bind the source core to the accepted native peer/process/revalidator primitives, authenticate the injected capabilities, and later undergo a separate installed Xiphos qualification before any production claim mutation can be considered.
+That gate must bind the source core and transaction composition to the accepted
+native peer/process/revalidator primitives, authenticate installed helper/source
+custody and the root capability, and prove that all permitted writers and
+migrations share the required lock domain. Separate installed Xiphos
+qualification remains required before any production claim mutation can be
+considered.
 
 **PROTECT THE CORE.**

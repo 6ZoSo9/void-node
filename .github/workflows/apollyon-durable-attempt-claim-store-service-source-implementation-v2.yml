@@ -6,6 +6,7 @@ on:
       - ".github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml"
       - "docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md"
       - "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs"
       - "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs"
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
@@ -24,6 +25,7 @@ on:
       - ".github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml"
       - "docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md"
       - "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs"
       - "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs"
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
@@ -76,6 +78,7 @@ jobs:
                 'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \
                 'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \
                 'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
+                'tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs' \
                 | LC_ALL=C sort > "$expected"
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
@@ -96,10 +99,12 @@ jobs:
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
             e1329dece0caa2c8c3db142589b5c1c83e6c1076
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
+            f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            10745c2897041720fa53ad5e62314f694ac96e65
+            04faf8145851dd702f7af02375464cb8c731cabe
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            793475a5fc242373a023450476289e75ad1116d1
+            962c04b8c5a43b0b5fae0ee59549569bd941c125
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
             93582c324ca85aeff56eb61f82b32f1e4c18dfe9
@@ -131,6 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs
+          node --check tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs
           node --check scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs
 
           out="$RUNNER_TEMP/apollyon-claim-store-service-implementation-v2.log"
@@ -202,6 +208,24 @@ jobs:
             'existing_recovery_fsyncs_actual_final_inode_and_directory=true' \
             'eexist_recovery_fsyncs_actual_final_inode_and_directory=true' \
             'session_binding_coercion_forbidden_before_store_access=true' \
+            'linux_lease_factory_exact_data_configuration_proven=true' \
+            'linux_lease_factory_preserves_core_api_without_raw_lock_export=true' \
+            'linux_lease_fixed_bounded_helper_and_clean_environment_proven=true' \
+            'linux_lease_helper_exits_while_private_description_retains_lock=true' \
+            'linux_lease_same_process_mixed_core_contention_proven=true' \
+            'linux_lease_cross_process_publish_and_observe_contention_proven=true' \
+            'linux_lease_different_store_roots_remain_independent=true' \
+            'linux_lease_held_through_core_descriptor_cleanup=true' \
+            'linux_lease_busy_leaves_store_unchanged_and_poisons_contender=true' \
+            'linux_lease_release_allows_fresh_publish_and_observe=true' \
+            'linux_lease_observation_preserves_readonly_filesystem_boundary=true' \
+            'linux_lease_helper_failures_fail_closed_and_release_private_fd=true' \
+            'linux_lease_acquisition_cleanup_failure_preserves_primary_cause=true' \
+            'linux_lease_release_close_error_is_not_retried_and_poisons_core=true' \
+            'linux_lease_borrowed_fd_reuse_around_helper_rejected=true' \
+            'linux_lease_helper_boundary_transient_root_drift_rejected=true' \
+            'linux_lease_active_borrowed_fd_reuse_cannot_redirect_or_release_lock=true' \
+            'linux_lease_abrupt_owner_exit_releases_kernel_lock=true' \
             'caller_supplied_revalidator_is_host_proof=false' \
             'caller_supplied_exclusive_transaction_is_host_proof=false' \
             'native_peer_runtime_integration_present=false' \
