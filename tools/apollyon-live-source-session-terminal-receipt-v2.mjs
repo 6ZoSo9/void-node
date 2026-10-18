@@ -45,7 +45,7 @@ export const VOID_APOLLYON_LIVE_SOURCE_SESSION_TERMINAL_RECEIPT_AUTHORITY_V2 =
   });
 
 const RUNNER_V2_BLOB_SHA1="8c2c92055ab05c074653cee971e095934b5cb85c";
-const BINDING_V2_BLOB_SHA1="981935515e08634be96446e58922c16be56d33ad";
+const BINDING_V2_BLOB_SHA1="5ee36c89275c29b008094ad030b8664ed9d7b60b";
 const HASH64=/^[0-9a-f]{64}$/u;
 const GIT40=/^[0-9a-f]{40}$/u;
 const CLAIM_ID=/^apollyon_claim_contract_v2:[0-9a-f]{64}$/u;
@@ -100,7 +100,7 @@ function validateBinding(value){
     value.version!==2||
     value.status!=="current_v2_live_custody_source_session_bound_unclaimed"||
     value.target_host!=="Xiphos"||
-    value.claim_contract_v2_blob_sha1!=="b61f2f0982de47c5e11cc1f82e6ea7946ab4a8b2"||
+    value.claim_contract_v2_blob_sha1!=="fd671b3303946143d927473e4ed04e7cd5030bac"||
     value.custody_launcher_v2_blob_sha1!=="d23ff045d8c355401fed499c6bcffd503ba4c7fd"||
     !LIVE_BINDING_ID.test(value.live_binding_id)||
     !CLAIM_ID.test(value.claim_contract_id)||
