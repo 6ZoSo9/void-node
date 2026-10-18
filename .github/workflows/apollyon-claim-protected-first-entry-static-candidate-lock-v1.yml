@@ -110,11 +110,11 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
-            25050af68e00dae01eaf19d1c6f3dc184bd384de
+            e25960138aaa2ce1fb1166660a46282320f8fecc
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
-            9127f190ecb51f2f44a9baaaf0047c3a32833219
+            45e5e803574a19ba66db0e3d58400d2db5ec5dd3
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = \
-            a3edb052cedc0d62b785fe6e3c53e8dda5ef33f2
+            73483cfa19e025c55d47a9ab66ef145d636253a6
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
             2ff81973b10c176523b0bf172a14fe1495a83986
@@ -157,18 +157,29 @@ jobs:
           for marker in \
             'VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_LOCK_V1_PROOF_GREEN' \
             'lock_source_blob_bound=true' \
-            'historical_parent_candidate_rederived=true' \
+            'historical_parent_candidate_rederived=false' \
+            'accepted_parent_evidence_identity_bound=true' \
+            'accepted_parent_report_digest_bound=true' \
+            'accepted_parent_artifact_digest_bound=true' \
+            'accepted_parent_toolchain_identity_bound=true' \
+            'mutable_runner_toolchain_used=false' \
+            'compiler_execution_during_lock=false' \
+            'readelf_execution_during_lock=false' \
             'parent_head_bound=true' \
             'parent_candidate_id_bound=true' \
-            'parent_candidate_report_bound=true' \
             'binary_bytes_sha_git_blob_bound=true' \
             'expected_install_mode_0555_bound=true' \
             'readdressed_extra_top_key_rejected=true' \
             'readdressed_parent_head_drift_rejected=true' \
             'readdressed_candidate_id_drift_rejected=true' \
+            'readdressed_report_digest_drift_rejected=true' \
+            'readdressed_artifact_digest_drift_rejected=true' \
+            'readdressed_toolchain_identity_drift_rejected=true' \
             'readdressed_binary_drift_rejected=true' \
             'readdressed_binary_extra_key_rejected=true' \
             'readdressed_install_overclaim_rejected=true' \
+            'readdressed_rederivation_overclaim_rejected=true' \
+            'readdressed_mutable_toolchain_overclaim_rejected=true' \
             'readdressed_acceptance_rollback_rejected=true' \
             'readdressed_next_gate_drift_rejected=true' \
             'candidate_accepted=true' \
@@ -193,6 +204,10 @@ jobs:
           from pathlib import Path
           import sys
           row = json.loads(Path(sys.argv[1]).read_text("ascii"))
+          assert row["authority"]["historical_parent_candidate_rederived"] is False
+          assert row["authority"]["accepted_parent_evidence_identity_bound"] is True
+          assert row["authority"]["accepted_parent_toolchain_identity_bound"] is True
+          assert row["authority"]["mutable_runner_toolchain_used"] is False
           assert row["authority"]["candidate_accepted"] is True
           assert row["authority"]["binary_identity_accepted"] is True
           assert row["authority"]["protected_install_authorized"] is False
