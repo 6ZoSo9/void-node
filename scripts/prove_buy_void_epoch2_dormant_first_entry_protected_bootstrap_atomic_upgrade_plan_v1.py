@@ -21,35 +21,35 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_plan_v1.py"
 )
-TARGET_BLOB = "ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78"
+TARGET_BLOB = "9ba10aac284da9e44db0ad258348425cfa3c2e2c"
 
 UPGRADER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_v1.py"
 )
-UPGRADER_BLOB = "7d70527d8910881f9973479b89ceef78789ad100"
+UPGRADER_BLOB = "d4b298dea73a4970987bf22435be3e76a5e7a02d"
 UPGRADER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_v1.py"
 )
-UPGRADER_PROOF_BLOB = "9e0b997230943b1ad0a0285e74e82faf049d7d31"
+UPGRADER_PROOF_BLOB = "74245f061432efd5383123c111ab481befbe90b5"
 UPGRADER_DOC_REL = (
     "docs/operators/buy-void-epoch2-dormant-first-entry-"
     "protected-bootstrap-atomic-upgrade-v1.md"
 )
-UPGRADER_DOC_BLOB = "6073c2c3a6489d80a24e64eba9fdf892bfe8c4c0"
+UPGRADER_DOC_BLOB = "bc41ad73160734b9a11bcaf925dc24b7daf645db"
 UPGRADER_WORKFLOW_REL = (
     ".github/workflows/buy-void-epoch2-dormant-first-entry-"
     "protected-bootstrap-atomic-upgrade-v1.yml"
 )
-UPGRADER_WORKFLOW_BLOB = "a89be3f29d758811362c81c9dbc7d2b69f74c147"
+UPGRADER_WORKFLOW_BLOB = "5601a90c2e12a6ea98e70339ea4b351572cda5d6"
 
 PLAN_WORKFLOW_REL = (
     ".github/workflows/buy-void-epoch2-dormant-first-entry-"
     "protected-bootstrap-atomic-upgrade-plan-v1.yml"
 )
-STACK_PARENT = "99600d3cce99c7e0a7281a48bbcdcecb66bc54f7"
+STACK_PARENT = "12b5b05eaaf07e10bd4cb04c98abc1916a81fede"
 
 OLD_LOCK = (
     "voidbuye2dormantbootstraplock3_"
@@ -94,15 +94,21 @@ pin(UPGRADER_WORKFLOW_REL, UPGRADER_WORKFLOW_BLOB)
 
 plan_workflow_source = (ROOT / PLAN_WORKFLOW_REL).read_text("utf-8")
 for required in (
-    "STACK_PARENT=99600d3cce99c7e0a7281a48bbcdcecb66bc54f7",
+    "STACK_PARENT=12b5b05eaaf07e10bd4cb04c98abc1916a81fede",
     """pull_request)
-              test "$PR_BASE" = "$STACK_PARENT"
+              test -n "$PR_BASE"
+              git merge-base --is-ancestor "$PR_BASE" "$STACK_PARENT"
               base="$STACK_PARENT"
               ;;""",
     'workflow_dispatch) base="$STACK_PARENT" ;;',
 ):
     assert required in plan_workflow_source, required
 assert 'workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;' not in plan_workflow_source
+assert 'test "$PR_BASE" = "$STACK_PARENT"' not in plan_workflow_source
+
+correct_proof_trigger = '      - "' + UPGRADER_PROOF_REL + '"'
+assert plan_workflow_source.count(correct_proof_trigger) == 2
+assert "dormant_first-entry-protected-bootstrap-atomic-upgrade-v1.py" not in plan_workflow_source
 
 source = target_raw.decode("utf-8", "strict")
 compile(source, TARGET_REL, "exec", dont_inherit=True)

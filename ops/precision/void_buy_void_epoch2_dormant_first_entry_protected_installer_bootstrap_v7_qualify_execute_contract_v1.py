@@ -34,19 +34,19 @@ PLANNER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_BLOB = "7f218580ea47897290c32b3fe5cb788f16a3ecc1"
+PLANNER_BLOB = "9ea4a7d34a66f81ed568adaed693755ebca37b66"
 PLANNER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_PROOF_BLOB = "7b2ec582059ae3a9d87c8668246093f4bb20e14f"
+PLANNER_PROOF_BLOB = "66263ef1beb35d5611683f456f95cafd5e0007ec"
 
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "04c7ca5f0d96dcb60faeae8cf4d712435ad65466"
+QUALIFIER_BLOB = "d9650aff7af2cb9fc9a8d95a888d8dd52aef1970"
 FIXED_PYTHON = "/usr/bin/python3"
 
 BOOTSTRAP_PATH = (

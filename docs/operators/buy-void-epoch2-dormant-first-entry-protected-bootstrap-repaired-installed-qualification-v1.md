@@ -20,16 +20,16 @@ Repaired upgrader:
 - path:
   `ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py`
 - Git blob:
-  `7d70527d8910881f9973479b89ceef78789ad100`
+  `d4b298dea73a4970987bf22435be3e76a5e7a02d`
 
 Upgrader proof:
-`9e0b997230943b1ad0a0285e74e82faf049d7d31`
+`74245f061432efd5383123c111ab481befbe90b5`
 
 Non-executing upgrade plan:
-`ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78`
+`9ba10aac284da9e44db0ad258348425cfa3c2e2c`
 
 Upgrade-plan proof:
-`e695ceed29f61f08f480d4dafaad7cc6635adf81`
+`31d501e290513c3ef2629681574fc0e51f7fe50e`
 
 ## Transition identities
 
@@ -176,3 +176,16 @@ production_host_evidence_authority=false
 ```
 
 **PROTECT THE CORE.**
+
+
+## Repaired parent generation
+
+This qualification generation is rebound to atomic-upgrade head
+`12b5b05eaaf07e10bd4cb04c98abc1916a81fede` and non-executing planner
+head `441f746d2ee8146b2ad6a62f68639f4451354c84`.
+
+The parent upgrader preserves a normally returned first `RENAME_EXCHANGE` as
+monotonic publication evidence even if a later layout observation is already
+READY. The parent planner also binds its exact reviewed parent despite stale
+pull-request event metadata and watches the correct upgrader-proof dependency
+path in both PR and push triggers.

@@ -19,25 +19,25 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "713727325d11ac7923ee3a52fb58670bbbb482e0"
+TARGET_BLOB = "904fa78c8d21ce03082151a738c0c53099f20ff7"
 
 PLANNER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_BLOB = "7f218580ea47897290c32b3fe5cb788f16a3ecc1"
+PLANNER_BLOB = "9ea4a7d34a66f81ed568adaed693755ebca37b66"
 PLANNER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_PROOF_BLOB = "7b2ec582059ae3a9d87c8668246093f4bb20e14f"
+PLANNER_PROOF_BLOB = "66263ef1beb35d5611683f456f95cafd5e0007ec"
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "04c7ca5f0d96dcb60faeae8cf4d712435ad65466"
+QUALIFIER_BLOB = "d9650aff7af2cb9fc9a8d95a888d8dd52aef1970"
 
 
 def git_blob(raw: bytes) -> str:
@@ -144,10 +144,18 @@ for required in (
     "launcher_historical_authority_overclaim",
     "bootstrap_argv_mismatch",
     "planner_qualification_line_mismatch",
+):
+    assert required in validate_source, required
+
+qualification_source = (
+    ast.get_source_segment(source, functions["_validate_qualification_contract"])
+    or ""
+)
+for required in (
     "qualification_contract_mismatch:",
     "qualification_required_result_mismatch:",
 ):
-    assert required in validate_source, required
+    assert required in qualification_source, required
 
 contract_source = ast.get_source_segment(source, functions["execution_contract"]) or ""
 assert '"ordinal": 1' in contract_source

@@ -32,22 +32,22 @@ UPGRADER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_v1.py"
 )
-UPGRADER_BLOB = "7d70527d8910881f9973479b89ceef78789ad100"
+UPGRADER_BLOB = "d4b298dea73a4970987bf22435be3e76a5e7a02d"
 UPGRADER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_v1.py"
 )
-UPGRADER_PROOF_BLOB = "9e0b997230943b1ad0a0285e74e82faf049d7d31"
+UPGRADER_PROOF_BLOB = "74245f061432efd5383123c111ab481befbe90b5"
 UPGRADER_DOC_REL = (
     "docs/operators/buy-void-epoch2-dormant-first-entry-"
     "protected-bootstrap-atomic-upgrade-v1.md"
 )
-UPGRADER_DOC_BLOB = "6073c2c3a6489d80a24e64eba9fdf892bfe8c4c0"
+UPGRADER_DOC_BLOB = "bc41ad73160734b9a11bcaf925dc24b7daf645db"
 UPGRADER_WORKFLOW_REL = (
     ".github/workflows/buy-void-epoch2-dormant-first-entry-"
     "protected-bootstrap-atomic-upgrade-v1.yml"
 )
-UPGRADER_WORKFLOW_BLOB = "a89be3f29d758811362c81c9dbc7d2b69f74c147"
+UPGRADER_WORKFLOW_BLOB = "5601a90c2e12a6ea98e70339ea4b351572cda5d6"
 
 OLD_LOCK = (
     "voidbuye2dormantbootstraplock3_"

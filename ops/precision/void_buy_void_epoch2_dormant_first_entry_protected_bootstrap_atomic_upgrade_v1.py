@@ -107,10 +107,12 @@ def published_inspection_error(reason,cause):
     return e
 
 def observed_rename(m,opt_fd,source,target,flags,policy,old_id,new_id):
-    caught=None; layout=None; inspection_error=None
+    caught=None; layout=None; inspection_error=None; rename_succeeded=False
     previous=signal.pthread_sigmask(signal.SIG_BLOCK,{signal.SIGINT})
     try:
-        try: m._renameat2(opt_fd,source,target,flags)
+        try:
+            m._renameat2(opt_fd,source,target,flags)
+            rename_succeeded=True
         except BaseException as exc: caught=exc
         try: layout=root_layout(m,policy,old_id,new_id)
         except BaseException as exc: inspection_error=exc
@@ -120,7 +122,7 @@ def observed_rename(m,opt_fd,source,target,flags,policy,old_id,new_id):
             if caught is None: caught=exc
     if inspection_error is not None:
         raise published_inspection_error("rename_outcome_needs_inspection",inspection_error) from inspection_error
-    return layout,caught
+    return layout,caught,rename_succeeded
 
 def bindings(m,head):
     try:
@@ -228,12 +230,12 @@ def rollback_published(m,opt_fd,policy,body,initial,bootstrap,manifest,head,old_
     try:
         layout=root_layout(m,policy,old_id,new_id)
         if layout==LAYOUT_RETAINED:
-            layout,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
+            layout,_,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
             if layout!=LAYOUT_ROLLBACK_SWAPPED: return False
-            layout,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,STAGE_NAME,RENAME_NOREPLACE,policy,old_id,new_id)
+            layout,_,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,STAGE_NAME,RENAME_NOREPLACE,policy,old_id,new_id)
             if layout!=LAYOUT_READY: return False
         elif layout==LAYOUT_EXCHANGED:
-            layout,_=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
+            layout,_,_=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
             if layout!=LAYOUT_READY: return False
         elif layout!=LAYOUT_READY: return False
         old_root(m,INSTALL_ROOT,policy,body["current_root_identity"])
@@ -263,18 +265,25 @@ def apply(bootstrap,manifest,head,expected_plan,confirm):
         old_root(m,INSTALL_ROOT,policy,old_id); new_root(m,STAGE_ROOT,policy,new_id)
         if root_layout(m,policy,old_id,new_id)!=LAYOUT_READY: raise UpgradeError("pre_exchange_layout_invalid")
         exchange_attempted=True
-        layout,handoff_error=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
+        layout,handoff_error,rename_succeeded=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
+        if rename_succeeded:
+            publication=True
         if layout==LAYOUT_EXCHANGED:
             exchanged=True; publication=True
         elif layout!=LAYOUT_READY:
             publication=True
+        if rename_succeeded and layout==LAYOUT_READY:
+            raise published_inspection_error(
+                "atomic_exchange_succeeded_but_layout_reverted",
+                UpgradeError("successful_exchange_layout_reverted_before_observation"),
+            )
         if handoff_error is not None: raise handoff_error
         if layout!=LAYOUT_EXCHANGED: raise UpgradeError("atomic_exchange_outcome_invalid:"+layout)
         os.fsync(opt_fd)
         new_root(m,INSTALL_ROOT,policy,new_id); old_root(m,STAGE_ROOT,policy,old_id)
         if not rebind(bootstrap,manifest,head,body): raise UpgradeError("plan_bindings_changed_after_exchange")
         retention_attempted=True
-        layout,handoff_error=observed_rename(m,opt_fd,STAGE_NAME,PREDECESSOR_NAME,RENAME_NOREPLACE,policy,old_id,new_id)
+        layout,handoff_error,retention_succeeded=observed_rename(m,opt_fd,STAGE_NAME,PREDECESSOR_NAME,RENAME_NOREPLACE,policy,old_id,new_id)
         if layout==LAYOUT_RETAINED: retained=True
         elif layout!=LAYOUT_EXCHANGED: publication=True
         if handoff_error is not None: raise handoff_error

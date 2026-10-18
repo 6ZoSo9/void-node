@@ -115,6 +115,13 @@ the prior SIGINT mask is restored in `finally` and the operation immediately rep
 publication-aware inspection-required state without attempting another destructive
 transition. Automatic retry is always false.
 
+A normally returned kernel rename is itself retained as monotonic publication
+evidence before any post-syscall layout interpretation. If the first
+`RENAME_EXCHANGE` returns success but the subsequent observed layout has already
+been restored to READY, the upgrader does **not** reinterpret that as
+prepublication state. It reports `published_needs_inspection`, performs no
+prepublication cleanup, and keeps automatic retry false.
+
 The successful terminal retains the predecessor and reports
 `rollback_available=true`.
 
@@ -138,6 +145,9 @@ The focused proof:
 - forces post-rename layout inspection to remain unavailable after a successful exchange
   and requires publication-aware `published_needs_inspection`, no automatic retry,
   and restoration of the caller's original signal mask;
+- performs a successful first exchange, restores the READY layout before the
+  observation returns, and requires the successful syscall itself to preserve
+  `publication=true` with `published_needs_inspection` and no prepublication cleanup;
 - verifies publication truth remains monotonic across every rollback;
 - inserts a foreign staging entry and requires cleanup refusal;
 - rejects subprocess/systemctl/exec-based live execution paths in the upgrader source.

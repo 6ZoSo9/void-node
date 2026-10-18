@@ -46,9 +46,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
           case "$EVENT_NAME" in
-            pull_request) base="c6031d02ec4909cd4e2fc4305e5e4e81ff72ab31" ;;
+            pull_request) base="f226bb5f4c938a8b51fe8bdfbef3b6985ac0e7ac" ;;
             push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="c6031d02ec4909cd4e2fc4305e5e4e81ff72ab31" ;;
+            workflow_dispatch) base="f226bb5f4c938a8b51fe8bdfbef3b6985ac0e7ac" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           test -n "$base"
@@ -66,18 +66,18 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            713727325d11ac7923ee3a52fb58670bbbb482e0
+            904fa78c8d21ce03082151a738c0c53099f20ff7
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            e36ee3f29420a119f14d299e60b31bec314ae682
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-v7-qualify-execute-contract-v1.md)" = \
-            9797d8971c944505ea7766bcab28fcf6cef83389
+            4c8d86fea5af335faf81a2a6643277de3c2d02b0
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-v7-qualify_execute_contract-v1.md)" = \
+            3912de9211b5ffca96a4946d4ca1a57024ad6469
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            7f218580ea47897290c32b3fe5cb788f16a3ecc1
+            9ea4a7d34a66f81ed568adaed693755ebca37b66
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            7b2ec582059ae3a9d87c8668246093f4bb20e14f
+            66263ef1beb35d5611683f456f95cafd5e0007ec
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            04c7ca5f0d96dcb60faeae8cf4d712435ad65466
+            d9650aff7af2cb9fc9a8d95a888d8dd52aef1970
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

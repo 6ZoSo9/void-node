@@ -28,14 +28,14 @@ Exact reviewed planner source:
 - path:
   `ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py`;
 - Git blob:
-  `7f218580ea47897290c32b3fe5cb788f16a3ecc1`.
+  `9ea4a7d34a66f81ed568adaed693755ebca37b66`.
 
 Exact reviewed planner proof:
 
 - path:
   `scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py`;
 - Git blob:
-  `7b2ec582059ae3a9d87c8668246093f4bb20e14f`.
+  `66263ef1beb35d5611683f456f95cafd5e0007ec`.
 
 The captured planner output must contain canonical
 `plan_body_json` and a matching
@@ -53,7 +53,7 @@ The phase-1 source is exactly:
 
 Git blob:
 
-`04c7ca5f0d96dcb60faeae8cf4d712435ad65466`.
+`d9650aff7af2cb9fc9a8d95a888d8dd52aef1970`.
 
 The execution contract records:
 
@@ -195,3 +195,19 @@ CI may run only self-test, source-plan and proof code. It must not invoke the
 installed bootstrap or repaired qualifier against a real host.
 
 **PROTECT THE CORE.**
+
+
+## Final V7 dependency generation
+
+This contract is reviewed against exact parent #3518
+`f226bb5f4c938a8b51fe8bdfbef3b6985ac0e7ac`.
+
+Bound dependency blobs:
+- V7 planner: `9ea4a7d34a66f81ed568adaed693755ebca37b66`;
+- V7 planner proof: `66263ef1beb35d5611683f456f95cafd5e0007ec`;
+- repaired installed qualifier: `d9650aff7af2cb9fc9a8d95a888d8dd52aef1970`.
+
+The parent-relative review surface is exactly this contract's four ADD-only files.
+The qualification-helper static proof is checked against
+`_validate_qualification_contract()` itself; qualification labels are no
+longer incorrectly searched inside `validate_planner_output()`.
