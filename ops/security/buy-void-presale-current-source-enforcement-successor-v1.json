@@ -4,7 +4,7 @@
   "version": 1,
   "repository": "6ZoSo9/void-node",
   "source_freeze": {
-    "candidate_head": "0f5c467253c250a905917e886eb6ae3fb80bff62",
+    "candidate_head": "d3e7404791622541a4567ddd506f27caba60cfea",
     "source_commit": "05614762b1b4638e05e539fd7d20cbf670e1570b",
     "source_tree": "4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e",
     "freeze_id": "voidbuypresalefreeze2_32bd552dc92df07fd391ee3571f92e5efd80cbb50bd79bc4b8952484511db7f1",
@@ -72,5 +72,5 @@
     "production_host_evidence_authority": false
   },
   "next_gate": "void_buy_void_presale_source_freeze_acceptance_v2",
-  "successor_id": "voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad"
+  "successor_id": "voidbuypresaleenfsucc1_819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef"
 }
