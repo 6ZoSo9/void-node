@@ -40,9 +40,9 @@ baseline.
 ## Staged direct-candidate authority
 
 An authenticated UDP direct candidate remains subordinate to the exact
-authenticated-control route generation that created it. Candidate staging binds
-the route's request ID, ticket ID, expiry, relay node, peer node, stream and
-session. Promotion rechecks that exact generation.
+authenticated-control route generation that created it. Candidate staging binds the route's request ID, ticket ID, expiry, relay node,
+peer node, stream, session, and the local client-clock generation. Promotion
+rechecks that exact local generation as well as the wire-visible route fields.
 
 If a local clock regression removes the active route before promotion:
 
@@ -53,9 +53,10 @@ If a local clock regression removes the active route before promotion:
 - the already-established relay fallback remains live.
 
 A fresh post-regression route/session generation is required for another direct
-promotion attempt. Reusing the same session/relay/peer/stream tuple does not
-revive an older candidate because request/ticket/expiry generation identity is
-also bound.
+promotion attempt. Replaying the same pre-regression request ID, ticket ID,
+session, expiry, relay, peer, and stream cannot revive an older candidate:
+the recreated route is stamped with the newer local client-clock generation,
+which is not peer-controlled and cannot equal the candidate's prior generation.
 
 ## Relay client state in Node
 

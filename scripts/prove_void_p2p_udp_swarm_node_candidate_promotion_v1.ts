@@ -190,6 +190,8 @@ function installAuthenticatedControlRoute(
   const ticketId = crypto.randomBytes(16).toString("hex");
   const expiresAtMs = Date.now() + 60_000;
   const core = internals(node);
+  core.udpSwarmControl.sweep(Date.now());
+  const clockGeneration = core.udpSwarmControl.clientClock.generation;
   core.udpSwarmControl.activeRoutes.set(sessionId, {
     request_id: requestId,
     session_id: sessionId,
@@ -199,6 +201,7 @@ function installAuthenticatedControlRoute(
     ticket_id: ticketId,
     expires_at_ms: expiresAtMs,
     offer_received: true,
+    clock_generation: clockGeneration,
   });
   core.udpSwarmControl.ticketSessions.set(ticketId, sessionId);
   const route = core.udpSwarmControl.snapshot().active_routes.find(

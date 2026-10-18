@@ -108,6 +108,7 @@ type ActiveRouteV1 = {
   ticket_id: string;
   expires_at_ms: number;
   offer_received: boolean;
+  clock_generation: number;
 };
 
 type StartedRelayStreamCheckV1 = (
@@ -324,6 +325,7 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
         ticket_id: message.ticket_id,
         expires_at_ms: message.expires_at_ms,
         offer_received: false,
+        clock_generation: this.clientClock.generation,
       };
       this.activeRoutes.set(route.session_id, route);
       this.ticketSessions.set(route.ticket_id, route.session_id);
@@ -494,6 +496,13 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
         })),
       ),
     });
+  }
+
+  activeRouteAuthorityV1(sessionId: string): Readonly<ActiveRouteV1> | undefined {
+    this.sweep();
+    const route = this.activeRoutes.get(sessionId);
+    if (!route) return;
+    return Object.freeze({ ...route });
   }
 
   removeAuthenticatedPeer(nodeId: string): void {

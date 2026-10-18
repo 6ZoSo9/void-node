@@ -99,6 +99,8 @@ for (const required of [
   "control_request_id: controlRoute.request_id",
   "control_ticket_id: controlRoute.ticket_id",
   "control_expires_at_ms: controlRoute.expires_at_ms",
+  "control_clock_generation: controlRoute.clock_generation",
+  "controlRoute.clock_generation !== context.control_clock_generation",
   'error: "authenticated_control_route_required"',
 ]) {
   assert.equal(nodeSource.includes(required), true, required);
@@ -129,6 +131,7 @@ const primitive = new VoidP2pClientTransientClockV1();
 assert.deepEqual(primitive.observe(10_000), {
   now_ms: 10_000,
   regressed: false,
+  generation: 0,
 });
 assert.throws(
   () => primitive.observe(Number.NaN),
@@ -145,14 +148,17 @@ assert.throws(
 assert.deepEqual(primitive.observe(9_000), {
   now_ms: 9_000,
   regressed: true,
+  generation: 1,
 });
 assert.deepEqual(primitive.observe(9_000), {
   now_ms: 9_000,
   regressed: false,
+  generation: 1,
 });
 assert.deepEqual(primitive.observe(9_001), {
   now_ms: 9_001,
   regressed: false,
+  generation: 1,
 });
 
 const local = identity();
@@ -322,6 +328,9 @@ try {
   };
   nodeAny.peers.set(relay.nodeId, stagedRelayPeer);
   nodeAny.relayStreams.set(stagedRelayKey, stagedRelayStream);
+  nodeAny.udpSwarmControl.sweep(stagedRouteNow);
+  const stagedClockGeneration =
+    nodeAny.udpSwarmControl.clientClock.generation;
   nodeAny.udpSwarmControl.activeRoutes.set(stagedSessionId, {
     request_id: stagedRequestId,
     session_id: stagedSessionId,
@@ -331,6 +340,7 @@ try {
     ticket_id: stagedTicketId,
     expires_at_ms: stagedRouteExpiry,
     offer_received: true,
+    clock_generation: stagedClockGeneration,
   });
   nodeAny.udpSwarmControl.ticketSessions.set(stagedTicketId, stagedSessionId);
   nodeAny.udpSwarmControl.sweep(stagedRouteNow);
@@ -378,6 +388,7 @@ try {
       control_request_id: stagedRequestId,
       control_ticket_id: stagedTicketId,
       control_expires_at_ms: stagedRouteExpiry,
+      control_clock_generation: stagedClockGeneration,
       candidate: stagedCandidate,
     },
     authenticatedPublicPem: relay.pubPEM,
@@ -440,10 +451,35 @@ try {
   mountAny.candidatePromotionRejects = 0;
 
   nodeAny.udpSwarmControl.sweep(stagedRouteNow - 1_000);
+  const replayClockGeneration =
+    nodeAny.udpSwarmControl.clientClock.generation;
+  assert.equal(replayClockGeneration, stagedClockGeneration + 1);
   assert.equal(
     nodeAny.udpSwarmControl.snapshot(stagedRouteNow - 1_000).active_route_count,
     0,
   );
+
+  // Model an authenticated relay replaying the exact pre-regression wire
+  // authority before the next promotion tick. The wire fields are identical,
+  // but the recreated route belongs to the new local clock generation.
+  nodeAny.udpSwarmControl.activeRoutes.set(stagedSessionId, {
+    request_id: stagedRequestId,
+    session_id: stagedSessionId,
+    relay_node_id: local.nodeId,
+    peer_node_id: relay.nodeId,
+    stream_id: stagedStreamId,
+    ticket_id: stagedTicketId,
+    expires_at_ms: stagedRouteExpiry,
+    offer_received: true,
+    clock_generation: replayClockGeneration,
+  });
+  nodeAny.udpSwarmControl.ticketSessions.set(stagedTicketId, stagedSessionId);
+  assert.equal(
+    nodeAny.udpSwarmControl.activeRouteAuthorityV1(stagedSessionId)
+      ?.clock_generation,
+    replayClockGeneration,
+  );
+
   mountAny.promoteReadyCandidates();
 
   assert.equal(mountAny.candidatePromotions, 0);
@@ -496,5 +532,7 @@ console.log("stale_candidate_socket_destroyed=true");
 console.log("stale_socket_runtime_session_retired=true");
 console.log("runtime_mount_promotion_tick_revokes_stale_candidate=true");
 console.log("exact_control_route_generation_required_at_promotion=true");
+console.log("local_clock_generation_required_at_promotion=true");
+console.log("replayed_wire_route_cannot_revive_pre_regression_candidate=true");
 console.log("runtime_or_network_mutation=false");
 console.log("wallet_signer_validator_wc_money_authority=0");

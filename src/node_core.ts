@@ -539,6 +539,7 @@ type UdpSwarmAuthenticatedDirectCandidateContextV1 = Readonly<{
   control_request_id: string;
   control_ticket_id: string;
   control_expires_at_ms: number;
+  control_clock_generation: number;
   candidate: VoidUdpSwarmAuthenticatedDirectCandidateV1;
 }>;
 
@@ -1913,9 +1914,7 @@ private liveUdpSwarmAuthenticatedControlRouteForCandidateV1(
   relayNodeId: string,
   relayStreamId: string,
 ) {
-  const route = this.udpSwarmControl.snapshot().active_routes.find(
-    (entry) => entry.session_id === sessionId,
-  );
+  const route = this.udpSwarmControl.activeRouteAuthorityV1(sessionId);
   if (
     !route ||
     route.peer_node_id !== expectedPeerNodeId ||
@@ -2302,6 +2301,7 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
       control_request_id: controlRoute.request_id,
       control_ticket_id: controlRoute.ticket_id,
       control_expires_at_ms: controlRoute.expires_at_ms,
+      control_clock_generation: controlRoute.clock_generation,
       candidate,
     });
   try {
@@ -2390,7 +2390,8 @@ promoteUdpSwarmAuthenticatedDirectCandidateV1(
     !controlRoute ||
     controlRoute.request_id !== context.control_request_id ||
     controlRoute.ticket_id !== context.control_ticket_id ||
-    controlRoute.expires_at_ms !== context.control_expires_at_ms
+    controlRoute.expires_at_ms !== context.control_expires_at_ms ||
+    controlRoute.clock_generation !== context.control_clock_generation
   ) {
     context.candidate.discard(
       "authenticated control route generation is not live at direct-peer promotion",
