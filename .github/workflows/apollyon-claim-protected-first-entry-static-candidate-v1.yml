@@ -104,7 +104,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
             ad6857d310fd1f4e25d7f379db9bae9f55c1f9f2
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = \
-            0859444e40fab93b7ab8af9b388e15dc3a818641
+            ec973c47dcb2ff6452b5c22a5d95fad4e4ffd704
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_v1.py)" = \
             598c195252a17b7e4839763387c1970ea13c3b45
 
@@ -202,13 +202,57 @@ jobs:
           )
           printf '%s\n' "$EXPECTED_HEAD" > "$dest/source-head.txt"
 
+          archive="$RUNNER_TEMP/apollyon-protected-first-entry-static-candidate-v1.tar"
+          (
+            cd "$dest"
+            tar \
+              --format=ustar \
+              --sort=name \
+              --mtime='@0' \
+              --owner=0 \
+              --group=0 \
+              --numeric-owner \
+              -cf "$archive" \
+              candidate-v1.json \
+              apollyon-claim-protected-first-entry-static-v1 \
+              SHA256SUMS.txt \
+              source-head.txt
+          )
+
+          expected_members="$RUNNER_TEMP/apollyon-static-candidate-members.txt"
+          actual_members="$RUNNER_TEMP/apollyon-static-candidate-tar-members.txt"
+          printf '%s\n' \
+            'SHA256SUMS.txt' \
+            'apollyon-claim-protected-first-entry-static-v1' \
+            'candidate-v1.json' \
+            'source-head.txt' \
+            | LC_ALL=C sort > "$expected_members"
+          tar -tf "$archive" | LC_ALL=C sort > "$actual_members"
+          diff -u "$expected_members" "$actual_members"
+
+          restore="$RUNNER_TEMP/apollyon-static-candidate-v1-restored"
+          mkdir -m 700 "$restore"
+          tar -xf "$archive" -C "$restore"
+          test "$(stat -c '%a' "$restore/apollyon-claim-protected-first-entry-static-v1")" = 555
+          (
+            cd "$restore"
+            sha256sum -c SHA256SUMS.txt
+          )
+          test "$(cat "$restore/source-head.txt")" = "$EXPECTED_HEAD"
+          cmp "$dest/candidate-v1.json" "$restore/candidate-v1.json"
+          cmp \
+            "$dest/apollyon-claim-protected-first-entry-static-v1" \
+            "$restore/apollyon-claim-protected-first-entry-static-v1"
+          echo 'artifact_mode_preservation_archive_verified=true'
+          sha256sum "$archive"
+
           git diff --check
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
-      - name: Upload exact review candidate
+      - name: Upload exact review candidate archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: apollyon-protected-first-entry-static-candidate-v1-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ runner.temp }}/apollyon-static-candidate-v1
+          path: ${{ runner.temp }}/apollyon-protected-first-entry-static-candidate-v1.tar
           if-no-files-found: error
           retention-days: 7
