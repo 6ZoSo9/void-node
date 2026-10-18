@@ -17,7 +17,7 @@ TARGET_HOST="Xiphos"
 ROOT=Path(__file__).resolve().parents[2]
 
 UPGRADE_MANIFEST_REL="ops/xiphos/apollyon-live-custody-reviewed-root-v2-upgrade-v1.json"
-UPGRADE_MANIFEST_BLOB="db64dd321936c90159417959505e958a29596368"
+UPGRADE_MANIFEST_BLOB="e78f1709c81775b881ab8f54291bd470ff9e1353"
 OLD_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v1")
 NEW_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")
 PRIOR_V2_BACKUP_ROOT=Path("/opt/void-apollyon-live-custody-binding-v2-reviewed-v2-prior-v1")
@@ -26,10 +26,12 @@ FIXED_LAUNCHER=Path(
     "/opt/void-apollyon-live-custody-binding-v2-preentry-v1/"
     "apollyon_live_custody_source_session_launcher_v2.py"
 )
-LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
+REVIEWED_ROOT_LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
 OLD_LAUNCHER_BLOB="e18124d3109ed63ff50da9c467fb1b798c300460"
 PRIOR_V2_LAUNCHER_BLOB="b96f99d6c513405e6f8b87b8f5c3fb1b1cbbf9c7"
-NEW_LAUNCHER_BLOB="820f7151c0f83280b7457f841cee14c3b0c274b6"
+PRIOR_CURRENT_LAUNCHER_BLOB="820f7151c0f83280b7457f841cee14c3b0c274b6"
+NEW_LAUNCHER_BLOB="352bd36f2b07091140b990de4170f708eb11fee6"
 CUSTODY_UNIT="void-apollyon-authorization-custody-v1.service"
 TRAINING_UNIT="void-apollyon-training-bus-isolation-v1.service"
 
@@ -81,6 +83,7 @@ def load_upgrade_manifest()->dict:
     if (
         value["from"]["reviewed_root"]!=str(OLD_ROOT) or
         value["prior_v2"]["reviewed_root"]!=str(NEW_ROOT) or
+        value["prior_current"]["reviewed_root"]!=str(NEW_ROOT) or
         value["to"]["reviewed_root"]!=str(NEW_ROOT) or
         value.get("prior_v2_backup_root")!=str(PRIOR_V2_BACKUP_ROOT)
     ):
@@ -89,9 +92,22 @@ def load_upgrade_manifest()->dict:
         hold("upgrade_manifest_old_launcher_invalid")
     if value["prior_v2"]["fixed_launcher_blob_sha1"]!=PRIOR_V2_LAUNCHER_BLOB:
         hold("upgrade_manifest_prior_v2_launcher_invalid")
+    if value["prior_current"]["fixed_launcher_blob_sha1"]!=PRIOR_CURRENT_LAUNCHER_BLOB:
+        hold("upgrade_manifest_prior_current_launcher_invalid")
+    if value["prior_current"].get("fixed_launcher_source_rel")!=REVIEWED_ROOT_LAUNCHER_REL:
+        hold("upgrade_manifest_prior_current_launcher_source_invalid")
     if value["to"]["fixed_launcher_blob_sha1"]!=NEW_LAUNCHER_BLOB:
         hold("upgrade_manifest_new_launcher_invalid")
-    if value["prior_v2"].get("systemd_reviewed_versions")!=value["to"].get("systemd_reviewed_versions"):
+    if value["to"].get("fixed_launcher_source_rel")!=LAUNCHER_REL:
+        hold("upgrade_manifest_new_launcher_source_invalid")
+    if value["prior_current"].get("closure")!=value["to"].get("closure"):
+        hold("upgrade_manifest_prior_current_closure_invalid")
+    if (
+        value["prior_v2"].get("systemd_reviewed_versions")!=
+            value["prior_current"].get("systemd_reviewed_versions") or
+        value["prior_current"].get("systemd_reviewed_versions")!=
+            value["to"].get("systemd_reviewed_versions")
+    ):
         hold("upgrade_manifest_systemd_versions_invalid")
     return value
 
@@ -280,6 +296,7 @@ def launcher_state()->str:
     digest=git_blob(FIXED_LAUNCHER.read_bytes())
     if digest==OLD_LAUNCHER_BLOB:return "old_exact"
     if digest==PRIOR_V2_LAUNCHER_BLOB:return "prior_v2_exact"
+    if digest==PRIOR_CURRENT_LAUNCHER_BLOB:return "prior_current_exact"
     if digest==NEW_LAUNCHER_BLOB:return "new_exact"
     hold("fixed_launcher_collision")
 
@@ -292,6 +309,11 @@ def classify_upgrade_state(launcher:str,root:str,backup:str)->str:
         root=="prior_v2_exact" and backup=="absent"
     ):
         return "prior_v2_pending"
+    if (
+        launcher=="prior_current_exact" and root=="current_exact" and
+        backup in ("absent","prior_v2_exact")
+    ):
+        return "prior_current_pending"
     if launcher=="new_exact":
         if root=="prior_v2_exact" and backup=="absent":
             return "prior_v2_launcher_switched"
@@ -358,10 +380,13 @@ def replace_launcher(new_bytes:bytes,allowed_from:tuple[str,...])->bool:
     if state=="new_exact": return False
     if state not in allowed_from:
         hold("fixed_launcher_unexpected_migration_source:"+state)
-    expected_blob=(
-        OLD_LAUNCHER_BLOB if state=="old_exact"
-        else PRIOR_V2_LAUNCHER_BLOB
-    )
+    expected_blob={
+        "old_exact":OLD_LAUNCHER_BLOB,
+        "prior_v2_exact":PRIOR_V2_LAUNCHER_BLOB,
+        "prior_current_exact":PRIOR_CURRENT_LAUNCHER_BLOB,
+    }.get(state)
+    if expected_blob is None:
+        hold("fixed_launcher_unexpected_migration_source:"+state)
     before=os.lstat(FIXED_LAUNCHER)
     temp=FIXED_LAUNCHER.parent/(".launcher.new."+str(os.getpid()))
     fd=os.open(
@@ -442,6 +467,8 @@ def plan()->dict:
         next_action="APPLY_REVIEWED_ROOT_V2_UPGRADE"
     elif migration.startswith("prior_v2"):
         next_action="APPLY_PRIOR_V2_TO_CURRENT_V2_MIGRATION"
+    elif migration=="prior_current_pending":
+        next_action="APPLY_CANONICAL_FIXED_LAUNCHER_RETIREMENT"
     else:
         next_action="UPGRADE_ALREADY_EXACT"
     return {
@@ -454,6 +481,7 @@ def plan()->dict:
         "fixed_launcher_state":launcher,
         "migration_state":migration,
         "prior_v2_migration_source_bound":True,
+        "prior_current_launcher_retirement_source_bound":True,
         "prior_v2_backup_root":str(PRIOR_V2_BACKUP_ROOT),
         "new_closure_source_verified":True,
         "service_action":False,"systemd_mutation":False,
@@ -495,6 +523,13 @@ def apply()->dict:
         # active before migration mutates the canonical root.
         assert_services_dormant()
         tree_changed=migrate_prior_v2_tree(manifest)
+    elif migration=="prior_current_pending":
+        changed=replace_launcher(
+            read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),
+            ("prior_current_exact",),
+        )
+        assert_services_dormant()
+        verify_tree(NEW_ROOT,manifest["to"]["closure"])
     elif migration in ("current_exact","current_exact_from_prior_v2"):
         pass
     else:
@@ -529,14 +564,21 @@ def self_test()->None:
     manifest=load_upgrade_manifest()
     assert manifest["to"]["systemd_reviewed_versions"]==["255.4-1ubuntu8.11","255.4-1ubuntu8.18"]
     assert manifest["prior_v2"]["systemd_reviewed_versions"]==manifest["to"]["systemd_reviewed_versions"]
+    assert manifest["prior_current"]["systemd_reviewed_versions"]==manifest["to"]["systemd_reviewed_versions"]
     assert manifest["prior_v2"]["fixed_launcher_blob_sha1"]==PRIOR_V2_LAUNCHER_BLOB
+    assert manifest["prior_current"]["fixed_launcher_blob_sha1"]==PRIOR_CURRENT_LAUNCHER_BLOB
+    assert manifest["prior_current"]["fixed_launcher_source_rel"]==REVIEWED_ROOT_LAUNCHER_REL
+    assert manifest["prior_current"]["closure"]==manifest["to"]["closure"]
+    assert manifest["to"]["fixed_launcher_source_rel"]==LAUNCHER_REL
     assert manifest["prior_v2_backup_root"]==str(PRIOR_V2_BACKUP_ROOT)
     assert manifest["to"]["closure"]["ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"]=="2a285b5b1da2597a8b9eae6d08cd42d010bf7f71"
     assert manifest["to"]["closure"]["tools/apollyon-v2-raw-collector-adapter-v1.mjs"]=="1cce303c25317b66e5f264f1b3f8c05712879cfe"
-    assert manifest["to"]["closure"][LAUNCHER_REL]==NEW_LAUNCHER_BLOB
+    assert manifest["to"]["closure"][REVIEWED_ROOT_LAUNCHER_REL]==PRIOR_CURRENT_LAUNCHER_BLOB
     assert classify_upgrade_state("old_exact","absent","absent")=="legacy_v1_pending"
     assert classify_upgrade_state("old_exact","current_exact","absent")=="legacy_v1_tree_installed"
     assert classify_upgrade_state("prior_v2_exact","prior_v2_exact","absent")=="prior_v2_pending"
+    assert classify_upgrade_state("prior_current_exact","current_exact","absent")=="prior_current_pending"
+    assert classify_upgrade_state("prior_current_exact","current_exact","prior_v2_exact")=="prior_current_pending"
     assert classify_upgrade_state("new_exact","prior_v2_exact","absent")=="prior_v2_launcher_switched"
     assert classify_upgrade_state("new_exact","absent","prior_v2_exact")=="prior_v2_root_swap_resume"
     assert classify_upgrade_state("new_exact","current_exact","absent")=="current_exact"
@@ -592,6 +634,27 @@ def self_test()->None:
     post_replace_dormant_index=source.index("assert_services_dormant()",replace_index)
     migrate_index=source.index("tree_changed=migrate_prior_v2_tree(manifest)",post_replace_dormant_index)
     assert stage_index < replace_index < post_replace_dormant_index < migrate_index
+    prior_current_index=source.index('elif migration=="prior_current_pending":')
+    prior_current_replace=source.index(
+        '("prior_current_exact",),',
+        prior_current_index,
+    )
+    prior_current_dormant=source.index(
+        "assert_services_dormant()",
+        prior_current_replace,
+    )
+    prior_current_verify=source.index(
+        'verify_tree(NEW_ROOT,manifest["to"]["closure"])',
+        prior_current_dormant,
+    )
+    next_branch=source.index(
+        'elif migration in ("current_exact","current_exact_from_prior_v2"):',
+        prior_current_verify,
+    )
+    prior_current_body=source[prior_current_index:next_branch]
+    assert prior_current_index < prior_current_replace < prior_current_dormant < prior_current_verify
+    assert "prepare_current_stage(" not in prior_current_body
+    assert "migrate_prior_v2_tree(" not in prior_current_body
     for forbidden_parts in (
         ("systemctl",'",',"start"),("systemctl",'",',"stop"),("systemctl",'",',"restart"),
         ("training_execution",":True"),("durable_attempt_claim",":True"),
@@ -606,6 +669,9 @@ def self_test()->None:
     print("dangling_new_root_symlink_rejected=true")
     print("dangling_prior_v2_backup_symlink_rejected=true")
     print("prior_v2_migration_source_bound=true")
+    print("prior_current_launcher_retirement_source_bound=true")
+    print("prior_current_launcher_only_migration=true")
+    print("retired_fixed_launcher_blob_bound=true")
     print("prior_v2_launcher_b96_bound=true")
     print("prior_v2_backup_preserved=true")
     print("prior_v2_interrupted_states_resumable=true")
