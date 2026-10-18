@@ -110,6 +110,23 @@ PATH_KEYS = frozenset(
     }
 )
 
+PATH_METADATA_KEYS = frozenset({"state", "mode", "bytes"})
+CUSTODY_PATH_METADATA_KEYS = frozenset(
+    {"state", "mode", "bytes", "is_mountpoint_metadata_only"}
+)
+PATH_METADATA_STATES = frozenset(
+    {
+        "ABSENT",
+        "METADATA_PERMISSION_HOLD",
+        "METADATA_UNAVAILABLE_HOLD",
+        "SYMLINK_HOLD",
+        "REGULAR_METADATA_ONLY",
+        "DIRECTORY_METADATA_ONLY",
+        "SPECIAL_FILE_HOLD",
+    }
+)
+MODE4 = re.compile(r"^[0-7]{4}$")
+
 
 class QualificationError(RuntimeError):
     pass
@@ -128,6 +145,55 @@ def _plain(value: object) -> dict[str, Any]:
 def _exact_keys(value: dict[str, Any], expected: frozenset[str], label: str) -> None:
     if set(value) != expected:
         raise QualificationError(label + "_keys_invalid")
+
+
+def _validate_path_metadata_entry(
+    value: object,
+    label: str,
+    *,
+    custody: bool = False,
+) -> dict[str, Any]:
+    entry = _plain(value)
+    expected = CUSTODY_PATH_METADATA_KEYS if custody else PATH_METADATA_KEYS
+    _exact_keys(entry, expected, label)
+
+    state = entry["state"]
+    mode = entry["mode"]
+    size = entry["bytes"]
+    _require(isinstance(state, str), label + "_state_type_invalid")
+    _require(state in PATH_METADATA_STATES, label + "_state_invalid")
+
+    if state == "REGULAR_METADATA_ONLY":
+        _require(
+            isinstance(mode, str) and MODE4.fullmatch(mode) is not None,
+            label + "_regular_mode_invalid",
+        )
+        _require(
+            isinstance(size, int) and not isinstance(size, bool) and size >= 0,
+            label + "_regular_bytes_invalid",
+        )
+    elif state == "DIRECTORY_METADATA_ONLY":
+        _require(
+            isinstance(mode, str) and MODE4.fullmatch(mode) is not None,
+            label + "_directory_mode_invalid",
+        )
+        _require(size is None, label + "_directory_bytes_invalid")
+    else:
+        _require(mode is None, label + "_hold_mode_must_be_null")
+        _require(size is None, label + "_hold_bytes_must_be_null")
+
+    if custody:
+        mountpoint = entry["is_mountpoint_metadata_only"]
+        _require(
+            isinstance(mountpoint, bool),
+            label + "_mountpoint_type_invalid",
+        )
+        if state != "DIRECTORY_METADATA_ONLY":
+            _require(
+                mountpoint is False,
+                label + "_nondirectory_mountpoint_must_be_false",
+            )
+    return entry
 
 
 def _stable_json_file(path: Path) -> dict[str, Any]:
@@ -223,6 +289,20 @@ def _validate_census(census: dict[str, Any]) -> None:
     _exact_keys(source, SOURCE_KEYS, "source")
     paths = _plain(census["fixed_path_metadata"])
     _exact_keys(paths, PATH_KEYS, "fixed_path_metadata")
+
+    _validate_path_metadata_entry(
+        paths["source_finality_deployment_receipt"],
+        "source_finality_deployment_receipt",
+    )
+    _validate_path_metadata_entry(
+        paths["allocation_custody_mount"],
+        "allocation_custody_mount",
+        custody=True,
+    )
+    _validate_path_metadata_entry(
+        paths["epoch2_live_composition_root"],
+        "epoch2_live_composition_root",
+    )
 
 
 def _metadata_blockers(census: dict[str, Any]) -> list[str]:
@@ -427,8 +507,121 @@ def self_test() -> None:
     else:
         raise AssertionError("forged_census_authority_accepted")
 
+    malformed_cases: list[tuple[str, dict[str, Any], str]] = []
+
+    missing = json.loads(json.dumps(census))
+    del missing["fixed_path_metadata"]["source_finality_deployment_receipt"]["mode"]
+    malformed_cases.append(
+        ("receipt_missing_mode", missing, "source_finality_deployment_receipt_keys_invalid")
+    )
+
+    extra = json.loads(json.dumps(census))
+    extra["fixed_path_metadata"]["epoch2_live_composition_root"]["unexpected"] = True
+    malformed_cases.append(
+        ("epoch2_extra_key", extra, "epoch2_live_composition_root_keys_invalid")
+    )
+
+    wrong_receipt_bytes = json.loads(json.dumps(census))
+    wrong_receipt_bytes["fixed_path_metadata"]["source_finality_deployment_receipt"][
+        "bytes"
+    ] = "4096"
+    malformed_cases.append(
+        (
+            "receipt_bytes_wrong_type",
+            wrong_receipt_bytes,
+            "source_finality_deployment_receipt_regular_bytes_invalid",
+        )
+    )
+
+    wrong_directory_bytes = json.loads(json.dumps(census))
+    wrong_directory_bytes["fixed_path_metadata"]["epoch2_live_composition_root"][
+        "bytes"
+    ] = 0
+    malformed_cases.append(
+        (
+            "directory_bytes_not_null",
+            wrong_directory_bytes,
+            "epoch2_live_composition_root_directory_bytes_invalid",
+        )
+    )
+
+    wrong_mode = json.loads(json.dumps(census))
+    wrong_mode["fixed_path_metadata"]["allocation_custody_mount"]["mode"] = 0o755
+    malformed_cases.append(
+        (
+            "custody_mode_wrong_type",
+            wrong_mode,
+            "allocation_custody_mount_directory_mode_invalid",
+        )
+    )
+
+    wrong_mountpoint_type = json.loads(json.dumps(census))
+    wrong_mountpoint_type["fixed_path_metadata"]["allocation_custody_mount"][
+        "is_mountpoint_metadata_only"
+    ] = 1
+    malformed_cases.append(
+        (
+            "custody_mountpoint_wrong_type",
+            wrong_mountpoint_type,
+            "allocation_custody_mount_mountpoint_type_invalid",
+        )
+    )
+
+    nondirectory_mountpoint = json.loads(json.dumps(census))
+    nondirectory_mountpoint["fixed_path_metadata"]["allocation_custody_mount"] = {
+        "state": "ABSENT",
+        "mode": None,
+        "bytes": None,
+        "is_mountpoint_metadata_only": True,
+    }
+    malformed_cases.append(
+        (
+            "nondirectory_mountpoint_true",
+            nondirectory_mountpoint,
+            "allocation_custody_mount_nondirectory_mountpoint_must_be_false",
+        )
+    )
+
+    hold_mode = json.loads(json.dumps(census))
+    hold_mode["fixed_path_metadata"]["epoch2_live_composition_root"] = {
+        "state": "ABSENT",
+        "mode": "0755",
+        "bytes": None,
+    }
+    malformed_cases.append(
+        (
+            "hold_mode_non_null",
+            hold_mode,
+            "epoch2_live_composition_root_hold_mode_must_be_null",
+        )
+    )
+
+    unknown_state = json.loads(json.dumps(census))
+    unknown_state["fixed_path_metadata"]["source_finality_deployment_receipt"][
+        "state"
+    ] = "MYSTERY_METADATA"
+    malformed_cases.append(
+        (
+            "unknown_state",
+            unknown_state,
+            "source_finality_deployment_receipt_state_invalid",
+        )
+    )
+
+    for label, malformed, expected_reason in malformed_cases:
+        try:
+            evaluate(malformed)
+        except QualificationError as exc:
+            assert str(exc) == expected_reason, (label, str(exc))
+        else:
+            raise AssertionError("malformed_nested_metadata_accepted:" + label)
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("metadata_alignment_classifier=true")
+    print("closed_nested_metadata_schema=true")
+    print("malformed_nested_metadata_rejected=true")
+    print("state_dependent_mode_bytes_validated=true")
+    print("custody_mountpoint_type_validated=true")
     print("metadata_presence_never_becomes_authenticity=true")
     print("independent_receipt_evidence_required=true")
     print("independent_custody_evidence_required=true")
