@@ -9,19 +9,21 @@ import {
   APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1,
   VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_AUTHORITY_V1,
   VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_V1,
-  VOID_APOLLYON_TRAINING_ACTIVATION_CONSUMPTION_V1,
+  VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1,
   buildApollyonTrainingActivationCapabilityV1,
-  buildApollyonTrainingActivationConsumptionV1,
+  buildApollyonTrainingActivationGenerationBindingV1,
   canonicalApollyonTrainingActivationV1,
   hashApollyonTrainingActivationSecretV1,
   qualifyApollyonTrainingActivationCapabilityV1,
-  qualifyApollyonTrainingActivationConsumptionV1,
+  qualifyApollyonTrainingActivationGenerationBindingV1,
 } from "../tools/apollyon-training-activation-capability-contract-v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="ac286734a0b5ba476ec67713495a77b28f5b1c1d";
+const SOURCE_BLOB="094419cb5708ade5768f2b68c86541949f183d4f";
 const PARENT_HEAD="1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae";
+const CONSUMPTION_HEAD="fdf47e77cd12eee38efe741edb02fa2fd39135e2";
+const CONSUMPTION_BLOB="60987b860fb7159d88f4f601b76878e7d8ccca92";
 
 function gitBlob(bytes){
   return crypto.createHash("sha1")
@@ -44,8 +46,6 @@ function expectRejected(fn,pattern){
 
 const EXACT_BLOBS=Object.freeze({
   [SOURCE]:SOURCE_BLOB,
-  "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
-    "bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc",
   "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py":
     "5f67bb3ddcc7f130db4b90ad73f5450b109dbea4",
   "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py":
@@ -58,23 +58,28 @@ const EXACT_BLOBS=Object.freeze({
 for(const [relative,expected] of Object.entries(EXACT_BLOBS)){
   assert.equal(gitBlob(read(relative)),expected,relative);
 }
+
+assert.equal(APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.parent_head,PARENT_HEAD);
 assert.equal(
-  APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.parent_head,
-  PARENT_HEAD,
+  APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_start_consumption_contract_head,
+  CONSUMPTION_HEAD,
 );
 assert.equal(
-  APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_unit_blob_sha1,
-  EXACT_BLOBS["ops/xiphos/void-apollyon-training-bus-isolation-v1.service"],
+  APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_start_consumption_contract_blob_sha1,
+  CONSUMPTION_BLOB,
 );
 assert.equal(
-  APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_preentry_source_blob_sha1,
-  EXACT_BLOBS["ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"],
+  APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_start_consumption_contract_in_parent_lineage,
+  false,
+);
+assert.equal(
+  APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_start_consumption_integration_required,
+  true,
 );
 
 const secret=Buffer.alloc(32,0x42);
 const secretHash=hashApollyonTrainingActivationSecretV1(secret);
 assert.equal(secretHash,sha256(secret));
-assert.match(secretHash,/^[0-9a-f]{64}$/u);
 expectRejected(
   ()=>hashApollyonTrainingActivationSecretV1(Buffer.alloc(31,0x42)),
   /secret_invalid/u,
@@ -85,14 +90,20 @@ expectRejected(
 );
 
 const capabilityMaterial={
+  activation_capability_issuance_performed:false,
   activation_secret_sha256:secretHash,
   authorization_id:"apollyon_authz_v1:"+"1".repeat(64),
+  authorization_slot_external_validation_required:true,
+  authorization_slot_id:"apollyon_attempt_claim_auth_slot_v1:"+"2".repeat(64),
+  authorization_slot_record_id:
+    "apollyon_attempt_claim_auth_slot_record_v1:"+"3".repeat(64),
   capability_replay_authorized:false,
+  create_once_key_must_equal_training_start_consumption_slot_id:true,
   credential_name:"apollyon-training-activation-v1",
-  custody_generation_id:"apollyon_custody_generation_v1:"+"2".repeat(64),
+  custody_generation_id:"apollyon_custody_generation_v1:"+"4".repeat(64),
   direct_systemd_start_without_capability_authorized:false,
-  durable_claim_record_id:"apollyon_attempt_claim_record_v2:"+"3".repeat(64),
-  durable_claim_record_sha256:"4".repeat(64),
+  durable_claim_record_id:"apollyon_attempt_claim_record_v2:"+"5".repeat(64),
+  durable_claim_record_sha256:"6".repeat(64),
   expected_entrypoint_bytes:
     APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_entrypoint_bytes,
   expected_entrypoint_sha256:
@@ -101,34 +112,58 @@ const capabilityMaterial={
     APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_preentry_sha256,
   expected_unit_git_blob_sha1:
     APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_unit_blob_sha1,
+  external_training_start_consumption_validation_performed:false,
   marker:VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_V1,
-  next_gate:"apollyon_training_activation_capability_consumption_v1",
+  next_gate:"apollyon_training_activation_capability_protected_issuance_v1",
+  protected_capability_store_required:true,
   raw_capability_export_authorized:false,
-  status:"training_activation_capability_issued_unconsumed",
-  store_contract_id:"apollyon_claim_store_contract_v2:"+"5".repeat(64),
-  store_generation_id:"apollyon_claim_store_generation_v2:"+"6".repeat(64),
-  store_policy_id:"apollyon_claim_store_policy_v2:"+"7".repeat(64),
+  status:"training_activation_capability_candidate_unissued",
+  store_contract_id:"apollyon_claim_store_contract_v2:"+"7".repeat(64),
+  store_generation_id:"apollyon_claim_store_generation_v2:"+"8".repeat(64),
+  store_policy_id:
+    "apollyon_claim_store_policy_v2:"+
+    "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137",
   systemd_caller_identity_authoritative:false,
   systemd_credential_transport_required:true,
   target_host:"Xiphos",
-  terminal_receipt_id:"apollyon_terminal_receipt_v2:"+"8".repeat(64),
+  terminal_receipt_id:"apollyon_terminal_receipt_v2:"+"9".repeat(64),
   training_execution_authorized:false,
-  training_start_consumption_required:true,
+  training_start_consumption_contract_blob_sha1:CONSUMPTION_BLOB,
+  training_start_consumption_contract_head:CONSUMPTION_HEAD,
+  training_start_consumption_contract_in_parent_lineage:false,
+  training_start_consumption_integration_required:true,
+  training_start_consumption_slot_external_validation_required:true,
+  training_start_consumption_slot_id:
+    "apollyon_training_start_slot_v1:"+"a".repeat(64),
   version:1,
 };
 const capability=buildApollyonTrainingActivationCapabilityV1(capabilityMaterial);
 assert.equal(Object.isFrozen(capability),true);
-assert.match(capability.activation_capability_id,
-  /^apollyon_training_activation_capability_v1:[0-9a-f]{64}$/u);
+assert.match(
+  capability.activation_capability_id,
+  /^apollyon_training_activation_capability_v1:[0-9a-f]{64}$/u,
+);
 assert.deepEqual(
   qualifyApollyonTrainingActivationCapabilityV1(capability),
   capability,
 );
-assert.equal(capability.activation_secret_sha256,secretHash);
+assert.equal(capability.activation_capability_issuance_performed,false);
+assert.equal(capability.external_training_start_consumption_validation_performed,false);
+assert.equal(capability.authorization_slot_external_validation_required,true);
+assert.equal(
+  capability.training_start_consumption_slot_external_validation_required,
+  true,
+);
+assert.equal(capability.protected_capability_store_required,true);
+assert.equal(
+  capability.create_once_key_must_equal_training_start_consumption_slot_id,
+  true,
+);
 assert.equal(capability.raw_capability_export_authorized,false);
 assert.equal(capability.direct_systemd_start_without_capability_authorized,false);
 assert.equal(capability.systemd_caller_identity_authoritative,false);
 assert.equal(capability.training_execution_authorized,false);
+
 const capabilityText=canonicalApollyonTrainingActivationV1(capability);
 assert.equal(capabilityText.includes(secret.toString("hex")),false);
 assert.equal(capabilityText.includes(secret.toString("base64")),false);
@@ -151,11 +186,18 @@ assert.equal(capabilityText.includes(secret.toString("base64")),false);
   );
 }
 for(const [key,value] of [
+  ["activation_capability_issuance_performed",true],
+  ["external_training_start_consumption_validation_performed",true],
+  ["authorization_slot_external_validation_required",false],
+  ["training_start_consumption_slot_external_validation_required",false],
+  ["training_start_consumption_contract_in_parent_lineage",true],
+  ["training_start_consumption_integration_required",false],
   ["direct_systemd_start_without_capability_authorized",true],
   ["systemd_caller_identity_authoritative",true],
   ["capability_replay_authorized",true],
   ["raw_capability_export_authorized",true],
-  ["training_start_consumption_required",false],
+  ["protected_capability_store_required",false],
+  ["create_once_key_must_equal_training_start_consumption_slot_id",false],
   ["training_execution_authorized",true],
 ]){
   const bad={...capabilityMaterial,[key]:value};
@@ -164,103 +206,141 @@ for(const [key,value] of [
     /capability_invalid/u,
   );
 }
+for(const [key,value] of [
+  ["training_start_consumption_contract_head","f".repeat(40)],
+  ["training_start_consumption_contract_blob_sha1","f".repeat(40)],
+]){
+  const bad={...capabilityMaterial,[key]:value};
+  expectRejected(
+    ()=>buildApollyonTrainingActivationCapabilityV1(bad),
+    /capability_invalid/u,
+  );
+}
 
-const consumptionMaterial={
-  activation_capability_id:capability.activation_capability_id,
-  activation_generation_bound:true,
+const bindingMaterial={
+  activation_generation_binding_required:true,
+  activation_generation_bound:false,
+  activation_secret_possession_proof_required:true,
+  activation_secret_possession_proven:false,
   activation_secret_sha256:capability.activation_secret_sha256,
-  boot_id_sha256:"9".repeat(64),
-  caller_supplied_consumption_receipt_sufficient:false,
-  consumed_once:true,
+  boot_id_sha256:"b".repeat(64),
   credential_name:capability.credential_name,
-  durable_claim_record_id:capability.durable_claim_record_id,
-  marker:VOID_APOLLYON_TRAINING_ACTIVATION_CONSUMPTION_V1,
-  next_gate:"apollyon_training_start_release_v1",
+  marker:VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1,
+  next_gate:"apollyon_training_start_consumption_integration_v1",
   observed_preentry_sha256:capability.expected_preentry_sha256,
-  protected_consumption_store_required:true,
-  replay_authorized:false,
-  status:"training_activation_capability_consumed_generation_bound",
-  store_generation_id:capability.store_generation_id,
+  status:"training_activation_capability_generation_binding_candidate",
   systemd_caller_identity_authoritative:false,
-  systemd_invocation_id:"a".repeat(32),
+  systemd_invocation_generation_observation_performed:false,
+  systemd_invocation_id:"c".repeat(32),
   target_host:"Xiphos",
+  trainer_generation_external_contract_validation_performed:false,
+  trainer_generation_external_contract_validation_required:true,
+  trainer_generation_id:"apollyon_pretraining_generation_v1:"+"d".repeat(64),
   training_execution_authorized:false,
+  training_gid:984,
   training_pid:4242,
-  training_process_start_time_ticks:123456,
+  training_process_start_time_ticks:"123456",
   training_release_authorized:false,
-  training_start_admission:true,
-  training_start_consumption_performed:true,
+  training_source_identity_sha256:"e".repeat(64),
+  training_start_admission:false,
+  training_start_consumption_performed:false,
+  training_start_consumption_record_origin_proven:false,
+  training_start_consumption_record_required:true,
+  training_start_consumption_slot_id:
+    capability.training_start_consumption_slot_id,
+  training_uid:997,
   version:1,
 };
-const consumption=buildApollyonTrainingActivationConsumptionV1(
+const binding=buildApollyonTrainingActivationGenerationBindingV1(
   capability,
-  consumptionMaterial,
+  bindingMaterial,
 );
-assert.equal(Object.isFrozen(consumption),true);
-assert.match(consumption.consumption_id,
-  /^apollyon_training_activation_consumption_v1:[0-9a-f]{64}$/u);
+assert.equal(Object.isFrozen(binding),true);
+assert.match(
+  binding.activation_binding_id,
+  /^apollyon_training_activation_binding_v1:[0-9a-f]{64}$/u,
+);
 assert.deepEqual(
-  qualifyApollyonTrainingActivationConsumptionV1(capability,consumption),
-  consumption,
+  qualifyApollyonTrainingActivationGenerationBindingV1(capability,binding),
+  binding,
 );
-assert.equal(consumption.activation_generation_bound,true);
-assert.equal(consumption.consumed_once,true);
-assert.equal(consumption.replay_authorized,false);
-assert.equal(consumption.protected_consumption_store_required,true);
-assert.equal(consumption.caller_supplied_consumption_receipt_sufficient,false);
-assert.equal(consumption.training_start_consumption_performed,true);
-assert.equal(consumption.training_start_admission,true);
-assert.equal(consumption.training_release_authorized,false);
-assert.equal(consumption.training_execution_authorized,false);
+assert.equal(binding.activation_generation_binding_required,true);
+assert.equal(binding.activation_generation_bound,false);
+assert.equal(binding.activation_secret_possession_proof_required,true);
+assert.equal(binding.activation_secret_possession_proven,false);
+assert.equal(binding.systemd_invocation_generation_observation_performed,false);
+assert.equal(binding.trainer_generation_external_contract_validation_required,true);
+assert.equal(binding.trainer_generation_external_contract_validation_performed,false);
+assert.equal(binding.training_start_consumption_record_required,true);
+assert.equal(binding.training_start_consumption_record_origin_proven,false);
+assert.equal(binding.training_start_consumption_performed,false);
+assert.equal(binding.training_start_admission,false);
+assert.equal(binding.training_release_authorized,false);
+assert.equal(binding.training_execution_authorized,false);
 
 {
-  const bad=cloned(consumption);
-  bad.consumption_id=
-    "apollyon_training_activation_consumption_v1:"+"0".repeat(64);
+  const bad=cloned(binding);
+  bad.activation_binding_id=
+    "apollyon_training_activation_binding_v1:"+"0".repeat(64);
   expectRejected(
-    ()=>qualifyApollyonTrainingActivationConsumptionV1(capability,bad),
-    /consumption_id_invalid/u,
+    ()=>qualifyApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_id_invalid/u,
+  );
+}
+{
+  const bad=cloned(binding);
+  bad.raw_activation_secret=secret.toString("hex");
+  expectRejected(
+    ()=>qualifyApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
   );
 }
 for(const [key,value] of [
   ["activation_capability_id","apollyon_training_activation_capability_v1:"+"f".repeat(64)],
   ["activation_secret_sha256","f".repeat(64)],
-  ["durable_claim_record_id","apollyon_attempt_claim_record_v2:"+"f".repeat(64)],
-  ["store_generation_id","apollyon_claim_store_generation_v2:"+"f".repeat(64)],
+  ["training_start_consumption_slot_id","apollyon_training_start_slot_v1:"+"f".repeat(64)],
   ["systemd_invocation_id","BAD"],
-  ["training_pid",0],
-  ["training_process_start_time_ticks",0],
+  ["training_pid",1],
+  ["training_process_start_time_ticks","0"],
+  ["training_uid",0],
+  ["training_gid",0],
+  ["training_source_identity_sha256","f".repeat(63)],
+  ["trainer_generation_id","apollyon_pretraining_generation_v1:"+"f".repeat(63)],
   ["observed_preentry_sha256","f".repeat(64)],
   ["systemd_caller_identity_authoritative",true],
-  ["activation_generation_bound",false],
-  ["consumed_once",false],
-  ["replay_authorized",true],
-  ["protected_consumption_store_required",false],
-  ["caller_supplied_consumption_receipt_sufficient",true],
-  ["training_start_consumption_performed",false],
-  ["training_start_admission",false],
+  ["activation_generation_binding_required",false],
+  ["activation_generation_bound",true],
+  ["activation_secret_possession_proof_required",false],
+  ["activation_secret_possession_proven",true],
+  ["systemd_invocation_generation_observation_performed",true],
+  ["trainer_generation_external_contract_validation_required",false],
+  ["trainer_generation_external_contract_validation_performed",true],
+  ["training_start_consumption_record_required",false],
+  ["training_start_consumption_record_origin_proven",true],
+  ["training_start_consumption_performed",true],
+  ["training_start_admission",true],
   ["training_release_authorized",true],
   ["training_execution_authorized",true],
 ]){
-  const bad={...consumptionMaterial,[key]:value};
+  const bad={...bindingMaterial,[key]:value};
   expectRejected(
-    ()=>buildApollyonTrainingActivationConsumptionV1(capability,bad),
-    /consumption_invalid/u,
-  );
-}
-{
-  const bad=cloned(consumption);
-  bad.raw_activation_secret=secret.toString("hex");
-  expectRejected(
-    ()=>qualifyApollyonTrainingActivationConsumptionV1(capability,bad),
-    /consumption_invalid/u,
+    ()=>buildApollyonTrainingActivationGenerationBindingV1(capability,bad),
+    /binding_invalid/u,
   );
 }
 
 for(const [key,expected] of Object.entries({
   source_contract_only:true,
-  capability_issuance_performed:false,
-  protected_consumption_store_implemented:false,
+  activation_capability_issuance_performed:false,
+  protected_capability_store_required:true,
+  protected_capability_store_implemented:false,
+  create_once_key_is_training_start_consumption_slot:true,
+  external_training_start_consumption_contract_required:true,
+  external_training_start_consumption_contract_in_parent_lineage:false,
+  external_training_start_consumption_integration_required:true,
+  external_training_start_consumption_validation_performed:false,
+  authorization_slot_external_validation_required:true,
+  training_start_slot_external_validation_required:true,
   systemd_credential_transport_selected_as_candidate:true,
   systemd_credential_runtime_proven:false,
   service_activation_authorized:false,
@@ -270,8 +350,8 @@ for(const [key,expected] of Object.entries({
   filesystem_read:false,
   filesystem_write:false,
   network_access:false,
-  durable_attempt_claim:false,
   training_start_consumption_performed:false,
+  training_start_admission:false,
   training_release_authorized:false,
   training_execution_authorized:false,
   training_execution:false,
@@ -304,8 +384,11 @@ for(const forbidden of [
   "spawn(",
   "execFile",
   "fetch(",
-  "training_execution_authorized:true",
-  "training_release_authorized:true",
+  "VOID_APOLLYON_TRAINING_ACTIVATION_CONSUMPTION_V1",
+  "apollyon_training_activation_consumption_v1:",
+  "training_start_admission!==true",
+  "training_release_authorized!==true",
+  "training_execution_authorized!==true",
   "service_activation_authorized:true",
   "funds_movement:true",
 ]){
@@ -315,19 +398,26 @@ for(const forbidden of [
 console.log("VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1_PROOF_GREEN");
 console.log("source_blob="+SOURCE_BLOB);
 console.log("parent_head="+PARENT_HEAD);
+console.log("external_consumption_head="+CONSUMPTION_HEAD);
+console.log("external_consumption_blob="+CONSUMPTION_BLOB);
+console.log("existing_training_start_consumption_contract_reused=true");
+console.log("second_consumption_namespace_defined=false");
 console.log("capability_content_addressed=true");
 console.log("raw_activation_secret_not_in_receipt=true");
+console.log("activation_capability_issuance_performed=false");
+console.log("protected_capability_store_required=true");
+console.log("create_once_key_is_training_start_consumption_slot=true");
+console.log("external_consumption_validation_performed=false");
 console.log("direct_systemd_start_without_capability_authorized=false");
 console.log("systemd_caller_identity_authoritative=false");
 console.log("systemd_credential_transport_candidate_only=true");
 console.log("systemd_credential_runtime_proven=false");
-console.log("protected_one_time_consumption_required=true");
-console.log("consumption_generation_binding_required=true");
-console.log("consumption_systemd_invocation_id_bound=true");
-console.log("consumption_pid_start_ticks_bound=true");
-console.log("consumption_preentry_identity_bound=true");
-console.log("replay_authorized=false");
-console.log("training_start_admission_after_consumption=true");
+console.log("activation_secret_possession_proven=false");
+console.log("activation_generation_bound=false");
+console.log("trainer_generation_external_validation_performed=false");
+console.log("training_start_consumption_record_origin_proven=false");
+console.log("training_start_consumption_performed=false");
+console.log("training_start_admission=false");
 console.log("training_release_authorized=false");
 console.log("training_execution_authorized=false");
 console.log("service_action=false");
