@@ -121,11 +121,38 @@ function string(v,re,code){
   if(typeof v!=="string"||!re.test(v))fail(code);
   return v;
 }
+function preflightCapability(fn,key){
+  if(typeof fn!=="function")fail("capability_not_function:"+key);
+  if(utilTypes.isProxy(fn))fail("capability_proxy_forbidden:"+key);
+  if(utilTypes.isAsyncFunction(fn))fail("capability_async_forbidden:"+key);
+  if(utilTypes.isGeneratorFunction(fn))fail("capability_generator_forbidden:"+key);
+  let source;
+  try{ source=Function.prototype.toString.call(fn); }
+  catch{ fail("capability_source_unavailable:"+key); }
+  if(source.includes("[native code]"))fail("capability_native_or_bound_forbidden:"+key);
+}
+function rejectAsyncResult(value,code){
+  if(value===null||(typeof value!=="object"&&typeof value!=="function"))return;
+  if(utilTypes.isProxy(value))fail(code+"_proxy_result_forbidden");
+  if(utilTypes.isPromise(value))fail(code+"_async_forbidden");
+  let current=value;
+  while(current!==null){
+    if(utilTypes.isProxy(current))fail(code+"_proxy_result_forbidden");
+    const descriptor=Object.getOwnPropertyDescriptor(current,"then");
+    if(descriptor){
+      if(!("value" in descriptor)||descriptor.get||descriptor.set)
+        fail(code+"_then_accessor_forbidden");
+      if(typeof descriptor.value==="function")fail(code+"_async_forbidden");
+      break;
+    }
+    current=Object.getPrototypeOf(current);
+  }
+}
 function callSync(fn,args,code){
-  if(typeof fn!=="function")fail(code+"_missing");
+  preflightCapability(fn,code);
   let out;
   try{ out=fn(args); }catch(e){ fail(code+"_failed:"+String(e?.message||e||"error")); }
-  if(out&&typeof out==="object"&&typeof out.then==="function")fail(code+"_async_forbidden");
+  rejectAsyncResult(out,code);
   return out;
 }
 
@@ -207,7 +234,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
   const top=dataObject(input,["authorization","capabilities"],"controller_input_invalid");
   const authorization=normalizeAuthorization(top.authorization);
   const caps=dataObject(top.capabilities,CAPABILITY_KEYS,"capability_set_invalid");
-  for(const key of CAPABILITY_KEYS) if(typeof caps[key]!=="function")fail("capability_not_function:"+key);
+  for(const key of CAPABILITY_KEYS) preflightCapability(caps[key],key);
 
   const entropy=callSync(caps.generate_challenge_entropy,
     Object.freeze({operation_id:authorization.operation_id,plan_id:authorization.plan_id}),

@@ -54,8 +54,8 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json)" = 5face2022dc2cbc573e32e99f88623f381a8a174
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
           test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
-          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = b8ca5a2367eef191cc9010d32d592819bad3fa7a
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = ebbd66af2fe3501293cdfcfc5f76bee84e47e050
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = 5a7fabb9e399fee853f27a027991423b4f890165
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 024d269999723f310a5176a59d7e7a797c000d80
           test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = 3c20506c1d655147f4ae60d5f715d3f9a76c5017
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -88,6 +88,13 @@ jobs:
             'evidence_origin_authentication_required=true' \
             'evidence_origin_authenticated=false' \
             'injected_capabilities_authenticated=false' \
+            'all_capabilities_preflighted_before_invocation=true' \
+            'async_capability_body_not_invoked=true' \
+            'proxy_capability_apply_trap_not_invoked=true' \
+            'generator_capability_body_not_invoked=true' \
+            'bound_async_capability_body_not_invoked=true' \
+            'bound_generator_capability_body_not_invoked=true' \
+            'then_getter_not_invoked=true' \
             'direct_host_filesystem_api_present=false' \
             'direct_process_api_present=false' \
             'direct_network_api_present=false' \

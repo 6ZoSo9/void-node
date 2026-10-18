@@ -11,7 +11,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
-const SOURCE_BLOB="b8ca5a2367eef191cc9010d32d592819bad3fa7a";
+const SOURCE_BLOB="5a7fabb9e399fee853f27a027991423b4f890165";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json";
 const PLAN_BLOB="5face2022dc2cbc573e32e99f88623f381a8a174";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -200,7 +200,99 @@ function mustFail(label,mutator,pattern){
   }),pattern,label);
 }
 mustFail("bad entropy",(c)=>{c.generate_challenge_entropy=()=>Buffer.alloc(31);},/challenge_entropy_invalid/);
-mustFail("async capability",(c)=>{c.observe_before=async()=>({});},/observe_before_async_forbidden/);
+{
+  let entropyInvoked=false;
+  let asyncBodyInvoked=false;
+  const h=makeHarness((c)=>{
+    c.generate_challenge_entropy=()=>{
+      entropyInvoked=true;
+      return Buffer.alloc(32,0x11);
+    };
+    c.observe_before=async()=>{
+      asyncBodyInvoked=true;
+      return {};
+    };
+  });
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:h.caps,
+  }),/capability_async_forbidden:observe_before/);
+  assert.equal(entropyInvoked,false);
+  assert.equal(asyncBodyInvoked,false);
+}
+{
+  let proxyApplyInvoked=false;
+  const h=makeHarness((c)=>{
+    const target=function(){ proxyApplyInvoked=true; return {}; };
+    c.append_journal_canary=new Proxy(target,{
+      apply(){ proxyApplyInvoked=true; return {}; },
+    });
+  });
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:h.caps,
+  }),/capability_proxy_forbidden:append_journal_canary/);
+  assert.equal(proxyApplyInvoked,false);
+}
+{
+  let generatorBodyInvoked=false;
+  const h=makeHarness((c)=>{
+    c.advance_high_water=function*(){
+      generatorBodyInvoked=true;
+      yield 1;
+    };
+  });
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:h.caps,
+  }),/capability_generator_forbidden:advance_high_water/);
+  assert.equal(generatorBodyInvoked,false);
+}
+{
+  let boundAsyncBodyInvoked=false;
+  const h=makeHarness((c)=>{
+    async function boundAsyncCapability(){
+      boundAsyncBodyInvoked=true;
+      return {};
+    }
+    c.sync_close_reopen=boundAsyncCapability.bind(null);
+  });
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:h.caps,
+  }),/capability_native_or_bound_forbidden:sync_close_reopen/);
+  assert.equal(boundAsyncBodyInvoked,false);
+}
+{
+  let boundGeneratorBodyInvoked=false;
+  const h=makeHarness((c)=>{
+    function* boundGeneratorCapability(){
+      boundGeneratorBodyInvoked=true;
+      yield 1;
+    }
+    c.append_external_witness=boundGeneratorCapability.bind(null);
+  });
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:h.caps,
+  }),/capability_native_or_bound_forbidden:append_external_witness/);
+  assert.equal(boundGeneratorBodyInvoked,false);
+}
+{
+  let thenGetterInvoked=false;
+  const h=makeHarness((c)=>{
+    c.observe_before=()=>{
+      const proto={};
+      Object.defineProperty(proto,"then",{
+        configurable:true,
+        get(){
+          thenGetterInvoked=true;
+          return ()=>{};
+        },
+      });
+      return Object.create(proto);
+    };
+  });
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:h.caps,
+  }),/observe_before_then_accessor_forbidden/);
+  assert.equal(thenGetterInvoked,false);
+}
 mustFail("reopen policy drift",(c,s,b)=>{c.sync_close_reopen=()=>({...b,
   journal_sequence:8,journal_tip_sha256:s.append.journal_tip_sha256,
   high_water_sequence:8,high_water_sha256:s.high.high_water_sha256,
@@ -292,6 +384,13 @@ console.log("customer_request_state_unchanged_required=true");
 console.log("evidence_origin_authentication_required=true");
 console.log("evidence_origin_authenticated=false");
 console.log("injected_capabilities_authenticated=false");
+console.log("all_capabilities_preflighted_before_invocation=true");
+console.log("async_capability_body_not_invoked=true");
+console.log("proxy_capability_apply_trap_not_invoked=true");
+console.log("generator_capability_body_not_invoked=true");
+console.log("bound_async_capability_body_not_invoked=true");
+console.log("bound_generator_capability_body_not_invoked=true");
+console.log("then_getter_not_invoked=true");
 console.log("direct_host_filesystem_api_present=false");
 console.log("direct_process_api_present=false");
 console.log("direct_network_api_present=false");
