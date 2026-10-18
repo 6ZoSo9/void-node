@@ -771,6 +771,25 @@ def _live_qualify_locked(
     if final_effective_unit != effective_unit:
         hold("effective_unit_contract_changed_after_qualification")
 
+    # Final fail-closed observation after all contract/launcher checks.  This is
+    # intentionally the last host-state read before receipt construction so a
+    # concurrent direct systemctl/dependency activation cannot be hidden by the
+    # earlier post-stop snapshot.
+    final_shutdown = _wait_for_shutdown(
+        observed_pid,
+        observed_start_ticks,
+        timeout_seconds=0.0,
+    )
+    if shutdown.get("stop_command_succeeded") is not True:
+        hold("service_stop_command_success_lost")
+    if shutdown.get("service_enabled") is not False:
+        hold("service_enabled_state_invalid")
+    shutdown = {
+        **final_shutdown,
+        "stop_command_succeeded": True,
+        "service_enabled": False,
+    }
+
     material = {
         "marker": MARKER,
         "version": 2,
@@ -866,6 +885,7 @@ def self_test() -> None:
     print("static_unit_file_state_required=true")
     print("single_systemctl_state_snapshot_required=true")
     print("final_service_state_revalidation_required=true")
+    print("post_contract_shutdown_revalidation_required=true")
     print("effective_systemd_unit_contract_required=true")
     print("effective_systemd_unit_contract_revalidation_required=true")
     print("shared_training_service_lifecycle_lock_required=true")
