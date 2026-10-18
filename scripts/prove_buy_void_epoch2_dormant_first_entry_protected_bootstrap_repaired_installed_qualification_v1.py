@@ -101,8 +101,11 @@ for required in (
 assert 'str(FIXED_CHECKOUT / UPGRADER_REL),\n        "--apply"' not in plan_source
 
 workflow_source = (ROOT / WORKFLOW_REL).read_text("utf-8")
-assert 'base="' + EXACT_PARENT + '"' in workflow_source
-assert 'workflow_dispatch)' in workflow_source
+assert "STACK_PARENT=" + EXACT_PARENT in workflow_source
+assert 'pull_request)' in workflow_source
+assert 'pull_request)\n              base="$STACK_PARENT"' in workflow_source
+assert 'workflow_dispatch) base="$STACK_PARENT" ;;' in workflow_source
+assert 'base="$PR_BASE"' not in workflow_source
 assert 'EXPECTED_HEAD^1' not in workflow_source
 assert 'git rev-parse "$EXPECTED_HEAD^1"' not in workflow_source
 
@@ -334,6 +337,8 @@ for mode, expected_lines in (
 
 print(MARKER + "_PROOF_GREEN")
 print("target_blob_bound=true")
+print("pull_request_exact_parent_bound=true")
+print("pull_request_stale_base_authority_absent=true")
 print("workflow_dispatch_exact_parent_bound=true")
 print("workflow_dispatch_first_parent_inference_absent=true")
 print("repaired_upgrader_generation_bound=true")
