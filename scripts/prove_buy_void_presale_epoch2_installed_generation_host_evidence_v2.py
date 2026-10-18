@@ -150,8 +150,14 @@ assert "status" not in tracked_source
 isolation_source = ast.get_source_segment(
     source, functions["_require_isolated_python"]
 ) or ""
-assert "source_checkout = Path(__file__).resolve(strict=False).parents[2]" in isolation_source
-assert "FIXED_CHECKOUT.resolve(strict=False)" in isolation_source
+assert "source_checkout_lexical = Path(os.path.abspath(__file__)).parents[2]" in isolation_source
+assert "source_checkout_resolved = Path(__file__).resolve(strict=False).parents[2]" in isolation_source
+assert "fixed_checkout_lexical = Path(os.path.abspath(str(FIXED_CHECKOUT)))" in isolation_source
+assert "fixed_checkout_resolved = FIXED_CHECKOUT.resolve(strict=False)" in isolation_source
+assert "if not path.is_absolute()" in isolation_source
+assert "Path(os.path.abspath(entry))" in isolation_source
+assert "path.resolve(strict=False)" in isolation_source
+assert "for candidate in candidates" in isolation_source
 assert "candidate == protected or protected in candidate.parents" in isolation_source
 
 load_source = ast.get_source_segment(source, functions["_load_patched_base_module"]) or ""
