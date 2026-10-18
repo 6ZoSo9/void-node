@@ -506,6 +506,10 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
       },
     );
   assertSecondControl(secondControl);
+  if (!("normalized" in secondControl) || !secondControl.normalized) {
+    fail("allocation_custody_second_control_normalized_missing");
+  }
+  const secondControlNormalized = secondControl.normalized;
 
   const durabilityContract =
     classifyBuyVoidAllocationCustodyLiveDurabilityRollbackContractV1({
@@ -534,13 +538,13 @@ export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
 
   if (
     livePolicy.normalized?.installation_high_water_sha256 !==
-    secondControl.normalized?.replay_high_water_sha256
+    secondControlNormalized.replay_high_water_sha256
   ) {
     fail("allocation_custody_live_policy_high_water_mismatch");
   }
   if (
     livePolicy.normalized?.host_id !==
-    secondControl.normalized?.source_hostname
+    secondControlNormalized.source_hostname
   ) {
     fail("allocation_custody_live_policy_host_mismatch");
   }
