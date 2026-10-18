@@ -11,6 +11,12 @@ import subprocess
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW_REL = (
+    ".github/workflows/"
+    "buy-void-epoch2-dormant-first-entry-protected-installer-"
+    "bootstrap-plan-v7.yml"
+)
+EXACT_PARENT = "d5e535aa83a94002dbe732e0da2d47feddf434bf"
 
 TARGET_REL = (
     "ops/precision/"
@@ -127,6 +133,12 @@ target_raw = pin(TARGET_REL, TARGET_BLOB)
 predecessor_raw = pin(PREDECESSOR_REL, PREDECESSOR_BLOB)
 pin(PREDECESSOR_PROOF_REL, PREDECESSOR_PROOF_BLOB)
 qualifier_raw = pin(QUALIFIER_REL, QUALIFIER_BLOB)
+
+workflow_source = (ROOT / WORKFLOW_REL).read_text("utf-8")
+assert 'base="' + EXACT_PARENT + '"' in workflow_source
+assert 'workflow_dispatch)' in workflow_source
+assert 'EXPECTED_HEAD^1' not in workflow_source
+assert 'git rev-parse "$EXPECTED_HEAD^1"' not in workflow_source
 
 target_source = target_raw.decode("utf-8", "strict")
 predecessor_source = predecessor_raw.decode("utf-8", "strict")
@@ -392,6 +404,8 @@ else:
 
 print(MARKER + "_PROOF_GREEN")
 print("target_blob_bound=true")
+print("workflow_dispatch_exact_parent_bound=true")
+print("workflow_dispatch_first_parent_inference_absent=true")
 print("predecessor_v6_plan_bound=true")
 print("predecessor_v6_proof_bound=true")
 print("inherited_hardened_functions_unchanged=true")
