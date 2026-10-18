@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 
@@ -57,7 +58,6 @@ pin(PARENT_PLAN_REL, PARENT_PLAN_BLOB)
 compile(source, TARGET_REL, "exec", dont_inherit=True)
 
 for required in (
-    PARENT_PLAN_ID,
     'QUALIFIER_BLOB = "' + QUALIFIER_BLOB + '"',
     'QUALIFIER_PROOF_BLOB = "' + QUALIFIER_PROOF_BLOB + '"',
     "qualifier.collect(expected_head)",
@@ -190,6 +190,10 @@ spec = importlib.util.spec_from_file_location(
 assert spec is not None and spec.loader is not None
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+assert module.PARENT_PLAN_ID == PARENT_PLAN_ID
+assert module.PARENT_PLAN_ID == json.loads(
+    pin(PARENT_PLAN_REL, PARENT_PLAN_BLOB).decode("utf-8", "strict")
+)["plan_id"]
 
 base = {
     "marker": "VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V5",
