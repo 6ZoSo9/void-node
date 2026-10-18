@@ -67,7 +67,7 @@ def hold(reason: str) -> None:
 
 def _close_fd(fd: int, reason: str) -> None:
     try:
-        _close_fd(fd, "accepted_parent_dependency_close_failed")
+        os.close(fd)
     except OSError as exc:
         raise Hold(reason) from exc
 
@@ -160,7 +160,7 @@ def _read_parent_dependency_source(
     except OSError as exc:
         raise Hold("accepted_parent_dependency_read_failed") from exc
     finally:
-        _close_fd(fd, "accepted_parent_source_close_failed")
+        _close_fd(fd, "accepted_parent_dependency_close_failed")
 
 
 def load_accepted_parent_lock() -> dict[str, Any]:
@@ -197,7 +197,7 @@ def load_accepted_parent_lock() -> dict[str, Any]:
     except OSError as exc:
         raise Hold("accepted_parent_source_read_failed") from exc
     finally:
-        _close_fd(fd, "archive_file_close_failed")
+        _close_fd(fd, "accepted_parent_source_close_failed")
 
     # The module is compiled from the exact retained bytes, not reopened by name.
     module = types.ModuleType("accepted_apollyon_first_entry_lock")
@@ -267,7 +267,7 @@ def read_untrusted_tar(path: Path) -> bytes:
     except OSError as exc:
         raise Hold("archive_file_read_failed") from exc
     finally:
-        os.close(fd)
+        _close_fd(fd, "archive_file_close_failed")
 
 
 def verify_archive_bytes(raw: bytes, lock: dict[str, Any]) -> dict[str, Any]:
