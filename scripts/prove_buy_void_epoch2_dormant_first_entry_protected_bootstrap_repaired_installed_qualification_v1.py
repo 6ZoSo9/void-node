@@ -18,7 +18,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-TARGET_BLOB = "d8e7f96bb2fbebf7947a5fd16184839eea881189"
+TARGET_BLOB = "a9cee971d3fd088821124b1349179fdd1cb27516"
 
 UPGRADER_REL = (
     "ops/precision/"
@@ -100,7 +100,10 @@ for required in (
     '"repaired_fixed_root_verified": True',
     '"predecessor_retained_verified": True',
     '"upgrade_stage_absent_verified": True',
-    '"filesystem_write": False',
+    '"temporary_git_metadata_write_required": True',
+    '"filesystem_write": True',
+    '"protected_filesystem_mutation": False',
+    "nonroot_required_for_repaired_qualification",
     '"bootstrap_execution": False',
     '"inner_installer_execution": False',
     '"funds_movement": False',
@@ -169,6 +172,7 @@ assert run_calls_outside_git == []
 
 collect_source = ast.get_source_segment(source, functions["collect"]) or ""
 for required in (
+    "os.geteuid() == 0",
     "checkout_snapshot(expected_head)",
     "exact_git_object(expected_head, UPGRADER_PROOF_REL, UPGRADER_PROOF_BLOB)",
     "exact_git_object(expected_head, PLAN_REL, PLAN_BLOB)",
@@ -204,7 +208,9 @@ for mode, expected_lines in (
             "upgrade_stage_absent_required=true",
             "temporary_git_metadata_cleanup_required=true",
             "upgrader_apply_not_called=true",
-            "filesystem_write=false",
+            "temporary_git_metadata_write_required=true",
+            "nonroot_run_required=true",
+            "protected_filesystem_mutation=false",
             "bootstrap_execution=false",
             "inner_installer_execution=false",
             "service_mutation=false",
@@ -229,7 +235,9 @@ for mode, expected_lines in (
             "retained_predecessor_required=true",
             "upgrade_stage_absent_required=true",
             "temporary_git_metadata_boundary_explicit=true",
-            "filesystem_write=false",
+            "temporary_git_metadata_write_required=true",
+            "nonroot_run_required=true",
+            "protected_filesystem_mutation=false",
             "bootstrap_execution=false",
             "inner_installer_execution=false",
             "service_mutation=false",
@@ -266,7 +274,9 @@ print("temporary_git_metadata_cleanup_required=true")
 print("source_repository_mutation=false")
 print("upgrader_collect_absent=true")
 print("upgrader_apply_absent=true")
-print("filesystem_write=false")
+print("temporary_git_metadata_write_required=true")
+print("nonroot_run_required=true")
+print("protected_filesystem_mutation=false")
 print("bootstrap_execution=false")
 print("inner_installer_execution=false")
 print("service_mutation=false")
