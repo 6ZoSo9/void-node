@@ -1,0 +1,180 @@
+name: Buy VOID presale allocation-custody host evidence v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-allocation-custody-host-evidence-v1.yml"
+      - "docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md"
+      - "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts"
+      - "scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts"
+      - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
+      - "scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py"
+      - "docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md"
+      - ".github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.ts"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-allocation-custody-host-evidence-v1.yml"
+      - "docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md"
+      - "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts"
+      - "scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts"
+      - "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
+      - "scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py"
+      - "docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md"
+      - ".github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.ts"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Bind exact custody-host-evidence generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-allocation-custody-host-evidence-v1.yml' \
+            'docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md' \
+            'ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts' \
+            'scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = c6e2c879c06a6148c7599119ece01636f65254e4
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = b5d17a7b5e129d74f4fc884dfa296ce9a63138ab
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = 419c4eba7acbc91729d6c6406d60226ac3be6e5c
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md)" = 4f5d8a5db1cf1b82991962f5bf90a231c96c6f76
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-host-evidence-collection-plan-v1.yml)" = 9e7070f89235a3aa401a2c23a5dd3dbafc6a3703
+
+          test "$(git rev-parse HEAD:src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.ts)" = 2d5fc24498b569f20701445d6214a8ca31e4f701
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs)" = cf40d9d4a19d138d74aee849a6c02f96ee362dbb
+          test "$(git rev-parse HEAD:src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts)" = 97180cc03e3f1b2f9935191ac6aafe4b15307708
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Typecheck, build, and prove truth-preserving custody collector
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+          proof="$RUNNER_TEMP/allocation-custody-host-evidence-proof.log"
+          npx tsx scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts |
+            tee "$proof"
+
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1_PROOF_GREEN' \
+            'parent_host_evidence_plan_bound=true' \
+            'three_reviewed_custody_primitives_bound=true' \
+            'live_policy_observer_required=true' \
+            'reviewed_second_control_composition_required=true' \
+            'fixed_precision_replay_roots_bound=true' \
+            'descriptor_nofollow_reads_required=true' \
+            'live_policy_boundary_downgrades_rejected=true' \
+            'second_control_boundary_downgrades_rejected=true' \
+            'filesystem_write_performed=false' \
+            'process_execution_performed=false' \
+            'network_contact_performed=false' \
+            'live_policy_enforcement_proven=false' \
+            'live_rollback_test_performed=false' \
+            'live_durable_storage_proven=false' \
+            'rollback_resistance_proven=false' \
+            'protected_high_water_custody_proven=false' \
+            'independent_custody_proven=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false' \
+            'production_host_evidence_authority=false'
+          do
+            grep -Fx "$marker" "$proof"
+          done
+
+          self="$RUNNER_TEMP/allocation-custody-host-evidence-self-test.log"
+          npx tsx ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts --self-test |
+            tee "$self"
+
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1_SELF_TEST_GREEN' \
+            'parent_host_evidence_plan_bound=true' \
+            'current_live_policy_observation_required=true' \
+            'reviewed_second_control_composition_required=true' \
+            'fixed_precision_storage_roots_required=true' \
+            'descriptor_stable_artifact_reads_required=true' \
+            'filesystem_read_performed_by_future_host_run=true' \
+            'filesystem_write_performed=false' \
+            'process_execution_performed=false' \
+            'network_contact_performed=false' \
+            'live_policy_enforcement_proven=false' \
+            'live_rollback_test_performed=false' \
+            'live_durable_storage_proven=false' \
+            'rollback_resistance_proven=false' \
+            'protected_high_water_custody_proven=false' \
+            'independent_custody_proven=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false' \
+            'production_host_evidence_authority=false'
+          do
+            grep -Fx "$marker" "$self"
+          done
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
