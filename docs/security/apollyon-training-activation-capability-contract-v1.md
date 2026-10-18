@@ -183,10 +183,14 @@ Known strings are bounded to 256 characters, with process start ticks bounded to
 20 decimal digits before clone and then range-checked as a positive uint64.
 
 Known fields must also be enumerable own **data** properties. Accessor
-descriptors are rejected without invoking their getter/setter. Preflight copies
-only already-validated primitive descriptor values into a fresh plain snapshot;
-structured cloning, canonicalization and hashing operate on that snapshot rather
-than re-reading the caller object.
+descriptors are rejected without invoking their getter/setter. Unknown
+non-enumerable properties and symbol keys are rejected by exact
+`Reflect.ownKeys` comparison. Proxy objects are rejected with Node's
+`util.types.isProxy` before `Object.getPrototypeOf`, own-key enumeration, or
+descriptor inspection, so caller-controlled reflection traps are never invoked.
+Preflight copies only already-validated primitive descriptor values into a fresh
+plain snapshot; structured cloning, canonicalization and hashing operate on that
+snapshot rather than re-reading the caller object.
 
 ## Hosted proof
 
@@ -209,6 +213,7 @@ Hosted proof must establish:
 - regex-backed identifiers reject arrays and boxed strings rather than coercing them
 - accessor descriptors are rejected without invoking their getters
 - unknown non-enumerable properties and symbol keys are rejected rather than silently dropped
+- Proxy inputs are rejected before reflective traps can execute
 - clone/canonical/hash consume only the validated primitive descriptor snapshot
 - #3333 trainer-generation validation remains external and unperformed
 - training-start consumption/admission, release, and execution remain false
