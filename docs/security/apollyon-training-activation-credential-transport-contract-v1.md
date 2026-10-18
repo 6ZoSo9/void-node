@@ -25,6 +25,15 @@ Parent #3525 keeps issuance, systemd credential runtime, capability possession, 
 
 The candidate is an exact flat 38-key primitive-only material shape, plus a content-addressed `transport_candidate_id`. It records the #3525 capability ID, SHA-256 of the secret, existing #3333 training-start slot ID, and exact parent source-head/blob pair. All actual secret bytes remain absent.
 
+The additional `qualifyApollyonActivationTransportAgainstCapabilityV1()`
+API validates the supplied public #3525 capability candidate with the exact
+parent source validator and requires equality of capability ID, secret SHA-256,
+#3333 start-slot ID and fixed credential name. Hosted proof constructs a real
+#3525 public candidate and then mutates each corresponding transport field,
+recomputes the transport's valid content address, and requires cross-record HOLD.
+This is **public candidate consistency only**, not a protected-origin or
+bearer-possession check: the capability candidate itself is still unissued.
+
 A field identifying a valid-looking capability is not a protected-origin proof. This gate explicitly records `activation_capability_external_validation_performed=false`, `protected_authorization_slot_origin_proven=false`, and `protected_capability_issuance_performed=false`. Even an exactly content-addressed transport candidate is **not** an authorization token.
 
 Expected positive *requirements*:
@@ -77,6 +86,8 @@ The focused proof must pin and revalidate the exact current #3525 contract/proof
 
 - deterministic content address;
 - tampered ID and foreign parent head/blob rejection;
+- exact #3525 public-candidate validation and four-field cross-binding;
+- rejection of re-addressed secret digest, capability ID, and #3333 slot drift;
 - fixed credential name and exact bearer length;
 - no raw secret key or public secret bytes;
 - hidden/symbol/unknown key rejection;
