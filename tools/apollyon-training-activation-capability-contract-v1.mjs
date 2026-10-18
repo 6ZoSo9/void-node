@@ -40,6 +40,9 @@ export const VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_AUTHORITY_V1 =
     external_training_start_consumption_contract_required:true,
     external_training_start_consumption_contract_in_parent_lineage:false,
     external_training_start_consumption_integration_required:true,
+    external_training_start_consumption_validation_performed:false,
+    authorization_slot_external_validation_required:true,
+    training_start_slot_external_validation_required:true,
     systemd_credential_transport_selected_as_candidate:true,
     systemd_credential_runtime_proven:false,
     service_activation_authorized:false,
@@ -121,7 +124,10 @@ const CAPABILITY_KEYS=Object.freeze([
 const BINDING_KEYS=Object.freeze([
   "activation_binding_id",
   "activation_capability_id",
+  "activation_generation_binding_required",
   "activation_generation_bound",
+  "activation_secret_possession_proof_required",
+  "activation_secret_possession_proven",
   "activation_secret_sha256",
   "boot_id_sha256",
   "credential_name",
@@ -130,8 +136,10 @@ const BINDING_KEYS=Object.freeze([
   "observed_preentry_sha256",
   "status",
   "systemd_caller_identity_authoritative",
+  "systemd_invocation_generation_observation_performed",
   "systemd_invocation_id",
   "target_host",
+  "trainer_generation_external_contract_validation_performed",
   "trainer_generation_external_contract_validation_required",
   "trainer_generation_id",
   "training_execution_authorized",
@@ -235,6 +243,9 @@ function validateCapabilityMaterial(value){
       APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_start_consumption_contract_blob_sha1||
     value.training_start_consumption_contract_in_parent_lineage!==false||
     value.training_start_consumption_integration_required!==true||
+    value.external_training_start_consumption_validation_performed!==false||
+    value.authorization_slot_external_validation_required!==true||
+    value.training_start_consumption_slot_external_validation_required!==true||
     value.systemd_credential_transport_required!==true||
     value.systemd_caller_identity_authoritative!==false||
     value.direct_systemd_start_without_capability_authorized!==false||
@@ -306,8 +317,13 @@ function validateBindingMaterial(capability,value){
     !TRAINER_GENERATION_ID.test(value.trainer_generation_id)||
     value.observed_preentry_sha256!==capability.expected_preentry_sha256||
     value.systemd_caller_identity_authoritative!==false||
-    value.activation_generation_bound!==true||
+    value.activation_generation_binding_required!==true||
+    value.activation_generation_bound!==false||
+    value.activation_secret_possession_proof_required!==true||
+    value.activation_secret_possession_proven!==false||
+    value.systemd_invocation_generation_observation_performed!==false||
     value.trainer_generation_external_contract_validation_required!==true||
+    value.trainer_generation_external_contract_validation_performed!==false||
     value.training_start_consumption_record_required!==true||
     value.training_start_consumption_record_origin_proven!==false||
     value.training_start_consumption_performed!==false||
