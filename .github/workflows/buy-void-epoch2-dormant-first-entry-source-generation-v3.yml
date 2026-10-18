@@ -151,7 +151,7 @@ jobs:
               b'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.py': b'ad3ba606056813ae1edc664761a697afcb56236a',
           }
           PATHS = set(PREDECESSORS)
-          REPAIR_BASE = "abfc9bca33717cda57448672107f1b8d8b3fdfd0"
+          REPAIR_BASE = "25dcb9635f965fd83224d027702dd134a50c0a5b"
           REPAIR_PATHS = {
               b'.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-current-head-plan-v1.yml',
               b'.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-installed-qualification-v1.yml',
