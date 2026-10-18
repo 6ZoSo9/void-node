@@ -66,7 +66,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 29b2eaa8af79b5df65a5ba3890a37dd25d295477
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 0be24b5e2c2436d6ec4debd73d69e9213ada7e12
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 3233c1f9345122664e2ff54b83032ec1ec40c118
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md)" = 7fd04168fa4376db97f5f632d914ba7ae4ea7ee4
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84
