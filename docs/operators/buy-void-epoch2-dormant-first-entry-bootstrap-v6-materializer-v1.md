@@ -8,7 +8,7 @@ Status: **source/CI artifact publication only**.
 
 Materialize the exact V6 static bootstrap ELF accepted by lock:
 
-`voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b`
+`voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396`
 
 and pair it with the exact immutable source-generation manifest needed by the future protected bootstrap installation.
 
@@ -19,7 +19,7 @@ Bootstrap ELF:
 - file: `void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6`;
 - bytes: `874608`;
 - SHA-256:
-  `c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b`;
+  `618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c`;
 - artifact mode: `0555`.
 
 Source-generation manifest:
@@ -27,7 +27,7 @@ Source-generation manifest:
 - file: `source-generation-v3.conf`;
 - bytes: `2382`;
 - SHA-256:
-  `aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`;
+  `8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9`;
 - artifact mode: `0444`.
 
 The materializer verifies the accepted lock and candidate-tool Git blobs before executing the candidate derivation code. It also verifies source-generation V3's exact inner-installer V5 Git blob `ce6930bc1be8239a3171d4922c44b96a50f5778b`. It rederives the ELF and rejects any bytes/size mismatch with the accepted identity.
@@ -39,7 +39,7 @@ The accepted V6 lock also binds the descriptor-independent build contract:
 - the distinct-FD builds are byte-identical.
 
 The materializer rechecks those fields and requires ELF Git-blob identity
-`a91707c3e5803071fc73c3451c9bcb3b774f8b48` before publishing any artifact bytes.
+`b577d70666f98ac59a75b84b3dab741fe7b93a4b` before publishing any artifact bytes.
 
 ## Host policy deliberately excluded
 
@@ -84,3 +84,7 @@ Still false:
 No `/opt` write occurs in this lane.
 
 PROTECT THE CORE.
+
+## Git cruft-pack compatibility
+
+The accepted V6 generation treats `pack-<oid>.mtimes` as non-authoritative cruft-pack metadata under the same regular-file/single-link shape checks as other pack auxiliaries. It is not copied into the private object view and does not grant object authority.

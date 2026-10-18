@@ -20,9 +20,9 @@ The plan binds:
 
 - exact current checkout HEAD/tree and raw tracked bytes on clean `main`;
 - merged V6 qualifier source Git blob
-  `975fb5444da297f94a73cad1f5f6e4ddff953574`;
+  `5f7321725b306184567111c0a7831d08243ad052`;
 - V6 protected-bootstrap installer source Git blob
-  `70dd0e0feaebbea08c63d8c19549f928c8d70b7a`;
+  `438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84`;
 - accepted runtime-head launcher lock V2 and canonical launcher materializer;
 - accepted dormant-binder native lock V3 and native materializer;
 - exact launcher and native artifact bytes supplied to the planner;
@@ -76,19 +76,19 @@ caller-selected worktree pathname as privileged first-instruction authority.
 Expected installed bootstrap:
 
 - lock:
-  `voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b`;
+  `voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396`;
 - candidate:
-  `voidbuye2dormantbootstrapcand3_13521be924148818f4869bf24e535d2ecd54a27483daca74e17ba05128c96062`;
+  `voidbuye2dormantbootstrapcand3_1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2`;
 - ELF bytes: `874608`;
 - ELF SHA-256:
-  `c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b`;
+  `618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c`;
 - ELF Git blob:
-  `a91707c3e5803071fc73c3451c9bcb3b774f8b48`;
+  `b577d70666f98ac59a75b84b3dab741fe7b93a4b`;
 - source-generation V3 manifest: 2382 bytes;
 - manifest SHA-256:
-  `aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`;
+  `8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9`;
 - manifest Git blob:
-  `6e0630af72111bd9976dcc38cdcdada1904dd067`.
+  `de56bacb30bea0adc418e240cf3fb8d900b061ef`.
 
 Installed target:
 
@@ -234,3 +234,7 @@ This is a source/proof repair only. Its collector fixture does not perform
 installed-host qualification or execute the installed bootstrap or protected
 installer; credential access, payment acceptance, presale/WC activation, and
 funds movement remain false.
+
+## Git cruft-pack compatibility
+
+The accepted V6 generation treats `pack-<oid>.mtimes` as non-authoritative cruft-pack metadata under the same regular-file/single-link shape checks as other pack auxiliaries. It is not copied into the private object view and does not grant object authority.

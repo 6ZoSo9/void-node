@@ -21,7 +21,7 @@ and binder remain unexecuted.
 
 The planner authenticates the exact installed qualifier Git blob:
 
-`5ef5c8768bc2fceb4658613e0e911733bfccdef2`.
+`f0ca6d231ea787eee6b1f9be84000111ef9055a4`.
 
 That qualifier is in turn bound to frozen V5 installer blob:
 
@@ -29,7 +29,7 @@ That qualifier is in turn bound to frozen V5 installer blob:
 
 Its standalone repository observer is bound to outer V6 installer blob:
 
-`70dd0e0feaebbea08c63d8c19549f928c8d70b7a`.
+`438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84`.
 
 The planner verifies that observer declaration and requires the same identity
 in the qualification receipt. It does not accept a native-parent authority

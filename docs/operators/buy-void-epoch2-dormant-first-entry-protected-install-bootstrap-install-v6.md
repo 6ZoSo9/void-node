@@ -24,21 +24,21 @@ materializer:
 
 - bytes: `874608`;
 - SHA-256:
-  `c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b`;
+  `618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c`;
 - Git blob:
-  `a91707c3e5803071fc73c3451c9bcb3b774f8b48`.
+  `b577d70666f98ac59a75b84b3dab741fe7b93a4b`.
 
 The source-generation V3 manifest is:
 
 - bytes: `2382`;
 - SHA-256:
-  `aa9ee1676355b95f7c4b5e7d10e303eda5e30bb3142a588986461efaa7040662`;
+  `8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9`;
 - Git blob:
-  `6e0630af72111bd9976dcc38cdcdada1904dd067`.
+  `de56bacb30bea0adc418e240cf3fb8d900b061ef`.
 
 Accepted V6 lock:
 
-`voidbuye2dormantbootstraplock3_5958d8e7871640ff4806d1f1500b3cb2a2f91e29a4ff82146a46dced0ad0244b`.
+`voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396`.
 
 ## Host policy
 
@@ -338,3 +338,7 @@ qualification for the V6 bootstrap root. The historical gate token retains
 writes and requires their cleanup. No gate name overrides those runtime facts.
 
 PROTECT THE CORE.
+
+## Git cruft-pack compatibility
+
+The accepted V6 generation treats `pack-<oid>.mtimes` as non-authoritative cruft-pack metadata under the same regular-file/single-link shape checks as other pack auxiliaries. It is not copied into the private object view and does not grant object authority.
