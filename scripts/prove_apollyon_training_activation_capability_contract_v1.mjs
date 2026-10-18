@@ -218,6 +218,7 @@ for(const [key,value] of [
 }
 
 const bindingMaterial={
+  activation_capability_id:capability.activation_capability_id,
   activation_generation_binding_required:true,
   activation_generation_bound:false,
   activation_secret_possession_proof_required:true,
