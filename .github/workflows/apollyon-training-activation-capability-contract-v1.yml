@@ -51,11 +51,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
-            b4e667fc425e4ca8a5d39bbd3b92989282d39e3b
+            fb961c01572a497a7bc3254fc41938e5c794c63e
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
-            71829b67ee7bd12c81fab5a89764d15154373d2a
+            4430537500a2ed39be104dbe8f494fe04295bf0c
           test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
-            342e7c2e43eb22eb8f6c970d1dc3811ba55116bb
+            2a2b5b49e5641f9f2df973002bb67255c4bb83cb
 
           external_consumption_ref=refs/heads/ren/apollyon-training-start-consumption-contract-v1-20261016
           external_consumption_head=fdf47e77cd12eee38efe741edb02fa2fd39135e2
@@ -137,6 +137,7 @@ jobs:
           grep -Fx 'symbol_keys_rejected=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'proxy_inputs_rejected_before_reflection=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'proxy_reflection_traps_not_invoked=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'oversized_keyset_rejected_before_sort=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'trainer_generation_external_validation_performed=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'training_start_consumption_record_origin_proven=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'training_start_consumption_performed=false' /tmp/apollyon-activation-capability-proof.txt
