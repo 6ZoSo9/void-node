@@ -84,6 +84,17 @@ def hold(reason: str) -> None:
     raise Hold(reason)
 
 
+def normalize_host_io(reason: str):
+    def decorate(fn):
+        def wrapped(*args: Any, **kwargs: Any):
+            try:
+                return fn(*args, **kwargs)
+            except OSError as exc:
+                raise Hold(reason) from exc
+        return wrapped
+    return decorate
+
+
 def canonical(value: Any) -> str:
     return json.dumps(
         value,
@@ -176,6 +187,7 @@ def require_file(
         hold(label + "_metadata_invalid")
 
 
+@normalize_host_io("claim_root_host_io_failed")
 def open_root(
     root_path: Path,
     *,
@@ -362,6 +374,7 @@ def parse_slot_record(raw: bytes) -> dict[str, Any]:
     return validated
 
 
+@normalize_host_io("protected_slot_host_io_failed")
 def read_exact_slot(
     root_fd: int,
     root_stamp: os.stat_result,
@@ -432,11 +445,17 @@ def read_exact_slot(
                 follow_symlinks=False,
             )
             directory_after = os.fstat(directory_fd)
+            directory_visible_after = os.stat(
+                SLOT_DIRECTORY_LEAF,
+                dir_fd=root_fd,
+                follow_symlinks=False,
+            )
             root_after = os.fstat(root_fd)
             if (
                 identity(opened) != identity(opened_after)
                 or identity(opened_after) != identity(visible_after)
                 or identity(directory_opened) != identity(directory_after)
+                or identity(directory_after) != identity(directory_visible_after)
                 or identity(root_stamp) != identity(root_after)
             ):
                 hold("protected_slot_generation_changed")
@@ -452,11 +471,17 @@ def read_exact_slot(
                 follow_symlinks=False,
             )
             final_directory = os.fstat(directory_fd)
+            final_directory_visible = os.stat(
+                SLOT_DIRECTORY_LEAF,
+                dir_fd=root_fd,
+                follow_symlinks=False,
+            )
             final_root = os.fstat(root_fd)
             if (
                 identity(opened) != identity(final_fd)
                 or identity(final_fd) != identity(final_visible)
                 or identity(directory_opened) != identity(final_directory)
+                or identity(final_directory) != identity(final_directory_visible)
                 or identity(root_stamp) != identity(final_root)
             ):
                 hold("protected_slot_generation_changed_after_reread")
@@ -475,6 +500,7 @@ def read_exact_slot(
         os.close(directory_fd)
 
 
+@normalize_host_io("protected_slot_observation_host_io_failed")
 def observe_protected_slot(
     *,
     root_path: Path,
@@ -637,6 +663,8 @@ def self_test() -> None:
     print("descriptor_relative_slot_read_implemented=true")
     print("slot_leaf_nonblocking_nofollow_open=true")
     print("final_visible_generation_revalidation_required=true")
+    print("visible_slot_directory_revalidation_required=true")
+    print("host_io_errors_normalized_to_hold=true")
     print("trusted_ancestor_posix_acl_rejected=true")
     print("exact_parent_slot_record_revalidation=true")
     print("protected_origin_completion_required=true")

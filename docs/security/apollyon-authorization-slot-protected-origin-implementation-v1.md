@@ -41,8 +41,17 @@ The reader:
 3. validates the #3357 slot schema and content-addressed record identity;
 4. revalidates retained and visible root/directory/slot generations;
 5. rereads the same retained descriptor and requires identical bytes; and
-6. revalidates retained and visible root/directory/slot generations **again**
-   after the second reread.
+6. revalidates the retained descriptors **and the visible slot-file, slot-directory,
+   and claim-root bindings again** after the second reread.
+
+The visible `authorization-slots-v1` binding is checked from the retained claim-root
+descriptor both before and after the second reread. Renaming that directory out of
+the protected root and replacing it with another directory therefore cannot turn a
+stale detached-directory observation into a current receipt.
+
+Host filesystem `OSError` failures from the protected root/slot observation path
+are normalized to machine-readable `Hold` results rather than escaping as Python
+tracebacks.
 
 Same-byte pathname replacement before or after the second reread therefore
 HOLDs.
@@ -100,9 +109,10 @@ Hosted CI uses disposable temporary directories under the ordinary runner
 UID/GID only. It performs no Xiphos access.
 
 Adversaries cover wrong root/slot/file modes, hard links, symlinks, FIFO
-substitution, noncanonical and recursively nested JSON, slot-ID/content-address
-drift, same-byte visible replacement after the first read, and same-byte visible
-replacement after the second reread.
+substitution, missing slot paths, noncanonical and recursively nested JSON,
+slot-ID/content-address drift, same-byte visible slot replacement after the first
+read, visible slot-directory replacement while the old directory remains retained,
+and same-byte visible slot replacement after the second reread.
 
 No protected store, service, capability, training, credential, transaction or
 funds action occurs.

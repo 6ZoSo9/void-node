@@ -46,9 +46,9 @@ jobs:
           git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = c9f59147d7d768a3a385d5ea7faafadb718e4ad1
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 7182475cbf31160ea3470266d14f30e98e4487fd
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 2c1e5f89fc31aedfe0f2a093293c8fb8be15ff37
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = eda79f44e924e8577115e0d5b60167c0e078a1d6
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = e3379bd9a607a658ca3f3bc0513c17f90d90cbee
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 2677d888b0716c197d33e5ae033775dcfcb9ada2
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 04ade367f7fbfa5915b29648ff051f08b56c306d
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = 93582c324ca85aeff56eb61f82b32f1e4c18dfe9
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
@@ -75,6 +75,8 @@ jobs:
             'recursive_json_rejected_fail_closed=true' \
             'same_bytes_path_replacement_rejected=true' \
             'post_second_reread_path_replacement_rejected=true' \
+            'visible_slot_directory_replacement_rejected=true' \
+            'host_io_errors_normalized_to_hold=true' \
             'trusted_ancestor_posix_acl_required=true' \
             'descriptor_stable_slot_reread=true' \
             'protected_origin_completion_required=true' \
@@ -98,6 +100,8 @@ jobs:
           grep -Fx 'VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1_SELF_TEST=GREEN' "$out"
           grep -Fx 'slot_leaf_nonblocking_nofollow_open=true' "$out"
           grep -Fx 'final_visible_generation_revalidation_required=true' "$out"
+          grep -Fx 'visible_slot_directory_revalidation_required=true' "$out"
+          grep -Fx 'host_io_errors_normalized_to_hold=true' "$out"
           grep -Fx 'protected_origin_completion_required=true' "$out"
           grep -Fx 'protected_authorization_slot_origin_proven=false' "$out"
           grep -Fx 'activation_capability_issuance_authorized=false' "$out"

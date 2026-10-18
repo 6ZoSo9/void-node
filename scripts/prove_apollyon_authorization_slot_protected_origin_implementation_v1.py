@@ -232,6 +232,36 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-fifo-") as td
         "slot_file_metadata_invalid",
     )
 
+# Missing host paths must be normalized to the module's Hold contract.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-missing-leaf-") as td:
+    root, _, leaf = create_fixture(Path(td), record)
+    leaf.unlink()
+    expect_hold(
+        lambda: mod.observe_protected_slot(
+            root_path=root,
+            claim_uid=uid,
+            claim_gid=gid,
+            authorization_slot_id=str(record["authorization_slot_id"]),
+            require_trusted_ancestors=False,
+        ),
+        "protected_slot_host_io_failed",
+    )
+
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-missing-dir-") as td:
+    root, slots, leaf = create_fixture(Path(td), record)
+    leaf.unlink()
+    slots.rmdir()
+    expect_hold(
+        lambda: mod.observe_protected_slot(
+            root_path=root,
+            claim_uid=uid,
+            claim_gid=gid,
+            authorization_slot_id=str(record["authorization_slot_id"]),
+            require_trusted_ancestors=False,
+        ),
+        "protected_slot_host_io_failed",
+    )
+
 # Canonical framing is exact.
 with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-canonical-") as td:
     root, _, leaf = create_fixture(Path(td), record)
@@ -322,6 +352,37 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-replace-") as
     finally:
         mod.os.pread = real_pread
 
+# Replacing the visible slot-directory binding after a retained read is detected.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-dir-replace-") as td:
+    root, slots, _ = create_fixture(Path(td), record)
+    detached = root / (mod.SLOT_DIRECTORY_LEAF + ".detached")
+    real_pread = mod.os.pread
+    nonlocal_calls = [0]
+
+    def directory_racing_pread(fd: int, amount: int, offset: int) -> bytes:
+        nonlocal_calls[0] += 1
+        raw = real_pread(fd, amount, offset)
+        if nonlocal_calls[0] == 1:
+            os.replace(slots, detached)
+            slots.mkdir(mode=0o700)
+            slots.chmod(0o700)
+        return raw
+
+    mod.os.pread = directory_racing_pread
+    try:
+        expect_hold(
+            lambda: mod.observe_protected_slot(
+                root_path=root,
+                claim_uid=uid,
+                claim_gid=gid,
+                authorization_slot_id=str(record["authorization_slot_id"]),
+                require_trusted_ancestors=False,
+            ),
+            "protected_slot_generation_changed",
+        )
+    finally:
+        mod.os.pread = real_pread
+
 # Same-byte replacement after the second retained-descriptor reread is detected.
 with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-final-replace-") as td:
     root, slots, leaf = create_fixture(Path(td), record)
@@ -365,6 +426,10 @@ for required in (
     'getattr(os, "O_NONBLOCK", 0)',
     'require_no_posix_acl(child, "claim_root_ancestor")',
     'protected_slot_generation_changed_after_reread',
+    'directory_visible_after = os.stat(',
+    'final_directory_visible = os.stat(',
+    '@normalize_host_io("protected_slot_host_io_failed")',
+    '@normalize_host_io("protected_slot_observation_host_io_failed")',
     '"claim_service_revalidation_v1"',
     'require_no_posix_acl',
 ):
@@ -398,6 +463,8 @@ print("exact_canonical_slot_bytes_required=true")
 print("exact_parent_slot_content_address_revalidated=true")
 print("same_bytes_path_replacement_rejected=true")
 print("post_second_reread_path_replacement_rejected=true")
+print("visible_slot_directory_replacement_rejected=true")
+print("host_io_errors_normalized_to_hold=true")
 print("slot_fifo_nonblocking_rejected=true")
 print("recursive_json_rejected_fail_closed=true")
 print("trusted_ancestor_posix_acl_required=true")
