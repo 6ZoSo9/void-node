@@ -145,15 +145,15 @@ This prevents a source-only evaluator from inventing production-host evidence.
 
 - census source:
   `scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py`
-  blob `266fe91ee8563efff6116be7f890f19340a0de4c`;
+  blob `d8ea2966d81e43c273d3692f5778143259431f08`;
 - census behavioral proof:
-  `9a8446a3d1f02d94277606c2858ec7abd30b3b94`;
+  `9dd55390b75bb6c6075efb053b0491b23a52fe60`;
 - accepted freeze manifest:
   `ca9c42e2d3ab4c50ac54badadb9efde6180ad241`;
 - current enforcement-successor manifest:
   `774db38ccb771f393b44d589a455144b99d36f6b`;
 - current freeze-acceptance manifest:
-  `5d437a37703a83908a7fa78b78da92151aa1aa99`.
+  `174d536807f03fd7b6ff44820d4e378c7055150e`.
 
 ## Authority
 
