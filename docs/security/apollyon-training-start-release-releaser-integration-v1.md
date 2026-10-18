@@ -68,6 +68,7 @@ threads.
 
 The filter denies:
 
+- x86-64 x32-numbered syscall escape;
 - clone / clone3 / fork / vfork;
 - dup / dup2 / dup3;
 - fcntl-based duplication;
