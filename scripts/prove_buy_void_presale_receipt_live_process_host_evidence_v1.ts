@@ -154,9 +154,13 @@ for(const forbidden of [
 for(const required of [
   "fs.constants.O_RDONLY",
   "fs.constants.O_NOFOLLOW",
-  "before.uid !== 0",
-  "before.gid !== 0",
-  "(before.mode & 0o777) !== 0o444",
+  "function receiptLeafCustodyTrusted(",
+  "current.uid === 0",
+  "current.gid === 0",
+  "current.nlink === 1",
+  "(current.mode & 0o7777) === 0o444",
+  "current.size === expectedLength",
+  "receiptLeafCustodyTrusted(before, expected.length)",
   "!observed.equals(expected)",
   "path: cursor",
   "fs.lstatSync(held.path)",
@@ -165,6 +169,10 @@ for(const required of [
   "mode: visible.mode & 0o7777",
   "mode: held.mode & 0o7777",
 ])assert.ok(source.includes(required),required);
+
+for(const stale of [
+  "(before.mode & 0o777) !== 0o444",
+])assert.equal(source.includes(stale),false,stale);
 
 const base:any={
   plan_id:"voidbsv2colplan1_"+"1".repeat(64),
