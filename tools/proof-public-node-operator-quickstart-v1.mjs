@@ -78,7 +78,7 @@ for (const [surfaceName, surface] of Object.entries({ html, page })) {
     '/public-node/connect',
     '/public-node/connect/public-node-connect-pack-v1.json',
     '/health',
-    '/peers',
+    '/p2p/peers',
     '/public-node/connect/receipt-template-v1',
     '/public-node/connect/public-node-connect-receipt-template-v1.json'
   ]) {
