@@ -1,0 +1,174 @@
+name: Apollyon durable attempt claim store service implementation v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml"
+      - "docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs"
+      - "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c"
+      - "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml"
+      - "docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs"
+      - "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c"
+      - "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact implementation generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          parent=4e7d433a4141b4a7cad7fb001d0800dccb1b5ec2
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git merge-base --is-ancestor "$parent" "$HEAD_SHA"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE" = "$parent"
+              base="$PR_BASE"
+              expected="$RUNNER_TEMP/expected.txt"
+              actual="$RUNNER_TEMP/actual.txt"
+              printf '%s\n' \
+                '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \
+                'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \
+                'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \
+                'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
+                | LC_ALL=C sort > "$expected"
+              git diff --no-renames --name-only "$base" "$HEAD_SHA" -- | LC_ALL=C sort > "$actual"
+              diff -u "$expected" "$actual"
+              ;;
+            push)
+              base="$PUSH_BEFORE"
+              test -n "$base"
+              test "$base" != 0000000000000000000000000000000000000000
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
+            dce36dbb5676d2776ad6f36313a6bd2b8656ab2d
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
+            eab9b5f3ffad3a7a1e83163c88cb200da82e3412
+          test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
+            87a0b1cd5536ab7e55453ec404692e0c2abfb712
+
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
+            93582c324ca85aeff56eb61f82b32f1e4c18dfe9
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs)" = \
+            d1726e3be042549769d2fe554371facd2ed60553
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-contract-v2.mjs)" = \
+            6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = \
+            d67ef39c4cd034844fb0862e180de46ed4cd0c88
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs)" = \
+            394b9dbaebbdbb561be6119f5be8b60d59fb367d
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs)" = \
+            5d913eb08d79c76ed926d8b88be05b12f475abd5
+          test "$(git rev-parse HEAD:tools/apollyon-live-source-session-terminal-receipt-v2.mjs)" = \
+            e27f0ebb968f4611bfc069670325c3f5e6df1c65
+          test "$(git rev-parse HEAD:tools/apollyon-live-custody-service-source-session-binding-v2.mjs)" = \
+            981935515e08634be96446e58922c16be56d33ad
+          test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = \
+            f97fafb0148527ae3a954e2752faef8c7fc9e88e
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c)" = \
+            defd863de841a1f1460e10985d1990ba1a382f70
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs)" = \
+            4cf08f60a604496ea7087167f0ef6a744182aad4
+
+          git diff --check "$base" "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove durable claim store core
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs
+          node --check scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs
+
+          out="$RUNNER_TEMP/apollyon-claim-store-service-implementation-v2.log"
+          node scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs \
+            | tee "$out"
+
+          for marker in \
+            'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_V2_PROOF_GREEN' \
+            'exact_source_and_parent_blobs_pinned=true' \
+            'fixed_physical_namespace_defined=true' \
+            'publisher_exact_request_bytes_preserved=true' \
+            'publisher_request_reconstruction_forbidden=true' \
+            'retained_root_identity_bound=true' \
+            'active_and_immutable_generation_cross_bound=true' \
+            'slot_before_claim_durable_order_proven=true' \
+            'private_pending_fsync_link_directory_fsync_proven=true' \
+            'exact_final_reread_proven=true' \
+            'exact_replay_idempotent=true' \
+            'different_claim_same_authorization_rejected=true' \
+            'crash_after_slot_exact_recovery_proven=true' \
+            'post_link_cleanup_failure_recovery_proven=true' \
+            'generation_drift_before_mutation_rejected=true' \
+            'orphan_claim_without_slot_rejected=true' \
+            'async_revalidator_rejected_before_mutation=true' \
+            'async_transaction_rejected_before_mutation=true' \
+            'caller_supplied_revalidator_is_host_proof=false' \
+            'caller_supplied_exclusive_transaction_is_host_proof=false' \
+            'native_peer_runtime_integration_present=false' \
+            'af_unix_listener_implementation_present=false' \
+            'production_claim_store_mutation_performed=false' \
+            'production_durable_attempt_claim_performed=false' \
+            'attempt_claim_authorized=false' \
+            'training_execution_authorized=false' \
+            'xiphos_execution_performed=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
