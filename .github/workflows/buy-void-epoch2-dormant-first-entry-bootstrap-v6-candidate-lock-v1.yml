@@ -115,7 +115,7 @@ jobs:
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_bootstrap_v6_candidate_v1.py)" = e4e8ca7f5ca3fbc935821ce6d607751fcd653658
           test "$(git rev-parse 404367eb982fa92a40f3c2fe51d5f172a1e9fac0:.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml)" = cfc99617fb69f6cb945b806c6b3b153086eeb159
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml)" = 2d18229e9dcf73fa8cbc24447e5b3ced158be9e9
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.yml)" = 3420c37dcc69295d190be0b56e1f552b8a56fb12
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-v1.md)" = e5f4023f0b60ce5ef144f91b8f95bb9094a1dfce
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6.c)" = 560726bcae6ea0738502cb5e74b65f9116bd447d
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = de56bacb30bea0adc418e240cf3fb8d900b061ef
