@@ -106,8 +106,8 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 6a654b555bd6c2bce35a21dfcbd90e4c22bece75
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = a6e79fc10f1bb7f76aab52366ce4924e78d21ec7
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 216928e1810cb25ce1c331e2edfece629fff76cf
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = f2566d76972262db35f60d049f79ae6f2d34f47e
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = e346269a7cb74a849bd24ec88ed8d7bfee060be7
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
