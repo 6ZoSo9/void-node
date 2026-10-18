@@ -141,19 +141,6 @@ def verify_tree(root:Path,mapping:dict[str,str])->None:
             if current/name not in expected:
                 hold("unexpected_reviewed_file:"+str(current/name))
 
-def launcher_state()->str:
-    try: st=os.lstat(FIXED_LAUNCHER)
-    except FileNotFoundError: hold("fixed_launcher_missing")
-    if (
-        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
-        st.st_uid!=0 or st.st_gid!=0 or st.st_nlink!=1 or
-        stat.S_IMODE(st.st_mode)!=0o444
-    ): hold("fixed_launcher_metadata_invalid")
-    digest=git_blob(FIXED_LAUNCHER.read_bytes())
-    if digest==OLD_LAUNCHER_BLOB:return "old_exact"
-    if digest==NEW_LAUNCHER_BLOB:return "new_exact"
-    hold("fixed_launcher_collision")
-
 def ensure_root_dir(path:Path)->bool:
     if path==Path("/"): return False
     if not path.parent.exists(): ensure_root_dir(path.parent)
