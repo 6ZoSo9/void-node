@@ -33,7 +33,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "644bea15d783be446f2aa5fb593b301094895f68"
+TARGET_BLOB = "30cb007279801858654ca04e7d6114c2b38a136f"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -159,6 +159,7 @@ for forbidden in (
     "requests",
     "before.is_file()",
     "before.is_symlink()",
+    '"--exclude-standard"',
 ):
     assert forbidden not in source, forbidden
 
@@ -591,6 +592,35 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
             expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_path_invalid")
         finally:
             module._git = saved_git
+
+        local_excludes_fifo = root / "synthetic-local-excludes"
+        os.mkfifo(local_excludes_fifo, 0o600)
+        if KERNEL_UID_DROP_AVAILABLE:
+            os.chown(local_excludes_fifo, module.RUNTIME_UID, module.RUNTIME_GID)
+        local_excludes = checkout / ".git/info/exclude"
+        local_excludes.unlink()
+        local_excludes.symlink_to(local_excludes_fifo)
+        try:
+            subprocess.run(
+                ["/usr/bin/git", "-C", str(checkout), "-c", "safe.directory=" + str(checkout),
+                 "-c", "core.excludesFile=/dev/null", "ls-files", "--others", "--exclude-standard", "-z"],
+                env=module.GIT_ENV, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=0.25, check=True,
+            )
+        except subprocess.TimeoutExpired:
+            pass
+        else:
+            raise AssertionError("local_excludes_fifo_control_did_not_block")
+        module._verify_checkout_bytes(expected_head)
+        assert delegated._run_git(list(module.STATUS_QUERY)) == ""
+
+        local_excludes.unlink()
+        local_excludes.write_text("ignored-fixture.log\n")
+        ignored = checkout / "ignored-fixture.log"
+        ignored.write_text("synthetic ignored data\n")
+        expect_source_hold(lambda: module._verify_checkout_bytes(expected_head), "checkout_untracked_files")
+        expect_source_hold(lambda: delegated._run_git(list(module.STATUS_QUERY)), "checkout_untracked_files")
+        ignored.unlink()
     finally:
         module.FIXED_CHECKOUT = saved_checkout
         module.RUNTIME_UID, module.RUNTIME_GID = saved_uid, saved_gid
@@ -1041,6 +1071,9 @@ print("root_git_query_uid_gid_and_capability_drop_required=true")
 print("unexpected_query_uid_rejected=true")
 print("configured_excludes_fifo_control_reproduced=true")
 print("configured_global_excludes_file_bypassed=true")
+print("local_excludes_fifo_control_reproduced=true")
+print("repository_local_excludes_not_read=true")
+print("ignored_untracked_files_rejected=true")
 print("kernel_git_uid_drop_executed=" + str(KERNEL_UID_DROP_AVAILABLE).lower())
 print("root_only_git_config_include_denied=" + str(KERNEL_UID_DROP_AVAILABLE).lower())
 print("filesystem_write_performed=false")

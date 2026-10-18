@@ -286,7 +286,7 @@ Both checks now use one raw checkout verifier:
   modes, blob identities, and sizes;
 - `git ls-files --stage --full-name -z` must match that tree exactly, with only
   stage-zero entries;
-- `git ls-files --others --exclude-standard --full-name -z` must be empty;
+- `git ls-files --others --full-name -z` must be empty, including ignored files;
 - every tracked regular file is read through the existing no-follow ancestor
   and retained-descriptor boundary, with exact size/EOF, mode, stable-generation,
   and raw Git-blob equality checks;
@@ -302,15 +302,21 @@ remains, and wrapper Git disables protocols, lazy fetch and untracked caching.
 
 Wrapper Git also forces `core.excludesFile=/dev/null` before every query. Local
 configuration cannot redirect the global excludes read to a credential or FIFO
-readable by the checkout UID. Repository-local ignore rules remain part of the
-untracked-file check. The disposable proof first reproduces a configured FIFO
+readable by the checkout UID. The untracked-file query does not enable exclusion
+processing at all: it opens neither `.git/info/exclude` nor per-directory
+`.gitignore` sources. The disposable proof first reproduces a configured FIFO
 blocking an ordinary excludes query, then retains that hostile configuration
 through the repaired wrapper and delegated checkout tests without opening it.
+It also proves that a symlink from `.git/info/exclude` to a checkout-UID-readable
+FIFO blocks the old query but cannot affect either repaired observation.
 
 This intentionally requires raw bytes and executable modes to match the commit.
 Filtered/normalized or CRLF worktrees, symlinks, gitlinks, unmerged or different
-index entries, invalid paths, special files, and hardlinks HOLD. Ignored untracked
-files remain outside the clean-check contract, as with the former status query.
+index entries, invalid paths, special files, and hardlinks HOLD. Every untracked
+file now causes HOLD, even if a Git ignore rule would normally hide it. This is
+stricter than ordinary Git status: a future source checkout containing ignored
+dependencies, caches, logs, or other untracked state does not qualify. The
+collector never deletes that state or grants permission to remove it.
 The bounds are 50,000 tracked files, 64 MiB per file, 512 MiB total tracked
 content, and 16 MiB per parsed listing. This is a sequence of revalidated
 observations, not an atomic filesystem snapshot.

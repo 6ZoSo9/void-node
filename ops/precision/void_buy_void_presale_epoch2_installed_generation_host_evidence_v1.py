@@ -349,7 +349,9 @@ def _verify_checkout_bytes(expected_head: str) -> None:
         raise EvidenceError("expected_head_invalid")
     tree_query = ["ls-tree", "-r", "-l", "-z", "--full-tree", expected_head]
     index_query = ["ls-files", "--stage", "--full-name", "-z"]
-    others_query = ["ls-files", "--others", "--exclude-standard", "--full-name", "-z"]
+    # Do not open .git/info/exclude, per-directory .gitignore files, or any
+    # configured excludes source. Ignored files are untracked evidence too.
+    others_query = ["ls-files", "--others", "--full-name", "-z"]
     raw_tree = _git(tree_query)
     raw_index = _git(index_query)
     entries: dict[str, tuple[str, str, int]] = {}
