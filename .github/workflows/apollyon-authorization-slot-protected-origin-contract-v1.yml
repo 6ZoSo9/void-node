@@ -38,11 +38,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = \
-            e5ee69f2fa5a561f1f1d8f5aa68d02ad7c2d4045
+            036252c32f5456610f3c42bdf387450ef3a8b7c4
           test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = \
-            872245f1d63d6cf76e9893096dc86e46eb533113
+            edbbc7d5ca45a00b414aac89c0f44eeaaf7c02b4
           test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = \
-            e9769e10b16fb1ccd4abd11d8efc24c45043d192
+            00108fe8fe32089d4fa97e64efb7212dadced62e
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
             93582c324ca85aeff56eb61f82b32f1e4c18dfe9
