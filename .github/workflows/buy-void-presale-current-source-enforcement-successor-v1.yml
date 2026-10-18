@@ -62,9 +62,9 @@ jobs:
           git diff --no-renames --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = bb1144989cd826677f2fc8ea54c97e3bd95cc8ef
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs)" = d37152567b6abbb185008e6c081cf1d645056f36
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-current-source-enforcement-successor-v1.md)" = ccdd70a6a40792f341d73f7b6cf8f6ece8be27c3
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = 774db38ccb771f393b44d589a455144b99d36f6b
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs)" = 890d17ad00d3f4235649ec4b1ff671853cadc84d
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-current-source-enforcement-successor-v1.md)" = b3d8da965a4f042b6f09284428adc71f3950e377
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json)" = 4e23ecbb64eb26c14f5ab15af85eb86d59c3a718
@@ -72,7 +72,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs)" = 4e123302d25dd0a83923032d2dc0f40c8937e77f
 
           test "$(git rev-parse 05614762b1b4638e05e539fd7d20cbf670e1570b^{tree})" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
-          git merge-base --is-ancestor 0f5c467253c250a905917e886eb6ae3fb80bff62 "$EXPECTED_HEAD"
+          git merge-base --is-ancestor d3e7404791622541a4567ddd506f27caba60cfea "$EXPECTED_HEAD"
           git diff --check "$PR_BASE" "$EXPECTED_HEAD"
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
@@ -90,7 +90,7 @@ jobs:
           node scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs | tee "$out"
           for marker in \
             'VOID_BUY_VOID_PRESALE_CURRENT_SOURCE_ENFORCEMENT_SUCCESSOR_V1_PROOF_GREEN' \
-            'successor_id=voidbuypresaleenfsucc1_2c412f5e7537fd23c61c262f82c89d0b082e1a44c45d744cc1c7a84d28893bad' \
+            'successor_id=voidbuypresaleenfsucc1_819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef' \
             'protected_path_count=49' \
             'protected_path_delta_count=0' \
             'reviewed_economic_source_file_count=28' \
