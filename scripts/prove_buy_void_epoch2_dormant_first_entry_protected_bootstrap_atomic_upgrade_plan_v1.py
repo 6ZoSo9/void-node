@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import os
 from pathlib import Path
 import subprocess
+import tempfile
+import types
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,7 +21,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_plan_v1.py"
 )
-TARGET_BLOB = "928568d08f56375911505af635306b715790c1f3"
+TARGET_BLOB = "ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78"
 
 UPGRADER_REL = (
     "ops/precision/"
@@ -118,7 +121,14 @@ for required in (
     NEW_MANIFEST_GIT_BLOB,
     'future_apply_requires_root": True',
     'future_apply_authorized": False',
+    '"future_apply_source_inline": True',
+    '"future_apply_source_reopens_checkout": False',
+    '"planner_git_callbacks_neutralized": True',
     '"protected_filesystem_mutation": False',
+    '"GIT_CONFIG_KEY_0": "core.fsmonitor"',
+    '"GIT_CONFIG_VALUE_0": "false"',
+    '"GIT_CONFIG_KEY_1": "core.hooksPath"',
+    '"GIT_CONFIG_VALUE_1": "/dev/null"',
     '"bootstrap_execution": False',
     '"inner_installer_execution": False',
     '"funds_movement": False',
@@ -201,6 +211,12 @@ for required in (
     assert required in collect_source, required
 assert "upgrader.apply(" not in collect_source
 assert "subprocess." not in collect_source
+assert '"-c",' in collect_source
+assert "future_apply_code" in collect_source
+assert '"future_apply_source_inline": True' in collect_source
+assert '"future_apply_source_reopens_checkout": False' in collect_source
+assert '"planner_git_callbacks_neutralized": True' in collect_source
+assert 'str(FIXED_CHECKOUT / UPGRADER_REL),\n        "--apply"' not in collect_source
 
 load_source = ast.get_source_segment(source, functions["load_upgrader"]) or ""
 assert "exec(" in load_source
@@ -209,6 +225,55 @@ assert "module.__file__" in load_source
 assert "module.NEW_BOOT" in load_source
 assert "module.NEW_MAN" in load_source
 assert "module.apply" not in load_source
+assert "return module, raw" in load_source
+
+git_source = ast.get_source_segment(source, functions["_git"]) or ""
+for required in (
+    '"GIT_CONFIG_KEY_0": "core.fsmonitor"',
+    '"GIT_CONFIG_VALUE_0": "false"',
+    '"GIT_CONFIG_KEY_1": "core.hooksPath"',
+    '"GIT_CONFIG_VALUE_1": "/dev/null"',
+):
+    assert required in source, required
+
+module = types.ModuleType("void_atomic_upgrade_plan_callback_fixture")
+module.__file__ = str(ROOT / TARGET_REL)
+module.__package__ = ""
+exec(compile(source, TARGET_REL, "exec", dont_inherit=True), module.__dict__)
+with tempfile.TemporaryDirectory(prefix="void-e2-plan-fsmonitor-") as td:
+    temp = Path(td)
+    repo = temp / "repo"
+    sentinel = temp / "fsmonitor-executed"
+    subprocess.run(
+        ["/usr/bin/git", "init", "-q", str(repo)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        timeout=20,
+    )
+    callback = temp / "fsmonitor.sh"
+    callback.write_text(
+        "#!/bin/sh\n"
+        + "/usr/bin/touch "
+        + str(sentinel)
+        + "\n"
+        + "exit 1\n",
+        encoding="utf-8",
+    )
+    callback.chmod(0o755)
+    subprocess.run(
+        ["/usr/bin/git", "-C", str(repo), "config", "core.fsmonitor", str(callback)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        timeout=20,
+    )
+    module.FIXED_CHECKOUT = repo
+    observed = module._git(["status", "--porcelain=v1", "--untracked-files=all"])
+    assert observed == b""
+    assert not sentinel.exists(), "planner_git_fsmonitor_callback_executed"
 
 stable_source = (
     ast.get_source_segment(source, functions["stable_regular_input"]) or ""
@@ -225,6 +290,9 @@ for forbidden in (
 
 emit_source = ast.get_source_segment(source, functions["emit_run"]) or ""
 assert "future_apply_argv_json=" in emit_source
+assert "planner_git_callbacks_neutralized=true" in emit_source
+assert "future_apply_source_inline=true" in emit_source
+assert "future_apply_source_reopens_checkout=false" in emit_source
 assert "future_apply_authorized=false" in emit_source
 assert "protected_filesystem_mutation=false" in emit_source
 assert "bootstrap_execution=false" in emit_source
@@ -244,6 +312,9 @@ for mode, expected_lines in (
             "repaired_manifest_identity_bound=true",
             "upgrader_collect_only=true",
             "temporary_git_metadata_boundary_explicit=true",
+            "planner_git_callbacks_neutralized=true",
+            "future_apply_source_inline=true",
+            "future_apply_source_reopens_checkout=false",
             "protected_filesystem_mutation=false",
             "future_apply_argv_emitted_only=true",
             "future_apply_authorized=false",
@@ -264,6 +335,9 @@ for mode, expected_lines in (
             "old_lock_id=" + OLD_LOCK,
             "new_lock_id=" + NEW_LOCK,
             "new_candidate_id=" + NEW_CAND,
+            "planner_git_callbacks_neutralized=true",
+            "future_apply_source_inline=true",
+            "future_apply_source_reopens_checkout=false",
             "future_apply_requires_root=true",
             "future_apply_authorized=false",
             "bootstrap_execution=false",
@@ -301,6 +375,11 @@ print("upgrader_collect_only=true")
 print("subprocess_execution_limited_to_sanitized_git=true")
 print("input_reads_read_only_nofollow=true")
 print("temporary_git_metadata_boundary_explicit=true")
+print("planner_git_callbacks_neutralized=true")
+print("planner_git_fsmonitor_callback_rejected=true")
+print("future_apply_source_inline=true")
+print("future_apply_source_reopens_checkout=false")
+print("future_apply_mutable_checkout_execution=false")
 print("source_repository_mutation=false")
 print("protected_filesystem_mutation=false")
 print("future_apply_argv_emitted_only=true")
