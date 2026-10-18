@@ -11,7 +11,13 @@ import {
   APOLLYON_ACTIVATION_TRANSPORT_MATERIAL_KEYS_V1,
   buildApollyonActivationCredentialTransportCandidateV1,
   qualifyApollyonActivationCredentialTransportCandidateV1,
+  qualifyApollyonActivationTransportAgainstCapabilityV1,
 } from "../tools/apollyon-training-activation-credential-transport-contract-v1.mjs";
+import {
+  APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1,
+  VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_V1,
+  buildApollyonTrainingActivationCapabilityV1,
+} from "../tools/apollyon-training-activation-capability-contract-v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=path.join(ROOT,"tools/apollyon-training-activation-credential-transport-contract-v1.mjs");
@@ -170,6 +176,93 @@ try{
   reject(()=>buildApollyonActivationCredentialTransportCandidateV1(many),/transport_schema_invalid/u);
 }finally{Array.prototype.sort=realSort;}
 
+// Recompute the public transport ID after hostile cross-record edits. It
+// remains a valid standalone shape, but cannot agree with the current #3525
+// public candidate; neither candidate establishes protected origin.
+const deps=APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1;
+const capabilityMaterial={
+  activation_capability_issuance_performed:false,
+  activation_secret_sha256:"2".repeat(64),
+  authorization_id:"apollyon_authz_v1:"+"1".repeat(64),
+  authorization_slot_external_validation_required:true,
+  authorization_slot_id:"apollyon_attempt_claim_auth_slot_v1:"+"2".repeat(64),
+  authorization_slot_record_id:
+    "apollyon_attempt_claim_auth_slot_record_v1:"+"3".repeat(64),
+  capability_replay_authorized:false,
+  create_once_key_must_equal_training_start_consumption_slot_id:true,
+  credential_name:"apollyon-training-activation-v1",
+  custody_generation_id:"apollyon_custody_generation_v1:"+"4".repeat(64),
+  direct_systemd_start_without_capability_authorized:false,
+  durable_claim_record_id:"apollyon_attempt_claim_record_v2:"+"5".repeat(64),
+  durable_claim_record_sha256:"6".repeat(64),
+  expected_entrypoint_bytes:deps.training_entrypoint_bytes,
+  expected_entrypoint_sha256:deps.training_entrypoint_sha256,
+  expected_preentry_sha256:deps.training_preentry_sha256,
+  expected_unit_git_blob_sha1:deps.training_unit_blob_sha1,
+  external_training_start_consumption_validation_performed:false,
+  marker:VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_V1,
+  next_gate:"apollyon_training_activation_capability_protected_issuance_v1",
+  protected_capability_store_required:true,
+  raw_capability_export_authorized:false,
+  status:"training_activation_capability_candidate_unissued",
+  store_contract_id:"apollyon_claim_store_contract_v2:"+"7".repeat(64),
+  store_generation_id:"apollyon_claim_store_generation_v2:"+"8".repeat(64),
+  store_policy_id:"apollyon_claim_store_policy_v2:"+
+    "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137",
+  systemd_caller_identity_authoritative:false,
+  systemd_credential_transport_required:true,
+  target_host:"Xiphos",
+  terminal_receipt_id:"apollyon_terminal_receipt_v2:"+"9".repeat(64),
+  training_execution_authorized:false,
+  training_start_consumption_contract_blob_sha1:
+    deps.training_start_consumption_contract_blob_sha1,
+  training_start_consumption_contract_head:
+    deps.training_start_consumption_contract_head,
+  training_start_consumption_contract_in_parent_lineage:false,
+  training_start_consumption_integration_required:true,
+  training_start_consumption_slot_external_validation_required:true,
+  training_start_consumption_slot_id:
+    "apollyon_training_start_slot_v1:"+"a".repeat(64),
+  version:1,
+};
+const parentCandidate=buildApollyonTrainingActivationCapabilityV1(capabilityMaterial);
+const alignedMaterial={
+  ...fixture(),
+  activation_capability_id:parentCandidate.activation_capability_id,
+  activation_secret_sha256:parentCandidate.activation_secret_sha256,
+  training_start_consumption_slot_id:parentCandidate.training_start_consumption_slot_id,
+};
+const alignedTransport=buildApollyonActivationCredentialTransportCandidateV1(
+  alignedMaterial
+);
+assert.deepEqual(
+  qualifyApollyonActivationTransportAgainstCapabilityV1(
+    parentCandidate,alignedTransport
+  ),
+  alignedTransport
+);
+assert.equal(alignedTransport.activation_capability_external_validation_performed,false);
+assert.equal(alignedTransport.protected_capability_issuance_performed,false);
+assert.equal(alignedTransport.credential_possession_proven,false);
+
+for(const [label,mutate] of [
+  ["wrong_secret_digest",x=>{x.activation_secret_sha256="b".repeat(64);}],
+  ["wrong_capability_id",x=>{x.activation_capability_id=
+    "apollyon_training_activation_capability_v1:"+"c".repeat(64);}],
+  ["wrong_consumption_slot",x=>{x.training_start_consumption_slot_id=
+    "apollyon_training_start_slot_v1:"+"d".repeat(64);}],
+]){
+  const foreign={...alignedMaterial};
+  mutate(foreign);
+  const readdressed=buildApollyonActivationCredentialTransportCandidateV1(foreign);
+  reject(
+    ()=>qualifyApollyonActivationTransportAgainstCapabilityV1(
+      parentCandidate,readdressed
+    ),
+    /transport_parent_candidate_mismatch/u
+  );
+}
+
 const sourceForbidden=[
   'from "node:fs"','from "node:child_process"','from "node:net"',
   "systemctl","LoadCredential=","SetCredential=","createPrivateKey",
@@ -208,6 +301,8 @@ assert.equal(
 console.log("VOID_APOLLYON_TRAINING_ACTIVATION_CREDENTIAL_TRANSPORT_CONTRACT_V1_PROOF_GREEN");
 console.log("exact_parent_capability_contract_blob_bound=true");
 console.log("transport_candidate_content_addressed=true");
+console.log("parent_capability_candidate_consistency_proven=true");
+console.log("readdressed_parent_candidate_drift_rejected=true");
 console.log("raw_secret_field_rejected=true");
 console.log("fixed_credential_name_bound=true");
 console.log("bearer_secret_exact_32_bytes_required=true");
