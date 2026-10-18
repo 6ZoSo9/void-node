@@ -68,6 +68,26 @@ const docLower = doc.toLowerCase();
 const htmlLower = html.toLowerCase();
 const pageLower = page.toLowerCase();
 
+for (const [surfaceName, surface] of Object.entries({ html, page })) {
+  if (!surface.includes('<meta name="viewport" content="width=device-width,initial-scale=1">')) {
+    throw new Error(`${surfaceName} missing responsive viewport`);
+  }
+  for (const route of [
+    '/__void/public-bootstrap.json',
+    '/bootstrap/peers.json',
+    '/public-node/connect',
+    '/public-node/connect/public-node-connect-pack-v1.json',
+    '/health',
+    '/peers',
+    '/public-node/connect/receipt-template-v1',
+    '/public-node/connect/public-node-connect-receipt-template-v1.json'
+  ]) {
+    if (!surface.includes(`href="${route}"`)) {
+      throw new Error(`${surfaceName} missing actionable route ${route}`);
+    }
+  }
+}
+
 for (const needle of [
   marker.toLowerCase(),
   'do not share private keys',
