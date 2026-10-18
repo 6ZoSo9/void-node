@@ -95,9 +95,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 7f7183e5f33450fc9cdfee81614955c053ac860f
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 06bdc23f6c1baf4fbd9ae437368be0cf4bb6a93d
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = 76effa6110e6ce7c1c677928b618eed4860c6edf
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = f37552bb0bc952a9030bbd96b0a843baf61ab4ce
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 9c9033c04a74e352cd2954617977ec0e07ffb847
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v1.md)" = d6f09b94f09bf242e2ea276e400d2a70fe4b0367
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -153,6 +153,9 @@ jobs:
             'receipt_ancestor_drift_rejected=true' \
             'pre_post_live_generation_drift_rejected=true' \
             'final_post_validation_generation_revalidated=true' \
+            'deployment_receipt_retained_descriptor_spans_validation=true' \
+            'deployment_receipt_semantically_revalidated_after_final_live_receipt=true' \
+            'deployment_receipt_post_selector_identity_revalidated=true' \
             'selector_pidfd_session_spans_final_receipt_read=true' \
             'final_selector_verify_after_last_receipt_read=true' \
             'terminal_selector_drift_after_final_receipt_rejected=true' \
@@ -178,6 +181,9 @@ jobs:
             'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V1_SELF_TEST_GREEN' \
             'parent_host_evidence_plan_bound=true' \
             'deployment_receipt_verifier_required=true' \
+            'deployment_receipt_retained_descriptor_required=true' \
+            'deployment_receipt_semantic_revalidation_required=true' \
+            'deployment_receipt_post_selector_identity_revalidation_required=true' \
             'credential_free_native_selector_session_required=true' \
             'process_environment_read_performed=false' \
             'credential_access=false' \

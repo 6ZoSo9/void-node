@@ -82,6 +82,9 @@ type EvidenceReport = Readonly<{
   manager_pid: number;
   manager_start_time_ticks: string;
   authenticated_receipt_verified: true;
+  deployment_receipt_semantically_revalidated: true;
+  deployment_receipt_descriptor_lease_spanned_terminal_selector: true;
+  deployment_receipt_post_selector_identity_revalidated: true;
   source_custody_requalified: true;
   selector_generation_verified: true;
   same_live_process_binding_verified: true;
@@ -470,6 +473,141 @@ export function testOnlyAssertReceiptCanonicalAncestorStableV1(
     wrap(reopened),
     wrap(after),
   );
+}
+
+type RetainedDeploymentReceiptLease=Readonly<{
+  target:string;
+  heldDirectories:readonly HeldReceiptAncestor[];
+  fd:number;
+  opened:StableStatIdentity;
+  expectedLength:number;
+  bytes:Buffer;
+}>;
+
+function readRetainedReceiptFdExact(fd:number,expectedLength:number,label:string):Buffer{
+  const buffer=Buffer.alloc(expectedLength+1);
+  let total=0;
+  while(total<buffer.length){
+    const count=fs.readSync(fd,buffer,total,buffer.length-total,total);
+    if(count===0)break;
+    total+=count;
+  }
+  if(total!==expectedLength)fail(label+"_size_changed");
+  return buffer.subarray(0,total);
+}
+
+function revalidateRetainedDeploymentReceiptLease(
+  lease:RetainedDeploymentReceiptLease,
+):void{
+  const current=fs.fstatSync(lease.fd,{bigint:true});
+  if(!receiptLeafGenerationStillTrusted(lease.opened,current,lease.expectedLength)){
+    fail("host_evidence_deployment_receipt_retained_generation_changed");
+  }
+  const retainedBytes=readRetainedReceiptFdExact(
+    lease.fd,lease.expectedLength,"host_evidence_deployment_receipt_retained",
+  );
+  if(!retainedBytes.equals(lease.bytes)){
+    fail("host_evidence_deployment_receipt_retained_bytes_changed");
+  }
+  revalidateReceiptAncestors(lease.heldDirectories);
+  let canonicalFd=-1;
+  try{
+    const before=fs.lstatSync(lease.target,{bigint:true});
+    if(!receiptLeafGenerationStillTrusted(lease.opened,before,lease.expectedLength)){
+      fail("host_evidence_deployment_receipt_namespace_changed");
+    }
+    canonicalFd=fs.openSync(
+      lease.target,
+      fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+    );
+    const opened=fs.fstatSync(canonicalFd,{bigint:true});
+    if(!receiptLeafGenerationStillTrusted(lease.opened,opened,lease.expectedLength)){
+      fail("host_evidence_deployment_receipt_namespace_changed");
+    }
+    const canonicalBytes=readRetainedReceiptFdExact(
+      canonicalFd,lease.expectedLength,"host_evidence_deployment_receipt_canonical",
+    );
+    const after=fs.fstatSync(canonicalFd,{bigint:true});
+    const visibleAfter=fs.lstatSync(lease.target,{bigint:true});
+    for(const leaf of [after,visibleAfter]){
+      if(!receiptLeafGenerationStillTrusted(lease.opened,leaf,lease.expectedLength)){
+        fail("host_evidence_deployment_receipt_namespace_changed");
+      }
+    }
+    if(!canonicalBytes.equals(lease.bytes)){
+      fail("host_evidence_deployment_receipt_canonical_bytes_changed");
+    }
+  }finally{
+    if(canonicalFd>=0)fs.closeSync(canonicalFd);
+  }
+}
+
+function openRetainedDeploymentReceiptLease():RetainedDeploymentReceiptLease{
+  const target=VOID_BUY_VOID_V7_DEPLOYMENT_RECEIPT_PATH_V1;
+  if(!path.isAbsolute(target)||path.resolve(target)!==target){
+    fail("host_evidence_deployment_receipt_path_invalid");
+  }
+  const heldDirectories=openRootOwnedReceiptAncestors(target);
+  let fd=-1;
+  try{
+    const parent=heldDirectories[0];
+    if(!parent)fail("host_evidence_deployment_receipt_parent_missing");
+    const leafViaParent=`/proc/self/fd/${parent.fd}/${path.basename(target)}`;
+    const before=fs.lstatSync(leafViaParent,{bigint:true});
+    if(
+      before.size<2n||before.size>BigInt(MAX_RECEIPT_BYTES)||
+      !receiptLeafCustodyTrusted(before,Number(before.size))
+    ){
+      fail("host_evidence_deployment_receipt_custody_invalid");
+    }
+    const expectedLength=Number(before.size);
+    fd=fs.openSync(
+      leafViaParent,
+      fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+    );
+    const opened=fs.fstatSync(fd,{bigint:true});
+    if(!sameStat(before,opened)){
+      fail("host_evidence_deployment_receipt_open_identity_mismatch");
+    }
+    const bytes=readRetainedReceiptFdExact(
+      fd,expectedLength,"host_evidence_deployment_receipt",
+    );
+    const after=fs.fstatSync(fd,{bigint:true});
+    const visibleAfter=fs.lstatSync(leafViaParent,{bigint:true});
+    if(!sameStat(opened,after)||!sameStat(after,visibleAfter)){
+      fail("host_evidence_deployment_receipt_changed_during_read");
+    }
+    const lease:RetainedDeploymentReceiptLease=Object.freeze({
+      target,
+      heldDirectories:Object.freeze([...heldDirectories]),
+      fd,
+      opened:Object.freeze({
+        dev:opened.dev,ino:opened.ino,uid:opened.uid,gid:opened.gid,
+        mode:opened.mode,nlink:opened.nlink,size:opened.size,
+        mtimeNs:opened.mtimeNs,ctimeNs:opened.ctimeNs,
+      }),
+      expectedLength,
+      bytes,
+    });
+    revalidateRetainedDeploymentReceiptLease(lease);
+    return lease;
+  }catch(error){
+    if(fd>=0)fs.closeSync(fd);
+    for(let index=heldDirectories.length-1;index>=0;index-=1){
+      fs.closeSync(heldDirectories[index]!.fd);
+    }
+    throw error;
+  }
+}
+
+function closeRetainedDeploymentReceiptLease(
+  lease:RetainedDeploymentReceiptLease|null,
+):void{
+  if(!lease)return;
+  fs.closeSync(lease.fd);
+  for(let index=lease.heldDirectories.length-1;index>=0;index-=1){
+    fs.closeSync(lease.heldDirectories[index]!.fd);
+  }
 }
 
 function readInstalledLiveReceiptCandidate(): Buffer {
@@ -1056,6 +1194,7 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
   const gid=positive(input.runtime_gid,"host_evidence_runtime_gid_invalid");
   const systemdBefore=serviceSnapshot(uid);
   let session:SelectorSession|null=null;
+  let deploymentLease:RetainedDeploymentReceiptLease|null=null;
   let finished=false;
   try{
     session=await startSelectorSession(uid,gid);
@@ -1063,11 +1202,13 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
     const live=observeLiveGeneration(session.ready,uid,gid);
     const receipt=parseInstalledReceipt(readInstalledLiveReceiptCandidate());
     assertReceiptMatchesLive(receipt,live,systemdBefore,uid,gid);
+    deploymentLease=openRetainedDeploymentReceiptLease();
     const deployment=deploymentDecision(live);
     if(deployment.ok!==true)fail("host_evidence_deployment_receipt_not_verified:"+deployment.reason);
     if(deployment.deployment_receipt_id!==receipt.deployment_receipt_id){
       fail("host_evidence_deployment_receipt_identity_mismatch");
     }
+    revalidateRetainedDeploymentReceiptLease(deploymentLease);
     const systemdDuring=serviceSnapshot(uid);
     assertServiceSnapshotStable(systemdBefore,systemdDuring);
     assertReceiptMatchesLive(receipt,live,systemdDuring,uid,gid);
@@ -1078,10 +1219,22 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
     const finalLive=observeLiveGeneration(session.ready,uid,gid);
     assertReceiptMatchesLive(receipt,finalLive,systemdAfter,uid,gid);
     readInstalledLiveReceiptExact(canonicalBytes);
+    const finalDeployment=deploymentDecision(finalLive);
+    if(finalDeployment.ok!==true){
+      fail("host_evidence_final_deployment_receipt_not_verified:"+finalDeployment.reason);
+    }
+    if(
+      finalDeployment.deployment_receipt_id!==deployment.deployment_receipt_id||
+      finalDeployment.deployment_receipt_id!==receipt.deployment_receipt_id
+    ){
+      fail("host_evidence_final_deployment_receipt_identity_mismatch");
+    }
+    revalidateRetainedDeploymentReceiptLease(deploymentLease);
     const green=await finishSelectorSession(session);
     finished=true;
     testOnlyAssertSelectorGenerationStableV1(session.ready,green);
     testOnlyAssertSelectorGenerationStableV1(finalLive.selector,green);
+    revalidateRetainedDeploymentReceiptLease(deploymentLease);
     return Object.freeze({
       schema:SCHEMA,marker:MARKER,version:1,parent_host_evidence_plan_id:PARENT_PLAN_ID,
       status:"AUTHENTICATED_RECEIPT_AND_SAME_LIVE_PROCESS_EVIDENCE_GREEN_PRODUCTION_AUTHORITY_STILL_HOLD",
@@ -1095,7 +1248,11 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
       service_start_time_ticks:finalLive.selector.service_start_ticks,
       manager_pid:finalLive.selector.manager_pid,
       manager_start_time_ticks:finalLive.selector.manager_start_ticks,
-      authenticated_receipt_verified:true,source_custody_requalified:true,
+      authenticated_receipt_verified:true,
+      deployment_receipt_semantically_revalidated:true,
+      deployment_receipt_descriptor_lease_spanned_terminal_selector:true,
+      deployment_receipt_post_selector_identity_revalidated:true,
+      source_custody_requalified:true,
       selector_generation_verified:true,same_live_process_binding_verified:true,
       installed_live_process_receipt_exact_bytes_match:true,
       receipt_ancestor_custody_revalidated:true,pre_post_live_generation_stable:true,
@@ -1112,6 +1269,7 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1(inpu
       funds_movement:false,production_host_evidence_authority:false,
     });
   }finally{
+    closeRetainedDeploymentReceiptLease(deploymentLease);
     if(!finished)abortSelectorSession(session);
   }
 }
@@ -1129,6 +1287,9 @@ function selfTest(): void {
   console.log(MARKER + "_SELF_TEST_GREEN");
   console.log("parent_host_evidence_plan_bound=true");
   console.log("deployment_receipt_verifier_required=true");
+  console.log("deployment_receipt_retained_descriptor_required=true");
+  console.log("deployment_receipt_semantic_revalidation_required=true");
+  console.log("deployment_receipt_post_selector_identity_revalidation_required=true");
   console.log("credential_free_native_selector_session_required=true");
   console.log("source_custody_requalification_required=true");
   console.log("process_environment_read_performed=false");

@@ -22,7 +22,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const COLLECTOR_REL=
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
-const COLLECTOR_BLOB="ed821f06fc89370982edb0c36b4a0da3951d7217";
+const COLLECTOR_BLOB="f37552bb0bc952a9030bbd96b0a843baf61ab4ce";
 
 const PARENT_PLAN_REL="ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
 const PARENT_PLAN_BLOB="ad68175e629fd1cf90180db3a904f84834314fdd";
@@ -97,6 +97,9 @@ for(const required of [
   "readInstalledLiveReceiptCandidate()",
   "readInstalledLiveReceiptExact(canonicalBytes)",
   "const finalLive=observeLiveGeneration(session.ready,uid,gid);",
+  "openRetainedDeploymentReceiptLease()",
+  "const finalDeployment=deploymentDecision(finalLive);",
+  "revalidateRetainedDeploymentReceiptLease(deploymentLease);",
   "const green=await finishSelectorSession(session);",
   "testOnlyAssertSelectorGenerationStableV1(finalLive.selector,green);",
   "parseReviewedSourceFromCmdline(",
@@ -185,13 +188,19 @@ assert.ok(canonicalLeafRevalidationIndex > ancestorRevalidationIndex);
 
 const finalReceiptReadIndex =
   source.lastIndexOf("readInstalledLiveReceiptExact(canonicalBytes);");
+const finalDeploymentDecisionIndex =
+  source.lastIndexOf("const finalDeployment=deploymentDecision(finalLive);");
 const terminalSelectorVerifyIndex =
   source.lastIndexOf("const green=await finishSelectorSession(session);");
+const postSelectorDeploymentRevalidationIndex =
+  source.lastIndexOf("revalidateRetainedDeploymentReceiptLease(deploymentLease);");
 const reportReturnIndex =
   source.indexOf("return Object.freeze({",terminalSelectorVerifyIndex);
 assert.ok(finalReceiptReadIndex >= 0);
-assert.ok(terminalSelectorVerifyIndex > finalReceiptReadIndex);
-assert.ok(reportReturnIndex > terminalSelectorVerifyIndex);
+assert.ok(finalDeploymentDecisionIndex > finalReceiptReadIndex);
+assert.ok(terminalSelectorVerifyIndex > finalDeploymentDecisionIndex);
+assert.ok(postSelectorDeploymentRevalidationIndex > terminalSelectorVerifyIndex);
+assert.ok(reportReturnIndex > postSelectorDeploymentRevalidationIndex);
 assert.equal(
   source.indexOf("readInstalledLiveReceiptExact(canonicalBytes);",terminalSelectorVerifyIndex),
   -1,
@@ -501,6 +510,9 @@ console.log("receipt_ancestor_special_mode_drift_rejected=true");
 console.log("receipt_ancestor_drift_rejected=true");
 console.log("pre_post_live_generation_drift_rejected=true");
 console.log("final_post_validation_generation_revalidated=true");
+console.log("deployment_receipt_retained_descriptor_spans_validation=true");
+console.log("deployment_receipt_semantically_revalidated_after_final_live_receipt=true");
+console.log("deployment_receipt_post_selector_identity_revalidated=true");
 console.log("selector_pidfd_session_spans_final_receipt_read=true");
 console.log("final_selector_verify_after_last_receipt_read=true");
 console.log("terminal_selector_drift_after_final_receipt_rejected=true");

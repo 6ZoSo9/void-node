@@ -75,15 +75,24 @@ The collector performs this sequence:
    ancestor custody;
 5. require exact receipt bytes and stable systemd/source identity while the
    selector session is still holding the same pidfds;
-6. perform the **final canonical receipt reread while that same selector
-   session remains open**;
-7. only after the final receipt reread, send selector `VERIFY`, require GREEN,
-   and require GREEN to match both READY and the final observed generation; and
-8. return the report without any later receipt/source/systemd read.
+6. retain a no-follow descriptor plus root-owned ancestor descriptors for the
+   canonical deployment receipt across the complete validation interval;
+7. perform the **final canonical live-process receipt reread while both the
+   selector pidfds and deployment-receipt descriptor lease remain active**;
+8. semantically reverify the deployment receipt against the final observed
+   source generation and require its content-addressed receipt ID to equal the
+   initial deployment receipt ID;
+9. send selector `VERIFY`, require GREEN, and require GREEN to match both READY
+   and the final observed generation;
+10. after GREEN, revalidate the same retained deployment-receipt descriptor,
+    bytes, and canonical namespace one final time; and
+11. return the report without any later host-sensitive read.
 
-The terminal selector GREEN is therefore the final host-generation check. A
-service restart during the final receipt-validation phase must change/fail the
-pidfd-held selector generation and HOLD instead of being reported as current.
+The terminal selector GREEN overlaps the retained deployment-receipt lease:
+deployment semantics are reverified before GREEN, then the identical retained
+and canonical deployment receipt bytes/inode are revalidated after GREEN.
+Service-generation drift or root-maintenance replacement during the interval
+must therefore HOLD instead of being reported as current.
 
 Any source/process/receipt generation drift causes HOLD.
 
