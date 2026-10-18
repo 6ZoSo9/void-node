@@ -33,7 +33,7 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-TARGET_BLOB = "8b19008c9620f7d5374ee6214fc7ba9bd6a8f2f0"
+TARGET_BLOB = "644bea15d783be446f2aa5fb593b301094895f68"
 
 QUALIFIER_REL = (
     "ops/precision/"
@@ -455,7 +455,8 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
 
     def fixture_index_mutation(*args):
         # Fixture setup must not run the hostile filter either.
-        return fixture_git("-c", "filter.hostile.process=", "-c", "filter.hostile.clean=",
+        return fixture_git("-c", "core.excludesFile=/dev/null",
+                           "-c", "filter.hostile.process=", "-c", "filter.hostile.clean=",
                            "-c", "filter.hostile.required=false", *args)
 
     fixture_git("init", "-q", "-b", "main")
@@ -482,6 +483,21 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-clean-filter-proof-") as td
     assert fixture_git("-c", "core.fsmonitor=false", "status", "--porcelain=v1") == b""
     assert marker.exists(), "clean_filter_exploit_control_did_not_execute"
     marker.unlink()
+
+    excludes_fifo = root / "synthetic-user-excludes"
+    os.mkfifo(excludes_fifo, 0o600)
+    fixture_git("config", "core.excludesFile", str(excludes_fifo))
+    try:
+        subprocess.run(
+            ["/usr/bin/git", "-C", str(checkout), "-c", "safe.directory=" + str(checkout),
+             "ls-files", "--others", "--exclude-standard", "-z"],
+            env=module.GIT_ENV, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=0.25, check=True,
+        )
+    except subprocess.TimeoutExpired:
+        pass
+    else:
+        raise AssertionError("configured_excludes_fifo_control_did_not_block")
 
     saved_checkout = module.FIXED_CHECKOUT
     saved_uid, saved_gid = module.RUNTIME_UID, module.RUNTIME_GID
@@ -819,6 +835,8 @@ fsmonitor_index = captured.index("core.fsmonitor=false")
 assert fsmonitor_index > 0
 assert captured[fsmonitor_index - 1] == "-c"
 assert captured.index("ls-files") > fsmonitor_index
+assert captured.count("core.excludesFile=/dev/null") == 1
+assert captured.index("core.excludesFile=/dev/null") < captured.index("ls-files")
 module.os.geteuid = lambda: 1000
 module._git(["rev-parse", "HEAD"])
 assert captured_git_commands[-1][0] == "/usr/bin/git"
@@ -1021,6 +1039,8 @@ print("index_and_untracked_changes_rejected=true")
 print("assume_unchanged_skip_worktree_cannot_hide_changes=true")
 print("root_git_query_uid_gid_and_capability_drop_required=true")
 print("unexpected_query_uid_rejected=true")
+print("configured_excludes_fifo_control_reproduced=true")
+print("configured_global_excludes_file_bypassed=true")
 print("kernel_git_uid_drop_executed=" + str(KERNEL_UID_DROP_AVAILABLE).lower())
 print("root_only_git_config_include_denied=" + str(KERNEL_UID_DROP_AVAILABLE).lower())
 print("filesystem_write_performed=false")

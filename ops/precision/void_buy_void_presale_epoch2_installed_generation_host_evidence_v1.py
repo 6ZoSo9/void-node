@@ -278,6 +278,8 @@ def _git(args: list[str]) -> bytes:
                 "-c",
                 "core.untrackedCache=false",
                 "-c",
+                "core.excludesFile=/dev/null",
+                "-c",
                 "protocol.allow=never",
                 *args,
             ],

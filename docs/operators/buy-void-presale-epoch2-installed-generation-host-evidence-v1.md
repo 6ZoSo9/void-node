@@ -300,6 +300,13 @@ allowlist of existing ref/object-name queries reaches the original UID-dropping
 Git path. No protected V5 source is modified. Existing Git environment hardening
 remains, and wrapper Git disables protocols, lazy fetch and untracked caching.
 
+Wrapper Git also forces `core.excludesFile=/dev/null` before every query. Local
+configuration cannot redirect the global excludes read to a credential or FIFO
+readable by the checkout UID. Repository-local ignore rules remain part of the
+untracked-file check. The disposable proof first reproduces a configured FIFO
+blocking an ordinary excludes query, then retains that hostile configuration
+through the repaired wrapper and delegated checkout tests without opening it.
+
 This intentionally requires raw bytes and executable modes to match the commit.
 Filtered/normalized or CRLF worktrees, symlinks, gitlinks, unmerged or different
 index entries, invalid paths, special files, and hardlinks HOLD. Ignored untracked
