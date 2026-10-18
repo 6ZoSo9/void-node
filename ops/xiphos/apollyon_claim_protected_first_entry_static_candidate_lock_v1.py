@@ -99,7 +99,8 @@ ENV = {
     "GIT_ALLOW_PROTOCOL": "",
 }
 
-AUTHORITY = {
+def expected_authority() -> dict[str, bool]:
+    return {
     "source_only_acceptance_lock": True,
     "historical_parent_candidate_rederived": False,
     "accepted_parent_evidence_identity_bound": True,
@@ -123,6 +124,12 @@ AUTHORITY = {
     "transaction": False,
     "funds_movement": False,
 }
+
+
+# Compatibility snapshot only. Derivation and validation deliberately use a
+# fresh expected_authority() value so callers cannot mutate the validation
+# oracle through an aliased derived lock.
+AUTHORITY = expected_authority()
 
 
 class LockError(RuntimeError):
@@ -336,7 +343,7 @@ def validate_lock(lock: dict[str, Any]) -> None:
     if observed_binary != expected_binary:
         hold("candidate_lock_binary_identity_invalid")
 
-    if lock.get("authority") != AUTHORITY:
+    if lock.get("authority") != expected_authority():
         hold("candidate_lock_authority_invalid")
     if lock.get("next_gate") != NEXT_GATE:
         hold("candidate_lock_next_gate_invalid")
@@ -360,7 +367,7 @@ def derive_lock() -> dict[str, Any]:
             "elf_machine_x86_64": True,
             "production_fixed_self_embedded": True,
         },
-        "authority": AUTHORITY,
+        "authority": expected_authority(),
         "next_gate": NEXT_GATE,
     }
     lock["lock_id"] = (
