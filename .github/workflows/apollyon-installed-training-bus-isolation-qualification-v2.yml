@@ -61,7 +61,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py)" = "$v1_blob"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
-            5f67bb3ddcc7f130db4b90ad73f5450b109dbea4
+            a9fcb8e5b6eff9f188c3b74f81dc1eb0dccaed27
           test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
             278b855d3a7706bab56414883614f83df3b1b2c8
           test "$(git rev-parse HEAD:docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md)" = \
@@ -97,6 +97,55 @@ jobs:
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Verify real self-test retirement output
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-training-isolation-shutdown-v2-self-test.log"
+          timeout 20s python3 -I -B ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py --self-test | tee "$out"
+          SELF_TEST_OUTPUT="$out" python3 -I -B - <<'PYCODE'
+          import os
+          from pathlib import Path
+
+          expected = [
+              "VOID_APOLLYON_INSTALLED_TRAINING_BUS_ISOLATION_QUALIFICATION_V2_SELF_TEST_GREEN",
+              "v1_source_blob_bound=true",
+              "standalone_live_qualify_retired=true",
+              "standalone_service_start_stop_required=false",
+              "service_process_action=false",
+              "service_start_stop=false",
+              "launcher_live_activation_retired=true",
+              "no_reviewed_training_service_activator=true",
+              "v1_observe_live_pid_receipt_unchanged=true",
+              "training_execution=false",
+              "attempt_claim=false",
+              "funds_movement=false",
+          ]
+
+          def require_contract(lines):
+              if lines != expected:
+                  raise ValueError("self_test_retirement_output_contract_mismatch")
+
+          actual = Path(os.environ["SELF_TEST_OUTPUT"]).read_text("utf-8").splitlines()
+          require_contract(actual)
+          stale = "lock_aware_launcher_sole_reviewed_lifecycle_owner=true"
+          invalid_outputs = (
+              actual + [stale],
+              [stale if line == "no_reviewed_training_service_activator=true" else line for line in actual],
+              [line for line in actual if line != "launcher_live_activation_retired=true"],
+              actual + ["no_reviewed_training_service_activator=true"],
+          )
+          for invalid in invalid_outputs:
+              try:
+                  require_contract(invalid)
+              except ValueError:
+                  continue
+              raise AssertionError("contradictory_missing_or_duplicate_marker_accepted")
+          print("qualifier_self_test_retirement_contract_proven=true")
+          print("stale_lifecycle_owner_marker_rejected=true")
+          print("missing_retirement_marker_rejected=true")
+          print("duplicate_retirement_marker_rejected=true")
+          PYCODE
 
       - name: Prove retired standalone and launcher lifecycle
         run: |
