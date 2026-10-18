@@ -93,7 +93,43 @@ const parentPlan = JSON.parse(
 pin(PARENT_PROOF_REL, PARENT_PROOF_BLOB);
 pin(PARENT_DOC_REL, PARENT_DOC_BLOB);
 pin(PARENT_WORKFLOW_REL, PARENT_WORKFLOW_BLOB);
-pin(INSTALLATION_EVIDENCE_REL, INSTALLATION_EVIDENCE_BLOB);
+const installationObserverSource = pin(
+  INSTALLATION_EVIDENCE_REL,
+  INSTALLATION_EVIDENCE_BLOB,
+).toString("utf8");
+for (const required of [
+  'from "node:child_process"',
+  "spawnSync(",
+  'runText("/usr/bin/stat"',
+  'runText("/usr/bin/lsblk"',
+]) {
+  assert.ok(installationObserverSource.includes(required), required);
+}
+for (const forbidden of [
+  "writeFileSync",
+  "appendFileSync",
+  "renameSync",
+  "unlinkSync",
+  "rmSync",
+  "mkdirSync",
+  "chmodSync",
+  "chownSync",
+  "O_WRONLY",
+  "O_RDWR",
+  "O_CREAT",
+  "systemctl",
+  "/usr/bin/sudo",
+  "node:net",
+  "node:http",
+  "node:https",
+  "fetch(",
+]) {
+  assert.equal(
+    installationObserverSource.includes(forbidden),
+    false,
+    "installation_observer_forbidden:" + forbidden,
+  );
+}
 for (const [relative, blob] of Object.entries(PRIMITIVES)) {
   pin(relative, blob);
 }
@@ -464,6 +500,7 @@ console.log("durability_rollback_contract_required=true");
 console.log("reviewed_source_generation_binding_required=true");
 console.log("live_policy_observer_required=true");
 console.log("canonical_installation_observer_bound=true");
+console.log("installation_observer_read_only_helper_contract_proven=true");
 console.log("installation_storage_generation_bound=true");
 console.log("reviewed_second_control_composition_required=true");
 console.log("fixed_precision_replay_roots_bound=true");
