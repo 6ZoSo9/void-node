@@ -18,7 +18,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "b722e2f7fdd41e2b20257f60c3a99e991fe1acc8"
+TARGET_BLOB = "891cce24244c62756caeba6d2bf702cc92e8a956"
 
 
 def git_blob(raw: bytes) -> str:
@@ -124,6 +124,34 @@ assert module.PREVIOUS_BACKUP_NAME == (
     ".void-buy-void-epoch2-live-composition-v3.policy-predecessor-b92ba19c"
 )
 
+# Precision's source checkout may legitimately be mode 0664. Source authority is
+# the exact retained generation plus the pinned Git blob, not an incidental
+# worktree write bit. Symlinks and wrong bytes must still fail closed.
+with tempfile.TemporaryDirectory(prefix="void-e2-chain-source-mode-proof-") as td:
+    parent = pathlib.Path(td)
+    exact = parent / "dependency.py"
+    exact_raw = b"VALUE = 1\n"
+    exact.write_bytes(exact_raw)
+    exact.chmod(0o664)
+    exact_blob = git_blob(exact_raw)
+    assert module._read_bound_source(exact, exact_blob) == exact_raw
+
+    try:
+        module._read_bound_source(exact, "0" * 40)
+    except module.RebindError as exc:
+        assert str(exc) == "source_git_blob_mismatch:dependency.py"
+    else:
+        raise AssertionError("wrong source blob did not HOLD")
+
+    symlink = parent / "dependency-link.py"
+    symlink.symlink_to(exact.name)
+    try:
+        module._read_bound_source(symlink, exact_blob)
+    except module.RebindError as exc:
+        assert str(exc) == "source_metadata_invalid:dependency-link.py"
+    else:
+        raise AssertionError("symlink source did not HOLD")
+
 
 class FakeInstaller:
     def __init__(self, parent: pathlib.Path) -> None:
@@ -213,6 +241,9 @@ assert receipt["final_state_verified"] is False
 
 print("VOID_BUY_VOID_EPOCH2_V6R2_POLICY_CHAIN_REBIND_V2_PROOF_GREEN")
 print("target_blob_bound=true")
+print("group_writable_exact_git_bound_source_accepted=true")
+print("wrong_source_blob_rejected=true")
+print("symlink_source_rejected=true")
 print("ready_requires_exact_b92_live_policy=true")
 print("green_requires_current_policy_and_b92_backup=true")
 print("original_65b_backup_required_in_both_states=true")

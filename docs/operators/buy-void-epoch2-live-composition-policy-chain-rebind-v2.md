@@ -54,6 +54,28 @@ The target policy is derived only from the separately supplied exact reviewed
 `expected_head`, the unchanged accepted V6R2 runner identity, and the fixed
 Node generation.
 
+### Worktree source-dependency boundary
+
+The V2 implementation executes the reviewed V1 atomic primitive from a retained
+in-memory source buffer. Precision's Git checkout may materialize ordinary
+tracked source files as mode `0664`; that incidental worktree mode is not
+source authority.
+
+The loader therefore matches the established V1 boundary:
+
+- the dependency path must be a regular non-symlink file;
+- link count must be exactly one;
+- size must be positive and bounded;
+- device/inode/mode/uid/gid/link-count/size/mtime/ctime must remain unchanged
+  across the read;
+- the retained bytes must match the exact pinned Git blob before compilation.
+
+A group-write bit does not substitute for, bypass, or weaken the exact Git-blob
+check. Wrong bytes, symlinks, rebinding, or generation changes still HOLD.
+
+This worktree rule does **not** relax any protected `/opt` ownership or mode
+requirement.
+
 ## READY state
 
 `EPOCH2_V6R2_POLICY_B92_READY_FOR_CHAIN_REBIND` requires all of:
