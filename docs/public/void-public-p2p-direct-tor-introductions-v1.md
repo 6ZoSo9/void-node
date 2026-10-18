@@ -108,3 +108,5 @@ Live N-1 proof:
 ```text
 .github/workflows/void-public-p2p-direct-tor-introductions-v1.yml
 ```
+
+<!-- Disposable external N-1 acceptance trigger for issue #3236; no runtime or source semantics changed. -->
