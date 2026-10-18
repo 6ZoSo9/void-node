@@ -54,9 +54,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json)" = 5face2022dc2cbc573e32e99f88623f381a8a174
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
           test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
-          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = 5a7fabb9e399fee853f27a027991423b4f890165
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 024d269999723f310a5176a59d7e7a797c000d80
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = 3c20506c1d655147f4ae60d5f715d3f9a76c5017
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = b4eafe1a06dae395e62c191d95623f71b6beda81
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = c6892edba4384f4aacd0b90c1b62104648960cdc
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = f06b454b7da4ac8efd36dfb826fae5005cafe08f
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -70,6 +70,8 @@ jobs:
             'plan_id=voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006' \
             'challenge_requirement_count=20' \
             'deterministic_controller_sequence=true' \
+            'sequence_headroom_preflighted_before_mutation=true' \
+            'policy_generation_u64_bounded=true' \
             'operation_bound_authorization_authenticated=false' \
             'non_customer_canary_domain_bound=true' \
             'non_customer_canary_isolation_proven=false' \

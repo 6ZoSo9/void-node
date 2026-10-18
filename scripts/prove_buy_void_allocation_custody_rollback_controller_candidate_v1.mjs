@@ -200,6 +200,18 @@ function mustFail(label,mutator,pattern){
   }),pattern,label);
 }
 mustFail("bad entropy",(c)=>{c.generate_challenge_entropy=()=>Buffer.alloc(31);},/challenge_entropy_invalid/);
+
+for(const [field,pattern] of [
+  ["journal_sequence",/journal_sequence_headroom_exhausted/],
+  ["high_water_sequence",/high_water_sequence_headroom_exhausted/],
+  ["external_witness_sequence",/external_witness_sequence_headroom_exhausted/],
+]){
+  const h=makeHarness((c,s,b)=>{ b[field]=Number.MAX_SAFE_INTEGER; });
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:h.caps,
+  }),pattern,field);
+  assert.deepEqual(h.order,["entropy","before"],field);
+}
 {
   let entropyInvoked=false;
   let asyncBodyInvoked=false;
@@ -338,6 +350,30 @@ mustFail("origin unauthenticated",(c)=>{c.authenticate_evidence_origin=({challen
   origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),evidence_sha256:sha("evidence"),
 });},/evidence_origin_not_authenticated/);
 
+const maxU64Body={...authBody,expected_policy_generation:"18446744073709551615"};
+const maxU64Authorization={
+  ...maxU64Body,
+  authorization_id:buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV1(maxU64Body),
+};
+{
+  const h=makeHarness((c,s,b)=>{ b.policy_generation="18446744073709551615"; });
+  const result=executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization:maxU64Authorization,capabilities:h.caps,
+  });
+  assert.equal(result.status,"controller_candidate_sequence_green_host_adapter_required");
+}
+const overU64Body={...authBody,expected_policy_generation:"18446744073709551616"};
+const overU64Authorization={
+  ...overU64Body,
+  authorization_id:buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV1(overU64Body),
+};
+assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+  authorization:overU64Authorization,capabilities:makeHarness().caps,
+}),/authorization_policy_generation_invalid/);
+mustFail("observation policy generation above u64",(c,s,b)=>{
+  b.policy_generation="18446744073709551616";
+},/before_policy_generation/);
+
 const wrongPolicyBody={...authBody,expected_policy_fingerprint_sha256:sha("wrong-policy")};
 const wrongPolicy={
   ...wrongPolicyBody,
@@ -365,6 +401,8 @@ console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_CANDIDATE_V1_P
 console.log("plan_id=voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006");
 console.log("challenge_requirement_count=20");
 console.log("deterministic_controller_sequence=true");
+console.log("sequence_headroom_preflighted_before_mutation=true");
+console.log("policy_generation_u64_bounded=true");
 console.log("operation_bound_authorization_required=true");
 console.log("operation_bound_authorization_authenticated=false");
 console.log("non_customer_canary_domain_bound=true");

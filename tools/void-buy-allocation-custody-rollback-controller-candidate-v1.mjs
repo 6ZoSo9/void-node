@@ -46,6 +46,7 @@ const HEX40=/^[0-9a-f]{40}$/u;
 const ORIGIN=/^voidbuycustodychallengeorigin1_[0-9a-f]{64}$/u;
 const STORAGE=/^storage:[A-Za-z0-9._:-]{1,96}$/u;
 const MAX_SAFE=Number.MAX_SAFE_INTEGER;
+const U64_MAX=18446744073709551615n;
 
 const CAPABILITY_KEYS=Object.freeze([
   "generate_challenge_entropy",
@@ -117,6 +118,13 @@ function safeInt(v,code,min=0){
   if(!Number.isSafeInteger(v)||v<min||v>MAX_SAFE)fail(code);
   return v;
 }
+function policyGeneration(v,code){
+  if(typeof v!=="string"||!/^[1-9][0-9]{0,19}$/u.test(v))fail(code);
+  let parsed;
+  try{ parsed=BigInt(v); }catch{ fail(code); }
+  if(parsed<1n||parsed>U64_MAX)fail(code);
+  return v;
+}
 function string(v,re,code){
   if(typeof v!=="string"||!re.test(v))fail(code);
   return v;
@@ -174,10 +182,10 @@ function normalizeAuthorization(value){
     SHA,
     "authorization_policy_fingerprint_invalid",
   );
-  if(
-    typeof a.expected_policy_generation!=="string"||
-    !/^[1-9][0-9]{0,19}$/u.test(a.expected_policy_generation)
-  )fail("authorization_policy_generation_invalid");
+  policyGeneration(
+    a.expected_policy_generation,
+    "authorization_policy_generation_invalid",
+  );
   string(a.authorization_id,AUTH_ID,"authorization_id_invalid");
   const body={...a}; delete body.authorization_id;
   if(a.authorization_id!==contentId("voidbuycustodychallengeauth1_",body))
@@ -205,8 +213,7 @@ function normalizeObservation(value,code){
   string(o.high_water_storage_id,STORAGE,code+"_high_water_storage");
   if(o.journal_storage_id===o.high_water_storage_id)fail(code+"_storage_domains_not_distinct");
   string(o.policy_fingerprint_sha256,SHA,code+"_policy_fingerprint");
-  if(typeof o.policy_generation!=="string"||!/^[1-9][0-9]{0,19}$/u.test(o.policy_generation))
-    fail(code+"_policy_generation");
+  policyGeneration(o.policy_generation,code+"_policy_generation");
   string(o.allocation_ledger_sha256,SHA,code+"_allocation_ledger");
   string(o.customer_request_state_sha256,SHA,code+"_customer_requests");
   if(o.reviewed_source_tree!==
@@ -254,6 +261,10 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     before.policy_fingerprint_sha256!==authorization.expected_policy_fingerprint_sha256||
     before.policy_generation!==authorization.expected_policy_generation
   )fail("authorization_policy_observation_mismatch");
+  if(before.journal_sequence>=MAX_SAFE)fail("journal_sequence_headroom_exhausted");
+  if(before.high_water_sequence>=MAX_SAFE)fail("high_water_sequence_headroom_exhausted");
+  if(before.external_witness_sequence>=MAX_SAFE)
+    fail("external_witness_sequence_headroom_exhausted");
 
   const append=exactResult(callSync(caps.append_journal_canary,
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
@@ -267,6 +278,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     append.challenge_id!==challengeId||
     append.canary_domain_id!==authorization.canary_domain_id
   )fail("append_challenge_mismatch");
+  safeInt(append.journal_sequence,"append_journal_sequence_invalid",0);
   if(append.journal_sequence!==before.journal_sequence+1)fail("journal_sequence_not_advanced");
   string(append.journal_tip_sha256,SHA,"append_journal_tip_invalid");
   string(append.event_sha256,SHA,"append_event_invalid");
@@ -307,6 +319,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     ["challenge_id","external_witness_sequence","external_witness_tip_sha256",
      "source_journal_tip_sha256","source_high_water_sha256"],
     "external_witness");
+  safeInt(witness.external_witness_sequence,"external_witness_sequence_invalid",0);
   if(witness.challenge_id!==challengeId||
      witness.external_witness_sequence!==before.external_witness_sequence+1||
      witness.source_journal_tip_sha256!==append.journal_tip_sha256||

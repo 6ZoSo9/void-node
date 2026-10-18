@@ -60,6 +60,14 @@ not itself prove unpredictability or kernel entropy provenance.
 The journal canary must advance exactly one sequence. High-water must advance
 to at least the journal challenge sequence and may never be rolled back.
 
+Before the first mutating capability, the observed journal, protected high-water,
+and external-witness sequence counters must each have representable headroom
+below `Number.MAX_SAFE_INTEGER`. An exhausted counter HOLDs before the canary
+append. Capability-returned sequence values are revalidated as safe integers.
+
+Policy generation is a canonical positive decimal string bounded to
+`1..18446744073709551615` (uint64); a merely 20-digit decimal is not sufficient.
+
 The sync/close/reopen checkpoint must preserve host, both physical storage IDs,
 policy fingerprint/generation, accepted source tree, allocation-ledger hash,
 customer-request hash, and the pre-challenge external-witness generation.
