@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import types
+from typing import Any
+
+MARKER = "VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V1"
+SCHEMA = "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1"
+PARENT_PLAN_ID = (
+    "voidbuyhostevplan1_"
+    "665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab"
+)
+
+FIXED_CHECKOUT = Path("/home/zoso/dev/void-node")
+FIXED_GIT = Path("/usr/bin/git")
+QUALIFIER_REL = (
+    "ops/precision/"
+    "void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+)
+QUALIFIER_BLOB = "a04c2e7665294cdd142426e9eb01ee27c5292b8d"
+QUALIFIER_PROOF_REL = (
+    "scripts/"
+    "prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+)
+QUALIFIER_PROOF_BLOB = "c14ec00acffbc55630aa68db0013d97cac068ab3"
+EXPECTED_QUALIFIER_MARKER = "VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V5"
+HEX40 = re.compile(r"^[0-9a-f]{40}$")
+
+GIT_ENV = {
+    "PATH": "/usr/bin:/bin",
+    "HOME": "/nonexistent",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_NO_REPLACE_OBJECTS": "1",
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+}
+
+
+class EvidenceError(RuntimeError):
+    pass
+
+
+def git_blob(raw: bytes) -> str:
+    return hashlib.sha1(
+        b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw
+    ).hexdigest()
+
+
+def _git(args: list[str]) -> bytes:
+    cp = subprocess.run(
+        [
+            str(FIXED_GIT),
+            "--no-replace-objects",
+            "-C",
+            str(FIXED_CHECKOUT),
+            "-c",
+            "safe.directory=" + str(FIXED_CHECKOUT),
+            *args,
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=GIT_ENV,
+        check=False,
+        timeout=20,
+    )
+    if cp.returncode != 0:
+        raise EvidenceError(
+            "git_command_failed:"
+            + str(cp.returncode)
+            + ":"
+            + cp.stderr.decode("utf-8", "replace")[-1000:]
+        )
+    if cp.stderr:
+        raise EvidenceError("git_stderr")
+    return cp.stdout
+
+
+def checkout_snapshot(expected_head: str) -> dict[str, Any]:
+    if HEX40.fullmatch(expected_head) is None:
+        raise EvidenceError("expected_head_invalid")
+    head = _git(["rev-parse", "--verify", "HEAD^{commit}"]).decode().strip()
+    tree = _git(["rev-parse", "--verify", "HEAD^{tree}"]).decode().strip()
+    branch = _git(["symbolic-ref", "--short", "-q", "HEAD"]).decode().strip()
+    status = _git(["status", "--porcelain=v1", "--untracked-files=all"])
+    if head != expected_head:
+        raise EvidenceError("checkout_head_mismatch")
+    if branch != "main":
+        raise EvidenceError("checkout_branch_not_main")
+    if status != b"":
+        raise EvidenceError("checkout_not_clean")
+    if HEX40.fullmatch(tree) is None:
+        raise EvidenceError("checkout_tree_invalid")
+    return {"head": head, "tree": tree, "branch": branch, "clean": True}
+
+
+def exact_git_object(expected_head: str, relative: str, blob: str) -> bytes:
+    tree_blob = _git(["rev-parse", expected_head + ":" + relative]).decode().strip()
+    if tree_blob != blob:
+        raise EvidenceError("git_tree_blob_mismatch:" + relative)
+    raw = _git(["show", expected_head + ":" + relative])
+    if git_blob(raw) != blob:
+        raise EvidenceError("git_object_blob_mismatch:" + relative)
+    return raw
+
+
+def load_qualifier(expected_head: str) -> types.ModuleType:
+    raw = exact_git_object(expected_head, QUALIFIER_REL, QUALIFIER_BLOB)
+    exact_git_object(expected_head, QUALIFIER_PROOF_REL, QUALIFIER_PROOF_BLOB)
+
+    visible = FIXED_CHECKOUT / QUALIFIER_REL
+    try:
+        before = visible.lstat()
+        direct = visible.read_bytes()
+        after = visible.lstat()
+    except OSError as exc:
+        raise EvidenceError("qualifier_source_unavailable") from exc
+    if (
+        not before.is_file()
+        or before.is_symlink()
+        or before.st_nlink != 1
+        or before.st_size != len(direct)
+        or before.st_dev != after.st_dev
+        or before.st_ino != after.st_ino
+        or before.st_size != after.st_size
+        or before.st_mtime_ns != after.st_mtime_ns
+        or before.st_ctime_ns != after.st_ctime_ns
+        or direct != raw
+    ):
+        raise EvidenceError("qualifier_source_generation_unstable")
+
+    module = types.ModuleType("void_presale_verified_epoch2_installed_qualifier_v5")
+    module.__file__ = str(visible)
+    module.__package__ = ""
+    exec(
+        compile(raw.decode("utf-8", "strict"), str(visible), "exec", dont_inherit=True),
+        module.__dict__,
+    )
+    if getattr(module, "MARKER", None) != EXPECTED_QUALIFIER_MARKER:
+        raise EvidenceError("qualifier_marker_mismatch")
+    if not callable(getattr(module, "collect", None)):
+        raise EvidenceError("qualifier_collect_missing")
+    return module
+
+
+def validate_result(result: object, expected_head: str) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        raise EvidenceError("qualifier_result_not_object")
+    required_true = (
+        "read_only",
+        "root_execution_required",
+        "protected_upgrade_verified",
+        "installed_generation_stable",
+        "predecessor_generation_retained",
+        "predecessor_generation_stable",
+        "node_generation_bound",
+        "checkout_generation_bound",
+        "git_generation_bound",
+        "setpriv_generation_bound",
+        "native_self_test_execution",
+        "native_self_test_descriptor_bound",
+        "native_self_test_stable",
+    )
+    for key in required_true:
+        if result.get(key) is not True:
+            raise EvidenceError("qualifier_true_field_missing:" + key)
+
+    required_false = (
+        "runner_execution",
+        "live_composition_execution",
+        "credential_access",
+        "private_key_access",
+        "signing",
+        "transaction",
+        "payment_acceptance",
+        "public_presale_activation",
+        "wc_void_market_activation",
+        "treasury_liquidity_action",
+        "funds_movement",
+        "production_host_evidence_authority",
+    )
+    for key in required_false:
+        if result.get(key) is not False:
+            raise EvidenceError("qualifier_false_field_overclaim:" + key)
+
+    if result.get("marker") != EXPECTED_QUALIFIER_MARKER:
+        raise EvidenceError("qualifier_result_marker_mismatch")
+    if result.get("version") != 5:
+        raise EvidenceError("qualifier_result_version_mismatch")
+    if result.get("expected_head") != expected_head:
+        raise EvidenceError("qualifier_result_head_mismatch")
+    for key in (
+        "accepted_lock_id",
+        "candidate_id",
+        "native_self_test_sha256",
+        "native_sha256",
+        "runner_sha256",
+        "policy_sha256",
+        "predecessor_native_sha256",
+        "predecessor_runner_sha256",
+        "predecessor_policy_sha256",
+        "node_sha256",
+    ):
+        value = result.get(key)
+        if not isinstance(value, str) or not value:
+            raise EvidenceError("qualifier_identity_missing:" + key)
+    return result
+
+
+def collect(expected_head: str) -> dict[str, Any]:
+    if os.geteuid() != 0:
+        raise EvidenceError("root_required_for_epoch2_host_evidence")
+    checkout = checkout_snapshot(expected_head)
+    qualifier = load_qualifier(expected_head)
+    try:
+        qualified = qualifier.collect(expected_head)
+    except Exception as exc:
+        raise EvidenceError(
+            "epoch2_installed_qualification_failed:" + str(exc)
+        ) from exc
+    result = validate_result(qualified, expected_head)
+
+    return {
+        "schema": SCHEMA,
+        "marker": MARKER,
+        "version": 1,
+        "parent_host_evidence_plan_id": PARENT_PLAN_ID,
+        "status":
+            "EPOCH2_INSTALLED_GENERATION_EVIDENCE_GREEN_PRODUCTION_AUTHORITY_STILL_HOLD",
+        "expected_head": expected_head,
+        "checkout_tree": checkout["tree"],
+        "accepted_lock_id": result["accepted_lock_id"],
+        "candidate_id": result["candidate_id"],
+        "epoch2_installed_generation_qualified": True,
+        "protected_upgrade_verified": True,
+        "installed_generation_stable": True,
+        "retained_predecessor_verified": True,
+        "node_generation_bound": True,
+        "checkout_generation_bound": True,
+        "git_generation_bound": True,
+        "setpriv_generation_bound": True,
+        "native_self_test_execution_performed": True,
+        "native_self_test_descriptor_bound": True,
+        "native_self_test_stable": True,
+        "native_self_test_sha256": result["native_self_test_sha256"],
+        "native_sha256": result["native_sha256"],
+        "native_bytes": result["native_bytes"],
+        "runner_sha256": result["runner_sha256"],
+        "runner_bytes": result["runner_bytes"],
+        "policy_sha256": result["policy_sha256"],
+        "predecessor_native_sha256": result["predecessor_native_sha256"],
+        "predecessor_runner_sha256": result["predecessor_runner_sha256"],
+        "predecessor_policy_sha256": result["predecessor_policy_sha256"],
+        "node_sha256": result["node_sha256"],
+        "node_bytes": result["node_bytes"],
+        "filesystem_read_performed": True,
+        "filesystem_write_performed": False,
+        "process_execution_performed": True,
+        "runner_execution": False,
+        "live_composition_execution": False,
+        "service_mutation": False,
+        "network_contact": False,
+        "credential_access": False,
+        "private_key_access": False,
+        "wallet_or_signer_access": False,
+        "signing": False,
+        "transaction_submission": False,
+        "payment_acceptance": False,
+        "public_presale_activation": False,
+        "wc_void_market_activation": False,
+        "treasury_or_liquidity_action": False,
+        "funds_movement": False,
+        "production_host_evidence_authority": False,
+    }
+
+
+def self_test() -> None:
+    assert len(PARENT_PLAN_ID) == len("voidbuyhostevplan1_") + 64
+    assert len(QUALIFIER_BLOB) == 40
+    assert len(QUALIFIER_PROOF_BLOB) == 40
+    assert HEX40.fullmatch("a" * 40)
+    assert HEX40.fullmatch("A" * 40) is None
+    print(MARKER + "_SELF_TEST_GREEN")
+    print("parent_host_evidence_plan_bound=true")
+    print("exact_qualifier_source_and_proof_bound=true")
+    print("root_required_for_future_run=true")
+    print("installed_generation_before_middle_after_stability_required=true")
+    print("double_descriptor_bound_native_self_test_required=true")
+    print("native_self_test_execution_performed_by_future_host_run=true")
+    print("runner_execution=false")
+    print("live_composition_execution=false")
+    print("filesystem_write_performed=false")
+    print("service_mutation=false")
+    print("network_contact=false")
+    print("credential_access=false")
+    print("payment_acceptance=false")
+    print("public_presale_activation=false")
+    print("funds_movement=false")
+    print("production_host_evidence_authority=false")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--self-test", action="store_true")
+    mode.add_argument("--run", action="store_true")
+    parser.add_argument("--expected-head", default="")
+    args = parser.parse_args()
+
+    if args.self_test:
+        self_test()
+        return 0
+    if not args.expected_head:
+        raise EvidenceError("expected_head_required")
+    result = collect(args.expected_head)
+    print(json.dumps(result, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except EvidenceError as exc:
+        print(MARKER)
+        print("status=HOLD")
+        print("reason=" + str(exc))
+        print("epoch2_installed_generation_qualified=false")
+        print("filesystem_write_performed=false")
+        print("runner_execution=false")
+        print("live_composition_execution=false")
+        print("service_mutation=false")
+        print("network_contact=false")
+        print("credential_access=false")
+        print("private_key_access=false")
+        print("wallet_or_signer_access=false")
+        print("signing=false")
+        print("transaction_submission=false")
+        print("payment_acceptance=false")
+        print("public_presale_activation=false")
+        print("wc_void_market_activation=false")
+        print("treasury_or_liquidity_action=false")
+        print("funds_movement=false")
+        print("production_host_evidence_authority=false")
+        raise SystemExit(2)
