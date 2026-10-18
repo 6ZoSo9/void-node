@@ -490,7 +490,11 @@ def self_test()->None:
         else:
             raise AssertionError("unsupported migration state accepted")
     source=Path(__file__).read_text(encoding="utf-8")
-    replace_index=source.index('replace_launcher(\\n                read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),\\n                ("prior_v2_exact",),')
+    replace_index=source.index(
+        "replace_launcher(\n"
+        "                read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),\n"
+        '                ("prior_v2_exact",),'
+    )
     post_replace_dormant_index=source.index("assert_services_dormant()",replace_index)
     migrate_index=source.index("tree_changed=migrate_prior_v2_tree(manifest)",post_replace_dormant_index)
     assert replace_index < post_replace_dormant_index < migrate_index
@@ -507,7 +511,8 @@ def self_test()->None:
     print("prior_v2_launcher_b96_bound=true")
     print("prior_v2_backup_preserved=true")
     print("prior_v2_interrupted_states_resumable=true")
-    print("current_launcher_installed_before_prior_root_swap=true")\n    print("post_launcher_dormancy_revalidated_before_prior_root_swap=true")
+    print("current_launcher_installed_before_prior_root_swap=true")
+    print("post_launcher_dormancy_revalidated_before_prior_root_swap=true")
     print("new_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")
     print("prior_v2_backup_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2-prior-v1")
     print("systemd_8_18_reviewed=true")
