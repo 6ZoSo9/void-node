@@ -107,7 +107,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 7efc48397d96ae38ab4577e28ca3f26ef9254dd1
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = da30c44324f574eb1eda9dd811d2afa896bcdd0d
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 72999f84448035a38ff59c112323401bdf3864cc
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = e776529abc8ce6dc7ba21864b48b923aafddf079
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd

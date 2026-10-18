@@ -20,7 +20,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const COLLECTOR_REL =
   "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts";
-const COLLECTOR_BLOB = "216928e1810cb25ce1c331e2edfece629fff76cf";
+const COLLECTOR_BLOB = "7efc48397d96ae38ab4577e28ca3f26ef9254dd1";
 
 const PARENT_PLAN_REL =
   "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
