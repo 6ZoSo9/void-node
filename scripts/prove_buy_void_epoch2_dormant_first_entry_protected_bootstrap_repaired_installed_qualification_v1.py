@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import os
 from pathlib import Path
 import subprocess
+import tempfile
+import types
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_REL = (
@@ -24,7 +27,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-TARGET_BLOB = "a9cee971d3fd088821124b1349179fdd1cb27516"
+TARGET_BLOB = "04c7ca5f0d96dcb60faeae8cf4d712435ad65466"
 
 UPGRADER_REL = (
     "ops/precision/"
@@ -43,12 +46,12 @@ PLAN_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_plan_v1.py"
 )
-PLAN_BLOB = "928568d08f56375911505af635306b715790c1f3"
+PLAN_BLOB = "ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78"
 PLAN_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_atomic_upgrade_plan_v1.py"
 )
-PLAN_PROOF_BLOB = "9525616f8fd03ba572bab1886dddd14914ebf3f7"
+PLAN_PROOF_BLOB = "e695ceed29f61f08f480d4dafaad7cc6635adf81"
 
 OLD_LOCK = (
     "voidbuye2dormantbootstraplock3_"
@@ -81,8 +84,21 @@ def pin(relative: str, expected: str) -> bytes:
 target_raw = pin(TARGET_REL, TARGET_BLOB)
 pin(UPGRADER_REL, UPGRADER_BLOB)
 pin(UPGRADER_PROOF_REL, UPGRADER_PROOF_BLOB)
-pin(PLAN_REL, PLAN_BLOB)
+plan_raw = pin(PLAN_REL, PLAN_BLOB)
 pin(PLAN_PROOF_REL, PLAN_PROOF_BLOB)
+
+plan_source = plan_raw.decode("utf-8", "strict")
+for required in (
+    '"future_apply_source_inline": True',
+    '"future_apply_source_reopens_checkout": False',
+    '"planner_git_callbacks_neutralized": True',
+    '"GIT_CONFIG_KEY_0": "core.fsmonitor"',
+    '"GIT_CONFIG_VALUE_0": "false"',
+    '"GIT_CONFIG_KEY_1": "core.hooksPath"',
+    '"GIT_CONFIG_VALUE_1": "/dev/null"',
+):
+    assert required in plan_source, required
+assert 'str(FIXED_CHECKOUT / UPGRADER_REL),\n        "--apply"' not in plan_source
 
 workflow_source = (ROOT / WORKFLOW_REL).read_text("utf-8")
 assert 'base="' + EXACT_PARENT + '"' in workflow_source
@@ -113,6 +129,7 @@ for required in (
     '"predecessor_retained_verified": True',
     '"upgrade_stage_absent_verified": True',
     '"temporary_git_metadata_write_required": True',
+    '"qualification_git_callbacks_neutralized": True',
     '"filesystem_write": True',
     '"protected_filesystem_mutation": False',
     "nonroot_required_for_repaired_qualification",
@@ -149,6 +166,45 @@ for forbidden in (
     "systemctl",
 ):
     assert forbidden not in source, forbidden
+
+module = types.ModuleType("void_repaired_qualification_callback_fixture")
+module.__file__ = str(ROOT / TARGET_REL)
+module.__package__ = ""
+exec(compile(source, TARGET_REL, "exec", dont_inherit=True), module.__dict__)
+with tempfile.TemporaryDirectory(prefix="void-e2-qualification-fsmonitor-") as td:
+    temp = Path(td)
+    repo = temp / "repo"
+    sentinel = temp / "fsmonitor-executed"
+    subprocess.run(
+        ["/usr/bin/git", "init", "-q", str(repo)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        timeout=20,
+    )
+    callback = temp / "fsmonitor.sh"
+    callback.write_text(
+        "#!/bin/sh\n"
+        + "/usr/bin/touch "
+        + str(sentinel)
+        + "\n"
+        + "exit 1\n",
+        encoding="utf-8",
+    )
+    callback.chmod(0o755)
+    subprocess.run(
+        ["/usr/bin/git", "-C", str(repo), "config", "core.fsmonitor", str(callback)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        timeout=20,
+    )
+    module.FIXED_CHECKOUT = repo
+    observed = module._git(["status", "--porcelain=v1", "--untracked-files=all"])
+    assert observed == b""
+    assert not sentinel.exists(), "qualification_git_fsmonitor_callback_executed"
 
 tree = ast.parse(source)
 functions = {
@@ -221,6 +277,7 @@ for mode, expected_lines in (
             "temporary_git_metadata_cleanup_required=true",
             "upgrader_apply_not_called=true",
             "temporary_git_metadata_write_required=true",
+            "qualification_git_callbacks_neutralized=true",
             "nonroot_run_required=true",
             "protected_filesystem_mutation=false",
             "bootstrap_execution=false",
@@ -248,6 +305,7 @@ for mode, expected_lines in (
             "upgrade_stage_absent_required=true",
             "temporary_git_metadata_boundary_explicit=true",
             "temporary_git_metadata_write_required=true",
+            "qualification_git_callbacks_neutralized=true",
             "nonroot_run_required=true",
             "protected_filesystem_mutation=false",
             "bootstrap_execution=false",
@@ -289,6 +347,9 @@ print("source_repository_mutation=false")
 print("upgrader_collect_absent=true")
 print("upgrader_apply_absent=true")
 print("temporary_git_metadata_write_required=true")
+print("qualification_git_callbacks_neutralized=true")
+print("qualification_git_fsmonitor_callback_rejected=true")
+print("repaired_plan_immutable_handoff_bound=true")
 print("nonroot_run_required=true")
 print("protected_filesystem_mutation=false")
 print("bootstrap_execution=false")
