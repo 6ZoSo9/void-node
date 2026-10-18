@@ -208,6 +208,7 @@ Hosted proof must establish:
 - unknown oversized object graphs are rejected before structured cloning
 - regex-backed identifiers reject arrays and boxed strings rather than coercing them
 - accessor descriptors are rejected without invoking their getters
+- unknown non-enumerable properties and symbol keys are rejected rather than silently dropped
 - clone/canonical/hash consume only the validated primitive descriptor snapshot
 - #3333 trainer-generation validation remains external and unperformed
 - training-start consumption/admission, release, and execution remain false
