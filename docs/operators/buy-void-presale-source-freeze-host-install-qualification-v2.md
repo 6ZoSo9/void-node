@@ -19,7 +19,7 @@ The current source lineage is:
 - current-source enforcement successor
   `voidbuypresaleenfsucc1_819fd2dbce9928145023d4077cffc34e2a9ab3a50e51428fc37dda6ca70a18ef`;
 - source-freeze acceptance
-  `voidbuypresalefreezeaccept2_88fa89a3fd3ea8151f69c5f133eca2965cf98576a245d7afbb7f6992f68fa1c4`.
+  `voidbuypresalefreezeaccept2_427988497e4789465dde1c193668bb140d017c4e3ba3748567ea4e3bacfadb57`.
 
 ## Input contract
 
@@ -59,8 +59,9 @@ is_mountpoint_metadata_only
 
 Accepted state/value relationships match census V3 exactly:
 
-- `REGULAR_METADATA_ONLY` requires a four-octal-digit string `mode` and a
-  nonnegative integer `bytes`;
+- `REGULAR_METADATA_ONLY` requires a four-octal-digit string `mode` and an
+  integer `bytes` in the JSON-safe range `0..9007199254740991`;
+- `REGULAR_SIZE_RANGE_HOLD` requires `mode=null` and `bytes=null`;
 - `DIRECTORY_METADATA_ONLY` requires a four-octal-digit string `mode` and
   `bytes=null`;
 - `ABSENT`, `METADATA_PERMISSION_HOLD`,
