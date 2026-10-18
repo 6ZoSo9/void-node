@@ -222,6 +222,10 @@ function assertLivePolicy(result: any): void {
   }
 }
 
+export function testOnlyAssertLivePolicyV1(result: unknown): void {
+  assertLivePolicy(result);
+}
+
 function assertSecondControl(result: any): void {
   if (
     !result ||
@@ -258,6 +262,11 @@ function assertSecondControl(result: any): void {
     );
   }
 }
+
+export function testOnlyAssertSecondControlV1(result: unknown): void {
+  assertSecondControl(result);
+}
+
 
 export function collectBuyVoidPresaleAllocationCustodyHostEvidenceV1(input: {
   operator_receipt_path: string;
