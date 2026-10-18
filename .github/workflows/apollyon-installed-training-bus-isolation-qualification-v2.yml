@@ -67,7 +67,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py)" = \
             820f7151c0f83280b7457f841cee14c3b0c274b6
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py)" = \
-            fcf8dbf1d1837f04c2e15f4059788e2423c58d08
+            0b6464e16e5792b44e23441e669748cb2887666a
           test "$(git rev-parse HEAD:tools/apollyon-live-custody-source-session-runner-v2.mjs)" = \
             8c2c92055ab05c074653cee971e095934b5cb85c
 
