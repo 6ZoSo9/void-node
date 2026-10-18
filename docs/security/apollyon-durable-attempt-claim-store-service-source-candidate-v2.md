@@ -12,8 +12,8 @@ It does not implement the claim service, publisher, systemd unit, AF_UNIX listen
 
 ## Exact parents
 
-- accepted store-contract head: `fe7e1ad9b78a24b77a1657067e4d08f7c56a7731`
-- accepted store-contract blob: `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`
+- accepted store-contract head: `9475035552881f34658a7c8f3a6b336199fda159`
+- accepted store-contract blob: `bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc`
 - accepted host-plan head: `9b06e15738307571656f25694c5c68d0a91eea9b`
 - accepted planner blob: `ce2f3bfed25523ebb82fa594d42378ecaa6b6143`
 - stable store policy:
