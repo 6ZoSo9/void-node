@@ -82,7 +82,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
             a9cee971d3fd088821124b1349179fdd1cb27516
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            84d1847514c2728af935995f9617cfe9aefba6f2
+            1d0fb44a100cdf6792dfd1a1c15355f80cf2010c
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.md)" = \
             a5b64f481cfc7824bdad5fdc4ab47675456e68cf
 
@@ -126,6 +126,8 @@ jobs:
           markers=(
             'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_BOOTSTRAP_V6_REPAIRED_INSTALLED_QUALIFICATION_V1_PROOF_GREEN'
             'target_blob_bound=true'
+            'workflow_dispatch_exact_parent_bound=true'
+            'workflow_dispatch_first_parent_inference_absent=true'
             'repaired_upgrader_generation_bound=true'
             'nonexecuting_upgrade_plan_generation_bound=true'
             'green_state_classifier_reused=true'
