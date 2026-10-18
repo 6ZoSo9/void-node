@@ -108,7 +108,8 @@ the exact shallow #3357 key set with primitive data properties only:
 - strings are bounded;
 - integers must be safe integers;
 - booleans must be primitive booleans;
-- unknown keys fail closed;
+- every own key is accounted for with `Reflect.ownKeys`; unknown enumerable,
+  non-enumerable and symbol keys fail closed;
 - accessor descriptors fail without getter invocation;
 - array / boxed-string regex coercion is rejected.
 
@@ -132,6 +133,7 @@ Hosted proof must establish:
 - unknown large slot graphs fail before the parent validator clones;
 - slot, candidate and requirements accessors are rejected without invocation;
 - regex-coercible arrays are rejected;
+- unknown non-enumerable properties and symbol keys are rejected;
 - no filesystem, network, child-process, systemd or service implementation exists;
 - claim publication, capability issuance, #3333 consumption, admission, release,
   training, keys, transactions and funds remain false.
