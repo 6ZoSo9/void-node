@@ -120,7 +120,11 @@ evidence before any post-syscall layout interpretation. If the first
 `RENAME_EXCHANGE` returns success but the subsequent observed layout has already
 been restored to READY, the upgrader does **not** reinterpret that as
 prepublication state. It reports `published_needs_inspection`, performs no
-prepublication cleanup, and keeps automatic retry false.
+prepublication cleanup, and keeps automatic retry false. The successful syscall
+fact is also written to caller-owned outcome state while SIGINT remains masked.
+If a fresh interrupt lands after the helper returns but before its tuple is
+assigned, fallback reconciliation therefore cannot discard the successful
+exchange fact even when another actor has already restored the READY layout.
 
 The successful terminal retains the predecessor and reports
 `rollback_available=true`.
@@ -148,6 +152,9 @@ The focused proof:
 - performs a successful first exchange, restores the READY layout before the
   observation returns, and requires the successful syscall itself to preserve
   `publication=true` with `published_needs_inspection` and no prepublication cleanup;
+- restores READY after the helper returns, delivers a fresh SIGINT before tuple
+  assignment, and requires the caller-owned successful-syscall fact to preserve
+  the same inspection-required outcome without cleanup;
 - verifies publication truth remains monotonic across every rollback;
 - inserts a foreign staging entry and requires cleanup refusal;
 - rejects subprocess/systemctl/exec-based live execution paths in the upgrader source.

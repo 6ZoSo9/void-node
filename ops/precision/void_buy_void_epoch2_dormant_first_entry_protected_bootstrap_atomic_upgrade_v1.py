@@ -106,13 +106,15 @@ def published_inspection_error(reason,cause):
     e=PublishedError(reason,cause); e.rollback_attempted=False; e.rollback_green=False; e.rollback_final_state_verified=False
     return e
 
-def observed_rename(m,opt_fd,source,target,flags,policy,old_id,new_id):
+def observed_rename(m,opt_fd,source,target,flags,policy,old_id,new_id,outcome=None):
     caught=None; layout=None; inspection_error=None; rename_succeeded=False
+    if outcome is not None: outcome["rename_succeeded"]=False
     previous=signal.pthread_sigmask(signal.SIG_BLOCK,{signal.SIGINT})
     try:
         try:
             m._renameat2(opt_fd,source,target,flags)
             rename_succeeded=True
+            if outcome is not None: outcome["rename_succeeded"]=True
         except BaseException as exc: caught=exc
         try: layout=root_layout(m,policy,old_id,new_id)
         except BaseException as exc: inspection_error=exc
@@ -257,6 +259,7 @@ def apply(bootstrap,manifest,head,expected_plan,confirm):
     opt_fd=os.open(INSTALL_PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
     initial=None; owned=[]; exchanged=False; retained=False; publication=False; rollback=False
     exchange_attempted=False; retention_attempted=False; new_id=None
+    exchange_outcome={"rename_succeeded":False}
     try:
         if exists(STAGE_ROOT) or exists(PREDECESSOR_ROOT): raise UpgradeError("upgrade_auxiliary_root_present")
         old_id=old_root(m,INSTALL_ROOT,policy,body["current_root_identity"])
@@ -265,7 +268,7 @@ def apply(bootstrap,manifest,head,expected_plan,confirm):
         old_root(m,INSTALL_ROOT,policy,old_id); new_root(m,STAGE_ROOT,policy,new_id)
         if root_layout(m,policy,old_id,new_id)!=LAYOUT_READY: raise UpgradeError("pre_exchange_layout_invalid")
         exchange_attempted=True
-        layout,handoff_error,rename_succeeded=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
+        layout,handoff_error,rename_succeeded=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id,outcome=exchange_outcome)
         if rename_succeeded:
             publication=True
         if layout==LAYOUT_EXCHANGED:
@@ -308,6 +311,10 @@ def apply(bootstrap,manifest,head,expected_plan,confirm):
                 try: os.close(opt_fd)
                 except OSError: pass
                 raise published_inspection_error("atomic_upgrade_exchange_outcome_needs_inspection",inspection_error) from exc
+            if exchange_outcome["rename_succeeded"] and layout==LAYOUT_READY:
+                try: os.close(opt_fd)
+                except OSError: pass
+                raise published_inspection_error("atomic_upgrade_exchange_succeeded_ready_needs_inspection",exc) from exc
             if layout==LAYOUT_EXCHANGED:
                 rollback=rollback_published(m,opt_fd,policy,body,initial,bootstrap,manifest,head,old_id,new_id)
                 try: os.close(opt_fd)
