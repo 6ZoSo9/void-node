@@ -28,7 +28,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="0b6dcd9b24390ea749376d757a633c44547ae81d";
+const TARGET_BLOB="405fff4ea6ab6158ec2cc3483c317bc5666755ee";
 
 const PINNED=Object.freeze({
   [TARGET_REL]:TARGET_BLOB,
@@ -251,6 +251,7 @@ for(const required of [
   'training_start_consumption_directory:"training-start-consumption-v1"',
   "caller_supplied_exclusive_transaction_is_host_proof:false",
   "caller_supplied_revalidator_is_host_proof:false",
+  "non_root_claim_identity_required:true",
   "fs.constants.O_RDWR|fs.constants.O_CREAT",
   "cleanupUnlinkedPending",
   "apollyon_claim_store_impl_v2_transaction_outside_wrapper_call",
@@ -748,6 +749,35 @@ function expectError(fn,code){
   }finally{f.cleanup();}
 }
 
+
+{
+  const f=fixture();
+  try{
+    expectError(
+      ()=>createApollyonDurableAttemptClaimStoreServiceCoreV2({
+        root_fd:f.rootFd,
+        claim_uid:0,
+        claim_gid:gid,
+        session_binding_id:SESSION_ID,
+        withExclusiveStoreTransaction:fn=>fn(),
+        revalidate:(stage,context)=>revalidationReceipt(stage,context),
+      }),
+      "apollyon_claim_store_impl_v2_config_invalid",
+    );
+    expectError(
+      ()=>createApollyonDurableAttemptClaimStoreServiceCoreV2({
+        root_fd:f.rootFd,
+        claim_uid:uid,
+        claim_gid:0,
+        session_binding_id:SESSION_ID,
+        withExclusiveStoreTransaction:fn=>fn(),
+        revalidate:(stage,context)=>revalidationReceipt(stage,context),
+      }),
+      "apollyon_claim_store_impl_v2_config_invalid",
+    );
+  }finally{f.cleanup();}
+}
+
 for(const [key,value] of Object.entries(
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_AUTHORITY_V2
 )){
@@ -756,6 +786,7 @@ for(const [key,value] of Object.entries(
     "store_core_implementation_present",
     "publisher_exact_forward_implementation_present",
     "fixed_physical_namespace_defined",
+    "non_root_claim_identity_required",
     "create_only_slot_publication_implemented",
     "create_only_claim_publication_implemented",
     "private_pending_fsync_publication_implemented",
@@ -784,6 +815,8 @@ console.log("exact_source_and_parent_blobs_pinned=true");
 console.log("pr_push_trigger_closure_exact=true");
 console.log("pr_push_trigger_parity=true");
 console.log("fixed_physical_namespace_defined=true");
+console.log("non_root_claim_identity_required=true");
+console.log("root_claim_uid_gid_rejected=true");
 console.log("publisher_exact_request_bytes_preserved=true");
 console.log("publisher_request_reconstruction_forbidden=true");
 console.log("retained_root_identity_bound=true");
