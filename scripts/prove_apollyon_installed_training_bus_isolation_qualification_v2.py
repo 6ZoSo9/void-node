@@ -977,6 +977,7 @@ saved_emit = mod._emit_live_authority
 saved_run = mod._run_systemctl
 saved_wait_entry = mod._wait_for_reviewed_entrypoint
 saved_stop = mod._stop_and_verify
+saved_wait_shutdown = mod._wait_for_shutdown
 events = []
 fixture_v1 = SimpleNamespace(
     TARGET_HOST="fixture-xiphos",
@@ -1029,6 +1030,18 @@ try:
             "service_enabled": False,
         }
     )
+    mod._wait_for_shutdown = lambda pid, ticks, timeout_seconds=5.0: (
+        events.append("final_shutdown")
+        or {
+            "load_state": "loaded",
+            "active_state": "inactive",
+            "sub_state": "dead",
+            "mainpid": 0,
+            "unit_file_state": "static",
+            "observed_process_generation_absent": True,
+            "service_state_snapshot_stable": True,
+        }
+    )
     lifecycle = mod.live_qualify()
     assert events == [
         "lock",
@@ -1044,6 +1057,7 @@ try:
         "stop",
         "launcher",
         "effective",
+        "final_shutdown",
         "unlock",
     ], events
     assert lifecycle["standalone_shutdown_proven"] is True
@@ -1052,6 +1066,44 @@ try:
     assert lifecycle["lock_aware_live_launcher_identity_proven"] is True
     assert lifecycle["lock_aware_live_launcher_identity_stable"] is True
     assert lifecycle["lock_aware_live_launcher"] == {"fixture_launcher": True}
+    assert lifecycle["shutdown"]["active_state"] == "inactive"
+    assert lifecycle["shutdown"]["sub_state"] == "dead"
+    assert lifecycle["shutdown"]["mainpid"] == 0
+    assert lifecycle["shutdown"]["observed_process_generation_absent"] is True
+
+    # A service activation/drift after final launcher/effective-unit checks must
+    # fail closed at the last state/generation observation.
+    events.clear()
+
+    def fail_final_shutdown(pid, ticks, timeout_seconds=5.0):
+        events.append("final_shutdown_fail")
+        assert timeout_seconds == 0.0
+        raise mod.Hold("service_shutdown_not_proven")
+
+    mod._wait_for_shutdown = fail_final_shutdown
+    try:
+        mod.live_qualify()
+    except mod.Hold as exc:
+        assert str(exc) == "service_shutdown_not_proven", str(exc)
+    else:
+        raise AssertionError("post-contract service drift returned a receipt")
+    assert events == [
+        "lock",
+        "launcher",
+        "effective",
+        "preflight",
+        "authority",
+        "launcher",
+        "effective",
+        "start",
+        "entrypoint",
+        "observe",
+        "stop",
+        "launcher",
+        "effective",
+        "final_shutdown_fail",
+        "unlock",
+    ], events
 finally:
     mod._v1 = saved_v1
     mod.socket.gethostname = saved_hostname
@@ -1065,6 +1117,7 @@ finally:
     mod._run_systemctl = saved_run
     mod._wait_for_reviewed_entrypoint = saved_wait_entry
     mod._stop_and_verify = saved_stop
+    mod._wait_for_shutdown = saved_wait_shutdown
 
 
 legacy_upgrade_source = LEGACY_UPGRADE.read_text(encoding="utf-8")
@@ -1174,9 +1227,19 @@ final_launcher_index = source.index(
     "final_launcher = _verify_lock_aware_live_launcher_installed()",
     start_index,
 )
+final_effective_index = source.index(
+    "final_effective_unit = _verify_effective_unit_contract()",
+    final_launcher_index,
+)
+final_shutdown_index = source.index(
+    "final_shutdown = _wait_for_shutdown(",
+    final_effective_index,
+)
+material_index = source.index("material = {", final_shutdown_index)
 assert (
     locked_function_index < before_start_launcher_index <
-    start_index < final_launcher_index
+    start_index < final_launcher_index < final_effective_index <
+    final_shutdown_index < material_index
 )
 
 for required in (
@@ -1201,6 +1264,8 @@ for required in (
     '"NeedDaemonReload"',
     '"ExecStart"',
     '"effective_systemd_unit_contract_stable": True',
+    'final_shutdown = _wait_for_shutdown(',
+    'timeout_seconds=0.0',
     '"shared_training_service_lifecycle_lock_proven": True',
     '"lock_aware_live_launcher_identity_proven": True',
     '"lock_aware_live_launcher_identity_stable": True',
@@ -1239,6 +1304,8 @@ print("authority_call_order_executed=true")
 print("single_systemctl_state_snapshot=true")
 print("state_change_between_snapshots_rejected=true")
 print("final_service_state_revalidation=true")
+print("post_contract_shutdown_revalidation=true")
+print("post_contract_service_drift_rejected=true")
 print("effective_systemd_unit_properties_bound=true")
 print("effective_systemd_unit_revalidated_before_start=true")
 print("effective_systemd_unit_revalidated_before_success=true")
