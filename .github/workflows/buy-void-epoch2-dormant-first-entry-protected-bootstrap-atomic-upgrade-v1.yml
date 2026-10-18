@@ -1,0 +1,181 @@
+name: Buy VOID Epoch-2 protected bootstrap atomic upgrade v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.yml"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-protected-bootstrap-atomic-upgrade-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact atomic-upgrade source generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          test -n "$base"
+          test "$base" != 0000000000000000000000000000000000000000
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 3487ab6a401047c21be60dd28bda8e29e1137789
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 3c68c97453a2c6573e5629f5aff9b1399e354901
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md)" = a561fd445067f94e4c8d246dd683383eade07a81
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-source-generation-v3.conf)" = de56bacb30bea0adc418e240cf3fb8d900b061ef
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py)" = c5d083cbf276f59f888aeb79b874bac4480f1506
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and source-only contract
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py",
+              "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_BOOTSTRAP_ATOMIC_UPGRADE_V1_SYNTAX_GREEN")
+          PY
+
+          self="$RUNNER_TEMP/self-test.log"
+          python3 -I -B ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py --self-test | tee "$self"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_BOOTSTRAP_ATOMIC_UPGRADE_V1_SELF_TEST_GREEN' \
+            'old_generation_identity_bound=true' \
+            'repaired_generation_identity_bound=true' \
+            'outer_installer_source_blob_bound=true' \
+            'atomic_root_exchange_required=true' \
+            'predecessor_retention_required=true' \
+            'automatic_rollback_required=true' \
+            'bootstrap_execution=false' \
+            'inner_installer_execution=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$self"
+          done
+
+          source_plan="$RUNNER_TEMP/source-plan.log"
+          python3 -I -B ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py --source-plan | tee "$source_plan"
+          for marker in \
+            'mode=source-plan' \
+            'source_only=true' \
+            'host_read=false' \
+            'host_write=false' \
+            'atomic_root_exchange_required=true' \
+            'predecessor_retention_required=true' \
+            'automatic_rollback_required=true' \
+            'bootstrap_execution=false' \
+            'inner_installer_execution=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$source_plan"
+          done
+
+      - name: Exercise synthetic atomic transition and rollback
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/atomic-upgrade-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_BOOTSTRAP_ATOMIC_UPGRADE_V1_PROOF_GREEN' \
+            'target_blob_bound=true' \
+            'success_atomic_exchange_exercised=true' \
+            'predecessor_retention_exercised=true' \
+            'post_exchange_failure_rollback_exercised=true' \
+            'publication_truth_monotonic=true' \
+            'foreign_stage_cleanup_refused=true' \
+            'bootstrap_execution=false' \
+            'inner_installer_execution=false' \
+            'service_mutation=false' \
+            'credential_access=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Re-materialize repaired V6 candidate inputs
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/repaired-v6"
+          receipt="$RUNNER_TEMP/materialize.log"
+          python3 -I -B scripts/materialize_buy_void_epoch2_dormant_first_entry_bootstrap_v6.py --derive-dir "$out" | tee "$receipt"
+
+          bootstrap="$out/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v6"
+          manifest="$out/source-generation-v3.conf"
+
+          test "$(stat -c %s "$bootstrap")" = 874608
+          test "$(stat -c %a "$bootstrap")" = 555
+          test "$(sha256sum "$bootstrap" | awk '{print $1}')" = 618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c
+          test "$(git hash-object "$bootstrap")" = b577d70666f98ac59a75b84b3dab741fe7b93a4b
+
+          test "$(stat -c %s "$manifest")" = 2382
+          test "$(stat -c %a "$manifest")" = 444
+          test "$(sha256sum "$manifest" | awk '{print $1}')" = 8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9
+          test "$(git hash-object "$manifest")" = de56bacb30bea0adc418e240cf3fb8d900b061ef
+
+          grep -Fx 'artifact_publication_only=true' "$receipt"
+          grep -Fx 'protected_install_authorized=false' "$receipt"
+          grep -Fx 'live_execution_authorized=false' "$receipt"
+          grep -Fx 'funds_movement=false' "$receipt"
+
+      - run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
