@@ -95,11 +95,11 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            78242e51f5b332d9057bf17d3842328ffd300b65
+            0b6dcd9b24390ea749376d757a633c44547ae81d
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            3586da4600f9d7540e7d5decc18bc77046a1c058
+            b0e702f9838d5831218bbf18f5e6db8aebb9ad57
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            fb8e93e750133d02d3489268724372ea822c00a6
+            5ffbf015182f05e58351a854ab43d59172c15294
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
             93582c324ca85aeff56eb61f82b32f1e4c18dfe9
@@ -155,6 +155,9 @@ jobs:
             'different_claim_same_authorization_rejected=true' \
             'crash_after_slot_exact_recovery_proven=true' \
             'post_link_cleanup_failure_recovery_proven=true' \
+            'prelink_stale_pending_recovery_proven=true' \
+            'transaction_callback_lifetime_guard_proven=true' \
+            'transaction_result_substitution_rejected=true' \
             'generation_drift_before_mutation_rejected=true' \
             'orphan_claim_without_slot_rejected=true' \
             'async_revalidator_rejected_before_mutation=true' \
