@@ -22,13 +22,13 @@ It never calls the upgrader's `apply()` function.
 The planner binds exact #3493 head source:
 
 - upgrader source Git blob
-  `7d70527d8910881f9973479b89ceef78789ad100`;
+  `d4b298dea73a4970987bf22435be3e76a5e7a02d`;
 - upgrader focused proof
-  `9e0b997230943b1ad0a0285e74e82faf049d7d31`;
+  `74245f061432efd5383123c111ab481befbe90b5`;
 - operator contract
-  `6073c2c3a6489d80a24e64eba9fdf892bfe8c4c0`;
+  `bc41ad73160734b9a11bcaf925dc24b7daf645db`;
 - focused workflow
-  `a89be3f29d758811362c81c9dbc7d2b69f74c147`.
+  `5601a90c2e12a6ea98e70339ea4b351572cda5d6`.
 
 The planner loads the upgrader from exact Git-object bytes into an in-memory
 module and calls only:
@@ -130,7 +130,7 @@ The handoff body records:
 ```text
 planner_git_callbacks_neutralized=true
 future_apply_source_inline=true
-future_apply_source_git_blob_sha1=7d70527d8910881f9973479b89ceef78789ad100
+future_apply_source_git_blob_sha1=d4b298dea73a4970987bf22435be3e76a5e7a02d
 future_apply_source_reopens_checkout=false
 future_apply_authorized=false
 ```
@@ -172,3 +172,21 @@ production_host_evidence_authority=false
 CI runs only syntax, focused proof, `--self-test`, and `--source-plan`.
 
 **PROTECT THE CORE.**
+
+
+
+## Monotonic publication repair binding
+
+This planner generation is rebound to the repaired atomic-upgrade parent that
+retains a successful `RENAME_EXCHANGE` syscall as publication evidence even if
+the subsequently observed layout has already returned to READY.
+
+The planner therefore authenticates the exact parent generation whose focused
+proof requires:
+- `successful_exchange_reverted_layout_publication_aware=true`;
+- `successful_exchange_reverted_layout_prepublication_cleanup=false`;
+- automatic retry false for that inspection-required state.
+
+The planner workflow also requires the exact upgrader proof path in both
+pull-request and push trigger lists, preventing stale dependency pins from being
+discovered only after merge.
