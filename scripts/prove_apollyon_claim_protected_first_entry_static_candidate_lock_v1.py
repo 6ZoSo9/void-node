@@ -11,7 +11,7 @@ TARGET_REL = (
     "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "4b1085d1b957d47285d983a35443aab69b581015"
+TARGET_BLOB = "c8e345f1d7b4e3b28b962512e9e559106098b2df"
 
 EXPECTED_PARENT_HEAD = "2aec1d7a30e9c6b20b7d1cf0831f34c240674727"
 EXPECTED_CANDIDATE_ID = (
