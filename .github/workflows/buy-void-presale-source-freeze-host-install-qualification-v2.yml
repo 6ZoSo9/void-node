@@ -53,7 +53,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
             64e6e5733f1f85da342f8c2da9c5e2c5e5e41a09
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
-            5aaa661b16bd48f527eba8a69d7f253a0331a5a4
+            fd2e917142f2571407af6bd13a9cf7d103d2428b
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-source-freeze-host-install-qualification-v2.md)" = \
             95b0c7e5c12c58eb7a49d68185282767f3a91ff0
 

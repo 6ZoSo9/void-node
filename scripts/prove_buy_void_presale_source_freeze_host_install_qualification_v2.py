@@ -184,8 +184,6 @@ for line in (
 ):
     assert line in cp.stdout.splitlines(), line
 
-    for field in module.NEGATIVE_AUTHORITY_FIELDS:
-        assert f"{field}=false" in cp.stdout
 with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     root = Path(td)
     target = root / "census.json"
@@ -250,6 +248,8 @@ with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     assert "host_install_qualified=false" in cp.stdout
     assert "public_presale_activation=false" in cp.stdout
     assert "funds_movement=false" in cp.stdout
+    for field in module.NEGATIVE_AUTHORITY_FIELDS:
+        assert f"{field}=false" in cp.stdout
 
 print(MARKER + "_PROOF_GREEN")
 print("census_source_generation_bound=true")
