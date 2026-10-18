@@ -903,7 +903,6 @@ function parseReviewedSourceFromCmdline(
     cmdline[8]!=="file://"+path.join(cwd,"node_modules/tsx/dist/loader.mjs")||
     cmdline[9]!==path.join(cwd,"src/index.ts")
   )fail("host_evidence_service_cmdline_not_reviewed_launcher_shape");
-  if(cwd!=="/opt/void-node-live/releases/"+commit)fail("host_evidence_service_cwd_release_generation_invalid");
   proveRootCustodyPath(cwd,true);
   proveRootCustodyPath(NODE_EXE,false);
   if(
@@ -917,10 +916,20 @@ function parseReviewedSourceFromCmdline(
   exactTrackedBlob(cwd,commit,"runtime/canonical-producer-source-custody-v1.cjs");
   proveRootCustodyPath(path.join(cwd,"node_modules/tsx/dist/preflight.cjs"),false);
   proveRootCustodyPath(path.join(cwd,"node_modules/tsx/dist/loader.mjs"),false);
+  proveRootCustodyPath("/usr/bin/setpriv",false);
   exactTrackedBlob(cwd,commit,guardRelativePath(indexBlob));
   const custodyScript=path.join(cwd,"runtime/canonical-producer-source-custody-v1.cjs");
-  const custody=spawnSync(NODE_EXE,[custodyScript,cwd],{
-    uid,gid,encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30_000,
+  const custody=spawnSync("/usr/bin/setpriv",[
+    "--reuid="+String(uid),
+    "--regid="+String(gid),
+    "--clear-groups",
+    "--no-new-privs",
+    NODE_EXE,
+    custodyScript,
+    cwd,
+  ],{
+    encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30_000,
+    maxBuffer:4*1024*1024,
     env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC"},
   });
   if(custody.status!==0||!String(custody.stdout||"").includes("VOID_CANONICAL_PRODUCER_SOURCE_CUSTODY_V1_GREEN")){

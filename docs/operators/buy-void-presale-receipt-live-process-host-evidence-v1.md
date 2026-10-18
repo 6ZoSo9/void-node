@@ -282,7 +282,12 @@ Live facts are obtained without process environment access:
 - process `stat`, `status`, `cgroup`, `cmdline`, `exe`, and `cwd`
   are bounded, descriptor-read kernel observations;
 - source commit/tree/main are derived from the exact reviewed launcher argv and
-  requalified against the clean root-custodied release Git tree;
+  requalified against the clean root-custodied observed checkout; the collector
+  does not invent an `/opt/.../releases/<commit>` location that the launcher
+  never promised;
+- source-custody requalification drops to the runtime UID/GID through fixed
+  `/usr/bin/setpriv --clear-groups --no-new-privs`, matching the reviewed
+  publisher contract;
 - the expected canonical-producer `NODE_OPTIONS` digest is derived from the
   reviewed `src/index.ts` generation and guard mapping, not read from
   `environ`;
