@@ -80,4 +80,7 @@ for line in (
     "service_action=false","training_execution=false","durable_attempt_claim=false","funds_movement=false",
 ):
     assert line in result.stdout,line
-print("VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1_PROOF_GREEN")\nprint("prior_v2_to_current_v2_migration_proven=true")\nprint("prior_v2_rollback_root_bound=true")\nprint("prior_v2_resume_states_bound=true")
+print("VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1_PROOF_GREEN")
+print("prior_v2_to_current_v2_migration_proven=true")
+print("prior_v2_rollback_root_bound=true")
+print("prior_v2_resume_states_bound=true")
