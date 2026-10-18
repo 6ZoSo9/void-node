@@ -42,7 +42,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_CHECKOUT_SHA"
 
-          readonly REVIEWED_PR_BASE="abfc9bca33717cda57448672107f1b8d8b3fdfd0"
+          readonly REVIEWED_PR_BASE="25dcb9635f965fd83224d027702dd134a50c0a5b"
           case "$EVENT_NAME" in
             pull_request)
               test "$PR_BASE" = "$REVIEWED_PR_BASE"
