@@ -101,7 +101,7 @@ for (const required of [
   'from "node:child_process"',
   "spawnSync(",
   'runText("/usr/bin/stat"',
-  'runText("/usr/bin/lsblk"',
+  '"/usr/bin/lsblk"',
 ]) {
   assert.ok(installationObserverSource.includes(required), required);
 }
