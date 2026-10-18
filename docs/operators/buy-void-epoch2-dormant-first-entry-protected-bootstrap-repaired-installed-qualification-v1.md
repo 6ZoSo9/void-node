@@ -26,10 +26,10 @@ Upgrader proof:
 `9e0b997230943b1ad0a0285e74e82faf049d7d31`
 
 Non-executing upgrade plan:
-`928568d08f56375911505af635306b715790c1f3`
+`ed1f1aeb5fadf0d1ab6e3644a11a7d34c3356e78`
 
 Upgrade-plan proof:
-`9525616f8fd03ba572bab1886dddd14914ebf3f7`
+`e695ceed29f61f08f480d4dafaad7cc6635adf81`
 
 ## Transition identities
 
@@ -115,6 +115,19 @@ native_parent_authority_claimed=false
 
 No persistent repository mutation is authorized.
 
+The qualifier's own preliminary Git observation also neutralizes callback-capable
+repository configuration before `status`, `show`, or `rev-parse`. In
+particular, `core.fsmonitor` is forced off and `core.hooksPath` is forced to
+`/dev/null`; credential helpers/interactivity and SSH command execution are
+disabled. The focused proof creates a hostile local fsmonitor callback and
+requires that callback not to execute.
+
+The bound #3509 planner generation is the repaired immutable-handoff generation:
+it records `future_apply_source_inline=true`,
+`future_apply_source_reopens_checkout=false`, and executes exact authenticated
+upgrader Git-object bytes inline in any later root argv rather than reopening the
+writable checkout script.
+
 ## Deliberate non-execution
 
 This qualification never executes:
@@ -142,6 +155,7 @@ All remain false:
 ```text
 temporary_git_metadata_write_required=true
 temporary_git_metadata_cleanup_completed=true
+qualification_git_callbacks_neutralized=true
 source_repository_mutation=false
 nonroot_run_required=true
 protected_filesystem_mutation=false
