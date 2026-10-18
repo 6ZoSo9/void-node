@@ -170,6 +170,18 @@ That gate must integrate/revalidate the external #3333 authorization-slot and tr
 
 Only after a blocked generation exists and #3333 protected consumption is proven can the already-reviewed release chain become relevant.
 
+## Untrusted input envelope
+
+Both capability and generation-binding APIs reject the shallow schema before
+structured cloning. Unknown keys, nested/boxed values in primitive fields, and
+oversized strings therefore fail before a caller can force duplication of an
+arbitrarily large object graph.
+
+Every identifier field is required to be a primitive string before any regular
+expression is applied; JavaScript array or boxed-string coercion is not accepted.
+Known strings are bounded to 256 characters, with process start ticks bounded to
+20 decimal digits before clone and then range-checked as a positive uint64.
+
 ## Hosted proof
 
 Hosted proof must establish:
@@ -187,6 +199,8 @@ Hosted proof must establish:
 - no second consumption namespace exists
 - generation binding remains unproven without raw-secret/live evidence
 - process start ticks are rejected before structured cloning when longer than 20 decimal digits and are range-checked as positive uint64
+- unknown oversized object graphs are rejected before structured cloning
+- regex-backed identifiers reject arrays and boxed strings rather than coercing them
 - #3333 trainer-generation validation remains external and unperformed
 - training-start consumption/admission, release, and execution remain false
 - production source contains no filesystem, network, child-process, systemctl, service-action, signing, wallet, transaction, or funds implementation
