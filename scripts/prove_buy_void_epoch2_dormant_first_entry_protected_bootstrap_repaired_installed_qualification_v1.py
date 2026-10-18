@@ -84,9 +84,6 @@ compile(source, TARGET_REL, "exec", dont_inherit=True)
 for required in (
     'UPGRADER_BLOB = "' + UPGRADER_BLOB + '"',
     'PLAN_BLOB = "' + PLAN_BLOB + '"',
-    OLD_LOCK,
-    NEW_LOCK,
-    NEW_CAND,
     GREEN_STATE,
     "upgrader.bindings(outer, expected_head)",
     "upgrader.state(outer, policy)",
