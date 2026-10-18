@@ -11,6 +11,7 @@ import stat
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 MARKER="VOID_APOLLYON_LIVE_CUSTODY_REVIEWED_ROOT_V2_UPGRADE_V1"
@@ -180,6 +181,8 @@ def _read_proc_cmdline(path:Path)->list[bytes]|None:
 
 def census_inflight_live_session_processes(
     proc_root:Path=PROC_ROOT,
+    *,
+    required_uid:int=0,
 )->list[dict[str,object]]:
     try:
         entries=list(proc_root.iterdir())
@@ -206,7 +209,7 @@ def census_inflight_live_session_processes(
         # The reviewed preentry and launcher both require root. Restrict the
         # quiescence barrier to that authority domain so unprivileged argv
         # spoofing cannot indefinitely block retirement.
-        if meta.st_uid!=0:
+        if meta.st_uid!=required_uid:
             continue
         args=_read_proc_cmdline(entry/"cmdline")
         if args is None or not args:
@@ -230,13 +233,18 @@ def assert_no_inflight_live_session_processes(
     proc_root:Path=PROC_ROOT,
     *,
     settle_seconds:float=0.05,
+    required_uid:int=0,
 )->dict[str,object]:
-    first=census_inflight_live_session_processes(proc_root)
+    first=census_inflight_live_session_processes(
+        proc_root,required_uid=required_uid
+    )
     if first:
         hold("inflight_live_session_process_present")
     if settle_seconds>0:
         time.sleep(settle_seconds)
-    second=census_inflight_live_session_processes(proc_root)
+    second=census_inflight_live_session_processes(
+        proc_root,required_uid=required_uid
+    )
     if second:
         hold("inflight_live_session_process_present")
     return {
@@ -727,13 +735,16 @@ def self_test()->None:
             row=proc/pid
             row.mkdir()
             (row/"cmdline").write_bytes(b"\0".join(args)+b"\0")
-        observed=census_inflight_live_session_processes(proc)
+        fixture_uid=os.geteuid()
+        observed=census_inflight_live_session_processes(
+            proc,required_uid=fixture_uid
+        )
         assert [row["role"] for row in observed]==[
             "native_preentry","fixed_launcher","private_runner"
         ]
         try:
             assert_no_inflight_live_session_processes(
-                proc,settle_seconds=0.0
+                proc,settle_seconds=0.0,required_uid=fixture_uid
             )
         except Hold as exc:
             assert str(exc)=="inflight_live_session_process_present",str(exc)
@@ -742,7 +753,7 @@ def self_test()->None:
         for pid in ("101","102","103"):
             shutil.rmtree(proc/pid)
         empty=assert_no_inflight_live_session_processes(
-            proc,settle_seconds=0.0
+            proc,settle_seconds=0.0,required_uid=fixture_uid
         )
         assert empty["root_owned_live_session_processes_absent"] is True
         assert empty["two_pass_process_census"] is True
