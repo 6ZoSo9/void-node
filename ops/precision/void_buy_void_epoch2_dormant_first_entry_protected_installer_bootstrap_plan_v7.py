@@ -1121,7 +1121,7 @@ def emit_plan(result: dict[str, Any]) -> None:
     )
     print(
         "next_action=SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_"
-        "PROTECTED_INSTALLER_BOOTSTRAP_V6_QUALIFY_AND_EXECUTE_PLAN"
+        "PROTECTED_INSTALLER_BOOTSTRAP_V7_QUALIFY_AND_EXECUTE_PLAN"
     )
 
 
