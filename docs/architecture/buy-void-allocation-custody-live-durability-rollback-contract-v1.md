@@ -75,22 +75,22 @@ custody, or independent custody:
 4. independently bind the exact reviewed source generation through the explicit
    machine-readable requirement
    `reviewed_source_generation_binding_required=true`;
-6. use fresh challenge entropy whose unpredictability is evidenced;
-5. append a live challenge to the replay journal;
+5. use fresh challenge entropy whose unpredictability is evidenced;
+6. append a live challenge to the replay journal;
 7. advance the protected high-water state;
 8. sync, close and independently reopen journal and high-water state;
 9. append the resulting challenge state to the external witness;
-10. perform a controlled rollback attempt through the reviewed rollback
-   controller;
-11. require the independent high-water second control;
-12. prove the protected high-water never decreases;
-13. prove stale journal state is refused after the rollback attempt;
-14. prove external-witness continuity after the attempt;
-15. reobserve distinct physical storage domains;
-16. rebind the reviewed policy after the test;
-17. prove the allocation ledger is unchanged;
-18. prove customer request state is unchanged; and
-19. authenticate the origin of the resulting live evidence.
+10. perform a controlled rollback attempt;
+11. require the reviewed rollback controller;
+12. require the independent high-water second control;
+13. prove the protected high-water never decreases;
+14. prove stale journal state is refused after the rollback attempt;
+15. prove external-witness continuity after the attempt;
+16. reobserve distinct physical storage domains;
+17. rebind the reviewed policy after the test;
+18. prove the allocation ledger is unchanged;
+19. prove customer request state is unchanged; and
+20. authenticate the origin of the resulting live evidence.
 
 The source contract additionally requires a reviewed rollback controller and
 records every future requirement in one immutable requirements object.

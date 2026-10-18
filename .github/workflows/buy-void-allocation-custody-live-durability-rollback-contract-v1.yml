@@ -55,7 +55,7 @@ jobs:
 
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
           test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs)" = 7ced5fb56a22cd546aab30c466021b01b1c6a84d
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md)" = 3954439eb39015baaf598c8e36a23865e0555e8f
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md)" = 16a8a755888abd7b9ad4f0377468d6a403f80a70
 
           test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
