@@ -262,6 +262,20 @@ expect_rejected(
     "candidate_lock_identity_invalid",
 )
 
+numeric_true_authority = json.loads(json.dumps(lock))
+numeric_true_authority["authority"]["candidate_accepted"] = 1
+expect_rejected(
+    readdress(numeric_true_authority),
+    "candidate_lock_authority_invalid",
+)
+
+numeric_false_authority = json.loads(json.dumps(lock))
+numeric_false_authority["authority"]["protected_install_authorized"] = 0
+expect_rejected(
+    readdress(numeric_false_authority),
+    "candidate_lock_authority_invalid",
+)
+
 install_overclaim = json.loads(json.dumps(lock))
 install_overclaim["authority"]["protected_install_authorized"] = True
 expect_rejected(
@@ -381,6 +395,8 @@ print("authority_oracle_isolated=true")
 print("build_evidence_alias_attack_rejected=true")
 print("build_evidence_oracle_isolated=true")
 print("boolean_version_rejected=true")
+print("numeric_authority_boolean_rejected=true")
+print("authority_boolean_types_exact=true")
 print("readdressed_install_overclaim_rejected=true")
 print("readdressed_rederivation_overclaim_rejected=true")
 print("readdressed_mutable_toolchain_overclaim_rejected=true")
