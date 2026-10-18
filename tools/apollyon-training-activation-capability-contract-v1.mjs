@@ -4,13 +4,17 @@ export const VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1 =
   "VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1";
 export const VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_V1 =
   "VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_V1";
-export const VOID_APOLLYON_TRAINING_ACTIVATION_CONSUMPTION_V1 =
-  "VOID_APOLLYON_TRAINING_ACTIVATION_CONSUMPTION_V1";
+export const VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1 =
+  "VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1";
 
 export const APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1 = Object.freeze({
   parent_head:"1fd4b17a7c2f9e3811f52ecf01f4087c1182dcae",
-  durable_claim_store_contract_blob_sha1:
-    "bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc",
+  training_start_consumption_contract_head:
+    "fdf47e77cd12eee38efe741edb02fa2fd39135e2",
+  training_start_consumption_contract_blob_sha1:
+    "60987b860fb7159d88f4f601b76878e7d8ccca92",
+  training_start_consumption_contract_in_parent_lineage:false,
+  training_start_consumption_integration_required:true,
   retired_v2_qualifier_blob_sha1:
     "5f67bb3ddcc7f130db4b90ad73f5450b109dbea4",
   retired_fixed_launcher_source_blob_sha1:
@@ -29,8 +33,13 @@ export const APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1 = Object.freeze({
 export const VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_AUTHORITY_V1 =
   Object.freeze({
     source_contract_only:true,
-    capability_issuance_performed:false,
-    protected_consumption_store_implemented:false,
+    activation_capability_issuance_performed:false,
+    protected_capability_store_required:true,
+    protected_capability_store_implemented:false,
+    create_once_key_is_training_start_consumption_slot:true,
+    external_training_start_consumption_contract_required:true,
+    external_training_start_consumption_contract_in_parent_lineage:false,
+    external_training_start_consumption_integration_required:true,
     systemd_credential_transport_selected_as_candidate:true,
     systemd_credential_runtime_proven:false,
     service_activation_authorized:false,
@@ -40,8 +49,8 @@ export const VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_AUTHORITY_V1 =
     filesystem_read:false,
     filesystem_write:false,
     network_access:false,
-    durable_attempt_claim:false,
     training_start_consumption_performed:false,
+    training_start_admission:false,
     training_release_authorized:false,
     training_execution_authorized:false,
     training_execution:false,
@@ -55,12 +64,15 @@ export const VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_AUTHORITY_V1 =
   });
 
 const HASH64=/^[0-9a-f]{64}$/u;
-const GIT40=/^[0-9a-f]{40}$/u;
 const INVOCATION_ID=/^[0-9a-f]{32}$/u;
 const CAPABILITY_ID=/^apollyon_training_activation_capability_v1:[0-9a-f]{64}$/u;
-const CONSUMPTION_ID=/^apollyon_training_activation_consumption_v1:[0-9a-f]{64}$/u;
+const BINDING_ID=/^apollyon_training_activation_binding_v1:[0-9a-f]{64}$/u;
 const CLAIM_ID=/^apollyon_attempt_claim_record_v2:[0-9a-f]{64}$/u;
 const AUTH_ID=/^apollyon_authz_v1:[0-9a-f]{64}$/u;
+const AUTHORIZATION_SLOT_ID=/^apollyon_attempt_claim_auth_slot_v1:[0-9a-f]{64}$/u;
+const AUTHORIZATION_SLOT_RECORD_ID=/^apollyon_attempt_claim_auth_slot_record_v1:[0-9a-f]{64}$/u;
+const CONSUMPTION_SLOT_ID=/^apollyon_training_start_slot_v1:[0-9a-f]{64}$/u;
+const TRAINER_GENERATION_ID=/^apollyon_pretraining_generation_v1:[0-9a-f]{64}$/u;
 const CUSTODY_ID=/^apollyon_custody_generation_v1:[0-9a-f]{64}$/u;
 const TERMINAL_ID=/^apollyon_terminal_receipt_v2:[0-9a-f]{64}$/u;
 const STORE_CONTRACT_ID=/^apollyon_claim_store_contract_v2:[0-9a-f]{64}$/u;
@@ -69,9 +81,13 @@ const STORE_GENERATION_ID=/^apollyon_claim_store_generation_v2:[0-9a-f]{64}$/u;
 
 const CAPABILITY_KEYS=Object.freeze([
   "activation_capability_id",
+  "activation_capability_issuance_performed",
   "activation_secret_sha256",
   "authorization_id",
+  "authorization_slot_id",
+  "authorization_slot_record_id",
   "capability_replay_authorized",
+  "create_once_key_must_equal_training_start_consumption_slot_id",
   "credential_name",
   "custody_generation_id",
   "direct_systemd_start_without_capability_authorized",
@@ -83,6 +99,7 @@ const CAPABILITY_KEYS=Object.freeze([
   "expected_unit_git_blob_sha1",
   "marker",
   "next_gate",
+  "protected_capability_store_required",
   "raw_capability_export_authorized",
   "status",
   "store_contract_id",
@@ -93,36 +110,42 @@ const CAPABILITY_KEYS=Object.freeze([
   "target_host",
   "terminal_receipt_id",
   "training_execution_authorized",
-  "training_start_consumption_required",
+  "training_start_consumption_contract_blob_sha1",
+  "training_start_consumption_contract_head",
+  "training_start_consumption_contract_in_parent_lineage",
+  "training_start_consumption_integration_required",
+  "training_start_consumption_slot_id",
   "version",
 ]);
 
-const CONSUMPTION_KEYS=Object.freeze([
+const BINDING_KEYS=Object.freeze([
+  "activation_binding_id",
   "activation_capability_id",
   "activation_generation_bound",
   "activation_secret_sha256",
   "boot_id_sha256",
-  "caller_supplied_consumption_receipt_sufficient",
-  "consumed_once",
-  "consumption_id",
   "credential_name",
-  "durable_claim_record_id",
   "marker",
   "next_gate",
   "observed_preentry_sha256",
-  "protected_consumption_store_required",
-  "replay_authorized",
   "status",
-  "store_generation_id",
   "systemd_caller_identity_authoritative",
   "systemd_invocation_id",
   "target_host",
+  "trainer_generation_external_contract_validation_required",
+  "trainer_generation_id",
   "training_execution_authorized",
+  "training_gid",
   "training_pid",
   "training_process_start_time_ticks",
   "training_release_authorized",
+  "training_source_identity_sha256",
   "training_start_admission",
   "training_start_consumption_performed",
+  "training_start_consumption_record_origin_proven",
+  "training_start_consumption_record_required",
+  "training_start_consumption_slot_id",
+  "training_uid",
   "version",
 ]);
 
@@ -183,10 +206,13 @@ function validateCapabilityMaterial(value){
   if(
     value.marker!==VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_V1||
     value.version!==1||
-    value.status!=="training_activation_capability_issued_unconsumed"||
+    value.status!=="training_activation_capability_candidate_unissued"||
     value.target_host!=="Xiphos"||
     !HASH64.test(value.activation_secret_sha256)||
     !AUTH_ID.test(value.authorization_id)||
+    !AUTHORIZATION_SLOT_ID.test(value.authorization_slot_id)||
+    !AUTHORIZATION_SLOT_RECORD_ID.test(value.authorization_slot_record_id)||
+    !CONSUMPTION_SLOT_ID.test(value.training_start_consumption_slot_id)||
     !CUSTODY_ID.test(value.custody_generation_id)||
     !CLAIM_ID.test(value.durable_claim_record_id)||
     !HASH64.test(value.durable_claim_record_sha256)||
@@ -203,14 +229,22 @@ function validateCapabilityMaterial(value){
       APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_entrypoint_sha256||
     value.expected_entrypoint_bytes!==
       APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_entrypoint_bytes||
+    value.training_start_consumption_contract_head!==
+      APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_start_consumption_contract_head||
+    value.training_start_consumption_contract_blob_sha1!==
+      APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.training_start_consumption_contract_blob_sha1||
+    value.training_start_consumption_contract_in_parent_lineage!==false||
+    value.training_start_consumption_integration_required!==true||
     value.systemd_credential_transport_required!==true||
     value.systemd_caller_identity_authoritative!==false||
     value.direct_systemd_start_without_capability_authorized!==false||
     value.capability_replay_authorized!==false||
     value.raw_capability_export_authorized!==false||
-    value.training_start_consumption_required!==true||
+    value.protected_capability_store_required!==true||
+    value.create_once_key_must_equal_training_start_consumption_slot_id!==true||
+    value.activation_capability_issuance_performed!==false||
     value.training_execution_authorized!==false||
-    value.next_gate!=="apollyon_training_activation_capability_consumption_v1"
+    value.next_gate!=="apollyon_training_activation_capability_protected_issuance_v1"
   )fail("apollyon_training_activation_capability_invalid");
 }
 
@@ -248,78 +282,83 @@ export function buildApollyonTrainingActivationCapabilityV1(materialInput){
   });
 }
 
-function validateConsumptionMaterial(capability,value){
+function validateBindingMaterial(capability,value){
   if(
-    value.marker!==VOID_APOLLYON_TRAINING_ACTIVATION_CONSUMPTION_V1||
+    value.marker!==VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1||
     value.version!==1||
-    value.status!=="training_activation_capability_consumed_generation_bound"||
+    value.status!=="training_activation_capability_generation_binding_candidate"||
     value.target_host!=="Xiphos"||
     value.activation_capability_id!==capability.activation_capability_id||
     value.activation_secret_sha256!==capability.activation_secret_sha256||
     value.credential_name!==capability.credential_name||
-    value.durable_claim_record_id!==capability.durable_claim_record_id||
-    value.store_generation_id!==capability.store_generation_id||
+    value.training_start_consumption_slot_id!==
+      capability.training_start_consumption_slot_id||
     !HASH64.test(value.boot_id_sha256)||
     !INVOCATION_ID.test(value.systemd_invocation_id)||
-    !Number.isSafeInteger(value.training_pid)||value.training_pid<=0||
-    !Number.isSafeInteger(value.training_process_start_time_ticks)||
-      value.training_process_start_time_ticks<=0||
+    !Number.isSafeInteger(value.training_pid)||value.training_pid<=1||
+    typeof value.training_process_start_time_ticks!=="string"||
+      !/^[1-9][0-9]*$/u.test(value.training_process_start_time_ticks)||
+    !Number.isSafeInteger(value.training_uid)||
+      value.training_uid<=0||value.training_uid>65533||
+    !Number.isSafeInteger(value.training_gid)||
+      value.training_gid<=0||value.training_gid>65533||
+    !HASH64.test(value.training_source_identity_sha256)||
+    !TRAINER_GENERATION_ID.test(value.trainer_generation_id)||
     value.observed_preentry_sha256!==capability.expected_preentry_sha256||
     value.systemd_caller_identity_authoritative!==false||
     value.activation_generation_bound!==true||
-    value.consumed_once!==true||
-    value.replay_authorized!==false||
-    value.protected_consumption_store_required!==true||
-    value.caller_supplied_consumption_receipt_sufficient!==false||
-    value.training_start_consumption_performed!==true||
-    value.training_start_admission!==true||
+    value.trainer_generation_external_contract_validation_required!==true||
+    value.training_start_consumption_record_required!==true||
+    value.training_start_consumption_record_origin_proven!==false||
+    value.training_start_consumption_performed!==false||
+    value.training_start_admission!==false||
     value.training_release_authorized!==false||
     value.training_execution_authorized!==false||
-    value.next_gate!=="apollyon_training_start_release_v1"
-  )fail("apollyon_training_activation_consumption_invalid");
+    value.next_gate!=="apollyon_training_start_consumption_integration_v1"
+  )fail("apollyon_training_activation_binding_invalid");
 }
 
-export function qualifyApollyonTrainingActivationConsumptionV1(
+export function qualifyApollyonTrainingActivationGenerationBindingV1(
   capabilityInput,
-  consumptionInput,
+  bindingInput,
 ){
   const capability=qualifyApollyonTrainingActivationCapabilityV1(capabilityInput);
   const value=clonePlain(
-    consumptionInput,
-    "apollyon_training_activation_consumption_invalid",
+    bindingInput,
+    "apollyon_training_activation_binding_invalid",
   );
-  exactOwnKeys(value,CONSUMPTION_KEYS,"apollyon_training_activation_consumption_invalid");
-  if(!CONSUMPTION_ID.test(value.consumption_id)){
-    fail("apollyon_training_activation_consumption_id_invalid");
+  exactOwnKeys(value,BINDING_KEYS,"apollyon_training_activation_binding_invalid");
+  if(!BINDING_ID.test(value.activation_binding_id)){
+    fail("apollyon_training_activation_binding_id_invalid");
   }
   const material={...value};
-  delete material.consumption_id;
-  validateConsumptionMaterial(capability,material);
+  delete material.activation_binding_id;
+  validateBindingMaterial(capability,material);
   if(
-    value.consumption_id!==
-    contentAddress("apollyon_training_activation_consumption_v1:",material)
-  )fail("apollyon_training_activation_consumption_id_invalid");
+    value.activation_binding_id!==
+    contentAddress("apollyon_training_activation_binding_v1:",material)
+  )fail("apollyon_training_activation_binding_id_invalid");
   return deepFreeze(value);
 }
 
-export function buildApollyonTrainingActivationConsumptionV1(
+export function buildApollyonTrainingActivationGenerationBindingV1(
   capabilityInput,
   materialInput,
 ){
   const capability=qualifyApollyonTrainingActivationCapabilityV1(capabilityInput);
   const material=clonePlain(
     materialInput,
-    "apollyon_training_activation_consumption_invalid",
+    "apollyon_training_activation_binding_invalid",
   );
   exactOwnKeys(
     material,
-    CONSUMPTION_KEYS.filter((key)=>key!=="consumption_id"),
-    "apollyon_training_activation_consumption_invalid",
+    BINDING_KEYS.filter((key)=>key!=="activation_binding_id"),
+    "apollyon_training_activation_binding_invalid",
   );
-  validateConsumptionMaterial(capability,material);
-  return qualifyApollyonTrainingActivationConsumptionV1(capability,{
+  validateBindingMaterial(capability,material);
+  return qualifyApollyonTrainingActivationGenerationBindingV1(capability,{
     ...material,
-    consumption_id:
-      contentAddress("apollyon_training_activation_consumption_v1:",material),
+    activation_binding_id:
+      contentAddress("apollyon_training_activation_binding_v1:",material),
   });
 }
