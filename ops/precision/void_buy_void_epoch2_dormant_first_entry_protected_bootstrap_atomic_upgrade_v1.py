@@ -105,14 +105,15 @@ def root_layout(m,policy,old_id,new_id):
 def observed_rename(m,opt_fd,source,target,flags,policy,old_id,new_id):
     caught=None
     previous=signal.pthread_sigmask(signal.SIG_BLOCK,{signal.SIGINT})
+    try: m._renameat2(opt_fd,source,target,flags)
+    except BaseException as exc: caught=exc
+    layout=root_layout(m,policy,old_id,new_id)
     try:
-        try: m._renameat2(opt_fd,source,target,flags)
-        except BaseException as exc: caught=exc
-    finally:
-        try: signal.pthread_sigmask(signal.SIG_SETMASK,previous)
-        except BaseException as exc:
-            if caught is None: caught=exc
-    return root_layout(m,policy,old_id,new_id),caught
+        signal.pthread_sigmask(signal.SIG_SETMASK,previous)
+        return layout,caught
+    except BaseException as exc:
+        if caught is None: caught=exc
+        return layout,caught
 
 def bindings(m,head):
     try:
