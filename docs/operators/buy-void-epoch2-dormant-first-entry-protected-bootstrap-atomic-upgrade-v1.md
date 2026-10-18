@@ -95,9 +95,18 @@ The repaired fixed root and predecessor are never created by in-place overwrite.
 ## Rollback
 
 Any failure after the first successful root exchange is publication-aware.
+Each forward rename handoff is marked attempted before entering the syscall. SIGINT
+delivery is deferred across the syscall boundary, and after every successful,
+failed, or interrupted rename the upgrader classifies the exact old/new root inode
+layout at the fixed, staging, and predecessor pathnames. Publication and
+predecessor-retention truth are derived from that observed layout rather than from
+a Boolean assignment that may not have executed after kernel success.
+
 The upgrader attempts to exchange the exact predecessor generation back into the
 fixed root, move the repaired generation back to the staging pathname, and remove
-only the staging inode created by the current invocation.
+only the staging inode created by the current invocation. Rollback rename outcomes
+are also reconciled by exact layout; an interrupt after kernel success may continue
+only when the expected next layout is already proven.
 
 Cleanup refuses unknown entries or a substituted staging inode. A proven rollback
 reports `publication_state=published_rolled_back_green`; an ambiguous rollback
@@ -115,7 +124,11 @@ The focused proof:
 - exercises a complete atomic exchange in a temporary directory;
 - verifies repaired fixed root plus retained predecessor;
 - injects a post-exchange binding failure and requires a green automatic rollback;
-- verifies publication truth remains monotonic across the rollback;
+- injects `KeyboardInterrupt` immediately after the first exchange has
+  succeeded in the kernel and requires observed-layout reconciliation plus green rollback;
+- injects `KeyboardInterrupt` immediately after predecessor retention has
+  succeeded in the kernel and requires the retained layout to select the correct rollback path;
+- verifies publication truth remains monotonic across every rollback;
 - inserts a foreign staging entry and requires cleanup refusal;
 - rejects subprocess/systemctl/exec-based live execution paths in the upgrader source.
 
