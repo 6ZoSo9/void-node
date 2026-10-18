@@ -15,7 +15,7 @@ WORKFLOW_REL = (
     "buy-void-epoch2-dormant-first-entry-protected-bootstrap-"
     "repaired-installed-qualification-v1.yml"
 )
-EXACT_PARENT = "6ad7b6d3dde9c2131d27389101d3439babb98de9"
+EXACT_PARENT = "4658a7d6650225d0bfb66e7868cef5646245d6c7"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
