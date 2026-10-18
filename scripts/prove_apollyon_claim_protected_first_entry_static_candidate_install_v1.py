@@ -14,7 +14,7 @@ import copy
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
-SOURCE_BLOB = "88d7a5559377758232ecd432657a37e1838fcaf9"
+SOURCE_BLOB = "2cf4d09059796b3f755a1a647b474de804ad206d"
 
 
 def git_blob(raw: bytes) -> str:
@@ -111,6 +111,65 @@ with tempfile.TemporaryDirectory(prefix="apollyon-parent-open-race-") as td:
     finally:
         mod.os.open = real_open
         mod.ROOT = original_root
+
+# The exact authenticated #3494 module historically reopens its four candidate
+# dependencies through Path.read_bytes(). The wrapper must replace that helper
+# before derive/validate. Exercise the replacement directly with a pre-open
+# FIFO substitution; no Git call may be reached after descriptor drift.
+with tempfile.TemporaryDirectory(prefix="apollyon-parent-dependency-race-") as td:
+    temp_root = Path(td)
+    relative = "candidate/source.py"
+    dependency_path = temp_root / relative
+    dependency_path.parent.mkdir(parents=True)
+    dependency_path.write_bytes(b"synthetic-dependency-source")
+    real_open = os.open
+    git_called = False
+
+    class SyntheticParent:
+        ROOT = temp_root
+        MAX_SOURCE_BYTES = 1024
+
+        @staticmethod
+        def git(*_args: str) -> str:
+            nonlocal_git_marker[0] = True
+            return "0" * 40
+
+    nonlocal_git_marker = [False]
+
+    def dependency_raced_open(
+        path: object,
+        flags: int,
+        *args: object,
+        **kwargs: object,
+    ) -> int:
+        if Path(os.fspath(path)) == dependency_path:
+            assert flags & os.O_NOFOLLOW
+            assert flags & os.O_NONBLOCK
+            dependency_path.unlink()
+            os.mkfifo(dependency_path, 0o600)
+        return real_open(path, flags, *args, **kwargs)
+
+    mod.os.open = dependency_raced_open
+    try:
+        try:
+            mod._read_parent_dependency_source(
+                SyntheticParent,
+                relative,
+                mod.git_blob(b"synthetic-dependency-source"),
+            )
+        except mod.Hold as exc:
+            assert str(exc) == "accepted_parent_dependency_changed"
+        else:
+            raise AssertionError("parent dependency FIFO pre-open race admitted")
+        assert nonlocal_git_marker[0] is False
+    finally:
+        mod.os.open = real_open
+
+source_text = TARGET.read_text(encoding="utf-8")
+assert source_text.index("module.stable_file = lambda") < source_text.index(
+    "lock = module.derive_lock()"
+)
+assert "def _read_parent_dependency_source(" in source_text
 
 # These deliberately synthetic BytesIO fixtures are never accepted production
 # bytes; only the public CLI sources the real immutable lock before verifying
@@ -285,6 +344,8 @@ for required in (
     "def load_accepted_parent_lock()",
     "git_blob(raw) != PARENT_BLOB",
     "exec(compile(raw, os.fspath(target), \"exec\")",
+    "def _read_parent_dependency_source(",
+    "module.stable_file = lambda",
     "def read_untrusted_tar(path: Path)",
     "os.O_NOFOLLOW | os.O_NONBLOCK",
     "def verify_archive_bytes(raw: bytes, lock: dict[str, Any])",
@@ -295,7 +356,7 @@ for required in (
     "protected_install_authorized\": False",
 ):
     assert required in source, required
-assert source.count("os.O_NONBLOCK") == 2
+assert source.count("os.O_NONBLOCK") == 3
 
 for forbidden in (
     "os.rename(",
@@ -317,6 +378,8 @@ print("accepted_parent_lock_bound=true")
 print("parent_failure_machine_readable_hold=true")
 print("archive_preopen_fifo_swap_rejected_without_blocking=true")
 print("parent_preopen_fifo_swap_rejected_without_blocking=true")
+print("parent_dependency_descriptor_custody=true")
+print("parent_dependency_fifo_swap_rejected_without_blocking=true")
 print("read_only_tar_validation=true")
 print("synthetic_positive_fixture_verified=true")
 print("synthetic_fixture_not_accepted_by_production_lock=true")

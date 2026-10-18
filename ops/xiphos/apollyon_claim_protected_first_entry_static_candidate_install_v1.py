@@ -93,6 +93,69 @@ def _same_file(a: os.stat_result, b: os.stat_result) -> bool:
     )
 
 
+def _read_parent_dependency_source(
+    parent_module: types.ModuleType,
+    relative: str,
+    expected_blob: str,
+) -> bytes:
+    """Replace the historical parent's pathname-reopening stable_file safely."""
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or os.path.isabs(relative)
+        or ".." in Path(relative).parts
+    ):
+        hold("accepted_parent_dependency_path_invalid")
+    root = Path(parent_module.ROOT)
+    path = root / relative
+    try:
+        before = path.lstat()
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or stat.S_ISLNK(before.st_mode)
+            or before.st_nlink != 1
+            or not 0 < before.st_size <= int(parent_module.MAX_SOURCE_BYTES)
+        ):
+            hold("accepted_parent_dependency_metadata_invalid")
+        fd = os.open(
+            path,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
+    except OSError as exc:
+        raise Hold("accepted_parent_dependency_unavailable") from exc
+    try:
+        opened = os.fstat(fd)
+        if not _same_file(before, opened):
+            hold("accepted_parent_dependency_changed")
+        chunks: list[bytes] = []
+        remaining = before.st_size
+        while remaining:
+            chunk = os.read(fd, min(65536, remaining))
+            if not chunk:
+                hold("accepted_parent_dependency_short_read")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(fd, 1) != b"":
+            hold("accepted_parent_dependency_grew")
+        after = os.fstat(fd)
+        visible = path.lstat()
+        if (
+            not _same_file(opened, after)
+            or not _same_file(after, visible)
+        ):
+            hold("accepted_parent_dependency_changed")
+        raw = b"".join(chunks)
+        if len(raw) != before.st_size or git_blob(raw) != expected_blob:
+            hold("accepted_parent_dependency_blob_invalid")
+        if parent_module.git("rev-parse", "HEAD:" + relative) != expected_blob:
+            hold("accepted_parent_dependency_not_exact_head")
+        return raw
+    except OSError as exc:
+        raise Hold("accepted_parent_dependency_read_failed") from exc
+    finally:
+        os.close(fd)
+
+
 def load_accepted_parent_lock() -> dict[str, Any]:
     """Execute only verified accepted parent source bytes, never import checkout."""
     target = ROOT / PARENT_REL
@@ -135,6 +198,13 @@ def load_accepted_parent_lock() -> dict[str, Any]:
     module.__package__ = ""
     try:
         exec(compile(raw, os.fspath(target), "exec"), module.__dict__)
+        # The accepted historical lock is immutable evidence, but its original
+        # stable_file() reopens checkout paths by name. Replace only that helper
+        # before any derivation/validation so predecessor evidence is read
+        # through retained, no-follow, nonblocking descriptors.
+        module.stable_file = lambda relative, expected_blob: (
+            _read_parent_dependency_source(module, relative, expected_blob)
+        )
         lock = module.derive_lock()
         module.validate_lock(lock)
     except (OSError, RuntimeError, SyntaxError, ValueError, TypeError) as exc:
