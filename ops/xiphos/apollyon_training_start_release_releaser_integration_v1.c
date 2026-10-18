@@ -35,6 +35,7 @@
 
 #if defined(__x86_64__)
 #define EXPECTED_AUDIT_ARCH AUDIT_ARCH_X86_64
+#define X32_SYSCALL_BIT_V1 0x40000000U
 #elif defined(__aarch64__)
 #define EXPECTED_AUDIT_ARCH AUDIT_ARCH_AARCH64
 #else
@@ -405,8 +406,8 @@ static int install_writer_continuity_filter(void) {
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,EXPECTED_AUDIT_ARCH,1,0),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_KILL_PROCESS),
         BPF_STMT(BPF_LD|BPF_W|BPF_ABS,(uint32_t)offsetof(struct seccomp_data,nr)),
-#if defined(__x86_64__) && defined(__X32_SYSCALL_BIT)
-        BPF_JUMP(BPF_JMP|BPF_JSET|BPF_K,__X32_SYSCALL_BIT,0,1),
+#if defined(__x86_64__)
+        BPF_JUMP(BPF_JMP|BPF_JSET|BPF_K,X32_SYSCALL_BIT_V1,0,1),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_KILL_PROCESS),
 #endif
 #ifdef __NR_clone
