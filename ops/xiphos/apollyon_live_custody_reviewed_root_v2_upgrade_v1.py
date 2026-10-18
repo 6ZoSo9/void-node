@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import socket
 import stat
+import shutil
 import subprocess
 import sys
 
@@ -207,43 +208,127 @@ def fsync_tree(root:Path)->None:
         finally:
             os.close(fd)
 
-def install_new_tree(mapping:dict[str,str])->None:
-    if NEW_ROOT.exists():
-        verify_tree(NEW_ROOT,mapping)
-        return
-    stage=NEW_ROOT.parent/(".void-apollyon-live-custody-binding-v2-reviewed-v2.new."+str(os.getpid()))
-    if stage.exists():
-        hold("new_root_stage_collision")
-    ensure_root_dir(stage)
+def reviewed_v2_root_state(manifest:dict)->str:
+    if not NEW_ROOT.exists():
+        return "absent"
+    try:
+        verify_tree(NEW_ROOT,manifest["to"]["closure"])
+        return "current_exact"
+    except (Hold,FileNotFoundError):
+        pass
+    try:
+        verify_tree(NEW_ROOT,manifest["prior_v2"]["closure"])
+        return "prior_v2_exact"
+    except (Hold,FileNotFoundError) as exc:
+        raise Hold("reviewed_v2_root_collision") from exc
+
+def prior_v2_backup_state(manifest:dict)->str:
+    if not PRIOR_V2_BACKUP_ROOT.exists():
+        return "absent"
+    try:
+        verify_tree(PRIOR_V2_BACKUP_ROOT,manifest["prior_v2"]["closure"])
+    except (Hold,FileNotFoundError) as exc:
+        raise Hold("prior_v2_backup_collision") from exc
+    return "prior_v2_exact"
+
+def launcher_state()->str:
+    try: st=os.lstat(FIXED_LAUNCHER)
+    except FileNotFoundError: hold("fixed_launcher_missing")
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_uid!=0 or st.st_gid!=0 or st.st_nlink!=1 or
+        stat.S_IMODE(st.st_mode)!=0o444
+    ): hold("fixed_launcher_metadata_invalid")
+    digest=git_blob(FIXED_LAUNCHER.read_bytes())
+    if digest==OLD_LAUNCHER_BLOB:return "old_exact"
+    if digest==PRIOR_V2_LAUNCHER_BLOB:return "prior_v2_exact"
+    if digest==NEW_LAUNCHER_BLOB:return "new_exact"
+    hold("fixed_launcher_collision")
+
+def classify_upgrade_state(launcher:str,root:str,backup:str)->str:
+    if launcher=="old_exact" and backup=="absent":
+        if root=="absent": return "legacy_v1_pending"
+        if root=="current_exact": return "legacy_v1_tree_installed"
+    if (
+        launcher=="prior_v2_exact" and
+        root=="prior_v2_exact" and backup=="absent"
+    ):
+        return "prior_v2_pending"
+    if launcher=="new_exact":
+        if root=="prior_v2_exact" and backup=="absent":
+            return "prior_v2_launcher_switched"
+        if root=="absent" and backup=="prior_v2_exact":
+            return "prior_v2_root_swap_resume"
+        if root=="current_exact" and backup=="absent":
+            return "current_exact"
+        if root=="current_exact" and backup=="prior_v2_exact":
+            return "current_exact_from_prior_v2"
+    hold("unsupported_upgrade_state:"+launcher+":"+root+":"+backup)
+
+def fsync_parent(path:Path)->None:
+    fd=os.open(
+        path.parent,
+        os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_CLOEXEC",0),
+    )
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+def prepare_current_stage(mapping:dict[str,str])->None:
+    if CURRENT_STAGE.exists():
+        try:
+            verify_tree(CURRENT_STAGE,mapping)
+            return
+        except (Hold,FileNotFoundError):
+            exact_root_dir(CURRENT_STAGE)
+            shutil.rmtree(CURRENT_STAGE)
+            fsync_parent(CURRENT_STAGE)
+    ensure_root_dir(CURRENT_STAGE)
     try:
         for rel,blob in mapping.items():
             data=read_source(rel,blob)
-            target=stage/rel
-            install_file(target,data)
-        verify_tree(stage,mapping)
-        fsync_tree(stage)
-        parent_fd=os.open(NEW_ROOT.parent,os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_CLOEXEC",0))
-        try:
-            if NEW_ROOT.exists():
-                verify_tree(NEW_ROOT,mapping)
-                return
-            os.rename(stage,NEW_ROOT)
-            os.fsync(parent_fd)
-        finally:
-            os.close(parent_fd)
-        verify_tree(NEW_ROOT,mapping)
-    finally:
-        if stage.exists():
-            import shutil
-            shutil.rmtree(stage)
+            install_file(CURRENT_STAGE/rel,data)
+        verify_tree(CURRENT_STAGE,mapping)
+        fsync_tree(CURRENT_STAGE)
+        fsync_parent(CURRENT_STAGE)
+    except BaseException:
+        if CURRENT_STAGE.exists():
+            try:
+                exact_root_dir(CURRENT_STAGE)
+                shutil.rmtree(CURRENT_STAGE)
+                fsync_parent(CURRENT_STAGE)
+            except Exception:
+                pass
+        raise
 
-def replace_launcher(new_bytes:bytes)->bool:
+def install_new_tree(mapping:dict[str,str])->bool:
+    if NEW_ROOT.exists():
+        verify_tree(NEW_ROOT,mapping)
+        return False
+    prepare_current_stage(mapping)
+    if NEW_ROOT.exists():
+        verify_tree(NEW_ROOT,mapping)
+        return False
+    os.rename(CURRENT_STAGE,NEW_ROOT)
+    fsync_parent(NEW_ROOT)
+    verify_tree(NEW_ROOT,mapping)
+    return True
+
+def replace_launcher(new_bytes:bytes,allowed_from:tuple[str,...])->bool:
     state=launcher_state()
     if state=="new_exact": return False
+    if state not in allowed_from:
+        hold("fixed_launcher_unexpected_migration_source:"+state)
+    expected_blob=(
+        OLD_LAUNCHER_BLOB if state=="old_exact"
+        else PRIOR_V2_LAUNCHER_BLOB
+    )
     before=os.lstat(FIXED_LAUNCHER)
     temp=FIXED_LAUNCHER.parent/(".launcher.new."+str(os.getpid()))
     fd=os.open(
-        temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),
+        temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|
+        getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),
         0o600,
     )
     try:
@@ -253,16 +338,48 @@ def replace_launcher(new_bytes:bytes)->bool:
     finally: os.close(fd)
     try:
         current=os.lstat(FIXED_LAUNCHER)
-        if not same_identity(before,current) or git_blob(FIXED_LAUNCHER.read_bytes())!=OLD_LAUNCHER_BLOB:
+        if (
+            not same_identity(before,current) or
+            git_blob(FIXED_LAUNCHER.read_bytes())!=expected_blob
+        ):
             hold("fixed_launcher_changed_before_replace")
         os.replace(temp,FIXED_LAUNCHER)
-        dfd=os.open(FIXED_LAUNCHER.parent,os.O_RDONLY|getattr(os,"O_DIRECTORY",0))
-        try: os.fsync(dfd)
-        finally: os.close(dfd)
+        fsync_parent(FIXED_LAUNCHER)
     finally:
         try: os.unlink(temp)
         except FileNotFoundError: pass
-    if launcher_state()!="new_exact": hold("fixed_launcher_post_replace_invalid")
+    if launcher_state()!="new_exact":
+        hold("fixed_launcher_post_replace_invalid")
+    return True
+
+def migrate_prior_v2_tree(manifest:dict)->bool:
+    current=reviewed_v2_root_state(manifest)
+    backup=prior_v2_backup_state(manifest)
+    if current=="current_exact" and backup=="prior_v2_exact":
+        return False
+    if backup=="absent":
+        if current!="prior_v2_exact":
+            hold("prior_v2_source_root_missing")
+        prepare_current_stage(manifest["to"]["closure"])
+        if PRIOR_V2_BACKUP_ROOT.exists():
+            hold("prior_v2_backup_raced")
+        os.rename(NEW_ROOT,PRIOR_V2_BACKUP_ROOT)
+        fsync_parent(PRIOR_V2_BACKUP_ROOT)
+        verify_tree(PRIOR_V2_BACKUP_ROOT,manifest["prior_v2"]["closure"])
+        current="absent"
+        backup="prior_v2_exact"
+    if backup!="prior_v2_exact":
+        hold("prior_v2_backup_unproven")
+    if current=="prior_v2_exact":
+        hold("prior_v2_duplicate_source_after_backup")
+    if current=="absent":
+        prepare_current_stage(manifest["to"]["closure"])
+        if NEW_ROOT.exists():
+            hold("reviewed_v2_root_raced")
+        os.rename(CURRENT_STAGE,NEW_ROOT)
+        fsync_parent(NEW_ROOT)
+    verify_tree(PRIOR_V2_BACKUP_ROOT,manifest["prior_v2"]["closure"])
+    verify_tree(NEW_ROOT,manifest["to"]["closure"])
     return True
 
 def plan()->dict:
@@ -270,34 +387,83 @@ def plan()->dict:
     manifest=load_upgrade_manifest()
     assert_services_dormant()
     verify_tree(OLD_ROOT,manifest["from"]["closure"])
-    old_state=launcher_state()
-    new_present=NEW_ROOT.exists()
-    if new_present: verify_tree(NEW_ROOT,manifest["to"]["closure"])
+    launcher=launcher_state()
+    root=reviewed_v2_root_state(manifest)
+    backup=prior_v2_backup_state(manifest)
+    migration=classify_upgrade_state(launcher,root,backup)
     for rel,blob in manifest["to"]["closure"].items(): read_source(rel,blob)
+    if migration.startswith("prior_v2") or migration=="current_exact_from_prior_v2":
+        for rel,blob in manifest["prior_v2"]["closure"].items():
+            if rel==LAUNCHER_REL:
+                continue
+            if not isinstance(blob,str) or len(blob)!=40:
+                hold("prior_v2_manifest_blob_invalid:"+rel)
+    if migration.startswith("legacy_v1"):
+        next_action="APPLY_REVIEWED_ROOT_V2_UPGRADE"
+    elif migration.startswith("prior_v2"):
+        next_action="APPLY_PRIOR_V2_TO_CURRENT_V2_MIGRATION"
+    else:
+        next_action="UPGRADE_ALREADY_EXACT"
     return {
         "marker":MARKER,"mode":"--plan","target_host":TARGET_HOST,
         "old_root_verified":True,"old_root_preserved":True,
-        "new_root_present":new_present,"fixed_launcher_state":old_state,
+        "reviewed_v2_root_state":root,
+        "prior_v2_backup_state":backup,
+        "fixed_launcher_state":launcher,
+        "migration_state":migration,
+        "prior_v2_migration_source_bound":True,
+        "prior_v2_backup_root":str(PRIOR_V2_BACKUP_ROOT),
         "new_closure_source_verified":True,
         "service_action":False,"systemd_mutation":False,
         "training_execution":False,"durable_attempt_claim":False,
         "operator_private_key_access":False,"funds_movement":False,
-        "next_action":"APPLY_REVIEWED_ROOT_V2_UPGRADE" if old_state=="old_exact" or not new_present else "UPGRADE_ALREADY_EXACT",
+        "next_action":next_action,
     }
 
 def apply()->dict:
     if os.geteuid()!=0: hold("apply_requires_root")
     before=plan()
     manifest=load_upgrade_manifest()
-    install_new_tree(manifest["to"]["closure"])
-    changed=replace_launcher(read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB))
+    migration=before["migration_state"]
+    changed=False
+    tree_changed=False
+    if migration.startswith("legacy_v1"):
+        tree_changed=install_new_tree(manifest["to"]["closure"])
+        changed=replace_launcher(
+            read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),
+            ("old_exact",),
+        )
+    elif migration in (
+        "prior_v2_pending",
+        "prior_v2_launcher_switched",
+        "prior_v2_root_swap_resume",
+    ):
+        if launcher_state()!="new_exact":
+            changed=replace_launcher(
+                read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),
+                ("prior_v2_exact",),
+            )
+        tree_changed=migrate_prior_v2_tree(manifest)
+    elif migration in ("current_exact","current_exact_from_prior_v2"):
+        pass
+    else:
+        hold("unsupported_apply_state:"+migration)
     verify_tree(OLD_ROOT,manifest["from"]["closure"])
     verify_tree(NEW_ROOT,manifest["to"]["closure"])
+    final_backup=prior_v2_backup_state(manifest)
+    if migration.startswith("prior_v2") and final_backup!="prior_v2_exact":
+        hold("prior_v2_backup_missing_after_migration")
     assert_services_dormant()
     return {
-        **before,"mode":"--apply","new_root_present":True,
-        "fixed_launcher_state":"new_exact","fixed_launcher_replaced":changed,
-        "old_root_preserved":True,"reviewed_root_v2_upgrade_complete":True,
+        **before,"mode":"--apply",
+        "reviewed_v2_root_state":"current_exact",
+        "prior_v2_backup_state":final_backup,
+        "fixed_launcher_state":"new_exact",
+        "fixed_launcher_replaced":changed,
+        "reviewed_v2_tree_replaced":tree_changed,
+        "old_root_preserved":True,
+        "prior_v2_backup_preserved":final_backup=="prior_v2_exact",
+        "reviewed_root_v2_upgrade_complete":True,
         "service_action":False,"systemd_mutation":False,
         "training_execution":False,"durable_attempt_claim":False,
         "operator_private_key_access":False,"funds_movement":False,
@@ -307,10 +473,32 @@ def apply()->dict:
 def self_test()->None:
     manifest=load_upgrade_manifest()
     assert manifest["to"]["systemd_reviewed_versions"]==["255.4-1ubuntu8.11","255.4-1ubuntu8.18"]
+    assert manifest["prior_v2"]["systemd_reviewed_versions"]==manifest["to"]["systemd_reviewed_versions"]
+    assert manifest["prior_v2"]["fixed_launcher_blob_sha1"]==PRIOR_V2_LAUNCHER_BLOB
+    assert manifest["prior_v2_backup_root"]==str(PRIOR_V2_BACKUP_ROOT)
     assert manifest["to"]["closure"]["ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"]=="2a285b5b1da2597a8b9eae6d08cd42d010bf7f71"
     assert manifest["to"]["closure"]["tools/apollyon-v2-raw-collector-adapter-v1.mjs"]=="1cce303c25317b66e5f264f1b3f8c05712879cfe"
     assert manifest["to"]["closure"][LAUNCHER_REL]==NEW_LAUNCHER_BLOB
+    assert classify_upgrade_state("old_exact","absent","absent")=="legacy_v1_pending"
+    assert classify_upgrade_state("old_exact","current_exact","absent")=="legacy_v1_tree_installed"
+    assert classify_upgrade_state("prior_v2_exact","prior_v2_exact","absent")=="prior_v2_pending"
+    assert classify_upgrade_state("new_exact","prior_v2_exact","absent")=="prior_v2_launcher_switched"
+    assert classify_upgrade_state("new_exact","absent","prior_v2_exact")=="prior_v2_root_swap_resume"
+    assert classify_upgrade_state("new_exact","current_exact","absent")=="current_exact"
+    assert classify_upgrade_state("new_exact","current_exact","prior_v2_exact")=="current_exact_from_prior_v2"
+    for bad in (
+        ("old_exact","prior_v2_exact","absent"),
+        ("prior_v2_exact","current_exact","absent"),
+        ("new_exact","prior_v2_exact","prior_v2_exact"),
+    ):
+        try:
+            classify_upgrade_state(*bad)
+        except Hold:
+            pass
+        else:
+            raise AssertionError("unsupported migration state accepted")
     source=Path(__file__).read_text(encoding="utf-8")
+    assert source.index('replace_launcher(\n                read_source(LAUNCHER_REL,NEW_LAUNCHER_BLOB),\n                ("prior_v2_exact",),') < source.index('tree_changed=migrate_prior_v2_tree(manifest)')
     for forbidden_parts in (
         ("systemctl",'",',"start"),("systemctl",'",',"stop"),("systemctl",'",',"restart"),
         ("training_execution",":True"),("durable_attempt_claim",":True"),
@@ -320,7 +508,13 @@ def self_test()->None:
         assert forbidden not in source,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
     print("old_root_preserved=true")
+    print("prior_v2_migration_source_bound=true")
+    print("prior_v2_launcher_b96_bound=true")
+    print("prior_v2_backup_preserved=true")
+    print("prior_v2_interrupted_states_resumable=true")
+    print("current_launcher_installed_before_prior_root_swap=true")
     print("new_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2")
+    print("prior_v2_backup_root=/opt/void-apollyon-live-custody-binding-v2-reviewed-v2-prior-v1")
     print("systemd_8_18_reviewed=true")
     print("service_action=false")
     print("training_execution=false")
