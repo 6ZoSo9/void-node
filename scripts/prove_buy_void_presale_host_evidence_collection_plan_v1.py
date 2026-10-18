@@ -8,15 +8,15 @@ import stat
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN_REL = "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json"
-PLAN_BLOB = "44269bd209caacd8f2385b0ad83c213cc4c1ab8a"
-PLAN_ID = "voidbuyhostevplan1_5201f733c3f8bc47379dc54da66534895718f7618f56f34a1db8ef38db5d64f9"
-PARENT_HEAD = "45813f0de04ccccb8d12e0f0283096cb2b05843c"
+PLAN_BLOB = "ad68175e629fd1cf90180db3a904f84834314fdd"
+PLAN_ID = "voidbuyhostevplan1_665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab"
+PARENT_HEAD = "a15326fc288f0bb01bfc179fdf93b2da9231f8b6"
 
 PARENT_PINS = {
-    "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py": "1c8299cb38e3a02c5e65c3d38d4863e8ee0c1005",
-    "scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py": "15813299b38ac146dd4b82b109fef72fbfb868c3",
-    "docs/operators/buy-void-presale-source-freeze-host-install-qualification-v2.md": "e71be4de220132934a96a60c7eabd04f0952f219",
-    ".github/workflows/buy-void-presale-source-freeze-host-install-qualification-v2.yml": "11680c32d2d04c85fabfcc96de78e76a757a8da5",
+    "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py": "64e6e5733f1f85da342f8c2da9c5e2c5e5e41a09",
+    "scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py": "fd2e917142f2571407af6bd13a9cf7d103d2428b",
+    "docs/operators/buy-void-presale-source-freeze-host-install-qualification-v2.md": "95b0c7e5c12c58eb7a49d68185282767f3a91ff0",
+    ".github/workflows/buy-void-presale-source-freeze-host-install-qualification-v2.yml": "a3100bc249a51f0b1c612bc8b9474920b89d9bb5",
 }
 
 PRIMITIVE_PINS = {

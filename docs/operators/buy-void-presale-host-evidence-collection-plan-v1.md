@@ -6,11 +6,11 @@ Status: **plan/source/CI only; no host evidence has been collected by this gate*
 
 Plan ID:
 
-`voidbuyhostevplan1_5201f733c3f8bc47379dc54da66534895718f7618f56f34a1db8ef38db5d64f9`
+`voidbuyhostevplan1_665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab`
 
 Parent host-install classifier:
 
-`#3503 @ 45813f0de04ccccb8d12e0f0283096cb2b05843c`.
+`#3503 @ a15326fc288f0bb01bfc179fdf93b2da9231f8b6`.
 
 The parent remains fail-closed even when metadata aligns:
 `HOST_INSTALL_QUALIFICATION_HOLD_INDEPENDENT_EVIDENCE_REQUIRED`.
@@ -23,7 +23,9 @@ does not convert source availability into host evidence.
 
 All nine pinned primitive blobs are byte-identical on the accepted #3503 stack
 and review reference `main@e64049c3f460eae077364567f63aa3298ecf9c31`.
-Later main commits are not auto-adopted.
+Hosted CI independently checks both `HEAD:<path>` and
+`e64049c3f460eae077364567f63aa3298ecf9c31:<path>` against each pinned blob before accepting this
+compatibility statement. Later main commits are not auto-adopted.
 
 ## Lane 1 — authenticated deployment receipt + live process
 

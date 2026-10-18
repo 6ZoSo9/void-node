@@ -129,6 +129,29 @@ PATH_METADATA_STATES = frozenset(
 MODE4 = re.compile(r"^[0-7]{4}$")
 MAX_JSON_SAFE_INTEGER = 9_007_199_254_740_991
 
+NEGATIVE_AUTHORITY_FIELDS = (
+    "installed_receipt_authenticity_verified",
+    "allocation_custody_qualified",
+    "epoch2_installed_generation_qualified",
+    "host_install_qualified",
+    "live_runtime_evidence_qualified",
+    "payment_rail_policy_accepted",
+    "customer_payment_acceptance_authorized",
+    "one_payment_one_fulfillment_verified",
+    "wc_void_launch_coupling_verified",
+    "public_presale_activation",
+    "wc_void_market_activation",
+    "wallet_or_signing_authority",
+    "transaction_submission_authorized",
+    "treasury_or_liquidity_action_authorized",
+    "funds_movement",
+    "production_host_evidence_authority",
+    "filesystem_write",
+    "service_mutation",
+    "network_contact",
+    "credential_access",
+)
+
 
 class QualificationError(RuntimeError):
     pass
@@ -742,8 +765,6 @@ if __name__ == "__main__":
         print(MARKER)
         print("status=HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT")
         print("reason=" + str(exc))
-        print("host_install_qualified=false")
-        print("public_presale_activation=false")
-        print("wc_void_market_activation=false")
-        print("funds_movement=false")
+        for field in NEGATIVE_AUTHORITY_FIELDS:
+            print(field + "=false")
         raise SystemExit(2)

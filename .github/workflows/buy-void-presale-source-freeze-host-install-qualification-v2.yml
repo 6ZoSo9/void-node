@@ -51,11 +51,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
-            1c8299cb38e3a02c5e65c3d38d4863e8ee0c1005
+            64e6e5733f1f85da342f8c2da9c5e2c5e5e41a09
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
-            15813299b38ac146dd4b82b109fef72fbfb868c3
+            fd2e917142f2571407af6bd13a9cf7d103d2428b
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-source-freeze-host-install-qualification-v2.md)" = \
-            e71be4de220132934a96a60c7eabd04f0952f219
+            95b0c7e5c12c58eb7a49d68185282767f3a91ff0
 
           test "$(git rev-parse HEAD:scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py)" = \
             d8ea2966d81e43c273d3692f5778143259431f08
@@ -109,6 +109,7 @@ jobs:
             'network_access_absent=true' \
             'filesystem_mutation_absent=true' \
             'metadata_cannot_grant_authenticity=true' \
+            'invalid_input_full_negative_authority_schema=true' \
             'closed_nested_metadata_schema_proved=true' \
             'malformed_nested_metadata_regressions_proved=true' \
             'custody_mountpoint_type_contract_proved=true' \

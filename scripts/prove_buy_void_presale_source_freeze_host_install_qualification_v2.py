@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py"
-TARGET_BLOB = "1c8299cb38e3a02c5e65c3d38d4863e8ee0c1005"
+TARGET_BLOB = "64e6e5733f1f85da342f8c2da9c5e2c5e5e41a09"
 CENSUS_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py"
 CENSUS_BLOB = "d8ea2966d81e43c273d3692f5778143259431f08"
 CENSUS_PROOF_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py"
@@ -92,6 +92,7 @@ for required in (
     "input_grew_during_read",
     "RecursionError",
     "MemoryError",
+    "NEGATIVE_AUTHORITY_FIELDS",
 ):
     assert required in source, required
 
@@ -206,6 +207,8 @@ with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     assert "reason=input_unavailable" in cp.stdout
     assert "host_install_qualified=false" in cp.stdout
     assert "funds_movement=false" in cp.stdout
+    for field in module.NEGATIVE_AUTHORITY_FIELDS:
+        assert f"{field}=false" in cp.stdout
 
     fifo = root / "fifo.json"
     os.mkfifo(fifo, 0o600)
@@ -223,6 +226,8 @@ with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     assert cp.stderr == ""
     assert "status=HOST_INSTALL_QUALIFICATION_HOLD_INVALID_INPUT" in cp.stdout
     assert "reason=input_metadata_invalid" in cp.stdout
+    for field in module.NEGATIVE_AUTHORITY_FIELDS:
+        assert f"{field}=false" in cp.stdout
 
     deep = root / "deep.json"
     deep.write_text("[" * 10_000 + "0" + "]" * 10_000, encoding="utf-8")
@@ -243,6 +248,8 @@ with tempfile.TemporaryDirectory(prefix="void-host-q-v2-proof-") as td:
     assert "host_install_qualified=false" in cp.stdout
     assert "public_presale_activation=false" in cp.stdout
     assert "funds_movement=false" in cp.stdout
+    for field in module.NEGATIVE_AUTHORITY_FIELDS:
+        assert f"{field}=false" in cp.stdout
 
 print(MARKER + "_PROOF_GREEN")
 print("census_source_generation_bound=true")
@@ -258,6 +265,7 @@ print("descriptor_bound_input_read_proved=true")
 print("input_symlink_rejected_before_read=true")
 print("input_fifo_rejected_without_blocking=true")
 print("recursive_json_maps_to_invalid_input=true")
+print("invalid_input_full_negative_authority_schema=true")
 print("closed_nested_metadata_schema_proved=true")
 print("malformed_nested_metadata_regressions_proved=true")
 print("custody_mountpoint_type_contract_proved=true")
