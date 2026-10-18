@@ -20,8 +20,8 @@ This gate closes that wire-level ambiguity before
 
 The closure declares and the proof re-hashes these exact dependencies:
 
-- current service-source candidate head `29d21e5de8d7e245754e06c414704746fc40c59b`;
-- current service-source candidate blob `0d620a77a465007505c3a0415062699a220b8437`;
+- current service-source candidate head `ecb7d92cbc7db0c78f7707894dcd4c409bd29433`;
+- current service-source candidate blob `7654ddb2d5875d1aa42e8f41398afb727ba3832d`;
 - current store-contract head `9475035552881f34658a7c8f3a6b336199fda159`;
 - current store-contract blob `bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc`;
 - V1 canonicalizer blob `f97fafb0148527ae3a954e2752faef8c7fc9e88e`.
@@ -113,8 +113,8 @@ PROTECT THE CORE.
 ## Current source dependency
 
 The current service-source candidate is the exact source blob
-`0d620a77a465007505c3a0415062699a220b8437` at commit
-`29d21e5de8d7e245754e06c414704746fc40c59b`. Its parent store-contract
+`7654ddb2d5875d1aa42e8f41398afb727ba3832d` at commit
+`ecb7d92cbc7db0c78f7707894dcd4c409bd29433`. Its parent store-contract
 identity is the coherent pair `9475035552881f34658a7c8f3a6b336199fda159` /
 `bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc`.
 
