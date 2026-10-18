@@ -99,12 +99,20 @@ native_parent_authority_claimed=false
 
 No protected `/opt` mutation occurs.
 
+The planner's own Git observations also neutralize callback-capable repository
+configuration before `status`, `show`, or `rev-parse` are invoked. In
+particular `core.fsmonitor` is forced off and `core.hooksPath` is forced to
+`/dev/null`; credential helpers/interactivity and SSH command execution are
+disabled. The focused proof creates a repository with a hostile local
+`core.fsmonitor` command and requires that command not to execute.
+
 ## Future apply handoff
 
-A GREEN plan emits a content-addressed handoff ID and a JSON argv equivalent to:
+A GREEN plan emits a content-addressed handoff ID and a JSON argv that
+executes the **exact authenticated #3493 Git-object bytes inline**:
 
 ```text
-/usr/bin/python3 -I -B <exact #3493 upgrader>
+/usr/bin/python3 -I -B -c <wrapper containing exact authenticated upgrader bytes>
 --apply
 --bootstrap <exact repaired bootstrap>
 --manifest <exact repaired manifest>
@@ -113,7 +121,21 @@ A GREEN plan emits a content-addressed handoff ID and a JSON argv equivalent to:
 --confirm ATOMIC_EXCHANGE_ACCEPTED_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_BOOTSTRAP_V6_PREDECESSOR_TO_REPAIRED
 ```
 
-The argv is data only. It is never executed by this planner.
+The wrapper compiles the already authenticated upgrader bytes with the reviewed
+checkout pathname only as the logical `__file__` value. It does **not** reopen
+the writable checkout copy before root-side validation.
+
+The handoff body records:
+
+```text
+planner_git_callbacks_neutralized=true
+future_apply_source_inline=true
+future_apply_source_git_blob_sha1=7d70527d8910881f9973479b89ceef78789ad100
+future_apply_source_reopens_checkout=false
+future_apply_authorized=false
+```
+
+The argv remains data only. It is never executed by this planner.
 
 If the repaired generation is already installed, the next action is a separate
 read-only installed qualification. Otherwise the next action is a separately
@@ -126,6 +148,9 @@ This source/CI gate grants no host mutation authority.
 All remain false:
 
 ```text
+planner_git_callbacks_neutralized=true
+future_apply_source_inline=true
+future_apply_source_reopens_checkout=false
 future_apply_authorized=false
 protected_filesystem_mutation=false
 bootstrap_execution=false
