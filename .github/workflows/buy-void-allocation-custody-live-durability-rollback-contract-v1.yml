@@ -3,8 +3,8 @@ name: Buy VOID allocation custody live durability rollback contract v1
 on:
   pull_request:
     paths:
-      - "src/economic/buy_void_allocation_custody_live_durability_rollback_contract_v1.ts"
-      - "scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.ts"
+      - "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs"
       - "docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md"
       - ".github/workflows/buy-void-allocation-custody-live-durability-rollback-contract-v1.yml"
   workflow_dispatch:
@@ -18,7 +18,7 @@ env:
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Bind exact source contract generation
+      - name: Bind exact requirements-contract generation
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -45,18 +45,19 @@ jobs:
           expected="$RUNNER_TEMP/expected.txt"
           actual="$RUNNER_TEMP/actual.txt"
           printf '%s\n' \
-            'src/economic/buy_void_allocation_custody_live_durability_rollback_contract_v1.ts' \
-            'scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.ts' \
+            'tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs' \
+            'scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs' \
             'docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md' \
             '.github/workflows/buy-void-allocation-custody-live-durability-rollback-contract-v1.yml' \
             | sort > "$expected"
           git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:src/economic/buy_void_allocation_custody_live_durability_rollback_contract_v1.ts)" = 9117478b5648e51209c94b099b4e1e3a0e8ba493
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.ts)" = 5f5f304440b592ad39f3ed5f5fb571d01e41687f
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md)" = 0710da74580b6f63f758fb04694dad331d507f36
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = 6020547b92fff1534c26c7fed33cedfb49faf7c3
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs)" = 1b8547301f1df6c2b8176322b58d47d92fb84d05
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-live-durability-rollback-contract-v1.md)" = 01c9ff56a11fdaf32aad9301c84986b21ff4c002
 
+          test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md)" = 4f5d8a5db1cf1b82991962f5bf90a231c96c6f76
@@ -70,20 +71,16 @@ jobs:
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Typecheck contract
-        run: npm run typecheck
-
       - name: Prove fail-closed lane-2 requirements
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/lane2-contract-v1-node-${{ matrix.node }}.log"
-          npx tsx scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.ts | tee "$out"
+          node scripts/prove_buy_void_allocation_custody_live_durability_rollback_contract_v1.mjs | tee "$out"
           for marker in \
             'VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_CONTRACT_V1_PROOF_GREEN' \
             'parent_host_evidence_plan_bound=true' \
             'reviewed_lane2_primitives_bound=true' \
+            'runtime_economic_tree_unchanged=true' \
             'read_only_collection_sufficient=false' \
             'controlled_live_challenge_required=true' \
             'non_customer_canary_domain_required=true' \

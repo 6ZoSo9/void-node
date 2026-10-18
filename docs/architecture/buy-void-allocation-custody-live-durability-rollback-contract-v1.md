@@ -34,6 +34,10 @@ This V1 contract preserves that boundary and defines what a later controlled
 live test would have to demonstrate before a future version may promote any of
 those claims.
 
+The contract is deliberately placed under `tools/`, not `src/economic/`.
+It therefore does not alter the accepted presale economic source generation or
+the frozen current-generation tree.
+
 Parent plan:
 
 `voidbuyhostevplan1_665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab`.

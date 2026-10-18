@@ -74,53 +74,9 @@ const PREREQUISITE_KEYS = Object.freeze([
   "external_second_control_domain_qualified",
   "external_second_control_policy_binding_proven",
   "post_cycle_live_policy_observation_bound",
-] as const);
+]);
 
-type PrerequisiteKey = (typeof PREREQUISITE_KEYS)[number];
-
-export type BuyVoidAllocationCustodyLiveDurabilityRollbackPrerequisitesV1 =
-  Readonly<Record<PrerequisiteKey, boolean>>;
-
-export type BuyVoidAllocationCustodyLiveDurabilityRollbackContractResultV1 =
-  Readonly<{
-    marker: typeof VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_CONTRACT_V1;
-    version: 1;
-    status:
-      | "source_prerequisites_bound_controlled_challenge_required"
-      | "held";
-    reason:
-      | "reviewed_prerequisites_bound"
-      | "reviewed_prerequisites_missing"
-      | "input_shape_invalid";
-    source_contract_ready: boolean;
-    reviewed_prerequisites_bound: boolean;
-    missing_prerequisites: readonly PrerequisiteKey[];
-    read_only_collection_sufficient: false;
-    controlled_live_challenge_required: boolean;
-    live_durable_storage_proven: false;
-    rollback_resistance_proven: false;
-    protected_high_water_custody_proven: false;
-    independent_custody_proven: false;
-    production_gate_ready: false;
-    host_execution_authorized: false;
-    storage_mutation_authorized: false;
-    rollback_test_authorized: false;
-    payment_acceptance_authorized: false;
-    public_presale_activation_authorized: false;
-    wc_void_market_activation_authorized: false;
-    transaction_submission_authorized: false;
-    treasury_or_liquidity_action_authorized: false;
-    funds_movement: false;
-    production_host_evidence_authority: false;
-    next_action:
-      | "HOLD_REVIEWED_LANE2_PREREQUISITES"
-      | "SEPARATELY_AUTHORIZE_NONCUSTOMER_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_V1";
-  }>;
-
-function held(
-  reason: "reviewed_prerequisites_missing" | "input_shape_invalid",
-  missing: readonly PrerequisiteKey[],
-): BuyVoidAllocationCustodyLiveDurabilityRollbackContractResultV1 {
+function held(reason, missing) {
   return Object.freeze({
     marker:
       VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_CONTRACT_V1,
@@ -152,13 +108,12 @@ function held(
 }
 
 export function classifyBuyVoidAllocationCustodyLiveDurabilityRollbackContractV1(
-  input: unknown,
-): BuyVoidAllocationCustodyLiveDurabilityRollbackContractResultV1 {
+  input,
+) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     return held("input_shape_invalid", []);
   }
-  const raw = input as Record<string, unknown>;
-  const keys = Object.keys(raw).sort();
+  const keys = Object.keys(input).sort();
   const expected = [...PREREQUISITE_KEYS].sort();
   if (
     keys.length !== expected.length ||
@@ -167,12 +122,12 @@ export function classifyBuyVoidAllocationCustodyLiveDurabilityRollbackContractV1
     return held("input_shape_invalid", []);
   }
   for (const key of PREREQUISITE_KEYS) {
-    if (typeof raw[key] !== "boolean") {
+    if (typeof input[key] !== "boolean") {
       return held("input_shape_invalid", []);
     }
   }
 
-  const missing = PREREQUISITE_KEYS.filter((key) => raw[key] !== true);
+  const missing = PREREQUISITE_KEYS.filter((key) => input[key] !== true);
   if (missing.length !== 0) {
     return held("reviewed_prerequisites_missing", missing);
   }

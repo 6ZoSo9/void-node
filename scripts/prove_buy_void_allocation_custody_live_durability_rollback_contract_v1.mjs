@@ -7,7 +7,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_REQUIRED_FUTURE_EVIDENCE_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_REVIEWED_PRIMITIVE_BLOBS_V1,
   classifyBuyVoidAllocationCustodyLiveDurabilityRollbackContractV1,
-} from "../src/economic/buy_void_allocation_custody_live_durability_rollback_contract_v1.js";
+} from "../tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
 
 assert.equal(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_PARENT_PLAN_ID_V1,
@@ -59,6 +59,7 @@ assert.equal(
     .separately_authorized_live_rollback_test_required,
   true,
 );
+
 for (const key of [
   "production_gate_ready",
   "host_execution_authorized",
@@ -76,11 +77,9 @@ for (const key of [
   "treasury_or_liquidity_action_authorized",
   "funds_movement",
   "production_host_evidence_authority",
-] as const) {
+]) {
   assert.equal(
-    VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_AUTHORITY_V1[
-      key
-    ],
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_LIVE_DURABILITY_ROLLBACK_AUTHORITY_V1[key],
     false,
     key,
   );
@@ -135,11 +134,11 @@ for (const key of [
   "treasury_or_liquidity_action_authorized",
   "funds_movement",
   "production_host_evidence_authority",
-] as const) {
+]) {
   assert.equal(ready[key], false, key);
 }
 
-for (const key of Object.keys(good) as (keyof typeof good)[]) {
+for (const key of Object.keys(good)) {
   const held =
     classifyBuyVoidAllocationCustodyLiveDurabilityRollbackContractV1({
       ...good,
@@ -163,7 +162,7 @@ assert.equal(smuggled.rollback_resistance_proven, false);
 assert.equal(smuggled.independent_custody_proven, false);
 
 const source = fs.readFileSync(
-  "src/economic/buy_void_allocation_custody_live_durability_rollback_contract_v1.ts",
+  "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs",
   "utf8",
 );
 for (const forbidden of [
@@ -186,6 +185,7 @@ console.log(
 );
 console.log("parent_host_evidence_plan_bound=true");
 console.log("reviewed_lane2_primitives_bound=true");
+console.log("runtime_economic_tree_unchanged=true");
 console.log("read_only_collection_sufficient=false");
 console.log("controlled_live_challenge_required=true");
 console.log("non_customer_canary_domain_required=true");
