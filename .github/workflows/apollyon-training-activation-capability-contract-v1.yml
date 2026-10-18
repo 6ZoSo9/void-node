@@ -51,11 +51,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
-            fb961c01572a497a7bc3254fc41938e5c794c63e
+            b03a62fd2399908a0d2107e4263377279e62899e
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
-            4430537500a2ed39be104dbe8f494fe04295bf0c
+            2231d477f842973eb63efde223a1fbaaaa737043
           test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
-            2a2b5b49e5641f9f2df973002bb67255c4bb83cb
+            c1682ea2638202d4610f73beb3347fbc8cba2490
 
           external_consumption_ref=refs/heads/ren/apollyon-training-start-consumption-contract-v1-20261016
           external_consumption_head=fdf47e77cd12eee38efe741edb02fa2fd39135e2
@@ -73,7 +73,7 @@ jobs:
             "$external_consumption_blob"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
-            5f67bb3ddcc7f130db4b90ad73f5450b109dbea4
+            b57457435cc691ce576ef090e67ba323af254929
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py)" = \
             352bd36f2b07091140b990de4170f708eb11fee6
           test "$(git rev-parse HEAD:ops/xiphos/void-apollyon-training-bus-isolation-v1.service)" = \
@@ -137,6 +137,7 @@ jobs:
           grep -Fx 'symbol_keys_rejected=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'proxy_inputs_rejected_before_reflection=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'proxy_reflection_traps_not_invoked=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'revoked_proxy_inputs_rejected_namespaced=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'oversized_keyset_rejected_before_sort=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'trainer_generation_external_validation_performed=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'training_start_consumption_record_origin_proven=false' /tmp/apollyon-activation-capability-proof.txt
