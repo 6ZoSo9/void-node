@@ -262,6 +262,42 @@ expect_rejected(
     "candidate_lock_identity_invalid",
 )
 
+parent_boolean_type = json.loads(json.dumps(lock))
+parent_boolean_type["parent_candidate"]["accepted_build_evidence"][
+    "toolchain_revalidated_after_build"
+] = 1
+expect_rejected(
+    readdress(parent_boolean_type),
+    "candidate_lock_parent_identity_invalid",
+)
+
+parent_numeric_type = json.loads(json.dumps(lock))
+parent_numeric_type["parent_candidate"]["accepted_build_evidence"]["gcc"][
+    "bytes"
+] = float(
+    parent_numeric_type["parent_candidate"]["accepted_build_evidence"]["gcc"][
+        "bytes"
+    ]
+)
+expect_rejected(
+    readdress(parent_numeric_type),
+    "candidate_lock_parent_identity_invalid",
+)
+
+binary_boolean_type = json.loads(json.dumps(lock))
+binary_boolean_type["binary"]["elf_static_no_interp"] = 1
+expect_rejected(
+    readdress(binary_boolean_type),
+    "candidate_lock_binary_identity_invalid",
+)
+
+binary_numeric_type = json.loads(json.dumps(lock))
+binary_numeric_type["binary"]["bytes"] = float(binary_numeric_type["binary"]["bytes"])
+expect_rejected(
+    readdress(binary_numeric_type),
+    "candidate_lock_binary_identity_invalid",
+)
+
 numeric_true_authority = json.loads(json.dumps(lock))
 numeric_true_authority["authority"]["candidate_accepted"] = 1
 expect_rejected(
@@ -348,6 +384,10 @@ for required in (
     'def expected_parent_build_evidence() -> dict[str, Any]:',
     '"accepted_build_evidence": expected_parent_build_evidence(),',
     'type(version) is not int',
+    'def exact_typed_equal(observed: object, expected: object) -> bool:',
+    'type(observed) is not type(expected)',
+    'not exact_typed_equal(observed_parent, expected_parent)',
+    'not exact_typed_equal(observed_binary, expected_binary)',
 ):
     assert required in source, required
 
@@ -398,6 +438,11 @@ print("authority_oracle_isolated=true")
 print("build_evidence_alias_attack_rejected=true")
 print("build_evidence_oracle_isolated=true")
 print("boolean_version_rejected=true")
+print("parent_evidence_boolean_type_rejected=true")
+print("parent_evidence_numeric_type_rejected=true")
+print("binary_boolean_type_rejected=true")
+print("binary_numeric_type_rejected=true")
+print("exact_nested_evidence_types=true")
 print("numeric_authority_boolean_rejected=true")
 print("authority_boolean_types_exact=true")
 print("readdressed_install_overclaim_rejected=true")
