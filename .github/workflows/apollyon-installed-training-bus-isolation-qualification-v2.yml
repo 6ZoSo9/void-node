@@ -57,11 +57,11 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py)" = "$v1_blob"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
-            6d4068bdf4486def8af4ef31d1a5bf94e6523c6e
+            c1641e9fae9a42ac3686685633b2de6a5be28654
           test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
-            9659e4603128384503f4b7347177a671cef084eb
+            e3b70badea1ccec8e49a04a78236536bb81d84bc
           test "$(git rev-parse HEAD:docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md)" = \
-            e5f3e38541cac887890cff088f55d16cda603be4
+            85380ef43ea76656d98b802a969ed4e601e88d91
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py)" = \
             2496644ecc13b425c0885d9e38887d845a5824ef
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py)" = \
@@ -130,6 +130,8 @@ jobs:
             'single_systemctl_state_snapshot=true' \
             'state_change_between_snapshots_rejected=true' \
             'final_service_state_revalidation=true' \
+            'post_contract_shutdown_revalidation=true' \
+            'post_contract_service_drift_rejected=true' \
             'effective_systemd_unit_properties_bound=true' \
             'effective_systemd_unit_revalidated_before_start=true' \
             'effective_systemd_unit_revalidated_before_success=true' \
