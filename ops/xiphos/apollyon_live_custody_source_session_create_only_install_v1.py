@@ -1,6 +1,26 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
+
+def _require_isolated_python() -> None:
+    # Before imports from the checkout or ambient interpreter search path.
+    flags = sys.flags
+    if not (
+        flags.isolated == 1
+        and flags.ignore_environment == 1
+        and flags.no_user_site == 1
+        and flags.dont_write_bytecode == 1
+        and getattr(flags, "safe_path", 0) == 1
+    ):
+        sys.stderr.write("HOLD=python_runtime_not_isolated\n")
+        sys.stderr.write("service_start=false\n")
+        sys.stderr.write("training_execution=false\n")
+        sys.stderr.write("funds_movement=false\n")
+        raise SystemExit(2)
+
+_require_isolated_python()
+
 import argparse
 import base64
 import grp
@@ -13,7 +33,6 @@ import shutil
 import socket
 import stat
 import subprocess
-import sys
 import tempfile
 from typing import Any
 

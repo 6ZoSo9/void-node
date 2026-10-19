@@ -21,9 +21,26 @@ Instead, it defines the capability that may eventually permit one blocked servic
 
 ## Stack boundary
 
-Current parent:
+**Historical capability-source lineage anchor (frozen V1 field):**
 
 #3480@d00ca0141db62d752be7ddc6e7d9618e0475d897
+
+The unchanged V1 module's `APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.parent_head`
+retains this exact historical ancestor of the capability as its audit anchor.
+The immutable historical #3525 generation `d6670d8dd6185d034c9b07ef3a29390add63ee21` contains
+capability source blob `bcb47a4b105b89a459a4ea876b03f057450371c5`; the transport also retains that
+exact historical `head + blob` pair. Neither hash is silently readdressed.
+
+**Current source-review PR parent (separate Git ancestry assertion):**
+
+#3480@c4997641b4ef8f06d2be9667d308a585839b6e4e
+
+This new parent still contains the retired V2 qualifier, plus the repaired
+create-only installer `87fa30d10d8d18716cd37ee2d375f0a1d094bdcf` and reviewed-root upgrader
+`95b2f64562e995611807aac7f9b8b044775f203b`. Both the full historical source tree and this current
+parent are verified in hosted CI. The candidate/transport schema does **not**
+claim current parent authentication, protected issuance or service activation;
+those remain future independent origin/host gates.
 
 The #3333 source is not present in that parent lineage. This contract therefore records:
 

@@ -136,13 +136,13 @@ The supported fixed-launcher deployment path is now bound by parent #3523.
 
 Fresh create-only installation uses
 `ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py`
-blob `e6ed33936d3f203e5fbb31b1743efedea5b03313`. Its fixed-launcher source is
+blob `87fa30d10d8d18716cd37ee2d375f0a1d094bdcf`. Its fixed-launcher source is
 the retired successor above, blob
 `352bd36f2b07091140b990de4170f708eb11fee6`.
 
 Existing hosts are covered by
 `ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py`
-blob `52d8f13e3e79478963116b2c900d00997ea58429`. The upgrader recognizes
+blob `95b2f64562e995611807aac7f9b8b044775f203b`. The upgrader recognizes
 the formerly installed fixed launcher
 `820f7151c0f83280b7457f841cee14c3b0c274b6` only as
 `prior_current_exact` and migrates it to retired
@@ -263,3 +263,16 @@ This source gate grants no:
 No live action follows from source acceptance.
 
 PROTECT THE CORE.
+
+## October 19 canonical installer/upgrade interpreter-isolation rebind
+
+The current parent #3523 `ce471b9ca32f340bca61107c18bbc6b09346b81d`
+requires Python isolated-mode flags before checkout-resolved imports in both
+root-capable deployment entrypoints. Their source identities are pinned above.
+This retired V2 qualifier remains byte-identical and still cannot activate
+training. These pre-import guards are **not** proof that privileged Python
+interpreter startup was trusted: reviewed root-owned launcher provenance,
+`-I -B`, and sanitized startup remain separate host gates.
+
+No Xiphos deployment, service/systemd operation, credential, training,
+transaction, or funds authority is added by this source-only rebind.

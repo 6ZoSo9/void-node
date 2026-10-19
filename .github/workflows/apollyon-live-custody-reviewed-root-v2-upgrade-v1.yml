@@ -35,7 +35,9 @@ jobs:
       - name: Prove reviewed-root upgrade
         run: |
           set -euo pipefail
-          python3 -I -B scripts/prove_apollyon_live_custody_reviewed_root_v2_upgrade_v1.py
+          python3 -I -B scripts/prove_apollyon_live_custody_reviewed_root_v2_upgrade_v1.py | tee "$RUNNER_TEMP/apollyon-root-upgrade-proof.log"
+          grep -Fx 'isolated_python_preimport_guard=true' "$RUNNER_TEMP/apollyon-root-upgrade-proof.log"
+          grep -Fx 'nonisolated_checkout_module_not_executed=true' "$RUNNER_TEMP/apollyon-root-upgrade-proof.log"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
         env:

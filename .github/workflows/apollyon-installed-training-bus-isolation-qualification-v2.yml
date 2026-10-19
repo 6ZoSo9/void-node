@@ -63,19 +63,19 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
             b57457435cc691ce576ef090e67ba323af254929
           test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
-            278b855d3a7706bab56414883614f83df3b1b2c8
+            34b93d610fdaf3d75b769c2d676be5533c5a517d
           test "$(git rev-parse HEAD:docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md)" = \
-            91af0c8a119d3f58b9f475611f49e4a848041422
+            ae94e99e3c93095a450c1659fbf3e6cf5495d1a4
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py)" = \
             352bd36f2b07091140b990de4170f708eb11fee6
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py)" = \
             820f7151c0f83280b7457f841cee14c3b0c274b6
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py)" = \
-            52d8f13e3e79478963116b2c900d00997ea58429
+            95b2f64562e995611807aac7f9b8b044775f203b
           test "$(git rev-parse HEAD:ops/xiphos/apollyon-live-custody-reviewed-root-v2-upgrade-v1.json)" = \
             e78f1709c81775b881ab8f54291bd470ff9e1353
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py)" = \
-            e6ed33936d3f203e5fbb31b1743efedea5b03313
+            87fa30d10d8d18716cd37ee2d375f0a1d094bdcf
           test "$(git rev-parse HEAD:tools/apollyon-live-custody-source-session-runner-v2.mjs)" = \
             8c2c92055ab05c074653cee971e095934b5cb85c
 

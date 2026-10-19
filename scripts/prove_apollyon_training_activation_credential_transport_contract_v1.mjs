@@ -26,7 +26,7 @@ const PARENT_PROOF=path.join(ROOT,"scripts/prove_apollyon_training_activation_ca
 const PARENT_DOC=path.join(ROOT,"docs/security/apollyon-training-activation-capability-contract-v1.md");
 const EXPECTED_PARENT_BLOB="bcb47a4b105b89a459a4ea876b03f057450371c5";
 const EXPECTED_PARENT_PROOF_BLOB="ff4abd9e709f9b1e9b8df533c619be4724409941";
-const EXPECTED_PARENT_DOC_BLOB="e061865a9cf4c4f7a0aa3eea424dd7d581844809";
+const EXPECTED_PARENT_DOC_BLOB="2d2d517c1757301d3df1af89e92fdb5cd8664011";
 const gitBlob=(data)=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+data.length+"\0","ascii")).update(data).digest("hex");
 
@@ -38,6 +38,11 @@ assert.equal(
   "d6670d8dd6185d034c9b07ef3a29390add63ee21",
 );
 assert.equal(APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.capability_contract_blob,EXPECTED_PARENT_BLOB);
+assert.equal(
+  APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.parent_head,
+  "d00ca0141db62d752be7ddc6e7d9618e0475d897",
+  "capability source audit anchor must remain the historical accepted parent",
+);
 assert.equal(APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.retired_activator_required,true);
 
 const trueKeys=new Set([
@@ -300,6 +305,7 @@ assert.equal(
 
 console.log("VOID_APOLLYON_TRAINING_ACTIVATION_CREDENTIAL_TRANSPORT_CONTRACT_V1_PROOF_GREEN");
 console.log("exact_parent_capability_contract_blob_bound=true");
+console.log("historical_capability_parent_lineage_pinned=true");
 console.log("transport_candidate_content_addressed=true");
 console.log("parent_capability_candidate_consistency_proven=true");
 console.log("readdressed_parent_candidate_drift_rejected=true");

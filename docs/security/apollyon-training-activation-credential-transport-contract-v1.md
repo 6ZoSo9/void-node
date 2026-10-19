@@ -6,10 +6,20 @@ Status: **source/test/CI only**. No protected capability issuance, bearer-secret
 
 ## Flattened capability + transport PR generation
 
-This PR now directly targets the current retired-activation parent #3480 at
-`d00ca0141db62d752be7ddc6e7d9618e0475d897`. Its parent-relative source
-scope is the complete eight-file activation layer: the four capability-contract
-files plus the four transport-contract files.
+This PR now directly targets current retired-activation parent #3480 at
+`c4997641b4ef8f06d2be9667d308a585839b6e4e`. Its parent-relative source scope remains the complete
+eight-file activation layer: four capability-contract files and four
+transport-contract files. Parent-forward changes are disjoint to those files.
+
+**Do not confuse current parent ancestry with historical contract provenance.**
+The frozen V1 capability's `parent_head` is still `d00ca0141db62d752be7ddc6e7d9618e0475d897`,
+a real ancestor of both the current #3480 generation and the archived capability
+commit. The transport's `parent_capability_contract_head` remains the
+historical #3525 commit `d6670d8dd6185d034c9b07ef3a29390add63ee21`, which **does contain**
+unchanged capability source blob `bcb47a4b105b89a459a4ea876b03f057450371c5`. Both the historic
+head→blob identity and the new current-parent installer/upgrade identities are
+separately asserted in the focused workflows. No candidate ID, bearer-secret
+hash, or systemd transport schema is readdressed by this stack-only change.
 
 The focused workflow re-proves the capability contract before the transport
 contract and watches the capability runtime-dependency paths that previously
@@ -23,16 +33,23 @@ Accepted #3480 removes all reviewed Apollyon training-service activation paths. 
 
 This is not a claim that the currently installed Xiphos systemd unit has any credential transport. It is not permission to add `LoadCredential`, `SetCredential`, `ImportCredential`, `systemctl start`, or equivalent commands.
 
-## Exact source parent
+## Historical capability source identity
 
 - #3525 branch head: `d6670d8dd6185d034c9b07ef3a29390add63ee21`
 - #3525 capability source blob: `bcb47a4b105b89a459a4ea876b03f057450371c5`
 - parent proof blob: `ff4abd9e709f9b1e9b8df533c619be4724409941`
-- parent security document blob: `e061865a9cf4c4f7a0aa3eea424dd7d581844809`
+- historical #3525 security document blob: `e061865a9cf4c4f7a0aa3eea424dd7d581844809` (immutable at the historical commit)
+- current #3529 capability security document blob: `2d2d517c1757301d3df1af89e92fdb5cd8664011` (explicit current-parent reconciliation)
 - selected fixed candidate credential name: `apollyon-training-activation-v1`
 - bearer secret required length: exactly 32 bytes
 
-Parent #3525 is rebound to repaired #3480 source and keeps issuance, systemd credential runtime, capability possession, training-start consumption, and training false/unproven. Its own active/revoked Proxy preflight normalization is part of the pinned parent bytes. This child cannot promote any of those flags.
+Historical #3525 remains byte-identical at its recorded source/proof/document
+commit. This consolidated PR merges forward newer #3480 source-only retirement
+proof without rewriting the old source head or changing the transport's
+historical source binding. Issuance, systemd credential runtime, capability
+possession, training-start consumption and training remain false/unproven.
+The historical capability's active/revoked Proxy preflight normalization is
+still part of the pinned source bytes; no candidate is promoted to bearer authority.
 
 ## One public transport candidate
 

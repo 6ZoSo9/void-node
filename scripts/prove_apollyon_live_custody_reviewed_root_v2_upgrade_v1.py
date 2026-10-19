@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import ast, hashlib, importlib.util, json, subprocess, tempfile
+import ast, hashlib, importlib.util, json, subprocess, sys, tempfile
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -37,6 +37,41 @@ assert manifest["authority"]["durable_attempt_claim"] is False
 
 source=INSTALLER.read_text()
 ast.parse(source)
+
+# upgrade: root-capable CLI must reject non-isolated Python before loading
+# attacker-controlled checkout-local standard-module substitutes. This checks
+# post-interpreter pre-import behavior, NOT Python startup hooks like .pth/sitecustomize.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-upgrade-isolation-") as td:
+    temp = Path(td)
+    copied = temp / "privileged_cli.py"
+    copied.write_bytes(INSTALLER.read_bytes())
+    sentinel = temp / "checkout-json-shadow-executed"
+    (temp / "json.py").write_text(
+        "from pathlib import Path\nPath(" + repr(str(sentinel)) + ").write_text('executed')\n",
+        encoding="utf-8",
+    )
+    clean_env = {
+        "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
+        "LANG": "C", "LC_ALL": "C", "TZ": "UTC",
+    }
+    for argv in (
+        [sys.executable, "-B", str(copied), "--self-test"],
+        [sys.executable, "-I", str(copied), "--self-test"],
+    ):
+        denied = subprocess.run(
+            argv, cwd=temp, env=clean_env,
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, check=False, timeout=10,
+        )
+        assert denied.returncode == 2, (argv, denied.stdout, denied.stderr)
+        assert "HOLD=python_runtime_not_isolated" in denied.stderr, denied.stderr
+        assert not sentinel.exists(), "checkout-local json.py was loaded before guard"
+
+assert source.index("_require_isolated_python()") < source.index("import argparse")
+assert "flags.isolated == 1" in source
+assert "flags.dont_write_bytecode == 1" in source
+assert 'getattr(flags, "safe_path", 0) == 1' in source
+
 
 spec=importlib.util.spec_from_file_location("upgrade_v1",INSTALLER)
 assert spec and spec.loader
@@ -379,3 +414,5 @@ print("prior_v2_resume_states_bound=true")
 print("post_launcher_dormancy_revalidation_bound=true")
 print("exact_inactive_service_states_bound=true")
 print("transitional_service_states_rejected=true")
+print("isolated_python_preimport_guard=true")
+print("nonisolated_checkout_module_not_executed=true")

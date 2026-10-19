@@ -50,12 +50,34 @@ jobs:
 
           test "$(git rev-parse HEAD)" = "$HEAD"
 
+          # Two distinct identities: frozen historical V1 source lineage and
+          # current non-authoritative source-review parent. Never substitute one.
+          historical_parent=d00ca0141db62d752be7ddc6e7d9618e0475d897
+          current_parent=c4997641b4ef8f06d2be9667d308a585839b6e4e
+          historical_capability_head=d6670d8dd6185d034c9b07ef3a29390add63ee21
+          git merge-base --is-ancestor "$historical_parent" "$current_parent"
+          git merge-base --is-ancestor "$historical_parent" "$historical_capability_head"
+          git merge-base --is-ancestor "$current_parent" "$HEAD"
+          git merge-base --is-ancestor "$historical_capability_head" "$HEAD"
+          test "$(git rev-parse "${historical_capability_head}:tools/apollyon-training-activation-capability-contract-v1.mjs")" = bcb47a4b105b89a459a4ea876b03f057450371c5
+          test "$(git rev-parse "${historical_capability_head}:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs")" = ff4abd9e709f9b1e9b8df533c619be4724409941
+          test "$(git rev-parse "${historical_capability_head}:docs/security/apollyon-training-activation-capability-contract-v1.md")" = e061865a9cf4c4f7a0aa3eea424dd7d581844809
+          test "$(git rev-parse "${historical_capability_head}:.github/workflows/apollyon-training-activation-capability-contract-v1.yml")" = 519b4f1651f8a02d23c8bd95617ce2692db62153
+          test "$(git rev-parse "${current_parent}:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py")" = b57457435cc691ce576ef090e67ba323af254929
+          test "$(git rev-parse "${current_parent}:ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py")" = 87fa30d10d8d18716cd37ee2d375f0a1d094bdcf
+          test "$(git rev-parse "${current_parent}:ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py")" = 95b2f64562e995611807aac7f9b8b044775f203b
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py)" = 87fa30d10d8d18716cd37ee2d375f0a1d094bdcf
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py)" = 95b2f64562e995611807aac7f9b8b044775f203b
+          echo 'historical_capability_source_identity_bound=true'
+          echo 'current_retired_parent_source_identity_bound=true'
+
+
           test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
             bcb47a4b105b89a459a4ea876b03f057450371c5
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
             ff4abd9e709f9b1e9b8df533c619be4724409941
           test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
-            e061865a9cf4c4f7a0aa3eea424dd7d581844809
+            2d2d517c1757301d3df1af89e92fdb5cd8664011
 
           external_consumption_ref=refs/heads/ren/apollyon-training-start-consumption-contract-v1-20261016
           external_consumption_head=bdadfcc6854d6f4e1804347e51b940e897a8da9f
