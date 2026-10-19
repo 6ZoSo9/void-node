@@ -20,8 +20,8 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="cdf72610b121ecb05edbcad89cdb6256ad1e4945";
-const PARENT_HEAD="81b553a0cd3ab5f75db3d282ffec6a0e536e2977";
+const SOURCE_BLOB="bcb47a4b105b89a459a4ea876b03f057450371c5";
+const PARENT_HEAD="d00ca0141db62d752be7ddc6e7d9618e0475d897";
 const CONSUMPTION_HEAD="bdadfcc6854d6f4e1804347e51b940e897a8da9f";
 const CONSUMPTION_BLOB="42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3";
 
