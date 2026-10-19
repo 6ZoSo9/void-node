@@ -74,12 +74,13 @@ jobs:
         run: |
           set -euo pipefail
           parent=1b60642d980b76c13130d5124d83a22c2c01ec30
+          hardening_parent=12323dff3a6641492a40dcd9ffd1e5c9c2ed4840
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "$parent"
+              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$hardening_parent"; }
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
@@ -93,6 +94,14 @@ jobs:
                 'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
                 'tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs' \
                 | LC_ALL=C sort > "$expected"
+              if [ "$PR_BASE" = "$hardening_parent" ]; then
+                printf '%s\\n' \\
+                  '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \\
+                  'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \\
+                  'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \\
+                  'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \\
+                  | LC_ALL=C sort > "$expected"
+              fi
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
               ;;
@@ -111,13 +120,13 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            75dab134b8444ca79af6505f738bfcbdb924662c
+            d8fbb951e901422fcd100d3bc9fd1168c2077290
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            7b4d5cdb5049521b4ad105822095fcc48bb8a649
+            66a4a6cce86fc53ce75b35edc4cb79a000dad9d7
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            d88b1bde3a76cb732a9ff1580a73c117e69f7d01
+            d4ed4b4cdbbb459e17a9306927bd77447d23014c
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
@@ -221,6 +230,7 @@ jobs:
             'observation_missing_partial_and_malformed_state_rejected_without_repair=true' \
             'observation_fifo_and_socket_refused_without_blocking=true' \
             'observation_caller_selected_paths_and_slot_records_forbidden=true' \
+            'generation_nested_accessors_proxies_and_oversize_rejected_before_lease=true' \
             'observation_request_and_persisted_winner_cross_bound=true' \
             'observation_directory_and_root_transient_drift_rejected=true' \
             'caller_root_descriptor_reuse_cannot_redirect_active_operation=true' \
