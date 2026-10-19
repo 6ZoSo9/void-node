@@ -11,7 +11,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
-const SOURCE_BLOB="b4eafe1a06dae395e62c191d95623f71b6beda81";
+const SOURCE_BLOB="ee470baec84ac2985b1b7c05a07745b7ee3466f9";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json";
 const PLAN_BLOB="5face2022dc2cbc573e32e99f88623f381a8a174";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -200,6 +200,23 @@ function mustFail(label,mutator,pattern){
   }),pattern,label);
 }
 mustFail("bad entropy",(c)=>{c.generate_challenge_entropy=()=>Buffer.alloc(31);},/challenge_entropy_invalid/);
+
+{
+  const {proxy,revoke}=Proxy.revocable({},Object.create(null));
+  revoke();
+  assert.throws(
+    ()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(proxy),
+    /controller_input_invalid/,
+  );
+}
+{
+  const {proxy,revoke}=Proxy.revocable([],Object.create(null));
+  revoke();
+  assert.throws(
+    ()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(proxy),
+    /controller_input_invalid/,
+  );
+}
 
 for(const [field,pattern] of [
   ["journal_sequence",/journal_sequence_headroom_exhausted/],
@@ -423,6 +440,8 @@ console.log("evidence_origin_authentication_required=true");
 console.log("evidence_origin_authenticated=false");
 console.log("injected_capabilities_authenticated=false");
 console.log("all_capabilities_preflighted_before_invocation=true");
+console.log("revoked_object_proxy_namespaced_rejection=true");
+console.log("revoked_array_proxy_namespaced_rejection=true");
 console.log("async_capability_body_not_invoked=true");
 console.log("proxy_capability_apply_trap_not_invoked=true");
 console.log("generator_capability_body_not_invoked=true");

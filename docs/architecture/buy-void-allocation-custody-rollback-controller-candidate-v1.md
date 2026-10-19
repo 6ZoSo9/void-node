@@ -44,6 +44,11 @@ synchronous capabilities:
 
 Async/thenable capabilities fail closed.
 
+All closed object inputs reject Node Proxy objects before any `Array.isArray`
+classification. Revoked object and revoked array proxies therefore produce the
+controller's namespaced shape rejection rather than escaping as incidental
+engine `TypeError`.
+
 ## Sequencing invariants
 
 The controller validates a content-addressed operation record for the exact

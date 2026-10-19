@@ -85,7 +85,7 @@ const STABLE_CONTEXT_KEYS=Object.freeze([
 function fail(code){ throw new Error(code); }
 
 function dataObject(value,keys,code){
-  if(!value||typeof value!=="object"||Array.isArray(value)||utilTypes.isProxy(value))fail(code);
+  if(!value||typeof value!=="object"||utilTypes.isProxy(value)||Array.isArray(value))fail(code);
   const proto=Object.getPrototypeOf(value);
   if(proto!==Object.prototype&&proto!==null)fail(code);
   const own=Reflect.ownKeys(value);
