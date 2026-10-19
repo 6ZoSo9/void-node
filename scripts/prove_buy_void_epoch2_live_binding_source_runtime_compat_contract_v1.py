@@ -31,7 +31,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "8e3c588f9c7275dcb0e351d2785b5a923982f133",
+    RUNNER_V4: "7967778824f22baca976a59df75f9f808ebebfe2",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -91,13 +91,17 @@ for required in (
     'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V4',
     'const RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb";',
     "function validateSourceCompatibility(value,expectedHead){",
-    "function requireSourceRuntimeCompatibility(expectedHead){",
+    "function requireSourceRuntimeCompatibility(expectedHead,gitFn=git){",
     'git(["status","--porcelain=v1","--untracked-files=no"])',
     'git(["merge-base","--is-ancestor",RUNTIME_HEAD,sourceHead])',
     "source_runtime_ancestry_bound:true",
     "source_runtime_dependency_blob_equality:true",
     "function qualificationClosure(expectedHead,gitObjectFn=gitObject){",
     "const QUALIFIER_CLOSURE_SPECS=Object.freeze([",
+    "const SOURCE_RUNTIME_DEPENDENCY_SPECS=Object.freeze([",
+    'const AUTHENTICATED_CLOSURE_ROOT="/__void_authenticated_qualifier_closure_v1__";',
+    "requireAuthenticatedClosureNamespaceAbsent",
+    "nested_source_runtime_dependency_drift_not_rejected",
     "root_checkout_source_read_forbidden",
     "root_checkout_lock_read_forbidden",
     "q._direct_source_bytes=no_source",
@@ -152,6 +156,11 @@ for mode in ("--self-test", "--plan"):
             "source_runtime_ancestry_required=true",
             "tracked_source_checkout_exact_required=true",
             "source_runtime_dependency_blob_equality_required=true",
+            "source_runtime_complete_dependency_set_bound=true",
+            "nested_source_runtime_dependency_drift_rejected=true",
+            "authenticated_closure_synthetic_namespace=true",
+            "authenticated_closure_namespace_absent_required=true",
+            "root_qualification_user_checkout_file_namespace=false",
             "root_qualification_dependency_closure_git_object_bound=true",
             "root_checkout_dependency_path_reads_forbidden=true",
             "root_qualification_closure_path_contract_bound=true",
@@ -258,6 +267,10 @@ print("runner_v4_git_lazy_fetch_disabled=true")
 print("runner_v4_git_transport_disabled=true")
 print("runner_v4_git_prompt_and_askpass_disabled=true")
 print("runner_v4_qualifier_closure_git_object_bound=true")
+print("runner_v4_complete_source_runtime_dependency_set_bound=true")
+print("runner_v4_nested_source_runtime_dependency_drift_rejected=true")
+print("runner_v4_authenticated_closure_synthetic_namespace=true")
+print("runner_v4_user_checkout_root_module_namespace_forbidden=true")
 print("runner_v4_root_checkout_dependency_reads_forbidden=true")
 print("runner_v4_complete_dependency_closure_count=8")
 print("runner_v4_complete_dependency_closure_blobs_bound=true")
