@@ -107,8 +107,8 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 43f9e693698abfb281b7756204eccd25f712b41f
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 4e8e48bc5284258b7d944bc302fd91de60fd9162
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = fd2dd3ebeebb898d657cc338f17570b0a5784770
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 5a8f3796a653978e778c78e0ede478f59837b8e0
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md)" = e81507d62238ae149217b77c7889250e49d93a89
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = ba69d46ffa6f7d178de447b469b578fa8e87ea3b
@@ -144,6 +144,7 @@ jobs:
             'parent_v1_authenticated_module_graph_bound=true' \
             'parent_v1_module_graph_path_count=13' \
             'parent_v1_execution_from_authenticated_data_url=true' \
+            'production_v1_module_graph_executed_in_ci=true' \
             'parent_v1_path_import_performed=false' \
             'reviewed_source_open_nonblocking=true' \
             'executable_lease_open_nonblocking=true' \

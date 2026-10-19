@@ -61,11 +61,11 @@ regular pathname to a real temporary FIFO at the exact `openSync` boundary and
 requires the FIFO open to return without blocking, followed by HOLD on the
 existing descriptor type/identity checks.
 
-This closes only the special-file pre-open race. It does **not** close the
-separate execution-generation HOLD: V2 still imports the reviewed V1 module by
-pathname after authenticating V1 bytes. Until a separately reviewed
-generation-bound V1 module-graph execution path exists, this branch remains
-Draft/HOLD and no Precision retry is authorized.
+The special-file pre-open race remains closed. The later authenticated-module-
+graph repair also closes the separate execution-generation gap: reviewed V1
+code is no longer executed by reopening its pathname. This branch remains Draft
+until exact-head CI and review accept the combined repair; no Precision retry is
+authorized by source CI alone.
 
 ## Exact parent
 
@@ -79,9 +79,9 @@ parent_proof_blob=350354779caac35d7442b1315826b8b0c27463e2
 ```
 
 The future V2 host process descriptor-reads both exact parent files from the
-root-custodied materialized generation, verifies their raw Git blobs, imports
-V1 only after the adapter is installed, and revalidates both file generations
-after collection.
+root-custodied materialized generation, verifies their raw Git blobs, captures
+and authenticates the complete V1 runtime module graph before execution, and
+revalidates the visible source generations after collection.
 
 ## Runtime-user systemd adapter
 
@@ -234,3 +234,18 @@ production closure blobs and forbids the historical pathname import.
 This closes only source-execution generation binding. All existing host,
 credential, payment, signing, transaction, activation, treasury and funds
 authority remains unchanged.
+
+
+## Exact-head P1 execution binding update
+
+The authenticated graph implementation now exposes a CI-only execution helper
+using the same production graph engine. Hosted proof builds a map from the exact
+13 production module blobs and executes the real V1 entry from authenticated
+in-memory bytes. It requires the expected V1 marker and collector export.
+
+This supplements the synthetic two-module graph test and ensures the real
+closure, built-in TypeScript transform, import rewriting, and data-URL size
+boundary are exercised on every Node 22/24/26 lane before this source can be
+considered clear.
+
+No host collection or runtime/economic authority is added.

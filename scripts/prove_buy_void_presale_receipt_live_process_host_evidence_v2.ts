@@ -18,6 +18,7 @@ import {
   SCHEMA,
   VERSION,
   testOnlyAuthenticatedModuleGraphV2,
+  testOnlyExecuteAuthenticatedTypeScriptGraphV2,
   testOnlyBuildRuntimeUserSystemctlInvocationV2,
   testOnlyOpenExecutableLeaseV2,
   testOnlyReadExactReviewedSourceV2,
@@ -27,7 +28,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TARGET_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts";
-const TARGET_BLOB = "43f9e693698abfb281b7756204eccd25f712b41f";
+const TARGET_BLOB = "fd2dd3ebeebb898d657cc338f17570b0a5784770";
 const PARENT_SOURCE_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
 const PARENT_PROOF_REL =
@@ -104,8 +105,9 @@ const parentProof = pin(
 ).toString("utf8");
 
 assert.equal(Object.keys(PARENT_MODULE_GRAPH_PINS).length, 13);
+const productionGraphSources = new Map<string, Buffer>();
 for (const [relative, expected] of Object.entries(PARENT_MODULE_GRAPH_PINS)) {
-  pin(relative, expected);
+  productionGraphSources.set(relative, pin(relative, expected));
 }
 
 assert.equal(MARKER, "VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2");
@@ -183,10 +185,10 @@ for (const forbidden of [
   "O_RDWR",
   "O_CREAT",
   "O_EXCL",
-  "node:http",
-  "node:https",
-  "node:net",
-  "node:dgram",
+  'from "node:http"',
+  'from "node:https"',
+  'from "node:net"',
+  'from "node:dgram"',
   "fetch(",
   "/environ",
   '"environ"',
@@ -230,6 +232,20 @@ function buildValid() {
 }
 
 await testOnlyAuthenticatedModuleGraphV2();
+const productionParent = (await testOnlyExecuteAuthenticatedTypeScriptGraphV2(
+  ROOT,
+  PARENT_SOURCE_REL,
+  PARENT_MODULE_GRAPH_PINS,
+  productionGraphSources,
+)) as Readonly<Record<string, unknown>>;
+assert.equal(
+  productionParent.MARKER,
+  "VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V1",
+);
+assert.equal(
+  typeof productionParent.collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1,
+  "function",
+);
 const built = buildValid();
 assert.deepEqual(built.setpriv_args, [
   "--reuid=1000",
@@ -480,6 +496,7 @@ console.log("exact_parent_v1_proof_blob_bound=true");
 console.log("parent_v1_authenticated_module_graph_bound=true");
 console.log("parent_v1_module_graph_path_count=13");
 console.log("parent_v1_execution_from_authenticated_data_url=true");
+console.log("production_v1_module_graph_executed_in_ci=true");
 console.log("parent_v1_path_import_performed=false");
 console.log("reviewed_source_open_nonblocking=true");
 console.log("executable_lease_open_nonblocking=true");

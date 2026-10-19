@@ -324,6 +324,21 @@ export async function testOnlyAuthenticatedModuleGraphV2(): Promise<void> {
   assert.equal(rejected, true);
 }
 
+export async function testOnlyExecuteAuthenticatedTypeScriptGraphV2(
+  graphRoot: string,
+  entryRelative: string,
+  pins: Readonly<Record<string, string>>,
+  sources: ReadonlyMap<string, Buffer>,
+): Promise<unknown> {
+  return executeAuthenticatedTypeScriptGraph(
+    graphRoot,
+    entryRelative,
+    pins,
+    sources,
+  );
+}
+
+
 async function loadExactParent(sourceLease: ReviewedSourceGeneration): Promise<ParentModuleGraph> {
   if (PARENT_MODULE_GRAPH_PINS[PARENT_ENTRY_REL] !== PARENT_SOURCE_GIT_BLOB_SHA1) fail("lane1_v2_parent_graph_entry_pin_mismatch");
   const sources = new Map<string, Buffer>();
