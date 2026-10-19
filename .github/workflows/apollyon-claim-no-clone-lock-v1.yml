@@ -61,7 +61,7 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "46c1848e63b2260168072eeb9fc6013f974e9174"
+              test "$PR_BASE" = "491e1a5772a4a2c85e73111814ea1c43692d341d"
               BASE="$PR_BASE"
               git merge-base --is-ancestor "$BASE" "$HEAD"
               actual="$RUNNER_TEMP/claim-no-clone-actual.txt"
