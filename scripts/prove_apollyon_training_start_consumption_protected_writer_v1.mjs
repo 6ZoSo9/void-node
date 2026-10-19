@@ -39,7 +39,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-    "2165f85ead2a5997c600520e25274943d21e6704",
+    "d32f1c5761fa5b95f28c2b2edd1253ca9b28f034",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
@@ -321,6 +321,77 @@ assert.equal(leaf1.includes(record1.authorization_id),false);
     );
     assert.equal(fs.lstatSync(final).size,64*1024+1);
   }finally{
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+// A failed data close must never prevent the retained O_PATH descriptor
+// from being closed. Inject EIO *after* a real close and require both closes.
+for(const scenario of [
+  {method:"classify",fail:["data"]},
+  {method:"publish",fail:["data"]},
+  {method:"classify",fail:["path"]},
+  {method:"classify",fail:["data","path"]},
+]){
+  const root=newRoot();
+  const fd=openRoot(root);
+  const final=path.join(root,leaf1);
+  fs.writeFileSync(final,canonicalBytes(record1),{mode:0o600});
+  fs.chmodSync(final,0o600);
+  const rootBefore=fs.readdirSync(root).sort();
+  const bytesBefore=fs.readFileSync(final);
+  const fdsBefore=fs.readdirSync("/proc/self/fd").sort();
+  const originalOpen=fs.openSync;
+  const originalClose=fs.closeSync;
+  const O_PATH=Number(fs.constants.O_PATH??0o10000000);
+  let pathFd=-1;
+  let dataFd=-1;
+  const closeOrder=[];
+  const errors=[];
+  fs.openSync=function observedOpen(target,flags,...args){
+    const opened=originalOpen.call(fs,target,flags,...args);
+    if(String(target)===final&&(flags&O_PATH)!==0)pathFd=opened;
+    else if(pathFd>=0&&String(target)==="/proc/self/fd/"+String(pathFd)&&
+            (flags&O_PATH)===0)dataFd=opened;
+    return opened;
+  };
+  fs.closeSync=function injectedClose(target){
+    const role=target===dataFd?"data":target===pathFd?"path":null;
+    if(role!==null)closeOrder.push(role);
+    const result=originalClose.call(fs,target);
+    if(role!==null&&scenario.fail.includes(role)){
+      errors.push(role);
+      const fault=new Error("simulated EIO after real close");
+      fault.code="EIO";
+      throw fault;
+    }
+    return result;
+  };
+  try{
+    const run=scenario.method==="publish"
+      ?()=>publishApollyonTrainingStartConsumptionProtectedV1({
+        directory_fd:fd,consumption_record:record1,
+      })
+      :()=>classifyApollyonTrainingStartConsumptionProtectedSlotV1({
+        directory_fd:fd,expected_consumption_record:record1,
+      });
+    assert.throws(run,error=>{
+      assert.match(String(error.message),/existing_read_close_uncertain/u);
+      assert.equal(error.cause?.code,"EIO");
+      return true;
+    });
+    assert.ok(pathFd>=0&&dataFd>=0,"both read descriptors were opened");
+    assert.notEqual(pathFd,dataFd);
+    assert.deepEqual(closeOrder,["data","path"],
+      "both close operations attempted exactly once");
+    assert.deepEqual(errors,scenario.fail);
+  }finally{
+    fs.openSync=originalOpen;
+    fs.closeSync=originalClose;
+    assert.deepEqual(fs.readdirSync("/proc/self/fd").sort(),fdsBefore);
+    assert.deepEqual(fs.readdirSync(root).sort(),rootBefore);
+    assert.deepEqual(fs.readFileSync(final),bytesBefore);
     fs.closeSync(fd);
     fs.rmSync(root,{recursive:true,force:true});
   }
@@ -730,6 +801,7 @@ assert.equal(writerSource.includes("structuredClone(input)"),false);
 assert.equal(writerSource.includes("O_PATH"),true);
 assert.equal(writerSource.includes("O_NONBLOCK"),true);
 assert.equal(writerSource.includes("readBoundedExistingFinal"),true);
+assert.equal(writerSource.includes("closeExistingReadFds"),true);
 assert.equal(writerSource.includes("fs.readFileSync(fd)"),false);
 
 const workflow=fs.readFileSync(WORKFLOW,"utf8");
@@ -807,6 +879,7 @@ console.log("existing_slot_held_inode_admission=true");
 console.log("existing_slot_fifo_substitution_nonblocking=true");
 console.log("existing_slot_bounded_fd_read=true");
 console.log("existing_slot_growth_beyond_max_rejected=true");
+console.log("existing_slot_dual_fd_close_fault_safe=true");
 console.log("protected_consumption_store_origin_proven=false");
 console.log("unique_authorization_claim_slot_revalidation_performed=false");
 console.log("trainer_release=false");
