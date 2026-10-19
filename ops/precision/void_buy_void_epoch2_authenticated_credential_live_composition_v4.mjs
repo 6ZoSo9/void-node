@@ -345,23 +345,30 @@ function assertTrustedExecutable(file){
 
 let activeRootExecutionTools=null;
 
-function openRootExecutionTools(){
-  assertTrustedExecutable(GIT);
-  assertTrustedExecutable(NODE);
+function openRootExecutionTools(options={}){
+  const gitPath=options.gitPath??GIT;
+  const nodePath=options.nodePath??NODE;
   const setpriv=openRetainedTrustedExecutable(SETPRIV,"setpriv");
   let python=null;
+  let gitTool=null;
+  let nodeTool=null;
   try{
     python=openRetainedTrustedExecutable(PYTHON,"python3");
-    return {
+    gitTool=openRetainedTrustedExecutable(gitPath,"git");
+    nodeTool=openRetainedTrustedExecutable(nodePath,"node");
+    const tools={
       setpriv,
       python,
+      git:gitTool,
+      node:nodeTool,
       revalidate(){
-        revalidateRetainedTrustedExecutable(setpriv);
-        revalidateRetainedTrustedExecutable(python);
+        for(const tool of [setpriv,python,gitTool,nodeTool]){
+          revalidateRetainedTrustedExecutable(tool);
+        }
       },
       close(){
         let first=null;
-        for(const tool of [python,setpriv]){
+        for(const tool of [nodeTool,gitTool,python,setpriv]){
           try{
             revalidateRetainedTrustedExecutable(tool);
           }catch(error){
@@ -373,9 +380,14 @@ function openRootExecutionTools(){
         if(first!==null)throw first;
       },
     };
+    tools.revalidate();
+    return tools;
   }catch(error){
-    if(python!==null)closeRetainedTrustedExecutable(python);
-    closeRetainedTrustedExecutable(setpriv);
+    for(const tool of [nodeTool,gitTool,python,setpriv]){
+      if(tool!==null){
+        try{closeRetainedTrustedExecutable(tool);}catch{}
+      }
+    }
     throw error;
   }
 }
@@ -554,19 +566,38 @@ function requireNativePreentry(expectedHead){
 
 function runAsRuntimeUser(command,args,options={}){
   const tools=requireActiveRootExecutionTools();
-  return runRetainedTrustedExecutable(tools.setpriv,[
+  const commandTool=command===GIT ? tools.git :
+    (command===NODE ? tools.node : null);
+  if(commandTool===null){
+    throw new Error("runtime_user_command_not_retained");
+  }
+  tools.revalidate();
+  const setprivChildFd=3;
+  const commandChildFd=4;
+  const result=spawnSync("/proc/self/fd/"+String(setprivChildFd),[
     "--no-new-privs",
     "--reuid="+String(RUNTIME_UID),
     "--regid="+String(RUNTIME_GID),
     "--clear-groups",
-    command,
+    "/proc/self/fd/"+String(commandChildFd),
     ...args,
   ],{
     cwd:options.cwd??ROOT,
     env:options.env??cleanGitEnv(),
+    encoding:"utf8",
     input:options.input,
+    stdio:["pipe","pipe","pipe",tools.setpriv.fd,commandTool.fd],
     timeout:options.timeout??60_000,
+    maxBuffer:MAX_OUTPUT,
   });
+  try{
+    if(result.error){
+      throw new Error("spawn_error:"+safeReason(result.error.message));
+    }
+    return result;
+  }finally{
+    tools.revalidate();
+  }
 }
 
 function git(args){
@@ -1348,11 +1379,15 @@ function plan(){
   console.log("runtime_release_root_custody_required=true");
   console.log("retained_setpriv_descriptor_execution=true");
   console.log("retained_python_descriptor_execution=true");
+  console.log("retained_git_descriptor_execution=true");
+  console.log("retained_node_descriptor_execution=true");
   console.log("trusted_root_tool_path_rebind_rejected=true");
   console.log("trusted_root_tool_writable_ancestor_rejected=true");
   console.log("runtime_release="+RUNTIME_RELEASE);
   console.log("retained_setpriv_descriptor_execution_required=true");
   console.log("retained_python_descriptor_execution_required=true");
+  console.log("retained_git_descriptor_execution_required=true");
+  console.log("retained_node_descriptor_execution_required=true");
   console.log("root_tool_ancestor_custody_required=true");
   console.log("root_tool_terminal_generation_revalidation_required=true");
   console.log("protected_native_entry_accepted_by_this_pr=false");
@@ -1680,7 +1715,7 @@ function selfTest(){
   }
   privilegedFirstEntryAuthenticatedForInvocation=false;
 
-  const rootTools=openRootExecutionTools();
+  const rootTools=openRootExecutionTools({nodePath:process.execPath});
   try{
     const py=runRetainedTrustedExecutable(rootTools.python,["--version"],{
       env:cleanRootEnv(),timeout:10_000,
@@ -1693,6 +1728,26 @@ function selfTest(){
     });
     if(sp.status!==0||String(sp.stderr||"")!==""){
       throw new Error("retained_setpriv_self_test_failed");
+    }
+    const priorActiveTools=activeRootExecutionTools;
+    activeRootExecutionTools=rootTools;
+    try{
+      const gitVersion=runAsRuntimeUser(GIT,["--version"],{
+        env:cleanGitEnv(),timeout:10_000,
+      });
+      if(gitVersion.status!==0||
+         !String(gitVersion.stdout||"").startsWith("git version ")){
+        throw new Error("retained_git_runtime_user_self_test_failed");
+      }
+      const nodeVersion=runAsRuntimeUser(NODE,["--version"],{
+        env:cleanGitEnv(),timeout:10_000,
+      });
+      if(nodeVersion.status!==0||
+         !/^v[0-9]+\./u.test(String(nodeVersion.stdout||"").trim())){
+        throw new Error("retained_node_runtime_user_self_test_failed");
+      }
+    }finally{
+      activeRootExecutionTools=priorActiveTools;
     }
     let ancestorHeld=false;
     try{
