@@ -61,6 +61,10 @@ jobs:
           node scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs | tee "$out"
           grep -Fx 'caller_accessors_proxies_and_nested_objects_rejected_before_clone=true' "$out"
           grep -Fx 'caller_input_preflight_prevents_untrusted_writer_mutation=true' "$out"
+          grep -Fx 'existing_slot_held_inode_admission=true' "$out"
+          grep -Fx 'existing_slot_fifo_substitution_nonblocking=true' "$out"
+          grep -Fx 'existing_slot_bounded_fd_read=true' "$out"
+          grep -Fx 'existing_slot_growth_beyond_max_rejected=true' "$out"
           grep -Fx 'training_execution=false' "$out"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Prove store revalidation request
