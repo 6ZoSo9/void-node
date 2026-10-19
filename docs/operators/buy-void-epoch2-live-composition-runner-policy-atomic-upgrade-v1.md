@@ -40,3 +40,15 @@ No source-mode invocation mutates the host. Even apply never executes the native
 A successful install is not live-binding authority. Its next gate is a separate installed read-only V6R3 qualification.
 
 PROTECT THE CORE.
+
+
+## Failure-truth hardening
+
+The executor normalizes ordinary OS/runtime exceptions into the same HOLD surface as reviewed upgrade errors. If publication has already occurred, failure output explicitly distinguishes:
+
+- `published_rolled_back_green`; or
+- `published_needs_inspection`.
+
+It also reports whether final state was verified and whether automatic rollback was attempted/green.
+
+The fixed `/usr/bin/python3` entry may be a root-owned symlink on Ubuntu. The executor accepts only a root-owned, non-writable symlink whose resolved target is a trusted root-owned executable directly under `/usr/bin`. Git and setpriv remain direct trusted executables.
