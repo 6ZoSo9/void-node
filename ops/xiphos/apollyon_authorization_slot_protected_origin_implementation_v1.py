@@ -254,6 +254,7 @@ def open_root(
             # close failure leaves the child reachable by the outer cleanup.
             previous = current
             current = child
+            os.close(previous)
 
         return current, os.fstat(current)
     except BaseException:
