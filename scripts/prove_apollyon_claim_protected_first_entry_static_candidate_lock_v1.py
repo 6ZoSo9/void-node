@@ -14,7 +14,7 @@ TARGET_REL = (
     "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "2d328245a4850f90ee33a15750e3ba9db00515ad"
+TARGET_BLOB = "7462e0e90fa8ec068bd82039c9c07a3359c0d6de"
 
 EXPECTED_PARENT_HEAD = "bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c"
 EXPECTED_CANDIDATE_ID = (
@@ -96,16 +96,26 @@ with tempfile.TemporaryDirectory(prefix="apollyon-lock-parent-read-") as td:
     fixture.write_bytes(payload)
 
     opened_flags: list[int] = []
+    opened_paths: list[str] = []
 
     def tracking_open(path, flags, *args, **kwargs):
         opened_flags.append(flags)
+        opened_paths.append(os.fspath(path))
         return original_open(path, flags, *args, **kwargs)
 
     module.os.open = tracking_open
     assert module.stable_file(relative, blob) == payload
-    assert opened_flags
-    required_flags = os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
-    assert opened_flags[-1] & required_flags == required_flags
+    assert len(opened_flags) == 2
+    o_path = getattr(os, "O_PATH", 0)
+    assert o_path != 0
+    assert opened_paths[0] == os.fspath(fixture)
+    assert opened_flags[0] & o_path
+    assert opened_flags[0] & os.O_NOFOLLOW
+    assert opened_flags[0] & os.O_CLOEXEC
+    assert opened_paths[1].startswith("/proc/self/fd/")
+    assert not (opened_flags[1] & o_path)
+    assert opened_flags[1] & os.O_CLOEXEC
+    assert opened_flags[1] & os.O_NONBLOCK
     module.os.open = original_open
 
     expect_source_hold(
@@ -132,10 +142,18 @@ with tempfile.TemporaryDirectory(prefix="apollyon-lock-parent-read-") as td:
     fixture.unlink()
     fixture.write_bytes(payload)
 
+    pathname_data_opens = [0]
+    replaced = [False]
+
     def replacing_open(path, flags, *args, **kwargs):
-        replacement = temp_root / "replacement.py"
-        replacement.write_bytes(payload)
-        os.replace(replacement, fixture)
+        text_path = os.fspath(path)
+        o_path = getattr(os, "O_PATH", 0)
+        if Path(text_path) == fixture and not (flags & o_path):
+            pathname_data_opens[0] += 1
+        if text_path.startswith("/proc/self/fd/") and not replaced[0]:
+            fixture.unlink()
+            os.mkfifo(fixture, 0o600)
+            replaced[0] = True
         return original_open(path, flags, *args, **kwargs)
 
     module.os.open = replacing_open
@@ -144,6 +162,9 @@ with tempfile.TemporaryDirectory(prefix="apollyon-lock-parent-read-") as td:
         "parent_source_generation_changed:" + relative,
     )
     module.os.open = original_open
+    assert replaced[0] is True
+    assert pathname_data_opens[0] == 0
+    fixture.unlink()
 
     fixture.write_bytes(payload)
     first_read = True
@@ -530,6 +551,8 @@ print(
 )
 print("lock_source_blob_bound=true")
 print("parent_source_descriptor_bound=true")
+print("parent_source_opath_admission=true")
+print("parent_source_visible_replacement_not_data_opened=true")
 print("parent_source_symlink_fifo_rejected=true")
 print("parent_source_replacement_race_rejected=true")
 print("parent_source_growth_rejected=true")
