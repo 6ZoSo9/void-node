@@ -178,4 +178,3 @@ data opens, a maximum read request of 64 KiB + 1, and fail-closed rejection.
 
 Current repaired writer blob:
 `2165f85ead2a5997c600520e25274943d21e6704`.
-
