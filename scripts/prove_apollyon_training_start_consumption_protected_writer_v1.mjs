@@ -44,7 +44,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "f557d92e89f3502ee6ac1243411cd43191ec1f37",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8",
+    "25629371f6da164e12fecfc08c5f26815418e3a8",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "87019ae1245a2054407dd47835b0b7a891d4d9a2",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
