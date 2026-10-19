@@ -274,3 +274,32 @@ The reviewed host-evidence launch context is equivalent to
 followed by isolated `/usr/bin/python3 -I -B ... --run`. Source-plan and self-test
 modes remain non-authoritative and host-independent. The source proof includes
 wrong-UID, wrong-GID, and nonempty-supplemental-group adversaries.
+
+
+## Root-side trusted-tool descriptor execution
+
+A later exact-head manual review found that privileged read-only observation helpers
+still reopened `/usr/bin/setpriv` and downstream Git/Python tools by pathname.
+That was weaker than the retained-descriptor standard used for protected binaries:
+a replaceable external tool path could change between validation and execution.
+
+This generation removes the external Python/setpriv dependency from the ACL-aware
+runtime writability audit. Root now forks a child, clears supplementary groups,
+sets the exact runtime GID/UID, and performs effective-ID writability checks using
+the already-loaded Python runtime and kernel syscalls.
+
+Root-side Git observations now:
+
+- authenticate the resolved setpriv and Git leaves plus every ancestor as root-owned,
+  non-symlink, non-group/world-writable and runtime-UID non-writable;
+- open both executables with `O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK`;
+- hash and retain the exact executable generations;
+- execute setpriv through `/proc/self/fd/<setpriv-fd>` and direct it to the retained
+  `/proc/self/fd/<git-fd>` target with both FDs inherited; and
+- revalidate retained FD identity, visible path identity, ancestor generation and
+  SHA-256 after each observation.
+
+The separately reviewed trusted root launcher remains required for Python startup
+custody. This repair does not authorize merge, protected `/opt` apply, service or
+systemd mutation, credentials, signing, transaction/payment/activation, treasury,
+or funds movement.

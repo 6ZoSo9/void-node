@@ -83,7 +83,6 @@ RUNTIME_UID = 1000
 RUNTIME_GID = 1000
 FIXED_GIT = pathlib.Path("/usr/bin/git")
 FIXED_SETPRIV = pathlib.Path("/usr/bin/setpriv")
-FIXED_PYTHON = pathlib.Path("/usr/bin/python3")
 MAX_NODES = 250000
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
@@ -104,53 +103,45 @@ def git_blob_sha1(raw: bytes) -> str:
     h.update(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw)
     return h.hexdigest()
 
-_RUNTIME_WRITE_AUDIT_CODE = (
-    "import os,sys\n"
-    "for raw in sys.stdin.buffer.read().split(b'\\0'):\n"
-    "    if not raw: continue\n"
-    "    p=os.fsdecode(raw)\n"
-    "    if not os.path.lexists(p): sys.stdout.buffer.write(raw); raise SystemExit(4)\n"
-    "    if os.access(p, os.W_OK, effective_ids=True): sys.stdout.buffer.write(raw); raise SystemExit(3)\n"
-    "raise SystemExit(0)\n"
-)
-
-def _require_runtime_uid_nonwritable(paths: list[pathlib.Path], label: str) -> None:
+def _runtime_uid_write_audit_builtin(paths: list[pathlib.Path], label: str) -> None:
     unique = sorted({os.path.abspath(os.fspath(path)) for path in paths})
     if not unique:
         return
+    for raw_path in unique:
+        path = pathlib.Path(raw_path)
+        if not path.exists() and not path.is_symlink():
+            raise InstallError(label + "_runtime_write_audit_path_missing")
     if os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:
         for raw_path in unique:
-            path = pathlib.Path(raw_path)
-            if not path.exists() and not path.is_symlink():
-                raise InstallError(label + "_runtime_write_audit_path_missing")
-            if os.access(path, os.W_OK, effective_ids=True):
+            if os.access(raw_path, os.W_OK, effective_ids=True):
                 raise InstallError(label + "_runtime_writable")
         return
-    if os.geteuid() != 0:
+    if os.geteuid() != 0 or os.getuid() != 0:
         raise InstallError(label + "_runtime_write_audit_identity_invalid")
-    if not FIXED_SETPRIV.is_file() or not FIXED_PYTHON.is_file():
-        raise InstallError(label + "_runtime_write_audit_helper_unavailable")
-    payload = b"\0".join(os.fsencode(path) for path in unique) + b"\0"
-    cp = subprocess.run(
-        [
-            os.fspath(FIXED_SETPRIV), "--no-new-privs",
-            "--reuid=" + str(RUNTIME_UID), "--regid=" + str(RUNTIME_GID), "--clear-groups",
-            os.fspath(FIXED_PYTHON), "-I", "-B", "-c", _RUNTIME_WRITE_AUDIT_CODE,
-        ],
-        input=payload,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-        timeout=120,
-        env=_git_env(),
-    )
-    if cp.returncode == 0 and cp.stdout == b"" and cp.stderr == b"":
+    pid = os.fork()
+    if pid == 0:
+        try:
+            os.setgroups([])
+            os.setgid(RUNTIME_GID)
+            os.setuid(RUNTIME_UID)
+            for raw_path in unique:
+                if os.access(raw_path, os.W_OK, effective_ids=True):
+                    os._exit(3)
+            os._exit(0)
+        except BaseException:
+            os._exit(5)
+    waited, status = os.waitpid(pid, 0)
+    if waited != pid or not os.WIFEXITED(status):
+        raise InstallError(label + "_runtime_write_audit_child_abnormal")
+    code = os.WEXITSTATUS(status)
+    if code == 0:
         return
-    if cp.returncode == 3 and cp.stderr == b"":
+    if code == 3:
         raise InstallError(label + "_runtime_writable")
-    if cp.returncode == 4 and cp.stderr == b"":
-        raise InstallError(label + "_runtime_write_audit_path_missing")
     raise InstallError(label + "_runtime_write_audit_failed")
+
+def _require_runtime_uid_nonwritable(paths: list[pathlib.Path], label: str) -> None:
+    _runtime_uid_write_audit_builtin(paths, label)
 
 def require_privileged_source_custody() -> None:
     if os.geteuid() != 0 or os.getuid() != 0:
@@ -209,6 +200,170 @@ def _metadata_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int
         st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink,
         st.st_size, st.st_mtime_ns, st.st_ctime_ns,
     )
+
+def _trusted_tool_ancestor_snapshot(path: pathlib.Path, label: str) -> tuple[pathlib.Path, tuple[tuple[str, int, int, int, int, int, int], ...]]:
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise InstallError(label + "_tool_unavailable") from exc
+    if not resolved.is_absolute():
+        raise InstallError(label + "_tool_not_absolute")
+    current = resolved.parent
+    rows: list[tuple[str, int, int, int, int, int, int]] = []
+    audit_paths = [resolved]
+    while True:
+        st = os.lstat(current)
+        mode = stat.S_IMODE(st.st_mode)
+        if (
+            not stat.S_ISDIR(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or mode & 0o022
+        ):
+            raise InstallError(label + "_tool_ancestor_custody_invalid:" + os.fspath(current))
+        rows.append((os.fspath(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink))
+        audit_paths.append(current)
+        if current == current.parent:
+            break
+        current = current.parent
+    _runtime_uid_write_audit_builtin(audit_paths, label + "_tool")
+    return resolved, tuple(rows)
+
+def _read_tool_fd(fd: int, max_bytes: int, label: str) -> bytes:
+    os.lseek(fd, 0, os.SEEK_SET)
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        part = os.read(fd, 1024 * 1024)
+        if not part:
+            break
+        total += len(part)
+        if total > max_bytes:
+            raise InstallError(label + "_tool_size_limit")
+        chunks.append(part)
+    os.lseek(fd, 0, os.SEEK_SET)
+    return b"".join(chunks)
+
+def _open_trusted_tool_lease(
+    path: pathlib.Path,
+    label: str,
+    max_bytes: int = 512 * 1024 * 1024,
+) -> tuple[int, pathlib.Path, tuple[int, int, int, int, int, int, int, int, int], tuple[tuple[str, int, int, int, int, int, int], ...], str]:
+    resolved, ancestors = _trusted_tool_ancestor_snapshot(path, label)
+    before = os.lstat(resolved)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_uid != 0
+        or before.st_gid != 0
+        or before.st_nlink != 1
+        or stat.S_IMODE(before.st_mode) & 0o022
+        or stat.S_IMODE(before.st_mode) & 0o111 == 0
+    ):
+        raise InstallError(label + "_tool_leaf_custody_invalid")
+    fd = os.open(resolved, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        opened = os.fstat(fd)
+        identity = _metadata_identity(opened)
+        if identity != _metadata_identity(before):
+            raise InstallError(label + "_tool_open_generation_mismatch")
+        raw = _read_tool_fd(fd, max_bytes, label)
+        visible = os.lstat(resolved)
+        if _metadata_identity(os.fstat(fd)) != identity or _metadata_identity(visible) != identity:
+            raise InstallError(label + "_tool_generation_changed_during_hash")
+        resolved2, ancestors2 = _trusted_tool_ancestor_snapshot(resolved, label)
+        if resolved2 != resolved or ancestors2 != ancestors:
+            raise InstallError(label + "_tool_ancestor_generation_changed")
+        return fd, resolved, identity, ancestors, sha256_bytes(raw)
+    except BaseException:
+        os.close(fd)
+        raise
+
+def _revalidate_trusted_tool_lease(
+    fd: int,
+    resolved: pathlib.Path,
+    identity: tuple[int, int, int, int, int, int, int, int, int],
+    ancestors: tuple[tuple[str, int, int, int, int, int, int], ...],
+    digest: str,
+    label: str,
+    max_bytes: int = 512 * 1024 * 1024,
+) -> None:
+    if _metadata_identity(os.fstat(fd)) != identity:
+        raise InstallError(label + "_tool_retained_generation_changed")
+    visible = os.lstat(resolved)
+    if _metadata_identity(visible) != identity:
+        raise InstallError(label + "_tool_visible_generation_changed")
+    resolved2, ancestors2 = _trusted_tool_ancestor_snapshot(resolved, label)
+    if resolved2 != resolved or ancestors2 != ancestors:
+        raise InstallError(label + "_tool_ancestor_generation_changed")
+    if sha256_bytes(_read_tool_fd(fd, max_bytes, label)) != digest:
+        raise InstallError(label + "_tool_retained_sha256_changed")
+
+def _run_runtime_observer_tool(
+    tool: pathlib.Path,
+    args: list[str],
+    *,
+    input_data: bytes | None = None,
+    text: bool,
+    timeout: int,
+    env: dict[str, str],
+) -> subprocess.CompletedProcess[Any]:
+    if os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:
+        return subprocess.run(
+            [os.fspath(tool), *args],
+            input=input_data,
+            stdin=None if input_data is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=text,
+            check=False,
+            timeout=timeout,
+            env=env,
+        )
+    if os.geteuid() != 0 or os.getuid() != 0:
+        raise InstallError("repository_observer_identity_invalid")
+    setpriv_fd = tool_fd = -1
+    try:
+        setpriv_fd, setpriv_path, setpriv_identity, setpriv_ancestors, setpriv_sha = _open_trusted_tool_lease(
+            FIXED_SETPRIV, "setpriv"
+        )
+        tool_fd, tool_path, tool_identity, tool_ancestors, tool_sha = _open_trusted_tool_lease(
+            tool, "observer_tool"
+        )
+        argv = [
+            f"/proc/self/fd/{setpriv_fd}",
+            "--no-new-privs",
+            "--reuid=" + str(RUNTIME_UID),
+            "--regid=" + str(RUNTIME_GID),
+            "--clear-groups",
+            f"/proc/self/fd/{tool_fd}",
+            *args,
+        ]
+        cp = subprocess.run(
+            argv,
+            input=input_data,
+            stdin=None if input_data is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=text,
+            check=False,
+            timeout=timeout,
+            env=env,
+            pass_fds=(setpriv_fd, tool_fd),
+        )
+        _revalidate_trusted_tool_lease(
+            tool_fd, tool_path, tool_identity, tool_ancestors, tool_sha, "observer_tool"
+        )
+        _revalidate_trusted_tool_lease(
+            setpriv_fd, setpriv_path, setpriv_identity, setpriv_ancestors, setpriv_sha, "setpriv"
+        )
+        return cp
+    finally:
+        if tool_fd >= 0:
+            os.close(tool_fd)
+        if setpriv_fd >= 0:
+            os.close(setpriv_fd)
 
 def _read_metadata_file(path: pathlib.Path, label: str, max_bytes: int = 1024 * 1024) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
     before = path.lstat()
@@ -320,20 +475,13 @@ def _direct_git_metadata_snapshot(root: pathlib.Path, label: str) -> tuple[objec
     )
 
 def _git_probe_text(root: pathlib.Path, *args: str) -> str:
-    argv = [
-        os.fspath(FIXED_GIT), "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
+    git_args = [
+        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
         "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
         "--no-replace-objects", "-C", os.fspath(root), *args,
     ]
-    if os.geteuid() == 0:
-        if not FIXED_SETPRIV.is_file():
-            raise InstallError("setpriv_unavailable")
-        argv = [os.fspath(FIXED_SETPRIV), "--no-new-privs", "--reuid=1000", "--regid=1000", "--clear-groups", *argv]
-    elif os.geteuid() != RUNTIME_UID or os.getegid() != RUNTIME_GID:
-        raise InstallError("repository_observer_identity_invalid")
-    cp = subprocess.run(
-        argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, check=False, timeout=30, env=_git_env(),
+    cp = _run_runtime_observer_tool(
+        FIXED_GIT, git_args, text=True, timeout=30, env=_git_env()
     )
     if cp.returncode != 0 or cp.stderr != "":
         raise InstallError("git_provenance_probe_failed:" + (args[0] if args else "unknown"))
@@ -431,51 +579,40 @@ def _git_env() -> dict[str, str]:
     }
 
 def git_text(root: pathlib.Path, *args: str) -> str:
-    argv = [
-        os.fspath(FIXED_GIT), "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
+    git_args = [
+        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
         "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
         "--no-replace-objects", "-C", os.fspath(root), *args,
     ]
-    if os.geteuid() == 0:
-        if not FIXED_SETPRIV.is_file():
-            raise InstallError("setpriv_unavailable")
-        argv = [os.fspath(FIXED_SETPRIV), "--no-new-privs", "--reuid=1000", "--regid=1000", "--clear-groups", *argv]
-    elif os.geteuid() != RUNTIME_UID or os.getegid() != RUNTIME_GID:
-        raise InstallError("repository_observer_identity_invalid")
-    cp = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                        text=True, check=False, timeout=60, env=_git_env())
+    cp = _run_runtime_observer_tool(
+        FIXED_GIT, git_args, text=True, timeout=60, env=_git_env()
+    )
     if cp.returncode != 0 or cp.stderr != "":
         raise InstallError("git_observation_failed:" + (args[0] if args else "unknown"))
     return cp.stdout.strip()
 
 def git_bytes(root: pathlib.Path, *args: str) -> bytes:
-    argv = [
-        os.fspath(FIXED_GIT), "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
+    git_args = [
+        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
         "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
         "--no-replace-objects", "-C", os.fspath(root), *args,
     ]
-    if os.geteuid() == 0:
-        if not FIXED_SETPRIV.is_file():
-            raise InstallError("setpriv_unavailable")
-        argv = [os.fspath(FIXED_SETPRIV), "--no-new-privs", "--reuid=1000", "--regid=1000", "--clear-groups", *argv]
-    elif os.geteuid() != RUNTIME_UID or os.getegid() != RUNTIME_GID:
-        raise InstallError("repository_observer_identity_invalid")
-    cp = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                        check=False, timeout=60, env=_git_env())
+    cp = _run_runtime_observer_tool(
+        FIXED_GIT, git_args, text=False, timeout=60, env=_git_env()
+    )
     if cp.returncode != 0 or cp.stderr != b"":
         raise InstallError("git_observation_failed:" + (args[0] if args else "unknown"))
     return cp.stdout
 
 def git_is_ancestor(root: pathlib.Path, base: str, head: str) -> bool:
-    argv = [
-        os.fspath(FIXED_GIT), "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
+    git_args = [
+        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
         "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
         "--no-replace-objects", "-C", os.fspath(root), "merge-base", "--is-ancestor", base, head,
     ]
-    if os.geteuid() == 0:
-        argv = [os.fspath(FIXED_SETPRIV), "--no-new-privs", "--reuid=1000", "--regid=1000", "--clear-groups", *argv]
-    cp = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                        check=False, timeout=20, env=_git_env())
+    cp = _run_runtime_observer_tool(
+        FIXED_GIT, git_args, text=False, timeout=20, env=_git_env()
+    )
     if cp.returncode not in (0, 1) or cp.stdout or cp.stderr:
         raise InstallError("git_ancestor_observation_failed")
     return cp.returncode == 0
@@ -1019,6 +1156,9 @@ def source_plan() -> None:
     print("installed_qualifier_v3_bound=true")
     print("git_metadata_provenance_required_for_all_roots=true")
     print("git_external_metadata_and_object_indirection_rejected=true")
+    print("trusted_tool_root_descriptor_execution_required=true")
+    print("trusted_tool_ancestor_acl_custody_required=true")
+    print("runtime_write_audit_external_helper_free=true")
     print("source_control_network=false"); print("protected_filesystem_mutation=false"); print("service_mutation=false")
     print("credential_access=false"); print("signing=false"); print("transaction=false"); print("funds_movement=false")
 
@@ -1123,6 +1263,9 @@ def self_test() -> None:
     print("git_promisor_partial_clone_rejected=true")
     print("git_exact_dir_common_toplevel_required=true")
     print("git_metadata_provenance_required_for_all_roots=true")
+    print("trusted_tool_root_descriptor_execution_required=true")
+    print("trusted_tool_ancestor_acl_custody_required=true")
+    print("runtime_write_audit_external_helper_free=true")
     assert QUALIFIER_REL.endswith("_installed_qualification_v3.py") and len(QUALIFIER_BLOB) == 40
     print("installed_qualifier_v3_bound=true")
     print("partial_publication_truthful=true"); print("no_rollback_after_publication=true")

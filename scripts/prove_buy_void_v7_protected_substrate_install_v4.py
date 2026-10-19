@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="20763833d67b88182672e1c27d22048348781c8d"
+assert gblob(INS)=="e3bea1ce627a7f70f450f89c3c0b0ebb29f92203"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -88,10 +88,18 @@ required=(
     'def require_privileged_source_custody()',
     'privileged_source_custody_required_before_apply=true',
     'trusted_root_launcher_still_required=true',
-    'FIXED_PYTHON = pathlib.Path("/usr/bin/python3")',
+    'def _runtime_uid_write_audit_builtin(',
     'def _require_runtime_uid_nonwritable(',
+    'os.fork()',
+    'os.setgroups([])',
+    'def _open_trusted_tool_lease(',
+    'def _revalidate_trusted_tool_lease(',
+    'def _run_runtime_observer_tool(',
+    'f"/proc/self/fd/{setpriv_fd}"',
+    'f"/proc/self/fd/{tool_fd}"',
+    'pass_fds=(setpriv_fd, tool_fd)',
     '"--clear-groups"',
-    'os.access(p, os.W_OK, effective_ids=True)',
+    'os.access(raw_path, os.W_OK, effective_ids=True)',
     '_require_runtime_uid_nonwritable(runtime_paths, "privileged_source")',
     '_require_runtime_uid_nonwritable(runtime_paths, "install_parent")',
     'acl_aware_runtime_uid_nonwritability_required=true',
@@ -115,6 +123,10 @@ for needle in required:
 for stale in ('tree_digest(SOURCE_RELEASE)','tree_digest(SOURCE_TARGET)','tree_digest(SOURCE_STAGE)'):
     assert stale not in src, stale
 assert 'RUN_INSTALLED_QUALIFICATION_V2' not in src
+assert 'FIXED_PYTHON' not in src
+assert '_RUNTIME_WRITE_AUDIT_CODE' not in src
+assert 'argv = [os.fspath(FIXED_SETPRIV)' not in src
+assert 'os.fspath(FIXED_SETPRIV), "--no-new-privs"' not in src
 tree_body=src[src.index('def tree_digest('):src.index('def candidate_fd_metadata_valid(')]
 dir_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_directories, "tree_directories")')
 reg_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")')
@@ -232,6 +244,9 @@ assert "installed_binary_acl_audit_precedes_hash=true" in cp.stdout.splitlines()
 assert "installed_binary_descriptor_hash_required=true" in cp.stdout.splitlines()
 assert "tree_regular_fifo_race_rejected_nonblocking=true" in cp.stdout.splitlines()
 assert "tree_regular_symlink_race_rejected_nofollow=true" in cp.stdout.splitlines()
+assert "trusted_tool_root_descriptor_execution_required=true" in cp.stdout.splitlines()
+assert "trusted_tool_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
+assert "runtime_write_audit_external_helper_free=true" in cp.stdout.splitlines()
 
 cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--source-plan"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr==""
@@ -242,6 +257,9 @@ assert "accepted_v1_lock_install_authority=false" in cp.stdout.splitlines()
 assert "git_metadata_provenance_required_for_all_roots=true" in cp.stdout.splitlines()
 assert "git_external_metadata_and_object_indirection_rejected=true" in cp.stdout.splitlines()
 assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitlines()
+assert "trusted_tool_root_descriptor_execution_required=true" in cp.stdout.splitlines()
+assert "trusted_tool_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
+assert "runtime_write_audit_external_helper_free=true" in cp.stdout.splitlines()
 
 cp=subprocess.run([sys.executable,"-I","-B",str(QUAL),"--self-test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V3_SELF_TEST_GREEN" in cp.stdout.splitlines()
@@ -295,6 +313,10 @@ print("trusted_root_launcher_still_required=true")
 print("mode_only_nonwritable_is_insufficient_model=true")
 print("installer_acl_aware_runtime_uid_write_audit_bound=true")
 print("runtime_uid_cleared_groups_write_audit_bound=true")
+print("runtime_write_audit_external_helper_free_bound=true")
+print("trusted_tool_root_descriptor_execution_bound=true")
+print("trusted_tool_ancestor_acl_custody_bound=true")
+print("trusted_tool_terminal_revalidation_bound=true")
 print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
 print("qualifier_runtime_uid_gid_1000_bound=true")
 print("qualifier_supplementary_groups_empty_bound=true")
