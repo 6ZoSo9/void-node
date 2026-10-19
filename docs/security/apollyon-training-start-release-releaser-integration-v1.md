@@ -21,7 +21,8 @@ This gate closes the next bounded source gap with an actual hosted composition:
    its own exact FD set and singleton task state;
 7. it installs an irreversible seccomp writer-continuity filter;
 8. the filter blocks late task creation, FD duplication, proc/dev-fd reopen
-   duplication, socket creation/FD passing, pidfd_getfd and io_uring setup;
+   duplication, close-on-exec clearing, executable-image replacement,
+   socket creation/FD passing, pidfd_getfd and io_uring setup;
 9. the releaser writes the exact 64-byte frame and closes its sole writer;
 10. the actual #3381 trainer gate must observe the frame + EOF and exit zero.
 
@@ -72,6 +73,9 @@ The filter denies:
 - clone / clone3 / fork / vfork;
 - dup / dup2 / dup3;
 - fcntl-based duplication;
+- ioctl, preventing FIONCLEX from clearing the sole writer's close-on-exec flag;
+- execve / execveat, preventing an unreviewed replacement image from inheriting
+  the release writer during the terminal authority interval;
 - open / openat / openat2 plus the distinct creat syscall, preventing
   /proc/self/fd or /dev/fd reopen duplication through either interface;
 - socket / socketpair;
@@ -94,7 +98,8 @@ between resume and frame publication.
 
 The releaser then proves representative late duplication/reopen/socket attempts,
 including a direct creat(2) reopen of the release writer through /proc/self/fd,
-return EPERM before it resumes the trainer and writes the frame.
+an FIONCLEX attempt against the sole writer, and direct execve/execveat syscall
+attempts all return EPERM before it resumes the trainer and writes the frame.
 
 ## Adversarial fixtures
 
