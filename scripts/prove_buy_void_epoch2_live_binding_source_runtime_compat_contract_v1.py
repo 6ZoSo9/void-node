@@ -42,7 +42,7 @@ EXPECTED = {
     LOCK_V2: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
     LOCK_V6: "772945b639d138284fc18cc312f7b9115b10c748",
     PARSER_V4: "223a8acf32f8c7961d61222b83c0db17075f86c6",
-    SEALED_V3: "f5ae61a95e4bc8f908109cafb38e40807fc7c2e8",
+    SEALED_V3: "ad4df07e9875e3c92eb8da01d6fd735d68417a45",
 }
 
 def git_blob(raw: bytes) -> str:
@@ -159,7 +159,7 @@ for required in (
     'runtime_uid_effective_tool_nonwritability_required=true',
     'root_tool_terminal_generation_revalidation_required=true',
     "function requireRuntimeUidNonwritable(candidate,label){",
-    'const SEALED_BLOB="f5ae61a95e4bc8f908109cafb38e40807fc7c2e8";',
+    'const SEALED_BLOB="ad4df07e9875e3c92eb8da01d6fd735d68417a45";',
     "function openRetainedTrustedExecutable(file,label){",
     "function runRetainedTrustedExecutable(tool,args,options={}){",
     'const executable=tool.real;',
