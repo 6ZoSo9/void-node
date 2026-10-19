@@ -111,3 +111,17 @@ durable claim/store generation and protected directory origin immediately before
 invoking this writer, then separately satisfy the accepted #3351 release gate.
 
 PROTECT THE CORE.
+
+## October 19 current-parent reconciliation
+
+This generation is a non-force merge-forward over current #3351
+`9e1da5dbb1ae12114a26506fbf1c6bc56780b98f`. The protected-writer source remains byte-identical at
+`a08927b7b16884a9bf0c28328047afdab49649ea`. The focused proof now binds
+the current #3333 consumption source
+`42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3`, current authorization-slot
+source `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`, and current claim-service
+candidate `87019ae1245a2054407dd47835b0b7a891d4d9a2`.
+
+Protected-store origin, current store-generation and protected-winner
+revalidation, trainer release, training, credentials, transactions, and funds
+authority remain false/unperformed.

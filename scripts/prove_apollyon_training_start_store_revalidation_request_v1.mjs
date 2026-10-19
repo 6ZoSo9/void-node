@@ -63,15 +63,15 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-    "028a48c47fa0e7edf5ef98f2b005bed856a22646",
+    "5dc2d21b5f6b2e03439d4deb070906fd05583493",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
     "a08927b7b16884a9bf0c28328047afdab49649ea",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "60987b860fb7159d88f4f601b76878e7d8ccca92",
+    "42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "93582c324ca85aeff56eb61f82b32f1e4c18dfe9",
+    "c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
+    "87019ae1245a2054407dd47835b0b7a891d4d9a2",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
     "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
@@ -544,7 +544,7 @@ for(const required of [
   '"/var/lib/void-apollyon-attempt-claim-v2"',
   '"/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1"',
   '"a08927b7b16884a9bf0c28328047afdab49649ea"',
-  '"d67ef39c4cd034844fb0862e180de46ed4cd0c88"',
+  '"87019ae1245a2054407dd47835b0b7a891d4d9a2"',
   "protected_store_origin_proven:false",
   "current_store_generation_revalidation_performed:false",
   "authorization_winner_reread_performed:false",
@@ -575,6 +575,9 @@ const expectedTriggerPaths=[
   "docs/security/apollyon-training-start-store-revalidation-request-v1.md",
   ".github/workflows/apollyon-training-start-store-revalidation-request-v1.yml",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs",
+  ".github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml",
+  "docs/security/apollyon-training-start-consumption-protected-writer-v1.md",
+  "scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs",
   "tools/apollyon-training-start-consumption-contract-v1.mjs",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs",

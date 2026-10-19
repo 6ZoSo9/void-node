@@ -119,3 +119,25 @@ Next gate:
 `apollyon_training_start_protected_store_revalidator_v1`.
 
 PROTECT THE CORE.
+
+## October 19 current-generation writer + revalidation request
+
+This PR is reconciled directly onto current #3351
+`9e1da5dbb1ae12114a26506fbf1c6bc56780b98f` and carries the complete
+eight-file writer + protected-store revalidation-request layer.
+
+The protected-writer implementation remains byte-identical at
+`a08927b7b16884a9bf0c28328047afdab49649ea`. Its current proof binds
+#3333 consumption source `42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3`,
+authorization-slot source `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`, and claim-service
+candidate `87019ae1245a2054407dd47835b0b7a891d4d9a2`.
+
+The revalidation-request source is rebound to those same current consumption
+and claim-service generations. The composite workflow runs the current writer
+proof before the revalidation-request proof and requires the direct PR scope to
+be exactly the eight writer/request files.
+
+This consolidation does not prove protected-store origin, current store
+generation/winner/claim rereads, writer invocation authority, consumption
+publication, trainer release, training, credential/key access, transactions or
+funds movement.
