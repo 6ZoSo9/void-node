@@ -132,6 +132,12 @@ const O_CLOEXEC=fs.constants.O_CLOEXEC??0;
 const COPY_BYTES=Buffer.prototype.copy;
 const ALLOC_BYTES=Buffer.alloc;
 const APPLY=Reflect.apply;
+// Captured intrinsic slots: Buffer own length/byteLength getters and copy
+// overrides are caller code even on genuine, non-Proxy Buffer instances.
+const BYTE_LENGTH_GETTER=Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),"byteLength",
+).get;
+const SET_TYPED_ARRAY=Uint8Array.prototype.set;
 const CLEANUP_RECORDS=new WeakMap();
 
 function storeError(code,cause){
@@ -266,14 +272,21 @@ function exactPrimitiveRecordInput(input,keys,code){
   return snapshot;
 }
 function copyRequestBytes(input,code){
+  if(types.isProxy(input)||!Buffer.isBuffer(input))fail(code);
+  // Reject before allocation using the internal TypedArray byteLength slot.
+  // Never read input.length/input.byteLength or invoke Buffer.prototype.copy
+  // against caller-controlled objects; all may dispatch caller accessors.
+  let length;
+  try{length=APPLY(BYTE_LENGTH_GETTER,input,[]);}
+  catch{fail(code);}
   if(
-    types.isProxy(input)||
-    !Buffer.isBuffer(input)||
-    input.length<3||
-    input.length>MAX_PUBLISH_REQUEST_BYTES
+    !Number.isSafeInteger(length)||
+    length<3||
+    length>MAX_PUBLISH_REQUEST_BYTES
   )fail(code);
-  const bytes=ALLOC_BYTES(input.length);
-  APPLY(COPY_BYTES,input,[bytes]);
+  const bytes=ALLOC_BYTES(length);
+  try{APPLY(SET_TYPED_ARRAY,bytes,[input,0]);}
+  catch{fail(code);}
   return bytes;
 }
 function recordBytes(value){
@@ -1006,7 +1019,12 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
     typeof cfg.session_binding_id!=="string"||!SESSION_BINDING_ID.test(cfg.session_binding_id)||
     typeof cfg.acquireExclusiveStoreTransaction!=="function"||
     types.isProxy(cfg.acquireExclusiveStoreTransaction)||
-    typeof cfg.revalidate!=="function"||types.isProxy(cfg.revalidate)
+    types.isAsyncFunction(cfg.acquireExclusiveStoreTransaction)||
+    types.isGeneratorFunction(cfg.acquireExclusiveStoreTransaction)||
+    typeof cfg.revalidate!=="function"||
+    types.isProxy(cfg.revalidate)||
+    types.isAsyncFunction(cfg.revalidate)||
+    types.isGeneratorFunction(cfg.revalidate)
   )fail(configCode);
 
   requireBackend();
