@@ -59,8 +59,8 @@ V2_MARKER = "VOID_BUY_VOID_PRESALE_EPOCH2_INSTALLED_GENERATION_HOST_EVIDENCE_V2"
 V2_SCHEMA = "void_buy_void_presale_epoch2_installed_generation_host_evidence_v2"
 FIXED_CHECKOUT = Path("/home/zoso/dev/void-node")
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
-SOURCE_HEAD = "fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de"
-SOURCE_TREE = "8cf585e4e32f085520b5f3536101e082f284f9e7"
+SOURCE_HEAD = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"
+SOURCE_TREE = "9e930fba9aacfafb5b163767302786cd7f31c81e"
 MAX_V2_SOURCE_BYTES = 2 * 1024 * 1024
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
@@ -95,6 +95,21 @@ ALLOWED_ADD_ONLY: dict[str, tuple[str, str, int]] = {
     ),
     "scripts/prove_buy_void_v7_protected_substrate_install_v2.py": (
         "100755", "7d09250dab932971e18171d667bfb98994e05e7e", 7950,
+    ),
+    ".github/workflows/buy-void-v7-materializer-v2-install-v3.yml": (
+        "100644", "c689997ecdf97e58c3fedf96a7cae2fb6f76c8a2", 4403,
+    ),
+    "docs/operators/buy-void-v7-materializer-v2-install-v3.md": (
+        "100644", "91a9c04c02ba4ddbe5417e03b73efe0e71605e81", 1980,
+    ),
+    "ops/precision/void_buy_void_v7_protected_substrate_install_v3.py": (
+        "100755", "4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38", 36987,
+    ),
+    "scripts/materialize_buy_void_v7_protected_substrate_v2.py": (
+        "100755", "474614da950db72082fb95a5174405ce8caf2513", 7922,
+    ),
+    "scripts/prove_buy_void_v7_materializer_v2_install_v3.py": (
+        "100755", "c853547fe037ced8fbaa63da11987343c9f0ee4e", 4030,
     ),
 }
 
@@ -607,7 +622,7 @@ def self_test() -> None:
     assert HEX40.fullmatch(RUNTIME_HEAD)
     assert HEX40.fullmatch(SOURCE_HEAD)
     assert HEX40.fullmatch(SOURCE_TREE)
-    assert len(ALLOWED_ADD_ONLY) == 10
+    assert len(ALLOWED_ADD_ONLY) == 15
     v2 = _load_v2_module()
     base = v2._load_patched_base_module()
     assert base._verify_checkout_bytes.__name__ == "compat_verifier"
@@ -622,7 +637,7 @@ def self_test() -> None:
     print("runtime_head_exact=true")
     print("source_head_exact=true")
     print("source_tree_exact=true")
-    print("source_runtime_ten_add_only_compatibility_required=true")
+    print("source_runtime_fifteen_add_only_compatibility_required=true")
     print("current_checkout_full_tracked_bytes_authenticated=true")
     print("installer_runtime_head_translation_bound=true")
     print("runtime_source_dependency_blob_equality_required=true")

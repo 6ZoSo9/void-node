@@ -15,12 +15,13 @@ runtime / installed policy head:
 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
 
 canonical source main:
-fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de
+0ada7fde0d90c3946b10693f4621cbd690bfcde6
 ```
 
-A read-only Precision diagnostic proved that the source advance is exactly the
-ten ADD-only files merged by PR #3532, while the installed live release and the
-Epoch-2 protected policy remain intentionally bound to the earlier runtime head.
+Read-only source audits proved that the source advance is exactly fifteen
+ADD-only files introduced by PRs #3532, #3534, and #3536, while the installed
+live release and the Epoch-2 protected policy remain intentionally bound to the
+earlier runtime head.
 
 Changing the installed qualifier's `expected_head` to the newer source head would
 be incorrect: the protected policy includes the earlier exact head. Rewinding or
@@ -57,12 +58,12 @@ Runtime generation:
 Permitted canonical source generation:
 
 ```text
-head=fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de
-tree=8cf585e4e32f085520b5f3536101e082f284f9e7
+head=0ada7fde0d90c3946b10693f4621cbd690bfcde6
+tree=9e930fba9aacfafb5b163767302786cd7f31c81e
 ```
 
-The newer source tree must equal the complete runtime tree plus exactly these six
-tracked additions, with exact mode, Git blob, and byte size:
+The newer source tree must equal the complete runtime tree plus exactly these
+fifteen tracked additions, with exact mode, Git blob, and byte size:
 
 ```text
 100644 78190cd9f71e4dd0ee4f7fdc1144b70fc644db8c 967
@@ -82,6 +83,33 @@ tracked additions, with exact mode, Git blob, and byte size:
 
 100755 568bd08c6c3a120864a6b4f69a8d5b5cb41f5f72 3464
   scripts/prove_buy_void_v7_protected_substrate_source_proposal_v3.py
+
+100644 f2bfa4df16c4c4a69be275dd504b7a458512e7db 5672
+  .github/workflows/buy-void-v7-protected-substrate-install-v2.yml
+
+100644 a6d81892b9493258e7c8f4aaf8ac4981955ec42a 4628
+  docs/operators/buy-void-v7-protected-substrate-install-v2.md
+
+100755 aae2d1a011053ea0665bf07972d9670cca73f6da 36881
+  ops/precision/void_buy_void_v7_protected_substrate_install_v2.py
+
+100755 7d09250dab932971e18171d667bfb98994e05e7e 7950
+  scripts/prove_buy_void_v7_protected_substrate_install_v2.py
+
+100644 c689997ecdf97e58c3fedf96a7cae2fb6f76c8a2 4403
+  .github/workflows/buy-void-v7-materializer-v2-install-v3.yml
+
+100644 91a9c04c02ba4ddbe5417e03b73efe0e71605e81 1980
+  docs/operators/buy-void-v7-materializer-v2-install-v3.md
+
+100755 4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38 36987
+  ops/precision/void_buy_void_v7_protected_substrate_install_v3.py
+
+100755 474614da950db72082fb95a5174405ce8caf2513 7922
+  scripts/materialize_buy_void_v7_protected_substrate_v2.py
+
+100755 c853547fe037ced8fbaa63da11987343c9f0ee4e 4030
+  scripts/prove_buy_void_v7_materializer_v2_install_v3.py
 ```
 
 No modified, deleted, renamed, mode-changed, or additional tracked path is
@@ -96,7 +124,7 @@ runtime generation:
 2. direct `main` branch;
 3. complete runtime tree inventory;
 4. complete current source tree inventory;
-5. exact six-path ADD-only relation;
+5. exact fifteen-path ADD-only relation;
 6. exact stage-zero index equality to the current source tree;
 7. no-follow bounded reads of every tracked current-source file;
 8. raw Git-blob and executable-mode equality for every tracked file; and
@@ -109,7 +137,7 @@ As in V2, untracked paths are not enumerated and do not become source authority.
 The inherited V5 installed qualifier still receives the exact installed/runtime
 head `4c80887a...`.
 
-Only after the exact `44f7cf57...` source generation is authenticated does V3
+Only after the exact `0ada7fde...` source generation is authenticated does V3
 adapt the inherited installer's read-only Git interface:
 
 - `rev-parse --verify HEAD` returns the runtime head;
@@ -128,10 +156,10 @@ A future GREEN V3 receipt states, among other inherited evidence:
 
 ```text
 runtime_expected_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
-source_checkout_head=fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de
-source_checkout_tree=8cf585e4e32f085520b5f3536101e082f284f9e7
+source_checkout_head=0ada7fde0d90c3946b10693f4621cbd690bfcde6
+source_checkout_tree=9e930fba9aacfafb5b163767302786cd7f31c81e
 source_runtime_add_only_compatibility_exact=true
-source_runtime_added_path_count=10
+source_runtime_added_path_count=15
 main_source_advance_runtime_non_authority=true
 canonical_checkout_rewind_performed=false
 canonical_checkout_mutation_performed=false
@@ -204,3 +232,18 @@ source/CI files. Combined with the prior #3532 six-file source-only advance, V3 
 requires the current source tree to equal runtime head
 `4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb` plus exactly ten reviewed additions.
 No arbitrary future additions are accepted.
+
+
+## Third source-only main advance
+
+After the ten-path compatibility generation was green, `main` advanced from
+`fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de` to
+`0ada7fde0d90c3946b10693f4621cbd690bfcde6` by merging #3536.
+
+That merge adds exactly five V7 materializer/installer source-and-CI files and
+modifies no pre-existing runtime path. Combined with the six #3532 additions and
+four #3534 additions, V3 now requires exactly fifteen additions over runtime head
+`4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`.
+
+The allowlist remains finite and exact. A sixteenth tracked addition, deletion,
+rename, mode change, or modification of any runtime path is HOLD.

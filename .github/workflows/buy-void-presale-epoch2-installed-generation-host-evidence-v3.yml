@@ -33,8 +33,8 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           EXPECTED_PARENT: 6a7205490d331c2e71f5548541c03a235e3a7cfe
           RUNTIME_HEAD: 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
-          SOURCE_HEAD: fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de
-          SOURCE_TREE: 8cf585e4e32f085520b5f3536101e082f284f9e7
+          SOURCE_HEAD: 0ada7fde0d90c3946b10693f4621cbd690bfcde6
+          SOURCE_TREE: 9e930fba9aacfafb5b163767302786cd7f31c81e
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -59,9 +59,9 @@ jobs:
           git diff --name-only "$EXPECTED_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = 1cf0588999bd3c32349d021977eeac267550521e
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = 9660fe2b34c9d2589c6ff0ca3ac86188a4c1215e
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v3.md)" = 22dee60bb68bb7eace109d4dc8edfc97846a86fb
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = f9e3b1f5501a56e7ce1a191f12507186e79c28d4
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = 74e8cd72588ebc9fcbbb108c12e5f55ea60e52cf
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v3.md)" = 3dcac309368e822251aa2de15292c588a0fcad01
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = ef9307452caaa9a946419a9dbc4139eef2322180
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577
@@ -84,6 +84,11 @@ jobs:
           A	docs/operators/buy-void-v7-protected-substrate-install-v2.md
           A	ops/precision/void_buy_void_v7_protected_substrate_install_v2.py
           A	scripts/prove_buy_void_v7_protected_substrate_install_v2.py
+          A	.github/workflows/buy-void-v7-materializer-v2-install-v3.yml
+          A	docs/operators/buy-void-v7-materializer-v2-install-v3.md
+          A	ops/precision/void_buy_void_v7_protected_substrate_install_v3.py
+          A	scripts/materialize_buy_void_v7_protected_substrate_v2.py
+          A	scripts/prove_buy_void_v7_materializer_v2_install_v3.py
           EOF
           sed -i 's/^          //' "$expected_delta"
           git diff --name-status "$RUNTIME_HEAD" "$SOURCE_HEAD" -- | LC_ALL=C sort > "$actual_delta"
@@ -108,6 +113,11 @@ jobs:
           check_tree_entry docs/operators/buy-void-v7-protected-substrate-install-v2.md 100644 a6d81892b9493258e7c8f4aaf8ac4981955ec42a
           check_tree_entry ops/precision/void_buy_void_v7_protected_substrate_install_v2.py 100755 aae2d1a011053ea0665bf07972d9670cca73f6da
           check_tree_entry scripts/prove_buy_void_v7_protected_substrate_install_v2.py 100755 7d09250dab932971e18171d667bfb98994e05e7e
+          check_tree_entry .github/workflows/buy-void-v7-materializer-v2-install-v3.yml 100644 c689997ecdf97e58c3fedf96a7cae2fb6f76c8a2
+          check_tree_entry docs/operators/buy-void-v7-materializer-v2-install-v3.md 100644 91a9c04c02ba4ddbe5417e03b73efe0e71605e81
+          check_tree_entry ops/precision/void_buy_void_v7_protected_substrate_install_v3.py 100755 4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38
+          check_tree_entry scripts/materialize_buy_void_v7_protected_substrate_v2.py 100755 474614da950db72082fb95a5174405ce8caf2513
+          check_tree_entry scripts/prove_buy_void_v7_materializer_v2_install_v3.py 100755 c853547fe037ced8fbaa63da11987343c9f0ee4e
 
           git diff --check "$EXPECTED_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -139,7 +149,7 @@ jobs:
             'exact_v1_source_blob_bound=true' \
             'runtime_head_and_source_head_distinct=true' \
             'source_runtime_exact_add_only_allowlist_required=true' \
-            'source_runtime_ten_add_only_allowlist_bound=true' \
+            'source_runtime_fifteen_add_only_allowlist_bound=true' \
             'source_runtime_base_path_identity_preserved=true' \
             'unexpected_added_path_rejected=true' \
             'tracked_worktree_byte_drift_rejected=true' \
@@ -172,7 +182,7 @@ jobs:
             'runtime_head_exact=true' \
             'source_head_exact=true' \
             'source_tree_exact=true' \
-            'source_runtime_ten_add_only_compatibility_required=true' \
+            'source_runtime_fifteen_add_only_compatibility_required=true' \
             'current_checkout_full_tracked_bytes_authenticated=true' \
             'installer_runtime_head_translation_bound=true' \
             'runtime_source_dependency_blob_equality_required=true' \
