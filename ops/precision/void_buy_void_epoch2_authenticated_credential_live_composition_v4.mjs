@@ -1016,7 +1016,7 @@ function selfTest(){
     immutable_fulfiller:EXPECTED_FULFILLER,
   };
   const syntheticSourceCompatibility={
-    runtime_head:"c".repeat(40),
+    runtime_head:RUNTIME_HEAD,
     source_head:"2".repeat(40),
     source_tree:"3".repeat(40),
     source_runtime_ancestry_bound:true,
@@ -1026,7 +1026,7 @@ function selfTest(){
     untracked_paths_source_authority:false,
   };
   const receipt=buildReceipt({
-    expectedHead:"c".repeat(40),
+    expectedHead:RUNTIME_HEAD,
     sourceCompatibility:syntheticSourceCompatibility,
     qualification:q,
     sealedRecord:sealed,
@@ -1035,7 +1035,7 @@ function selfTest(){
     throw new Error("receipt_id_self_test_failed");
   }
   if(receipt.version!==4||
-     receipt.runtime_head!=="c".repeat(40)||
+     receipt.runtime_head!==RUNTIME_HEAD||
      receipt.source_checkout_head!=="2".repeat(40)||
      receipt.source_checkout_tree!=="3".repeat(40)||
      receipt.source_runtime_ancestry_bound!==true||
@@ -1129,7 +1129,7 @@ function selfTest(){
 
   let checkoutCount=0;
   const stableSource={
-    runtime_head:"d".repeat(40),
+    runtime_head:RUNTIME_HEAD,
     source_head:"4".repeat(40),
     source_tree:"5".repeat(40),
     source_runtime_ancestry_bound:true,
@@ -1139,7 +1139,7 @@ function selfTest(){
     untracked_paths_source_authority:false,
   };
   const stableSequence=runSensitiveSequence({
-    expectedHead:"d".repeat(40),
+    expectedHead:RUNTIME_HEAD,
     checkoutFn:()=>{checkoutCount+=1; return {...stableSource};},
     qualificationFn:()=>({...q}),
     sealedFn:()=>({...sealed}),
@@ -1153,12 +1153,12 @@ function selfTest(){
   let driftChecks=0;
   try{
     runSensitiveSequence({
-      expectedHead:"e".repeat(40),
+      expectedHead:RUNTIME_HEAD,
       checkoutFn:()=>{
         driftChecks+=1;
         if(driftChecks===2)throw new Error("late_source_drift");
         return {
-          runtime_head:"e".repeat(40),
+          runtime_head:RUNTIME_HEAD,
           source_head:"6".repeat(40),
           source_tree:"7".repeat(40),
           source_runtime_ancestry_bound:true,
