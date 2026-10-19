@@ -170,4 +170,3 @@ ACL on the consumption directory and requires the same fail-closed
 
 This remains fixture-only evidence; it grants no production writer, protected
 store, training, credential, transaction or funds authority.
-
