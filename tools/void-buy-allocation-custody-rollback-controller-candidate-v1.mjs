@@ -16,6 +16,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_AUTHORITY_V1 =
     injected_capabilities_required: true,
     protected_host_adapter_required: true,
     authorization_one_time_claim_required: true,
+    authorization_claim_post_rollback_revalidation_required: true,
     direct_host_filesystem_api_present: false,
     direct_process_api_present: false,
     direct_network_api_present: false,
@@ -63,6 +64,7 @@ const CAPABILITY_KEYS=Object.freeze([
   "observe_after_rollback",
   "attempt_stale_journal_replay",
   "reobserve_storage_and_policy",
+  "revalidate_operation_authorization_claim",
   "authenticate_evidence_origin",
 ]);
 
@@ -369,16 +371,18 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
   const rollback=exactResult(callSync(caps.attempt_controlled_journal_rollback,
     Object.freeze({challenge_id:challengeId,approval_id:approval.approval_id,
       journal_target_sha256:before.journal_tip_sha256,
-      protected_high_water_sha256:high.high_water_sha256}),
+      protected_high_water_sha256:high.high_water_sha256,
+      authorization_claim_id:claim.claim_id}),
     "controlled_rollback"),
     ["attempted","challenge_id","controller_id","journal_target_sha256",
-     "protected_high_water_sha256","high_water_mutated"],
+     "protected_high_water_sha256","high_water_mutated","authorization_claim_mutated"],
     "controlled_rollback");
   if(rollback.attempted!==true||rollback.challenge_id!==challengeId||
      rollback.controller_id!=="void.replay.journal.rollback.controller.v1"||
      rollback.journal_target_sha256!==before.journal_tip_sha256||
      rollback.protected_high_water_sha256!==high.high_water_sha256||
-     rollback.high_water_mutated!==false)
+     rollback.high_water_mutated!==false||
+     rollback.authorization_claim_mutated!==false)
     fail("controlled_rollback_result_invalid");
 
   const after=normalizeObservation(callSync(caps.observe_after_rollback,
@@ -418,6 +422,23 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
      terminal.external_witness_tip_sha256!==witness.external_witness_tip_sha256)
     fail("terminal_external_witness_drift");
 
+  const claimAfter=exactResult(callSync(caps.revalidate_operation_authorization_claim,
+    Object.freeze({
+      authorization_id:authorization.authorization_id,
+      operation_id:authorization.operation_id,
+      challenge_id:challengeId,
+      claim_id:claim.claim_id,
+    }),
+    "authorization_claim_revalidation"),
+    ["present","authorization_id","operation_id","challenge_id","claim_id"],
+    "authorization_claim_revalidation");
+  if(claimAfter.present!==true||
+     claimAfter.authorization_id!==authorization.authorization_id||
+     claimAfter.operation_id!==authorization.operation_id||
+     claimAfter.challenge_id!==challengeId||
+     claimAfter.claim_id!==claim.claim_id)
+    fail("authorization_claim_not_persistent");
+
   const origin=exactResult(callSync(caps.authenticate_evidence_origin,
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
       authorization_id:authorization.authorization_id,
@@ -446,6 +467,8 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     authorization_claim_contract_validated:true,
     authorization_claim_one_time_required:true,
     authorization_replay_rejection_contract_validated:true,
+    authorization_claim_post_rollback_revalidated:true,
+    authorization_claim_rollback_mutation_forbidden:true,
     authorization_claim_authenticated:false,
     operation_bound_authorization_authenticated:false,
     non_customer_canary_domain_bound:true,
@@ -494,6 +517,6 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     treasury_or_liquidity_action_authorized:false,
     funds_movement:false,
     production_host_evidence_authority:false,
-    next_gate:"BUILD_PROTECTED_HOST_CUSTODY_ROLLBACK_CONTROLLER_ADAPTER_V1",
+    next_gate:"VERSION_CHALLENGE_PLAN_FOR_AUTHORIZATION_CLAIM_THEN_BUILD_PROTECTED_HOST_ADAPTER_V1",
   });
 }

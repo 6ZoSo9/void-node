@@ -26,7 +26,7 @@ The controller imports only Node crypto/util. It has no direct filesystem,
 process, systemd, socket, network, host-path, credential, wallet, signer, RPC,
 or transaction API.
 
-A future separately reviewed protected host adapter must inject exactly thirteen
+A future separately reviewed protected host adapter must inject exactly fourteen
 synchronous capabilities:
 
 1. generate execution-time challenge entropy;
@@ -40,8 +40,9 @@ synchronous capabilities:
 9. attempt the controlled journal rollback;
 10. observe post-rollback state;
 11. attempt stale-journal replay and prove refusal;
-12. reobserve storage/policy/customer state; and
-13. authenticate evidence origin.
+12. reobserve storage/policy/customer state;
+13. revalidate the exact authorization claim after rollback; and
+14. authenticate evidence origin.
 
 Async/thenable capabilities fail closed.
 
@@ -73,6 +74,15 @@ therefore requires a newly authorized operation rather than reuse of the prior
 authorization. The claim ID is also bound into terminal evidence-origin
 authentication.
 
+The protected adapter must keep the authorization claim outside the journal
+rollback authority (or in a separately protected rollback-resistant domain).
+The controlled rollback request carries the exact claim ID and must report
+`authorization_claim_mutated=false`. After the terminal journal/high-water/
+external-witness reobservation, the controller revalidates the exact same
+authorization ID, operation ID, challenge ID and claim ID with `present=true`
+before evidence-origin authentication. A missing or changed claim HOLDs; the
+challenge cannot report GREEN after erasing its own one-time replay fence.
+
 The journal canary must advance exactly one sequence. High-water must advance
 to at least the journal challenge sequence and may never be rolled back.
 
@@ -98,7 +108,8 @@ Second-control approval must bind the exact rollback target and protected
 high-water before the rollback capability is invoked.
 
 The controlled rollback may target only the journal predecessor. It must report
-`high_water_mutated=false`. Post-rollback observation must show:
+`high_water_mutated=false` and `authorization_claim_mutated=false`. Post-rollback
+observation must show:
 
 - journal restored to the exact predecessor;
 - protected high-water unchanged/non-decreasing;
@@ -111,6 +122,7 @@ The controlled rollback may target only the journal predecessor. It must report
 - exact accepted source generation preserved;
 - allocation ledger unchanged;
 - customer request state unchanged; and
+- exact one-time authorization claim still present after rollback; and
 - authenticated evidence origin.
 
 ## Deliberate non-promotion
@@ -153,9 +165,16 @@ The candidate therefore also keeps:
 
 Next gate:
 
-`BUILD_PROTECTED_HOST_CUSTODY_ROLLBACK_CONTROLLER_ADAPTER_V1`.
+`VERSION_CHALLENGE_PLAN_FOR_AUTHORIZATION_CLAIM_THEN_BUILD_PROTECTED_HOST_ADAPTER_V1`.
 
-That adapter would cross a new authority boundary and is not implemented or
-authorized here.
+The immutable #3516 V1 plan still enumerates its original 20 future-evidence
+requirements. This hardened controller adds a stricter one-time-claim and
+post-rollback claim-survival requirement. A versioned successor must bind that
+stronger requirement and obtain a new content-addressed plan/contract identity
+before any protected host adapter is built. Do not silently reinterpret the V1
+plan ID as carrying these later semantics.
+
+The later adapter would cross a new authority boundary and is not implemented
+or authorized here.
 
 **PROTECT THE CORE.**

@@ -11,7 +11,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
-const SOURCE_BLOB="0a390288fcfc9f37e6b05958759fc3599fdf1ba3";
+const SOURCE_BLOB="be88c888d8619c7a3f0f2107e8baa89b4882e430";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json";
 const PLAN_BLOB="5face2022dc2cbc573e32e99f88623f381a8a174";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -41,7 +41,9 @@ for(const [key,value] of Object.entries(
 )){
   if(key==="source_only_candidate"||key==="injected_capabilities_required"||
      key==="protected_host_adapter_required"||
-     key==="authorization_one_time_claim_required") assert.equal(value,true,key);
+     key==="authorization_one_time_claim_required"||
+     key==="authorization_claim_post_rollback_revalidation_required")
+    assert.equal(value,true,key);
   else assert.equal(value,false,key);
 }
 
@@ -95,7 +97,7 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
     reviewed_source_tree:"71c67e62a2b21a98f3f5135ee6aa56e0ef97d262",
   };
   let challenge="";
-  const state={before};
+  const state={before,authorizationClaims};
   const caps={
     generate_challenge_entropy(){order.push("entropy");return Buffer.alloc(32,0x5a);},
     observe_before({challenge_id}){order.push("before");challenge=challenge_id;return before;},
@@ -148,11 +150,13 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
         challenge_id,rollback_target_journal_tip_sha256:before.journal_tip_sha256,
         protected_high_water_sha256:state.high.high_water_sha256};
     },
-    attempt_controlled_journal_rollback({challenge_id}){
+    attempt_controlled_journal_rollback({challenge_id,authorization_claim_id}){
       order.push("rollback");
+      assert.equal(authorization_claim_id,state.claim.claim_id);
       return {attempted:true,challenge_id,controller_id:"void.replay.journal.rollback.controller.v1",
         journal_target_sha256:before.journal_tip_sha256,
-        protected_high_water_sha256:state.high.high_water_sha256,high_water_mutated:false};
+        protected_high_water_sha256:state.high.high_water_sha256,high_water_mutated:false,
+        authorization_claim_mutated:false};
     },
     observe_after_rollback(){order.push("after");return {...before,
       high_water_sequence:8,high_water_sha256:state.high.high_water_sha256,
@@ -162,6 +166,15 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
     reobserve_storage_and_policy(){order.push("terminal");return {...before,
       high_water_sequence:8,high_water_sha256:state.high.high_water_sha256,
       external_witness_sequence:12,external_witness_tip_sha256:state.witness.external_witness_tip_sha256};},
+    revalidate_operation_authorization_claim({
+      authorization_id,operation_id,challenge_id,claim_id,
+    }){
+      order.push("claim-revalidate");
+      return {
+        present:authorizationClaims.has(authorization_id),
+        authorization_id,operation_id,challenge_id,claim_id,
+      };
+    },
     authenticate_evidence_origin({challenge_id,operation_id,authorization_claim_id}){order.push("origin");
       assert.equal(authorization_claim_id,state.claim.claim_id);
       return {authenticated:true,challenge_id,operation_id,authorization_claim_id,
@@ -172,7 +185,7 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
   return {caps,order,state};
 }
 
-const expectedOrder=["entropy","before","claim","append","high","reopen","witness","second","rollback","after","stale","terminal","origin"];
+const expectedOrder=["entropy","before","claim","append","high","reopen","witness","second","rollback","after","stale","terminal","claim-revalidate","origin"];
 {
   const h=makeHarness();
   const result=executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
@@ -186,9 +199,15 @@ const expectedOrder=["entropy","before","claim","append","high","reopen","witnes
   assert.equal(result.authorization_claim_contract_validated,true);
   assert.equal(result.authorization_claim_one_time_required,true);
   assert.equal(result.authorization_replay_rejection_contract_validated,true);
+  assert.equal(result.authorization_claim_post_rollback_revalidated,true);
+  assert.equal(result.authorization_claim_rollback_mutation_forbidden,true);
   assert.equal(result.authorization_claim_authenticated,false);
   assert.equal(result.operation_bound_authorization_authenticated,false);
   assert.equal(result.authorization_claim_bound_to_evidence_origin,true);
+  assert.equal(
+    result.next_gate,
+    "VERSION_CHALLENGE_PLAN_FOR_AUTHORIZATION_CLAIM_THEN_BUILD_PROTECTED_HOST_ADAPTER_V1",
+  );
   assert.equal(result.non_customer_canary_domain_bound,true);
   assert.equal(result.non_customer_canary_isolation_proven,false);
   assert.equal(result.reviewed_source_generation_requirement_bound,true);
@@ -385,8 +404,21 @@ mustFail("post rollback customer drift",(c,s,b)=>{c.observe_after_rollback=()=>(
 mustFail("high water mutation",(c,s,b)=>{c.attempt_controlled_journal_rollback=({challenge_id})=>({
   attempted:true,challenge_id,controller_id:"void.replay.journal.rollback.controller.v1",
   journal_target_sha256:b.journal_tip_sha256,protected_high_water_sha256:s.high.high_water_sha256,
-  high_water_mutated:true,
+  high_water_mutated:true,authorization_claim_mutated:false,
 });},/controlled_rollback_result_invalid/);
+mustFail("rollback reports claim mutation",(c,s,b)=>{c.attempt_controlled_journal_rollback=({challenge_id})=>({
+  attempted:true,challenge_id,controller_id:"void.replay.journal.rollback.controller.v1",
+  journal_target_sha256:b.journal_tip_sha256,protected_high_water_sha256:s.high.high_water_sha256,
+  high_water_mutated:false,authorization_claim_mutated:true,
+});},/controlled_rollback_result_invalid/);
+mustFail("claim lost during rollback",(c,s)=>{
+  const original=c.attempt_controlled_journal_rollback;
+  c.attempt_controlled_journal_rollback=(args)=>{
+    const out=original(args);
+    s.authorizationClaims.delete(authorization.authorization_id);
+    return out;
+  };
+},/authorization_claim_not_persistent/);
 mustFail("high water decrease",(c,s,b)=>{c.observe_after_rollback=()=>({...b,
   high_water_sequence:7,high_water_sha256:b.high_water_sha256,
   external_witness_sequence:12,external_witness_tip_sha256:s.witness.external_witness_tip_sha256,
@@ -470,6 +502,11 @@ console.log("operation_bound_authorization_required=true");
 console.log("authorization_claim_once_required=true");
 console.log("same_authorization_replay_rejected_before_mutation=true");
 console.log("authorization_claim_bound_to_evidence_origin=true");
+console.log("authorization_claim_post_rollback_revalidation_required=true");
+console.log("authorization_claim_post_rollback_revalidated=true");
+console.log("authorization_claim_rollback_mutation_forbidden=true");
+console.log("claim_loss_during_rollback_rejected=true");
+console.log("challenge_plan_successor_required_before_host_adapter=true");
 console.log("operation_bound_authorization_authenticated=false");
 console.log("non_customer_canary_domain_bound=true");
 console.log("non_customer_canary_isolation_proven=false");
