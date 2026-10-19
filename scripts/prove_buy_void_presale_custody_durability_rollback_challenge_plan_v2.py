@@ -8,7 +8,7 @@ PLAN=ROOT/"ops/security/buy-void-presale-custody-durability-rollback-challenge-p
 MARKER="VOID_BUY_VOID_PRESALE_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_PROOF"
 PARENT="60a6fffc0fd8de576769f4bc090b3a12ca4ba526"
 OLD_ID="voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006"
-NEW_ID="voidbuycustodychallengeplan2_8969a5b3e91e20cc42b6d81dc6d51c0148bb878c2b36a0db5ff2f4704ee6fc01"
+NEW_ID="voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844"
 TREE="71c67e62a2b21a98f3f5135ee6aa56e0ef97d262"
 EVIDENCE=["non_customer_canary_domain_required","operation_bound_authorization_required","exact_current_policy_binding_required","reviewed_source_generation_binding_required","challenge_entropy_and_unpredictability_required","live_journal_challenge_append_required","live_high_water_advance_required","journal_and_high_water_sync_close_reopen_required","external_witness_post_challenge_append_required","controlled_rollback_attempt_required","reviewed_rollback_controller_required","high_water_second_control_approval_required","post_rollback_high_water_non_decrease_required","stale_journal_refusal_required","post_rollback_external_witness_continuity_required","distinct_physical_storage_reobservation_required","post_test_policy_rebind_required","allocation_ledger_unchanged_required","customer_request_state_unchanged_required","evidence_origin_authentication_required"]
 UPGRADES=["durable_create_once_authorization_claim_required","same_authorization_replay_rejected_before_mutation_required","authorization_claim_rollback_mutation_forbidden","authorization_claim_survival_and_terminal_revalidation_required","exclusive_operation_wide_lease_before_observation_required","lease_identity_bound_to_every_challenge_phase_required","lease_survival_and_terminal_exclusivity_revalidation_required","canonical_controller_transcript_digest_bound_to_origin_required","adapter_authenticates_capabilities_entitlements_and_evidence_origin_required"]
@@ -49,10 +49,10 @@ def validate(p):
  v=closed(p["superseded_v1"],("path","git_blob_sha1","plan_id","still_requires_twenty_live_evidence_fields","not_live_execution_authority"),"v1")
  need(v["path"] in PINS and v["git_blob_sha1"]==PINS[v["path"]] and v["plan_id"]==OLD_ID,"v1_pin")
  need(v["still_requires_twenty_live_evidence_fields"] is True and v["not_live_execution_authority"] is True,"v1_false_authority")
- c=closed(p["controller_candidate"],("path","git_blob_sha1","proof_path","proof_git_blob_sha1","review_head","accepted_economic_tree","controller_v1_plan_id","controller_does_not_authenticate_injected_capabilities","protected_host_adapter_required","source_only_controller_candidate"),"controller")
+ c=closed(p["controller_candidate"],("path","git_blob_sha1","proof_path","proof_git_blob_sha1","review_head","accepted_economic_tree","controller_v1_plan_id","controller_does_not_authenticate_injected_capabilities","protected_host_adapter_required","source_only_controller_candidate","controller_v2_successor_required"),"controller")
  need(c["path"] in PINS and c["git_blob_sha1"]==PINS[c["path"]] and c["proof_path"] in PINS and c["proof_git_blob_sha1"]==PINS[c["proof_path"]],"controller_pin")
  need(c["review_head"]==PARENT and c["accepted_economic_tree"]==TREE and c["controller_v1_plan_id"]==OLD_ID,"controller_lineage")
- for k in ("controller_does_not_authenticate_injected_capabilities","protected_host_adapter_required","source_only_controller_candidate"):need(c[k] is True,"controller_claim")
+ for k in ("controller_does_not_authenticate_injected_capabilities","protected_host_adapter_required","source_only_controller_candidate","controller_v2_successor_required"):need(c[k] is True,"controller_claim")
  for section,ks in (("historical_live_evidence_required",EVIDENCE),("v2_controller_upgrade_required",UPGRADES)):
   data=closed(p[section],ks,section)
   for k in ks:need(data[k] is True,"missing_requirement:"+k)
@@ -61,9 +61,9 @@ def validate(p):
  scope=closed(p["canary_and_authorization"],("exact_canary_domain","unpredictable_entropy_must_be_generated_at_execution","exact_operation_bound_reviewed_authorization_required","accepted_economic_tree","external_witness_second_control_required","no_customer_ledger_or_requests_mutation"),"canary")
  need(scope["exact_canary_domain"]=="void.buyvoid.presale.noncustomer.canary.v1" and scope["accepted_economic_tree"]==TREE,"canary_identity")
  for k in set(scope)-{"exact_canary_domain","accepted_economic_tree"}:need(scope[k] is True,"canary_required")
- state=closed(p["evidence_state"],("read_only_prerequisite_collection_is_not_durability_proof","controller_callback_self_report_is_not_host_authority","live_challenge_not_executed","adapter_not_implemented_or_authenticated","independent_review_outstanding"),"state")
+ state=closed(p["evidence_state"],("read_only_prerequisite_collection_is_not_durability_proof","controller_callback_self_report_is_not_host_authority","live_challenge_not_executed","adapter_not_implemented_or_authenticated","independent_review_outstanding","controller_v1_rejects_v2_plan_identity"),"state")
  for k in state:need(state[k] is True,"unproven_state")
- need(p["next_gate"]=="DISTINCT_REVIEW_V2_CHALLENGE_PLAN_THEN_PROTECTED_ADAPTER_CANDIDATE","next_gate")
+ need(p["next_gate"]=="DISTINCT_REVIEW_V2_PLAN_THEN_CONTROLLER_V2_REBIND_AND_PROTECTED_ADAPTER","next_gate")
  obj=copy.deepcopy(p);del obj["plan_id"]
  need(p["plan_id"]=="voidbuycustodychallengeplan2_"+hashlib.sha256(canonical(obj)).hexdigest() and p["plan_id"]==NEW_ID,"content_identity")
 def main():
@@ -76,11 +76,13 @@ def main():
    try:validate(x)
    except Hold:rejected+=1
    else:raise Hold("adversary_accepted:"+k)
- for change in ("id","controller","v1","extra"):
+ for change in ("id","controller","v1","extra","controller_v2","v1_bind"):
   x=copy.deepcopy(p)
   if change=="id":x["plan_id"]="voidbuycustodychallengeplan2_"+"0"*64
   elif change=="controller":x["controller_candidate"]["git_blob_sha1"]="0"*40
   elif change=="v1":x["superseded_v1"]["git_blob_sha1"]="0"*40
+  elif change=="controller_v2":x["controller_candidate"]["controller_v2_successor_required"]=False
+  elif change=="v1_bind":x["evidence_state"]["controller_v1_rejects_v2_plan_identity"]=False
   else:x["authority"]["unexpected"]=True
   try:validate(x)
   except Hold:rejected+=1

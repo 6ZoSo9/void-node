@@ -21,7 +21,8 @@
     "controller_v1_plan_id": "voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006",
     "controller_does_not_authenticate_injected_capabilities": true,
     "protected_host_adapter_required": true,
-    "source_only_controller_candidate": true
+    "source_only_controller_candidate": true,
+    "controller_v2_successor_required": true
   },
   "historical_live_evidence_required": {
     "non_customer_canary_domain_required": true,
@@ -69,7 +70,8 @@
     "controller_callback_self_report_is_not_host_authority": true,
     "live_challenge_not_executed": true,
     "adapter_not_implemented_or_authenticated": true,
-    "independent_review_outstanding": true
+    "independent_review_outstanding": true,
+    "controller_v1_rejects_v2_plan_identity": true
   },
   "authority": {
     "host_execution_authorized": false,
@@ -89,6 +91,6 @@
     "funds_movement": false,
     "production_host_evidence_authority": false
   },
-  "next_gate": "DISTINCT_REVIEW_V2_CHALLENGE_PLAN_THEN_PROTECTED_ADAPTER_CANDIDATE",
-  "plan_id": "voidbuycustodychallengeplan2_8969a5b3e91e20cc42b6d81dc6d51c0148bb878c2b36a0db5ff2f4704ee6fc01"
+  "next_gate": "DISTINCT_REVIEW_V2_PLAN_THEN_CONTROLLER_V2_REBIND_AND_PROTECTED_ADAPTER",
+  "plan_id": "voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844"
 }
