@@ -1047,10 +1047,18 @@ getters, coercion objects, active/revoked Proxies, hidden/symbol keys, and large
 strings; it requires zero getter/trap invocations, zero additional lease
 acquisitions, no mutating filesystem calls, and identical fixture-store state.
 This child also updates exact source/proof/workflow blob pins and accepts
-either the original eight-path #3357 PR base or the four-path hardening child
+either the original eight-path #3357 PR base or the five-path hardening child
 base without relaxing the tracked-path closure check.
 
 This is source-only defense-in-depth. It **does not** prove installed protected
 root origin, privilege/role admission, Xiphos host revalidation, training
 authorization, claim publication authority, signing, or funds movement.
 Keep Draft pending exact-head CI and separate review.
+
+### Native proof dependency pin reconciliation
+
+The first exact-head hosted core job passed its generation-input regression, while
+Node 22/24/26 native-bridge jobs stopped *before* exercising native logic on a
+stale literal core Git blob in their own proof. The native bridge proof is now
+pinned to the same hardened core source blob; no native-bridge runtime source or
+native C code changes. The child scope is five modified existing files.
