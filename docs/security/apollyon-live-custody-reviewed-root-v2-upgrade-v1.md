@@ -153,3 +153,26 @@ No service start/stop/restart, systemd mutation, training, durable attempt
 claim, private-key access, signing, transaction, or funds movement is
 authorized by this upgrade source. Hosted CI exercises source/self-test
 evidence only; it performs no Xiphos migration.
+
+## Privileged Python interpreter startup HOLD (October 19, 2026)
+
+Both root-capable operator entrypoints in this Draft—the create-only custody
+installer and reviewed-root upgrader—now reject any Python process that does
+not have `isolated`, `ignore_environment`, `no_user_site`, `dont_write_bytecode`
+and `safe_path` enabled **before any standard-library or checkout-resolved
+imports**. The accepted script invocation is explicitly `python3 -I -B`.
+The new disposable proofs copy each source into a directory containing a
+hostile `json.py` and require `python3 -B` or `python3 -I` (without `-B`) to
+HOLD before that module executes. Normal isolated source self-tests still pass.
+
+**This early script guard does not authenticate interpreter startup.** A hostile
+`sitecustomize`, `.pth` startup hook, poisoned interpreter binary, or other code
+that runs *before* script entry cannot be undone or prevented by the guard.
+Any future privileged host installation therefore still requires separately
+reviewed, root-custodied launch provenance for a pinned trusted Python
+interpreter invoked with `-I -B` and a sanitized environment. These source
+checks do not qualify that launcher or permit `--apply` on Xiphos.
+The ordinary lifecycle and all negative training, key, service-activation,
+transaction and funds authority remain unchanged.
+
+**PROTECT THE CORE.**
