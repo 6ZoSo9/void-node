@@ -1223,8 +1223,10 @@ The disposable proof injects throwing getters at all five fields and requires
 zero invocations across the publisher forward, claim publication and read-only
 authorization winner observation paths, while still matching the exact
 unmodified request SHA. A shared-backed Buffer must fail before store lease
-acquisition or protected fixture mutation. Existing caller override, private
-copy and oversized input tests remain required.
+acquisition or protected fixture mutation, even if the Buffer defines hostile
+own `length`, `byteLength`, `buffer` and `constructor` getters. The proof
+requires zero such getters to run in the shared-backed rejection path. Existing
+caller override, private copy and oversized input tests remain required.
 
 ### Core callback preflight
 
