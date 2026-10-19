@@ -406,8 +406,10 @@ mustFail("ledger drift",(c,s,b)=>{c.reobserve_storage_and_policy=()=>({...b,
 });},/terminal_binding_drift:allocation_ledger_sha256/);
 mustFail("collapsed storage",(c,s,b)=>{c.observe_before=()=>({...b,high_water_storage_id:b.journal_storage_id});},
   /before_storage_domains_not_distinct/);
-mustFail("origin unauthenticated",(c)=>{c.authenticate_evidence_origin=({challenge_id,operation_id})=>({
-  authenticated:false,challenge_id,operation_id,
+mustFail("origin unauthenticated",(c)=>{c.authenticate_evidence_origin=({
+  challenge_id,operation_id,authorization_claim_id,
+})=>({
+  authenticated:false,challenge_id,operation_id,authorization_claim_id,
   origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),evidence_sha256:sha("evidence"),
 });},/evidence_origin_not_authenticated/);
 
