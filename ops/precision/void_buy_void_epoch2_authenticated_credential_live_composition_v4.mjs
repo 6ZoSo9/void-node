@@ -162,6 +162,12 @@ function cleanGitEnv(){
     LC_ALL:"C",
     GIT_OPTIONAL_LOCKS:"0",
     GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_NO_LAZY_FETCH:"1",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_ASKPASS:"/bin/false",
+    GIT_PROTOCOL_FROM_USER:"0",
+    GIT_ALLOW_PROTOCOL:"",
+    GIT_PAGER:"",
     GIT_CONFIG_NOSYSTEM:"1",
     GIT_CONFIG_GLOBAL:"/dev/null",
     GIT_CONFIG_SYSTEM:"/dev/null",
@@ -387,6 +393,8 @@ function git(args){
   const r=runAsRuntimeUser(GIT,[
     "-c","core.fsmonitor=false",
     "-c","core.hooksPath=/dev/null",
+    "-c","core.untrackedCache=false",
+    "-c","submodule.recurse=false",
     ...args,
   ],{env:cleanGitEnv(),timeout:15_000});
   if(r.status!==0)throw new Error("git_failed:"+args[0]);
@@ -448,6 +456,8 @@ function gitObject(expectedHead,relative,expectedBlob){
   const r=runAsRuntimeUser(GIT,[
     "-c","core.fsmonitor=false",
     "-c","core.hooksPath=/dev/null",
+    "-c","core.untrackedCache=false",
+    "-c","submodule.recurse=false",
     "show",expectedHead+":"+relative,
   ],{env:cleanGitEnv(),timeout:15_000});
   if(r.status!==0||r.stderr!=="")throw new Error("git_object_unavailable:"+relative);
@@ -885,6 +895,9 @@ function plan(){
   console.log("source_runtime_add_only_compatibility_required=true");
   console.log("source_runtime_added_path_count="+String(ALLOWED_SOURCE_ADDITIONS.length));
   console.log("untracked_paths_source_authority=false");
+  console.log("git_lazy_fetch_disabled=true");
+  console.log("git_transport_disabled=true");
+  console.log("git_prompt_and_askpass_disabled=true");
   console.log("protected_native_entry_accepted_by_this_pr=false");
   console.log("protected_native_entry_install_authorized=false");
   console.log("live_execution_authorized=false");
@@ -1171,6 +1184,23 @@ function selfTest(){
   }
   privilegedFirstEntryAuthenticatedForInvocation=false;
 
+  const gitEnv=cleanGitEnv();
+  for(const [key,value] of Object.entries({
+    GIT_NO_LAZY_FETCH:"1",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_ASKPASS:"/bin/false",
+    GIT_PROTOCOL_FROM_USER:"0",
+    GIT_ALLOW_PROTOCOL:"",
+    GIT_PAGER:"",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+  })){
+    if(gitEnv[key]!==value){
+      throw new Error("git_environment_self_test_failed:"+key);
+    }
+  }
+
   console.log(MARKER+"_SELF_TEST_GREEN");
   console.log("native_preentry_required_for_live=true");
   console.log("native_parent_retained_for_child_lifetime=true");
@@ -1193,6 +1223,9 @@ function selfTest(){
   console.log("source_runtime_add_only_compatibility_exact=true");
   console.log("source_runtime_dependency_blob_equality_required=true");
   console.log("untracked_paths_source_authority=false");
+  console.log("git_lazy_fetch_disabled=true");
+  console.log("git_transport_disabled=true");
+  console.log("git_prompt_and_askpass_disabled=true");
   console.log("sealed_child_credential_content_access=true");
   console.log("nontransaction_signature_only=true");
   console.log("transaction=false");
