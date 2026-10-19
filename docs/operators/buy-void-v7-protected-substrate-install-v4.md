@@ -211,10 +211,10 @@ ownership/mode and descriptor contracts:
 - the privileged checkout and ancestor chain, every non-symlink checkout node,
   `/` + `/opt`, source/protected/staging tree nodes, and installed binary
   roots/leaves must all be non-writable to that runtime identity;
-- qualifier V3 already runs unprivileged as the runtime UID and now requires
-  `os.access(..., W_OK, effective_ids=True)` to be false for each native/selector
-  ancestor and exact ELF leaf before, during, and after retained-descriptor self-test
-  execution;
+- qualifier V3 `--run` now fails closed unless real/effective UID and GID are
+  exactly `1000:1000` and the supplemental-group set is empty; only under that exact
+  identity may its `os.access(..., W_OK, effective_ids=True)` checks support installed
+  generation authority for native/selector ancestors and exact ELF leaves;
 - hosted proof explicitly demonstrates that mode bits with no group/world write are
   not by themselves an effective-writability proof, and statically binds both
   runtime-access implementations.
@@ -258,3 +258,17 @@ case must fail without following or reading the external target.
 This closes the pre-audit privileged pathname-read window without changing create-
 only publication, accepted binary identities, service/systemd state, credentials,
 payment/activation authority, or funds authority.
+
+## Qualifier runtime-identity binding
+
+Installed qualifier V3 may emit `installed_generation_evidence_authority=true` only
+when it is executing as the reviewed runtime identity: real/effective UID 1000,
+real/effective GID 1000, and an empty supplemental-group set. A different unprivileged
+account is not equivalent evidence because effective ACL access can differ by UID,
+primary GID, or supplemental groups.
+
+The reviewed host-evidence launch context is equivalent to
+`/usr/bin/setpriv --no-new-privs --reuid=1000 --regid=1000 --clear-groups`
+followed by isolated `/usr/bin/python3 -I -B ... --run`. Source-plan and self-test
+modes remain non-authoritative and host-independent. The source proof includes
+wrong-UID, wrong-GID, and nonempty-supplemental-group adversaries.
