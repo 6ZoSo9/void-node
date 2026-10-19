@@ -45,13 +45,14 @@ jobs:
         run: |
           set -euo pipefail
           STACK_PARENT=db8c56d7ebe73e0646355bc6fcb4a5141ef7422f
+          CLEANUP_PARENT=7850afc995608e188668dce2ea568eba99d23690
           # Fresh synchronize event after base retarget; require the exact current #3526 base.
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "$STACK_PARENT"
+              { test "$PR_BASE" = "$STACK_PARENT" || test "$PR_BASE" = "$CLEANUP_PARENT"; }
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
@@ -78,9 +79,9 @@ jobs:
               ;;
           esac
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 54a836c98dabc4bde9f40c06453a001aa29a95d9
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 8def0726a99c1b29dc4014e72ba7299fe3e1537e
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 57bad587cb53fd6e8ae38dc88d35231d2b3e897a
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = fed329bdcd4773af438c10867bb02ecbd934e1f2
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 69c57518b9be5e639264d4d43e826ace9595bf94
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 2d400f0f18768a0ec531d3b7a150dc044f7d9fc2
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 833876baf077b9616d08ee9b13b2657a0818dcc5
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
@@ -113,6 +114,7 @@ jobs:
             'visible_slot_directory_replacement_rejected=true' \
             'host_io_errors_normalized_to_hold=true' \
             'rejected_root_descriptor_cleanup_verified=true' \
+            'root_traversal_close_uncertainty_disclosed=true' \
             'isolated_python_preimport_guard=true' \
             'nonisolated_checkout_module_not_executed=true' \
             'trusted_ancestor_posix_acl_required=true' \
