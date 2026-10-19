@@ -19,3 +19,7 @@ The reviewed V1 rollback controller explicitly rejects authorization records wit
 The protected adapter is not implemented and independently authenticated host evidence is uncollected. Next gate: `DISTINCT_REVIEW_V2_PLAN_THEN_CONTROLLER_V2_REBIND_AND_PROTECTED_ADAPTER`. That review does not itself authorize host execution.
 
 PROTECT THE CORE.
+
+## Executable V1/V2 authorization-separation proof
+
+The dedicated hosted source-proof workflow now executes the **reviewed pure V1 controller** with wholly synthetic noncustomer authorization records. A valid V1 authorization must pass plan validation and reach the deliberately empty capability-set preflight. The content-addressed V2 authorization, and an attempted V1-to-V2 plan-field substitution, must both throw `authorization_plan_invalid` *before* any injected capability is inspected or invoked. The test uses a throwing Proxy as a capability-access sentinel and requires its invocation count to remain zero. It performs no real challenge, credential read, storage operation, service query, network request, signer action, payment, or funds movement. This behavioral test supplements—not replaces—the Python static source/blob proof and does not grant controller V2/adapter authority.

@@ -45,3 +45,61 @@ jobs:
           set -euo pipefail
           python3 -I -B scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v2.py --self-test
           python3 -I -B scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v2.py --run
+
+      - name: Prove controller V1 refuses V2 authorization before capability use
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import {
+            VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_PLAN_ID_V1 as V1,
+            buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV1 as buildId,
+            executeBuyVoidAllocationCustodyRollbackControllerCandidateV1 as execute,
+          } from "./tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
+          const V2="voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844";
+          assert.notEqual(V1,V2);
+          const body={
+            marker:"VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_AUTHORIZATION_V1",
+            version:1,
+            plan_id:V1,
+            operation_id:"voidbuycustodychallengeop1_"+"1".repeat(64),
+            non_customer_canary:true,
+            canary_domain_id:"void.buyvoid.presale.noncustomer.canary.v1",
+            allocation_ledger_unchanged_required:true,
+            customer_request_state_unchanged_required:true,
+            reviewed_source_tree:"71c67e62a2b21a98f3f5135ee6aa56e0ef97d262",
+            exact_current_policy_bound:true,
+            expected_policy_fingerprint_sha256:"sha256:"+"a".repeat(64),
+            expected_policy_generation:"9",
+          };
+          const authorizationFor=plan_id=>{
+            const data={...body,plan_id};
+            return {...data,authorization_id:buildId(data)};
+          };
+          // A valid V1 authorization passes plan validation and reaches capability preflight.
+          assert.throws(()=>execute({authorization:authorizationFor(V1),capabilities:{}}),
+            error=>error?.message==="capability_set_invalid");
+          let capabilityTouched=0;
+          const untrustedCapabilities=new Proxy({}, {
+            get(){capabilityTouched++;throw new Error("capabilities_evaluated");},
+            ownKeys(){capabilityTouched++;throw new Error("capabilities_enumerated");},
+          });
+          // The new V2 plan is rejected by the actual V1 controller before capability access.
+          assert.throws(()=>execute({authorization:authorizationFor(V2),capabilities:untrustedCapabilities}),
+            error=>error?.message==="authorization_plan_invalid");
+          assert.equal(capabilityTouched,0);
+          const reusedV1=authorizationFor(V1);
+          // No accidental reinterpretation of a V1 authorization after changing its plan field.
+          assert.throws(()=>execute({authorization:{...reusedV1,plan_id:V2},capabilities:untrustedCapabilities}),
+            error=>error?.message==="authorization_plan_invalid");
+          assert.equal(capabilityTouched,0);
+          console.log("VOID_BUY_VOID_CUSTODY_V1_V2_BEHAVIORAL_IDENTITY_PROOF_GREEN");
+          console.log("valid_v1_authorization_reaches_capability_boundary=true");
+          console.log("v2_authorization_rejected_before_capability_access=true");
+          console.log("v1_authorization_rebind_to_v2_rejected=true");
+          console.log("injected_capabilities_invoked=false");
+          console.log("host_execution=false");
+          console.log("payment_acceptance=false");
+          console.log("public_presale_activation=false");
+          console.log("funds_movement=false");
+          NODE
