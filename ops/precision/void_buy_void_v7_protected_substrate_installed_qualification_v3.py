@@ -216,6 +216,8 @@ def _binary_ancestor_snapshot(path: pathlib.Path, label: str) -> tuple[tuple[str
             or mode & 0o022
         ):
             raise E(label + "_ancestor_custody_invalid:" + str(current))
+        if os.access(current, os.W_OK, effective_ids=True):
+            raise E(label + "_ancestor_runtime_writable:" + str(current))
         if first and mode != 0o755:
             raise E(label + "_binary_root_mode_invalid:" + str(current))
         rows.append((str(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_ctime_ns))
@@ -251,6 +253,7 @@ def exact_file(path: pathlib.Path, mode: int, expected_bytes: int, digest: str) 
         or st.st_nlink != 1
         or stat.S_IMODE(st.st_mode) != mode
         or st.st_size != expected_bytes
+        or os.access(path, os.W_OK, effective_ids=True)
         or sha256_file(path) != digest
     ):
         raise E("installed_file_invalid:" + str(path))
@@ -273,6 +276,7 @@ def open_exact_executable_lease(
         or before.st_nlink != 1
         or stat.S_IMODE(before.st_mode) != mode
         or before.st_size != expected_bytes
+        or os.access(path, os.W_OK, effective_ids=True)
     ):
         raise E(label + "_installed_file_invalid")
     fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -312,6 +316,8 @@ def run_self_lease(
     for _ in range(2):
         if _binary_ancestor_snapshot(path, label) != ancestors:
             raise E(label + "_ancestor_generation_changed_before_exec")
+        if os.access(path, os.W_OK, effective_ids=True):
+            raise E(label + "_leaf_runtime_writable_before_exec")
         cp = subprocess.run(
             [f"/proc/self/fd/{fd}", "--self-test"],
             stdin=subprocess.DEVNULL,
@@ -329,6 +335,8 @@ def run_self_lease(
             raise E(label + "_generation_changed_during_self_test")
         if _binary_ancestor_snapshot(path, label) != ancestors:
             raise E(label + "_ancestor_generation_changed_after_exec")
+        if os.access(path, os.W_OK, effective_ids=True):
+            raise E(label + "_leaf_runtime_writable_after_exec")
         outputs.append(cp.stdout)
     if outputs[0] != outputs[1]:
         raise E(label + "_self_test_output_not_stable")
@@ -338,6 +346,8 @@ def run_self_lease(
         raise E(label + "_terminal_generation_changed")
     if _binary_ancestor_snapshot(path, label) != ancestors:
         raise E(label + "_terminal_ancestor_generation_changed")
+    if os.access(path, os.W_OK, effective_ids=True):
+        raise E(label + "_terminal_leaf_runtime_writable")
     return hashlib.sha256(outputs[0].encode()).hexdigest()
 
 def qualify() -> None:
@@ -394,6 +404,7 @@ def qualify() -> None:
     print("binary_root_and_ancestor_custody_verified=true")
     print("binary_self_test_descriptor_execution=true")
     print("binary_retained_descriptor_post_execution_revalidated=true")
+    print("binary_acl_aware_runtime_nonwritability_verified=true")
     print("installed_generation_evidence_authority=true")
     print("privileged_execution_authorized=false")
     print("receipt_publication_authorized=false")
@@ -436,6 +447,7 @@ def self_test() -> None:
     print("binary_root_and_ancestor_custody_required=true")
     print("binary_self_test_descriptor_execution_required=true")
     print("binary_retained_descriptor_revalidation_required=true")
+    print("binary_acl_aware_runtime_nonwritability_required=true")
     print("host_mutation=false")
 
 def main() -> None:

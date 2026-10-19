@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import ast, pathlib, subprocess, sys, tempfile
+import ast, os, pathlib, stat, subprocess, sys, tempfile
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 MARKER="VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_PROOF"
@@ -16,11 +16,11 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="457def1e7844f8917f17ec5e5c18faa45b325f27"
+assert gblob(INS)=="69677cfd8bdc185389df34cd9d79e6ea7ecb6c62"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
-assert gblob(QUAL)=="d3ad73b041ec7357e2ad8e758caf9d9390a4785b"
+assert gblob(QUAL)=="2132ed4f545364347e27bd77adc3ab447c0df397"
 assert gblob(PRED_QUAL)=="56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
 
 src=INS.read_text("utf-8")
@@ -51,7 +51,7 @@ required=(
     'SEPARATELY_AUTHORIZE_V7_PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4',
     'PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4_GREEN',
     'QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"',
-    'QUALIFIER_BLOB = "d3ad73b041ec7357e2ad8e758caf9d9390a4785b"',
+    'QUALIFIER_BLOB = "2132ed4f545364347e27bd77adc3ab447c0df397"',
     '"installed_qualifier": {"path": QUALIFIER_REL, "blob": QUALIFIER_BLOB}',
     'RUN_INSTALLED_QUALIFICATION_V3',
     'installed_qualifier_v3_bound=true',
@@ -88,6 +88,15 @@ required=(
     'def require_privileged_source_custody()',
     'privileged_source_custody_required_before_apply=true',
     'trusted_root_launcher_still_required=true',
+    'FIXED_PYTHON = pathlib.Path("/usr/bin/python3")',
+    'def _require_runtime_uid_nonwritable(',
+    '"--clear-groups"',
+    'os.access(p, os.W_OK, effective_ids=True)',
+    '_require_runtime_uid_nonwritable(runtime_paths, "privileged_source")',
+    '_require_runtime_uid_nonwritable(runtime_paths, "install_parent")',
+    '_require_runtime_uid_nonwritable(runtime_paths, "tree")',
+    '_require_runtime_uid_nonwritable([root, path], label + "_installed")',
+    'acl_aware_runtime_uid_nonwritability_required=true',
 )
 for needle in required:
     assert needle in src, needle
@@ -117,6 +126,10 @@ qrequired=(
     'binary_root_and_ancestor_custody_verified=true',
     'binary_self_test_descriptor_execution=true',
     'binary_retained_descriptor_post_execution_revalidated=true',
+    'os.access(current, os.W_OK, effective_ids=True)',
+    'os.access(path, os.W_OK, effective_ids=True)',
+    'binary_acl_aware_runtime_nonwritability_verified=true',
+    'binary_acl_aware_runtime_nonwritability_required=true',
 )
 for needle in qrequired:
     assert needle in qsrc, needle
@@ -135,6 +148,13 @@ with tempfile.TemporaryDirectory(prefix="void-v7-installer-isolation-") as td:
     assert bad.returncode==2
     assert "reason=python_isolated_mode_required" in bad.stdout.splitlines()
     assert not marker.exists()
+
+with tempfile.TemporaryDirectory(prefix="void-v7-effective-write-model-") as td:
+    model=pathlib.Path(td)/"mode-safe-but-effective-writable"
+    model.mkdir(mode=0o755)
+    mode=stat.S_IMODE(model.stat().st_mode)
+    assert (mode & 0o022)==0
+    assert os.access(model,os.W_OK,effective_ids=True)
 
 cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--self-test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_SELF_TEST_GREEN" in cp.stdout.splitlines()
@@ -155,6 +175,7 @@ assert "git_worktree_config_extension_rejected=true" in cp.stdout.splitlines()
 assert "git_promisor_partial_clone_rejected=true" in cp.stdout.splitlines()
 assert "git_exact_dir_common_toplevel_required=true" in cp.stdout.splitlines()
 assert "git_metadata_provenance_required_for_all_roots=true" in cp.stdout.splitlines()
+assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitlines()
 
 cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--source-plan"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr==""
@@ -164,6 +185,7 @@ assert "installed_qualifier_v3_bound=true" in cp.stdout.splitlines()
 assert "accepted_v1_lock_install_authority=false" in cp.stdout.splitlines()
 assert "git_metadata_provenance_required_for_all_roots=true" in cp.stdout.splitlines()
 assert "git_external_metadata_and_object_indirection_rejected=true" in cp.stdout.splitlines()
+assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitlines()
 
 cp=subprocess.run([sys.executable,"-I","-B",str(QUAL),"--self-test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V3_SELF_TEST_GREEN" in cp.stdout.splitlines()
@@ -171,6 +193,7 @@ assert "swapped_root_modes_rejected=true" in cp.stdout.splitlines()
 assert "binary_root_and_ancestor_custody_required=true" in cp.stdout.splitlines()
 assert "binary_self_test_descriptor_execution_required=true" in cp.stdout.splitlines()
 assert "binary_retained_descriptor_revalidation_required=true" in cp.stdout.splitlines()
+assert "binary_acl_aware_runtime_nonwritability_required=true" in cp.stdout.splitlines()
 assert 'subprocess.run(\n            [str(path), "--self-test"]' not in qsrc
 cp=subprocess.run([sys.executable,"-I","-B",str(QUAL)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr==""
@@ -207,6 +230,10 @@ print("git_local_config_indirection_rejected=true")
 print("git_exact_dir_common_toplevel_bound=true")
 print("git_metadata_provenance_all_privileged_roots_bound=true")
 print("trusted_root_launcher_still_required=true")
+print("mode_only_nonwritable_is_insufficient_model=true")
+print("installer_acl_aware_runtime_uid_write_audit_bound=true")
+print("runtime_uid_cleared_groups_write_audit_bound=true")
+print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
 print("accepted_native_selector_identity_preserved=true")
 print("create_only_publication_preserved=true")
 print("operation_bound_plan_v4_required=true")

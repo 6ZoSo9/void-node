@@ -51,7 +51,7 @@ MATERIALIZER_BLOB = "474614da950db72082fb95a5174405ce8caf2513"
 PREDECESSOR_INSTALLER_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v3.py"
 PREDECESSOR_INSTALLER_BLOB = "4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"
-QUALIFIER_BLOB = "d3ad73b041ec7357e2ad8e758caf9d9390a4785b"
+QUALIFIER_BLOB = "2132ed4f545364347e27bd77adc3ab447c0df397"
 
 SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 SOURCE_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
@@ -83,6 +83,7 @@ RUNTIME_UID = 1000
 RUNTIME_GID = 1000
 FIXED_GIT = pathlib.Path("/usr/bin/git")
 FIXED_SETPRIV = pathlib.Path("/usr/bin/setpriv")
+FIXED_PYTHON = pathlib.Path("/usr/bin/python3")
 MAX_NODES = 250000
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
@@ -103,12 +104,61 @@ def git_blob_sha1(raw: bytes) -> str:
     h.update(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw)
     return h.hexdigest()
 
+_RUNTIME_WRITE_AUDIT_CODE = (
+    "import os,sys\n"
+    "for raw in sys.stdin.buffer.read().split(b'\\0'):\n"
+    "    if not raw: continue\n"
+    "    p=os.fsdecode(raw)\n"
+    "    if not os.path.lexists(p): sys.stdout.buffer.write(raw); raise SystemExit(4)\n"
+    "    if os.access(p, os.W_OK, effective_ids=True): sys.stdout.buffer.write(raw); raise SystemExit(3)\n"
+    "raise SystemExit(0)\n"
+)
+
+def _require_runtime_uid_nonwritable(paths: list[pathlib.Path], label: str) -> None:
+    unique = sorted({os.path.abspath(os.fspath(path)) for path in paths})
+    if not unique:
+        return
+    if os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:
+        for raw_path in unique:
+            path = pathlib.Path(raw_path)
+            if not path.exists() and not path.is_symlink():
+                raise InstallError(label + "_runtime_write_audit_path_missing")
+            if os.access(path, os.W_OK, effective_ids=True):
+                raise InstallError(label + "_runtime_writable")
+        return
+    if os.geteuid() != 0:
+        raise InstallError(label + "_runtime_write_audit_identity_invalid")
+    if not FIXED_SETPRIV.is_file() or not FIXED_PYTHON.is_file():
+        raise InstallError(label + "_runtime_write_audit_helper_unavailable")
+    payload = b"\0".join(os.fsencode(path) for path in unique) + b"\0"
+    cp = subprocess.run(
+        [
+            os.fspath(FIXED_SETPRIV), "--no-new-privs",
+            "--reuid=" + str(RUNTIME_UID), "--regid=" + str(RUNTIME_GID), "--clear-groups",
+            os.fspath(FIXED_PYTHON), "-I", "-B", "-c", _RUNTIME_WRITE_AUDIT_CODE,
+        ],
+        input=payload,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=120,
+        env=_git_env(),
+    )
+    if cp.returncode == 0 and cp.stdout == b"" and cp.stderr == b"":
+        return
+    if cp.returncode == 3 and cp.stderr == b"":
+        raise InstallError(label + "_runtime_writable")
+    if cp.returncode == 4 and cp.stderr == b"":
+        raise InstallError(label + "_runtime_write_audit_path_missing")
+    raise InstallError(label + "_runtime_write_audit_failed")
+
 def require_privileged_source_custody() -> None:
     if os.geteuid() != 0 or os.getuid() != 0:
         raise InstallError("root_required_for_privileged_source_custody")
     source_root = pathlib.Path(os.path.abspath(os.fspath(ROOT)))
     if source_root.resolve(strict=True) != source_root:
         raise InstallError("privileged_source_root_alias_forbidden")
+    runtime_paths: list[pathlib.Path] = []
     current = source_root
     while True:
         st = os.lstat(current)
@@ -120,6 +170,7 @@ def require_privileged_source_custody() -> None:
             or stat.S_IMODE(st.st_mode) & 0o022
         ):
             raise InstallError("privileged_source_ancestor_custody_invalid:" + os.fspath(current))
+        runtime_paths.append(current)
         if current == current.parent:
             break
         current = current.parent
@@ -146,10 +197,12 @@ def require_privileged_source_custody() -> None:
                 continue
             if mode & 0o022:
                 raise InstallError("privileged_source_node_writable:" + os.fspath(path))
+            runtime_paths.append(path)
             if stat.S_ISDIR(st.st_mode):
                 pending.append(path)
             elif not stat.S_ISREG(st.st_mode):
                 raise InstallError("privileged_source_node_kind_invalid:" + os.fspath(path))
+    _require_runtime_uid_nonwritable(runtime_paths, "privileged_source")
 
 def _metadata_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int, int, int, int]:
     return (
@@ -335,6 +388,7 @@ def install_parent_custody() -> tuple[tuple[str, int, int, int, int, int, int], 
     current = INSTALL_PARENT
     first = True
     rows: list[tuple[str, int, int, int, int, int, int]] = []
+    runtime_paths: list[pathlib.Path] = []
     while True:
         st = os.lstat(current)
         mode = stat.S_IMODE(st.st_mode)
@@ -349,10 +403,12 @@ def install_parent_custody() -> tuple[tuple[str, int, int, int, int, int, int], 
         if first and mode != 0o755:
             raise InstallError("install_parent_mode_invalid:" + os.fspath(current))
         rows.append((os.fspath(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink))
+        runtime_paths.append(current)
         if current == current.parent:
             break
         current = current.parent
         first = False
+    _require_runtime_uid_nonwritable(runtime_paths, "install_parent")
     return tuple(rows)
 
 def install_parent_fd_matches(fd: int, expected: tuple[tuple[str, int, int, int, int, int, int], ...]) -> bool:
@@ -516,6 +572,7 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
     if rst.st_uid != 0 or rst.st_gid != 0 or stat.S_IMODE(rst.st_mode) != expected_root_mode:
         raise InstallError("tree_root_metadata_invalid:" + os.fspath(root))
     h, nodes, total = hashlib.sha256(), 0, 0
+    runtime_paths: list[pathlib.Path] = [root]
     pending: list[tuple[pathlib.Path, pathlib.PurePosixPath]] = [(root, pathlib.PurePosixPath("."))]
     while pending:
         directory, rel = pending.pop()
@@ -530,6 +587,8 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                 raise InstallError("tree_node_not_root_owned:" + relative)
             if not stat.S_ISLNK(st.st_mode) and mode & 0o022:
                 raise InstallError("tree_node_writable:" + relative)
+            if not stat.S_ISLNK(st.st_mode):
+                runtime_paths.append(child)
             if stat.S_ISDIR(st.st_mode):
                 h.update(("D\0" + relative + "\0" + format(mode, "04o") + "\n").encode())
                 pending.append((child, rel / entry.name))
@@ -545,6 +604,7 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                 h.update(("L\0" + relative + "\0" + os.readlink(child) + "\n").encode())
             else:
                 raise InstallError("tree_node_kind_invalid:" + relative)
+    _require_runtime_uid_nonwritable(runtime_paths, "tree")
     return h.hexdigest(), nodes, total
 
 def candidate_fd_metadata_valid(mode: int, nlink: int, size: int, expected_bytes: int) -> bool:
@@ -597,6 +657,7 @@ def exact_binary_root(root: pathlib.Path, filename: str, expected_sha: str, expe
     if (not stat.S_ISREG(fst.st_mode) or stat.S_ISLNK(fst.st_mode) or fst.st_uid != 0 or fst.st_gid != 0 or fst.st_nlink != 1
             or stat.S_IMODE(fst.st_mode) != 0o555 or fst.st_size != expected_bytes or sha256_file(path) != expected_sha):
         raise InstallError(label + "_installed_binary_invalid")
+    _require_runtime_uid_nonwritable([root, path], label + "_installed")
     return True
 
 def source_target_state(source_digest: tuple[str, int, int]) -> bool:
@@ -812,6 +873,7 @@ def source_plan() -> None:
     print("publication_bookkeeping_precedes_parent_fsync=true")
     print("install_parent_root_owned_0755_required=true")
     print("install_parent_descriptor_identity_required=true")
+    print("acl_aware_runtime_uid_nonwritability_required=true")
     print("immutable_source_release_root_mode_0555_required=true")
     print("protected_source_root_mode_0755_required=true")
     print("installed_qualifier_v3_bound=true")
@@ -841,6 +903,7 @@ def self_test() -> None:
     print("publication_bookkeeping_precedes_parent_fsync=true")
     print("install_parent_root_owned_0755_required=true")
     print("install_parent_descriptor_identity_required=true")
+    print("acl_aware_runtime_uid_nonwritability_required=true")
     print("immutable_source_release_root_mode_0555_required=true")
     print("protected_source_root_mode_0755_required=true")
     assert SOURCE_RELEASE_ROOT_MODE == 0o555 and PROTECTED_SOURCE_ROOT_MODE == 0o755

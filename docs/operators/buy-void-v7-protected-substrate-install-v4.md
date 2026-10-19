@@ -26,7 +26,7 @@ V4 preserves V3 and binds it as the exact predecessor:
 - predecessor V3 installer blob: `4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38`;
 - materializer V2 blob: `474614da950db72082fb95a5174405ce8caf2513`;
 - historical installed qualifier V2 blob: `56a7ca798553766af525d9fb1ccbe58b70fe9c1d`;
-- installed qualifier V3 blob: `d3ad73b041ec7357e2ad8e758caf9d9390a4785b`.
+- installed qualifier V3 blob: `2132ed4f545364347e27bd77adc3ab447c0df397`.
 
 The mode contract is role-specific:
 
@@ -195,3 +195,34 @@ before their first Git observations.
 This closes only Git metadata/object provenance. It does not replace the separate
 trusted root-custodied launcher required before privileged apply and grants no
 merge, protected filesystem apply, payment, activation, or funds authority.
+
+
+## ACL-aware runtime non-writability closure
+
+Root ownership and safe mode bits are necessary but not sufficient custody evidence.
+A named POSIX ACL can grant the runtime UID write authority while a path still
+appears as `root:root 0755` or `0555`.
+
+This generation adds effective runtime-identity checks in addition to the existing
+ownership/mode and descriptor contracts:
+
+- privileged installer audits run under exact UID/GID `1000:1000` with cleared
+  supplementary groups through isolated `/usr/bin/python3 -I -B`;
+- the privileged checkout and ancestor chain, every non-symlink checkout node,
+  `/` + `/opt`, source/protected/staging tree nodes, and installed binary
+  roots/leaves must all be non-writable to that runtime identity;
+- qualifier V3 already runs unprivileged as the runtime UID and now requires
+  `os.access(..., W_OK, effective_ids=True)` to be false for each native/selector
+  ancestor and exact ELF leaf before, during, and after retained-descriptor self-test
+  execution;
+- hosted proof explicitly demonstrates that mode bits with no group/world write are
+  not by themselves an effective-writability proof, and statically binds both
+  runtime-access implementations.
+
+Candidate ELF inputs remain allowed to be user-controlled/writable input data; they
+are never executed by the privileged installer and are reconstructed only from exact
+retained-FD authenticated bytes.
+
+This hardening grants no merge, protected filesystem apply, service/systemd,
+credential/key/wallet, signing, transaction/payment/activation, treasury/liquidity,
+or funds authority.
