@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="75dab134b8444ca79af6505f738bfcbdb924662c";
+const TARGET_BLOB="d8fbb951e901422fcd100d3bc9fd1168c2077290";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
@@ -1997,6 +1997,59 @@ for(const kind of ["symlink","directory","fifo","socket","oversize","malformed",
   }finally{f.cleanup();}
 }
 
+
+{
+  // A generation supplied to the public core API is still caller data.
+  // structuredClone(generation) invokes getters, even if validation rejects later.
+  const f=fixture();
+  let getterCalls=0;
+  let proxyTraps=0;
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const accessor={...f.generation};
+    Object.defineProperty(accessor,"root_identity_sha256",{
+      enumerable:true,
+      get(){getterCalls+=1;return f.generation.root_identity_sha256;},
+    });
+    const coercing={...f.generation,store_policy_id:{
+      [Symbol.toPrimitive](){getterCalls+=1;return f.generation.store_policy_id;},
+    }};
+    const proxy=new Proxy(f.generation,{
+      get(){proxyTraps+=1;assert.fail("generation proxy get trap invoked");},
+      ownKeys(){proxyTraps+=1;assert.fail("generation proxy ownKeys trap invoked");},
+      getPrototypeOf(){proxyTraps+=1;assert.fail("generation proxy prototype trap invoked");},
+      getOwnPropertyDescriptor(){
+        proxyTraps+=1;assert.fail("generation proxy descriptor trap invoked");
+      },
+    });
+    const revoked=Proxy.revocable(f.generation,{});
+    revoked.revoke();
+    const hidden={...f.generation};
+    Object.defineProperty(hidden,"unexpected",{value:"hidden",enumerable:false});
+    const symbol={...f.generation,[Symbol("unexpected")]:"hidden"};
+    const huge={...f.generation,store_policy_id:"x".repeat(100_000)};
+    const beforeStore=storeSnapshot(f.root);
+    for(const invalid of [
+      accessor,coercing,proxy,revoked.proxy,hidden,symbol,huge,
+    ]){
+      for(const operation of ["publishClaim","observeAuthorizationWinner"]){
+        const count=f.txCount();
+        const input=operation==="publishClaim"
+          ?publishInput(bundle,invalid):observationInput(bundle,invalid);
+        withReadOnlyFs(()=>expectError(
+          ()=>f.core[operation](input),
+          "apollyon_claim_store_impl_v2_generation_invalid",
+        ));
+        assert.equal(f.txCount(),count,"generation rejection precedes lease acquisition");
+      }
+    }
+    assert.equal(getterCalls,0,"nested getter or coercion was invoked");
+    assert.equal(proxyTraps,0,"nested generation proxy trap was invoked");
+    assert.deepEqual(storeSnapshot(f.root),beforeStore,
+      "invalid generations cannot change protected store fixture");
+  }finally{f.cleanup();}
+}
+
 for(const kind of ["active","generation","claim"]){
   const f=fixture();
   try{
@@ -2817,6 +2870,7 @@ console.log("observation_all_descriptors_held_through_final_reread=true");
 console.log("observation_missing_partial_and_malformed_state_rejected_without_repair=true");
 console.log("observation_fifo_and_socket_refused_without_blocking=true");
 console.log("observation_caller_selected_paths_and_slot_records_forbidden=true");
+console.log("generation_nested_accessors_proxies_and_oversize_rejected_before_lease=true");
 console.log("observation_request_and_persisted_winner_cross_bound=true");
 console.log("observation_directory_and_root_transient_drift_rejected=true");
 console.log("caller_root_descriptor_reuse_cannot_redirect_active_operation=true");
