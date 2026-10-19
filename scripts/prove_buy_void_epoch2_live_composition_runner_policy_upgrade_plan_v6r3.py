@@ -13,9 +13,9 @@ TARGET=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_runner_policy_u
 LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json"
 RUNNER=ROOT/"ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 
-LOCK_ID="voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202"
+LOCK_ID="voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67"
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d"
-LOCK_BLOB="1f40861ce5bd65a33a698bdaa3ada7c7a0ffa7d4"
+LOCK_BLOB="84aed3b9c1f0f3f540c7d12b4cc33d0c132a74f0"
 RUNNER_BLOB="62029fafa7073ab3768fec01f2147a7f4eefce2b"
 RUNNER_SHA256="0f87747439b82887033295cf04022c9a2a491c726f8d6acad8b0efc2e8dcdc71"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
@@ -37,7 +37,7 @@ for name in (
     assert any(isinstance(node,ast.FunctionDef) and node.name==name for node in tree.body),name
 
 for required in (
-    'LOCK_ID="voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202"',
+    'LOCK_ID="voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67"',
     'CANDIDATE_ID="voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d"',
     'RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
     'NEW_RUNNER_SHA256="0f87747439b82887033295cf04022c9a2a491c726f8d6acad8b0efc2e8dcdc71"',
