@@ -66,6 +66,26 @@ read-only Git commands needed for ancestry and parent-blob authentication.
 Consequently a future hosted-runner toolchain update cannot silently change the
 accepted binary or make the acceptance lock non-executable.
 
+## Descriptor-bound parent-source authentication
+
+Current parent evidence is no longer read through the historical
+`lstat -> Path.read_bytes -> lstat` pathname-reopen sequence. Every exact parent
+source/proof/doc/workflow read now:
+
+- rejects absolute/parent-traversal relative names;
+- validates a direct regular single-link bounded leaf before opening;
+- opens once with `O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK`;
+- requires pre-open and opened descriptor generations to match;
+- reads exactly the authenticated size and requires immediate EOF;
+- revalidates the retained descriptor and visible leaf generation after reading;
+- verifies the exact Git blob and current-head Git object identity; and
+- treats descriptor close uncertainty as a machine-readable failure.
+
+The focused proof executes stable, traversal, symlink, FIFO, inode-replacement,
+growth-after-open and real-close-failure fixtures. This closes the source-read
+race that the downstream archive-admission gate previously had to compensate
+for locally.
+
 ## Accepted identity
 
 The lock accepts exactly:
