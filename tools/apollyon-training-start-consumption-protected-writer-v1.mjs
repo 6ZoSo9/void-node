@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import {types as utilTypes} from "node:util";
 
 import {
   canonicalApollyonClaimContractJsonV1,
 } from "./apollyon-candidate-training-attempt-claim-contract-v1.mjs";
 import {
+  VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1,
   validateApollyonTrainingStartConsumptionRecordV1,
 } from "./apollyon-training-start-consumption-contract-v1.mjs";
 
@@ -62,6 +64,56 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_PROTECTED_WRITER_AUTHORITY
 const SLOT_ID=/^apollyon_training_start_slot_v1:([0-9a-f]{64})$/u;
 const MAX_RECORD_BYTES=64*1024;
 
+// No caller object, getter, Proxy trap, or nested graph is allowed to execute
+// before the exact consumption record is validated and a directory FD is owned.
+function captureExactOwnData(input,keys,code){
+  if(
+    !input||typeof input!=="object"||utilTypes.isProxy(input)||
+    Array.isArray(input)
+  )fail(code);
+  const proto=Object.getPrototypeOf(input);
+  if(proto!==Object.prototype&&proto!==null)fail(code);
+  const own=Reflect.ownKeys(input);
+  if(own.length!==keys.length||
+     own.some(key=>typeof key!=="string"||!keys.includes(key)))fail(code);
+  const snapshot={};
+  for(const key of keys){
+    const descriptor=Object.getOwnPropertyDescriptor(input,key);
+    if(!descriptor?.enumerable||!Object.hasOwn(descriptor,"value"))fail(code);
+    snapshot[key]=descriptor.value;
+  }
+  return snapshot;
+}
+function captureConsumptionRecord(input){
+  const code="apollyon_training_start_writer_consumption_record_input_invalid";
+  const keys=VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1;
+  const record=captureExactOwnData(input,keys,code);
+  for(const key of keys){
+    const value=record[key];
+    if(typeof value==="string"){
+      if(value.length<1||value.length>256)fail(code);
+    }else if(typeof value==="boolean"){
+      // The parent validator still decides whether true or false is correct.
+    }else if(typeof value==="number"){
+      if(!Number.isSafeInteger(value))fail(code);
+    }else{
+      fail(code);
+    }
+  }
+  return record;
+}
+function captureWriterInput(input,recordKey){
+  const code="apollyon_training_start_writer_input_invalid";
+  const snapshot=captureExactOwnData(input,["directory_fd",recordKey],code);
+  if(!Number.isSafeInteger(snapshot.directory_fd)||snapshot.directory_fd<3){
+    fail("apollyon_training_start_writer_directory_fd_invalid");
+  }
+  return {
+    directory_fd:snapshot.directory_fd,
+    [recordKey]:captureConsumptionRecord(snapshot[recordKey]),
+  };
+}
+
 function fail(code){throw new Error(code);}
 function canonical(value){return canonicalApollyonClaimContractJsonV1(value);}
 function requireLinux(){
@@ -90,7 +142,9 @@ function slotDigest(record){
   return match[1];
 }
 export function apollyonTrainingStartConsumptionSlotLeafV1(input){
-  const record=validateApollyonTrainingStartConsumptionRecordV1(input);
+  const record=validateApollyonTrainingStartConsumptionRecordV1(
+    captureConsumptionRecord(input),
+  );
   return "training-start-consumption-v1-"+slotDigest(record)+".json";
 }
 function directoryProcPath(directoryFd){
@@ -294,17 +348,7 @@ function alreadyReceipt(record){
   });
 }
 export function classifyApollyonTrainingStartConsumptionProtectedSlotV1(input){
-  let snapshot;
-  try{snapshot=structuredClone(input);}catch{
-    fail("apollyon_training_start_writer_input_invalid");
-  }
-  if(!snapshot||typeof snapshot!=="object"||Array.isArray(snapshot)){
-    fail("apollyon_training_start_writer_input_invalid");
-  }
-  const keys=Object.keys(snapshot).sort();
-  if(keys.length!==2||keys[0]!=="directory_fd"||keys[1]!=="expected_consumption_record"){
-    fail("apollyon_training_start_writer_input_invalid");
-  }
+  const snapshot=captureWriterInput(input,"expected_consumption_record");
   const record=validateApollyonTrainingStartConsumptionRecordV1(
     snapshot.expected_consumption_record,
   );
@@ -316,17 +360,7 @@ export function classifyApollyonTrainingStartConsumptionProtectedSlotV1(input){
   }
 }
 export function publishApollyonTrainingStartConsumptionProtectedV1(input){
-  let snapshot;
-  try{snapshot=structuredClone(input);}catch{
-    fail("apollyon_training_start_writer_input_invalid");
-  }
-  if(!snapshot||typeof snapshot!=="object"||Array.isArray(snapshot)){
-    fail("apollyon_training_start_writer_input_invalid");
-  }
-  const keys=Object.keys(snapshot).sort();
-  if(keys.length!==2||keys[0]!=="consumption_record"||keys[1]!=="directory_fd"){
-    fail("apollyon_training_start_writer_input_invalid");
-  }
+  const snapshot=captureWriterInput(input,"consumption_record");
   const record=validateApollyonTrainingStartConsumptionRecordV1(
     snapshot.consumption_record,
   );
