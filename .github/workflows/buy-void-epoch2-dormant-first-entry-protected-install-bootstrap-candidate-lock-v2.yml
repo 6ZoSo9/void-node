@@ -1,0 +1,186 @@
+name: Buy VOID Epoch-2 protected-bootstrap candidate lock v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.yml"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - "ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.yml"
+      - "scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.yml"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact acceptance-lock generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.md' \
+            'ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json' \
+            'scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v2.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.json)" = 90dfe7728fa56c8d41a396399578bd1b8c52c2f4
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v2.py)" = 10cdc893eaa24b7f6f33ef20b671b889aa1f3dfd
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-lock-v2.md)" = 59b0b5875307cb7f524d383be0fb627db6e55680
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py)" = 4f9b5a2ca77b3aebc9e70ea835c92155601a1a06
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.yml)" = 46488e048565b79676de05732ee58a35badfd395
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-install-bootstrap-candidate-v2.md)" = b5580a5be7d28ea915f16d0d2fd1e952ddb0018a
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_v2.c)" = 19f9baf8d6d707da43dbd0e247667af1a10e46c5
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_protected_install_v1.py)" = 383b84e71b371de65579e4113469e86a59b807ab
+
+          test "$(git rev-parse 917a6247973310c539a4186c59825b1474ce0251^{tree})" = 4085987d856fa303b8bc81087e3b5a207bc8964f
+          git merge-base --is-ancestor 917a6247973310c539a4186c59825b1474ce0251 "$EXPECTED_HEAD"
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Static lock proof
+        run: |
+          set -euo pipefail
+          proof='scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v2.py'
+
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          p=Path("scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v2.py")
+          compile(p.read_text("utf-8"),str(p),"exec",dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_LOCK_V2_SYNTAX_GREEN")
+          PY
+
+          out="$RUNNER_TEMP/bootstrap-lock-self-test.log"
+          python3 -I -B "$proof" --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_LOCK_V2_SELF_TEST_GREEN' \
+            'canonical_lock_id_verified=true' \
+            'candidate_source_generation_bound=true' \
+            'candidate_hosted_evidence_bound=true' \
+            'candidate_report_identity_bound=true' \
+            'bootstrap_binary_identity_bound=true' \
+            'candidate_source_blobs_bound=true' \
+            'candidate_accepted=true' \
+            'bootstrap_binary_identity_accepted=true' \
+            'runtime_head_contract_accepted=true' \
+            'superseded_v1_lock_install_authority=false' \
+            'protected_bootstrap_install_authorized=false' \
+            'protected_installer_apply_authorized=false' \
+            'live_execution_authorized=false' \
+            'credential_access_authorized=false' \
+            'signing_authorized=false' \
+            'transaction_authorized=false' \
+            'rpc_call_authorized=false' \
+            'funds_movement_authorized=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Rederive and accept frozen canonical candidate
+        run: |
+          set -euo pipefail
+          candidate_head=917a6247973310c539a4186c59825b1474ce0251
+          worktree="$RUNNER_TEMP/frozen-bootstrap-candidate-source"
+          candidate_out="$RUNNER_TEMP/frozen-bootstrap-candidate-output"
+          derive_log="$RUNNER_TEMP/frozen-bootstrap-candidate-derive.log"
+          accept_log="$RUNNER_TEMP/frozen-bootstrap-candidate-accept.log"
+
+          cleanup() {
+            git worktree remove --force "$worktree" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          git worktree add --detach "$worktree" "$candidate_head"
+          (
+            cd "$worktree"
+            python3 -I -B \
+              scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_v2.py \
+              --derive-dir "$candidate_out"
+          ) | tee "$derive_log"
+
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_V2_DERIVE_GREEN' "$derive_log"
+          grep -Fx 'candidate_id=voidbuye2bootstrapcand2_a8acbc7a61ed1a5a59a29529b678e1473c044584a663bcdb1174756c29c71eb5' "$derive_log"
+          grep -Fx 'bootstrap_sha256=37a6979c274e93fa09860b26664804a9d912201a290db65deb9b4499e39aa276' "$derive_log"
+          grep -Fx 'bootstrap_bytes=731072' "$derive_log"
+          grep -Fx 'candidate_accepted=false' "$derive_log"
+          grep -Fx 'protected_bootstrap_install_authorized=false' "$derive_log"
+          grep -Fx 'funds_movement=false' "$derive_log"
+
+          python3 -I -B \
+            scripts/prove_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_candidate_lock_v2.py \
+            --candidate-dir "$candidate_out" | tee "$accept_log"
+
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALL_BOOTSTRAP_CANDIDATE_LOCK_V2_CANDIDATE_ACCEPTANCE_GREEN' \
+            'canonical_lock_id_verified=true' \
+            'frozen_candidate_rederived=true' \
+            'candidate_report_bytes_exact=true' \
+            'bootstrap_binary_bytes_exact=true' \
+            'candidate_accepted=true' \
+            'bootstrap_binary_identity_accepted=true' \
+            'runtime_head_contract_accepted=true' \
+            'superseded_v1_lock_install_authority=false' \
+            'protected_bootstrap_install_authorized=false' \
+            'protected_installer_apply_authorized=false' \
+            'live_execution_authorized=false' \
+            'credential_access_authorized=false' \
+            'signing_authorized=false' \
+            'transaction_authorized=false' \
+            'rpc_call_authorized=false' \
+            'funds_movement_authorized=false'
+          do
+            grep -Fx "$marker" "$accept_log"
+          done
+
+          cleanup
+          trap - EXIT
+          git worktree prune
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

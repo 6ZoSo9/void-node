@@ -111,37 +111,37 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            e1329dece0caa2c8c3db142589b5c1c83e6c1076
+            75dab134b8444ca79af6505f738bfcbdb924662c
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            ed479d7dfd29d68c44edcf0ebbe3cfda4d64532b
+            7b4d5cdb5049521b4ad105822095fcc48bb8a649
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            71ba2f0eb6e4c326eb8f067835929ec403ee6481
+            d88b1bde3a76cb732a9ff1580a73c117e69f7d01
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
             3a46492c841047431f2086f5e8c37a51c20ff2a4
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            96124480cd6beb4bd41ce6e33575cad6365ee953
+            d73371b190460e82b7d6ff4f431833b006305fd2
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
             5355ffd2856e0f0c57f6e52fd1b347441b94e4d7
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
-            93582c324ca85aeff56eb61f82b32f1e4c18dfe9
+            c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs)" = \
-            d1726e3be042549769d2fe554371facd2ed60553
+            339916ce4a6216af9a73476ad5b78e2d7a300f73
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-contract-v2.mjs)" = \
             6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = \
-            d67ef39c4cd034844fb0862e180de46ed4cd0c88
+            87019ae1245a2054407dd47835b0b7a891d4d9a2
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs)" = \
-            394b9dbaebbdbb561be6119f5be8b60d59fb367d
+            5532d18603ab9b4f400082c6fac265c58672ed85
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs)" = \
-            5d913eb08d79c76ed926d8b88be05b12f475abd5
+            3feed7f71fb6941f8feccf393f151fa9e973d7a4
           test "$(git rev-parse HEAD:tools/apollyon-live-source-session-terminal-receipt-v2.mjs)" = \
             e27f0ebb968f4611bfc069670325c3f5e6df1c65
           test "$(git rev-parse HEAD:tools/apollyon-live-custody-service-source-session-binding-v2.mjs)" = \
@@ -151,7 +151,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c)" = \
             defd863de841a1f1460e10985d1990ba1a382f70
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs)" = \
-            4cf08f60a604496ea7087167f0ef6a744182aad4
+            45421969be31286f295c0daba6c36a4e4698010e
 
           git diff --check "$base" "$HEAD_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

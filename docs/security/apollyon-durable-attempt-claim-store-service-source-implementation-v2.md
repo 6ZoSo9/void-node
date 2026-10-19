@@ -34,20 +34,20 @@ migrations remain separate work.
 ## Exact parent
 
 Base: accepted #3357 exact head
-`4e7d433a4141b4a7cad7fb001d0800dccb1b5ec2`.
+`1b60642d980b76c13130d5124d83a22c2c01ec30`.
 
 Important exact source generations:
 
 - authorization-slot V1:
-  `93582c324ca85aeff56eb61f82b32f1e4c18dfe9`;
+  `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`;
 - exact request envelope V2:
-  `d1726e3be042549769d2fe554371facd2ed60553`;
+  `339916ce4a6216af9a73476ad5b78e2d7a300f73`;
 - protected store contract V2:
   `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
 - inert store-service candidate V2:
-  `d67ef39c4cd034844fb0862e180de46ed4cd0c88`;
+  `87019ae1245a2054407dd47835b0b7a891d4d9a2`;
 - native peer integration V2:
-  `394b9dbaebbdbb561be6119f5be8b60d59fb367d`;
+  `5532d18603ab9b4f400082c6fac265c58672ed85`;
 - shared canonicalizer:
   `f97fafb0148527ae3a954e2752faef8c7fc9e88e`;
 - terminal receipt:
@@ -55,13 +55,13 @@ Important exact source generations:
 - live source/session binding:
   `981935515e08634be96446e58922c16be56d33ad`;
 - revalidation handoff:
-  `5d913eb08d79c76ed926d8b88be05b12f475abd5`.
+  `3feed7f71fb6941f8feccf393f151fa9e973d7a4`.
 
-The Linux composition is added over the unchanged core blob
-`e1329dece0caa2c8c3db142589b5c1c83e6c1076`. Its source is
+The Linux composition uses the same implementation core, now at Git blob
+`75dab134b8444ca79af6505f738bfcbdb924662c`. Its source is
 `tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs`, blob
-`f485b9e6fc29eab549ebba07e1b49f24c7659092`. Both executable blobs remain unchanged
-by the native bridge. The bridge links these exact accepted #3309 sources,
+`f485b9e6fc29eab549ebba07e1b49f24c7659092`. The Linux lease blob is unchanged. The core changes in this rebind only in its
+four immutable upstream source-generation pins. The bridge links these exact accepted #3309 sources,
 already present in the base, without modifying them:
 
 - `ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c`:
@@ -73,7 +73,29 @@ The existing PR owns eight ADD-only files relative to #3357: the core, Linux
 lease, native C bridge, native JS adapter, the two focused proofs, this document
 and the focused workflow. The older proof changes only its trigger-closure list;
 its 92 existing proof markers remain required. The focused workflow pins the
-final native source/proof blobs and the unchanged dependency generation.
+final native source/proof blobs and the exact current dependency generation.
+
+## October 18 current-parent reconciliation
+
+The current parent is #3357 `1b60642d980b76c13130d5124d83a22c2c01ec30`.
+Its previous accepted generation `4e7d433a4141b4a7cad7fb001d0800dccb1b5ec2`
+remains the existing Draft's first-parent ancestor. The new parent imports the
+repaired native process identity lineage without altering the claim replay-key
+contract. Complete nontruncated parent-tree comparison finds 358 upstream
+changed files, none overlapping the eight files owned by this Draft.
+
+This integration updates exact immutable pins only: authorization-slot V1,
+request-envelope V2, inert store-service candidate V2 and native-peer integration
+V2. Their revalidation-handoff and native-guard proof source generations are also
+rebound in the focused workflow. The durable core's publication/observation
+algorithms, Linux lease, native addon, JS bridge, kernel process-identity
+implementation and role/host-negative authority markers are unchanged.
+
+A new parent does not confer protected installed identity, privileged
+revalidation, protected runner origin, or live Xiphos claim/training authority.
+All descendants binding this store source generation must separately qualify
+their exact accepted blobs. Keep Draft until distinct exact-head source review
+and designated-host integration gates are satisfied.
 
 ## Fixed physical namespace
 

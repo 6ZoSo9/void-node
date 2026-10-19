@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="e1329dece0caa2c8c3db142589b5c1c83e6c1076";
+const TARGET_BLOB="75dab134b8444ca79af6505f738bfcbdb924662c";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
@@ -41,15 +41,15 @@ const PINNED=Object.freeze({
   [TARGET_REL]:TARGET_BLOB,
   [LEASE_REL]:LEASE_BLOB,
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "93582c324ca85aeff56eb61f82b32f1e4c18dfe9",
+    "c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8",
   "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
-    "d1726e3be042549769d2fe554371facd2ed60553",
+    "339916ce4a6216af9a73476ad5b78e2d7a300f73",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
     "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
-    "d67ef39c4cd034844fb0862e180de46ed4cd0c88",
+    "87019ae1245a2054407dd47835b0b7a891d4d9a2",
   "tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs":
-    "394b9dbaebbdbb561be6119f5be8b60d59fb367d",
+    "5532d18603ab9b4f400082c6fac265c58672ed85",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
 });
