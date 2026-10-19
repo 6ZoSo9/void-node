@@ -114,3 +114,26 @@ as non-authoritative.
 The planner remains non-executing and has no apply mode. No protected filesystem
 mutation, Runner/native execution, credential/key/signing, transaction/RPC/payment,
 activation, treasury/liquidity, or funds authority is added.
+
+## Runtime-UID ACL-sealed Runner planner rebind
+
+The non-executing V6R3 plan is now rebound to the accepted ACL-sealed source generation:
+
+```text
+accepted_lock_id=voidbuye2runnerpollock6r3_e65f2b3a34ce06a34bd2cc1e2f91e877fa3c6d67621fd02a191b1aae374a3a21
+accepted_lock_blob=7b113cb2547ed60a8e42a55cf4ad48e193cda89a
+candidate_id=voidbuye2runnerpolcand6r3_c2d5d08f412be224ad0f05745b5ce3e03dafb5a55d807632ae2b3ec6fb59c6b1
+runner_blob=2f17fd716f266fc1e12144799879d949983cc807
+runner_sha256=1685536b4717963dc35459695e80f13841e330ed278b88b6a5004134aab2a030
+runner_bytes=82972
+planner_blob=fdd58c3e120e255d1cd88b749b062f910537559c
+```
+
+This rebind changes only source provenance for the future separately authorized host plan.
+The runtime policy head remains `4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`,
+the native V3 identity remains reused, and policy Node identity remains protected-host-derived.
+
+The planner still has no apply mode and does not execute the Runner/native path, access
+credentials or private keys, sign/broadcast transactions, accept payments, activate
+the presale/WC market, mutate services, or move funds.
+
