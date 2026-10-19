@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="2569d6f15fd8c1ed059173ba19056979f3be7e23";
+const TARGET_BLOB="65a11b36cfe7408b7718b6827b260ea52d5048b4";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
