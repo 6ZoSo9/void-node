@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import {execFileSync} from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -351,7 +352,7 @@ for(const scenario of [
   const errors=[];
   fs.openSync=function observedOpen(target,flags,...args){
     const opened=originalOpen.call(fs,target,flags,...args);
-    if(String(target)===final&&(flags&O_PATH)!==0)pathFd=opened;
+    if(String(target).startsWith("/proc/self/fd/")&&String(target).endsWith("/"+leaf1)&&(flags&O_PATH)!==0)pathFd=opened;
     else if(pathFd>=0&&String(target)==="/proc/self/fd/"+String(pathFd)&&
             (flags&O_PATH)===0)dataFd=opened;
     return opened;
@@ -411,11 +412,12 @@ for(const scenario of [
   let substituted=false;
   let visibleDataOpenAttempts=0;
   fs.openSync=function(target,flags,...args){
-    if(String(target)===final&&typeof flags==="number"){
+    if(String(target).startsWith("/proc/self/fd/")&&String(target).endsWith("/"+leaf1)&&typeof flags==="number"){
       if(!substituted){
         assert.notEqual(flags&O_PATH,0,"existing slot must be O_PATH-admitted first");
         fs.unlinkSync(final);
-        fs.mkfifoSync(final,0o600);
+        execFileSync("mkfifo",[final],{timeout:5000,stdio:"pipe"});
+        fs.chmodSync(final,0o600);
         substituted=true;
       }else if((flags&O_PATH)===0){
         visibleDataOpenAttempts+=1;
@@ -880,6 +882,7 @@ console.log("existing_slot_fifo_substitution_nonblocking=true");
 console.log("existing_slot_bounded_fd_read=true");
 console.log("existing_slot_growth_beyond_max_rejected=true");
 console.log("existing_slot_dual_fd_close_fault_safe=true");
+console.log("existing_slot_visible_path_race_fixture_exercised=true");
 console.log("protected_consumption_store_origin_proven=false");
 console.log("unique_authorization_claim_slot_revalidation_performed=false");
 console.log("trainer_release=false");
