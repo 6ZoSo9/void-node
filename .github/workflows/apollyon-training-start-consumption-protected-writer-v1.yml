@@ -1,5 +1,6 @@
 name: Apollyon training-start protected consumption writer v1
 
+# Flattened direct-base qualification under #3548; source semantics unchanged.
 on:
   pull_request:
     paths:
