@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="e539f089b94cb2245e0267817dd74a37cacf423b";
+const TARGET_BLOB="390a1ee07bfe28c4b376724894a28fe8ae195887";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
@@ -279,7 +279,10 @@ for(const required of [
   "fs.linkSync(pendingPath,finalPath)",
   "apollyon_claim_store_impl_v2_orphan_claim_without_slot",
   "MAX_PUBLISH_REQUEST_BYTES=65536",
-  "input.length>MAX_PUBLISH_REQUEST_BYTES",
+  "byteLength>MAX_PUBLISH_REQUEST_BYTES",
+  "INTRINSIC_BYTE_LENGTH",
+  "INTRINSIC_TYPED_SET",
+  "types.isSharedArrayBuffer(backing)",
   "function exactPrimitiveRecordInput",
   "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_KEYS_V1",
   '"before_slot_publication"',
@@ -886,6 +889,63 @@ function requireFixedLeaseHelperCall(executable,args,options){
     assert.equal(sha256(forward.exact_request_bytes),expectedSha);
   }finally{Buffer.prototype.copy=originalPrototypeCopy;}
   assert.equal(laterPrototypeCopyCalls,0);
+}
+
+
+{
+  // A real non-Proxy Buffer can define hostile own getters for .length,
+  // .byteLength, .buffer and even the captured copy method. No caller-owned
+  // property may execute during sizing or copying in either public API.
+  const f=fixture();
+  let ownGetterCalls=0;
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const hostile=Buffer.from(bundle.requestBytes);
+    for(const key of ["length","byteLength","buffer","copy","constructor"]){
+      Object.defineProperty(hostile,key,{
+        configurable:true,
+        get(){
+          ownGetterCalls+=1;
+          assert.fail("caller Buffer own "+key+" getter executed");
+        },
+      });
+    }
+    const first=prepareApollyonDurableAttemptClaimPublisherForwardV2(hostile);
+    assert.equal(first.publish_request_sha256,bundle.publishRequestSha);
+    assert.equal(first.exact_request_bytes.equals(bundle.requestBytes),true);
+    f.core.publishClaim({...publishInput(bundle,f.generation),request_bytes:hostile});
+    const before=storeSnapshot(f.root);
+    const observed=withReadOnlyFs(()=>f.core.observeAuthorizationWinner({
+      ...observationInput(bundle,f.generation),request_bytes:hostile,
+    }));
+    assert.equal(observed.publish_request_sha256,bundle.publishRequestSha);
+    assert.deepEqual(storeSnapshot(f.root),before);
+    assert.equal(ownGetterCalls,0,"caller Buffer getters invoked during intrinsic copy");
+  }finally{f.cleanup();}
+}
+
+{
+  // Shared backing can be modified concurrently by another thread. Never
+  // accept it as an immutable publish-request snapshot in this core.
+  const f=fixture();
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const shared=Buffer.from(new SharedArrayBuffer(bundle.requestBytes.length));
+    bundle.requestBytes.copy(shared);
+    const before=storeSnapshot(f.root);
+    expectError(
+      ()=>prepareApollyonDurableAttemptClaimPublisherForwardV2(shared),
+      "apollyon_claim_store_impl_v2_publisher_input_invalid",
+    );
+    expectError(
+      ()=>f.core.publishClaim({
+        ...publishInput(bundle,f.generation),request_bytes:shared,
+      }),
+      "apollyon_claim_store_impl_v2_request_bytes_invalid",
+    );
+    assert.equal(f.txCount(),0,"shared-backed bytes did not enter store lease");
+    assert.deepEqual(storeSnapshot(f.root),before);
+  }finally{f.cleanup();}
 }
 
 {
@@ -2586,6 +2646,45 @@ for(const kind of ["slot","claim"]){
   }finally{fs.fstatSync=originalStat;f.cleanup();}
 }
 
+
+{
+  // A declared async/generator provider is never a valid source for the
+  // synchronous transaction lease or local revalidation receipt. Refuse its
+  // function *shape* before metadata IO, invocation, or lease acquisition.
+  const f=fixture();
+  let providerCalls=0;
+  const invalidProviders=[
+    async function asyncProvider(){providerCalls+=1;return {};},
+    function* generatorProvider(){providerCalls+=1;yield {};},
+    async function* asyncGeneratorProvider(){providerCalls+=1;yield {};},
+  ];
+  const before=storeSnapshot(f.root);
+  const originalStat=fs.fstatSync;
+  let statCalls=0;
+  try{
+    fs.fstatSync=(...args)=>{statCalls+=1;return originalStat(...args);};
+    for(const key of ["acquireExclusiveStoreTransaction","revalidate"]){
+      for(const provider of invalidProviders){
+        expectError(
+          ()=>createApollyonDurableAttemptClaimStoreServiceCoreV2({
+            ...f.config,[key]:provider,
+          }),
+          "apollyon_claim_store_impl_v2_config_invalid",
+        );
+      }
+    }
+    assert.equal(providerCalls,0,"invalid provider entered the operation");
+    assert.equal(statCalls,0,"invalid provider reached store metadata IO");
+    assert.equal(f.txCount(),0,"invalid provider acquired store transaction");
+    assert.equal(f.releaseCount(),0);
+    assert.deepEqual(f.stages,[]);
+  }finally{
+    fs.fstatSync=originalStat;
+    assert.deepEqual(storeSnapshot(f.root),before);
+    f.cleanup();
+  }
+}
+
 // This adapter uses real kernel locks. Its proof stores and child processes are disposable.
 {
   const f=fixture();
@@ -3114,6 +3213,9 @@ console.log("publisher_forward_private_bytes_survive_all_mutation=true");
 console.log("publisher_input_copy_override_not_invoked=true");
 console.log("publisher_later_copy_override_not_invoked=true");
 console.log("request_size_rejected_before_private_copy=true");
+console.log("caller_buffer_intrinsic_byte_length_and_copy_no_getters=true");
+console.log("shared_request_buffer_rejected_before_transaction=true");
+console.log("declared_async_generator_core_providers_rejected_before_io=true");
 console.log("operation_keyset_rejected_before_descriptor_capture=true");
 console.log("generation_nested_graph_rejected_before_clone=true");
 console.log("authorization_slot_nested_graph_rejected_before_clone=true");
