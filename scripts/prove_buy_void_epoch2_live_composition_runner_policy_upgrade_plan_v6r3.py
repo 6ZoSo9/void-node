@@ -16,14 +16,16 @@ RUNNER=ROOT/"ops/precision/void_buy_void_epoch2_authenticated_credential_live_co
 LOCK_ID="voidbuye2runnerpollock6r3_1c5c5b31abd01aa6cf3f080b2cf666980f18a6a2daf22700127fd6d84951f74c"
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d"
 LOCK_BLOB="c527f317be6fdb2502e9c93ca43618d68f4a6b8e"
-RUNNER_BLOB="7967778824f22baca976a59df75f9f808ebebfe2"\nPLAN_BLOB="29ee3e6048a60d5d7368d66c871fe3ee3a561c45"
+RUNNER_BLOB="7967778824f22baca976a59df75f9f808ebebfe2"
+PLAN_BLOB="29ee3e6048a60d5d7368d66c871fe3ee3a561c45"
 RUNNER_SHA256="a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 def git_blob(raw:bytes)->str:
     return hashlib.sha1(b"blob "+str(len(raw)).encode("ascii")+b"\0"+raw).hexdigest()
 
-assert git_blob(TARGET.read_bytes())==PLAN_BLOB\nassert git_blob(LOCK.read_bytes())==LOCK_BLOB
+assert git_blob(TARGET.read_bytes())==PLAN_BLOB
+assert git_blob(LOCK.read_bytes())==LOCK_BLOB
 assert git_blob(RUNNER.read_bytes())==RUNNER_BLOB
 assert hashlib.sha256(RUNNER.read_bytes()).hexdigest()==RUNNER_SHA256
 
@@ -128,14 +130,21 @@ for mode in ("--self-test","--source-plan"):
         ):
             assert line in lines,line
 
-lock=json.loads(LOCK.read_bytes())\nassert lock["version"]==4\nassert lock["integration_pr"]==3546\nassert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"\nassert lock["integration_head"]=="86cd50bf0933e5caba420008eba577f91cdea0fc"\nassert lock["stacked_source_head_superseded_for_current_authority"]=="fea69219f0cedc8ba35c7737ec865c202c0054e4"
+lock=json.loads(LOCK.read_bytes())
+assert lock["version"]==4
+assert lock["integration_pr"]==3546
+assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
+assert lock["integration_head"]=="86cd50bf0933e5caba420008eba577f91cdea0fc"
+assert lock["stacked_source_head_superseded_for_current_authority"]=="fea69219f0cedc8ba35c7737ec865c202c0054e4"
 assert lock["lock_id"]==LOCK_ID
 assert lock["candidate_report"]["candidate_id"]==CANDIDATE_ID
 assert lock["protected_install_authorized"] is False
 assert lock["live_execution_authorized"] is False
 
 print("VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_UPGRADE_PLAN_V6R3_PROOF_GREEN")
-print("main_based_integration_lock_bound=true")\nprint("planner_git_blob_bound=true")\nprint("accepted_lock_blob_bound=true")
+print("main_based_integration_lock_bound=true")
+print("planner_git_blob_bound=true")
+print("accepted_lock_blob_bound=true")
 print("accepted_runner_blob_bound=true")
 print("nonexecuting_plan_only=true")
 print("no_apply_mode=true")
