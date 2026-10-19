@@ -46,7 +46,7 @@ const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
 const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
 const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
 const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
-const SEALED_BLOB="e08c3e17a9cdb3e70440327ca587e6d5418f30ca";
+const SEALED_BLOB="6eaf10258e9e84a8835afb70758d24bd9982d56b";
 const SEALED_RUNTIME_PREDECESSOR_BLOB=
   "14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
@@ -344,7 +344,10 @@ function closeRetainedTrustedExecutable(tool){
 
 function runRetainedTrustedExecutable(tool,args,options={}){
   revalidateRetainedTrustedExecutable(tool);
-  const executable="/proc/"+String(process.pid)+"/fd/"+String(tool.fd);
+  const executable="/proc/self/fd/"+String(tool.fd);
+  const stdio=["pipe","pipe","pipe"];
+  while(stdio.length<=tool.fd)stdio.push("ignore");
+  stdio[tool.fd]=tool.fd;
   const beforeSpawn=options.beforeSpawn;
   if(typeof beforeSpawn==="function")beforeSpawn();
   const result=spawnSync(executable,args,{
@@ -352,7 +355,7 @@ function runRetainedTrustedExecutable(tool,args,options={}){
     env:options.env??cleanRootEnv(),
     encoding:"utf8",
     input:options.input,
-    stdio:["pipe","pipe","pipe",tool.fd],
+    stdio,
     timeout:options.timeout??60_000,
     maxBuffer:MAX_OUTPUT,
   });
@@ -604,21 +607,26 @@ function runAsRuntimeUser(command,args,options={}){
     throw new Error("runtime_user_command_not_retained");
   }
   tools.revalidate();
-  const commandChildFd=4;
-  const setprivExecutable="/proc/"+String(process.pid)+"/fd/"+String(tools.setpriv.fd);
+  const setprivExecutable="/proc/self/fd/"+String(tools.setpriv.fd);
+  const commandExecutable="/proc/self/fd/"+String(commandTool.fd);
+  const maxFd=Math.max(tools.setpriv.fd,commandTool.fd);
+  const stdio=["pipe","pipe","pipe"];
+  while(stdio.length<=maxFd)stdio.push("ignore");
+  stdio[tools.setpriv.fd]=tools.setpriv.fd;
+  stdio[commandTool.fd]=commandTool.fd;
   const result=spawnSync(setprivExecutable,[
     "--no-new-privs",
     "--reuid="+String(RUNTIME_UID),
     "--regid="+String(RUNTIME_GID),
     "--clear-groups",
-    "/proc/self/fd/"+String(commandChildFd),
+    commandExecutable,
     ...args,
   ],{
     cwd:options.cwd??ROOT,
     env:options.env??cleanGitEnv(),
     encoding:"utf8",
     input:options.input,
-    stdio:["pipe","pipe","pipe",tools.setpriv.fd,commandTool.fd],
+    stdio,
     timeout:options.timeout??60_000,
     maxBuffer:MAX_OUTPUT,
   });
@@ -1765,15 +1773,20 @@ function selfTest(){
     if(sp.status!==0||String(sp.stderr||"")!==""){
       throw new Error("retained_setpriv_self_test_failed");
     }
-    const gitViaSetpriv=spawnSync("/proc/"+String(process.pid)+"/fd/"+String(selfSetpriv.fd),[
+    const selfMaxFd=Math.max(selfSetpriv.fd,selfGit.fd);
+    const selfStdio=["pipe","pipe","pipe"];
+    while(selfStdio.length<=selfMaxFd)selfStdio.push("ignore");
+    selfStdio[selfSetpriv.fd]=selfSetpriv.fd;
+    selfStdio[selfGit.fd]=selfGit.fd;
+    const gitViaSetpriv=spawnSync("/proc/self/fd/"+String(selfSetpriv.fd),[
       "--no-new-privs",
-      "/proc/self/fd/4",
+      "/proc/self/fd/"+String(selfGit.fd),
       "--version",
     ],{
       cwd:ROOT,
       env:cleanGitEnv(),
       encoding:"utf8",
-      stdio:["pipe","pipe","pipe",selfSetpriv.fd,selfGit.fd],
+      stdio:selfStdio,
       timeout:10_000,
       maxBuffer:MAX_OUTPUT,
     });
