@@ -30,13 +30,13 @@ It removes untracked-path enumeration from this lane entirely.
 
 V2 is stacked on the exact V1 generation:
 
-- parent head: `a5ab4b3ce14bdb2135cda811cdc822c2efa05f40`;
+- parent head: `c836ae8aad1a6379b27c5d5e01ac44a318aab264`;
 - V1 source:
   `ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py`;
 - V1 source Git blob:
-  `6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577`;
+  `f0033074810b13f81ee8117041fff2d7232b75d0`;
 - V1 proof Git blob:
-  `4981ccf99c029a0b90042747f9023107826202ef`.
+  `4a4344feb4184d5a4b0ec39453a3618b1a768053`.
 
 The V1 source is descriptor-read from the exact materialized source generation,
 required to match that blob, compiled in memory under isolated Python, and then
@@ -188,3 +188,11 @@ plus cleanup failure and primary-evidence-failure plus cleanup failure.
 
 This is an error-path normalization only. It adds no filesystem write, runtime,
 credential, signing, transaction, payment, activation, or funds authority.
+
+
+## Reconciled inherited V1 generation
+
+This generation rebinds only the exact stacked V1 source/proof and its parent
+host-evidence plan after upstream reconciliation. The V2 tracked-source contract,
+untracked-path non-authority, and all negative host/payment/activation/funds
+authority remain unchanged.

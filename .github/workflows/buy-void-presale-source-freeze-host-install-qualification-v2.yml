@@ -35,7 +35,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=f18018945a2facd25adc683d85f4cf8d09ce5716
+          STACK_PARENT=ee6f020f441783c2b4ca9f34ed6e70122c3a22b2
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
@@ -51,9 +51,9 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
-            64e6e5733f1f85da342f8c2da9c5e2c5e5e41a09
+            289ab127625375d5ddf5a61357d3407ee21be78c
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_host_install_qualification_v2.py)" = \
-            fd2e917142f2571407af6bd13a9cf7d103d2428b
+            35d7022d923de710afff90c9ae32ac438877a3b8
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-source-freeze-host-install-qualification-v2.md)" = \
             95b0c7e5c12c58eb7a49d68185282767f3a91ff0
 
@@ -64,7 +64,7 @@ jobs:
           test "$(git rev-parse HEAD:docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md)" = \
             1e7927cfcace8e5823985bff88bb13a9db6c87cc
           test "$(git rev-parse HEAD:.github/workflows/buy-void-precision-source-freeze-host-metadata-census-v3.yml)" = \
-            20106d90410490dc4e82055c871f90654cd5d0b0
+            e32f5c58953cb09a43ba151cce2112fdea5f66ce
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = \
             174d536807f03fd7b6ff44820d4e378c7055150e
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = \

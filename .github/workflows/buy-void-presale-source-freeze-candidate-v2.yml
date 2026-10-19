@@ -54,9 +54,22 @@ jobs:
       - name: Bind exact V2 freeze generation
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          MANUAL_BASE: 0ada7fde0d90c3946b10693f4621cbd690bfcde6
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          case "$EVENT_NAME" in
+            pull_request) SCOPE_BASE="$PR_BASE" ;;
+            push) SCOPE_BASE="$PUSH_BEFORE" ;;
+            workflow_dispatch) SCOPE_BASE="$MANUAL_BASE" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          test "$SCOPE_BASE" != 0000000000000000000000000000000000000000
+          git merge-base --is-ancestor "$SCOPE_BASE" "$EXPECTED_HEAD"
+          printf 'VOID_PRESALE_FREEZE_SCOPE_BASE=%s\n' "$SCOPE_BASE" >> "$GITHUB_ENV"
           test "$(git rev-parse "$FREEZE_ANCHOR^{tree}")" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
           git merge-base --is-ancestor "$FREEZE_ANCHOR" "$EXPECTED_HEAD"
 
@@ -68,11 +81,11 @@ jobs:
             'ops/security/buy-void-presale-source-freeze-candidate-v2.json' \
             'scripts/prove_buy_void_presale_source_freeze_candidate_v2.py' \
             | sort > "$expected"
-          git diff --name-only "$FREEZE_ANCHOR" "$EXPECTED_HEAD" -- | sort > "$actual"
+          git diff --name-only "$SCOPE_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 668eab35bca38b8ed90b1e11f75647f80b677436
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 884fa63bf5c2386e6a01beea6265f6d7b9d48a72
           test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-candidate-v2.md)" = e0862b321d7af50ea1ca06d9c4eb45a462b42446
 
           test "$(git rev-parse HEAD:.github/workflows/buy-void-current-presale-source-tuple-v3.yml)" = e7d73fb5cea73164909c99c5d8585acd48822155
@@ -85,7 +98,7 @@ jobs:
           test "$(git rev-parse HEAD:package.json)" = 14fbdf5717b07fd4c734f5da7a8e84ed59bee93f
           test "$(git rev-parse HEAD:package-lock.json)" = 15b5c82ea36f13079a2f9e8863722f654eb3f201
 
-          git diff --check "$FREEZE_ANCHOR" "$EXPECTED_HEAD"
+          git diff --check "$SCOPE_BASE" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Prove fixed source freeze
