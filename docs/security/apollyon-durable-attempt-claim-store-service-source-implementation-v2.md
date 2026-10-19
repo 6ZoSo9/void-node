@@ -1043,3 +1043,47 @@ Separate installed Xiphos qualification remains required before any production
 claim mutation can be considered.
 
 **PROTECT THE CORE.**
+
+## October 19 — revalidator response prevalidation successor
+
+This add-only *child change to the source implementation* is based on the
+independently CI-green #3488 head `f9bef920c66c3499a19b731ddd5827a2d8fab5a0`.
+It supersedes the overlapping generation-only experiment in draft #3538
+without rewriting either existing branch. The original parent maintains
+bounded byte copying, descriptor preflight and exact primitive generation/slot
+schema checks.
+
+The direct core callback `revalidate(stage, context)` returns an untrusted
+receipt-like value even if the callback function itself has been admitted.
+Previously `callRevalidator` read `result.then` and
+`validateRevalidationReceipt` passed the result to `structuredClone`
+before checking property descriptors. Native JS getters can execute during
+either operation, and deeply nested data can consume resources before the
+exact closed schema is enforced. A callback's authority must not transitively
+authorize arbitrary getters or forged thenables.
+
+The repair keeps the accepted `source_contract_only=true` local receipt and
+its exact content binding, but snapshots its exact own primitive fields using
+the existing descriptor-only preflight. Active/revoked Proxies, accessors,
+unexpected hidden/symbol keys, nested objects and oversized strings are
+rejected without invoking hostile getters or Proxy traps. Native Promises
+are recognized with `util.types.isPromise` instead of reading `.then`, and
+their rejection handlers are attached through the retained native method.
+The source also bounds primitive generation/authorization-slot strings to
+1–256 characters before the existing semantic validators, matching the
+already bounded native-session primitive-data transport.
+
+The disposable proof exercises malformed callback receipt classes before
+any slot/claim publication, requires a normally released lease, and checks
+unchanged fixture store bytes. It also ports #3538's direct-core hostile
+generation cases across *both* publication and observation: getters,
+revoked/active Proxies, coercion values, hidden/symbol keys, empty and
+oversized strings must be rejected before lease acquisition.
+
+This is a source-only test candidate. It does **not** install services,
+grant protected claim/slot origin, admit privileged roles, prove
+cross-UID Xiphos behavior, issue activation credentials, authorize training,
+perform signing, or move funds. Any actual authorizer still requires the
+independent protected origin/host composition gates and code review.
+
+**PROTECT THE CORE.**
