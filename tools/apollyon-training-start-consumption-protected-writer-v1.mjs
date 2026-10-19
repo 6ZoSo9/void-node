@@ -249,6 +249,26 @@ function readBoundedExistingFinal(fd){
   }
   return buffer.subarray(0,offset);
 }
+// Closing a data FD can fail after the kernel has already released it.
+// Attempt BOTH owned closes once, even when the first is indeterminate.
+function closeExistingReadFds(dataFd,pathFd){
+  let firstCause;
+  let failed=false;
+  for(const fd of [dataFd,pathFd]){
+    if(fd<0)continue;
+    try{fs.closeSync(fd);}
+    catch(error){
+      if(!failed)firstCause=error;
+      failed=true;
+    }
+  }
+  if(failed){
+    throw new Error(
+      "apollyon_training_start_writer_existing_read_close_uncertain",
+      {cause:firstCause},
+    );
+  }
+}
 function readExactFinal(directoryFd,record,directoryIdentity){
   const leaf=apollyonTrainingStartConsumptionSlotLeafV1(record);
   const finalPath=path.join(directoryProcPath(directoryFd),leaf);
@@ -335,8 +355,7 @@ function readExactFinal(directoryFd,record,directoryIdentity){
       training_start_consumption_id:record.training_start_consumption_id,
     });
   }finally{
-    if(fd>=0)fs.closeSync(fd);
-    if(pathFd>=0)fs.closeSync(pathFd);
+    closeExistingReadFds(fd,pathFd);
   }
 }
 
