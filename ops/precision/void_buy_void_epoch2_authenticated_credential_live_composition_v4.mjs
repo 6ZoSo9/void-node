@@ -1007,7 +1007,13 @@ function selfTest(){
   if(!/^voide2livecomp4_[0-9a-f]{64}$/u.test(receipt.receipt_id)){
     throw new Error("receipt_id_self_test_failed");
   }
-  if(receipt.production_host_evidence_authority!==false||
+  if(receipt.version!==4||
+     receipt.runtime_head!=="c".repeat(40)||
+     receipt.source_checkout_head!==SOURCE_HEAD||
+     receipt.source_checkout_tree!==SOURCE_TREE||
+     receipt.source_runtime_add_only_compatibility_exact!==true||
+     receipt.source_runtime_added_path_count!==ALLOWED_SOURCE_ADDITIONS.length||
+     receipt.production_host_evidence_authority!==false||
      receipt.transaction_constructed!==false||
      receipt.funds_movement!==false||
      receipt.credential_content_access_in_runner_parent!==false||
