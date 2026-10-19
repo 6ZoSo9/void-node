@@ -160,7 +160,7 @@ host writer/admission/training authority. **PROTECT THE CORE.**
 ## October 19 — bound to held-inode/bounded-read writer
 
 The request is now pinned to writer blob
-`473b4148e6bcb755bb8bf7c6af890150a9f43efe`. That writer admits an existing
+`66b76ea9201f870672c0bc1c3df207b3c95cf68a`. That writer admits an existing
 slot inode with O_PATH before data-open, reopens only the retained inode with
 O_NONBLOCK, and bounds the actual FD read to 64 KiB + 1.
 
@@ -202,7 +202,22 @@ writer admission, consumption publication, training, signing or funds activity.
 
 ## October 19 — writer owned-directory cleanup binding
 
-The request is rebound to writer blob `473b4148e6bcb755bb8bf7c6af890150a9f43efe`, which now surfaces
+The request is rebound to writer blob `66b76ea9201f870672c0bc1c3df207b3c95cf68a`, which now surfaces
 cleanup uncertainty if an owned duplicate of the caller directory must be
 discarded after failed validation. This does not promote the writer or request
 to protected-store authority.
+
+
+## Current writer terminal-close requirement
+
+The bound protected writer generation now classifies terminal descriptor-close
+uncertainty for both the retained created-record FD and the module-owned
+consumption-directory FD. The future protected-store bridge must therefore treat
+`apollyon_training_start_writer_created_record_close_uncertain` and
+`apollyon_training_start_writer_owned_directory_close_uncertain` as possible
+post-durability outcomes, never as proof that the one-time slot remained absent.
+
+The revalidation request remains source-only and performs no filesystem IO or
+writer invocation. Its role is to ensure a future host bridge can reclassify the
+exact slot under the same protected store generation before taking any next
+action.
