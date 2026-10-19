@@ -217,33 +217,42 @@ def open_root(
             if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
                 hold("claim_root_component_not_direct_directory")
             child = os.open(component, DIR_FLAGS, dir_fd=current)
-            opened = os.fstat(child)
-            visible = os.stat(component, dir_fd=current, follow_symlinks=False)
-            if identity(before) != identity(opened) or identity(opened) != identity(visible):
-                os.close(child)
-                hold("claim_root_component_identity_drift")
+            try:
+                opened = os.fstat(child)
+                visible = os.stat(component, dir_fd=current, follow_symlinks=False)
+                if identity(before) != identity(opened) or identity(opened) != identity(visible):
+                    hold("claim_root_component_identity_drift")
 
-            final = index == len(parts[1:]) - 1
-            if final:
-                require_directory(
-                    opened,
-                    uid=claim_uid,
-                    gid=claim_gid,
-                    mode=0o700,
-                    label="claim_root",
-                )
-                require_no_posix_acl(child, "claim_root")
-            elif require_trusted_ancestors:
-                if (
-                    opened.st_uid != 0
-                    or opened.st_gid != 0
-                    or stat.S_IMODE(opened.st_mode) & 0o022
-                ):
+                final = index == len(parts[1:]) - 1
+                if final:
+                    require_directory(
+                        opened,
+                        uid=claim_uid,
+                        gid=claim_gid,
+                        mode=0o700,
+                        label="claim_root",
+                    )
+                    require_no_posix_acl(child, "claim_root")
+                elif require_trusted_ancestors:
+                    if (
+                        opened.st_uid != 0
+                        or opened.st_gid != 0
+                        or stat.S_IMODE(opened.st_mode) & 0o022
+                    ):
+                        hold("claim_root_ancestor_custody_invalid")
+                    require_no_posix_acl(child, "claim_root_ancestor")
+            except BaseException:
+                # On any rejected child, close it before propagating HOLD/error.
+                # Never retry an uncertain close; preserve the original failure.
+                try:
                     os.close(child)
-                    hold("claim_root_ancestor_custody_invalid")
-                require_no_posix_acl(child, "claim_root_ancestor")
+                except OSError:
+                    pass
+                raise
 
-            os.close(current)
+            # Transfer ownership before closing the parent, so even a parent
+            # close failure leaves the child reachable by the outer cleanup.
+            previous = current
             current = child
 
         return current, os.fstat(current)
