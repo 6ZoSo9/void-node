@@ -15,21 +15,21 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"
 )
-TARGET_BLOB = "f9e3b1f5501a56e7ce1a191f12507186e79c28d4"
+TARGET_BLOB = "5c24b4a807c9d01ca357372aca042bb8d81b6b92"
 V2_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
 )
-V2_BLOB = "a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2"
+V2_BLOB = "fb330c9bdce689d274f9ce9080571035135d56d5"
 V2_PROOF_REL = (
     "scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
 )
-V2_PROOF_BLOB = "ef9307452caaa9a946419a9dbc4139eef2322180"
+V2_PROOF_BLOB = "954618dbcb1fe60fb9ad210dd7bd13b9fbccce0c"
 V1_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-V1_BLOB = "6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577"
+V1_BLOB = "f0033074810b13f81ee8117041fff2d7232b75d0"
 
 
 def git_blob(raw: bytes) -> str:
@@ -55,7 +55,7 @@ for required in (
     'RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
     'SOURCE_HEAD = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"',
     'SOURCE_TREE = "9e930fba9aacfafb5b163767302786cd7f31c81e"',
-    'V2_GIT_BLOB_SHA1 = "a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2"',
+    'V2_GIT_BLOB_SHA1 = "fb330c9bdce689d274f9ce9080571035135d56d5"',
     "source_checkout_lexical = Path(os.path.abspath(__file__)).parents[2]",
     "fixed_checkout_resolved = FIXED_CHECKOUT.resolve(strict=False)",
     "v2_source_ancestor_close_failed",

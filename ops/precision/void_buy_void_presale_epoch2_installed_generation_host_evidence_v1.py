@@ -60,7 +60,7 @@ MARKER = _BOOTSTRAP_MARKER
 SCHEMA = "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1"
 PARENT_PLAN_ID = (
     "voidbuyhostevplan1_"
-    "665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab"
+    "42809a0e54b1adf4537df6ec848d3327299dee2895becd174d60e4f287dae1b7"
 )
 
 FIXED_CHECKOUT = Path("/home/zoso/dev/void-node")

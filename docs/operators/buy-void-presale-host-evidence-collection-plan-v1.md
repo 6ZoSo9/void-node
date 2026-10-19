@@ -6,11 +6,11 @@ Status: **plan/source/CI only; no host evidence has been collected by this gate*
 
 Plan ID:
 
-`voidbuyhostevplan1_665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab`
+`voidbuyhostevplan1_42809a0e54b1adf4537df6ec848d3327299dee2895becd174d60e4f287dae1b7`
 
 Parent host-install classifier:
 
-`#3503 @ a15326fc288f0bb01bfc179fdf93b2da9231f8b6`.
+`#3503 @ 086887b517bf6bf6fab336cbcc56c22471e1a92c`.
 
 The parent remains fail-closed even when metadata aligns:
 `HOST_INSTALL_QUALIFICATION_HOLD_INDEPENDENT_EVIDENCE_REQUIRED`.
@@ -126,3 +126,12 @@ Next gate:
 `SEPARATELY_AUTHORIZE_READ_ONLY_HOST_EVIDENCE_COLLECTION`.
 
 **PROTECT THE CORE.**
+
+
+## Parent reconciliation
+
+This generation refreshes only the parent host-install classifier provenance after
+the #3497/#3498/#3503 reconciliation train. The parent classifier's current exact
+head is `086887b517bf6bf6fab336cbcc56c22471e1a92c`; evaluator/proof/doc/workflow
+blobs are pinned in the machine-readable plan. No evidence lane, primitive pin,
+authority field, or host-execution gate changes.

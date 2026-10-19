@@ -17,17 +17,17 @@ TARGET_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
 )
-TARGET_BLOB = "a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2"
+TARGET_BLOB = "fb330c9bdce689d274f9ce9080571035135d56d5"
 BASE_REL = (
     "ops/precision/"
     "void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-BASE_BLOB = "6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577"
+BASE_BLOB = "f0033074810b13f81ee8117041fff2d7232b75d0"
 BASE_PROOF_REL = (
     "scripts/"
     "prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 )
-BASE_PROOF_BLOB = "4981ccf99c029a0b90042747f9023107826202ef"
+BASE_PROOF_BLOB = "4a4344feb4184d5a4b0ec39453a3618b1a768053"
 
 
 def git_blob(raw: bytes) -> str:

@@ -37,7 +37,7 @@ CENSUS_PROOF_BLOB = "9dd55390b75bb6c6075efb053b0491b23a52fe60"
 CENSUS_DOC_REL = "docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md"
 CENSUS_DOC_BLOB = "1e7927cfcace8e5823985bff88bb13a9db6c87cc"
 CENSUS_WORKFLOW_REL = ".github/workflows/buy-void-precision-source-freeze-host-metadata-census-v3.yml"
-CENSUS_WORKFLOW_BLOB = "20106d90410490dc4e82055c871f90654cd5d0b0"
+CENSUS_WORKFLOW_BLOB = "e32f5c58953cb09a43ba151cce2112fdea5f66ce"
 
 FREEZE_REL = "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
 FREEZE_BLOB = "ca9c42e2d3ab4c50ac54badadb9efde6180ad241"

@@ -28,7 +28,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=a15326fc288f0bb01bfc179fdf93b2da9231f8b6
+          STACK_PARENT=086887b517bf6bf6fab336cbcc56c22471e1a92c
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
@@ -43,9 +43,9 @@ jobs:
           git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md)" = 4f5d8a5db1cf1b82991962f5bf90a231c96c6f76
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = 3a503e0b64fe56f58f2c344531034192d9005b94
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 257e1ae47d3f0794899a9902f04858125b4b6aa1
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-host-evidence-collection-plan-v1.md)" = 99b8d5e01adbb3a32aef7707398b7a3b40e624f1
 
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -88,7 +88,7 @@ jobs:
           python3 -I -B scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py | tee "$out"
           for marker in \
             'VOID_BUY_VOID_PRESALE_HOST_EVIDENCE_COLLECTION_PLAN_V1_PROOF_GREEN' \
-            'plan_id=voidbuyhostevplan1_665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab' \
+            'plan_id=voidbuyhostevplan1_42809a0e54b1adf4537df6ec848d3327299dee2895becd174d60e4f287dae1b7' \
             'primitive_path_count=9' \
             'lane_mapping_exact=true' \
             'lane_mapping_mutation_rejected=true' \
