@@ -48,6 +48,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
+
       - name: Event / generation scope
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -60,19 +61,32 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           case "$EVENT_NAME" in
             pull_request)
-              test -n "$PR_BASE"
+              test "$PR_BASE" = "46c1848e63b2260168072eeb9fc6013f974e9174"
               BASE="$PR_BASE"
               git merge-base --is-ancestor "$BASE" "$HEAD"
               actual="$RUNNER_TEMP/claim-no-clone-actual.txt"
               expected="$RUNNER_TEMP/claim-no-clone-expected.txt"
               git diff --name-status "$BASE" "$HEAD" | LC_ALL=C sort > "$actual"
               printf '%s\n' \
+                $'A\t.github/workflows/apollyon-claim-no-clone-lock-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-no-exec-lock-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-self-observed-lock-v1.yml' \
+                $'A\tdocs/security/apollyon-claim-no-clone-lock-v1.md' \
+                $'A\tdocs/security/apollyon-claim-no-exec-lock-v1.md' \
+                $'A\tdocs/security/apollyon-claim-self-observed-lock-v1.md' \
                 $'A\tops/xiphos/apollyon_claim_no_clone_lock_v1.c' \
                 $'A\tops/xiphos/apollyon_claim_no_clone_lock_v1.h' \
+                $'A\tops/xiphos/apollyon_claim_no_exec_lock_v1.c' \
+                $'A\tops/xiphos/apollyon_claim_no_exec_lock_v1.h' \
+                $'A\tops/xiphos/apollyon_claim_self_observed_lock_v1.c' \
+                $'A\tops/xiphos/apollyon_claim_self_observed_lock_v1.h' \
                 $'A\tscripts/apollyon_claim_no_clone_lock_v1_selftest.c' \
+                $'A\tscripts/apollyon_claim_no_exec_lock_v1_selftest.c' \
+                $'A\tscripts/apollyon_claim_self_observed_lock_v1_selftest.c' \
                 $'A\tscripts/prove_apollyon_claim_no_clone_lock_v1.py' \
-                $'A\tdocs/security/apollyon-claim-no-clone-lock-v1.md' \
-                $'A\t.github/workflows/apollyon-claim-no-clone-lock-v1.yml' | LC_ALL=C sort > "$expected"
+                $'A\tscripts/prove_apollyon_claim_no_exec_lock_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_self_observed_lock_v1.py' \
+                | LC_ALL=C sort > "$expected"
               cmp "$expected" "$actual"
               ;;
             push)
@@ -84,9 +98,13 @@ jobs:
             workflow_dispatch)
               BASE="$(git rev-parse HEAD^)"
               ;;
-            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
           esac
           git diff --check "$BASE" "$HEAD"
+
       - name: Prove x86_64 no-clone lock
         run: |
           set -euo pipefail
