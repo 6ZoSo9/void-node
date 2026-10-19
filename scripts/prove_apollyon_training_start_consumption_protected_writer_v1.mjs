@@ -634,14 +634,14 @@ for(const shape of ["spoofed-created-close-message","hostile-message-accessor"])
     return originalFsync.call(fs,target,...args);
   };
   fs.closeSync=function trackActualTerminalClose(target){
-    if(target===createdFd){
+    if(target===createdFd&&createdCloseAttempts===0){
       createdCloseAttempts+=1;
       return originalClose.call(fs,target);
     }
-    if(target===ownedFd){
+    if(target===ownedFd&&!directoryErrorInjected){
       ownedCloseAttempts+=1;
-      const result=originalClose.call(fs,target);
       directoryErrorInjected=true;
+      const result=originalClose.call(fs,target);
       const fault=new Error("injected EIO after actual directory close");
       fault.code="EIO";
       throw fault;
