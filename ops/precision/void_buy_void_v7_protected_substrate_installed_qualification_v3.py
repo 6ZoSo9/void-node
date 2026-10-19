@@ -24,6 +24,9 @@ LAUNCHER_SHA = "f2f864fc6e4f95c2cc7b258d68ecbeb95e7c006ead3951cbca39e0b3bbe37346
 LAUNCHER_BYTES = 11979
 SOURCE_RELEASE_ROOT_MODE = 0o555
 PROTECTED_SOURCE_ROOT_MODE = 0o755
+RUNTIME_UID = 1000
+RUNTIME_GID = 1000
+RUNTIME_SUPPLEMENTARY_GROUPS: tuple[int, ...] = ()
 PREDECESSOR_QUALIFIER_BLOB = "56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V3"
 MAX_NODES = 250000
@@ -32,6 +35,30 @@ MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
 
 class E(RuntimeError):
     pass
+
+def runtime_identity_fields_valid(
+    uid: int, euid: int, gid: int, egid: int, supplementary_groups: tuple[int, ...]
+) -> bool:
+    return (
+        uid == RUNTIME_UID
+        and euid == RUNTIME_UID
+        and gid == RUNTIME_GID
+        and egid == RUNTIME_GID
+        and supplementary_groups == RUNTIME_SUPPLEMENTARY_GROUPS
+    )
+
+def require_runtime_identity() -> None:
+    uid, euid = os.getuid(), os.geteuid()
+    gid, egid = os.getgid(), os.getegid()
+    groups = tuple(os.getgroups())
+    if uid != RUNTIME_UID or euid != RUNTIME_UID:
+        raise E("runtime_uid_1000_required")
+    if gid != RUNTIME_GID or egid != RUNTIME_GID:
+        raise E("runtime_gid_1000_required")
+    if groups != RUNTIME_SUPPLEMENTARY_GROUPS:
+        raise E("runtime_supplementary_groups_must_be_empty")
+    if not runtime_identity_fields_valid(uid, euid, gid, egid, groups):
+        raise E("runtime_identity_invalid")
 
 def sha256_file(path: pathlib.Path) -> str:
     h = hashlib.sha256()
@@ -351,8 +378,7 @@ def run_self_lease(
     return hashlib.sha256(outputs[0].encode()).hexdigest()
 
 def qualify() -> None:
-    if os.geteuid() == 0 or os.getuid() != os.geteuid():
-        raise E("unprivileged_same_uid_required")
+    require_runtime_identity()
     require_exact_release_generation()
     require_clean_main_generation(SOURCE, "protected_source")
     run_known_good_custody(SOURCE_RELEASE)
@@ -405,6 +431,10 @@ def qualify() -> None:
     print("binary_self_test_descriptor_execution=true")
     print("binary_retained_descriptor_post_execution_revalidated=true")
     print("binary_acl_aware_runtime_nonwritability_verified=true")
+    print("runtime_identity_bound=true")
+    print("runtime_uid=1000")
+    print("runtime_gid=1000")
+    print("runtime_supplementary_groups_empty=true")
     print("installed_generation_evidence_authority=true")
     print("privileged_execution_authorized=false")
     print("receipt_publication_authorized=false")
@@ -447,7 +477,17 @@ def self_test() -> None:
     print("binary_root_and_ancestor_custody_required=true")
     print("binary_self_test_descriptor_execution_required=true")
     print("binary_retained_descriptor_revalidation_required=true")
+    assert runtime_identity_fields_valid(1000, 1000, 1000, 1000, ())
+    assert not runtime_identity_fields_valid(1001, 1000, 1000, 1000, ())
+    assert not runtime_identity_fields_valid(1000, 1001, 1000, 1000, ())
+    assert not runtime_identity_fields_valid(1000, 1000, 1001, 1000, ())
+    assert not runtime_identity_fields_valid(1000, 1000, 1000, 1001, ())
+    assert not runtime_identity_fields_valid(1000, 1000, 1000, 1000, (27,))
     print("binary_acl_aware_runtime_nonwritability_required=true")
+    print("runtime_uid_gid_1000_required=true")
+    print("runtime_supplementary_groups_empty_required=true")
+    print("wrong_runtime_uid_gid_rejected=true")
+    print("supplementary_group_state_rejected=true")
     print("host_mutation=false")
 
 def main() -> None:
@@ -466,6 +506,8 @@ def main() -> None:
         print("canonical_source_custody_required=true")
         print("source_release_root_mode_required=0555")
         print("protected_source_root_mode_required=0755")
+        print("runtime_identity_required=1000:1000")
+        print("runtime_supplementary_groups_required=empty")
         print("byte_identity_to_active_protected_release_required=true")
         print("installed_generation_evidence_authority=false")
         return
