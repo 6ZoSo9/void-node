@@ -12,10 +12,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
 PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
 
-BINDER_BLOB = "e93f917307ff12350a34395c6f87307232886ff9"
-BINDER_SHA256 = "4c0f505403ca6cb0a788726d8daa1853acb39f13c1eb1c4943cc299bc8080dd5"
-BINDER_BYTES = 43375
-PREENTRY_BLOB = "026c59a1d7c389bcdf1a552de4828b7c1764743b"
+BINDER_BLOB = "b51a5bf1de438af97e69ed0be3612779e5359b3b"
+BINDER_SHA256 = "391728ce72e3803d231198ba991ebfdf8dfd4c4f86b56cb9e92ba2f1da472b15"
+BINDER_BYTES = 43554
+PREENTRY_BLOB = "92b476f395348e5ac447404906b01c53dfb4cefc"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 CANDIDATE_REL = "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
@@ -139,7 +139,7 @@ for required in (
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4',
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
-    '#define BINDER_BYTES 43375U',
+    '#define BINDER_BYTES 43554U',
     'void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs',
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4',
     '(char*)"--source-head",source_head',
