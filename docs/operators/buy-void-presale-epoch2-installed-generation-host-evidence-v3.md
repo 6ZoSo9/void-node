@@ -40,7 +40,7 @@ fb330c9bdce689d274f9ce9080571035135d56d5
 V2 continues to descriptor-load exact V1 source blob:
 
 ```text
-6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577
+f0033074810b13f81ee8117041fff2d7232b75d0
 ```
 
 The V2 untracked-data repair, isolated Python boundary, descriptor loading, exact
@@ -254,3 +254,8 @@ rename, mode change, or modification of any runtime path is HOLD.
 This generation rebinds only the exact stacked V2 source/proof after the upstream
 reconciliation train. Runtime head, canonical source head/tree, and the exact
 fifteen-path ADD-only compatibility relation remain unchanged.
+
+
+## Reconciled V1 parent generation
+
+Current V2 parent now binds V1 source Git blob `f0033074810b13f81ee8117041fff2d7232b75d0` after the current-parent reconciliation. This documentation update changes no V3 runtime semantics or authority.
