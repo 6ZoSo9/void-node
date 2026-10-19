@@ -74,14 +74,22 @@ jobs:
           git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
 
           if [ "$EVENT_NAME" = pull_request ]; then
-            git merge-base --is-ancestor "$parent" "$PR_BASE"
+            test "$PR_BASE" = "$parent"
             expected="$RUNNER_TEMP/expected.txt"
             actual="$RUNNER_TEMP/actual.txt"
             printf '%s\n' \
               '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
+              '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
+              '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
               'docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
+              'docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
+              'docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
               'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
               'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+              'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+              'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
               | LC_ALL=C sort > "$expected"
             git diff --no-renames --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | LC_ALL=C sort > "$actual"
             test -s "$actual"
