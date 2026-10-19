@@ -177,7 +177,7 @@ and grow a valid regular file at its first read. They require zero visible-path
 data opens, a maximum read request of 64 KiB + 1, and fail-closed rejection.
 
 Current repaired writer blob:
-`473b4148e6bcb755bb8bf7c6af890150a9f43efe`.
+`66b76ea9201f870672c0bc1c3df207b3c95cf68a`.
 
 ## October 19 — both existing-slot read descriptors close on uncertainty
 
@@ -221,3 +221,28 @@ and leave the process FD set unchanged.
 
 This remains source-only cleanup hardening and grants no protected-store,
 publication, trainer, training, credential, transaction, or funds authority.
+
+
+## Terminal descriptor close uncertainty
+
+A successful classification or durable create is not allowed to escape through an
+unclassified descriptor-close error. The module-owned directory descriptor and,
+for a new publication, the retained created-record descriptor are each closed
+exactly once through a dedicated terminal-close helper.
+
+If Linux reports a close error after the kernel may already have released the
+descriptor, the source does **not** retry the close and does not return a success
+receipt. It reports one of these stable uncertainty errors with the original
+close error preserved as `cause`:
+
+- `apollyon_training_start_writer_owned_directory_close_uncertain`;
+- `apollyon_training_start_writer_created_record_close_uncertain`.
+
+For a durable create, the exact one-time record may already be present and
+fsynced when either terminal cleanup error is reported. Automatic retry remains
+false; a later protected host bridge must classify the exact existing slot
+instead of assuming the failed call did not consume it.
+
+Disposable proof injects EIO only **after a real kernel close**, requires exactly
+one close attempt, unchanged FD census, and exact final bytes for both the
+created-record and owned-directory terminal seams.
