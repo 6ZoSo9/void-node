@@ -134,10 +134,14 @@ const ALLOC_BYTES=Buffer.alloc;
 const APPLY=Reflect.apply;
 // Captured intrinsic slots: Buffer own length/byteLength getters and copy
 // overrides are caller code even on genuine, non-Proxy Buffer instances.
-const BYTE_LENGTH_GETTER=Object.getOwnPropertyDescriptor(
-  Object.getPrototypeOf(Uint8Array.prototype),"byteLength",
+const TYPED_ARRAY=Object.getPrototypeOf(Uint8Array.prototype);
+const INTRINSIC_BYTE_LENGTH=Object.getOwnPropertyDescriptor(
+  TYPED_ARRAY,"byteLength",
 ).get;
-const SET_TYPED_ARRAY=Uint8Array.prototype.set;
+const INTRINSIC_ARRAY_BUFFER=Object.getOwnPropertyDescriptor(
+  TYPED_ARRAY,"buffer",
+).get;
+const INTRINSIC_TYPED_SET=TYPED_ARRAY.set;
 const CLEANUP_RECORDS=new WeakMap();
 
 function storeError(code,cause){
@@ -273,19 +277,20 @@ function exactPrimitiveRecordInput(input,keys,code){
 }
 function copyRequestBytes(input,code){
   if(types.isProxy(input)||!Buffer.isBuffer(input))fail(code);
-  // Reject before allocation using the internal TypedArray byteLength slot.
-  // Never read input.length/input.byteLength or invoke Buffer.prototype.copy
-  // against caller-controlled objects; all may dispatch caller accessors.
-  let length;
-  try{length=APPLY(BYTE_LENGTH_GETTER,input,[]);}
-  catch{fail(code);}
+  // Buffer length, byteLength, buffer and copy are caller-overridable
+  // properties. Only internal TypedArray slots may size/copy caller bytes.
+  let byteLength,backing;
+  try{
+    byteLength=APPLY(INTRINSIC_BYTE_LENGTH,input,[]);
+    backing=APPLY(INTRINSIC_ARRAY_BUFFER,input,[]);
+  }catch{fail(code);}
   if(
-    !Number.isSafeInteger(length)||
-    length<3||
-    length>MAX_PUBLISH_REQUEST_BYTES
+    !Number.isSafeInteger(byteLength)||
+    byteLength<3||byteLength>MAX_PUBLISH_REQUEST_BYTES||
+    types.isSharedArrayBuffer(backing)
   )fail(code);
-  const bytes=ALLOC_BYTES(length);
-  try{APPLY(SET_TYPED_ARRAY,bytes,[input,0]);}
+  const bytes=ALLOC_BYTES(byteLength);
+  try{APPLY(INTRINSIC_TYPED_SET,bytes,[input]);}
   catch{fail(code);}
   return bytes;
 }
