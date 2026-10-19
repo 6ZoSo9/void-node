@@ -10,7 +10,7 @@ There is no apply mode in this generation.
 ## Accepted inputs
 
 - V6R3 lock:
-  `voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202`;
+  `voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67`;
 - candidate:
   `voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d`;
 - Runner V4 SHA-256:
