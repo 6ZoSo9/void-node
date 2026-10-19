@@ -152,7 +152,7 @@ for (const required of [
   "parent_v1_path_import_performed: false",
   "readExactReviewedSource(",
   "revalidateReviewedSource(",
-  "parent.collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1",
+  "parentGraph.module.collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1",
   "user_systemd_query_runtime_identity_drop_verified: true",
   "user_systemd_query_numeric_uid_gid_bound: true",
   "user_systemd_query_supplementary_groups_cleared: true",

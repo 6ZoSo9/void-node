@@ -108,7 +108,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 43f9e693698abfb281b7756204eccd25f712b41f
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = f08008616831444a69ccf70011aae965504630f2
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 4e8e48bc5284258b7d944bc302fd91de60fd9162
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md)" = e81507d62238ae149217b77c7889250e49d93a89
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = ba69d46ffa6f7d178de447b469b578fa8e87ea3b
