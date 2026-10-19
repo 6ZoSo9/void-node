@@ -1189,3 +1189,50 @@ containment required but unproven; there is no privileged Xiphos integration,
 claim publication, training, credential, transaction, or funds authorization.
 
 **PROTECT THE CORE.**
+
+## October 19 — intrinsic request-byte capture and provider declaration preflight
+
+This source-only child is based on the exact current #3540 green generation
+`f2621046cb8660bbab007c3c1895ef521797ba56`; it does not change any
+installed Xiphos runtime or protected store.
+
+A genuine, non-Proxy `Buffer` can carry caller-defined own `length` and
+`byteLength` getters. The former `copyRequestBytes` read `input.length`
+before bounding allocation; even the captured intrinsic
+`Buffer.prototype.copy` can invoke a caller-owned `byteLength` getter.
+Both accesses can run untrusted code before acquiring private request bytes.
+
+The hardened core captures the intrinsic `%TypedArray%.prototype.byteLength`
+getter and `Uint8Array.prototype.set` before consuming inputs. It requires a
+genuine non-Proxy Buffer, reads **actual byte count** directly from the typed
+array internal slot (never either own getter), enforces the existing
+`3..65536` bound *before* allocation, and privately copies with the captured
+typed-array setter rather than invoking `Buffer.prototype.copy` on caller
+data. The existing public forward's later `exact_request_bytes` getter copies
+only **privately created, getter-free** buffers; it does not expose the
+caller-owned buffer to that API. No parser, request framing, store mutation,
+content address, or accepted request bytes change.
+
+The disposable proof supplies a valid Buffer with hostile own `length` and
+`byteLength` getters and a hostile `copy` override through **both**
+`prepare...PublisherForwardV2` and `publishClaim()`, and requires correct
+private bytes with **zero** getter/override executions. It also supplies an
+intrinsically oversized Buffer with deceptive own getters, requiring immediate
+rejection before the transaction lease and unchanged fixture-store bytes.
+
+The config constructor additionally rejects **declared async functions,
+generator functions, and async generators** for each of the two synchronous
+providers, `acquireExclusiveStoreTransaction` and `revalidate`. All six
+adversaries must be rejected before callback execution, root-FD metadata IO,
+lease acquisition or store mutation. This closes only syntactically declared
+provider classes: a *plain synchronous callback* can still return an
+already-rejected Promise. That possibility must remain contained by the
+separately reviewed trusted-callback origin and isolated host failure-domain
+gates. This change **does not** claim such containment or install it.
+
+The claims `trusted_revalidator_callback_source_proven=false`,
+`unhandled_rejected_promise_containment_proven=false`, protected origin,
+cross-UID host admission, claim publication, training and any credential,
+key, wallet, transaction or funds authority remain **false/unproven**.
+
+**PROTECT THE CORE.**
