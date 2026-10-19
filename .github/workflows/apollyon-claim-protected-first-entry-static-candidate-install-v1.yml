@@ -31,12 +31,12 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
-          git merge-base --is-ancestor 389531f38cf8aa822987fee4e52ccad3758eada0 "$EXACT_HEAD"
+          git merge-base --is-ancestor ab7864323b8a924e6c9b5b488c228ff32819bc38 "$EXACT_HEAD"
           printf '%s\n' \
-            '60308199258475936596e38398b00fda553bd5be ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
-            '8e66a5ad125d89180b6ae4159c22e481db49fdc8 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
-            'c5440519de7e1f65096ba215b31f2ff03dd9cfd2 scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
-            'bb4dc321f21d2039ec587aae6fcb2b342bf8368c docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+            '2d328245a4850f90ee33a15750e3ba9db00515ad ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+            '03814bcb8e3c14edfbb97cf50436eec6b2e86913 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            '1550defa3e6c7fed4fd489db5361e5fd9be9e41f scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            '12a3118985c70e16d6b815721aa00da23a80b821 docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
             | while read -r blob path; do
                 test "$(git hash-object "$path")" = "$blob"
                 test "$(git rev-parse "HEAD:$path")" = "$blob"
@@ -70,6 +70,7 @@ jobs:
             "$RUNNER_TEMP/apollyon-install-handoff-proof.log"
           for marker in \
             'accepted_parent_lock_bound=true' \
+            'descriptor_safe_parent_lock_generation_bound=true' \
             'synthetic_positive_fixture_verified=true' \
             'synthetic_fixture_not_accepted_by_production_lock=true' \
             'parent_failure_machine_readable_hold=true' \
@@ -111,5 +112,5 @@ jobs:
             git merge-base --is-ancestor "$PR_BASE" HEAD
             git diff --check "$PR_BASE" HEAD
           else
-            git diff --check 389531f38cf8aa822987fee4e52ccad3758eada0 HEAD
+            git diff --check ab7864323b8a924e6c9b5b488c228ff32819bc38 HEAD
           fi
