@@ -19,6 +19,7 @@
 #include <string.h>
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
@@ -441,6 +442,18 @@ static int install_writer_continuity_filter(void) {
 #endif
 #ifdef __NR_fcntl
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_fcntl,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+#endif
+#ifdef __NR_ioctl
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_ioctl,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+#endif
+#ifdef __NR_execve
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_execve,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+#endif
+#ifdef __NR_execveat
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_execveat,0,1),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
 #endif
 #ifdef __NR_open
@@ -937,6 +950,41 @@ static int fixture_run(
         return 132;
     }
 
+    errno=0;
+    if(ioctl(release_pipe[1],FIONCLEX)==0 || errno!=EPERM) {
+        cleanup_child(child);
+        return 145;
+    }
+
+#ifdef SYS_execve
+    errno=0;
+    if(
+        syscall(SYS_execve,(const char *)(uintptr_t)1,NULL,NULL)>=0 ||
+        errno!=EPERM
+    ) {
+        cleanup_child(child);
+        return 146;
+    }
+#endif
+
+#ifdef SYS_execveat
+    errno=0;
+    if(
+        syscall(
+            SYS_execveat,
+            AT_FDCWD,
+            (const char *)(uintptr_t)1,
+            NULL,
+            NULL,
+            0
+        )>=0 ||
+        errno!=EPERM
+    ) {
+        cleanup_child(child);
+        return 147;
+    }
+#endif
+
     struct msghdr denied_message;
     memset(&denied_message,0,sizeof(denied_message));
     errno=0;
@@ -1037,6 +1085,8 @@ static int fixture_run(
     puts("writer_continuity_filter_installed=true");
     puts("late_clone_dup_open_socket_fdpass_blocked=true");
     puts("creat_procfd_reopen_blocked=true");
+    puts("writer_cloexec_clear_ioctl_blocked=true");
+    puts("releaser_exec_transition_blocked=true");
     puts("exact_frame_written_and_sole_writer_closed=true");
     puts("trainer_gate_exit_zero=true");
     puts("protected_releaser_origin_proven=false");
@@ -1109,6 +1159,8 @@ int main(int argc,char **argv) {
     puts("trainer_exec_stop_synchronization=true");
     puts("frame_budget_starts_after_releaser_proof=true");
     puts("creat_procfd_reopen_blocked=true");
+    puts("writer_cloexec_clear_ioctl_blocked=true");
+    puts("releaser_exec_transition_blocked=true");
     puts("protected_releaser_origin_proven=false");
     puts("writer_exclusivity_host_proven=false");
     puts("trainer_release_authorized=false");
