@@ -36,9 +36,9 @@ from typing import Any
 
 MARKER = "VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1"
 ROOT = Path(__file__).resolve().parents[2]
-PARENT_HEAD = "389531f38cf8aa822987fee4e52ccad3758eada0"
+PARENT_HEAD = "ab7864323b8a924e6c9b5b488c228ff32819bc38"
 PARENT_REL = "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
-PARENT_BLOB = "60308199258475936596e38398b00fda553bd5be"
+PARENT_BLOB = "2d328245a4850f90ee33a15750e3ba9db00515ad"
 ACCEPTED_CANDIDATE_HEAD = "bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c"
 ACCEPTED_BINARY = "apollyon-claim-protected-first-entry-static-v1"
 ACCEPTED_INSTALL_LEAF = (
@@ -205,10 +205,10 @@ def load_accepted_parent_lock() -> dict[str, Any]:
     module.__package__ = ""
     try:
         exec(compile(raw, os.fspath(target), "exec"), module.__dict__)
-        # The accepted historical lock is immutable evidence, but its original
-        # stable_file() reopens checkout paths by name. Replace only that helper
-        # before any derivation/validation so predecessor evidence is read
-        # through retained, no-follow, nonblocking descriptors.
+        # The current accepted lock already uses retained descriptor reads.
+        # Keep this local equivalent override as defense-in-depth so this
+        # handoff continues to own the exact dependency-read boundary even if
+        # a later parent implementation refactors its helper internals.
         module.stable_file = lambda relative, expected_blob: (
             _read_parent_dependency_source(module, relative, expected_blob)
         )
