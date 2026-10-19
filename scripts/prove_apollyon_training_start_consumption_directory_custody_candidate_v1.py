@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
 PINS = {
     "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py":
-        "42408e7a65e3565a8a98cb4e23985c3ca76045bc",
+        "fcc75c61d1f687541d6a208aefd6c6fce17c3225",
     "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
         "66b76ea9201f870672c0bc1c3df207b3c95cf68a",
     "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
@@ -246,9 +246,26 @@ mod.os.open = no_host_open
 try:
     expect_hold(lambda: observe(Path(mod.FIXED_ROOT)),
                 "fixture_production_root_forbidden")
+    # A direct library caller previously could inspect ANY other private host
+    # root and falsely label it "fixture_only". Non-disposable names must
+    # fail before opening even "/" (the first traversal descriptor).
+    for arbitrary_host in (
+        "/var/tmp/apollyon-test-root/claim-root",
+        "/tmp/unrelated-service/claim-root",
+        "/home/service/private-root",
+        "/opt/apollyon-custody-test/claim-root",
+    ):
+        expect_hold(
+            lambda root=arbitrary_host: observe(Path(root)),
+            "fixture_root_outside_disposable_namespace",
+        )
 finally:
     mod.os.open = real_open
-assert calls[0] == 0
+assert calls[0] == 0, "nonfixture path reached host filesystem"
+# The accepted lexical namespace contains disposable, nested test roots;
+# filesystem traversal/custody checks still occur separately on real fixtures.
+allowed = Path("/tmp/apollyon-custody-fixture-12345678/claim-root")
+assert mod.root_fixture_path(allowed)[0] == str(allowed)
 expect_hold(
     lambda: mod.observe_fixture_only(Path("relative"), uid=uid, gid=gid),
     "fixture_root_must_be_absolute",
@@ -297,6 +314,7 @@ print("rejected_directory_fd_cleanup_verified=true")
 print("isolated_python_preimport_guard=true")
 print("live_host_entrypoint_disabled=true")
 print("production_path_not_opened=true")
+print("non_disposable_fixture_roots_rejected_before_io=true")
 print("protected_store_origin_proven=false")
 print("current_store_generation_revalidation_performed=false")
 print("writer_invocation_authorized=false")
