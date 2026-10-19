@@ -226,10 +226,10 @@ function trustedExecutable(candidate, leaf) {
 
 function execTrustedExecutable(tool, args, options = {}) {
   revalidateTrustedExecutable(tool);
-  const childFd = 3;
+  const executable = "/proc/self/fd/" + String(tool.fd);
   let result;
   try {
-    result = execFileSync("/proc/self/fd/" + String(childFd), args, {
+    result = execFileSync(executable, args, {
       ...options,
       stdio: ["ignore", "pipe", "ignore", tool.fd],
     });
