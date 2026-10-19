@@ -1,0 +1,129 @@
+name: Buy VOID Epoch-2 native V3 materializer v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/materialize_buy_void_epoch2_live_composition_native_v3.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_v3_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-v3-materializer-v1.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-v3-materializer-v1.yml"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v3.json"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v3.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/materialize_buy_void_epoch2_live_composition_native_v3.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_v3_materializer_v1.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-v3-materializer-v1.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-v3-materializer-v1.yml"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v3.json"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v3.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-native-v3-materializer-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact materializer head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact reviewed generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor \
+            01bdc5f73270d303092a5e061866b6037c55980a \
+            "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_epoch2_live_composition_native_v3.py)" = \
+            be564645b31bd49cf1ed08f663eff4bba53cdf99
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_v3_materializer_v1.py)" = \
+            58ea6db2762ce11277716ea1c082b4c9f47bac6d
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v3.json)" = \
+            57f965a944031eac90d69b4104b0f8f2473e66cc
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_candidate_v3.py)" = \
+            3b779a27cfd071c2569c438e3319b756b46c85c9
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v1.c)" = \
+            4aa091e7835b32aa5c4e7b8e4059651c69a64eb3
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax and independent materializer proof
+        run: |
+          set -euo pipefail
+          python3 -I -B -c 'compile(open("scripts/materialize_buy_void_epoch2_live_composition_native_v3.py",encoding="utf-8").read(),"materializer","exec")'
+          python3 -I -B -c 'compile(open("scripts/prove_buy_void_epoch2_live_composition_native_v3_materializer_v1.py",encoding="utf-8").read(),"proof","exec")'
+          OUT="$RUNNER_TEMP/epoch2-native-v3-materializer-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_native_v3_materializer_v1.py | tee "$OUT"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_V3_MATERIALIZER_V1_PROOF_GREEN' \
+            'materializer_blob_bound=true' \
+            'accepted_v3_lock_bound=true' \
+            'candidate_tool_blob_bound=true' \
+            'native_source_blob_bound=true' \
+            'two_materializations_byte_identical=true' \
+            'accepted_binary_bytes=726976' \
+            'accepted_binary_sha256=78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589' \
+            'static_no_pt_interp_verified=true' \
+            'create_only_output_replay_rejected=true' \
+            'artifact_publication_only=true' \
+            'protected_install_authorized=false' \
+            'live_execution_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$OUT"
+          done
+
+      - name: Materialize exact accepted native V3 ELF
+        run: |
+          set -euo pipefail
+          BIN="$RUNNER_TEMP/void_buy_void_epoch2_live_composition_native_preentry_v1"
+          RECEIPT="$RUNNER_TEMP/epoch2-native-v3-materialize.log"
+          python3 -I -B scripts/materialize_buy_void_epoch2_live_composition_native_v3.py \
+            --derive "$BIN" | tee "$RECEIPT"
+          test "$(stat -c %s "$BIN")" = 726976
+          test "$(sha256sum "$BIN" | awk '{print $1}')" = \
+            78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589
+          readelf -l "$BIN" > "$RUNNER_TEMP/epoch2-native-v3-readelf.txt"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/epoch2-native-v3-readelf.txt"; then
+            echo materialized_native_has_dynamic_interpreter >&2
+            exit 1
+          fi
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_V3_MATERIALIZER_V1_DERIVE_GREEN' "$RECEIPT"
+          grep -Fx 'candidate_binary_identity_accepted=true' "$RECEIPT"
+          grep -Fx 'protected_install_authorized=false' "$RECEIPT"
+          printf '%s  %s\n' \
+            78a5159f7286dd107cb34568fe12e9758563123e8bda8c8cccc96eaf6c37c589 \
+            void_buy_void_epoch2_live_composition_native_preentry_v1 \
+            > "$RUNNER_TEMP/SHA256SUMS_epoch2_native_v3.txt"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-native-v3-install-candidate-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/void_buy_void_epoch2_live_composition_native_preentry_v1
+            ${{ runner.temp }}/SHA256SUMS_epoch2_native_v3.txt
+            ${{ runner.temp }}/epoch2-native-v3-materialize.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

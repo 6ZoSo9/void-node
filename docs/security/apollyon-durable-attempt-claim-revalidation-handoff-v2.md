@@ -19,11 +19,11 @@ object, bearer token, or field to the accepted six-key publish request**.
 The contract pins:
 
 - #3285 accepted repaired head
-  `5674d7335666cb9cf2f54a9bdd3d9edca7580ffd`, request-envelope blob
-  `d1726e3be042549769d2fe554371facd2ed60553`;
+  `f736a51f6bc02ba40d89d3d6f32c09c28c0ea897`, request-envelope blob
+  `339916ce4a6216af9a73476ad5b78e2d7a300f73`;
 - #3276 accepted repaired head
   `68cbfbdd7a025e7a69403c9d072b0cbf70ceed0e`, service-candidate blob
-  `d67ef39c4cd034844fb0862e180de46ed4cd0c88`;
+  `87019ae1245a2054407dd47835b0b7a891d4d9a2`;
 - #3233 store-contract blob
   `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
 - reviewed native kernel peer-generation reference
@@ -203,3 +203,14 @@ Next gate after source/CI acceptance:
 `apollyon_durable_attempt_claim_store_service_source_implementation_v2`
 
 Keep Draft. PROTECT THE CORE.
+
+## Accepted current-source handoff generation
+
+The source-only privileged handoff contract now pins the reviewed #3285
+request-envelope head `f736a51f6bc02ba40d89d3d6f32c09c28c0ea897` and source blob
+`339916ce4a6216af9a73476ad5b78e2d7a300f73`, plus accepted #3276 service candidate blob
+`87019ae1245a2054407dd47835b0b7a891d4d9a2`. The six-key request remains unchanged. Root-control
+connections still cannot carry claim bytes, and the fresh revalidator challenge,
+SO_PEERCRED/pidfd/lineage requirements and fail-closed pre-mutation checks are
+preserved. This does not implement or invoke a root revalidator, publisher,
+claim listener, protected claim writer or trainer.

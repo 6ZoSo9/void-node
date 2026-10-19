@@ -1,0 +1,181 @@
+name: Buy VOID Epoch-2 native candidate lock v6r2
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v6r2.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.yml"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v6r2.yml"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v6r2.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.yml"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v6r2.yml"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
+      - ".github/workflows/buy-void-epoch2-operator-first-entry-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact accepted candidate generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          candidate_head=26a06fe84f93ba48107809a9bd14263c34fa961e
+          lock_base=01dfaa59faa3e9779c6f4fd4cce4a470002954db
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$candidate_head" "$lock_base"
+          git merge-base --is-ancestor "$lock_base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.yml' \
+            'docs/operators/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.md' \
+            'ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json' \
+            'scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v6r2.py' \
+            | sort > "$expected"
+          git diff --name-only "$lock_base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json)" = \
+            bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v6r2.py)" = \
+            02f22e869433e8b81e41c59520af2f3a66912a43
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.md)" = \
+            cd2e4e605421df3c440660484827597bdd3430f0
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_candidate_v6r2.py)" = \
+            c4ac12562f1ce396d7b584ad10a5e86742d49d1a
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-live-composition-native-candidate-v6r2.yml)" = \
+            ec0b991750ea9f816d3b170cc007977977e01047
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py)" = \
+            b48972c0f930f5a33754a390bd2289853fc93c93
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-live-composition-native-preentry-v3-source.yml)" = \
+            428bd68439ab5b7251632107839346d6b18fc769
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" = \
+            5021727f1def1ec11f870d735cab65acc1701a5e
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs)" = \
+            499df9b94b5b89354837570da0c7e47ec280025d
+          test "$(git rev-parse HEAD:scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs)" = \
+            14cbe81e27d04fee77cbe75225ce308bf8561a7b
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-operator-first-entry-v1.yml)" = \
+            c66c1cd21ce762a128d7a25be8cec22686bca993
+
+          git diff --check "$lock_base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Re-run reconciled native source proof
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/native-source-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_native_preentry_v3_source.py |
+            tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_V3_SOURCE_PROOF_GREEN' \
+            'v3_runner_source_blob_bound=true' \
+            'native_first_instruction_preserved=true' \
+            'runner_digest_policy_binding_preserved=true' \
+            'node_digest_policy_binding_preserved=true' \
+            'native_parent_retained_for_child_lifetime=true' \
+            'preproof_hold_access_false=true' \
+            'postfork_preproof_root_javascript_indeterminate=true' \
+            'postfork_preproof_sensitive_access_false=true' \
+            'postproof_hold_access_indeterminate=true' \
+            'postproof_root_javascript_state_truthful=true' \
+            'abnormal_child_receipt_truthful=true' \
+            'candidate_accepted=false' \
+            'install_authorized=false' \
+            'live_execution_authorized=false' \
+            'credential_content_access=false' \
+            'transaction=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Rederive and verify exact V6R2 acceptance lock
+        run: |
+          set -euo pipefail
+          proof=scripts/prove_buy_void_epoch2_live_composition_native_candidate_lock_v6r2.py
+          out="$RUNNER_TEMP/epoch2-native-candidate-lock-v6r2.json"
+
+          python3 -I -B "$proof" --self-test |
+            tee "$RUNNER_TEMP/lock-proof.log"
+
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_LOCK_V6R2_GREEN' \
+            'lock_id=voidbuye2nativecandlock6r2_ab95f15c8f2731adf6bfd97dfd5467495c90bdb5ee267948efc6a522be74b417' \
+            'candidate_report_sha256=b5bd9b236cfdf821e7fbef4a97ad8e64632aa01503fa4f5a1daf0d1db2535c5f' \
+            'candidate_report_git_blob_sha1=ae6cc402d821fa5e3a37716f37285a1d600dfa18' \
+            'candidate_id=voidbuye2nativecand6r2_5d643422fb1c53686edd9386d6a65f000d9f399538bf94cca98b232fdfb15e8d' \
+            'native_binary_sha256=85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8' \
+            'native_binary_bytes=726976' \
+            'runner_sha256=7d67e3490b7066c089418eb1da9412570a39db2b422cdc1c62afb2482bf2bd94' \
+            'runner_bytes=45147' \
+            'candidate_workflow_bound=true' \
+            'hosted_three_report_identity_bound=true' \
+            'hosted_independent_rederivation_bound=true' \
+            'candidate_accepted=true' \
+            'native_binary_identity_accepted=true' \
+            'runner_identity_accepted=true' \
+            'protected_install_authorized=false' \
+            'live_execution_authorized=false' \
+            'credential_access_authorized=false' \
+            'private_key_access_authorized=false' \
+            'signing_authorized=false' \
+            'transaction_authorized=false' \
+            'payment_acceptance_authorized=false' \
+            'public_presale_activation_authorized=false' \
+            'wc_void_market_activation_authorized=false' \
+            'treasury_liquidity_action_authorized=false' \
+            'funds_movement_authorized=false' \
+            'production_host_evidence_authority=false' \
+            'canonical_preservation_parent_bound=true' \
+            'historical_v6_lock_reused=false' \
+            'next_gate=void_buy_void_epoch2_live_composition_native_candidate_materializer_v6r2'
+          do
+            grep -Fx "$marker" "$RUNNER_TEMP/lock-proof.log"
+          done
+
+          python3 -I -B "$proof" --derive > "$out"
+          cmp "$out" ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-epoch2-native-candidate-lock-v6r2-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/epoch2-native-candidate-lock-v6r2.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - run: git diff --check
