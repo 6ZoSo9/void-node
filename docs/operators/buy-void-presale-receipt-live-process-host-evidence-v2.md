@@ -131,6 +131,32 @@ The adapter executes the query through root-custodied retained descriptors for
 --bounding-set=-all
 ```
 
+Before either executable lease is admitted, V2 now performs an **ACL-aware
+runtime-identity nonwritability barrier**. Ownership and mode bits alone are not
+accepted as proof because a root-owned mode-`0755` executable or ancestor can
+still grant UID 1000 write access through a named ACL.
+
+The barrier is bootstrapped through the collector's already-running Node
+generation using `/proc/self/exe`, not through `setpriv` itself. The audit
+child:
+
+1. starts from the current Node executable;
+2. clears supplementary groups;
+3. drops to the reviewed runtime UID/GID;
+4. proves exact real/effective UID/GID and empty supplementary groups; and
+5. requires `W_OK` denial for both executable leaves and every ancestor of
+   `/usr/bin/setpriv` and `/usr/bin/systemctl`.
+
+Only after that effective-access barrier passes are the existing
+`O_NOFOLLOW|O_NONBLOCK` retained executable leases opened. The descriptors
+remain the execution authority: fd 3 is the exact retained `setpriv`
+generation and fd 4 is the exact retained `systemctl` generation. Both are
+revalidated against their visible paths after the child exits.
+
+This closes the named-ACL variant of the executable substitution boundary. A
+runtime-writable executable leaf or ancestor HOLDS before any root
+`setpriv` execution.
+
 Every non-systemctl `spawnSync` call passes through unchanged. The built-in
 export is restored in `finally` after either success or failure, and nested
 patch activation is rejected.
@@ -172,6 +198,20 @@ V2 requires V1's complete positive evidence contract, including:
 - terminal selector verification after the final receipt read.
 
 V2 also rejects any V1 result that changes the negative authority contract.
+
+## Executable ACL evidence
+
+A future GREEN V2 receipt additionally requires:
+
+```text
+user_systemd_query_executable_acl_runtime_nonwritability_verified=true
+user_systemd_query_executable_acl_audit_path_count>=5
+```
+
+The count includes both reviewed executable leaves plus their deduplicated
+canonical ancestors. This evidence is specifically about the runtime identity's
+effective write access; it does not claim that arbitrary privileged identities
+cannot mutate the host.
 
 ## Authority
 
