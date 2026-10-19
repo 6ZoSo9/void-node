@@ -1306,7 +1306,14 @@ try {
   isolatedAdapter.searchParams.set("wallet_http200_evidence_proof", "v1");
   await import(isolatedAdapter.href);
   const walletHandler = adapterRoutes.get("/__void/ui/wave3/wallet.json");
+  const walletStatusHandler = adapterRoutes.get(
+    "/__void/ui/wave3-wallet-v1/status.json",
+  );
   assert.ok(walletHandler, "actual compiled Wallet adapter must register its GET route");
+  assert.ok(
+    walletStatusHandler,
+    "actual compiled Wallet adapter must register its status route",
+  );
 
   (globalThis as any).document = {
     querySelector(selector: string) {
@@ -1316,7 +1323,9 @@ try {
       return adapterNodes.get(selector);
     },
   };
+  let mountedWalletSourceFetchCount = 0;
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    mountedWalletSourceFetchCount += 1;
     const url = new URL(String(input));
     assert.equal(url.hostname, "127.0.0.1");
     assert.equal(url.searchParams.get("account"), "account-A");
@@ -1330,6 +1339,96 @@ try {
       { status: 200, headers: { "content-type": "application/json" } },
     );
   }) as typeof fetch;
+
+  const requestMountedWalletAdapterV1 = async (
+    handler: (req: any, res: any) => Promise<void>,
+    identity: {
+      ip?: string;
+      socket?: { remoteAddress?: string };
+      connection?: { remoteAddress?: string };
+    },
+    query: Record<string, unknown> = {},
+  ) => {
+    let httpCode = 0;
+    let wireBody: Buffer | undefined;
+    await handler(
+      {
+        ...identity,
+        method: "GET",
+        query,
+      },
+      {
+        writeHead(code: number, headers: Record<string, string>) {
+          httpCode = code;
+          assert.equal(headers["cache-control"], "no-store");
+          assert.ok(headers["content-type"].startsWith("application/json"));
+        },
+        end(data?: Buffer) { wireBody = data; },
+      },
+    );
+    assert.ok(Buffer.isBuffer(wireBody));
+    return {
+      httpCode,
+      body: JSON.parse(wireBody!.toString("utf8")),
+    };
+  };
+
+  const mixedPeerIdentities = [
+    {
+      ip: "203.0.113.8",
+      socket: { remoteAddress: "127.0.0.1" },
+      connection: { remoteAddress: "127.0.0.1" },
+    },
+    {
+      ip: "127.0.0.1",
+      socket: { remoteAddress: "203.0.113.8" },
+      connection: { remoteAddress: "203.0.113.8" },
+    },
+    {
+      ip: "localhost",
+      socket: { remoteAddress: "127.0.0.1" },
+      connection: { remoteAddress: "127.0.0.1" },
+    },
+  ];
+  for (const identity of mixedPeerIdentities) {
+    for (const handler of [walletHandler!, walletStatusHandler!]) {
+      const denied = await requestMountedWalletAdapterV1(
+        handler,
+        identity,
+        { account: "account-A" },
+      );
+      assert.equal(denied.httpCode, 404);
+      assert.deepEqual(denied.body, { ok: false, error: "not_found" });
+    }
+  }
+  assert.equal(
+    mountedWalletSourceFetchCount,
+    0,
+    "mixed remote identities must fail before any Wallet source fetch",
+  );
+
+  for (const remoteAddress of [
+    "127.0.0.1",
+    "::1",
+    "::ffff:127.0.0.1",
+  ]) {
+    const accepted = await requestMountedWalletAdapterV1(
+      walletStatusHandler!,
+      {
+        ip: remoteAddress,
+        socket: { remoteAddress },
+        connection: { remoteAddress },
+      },
+    );
+    assert.equal(accepted.httpCode, 200);
+    assert.equal(accepted.body.ok, true);
+    assert.equal(accepted.body.loopback_only, true);
+  }
+  assert.equal(
+    mountedWalletSourceFetchCount,
+    0,
+    "Wallet status probes must not fetch participant sources",
+  );
 
   const requestActualWalletSnapshot = async () => {
     let httpCode = 0;
@@ -1522,9 +1621,16 @@ for (const marker of [
   "const walletAccountMatches = walletBody.account === account;",
   "const ledgerAccountMatches = ledgerBody.account === account;",
   "const productionAccountMatches = productionBody.account === account;",
+  "function isLoopbackAddressV1(value: string): boolean {",
+  "return values.length > 0 && values.every(isLoopbackAddressV1);",
 ]) {
   assert.ok(adapterSource.includes(marker), `missing Wallet adapter boundary: ${marker}`);
 }
+assert.equal(
+  adapterSource.includes('value === "localhost"'),
+  false,
+  "Wallet peer identity boundary must reject hostname aliases",
+);
 const accountParserStart = adapterSource.indexOf(
   "export function walletAccountIdV1(raw: unknown): string | null",
 );
@@ -1608,6 +1714,11 @@ console.log("browser_wallet_source_unavailable_truthful=true");
 console.log("wallet_actual_adapter_http200_invalid_body_isolated=true");
 console.log("wallet_actual_adapter_missing_account_rejected=true");
 console.log("wallet_actual_adapter_http200_valid_recovery=true");
+console.log("wallet_loopback_requires_peer_identity_coherence=true");
+console.log("wallet_loopback_mixed_remote_identity_rejected=true");
+console.log("wallet_loopback_hostname_identity_rejected=true");
+console.log("wallet_status_loopback_mixed_remote_identity_rejected=true");
+console.log("wallet_ipv4_ipv6_loopback_preserved=true");
 console.log("browser_wallet_stale_evidence_cleared=true");
 console.log("browser_wallet_invalid_input_supersedes_active_request=true");
 console.log("browser_wallet_generated_at_canonical=true");
