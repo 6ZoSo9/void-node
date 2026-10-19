@@ -185,4 +185,3 @@ request.
 This consolidation does not prove protected-store origin, current
 winner/store/claim rereads, writer invocation authority, consumption
 publication, trainer release/training, credentials, transactions or funds.
-
