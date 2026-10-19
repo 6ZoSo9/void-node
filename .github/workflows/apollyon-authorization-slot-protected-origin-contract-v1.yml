@@ -38,18 +38,18 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = \
-            cc168ce3c5db261bb7f929810a39536728ad60da
+            833876baf077b9616d08ee9b13b2657a0818dcc5
           test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = \
-            70dac31e912b83c1b8762b9678311a587a8a1c21
+            65d1208c14d638c3d255bcdb50ddce02c8e25dee
           test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = \
-            f5c2cb60d10ad84f4d1538a574485ea115b982f1
+            e621f6c554c48e85f87bcc68435bc64fed5c9fd4
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
-            93582c324ca85aeff56eb61f82b32f1e4c18dfe9
+            c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = \
             f97fafb0148527ae3a954e2752faef8c7fc9e88e
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = \
-            d67ef39c4cd034844fb0862e180de46ed4cd0c88
+            87019ae1245a2054407dd47835b0b7a891d4d9a2
 
           case "$EVENT_NAME" in
             pull_request)

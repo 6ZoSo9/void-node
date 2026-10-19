@@ -25,16 +25,35 @@ before any activation capability may be issued.
 ## Exact parent
 
 - #3357 exact head:
-  `4e7d433a4141b4a7cad7fb001d0800dccb1b5ec2`
+  `1b60642d980b76c13130d5124d83a22c2c01ec30`
 - authorization-slot source blob:
-  `93582c324ca85aeff56eb61f82b32f1e4c18dfe9`
+  `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`
 - canonicalizer blob:
   `f97fafb0148527ae3a954e2752faef8c7fc9e88e`
 - transitive store-service candidate blob:
-  `d67ef39c4cd034844fb0862e180de46ed4cd0c88`
+  `87019ae1245a2054407dd47835b0b7a891d4d9a2`
 
 The child reuses the exact #3357 slot validator. It defines no replacement slot
 ID, record ID, store policy, or authorization namespace.
+
+## Current-parent source reconciliation
+
+This source-only boundary follows the current #3357 generation
+`1b60642d980b76c13130d5124d83a22c2c01ec30`, retaining historical
+`4e7d433a4141b4a7cad7fb001d0800dccb1b5ec2` as the previous first-parent
+ancestry. A complete untruncated Git-tree comparison shows 358 upstream
+changed paths and **zero overlap** with this Draft's four owned files.
+
+The only current contract-source changes are its exact parent commit and
+authorization-slot source blob constants. The transitive inert store-service
+candidate source pin changes in the focused proof/workflow because its own
+reviewed host-plan provenance changed. All source-shape validation, adversarial
+input rejection, and explicit negative authority fields remain unchanged.
+A source-only protected-origin requirements receipt is still not an installed,
+descriptor-held slot reread or claim-service authority.
+
+Child #3531 must separately bind this updated source generation; a detached
+caller-supplied record cannot grant activation-capability issuance or training.
 
 ## Valid caller shape is still insufficient
 

@@ -14,8 +14,8 @@ It does not implement the claim service, publisher, systemd unit, AF_UNIX listen
 
 - accepted store-contract head: `fe7e1ad9b78a24b77a1657067e4d08f7c56a7731`
 - accepted store-contract blob: `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`
-- accepted host-plan head: `db2ca3c90b0dc58eccc82b55b5b0fadcf82f6705`
-- accepted planner blob: `69db13fffaf1678da03b90f0fa14fd60c3c5c98c`
+- accepted host-plan head: `e7077f96e212b3b6f25e824e67f57c80bd560b97`
+- accepted planner blob: `ae8acfe7bb737930a67705dd562dcfe9f796bc42`
 - stable store policy:
   `apollyon_claim_store_policy_v2:e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137`
 
@@ -115,3 +115,15 @@ It performs no:
 The next source gate is `apollyon_durable_attempt_claim_store_service_source_implementation_v2`.
 
 PROTECT THE CORE.
+
+## Current reviewed host-plan generation
+
+The service candidate now pins the accepted #3265 reviewed planner source at
+`e7077f96e212b3b6f25e824e67f57c80bd560b97` with exact Git blob `ae8acfe7bb737930a67705dd562dcfe9f796bc42`.
+This is the reviewed head preserved as a parent of merged main
+`e70bbb004d58cde6517ed17568e2925a2627c29f`, not an uncontrolled
+caller-selected planner generation. The parent host plan excludes stale
+numeric UID/GID process collisions, verifies host PID and user namespace leases,
+and traverses raw Git commit-object ancestry breadth-first under its unchanged
+4,096-object cap. Numeric identities remain unprovisioned, and a new live
+read-only host-plan recensus is required before any future account creation.

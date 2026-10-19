@@ -175,26 +175,44 @@ if (
   fail("source-manifest payload hashes are missing");
 }
 
+if (sourceManifest.payload_hashes_are_source_bundle_only !== true) {
+  fail("source-package payload scope is missing");
+}
 for (const [relative, expected] of Object.entries(payloadHashes)) {
-  const target = payloadTarget(relative);
-
-  if (!fs.existsSync(target)) {
-    fail(`source-manifest target missing: ${relative}`);
-  }
-
-  const actual = createHash("sha256")
-    .update(fs.readFileSync(target))
-    .digest("hex");
-
-  if (actual !== expected) {
-    fail(`source-manifest hash mismatch: ${relative}`);
+  payloadTarget(relative);
+  if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) {
+    fail(`source-package payload hash is invalid: ${relative}`);
   }
 }
 
+const repositoryHashes = sourceManifest.repository_hashes;
+const requiredCurrentShellHashes = [
+  "public/void-app-wave1-v1/index.html",
+  "public/void-app-wave1-v1/assets/css/components.css",
+  "public/void-app-wave1-v1/assets/js/app.js",
+];
 if (
-  sourceManifest.repository_hashes_refreshed_after_whitespace_cleanup !== true
+  !repositoryHashes ||
+  typeof repositoryHashes !== "object" ||
+  Array.isArray(repositoryHashes)
 ) {
-  fail("repository hash refresh provenance is missing");
+  fail("current repository hash map is missing");
+}
+for (const relative of requiredCurrentShellHashes) {
+  const expected = repositoryHashes[relative];
+  if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) {
+    fail(`current repository hash is invalid: ${relative}`);
+  }
+  const target = path.join(root, relative);
+  if (!fs.existsSync(target)) {
+    fail(`current repository target is missing: ${relative}`);
+  }
+  const actual = createHash("sha256")
+    .update(fs.readFileSync(target))
+    .digest("hex");
+  if (actual !== expected) {
+    fail(`current repository hash mismatch: ${relative}`);
+  }
 }
 
 
@@ -602,6 +620,130 @@ if (
   )
 ) {
   fail("command and mobile navigation links must share the same-route focus repair");
+}
+
+const commandMenuHtmlStart = html.indexOf(
+  '<div class="command-menu" id="command-menu"'
+);
+const commandMenuHtmlEnd = html.indexOf(
+  '\n  </div>\n\n  <div class="toast-region"',
+  commandMenuHtmlStart
+);
+if (commandMenuHtmlStart < 0 || commandMenuHtmlEnd < 0) {
+  fail("command menu markup boundary is incomplete");
+}
+const commandMenuHtml = html.slice(commandMenuHtmlStart, commandMenuHtmlEnd);
+for (const marker of [
+  'id="command-search"',
+  'autocomplete="off"',
+  'aria-describedby="command-search-help command-empty"',
+  'aria-controls="command-results"',
+  'id="command-results"',
+  'id="command-empty"',
+  'role="status"',
+  'aria-live="polite"',
+  'aria-atomic="true"',
+  'hidden>No matching destinations.</p>',
+]) {
+  if (!commandMenuHtml.includes(marker)) {
+    fail(`command search accessibility contract missing: ${marker}`);
+  }
+}
+
+const commandFilterStart = appJs.indexOf("function filterCommandResults() {");
+const commandFilterEnd = appJs.indexOf(
+  "\nfunction currentRoute() {",
+  commandFilterStart
+);
+if (commandFilterStart < 0 || commandFilterEnd < 0) {
+  fail("command search filter boundary is incomplete");
+}
+const commandFilterBlock = appJs.slice(commandFilterStart, commandFilterEnd);
+for (const marker of [
+  "const query = normalizeCommandQuery(commandSearch.value);",
+  "normalizeCommandQuery(link.textContent).includes(query)",
+  "link.hidden = !matches;",
+  "commandEmpty.hidden = visibleCount !== 0;",
+  "commandSearch.value = '';",
+  "filterCommandResults();",
+]) {
+  if (!commandFilterBlock.includes(marker)) {
+    fail(`command search filter missing: ${marker}`);
+  }
+}
+if (commandFilterBlock.includes("toLocaleLowerCase")) {
+  fail("command search normalization must not depend on the host locale");
+}
+const normalizeCommandQueryMarker = "function normalizeCommandQuery(value) {";
+const normalizeCommandQueryStart = appJs.indexOf(normalizeCommandQueryMarker);
+const normalizeCommandQuerySecond = appJs.indexOf(
+  normalizeCommandQueryMarker,
+  normalizeCommandQueryStart + normalizeCommandQueryMarker.length
+);
+if (
+  normalizeCommandQueryStart < 0 ||
+  normalizeCommandQueryStart >= commandFilterStart ||
+  normalizeCommandQuerySecond >= 0
+) {
+  fail("command search normalization helper boundary is invalid");
+}
+const normalizeCommandQueryEnd = appJs.indexOf(
+  "\n}",
+  normalizeCommandQueryStart
+);
+if (
+  normalizeCommandQueryEnd < 0 ||
+  normalizeCommandQueryEnd >= commandFilterStart
+) {
+  fail("command search normalization helper boundary is invalid");
+}
+const normalizeCommandQueryBlock = appJs.slice(
+  normalizeCommandQueryStart,
+  normalizeCommandQueryEnd + 2
+);
+if (normalizeCommandQueryBlock.includes("toLocaleLowerCase")) {
+  fail("command search normalization helper must not depend on the host locale");
+}
+const normalizeCommandQueryMatch = normalizeCommandQueryBlock.match(
+  /function normalizeCommandQuery\(value\) \{\n([\s\S]*?)\n\}/
+);
+if (!normalizeCommandQueryMatch) {
+  fail("command search normalization helper is missing");
+}
+const normalizeCommandQuery = new Function(
+  "value",
+  normalizeCommandQueryMatch[1]
+) as (value: string) => string;
+
+for (const [input, expected] of [
+  [" VOID ", "void"],
+  ["I", "i"],
+  ["İ", "i\u0307"],
+]) {
+  if (normalizeCommandQuery(input) !== expected) {
+    fail(`command search normalization regression: ${JSON.stringify(input)}`);
+  }
+}
+
+for (const marker of [
+  "if (name === 'command') resetCommandSearch();",
+  "commandSearch.addEventListener('input', filterCommandResults);",
+  "if (!['Enter', 'ArrowDown'].includes(event.key)) return;",
+  "const firstVisible = filterCommandResults()[0];",
+  "if (event.key === 'Enter') firstVisible.click();",
+  "else firstVisible.focus();",
+]) {
+  if (!appJs.includes(marker)) {
+    fail(`command search keyboard/reset contract missing: ${marker}`);
+  }
+}
+for (const marker of [
+  ".command-results a[hidden] { display: none; }",
+  ".command-empty {",
+]) {
+  if (!componentsCss.includes(marker)) {
+    fail(`command search CSS contract missing: ${marker}`);
+  }
 }
 
 const advancedSettingsStart = html.indexOf(

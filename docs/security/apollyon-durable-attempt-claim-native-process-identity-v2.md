@@ -68,10 +68,25 @@ would still need exact interpreter + raw cmdline + root-custodied script/body
 identity at every #3291 revalidation boundary.
 
 This generation is rebound to current accepted #3306 head
-`7dbc421cb640edc4e39281588a22986277f517ee`. The process-identity primitive
+`0ba4a743a5b9b3bfad4c5937969b70cf876eb46f`. The process-identity primitive
 does not absorb systemd sandbox/capability policy, inherited-FD closure,
 cross-UID procfs visibility, or designated-host qualification; those remain
 separate implementation/host gates.
+
+The exact #3306 parent is a source-tested non-force current-parent merge-forward.
+Independent exact-head review is not yet established. The native process-identity
+prerequisites retain the same C source and C self-test semantics. This child
+updates only dependency-source pins:
+`tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs`
+is blob `5532d18603ab9b4f400082c6fac265c58672ed85`,
+its focused proof is blob `2079fc8ad4ce98773a94a977c3c76bb9e05145dc`,
+and the earlier native peer-guard proof is blob
+`45421969be31286f295c0daba6c36a4e4698010e`.
+All 353 upstream changed files have zero path overlap with this candidate's
+six source paths (complete nontruncated Git-tree comparison). This
+source-only reconciliation is not installed-host, privileged-role or
+cross-UID qualification; descendant source pins still require independent
+revalidation.
 
 ## Authority
 

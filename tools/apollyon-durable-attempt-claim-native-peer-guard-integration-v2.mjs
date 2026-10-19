@@ -42,11 +42,11 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_NATIVE_PEER_GUARD_INTEGRATION_A
   });
 
 export const PARENT_HANDOFF_BLOB_SHA1 =
-  "5d913eb08d79c76ed926d8b88be05b12f475abd5";
+  "3feed7f71fb6941f8feccf393f151fa9e973d7a4";
 export const NATIVE_PEER_GUARD_BLOB_SHA1 =
   "defd863de841a1f1460e10985d1990ba1a382f70";
 export const NATIVE_PEER_GUARD_PROOF_BLOB_SHA1 =
-  "4cf08f60a604496ea7087167f0ef6a744182aad4";
+  "45421969be31286f295c0daba6c36a4e4698010e";
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
