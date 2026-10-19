@@ -119,7 +119,7 @@ This generation is a non-force merge-forward over current #3351
 `a08927b7b16884a9bf0c28328047afdab49649ea`. The focused proof now binds
 the current #3333 consumption source
 `f557d92e89f3502ee6ac1243411cd43191ec1f37`, current authorization-slot
-source `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`, and current claim-service
+source `25629371f6da164e12fecfc08c5f26815418e3a8`, and current claim-service
 candidate `87019ae1245a2054407dd47835b0b7a891d4d9a2`.
 
 Protected-store origin, current store-generation and protected-winner
@@ -246,3 +246,12 @@ instead of assuming the failed call did not consume it.
 Disposable proof injects EIO only **after a real kernel close**, requires exactly
 one close attempt, unchanged FD census, and exact final bytes for both the
 created-record and owned-directory terminal seams.
+
+## October 19 current authorization-slot generation rebind
+
+The direct #3351 ancestry now carries authorization-slot source
+`25629371f6da164e12fecfc08c5f26815418e3a8`. The writer/revalidation
+focused proofs are rebound to that exact source generation. No writer runtime
+logic, path policy, publication semantics, or authority field changed in this
+rebind. Protected host origin, current store/winner/claim verification,
+writer invocation, release/training and funds authority remain unproven.
