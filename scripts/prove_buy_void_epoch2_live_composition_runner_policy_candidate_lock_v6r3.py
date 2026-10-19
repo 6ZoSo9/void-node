@@ -22,13 +22,13 @@ V6R2_LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-l
 
 MARKER="VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3"
 LOCK_PREFIX="voidbuye2runnerpollock6r3_"
-LOCK_ID="voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202"
+LOCK_ID="voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67"
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d"
 RUNNER_BLOB="62029fafa7073ab3768fec01f2147a7f4eefce2b"
 RUNNER_SHA256="0f87747439b82887033295cf04022c9a2a491c726f8d6acad8b0efc2e8dcdc71"
 RUNNER_BYTES=51684
 CANDIDATE_BLOB="cecca32b8c9de8105e92abea915bd142813eb429"
-CANDIDATE_WORKFLOW_BLOB="439d270427c2bac9cffe1ea1877ab92dbf622673"
+CANDIDATE_WORKFLOW_BLOB="0e2f3c7dbbebdaa6c7120699aad35890646dc954"
 COMPAT_CONTRACT_BLOB="cb82a71cf83348f3709719cb1c8b44f3f687eabb"
 COMPAT_PROOF_BLOB="528a5785814c2a89e9d692ee681090b1f19e9b11"
 COMPAT_WORKFLOW_BLOB="7d2952394ec219f39e5d18dc96143685a6062d45"
@@ -81,17 +81,17 @@ lock=json.loads(exact_file(LOCK,256*1024))
 assert lock["schema"]=="void_buy_void_epoch2_live_composition_runner_policy_candidate_lock_v6r3"
 assert lock["marker"]==MARKER
 assert lock["version"]==2
-assert lock["candidate_head"]=="6bad5e7bea8db683b53622387923c493370b8e64"
+assert lock["candidate_head"]=="539075ad44f5fef150c7fbfdb4ca6e8115a7b682"
 assert lock["compatibility_hosted_evidence"]=={
     "workflow":"Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1",
-    "run_id":39272638928,
-    "job_id":118128683759,
+    "run_id":39275749198,
+    "job_id":118139485564,
     "conclusion":"success",
 }
 assert lock["candidate_hosted_evidence"]=={
     "workflow":"Buy VOID Epoch-2 live-composition runner policy candidate V6R3",
-    "run_id":39272637721,
-    "job_id":118128679712,
+    "run_id":39275748113,
+    "job_id":118139481605,
     "conclusion":"success",
 }
 r=lock["candidate_report"]
