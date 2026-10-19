@@ -15,6 +15,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_AUTHORITY_V1 =
     source_only_candidate: true,
     injected_capabilities_required: true,
     protected_host_adapter_required: true,
+    authorization_one_time_claim_required: true,
     direct_host_filesystem_api_present: false,
     direct_process_api_present: false,
     direct_network_api_present: false,
@@ -41,6 +42,7 @@ const AUTH_MARKER="VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_AUTHORIZATION_V1";
 const CANARY_DOMAIN="void.buyvoid.presale.noncustomer.canary.v1";
 const OP_ID=/^voidbuycustodychallengeop1_[0-9a-f]{64}$/u;
 const AUTH_ID=/^voidbuycustodychallengeauth1_[0-9a-f]{64}$/u;
+const CLAIM_ID=/^voidbuycustodychallengeclaim1_[0-9a-f]{64}$/u;
 const SHA=/^sha256:[0-9a-f]{64}$/u;
 const HEX40=/^[0-9a-f]{40}$/u;
 const ORIGIN=/^voidbuycustodychallengeorigin1_[0-9a-f]{64}$/u;
@@ -51,6 +53,7 @@ const U64_MAX=18446744073709551615n;
 const CAPABILITY_KEYS=Object.freeze([
   "generate_challenge_entropy",
   "observe_before",
+  "claim_operation_authorization_once",
   "append_journal_canary",
   "advance_high_water",
   "sync_close_reopen",
@@ -266,6 +269,26 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
   if(before.external_witness_sequence>=MAX_SAFE)
     fail("external_witness_sequence_headroom_exhausted");
 
+  const claim=exactResult(callSync(caps.claim_operation_authorization_once,
+    Object.freeze({
+      authorization_id:authorization.authorization_id,
+      operation_id:authorization.operation_id,
+      challenge_id:challengeId,
+      plan_id:authorization.plan_id,
+      expected_policy_fingerprint_sha256:authorization.expected_policy_fingerprint_sha256,
+      expected_policy_generation:authorization.expected_policy_generation,
+      reviewed_source_tree:authorization.reviewed_source_tree,
+    }),
+    "authorization_claim"),
+    ["claimed","already_claimed","authorization_id","operation_id","challenge_id","claim_id"],
+    "authorization_claim");
+  if(claim.claimed!==true||claim.already_claimed!==false||
+     claim.authorization_id!==authorization.authorization_id||
+     claim.operation_id!==authorization.operation_id||
+     claim.challenge_id!==challengeId)
+    fail("authorization_replay_or_claim_failed");
+  string(claim.claim_id,CLAIM_ID,"authorization_claim_id_invalid");
+
   const append=exactResult(callSync(caps.append_journal_canary,
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
       canary_domain_id:authorization.canary_domain_id,
@@ -397,12 +420,14 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
 
   const origin=exactResult(callSync(caps.authenticate_evidence_origin,
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
-      authorization_id:authorization.authorization_id}),
+      authorization_id:authorization.authorization_id,
+      authorization_claim_id:claim.claim_id}),
     "evidence_origin"),
-    ["authenticated","challenge_id","operation_id","origin_id","evidence_sha256"],
+    ["authenticated","challenge_id","operation_id","authorization_claim_id","origin_id","evidence_sha256"],
     "evidence_origin");
   if(origin.authenticated!==true||origin.challenge_id!==challengeId||
-     origin.operation_id!==authorization.operation_id)
+     origin.operation_id!==authorization.operation_id||
+     origin.authorization_claim_id!==claim.claim_id)
     fail("evidence_origin_not_authenticated");
   string(origin.origin_id,ORIGIN,"evidence_origin_id_invalid");
   string(origin.evidence_sha256,SHA,"evidence_origin_sha_invalid");
@@ -415,8 +440,13 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     authorization_id:authorization.authorization_id,
     operation_id:authorization.operation_id,
     challenge_id:challengeId,
+    authorization_claim_id:claim.claim_id,
     controller_id:"void.replay.journal.rollback.controller.v1",
     authorization_record_validated:true,
+    authorization_claim_contract_validated:true,
+    authorization_claim_one_time_required:true,
+    authorization_replay_rejection_contract_validated:true,
+    authorization_claim_authenticated:false,
     operation_bound_authorization_authenticated:false,
     non_customer_canary_domain_bound:true,
     non_customer_canary_isolation_proven:false,
@@ -439,6 +469,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     allocation_ledger_unchanged_contract_validated:true,
     customer_request_state_unchanged_contract_validated:true,
     evidence_origin_capability_report_validated:true,
+    authorization_claim_bound_to_evidence_origin:true,
     evidence_origin_authenticated:false,
     injected_capabilities_authenticated:false,
     live_durable_storage_proven:false,

@@ -11,7 +11,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
-const SOURCE_BLOB="ee470baec84ac2985b1b7c05a07745b7ee3466f9";
+const SOURCE_BLOB="0a390288fcfc9f37e6b05958759fc3599fdf1ba3";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json";
 const PLAN_BLOB="5face2022dc2cbc573e32e99f88623f381a8a174";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -40,7 +40,8 @@ for(const [key,value] of Object.entries(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_AUTHORITY_V1
 )){
   if(key==="source_only_candidate"||key==="injected_capabilities_required"||
-     key==="protected_host_adapter_required") assert.equal(value,true,key);
+     key==="protected_host_adapter_required"||
+     key==="authorization_one_time_claim_required") assert.equal(value,true,key);
   else assert.equal(value,false,key);
 }
 
@@ -75,7 +76,7 @@ const authorization={
   authorization_id:buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV1(authBody),
 };
 
-function makeHarness(mutator=()=>{}){
+function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
   const order=[];
   const before={
     host_id:"precision-fixture",
@@ -98,6 +99,20 @@ function makeHarness(mutator=()=>{}){
   const caps={
     generate_challenge_entropy(){order.push("entropy");return Buffer.alloc(32,0x5a);},
     observe_before({challenge_id}){order.push("before");challenge=challenge_id;return before;},
+    claim_operation_authorization_once({authorization_id,operation_id,challenge_id}){
+      order.push("claim");
+      const already=authorizationClaims.has(authorization_id);
+      if(!already) authorizationClaims.add(authorization_id);
+      state.claim={
+        claimed:!already,
+        already_claimed:already,
+        authorization_id,
+        operation_id,
+        challenge_id,
+        claim_id:"voidbuycustodychallengeclaim1_"+"4".repeat(64),
+      };
+      return state.claim;
+    },
     append_journal_canary({challenge_id,canary_domain_id}){
       order.push("append");
       assert.equal(challenge_id,challenge);
@@ -147,16 +162,17 @@ function makeHarness(mutator=()=>{}){
     reobserve_storage_and_policy(){order.push("terminal");return {...before,
       high_water_sequence:8,high_water_sha256:state.high.high_water_sha256,
       external_witness_sequence:12,external_witness_tip_sha256:state.witness.external_witness_tip_sha256};},
-    authenticate_evidence_origin({challenge_id,operation_id}){order.push("origin");
-      return {authenticated:true,challenge_id,operation_id,
+    authenticate_evidence_origin({challenge_id,operation_id,authorization_claim_id}){order.push("origin");
+      assert.equal(authorization_claim_id,state.claim.claim_id);
+      return {authenticated:true,challenge_id,operation_id,authorization_claim_id,
         origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),
         evidence_sha256:sha("evidence")};},
   };
-  mutator(caps,state,before);
-  return {caps,order};
+  mutator(caps,state,before,order);
+  return {caps,order,state};
 }
 
-const expectedOrder=["entropy","before","append","high","reopen","witness","second","rollback","after","stale","terminal","origin"];
+const expectedOrder=["entropy","before","claim","append","high","reopen","witness","second","rollback","after","stale","terminal","origin"];
 {
   const h=makeHarness();
   const result=executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
@@ -166,7 +182,13 @@ const expectedOrder=["entropy","before","append","high","reopen","witness","seco
   assert.equal(result.status,"controller_candidate_sequence_green_host_adapter_required");
   assert.deepEqual(h.order,expectedOrder);
   assert.equal(result.authorization_record_validated,true);
+  assert.match(result.authorization_claim_id,/^voidbuycustodychallengeclaim1_[0-9a-f]{64}$/u);
+  assert.equal(result.authorization_claim_contract_validated,true);
+  assert.equal(result.authorization_claim_one_time_required,true);
+  assert.equal(result.authorization_replay_rejection_contract_validated,true);
+  assert.equal(result.authorization_claim_authenticated,false);
   assert.equal(result.operation_bound_authorization_authenticated,false);
+  assert.equal(result.authorization_claim_bound_to_evidence_origin,true);
   assert.equal(result.non_customer_canary_domain_bound,true);
   assert.equal(result.non_customer_canary_isolation_proven,false);
   assert.equal(result.reviewed_source_generation_requirement_bound,true);
@@ -191,6 +213,28 @@ const expectedOrder=["entropy","before","append","high","reopen","witness","seco
     "public_presale_activation_authorized","wc_void_market_activation_authorized",
     "funds_movement","production_host_evidence_authority",
   ]) assert.equal(result[key],false,key);
+}
+
+
+{
+  const claims=new Set();
+  const first=makeHarness(()=>{},claims);
+  const firstResult=executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:first.caps,
+  });
+  assert.deepEqual(first.order,expectedOrder);
+  const second=makeHarness((c,s,b,order)=>{
+    c.generate_challenge_entropy=()=>{
+      order.push("entropy");
+      return Buffer.alloc(32,0x6b);
+    };
+  },claims);
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
+    authorization,capabilities:second.caps,
+  }),/authorization_replay_or_claim_failed/);
+  assert.deepEqual(second.order,["entropy","before","claim"]);
+  assert.notEqual(firstResult.challenge_id,second.state.claim.challenge_id);
+  assert.equal(second.order.includes("append"),false);
 }
 
 function mustFail(label,mutator,pattern){
@@ -421,6 +465,9 @@ console.log("deterministic_controller_sequence=true");
 console.log("sequence_headroom_preflighted_before_mutation=true");
 console.log("policy_generation_u64_bounded=true");
 console.log("operation_bound_authorization_required=true");
+console.log("authorization_claim_once_required=true");
+console.log("same_authorization_replay_rejected_before_mutation=true");
+console.log("authorization_claim_bound_to_evidence_origin=true");
 console.log("operation_bound_authorization_authenticated=false");
 console.log("non_customer_canary_domain_bound=true");
 console.log("non_customer_canary_isolation_proven=false");

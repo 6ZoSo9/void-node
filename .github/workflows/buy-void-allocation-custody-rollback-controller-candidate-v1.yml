@@ -54,9 +54,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json)" = 5face2022dc2cbc573e32e99f88623f381a8a174
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
           test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
-          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = ee470baec84ac2985b1b7c05a07745b7ee3466f9
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 0aab46f61812d4333833c9b91ea26e1e7a24ad7e
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = e86238e80ced10329db836d58fc0d70d9d694209
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = 0a390288fcfc9f37e6b05958759fc3599fdf1ba3
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = c0292974a50a17b10c61a4906417897991e6613f
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = 8f55ee3bc857c748fe733bb5fec6da9a3a67630a
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -72,6 +72,9 @@ jobs:
             'deterministic_controller_sequence=true' \
             'sequence_headroom_preflighted_before_mutation=true' \
             'policy_generation_u64_bounded=true' \
+            'authorization_claim_once_required=true' \
+            'same_authorization_replay_rejected_before_mutation=true' \
+            'authorization_claim_bound_to_evidence_origin=true' \
             'operation_bound_authorization_authenticated=false' \
             'non_customer_canary_domain_bound=true' \
             'non_customer_canary_isolation_proven=false' \

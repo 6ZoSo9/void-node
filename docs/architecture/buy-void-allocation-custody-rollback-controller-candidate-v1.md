@@ -26,21 +26,22 @@ The controller imports only Node crypto/util. It has no direct filesystem,
 process, systemd, socket, network, host-path, credential, wallet, signer, RPC,
 or transaction API.
 
-A future separately reviewed protected host adapter must inject exactly twelve
+A future separately reviewed protected host adapter must inject exactly thirteen
 synchronous capabilities:
 
 1. generate execution-time challenge entropy;
 2. observe pre-challenge storage/policy/customer state;
-3. append the non-customer journal canary;
-4. advance protected high-water;
-5. sync/close/reopen and prove durability;
-6. append the external-witness event;
-7. obtain high-water second-control approval;
-8. attempt the controlled journal rollback;
-9. observe post-rollback state;
-10. attempt stale-journal replay and prove refusal;
-11. reobserve storage/policy/customer state; and
-12. authenticate evidence origin.
+3. durably claim the exact operation authorization once;
+4. append the non-customer journal canary;
+5. advance protected high-water;
+6. sync/close/reopen and prove durability;
+7. append the external-witness event;
+8. obtain high-water second-control approval;
+9. attempt the controlled journal rollback;
+10. observe post-rollback state;
+11. attempt stale-journal replay and prove refusal;
+12. reobserve storage/policy/customer state; and
+13. authenticate evidence origin.
 
 Async/thenable capabilities fail closed.
 
@@ -62,13 +63,24 @@ The controller invokes the injected entropy capability after record validation
 and requires exactly 32 bytes. This sequences the entropy requirement but does
 not itself prove unpredictability or kernel entropy provenance.
 
+After the exact current policy observation and sequence-headroom checks, but
+before the journal canary append, the controller requires a durable create-once
+claim for the exact authorization. The claim binds the authorization ID,
+operation ID, fresh challenge ID, plan, expected policy fingerprint/generation,
+and reviewed source tree. An already-claimed authorization HOLDs before journal,
+high-water, witness, or rollback mutation. Retrying a failed/contended challenge
+therefore requires a newly authorized operation rather than reuse of the prior
+authorization. The claim ID is also bound into terminal evidence-origin
+authentication.
+
 The journal canary must advance exactly one sequence. High-water must advance
 to at least the journal challenge sequence and may never be rolled back.
 
-Before the first mutating capability, the observed journal, protected high-water,
-and external-witness sequence counters must each have representable headroom
-below `Number.MAX_SAFE_INTEGER`. An exhausted counter HOLDs before the canary
-append. Capability-returned sequence values are revalidated as safe integers.
+Before the create-once authorization claim—and therefore before any journal,
+high-water, witness, or rollback mutation—the observed journal, protected
+high-water, and external-witness sequence counters must each have representable
+headroom below `Number.MAX_SAFE_INTEGER`. An exhausted counter HOLDs before
+the claim. Capability-returned sequence values are revalidated as safe integers.
 
 Policy generation is a canonical positive decimal string bounded to
 `1..18446744073709551615` (uint64); a merely 20-digit decimal is not sufficient.
@@ -132,6 +144,7 @@ rollback controller, second-control authority, storage devices, evidence origin,
 or external witness were authentic.
 
 The candidate therefore also keeps:
+`authorization_claim_authenticated=false`,
 `operation_bound_authorization_authenticated=false`,
 `non_customer_canary_isolation_proven=false`,
 `challenge_unpredictability_proven=false`,
