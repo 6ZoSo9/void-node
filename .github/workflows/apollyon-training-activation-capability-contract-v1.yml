@@ -53,7 +53,7 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
             cdf72610b121ecb05edbcad89cdb6256ad1e4945
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
-            3cd658baed9e744cf7b33ba2e192dc0558c9af43
+            3399a147d5e6013bfb02c44baaf06c30ca798b40
           test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
             fc834c8b296307fc6575e2cbc4cd8ba2e1516733
 
