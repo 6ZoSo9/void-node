@@ -6,7 +6,7 @@ Status: **pure source/test contract; no protected consumption-store observation,
 
 ## Purpose
 
-Accepted #3333 exact head `fdf47e77cd12eee38efe741edb02fa2fd39135e2`
+Accepted #3333 exact head `bdadfcc6854d6f4e1804347e51b940e897a8da9f`
 defines one authorization-wide create-once training-start consumption slot and
 one claim/trainer-specific consumption record, and revalidates the exact #3357
 unique authorization→claim winner before deriving that consumption record. This successor freezes the exact
@@ -119,11 +119,11 @@ on the designated host before any release authority can be considered.
 ## Current generation binding
 
 This repaired release-binding generation is stacked on #3333
-`fdf47e77cd12eee38efe741edb02fa2fd39135e2` and binds:
+`bdadfcc6854d6f4e1804347e51b940e897a8da9f` and binds:
 - training-start consumption source Git blob
-  `60987b860fb7159d88f4f601b76878e7d8ccca92`;
+  `42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3`;
 - authorization-slot source Git blob
-  `93582c324ca85aeff56eb61f82b32f1e4c18dfe9`.
+  `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`.
 
 Both modules are included in focused PR/main-push trigger closure. Frozen prior
 release-binding generations remain historical evidence only.

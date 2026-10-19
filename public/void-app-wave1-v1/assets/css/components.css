@@ -133,7 +133,9 @@ kbd { padding: .2rem .4rem; border: 1px solid var(--void-border-default); border
 .command-results h2 { padding: .35rem .5rem; color: var(--void-text-muted); font-size: var(--void-text-11); text-transform: uppercase; letter-spacing: .08em; }
 .command-results a { display: grid; grid-template-columns: 6rem 1fr; padding: .65rem .75rem; border-radius: var(--void-radius-2); font-weight: 700; }
 .command-results a:hover { background: var(--void-surface-2); }
+.command-results a[hidden] { display: none; }
 .command-results span { color: var(--void-text-muted); font-weight: 450; }
+.command-empty { margin: .25rem .5rem; padding: .75rem; border: 1px dashed var(--void-border-subtle); border-radius: var(--void-radius-2); color: var(--void-text-muted); text-align: center; }
 .toast-region { position: fixed; z-index: var(--void-z-toast); right: 1rem; bottom: 1rem; display: grid; gap: .5rem; width: min(24rem, calc(100vw - 2rem)); pointer-events: none; }
 .toast { display: flex; gap: .75rem; padding: .9rem 1rem; border: 1px solid var(--void-border-default); border-radius: var(--void-radius-2); background: var(--void-surface-overlay); box-shadow: var(--void-shadow-2); }
 .sheet { position: fixed; z-index: var(--void-z-drawer); left: .5rem; right: .5rem; bottom: .5rem; max-height: 78vh; border: 1px solid var(--void-border-default); border-radius: 1.15rem; background: var(--void-surface-overlay); box-shadow: var(--void-shadow-2); }

@@ -16,7 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
-EXPECTED_PLANNER_BLOB_SHA1="69db13fffaf1678da03b90f0fa14fd60c3c5c98c"
+EXPECTED_PLANNER_BLOB_SHA1="ae8acfe7bb737930a67705dd562dcfe9f796bc42"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -161,11 +161,53 @@ assert '"GIT_TERMINAL_PROMPT":"0"' in source
 assert '"GIT_NO_REPLACE_OBJECTS":"1"' in source
 assert '"GIT_NO_LAZY_FETCH":"1"' in source
 assert 'run_git(["cat-file","-t",commit])' in source
+assert 'pending.popleft()' in source
+assert 'from collections import deque' in source
 
 spec=importlib.util.spec_from_file_location("claim_store_host_plan_v2",PLAN)
 assert spec is not None and spec.loader is not None
 module=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+
+# A reviewed ancestor one edge away must not be starved by a long unrelated
+# second-parent merge lineage. A genuinely over-limit search must still HOLD.
+synthetic_root="a"*40
+synthetic_reviewed="b"*40
+synthetic_side="c"*40
+synthetic_missing="d"*40
+saved_commit_parents=module.raw_commit_parents
+def synthetic_merge_parents(commit:str)->list[str]:
+    if commit==synthetic_root:
+        return [synthetic_reviewed,synthetic_side]
+    if commit==synthetic_side:
+        return [f"{1:040x}"]
+    if commit==synthetic_reviewed:
+        return []
+    try:
+        serial=int(commit,16)
+    except ValueError:
+        return []
+    if 1<=serial<5000:
+        return [f"{serial+1:040x}"]
+    return []
+module.raw_commit_parents=synthetic_merge_parents
+try:
+    assert module.raw_commit_ancestry_contains(
+        synthetic_root,synthetic_reviewed,max_commits=4
+    ) is True
+    assert module.raw_commit_ancestry_contains(
+        synthetic_root,synthetic_side,max_commits=4
+    ) is True
+    try:
+        module.raw_commit_ancestry_contains(
+            synthetic_root,synthetic_missing,max_commits=4
+        )
+    except module.Hold as exc:
+        assert str(exc)=="source_git_ancestry_limit_exceeded",str(exc)
+    else:
+        raise AssertionError("over-limit ancestry must HOLD")
+finally:
+    module.raw_commit_parents=saved_commit_parents
 
 assert module.parse_login_defs(
     "SYS_UID_MIN 100\nSYS_UID_MAX 999\nSYS_GID_MIN 200\nSYS_GID_MAX 888\n"
