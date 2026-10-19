@@ -1,31 +1,32 @@
 {
   "schema": "void_buy_void_epoch2_live_composition_runner_policy_candidate_lock_v6r3",
   "marker": "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3",
-  "version": 2,
+  "version": 3,
   "repository": "6ZoSo9/void-node",
-  "candidate_head": "8adfab987d759260dc826ab6ae473c35131223e8",
+  "candidate_head": "464391674f58fb8fb6d61860bce1f2e794a35a29",
   "compatibility_hosted_evidence": {
     "workflow": "Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1",
-    "run_id": 39286886878,
-    "job_id": 118176008215,
+    "run_id": 39292627615,
+    "job_id": 118196911620,
     "conclusion": "success"
   },
   "candidate_hosted_evidence": {
     "workflow": "Buy VOID Epoch-2 live-composition runner policy candidate V6R3",
-    "run_id": 39286886430,
-    "job_id": 118176008157,
+    "run_id": 39292626619,
+    "job_id": 118196908327,
+    "identity_job_id": 118199376688,
     "conclusion": "success"
   },
   "candidate_report": {
-    "candidate_id": "voidbuye2runnerpolcand6r3_9c00c1601412e8d3873c42c37000a6886580c992355822496eee57b55528f60b",
-    "candidate_script_git_blob_sha1": "943b13ed325d97db01cb848f078e255248b12138",
-    "candidate_workflow_git_blob_sha1": "0e2f3c7dbbebdaa6c7120699aad35890646dc954",
+    "candidate_id": "voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d",
+    "candidate_script_git_blob_sha1": "c462fb935f086dbc0b67305d5efacb5a06fbd9c9",
+    "candidate_workflow_git_blob_sha1": "d289636b0e7cfe4a0bff44ead7d8642682fc09c6",
     "compat_contract_git_blob_sha1": "cb82a71cf83348f3709719cb1c8b44f3f687eabb",
-    "compat_proof_git_blob_sha1": "9f19d59700159405e5c9de3e261da05d7a0e832d",
+    "compat_proof_git_blob_sha1": "1fb858fe995e0b73d676f3db271ca714d59988cf",
     "compat_workflow_git_blob_sha1": "88d4fcbedfdccb6e33ea733beb2033571e45f876",
-    "runner_source_git_blob_sha1": "8e3c588f9c7275dcb0e351d2785b5a923982f133",
-    "runner_sha256": "730effadd9b95ec43d609759239ce43ab61e9e118c6c897cd0e13faa37a0e7f4",
-    "runner_bytes": 61692,
+    "runner_source_git_blob_sha1": "7967778824f22baca976a59df75f9f808ebebfe2",
+    "runner_sha256": "a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029",
+    "runner_bytes": 64960,
     "runner_install_mode": "0444",
     "runtime_head": "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb",
     "runtime_tree": "de12c9d2d5e475d435d21da3b047d7b63b69e2b7",
@@ -61,12 +62,14 @@
   "native_binary_rebuild_required": false,
   "superseded_candidate_ids": [
     "voidbuye2runnerpolcand6r3_eee91de4d93ea4ab3068621659a8420255772b49f25556f3d93cbd67d3059c0a",
-    "voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d"
+    "voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d",
+    "voidbuye2runnerpolcand6r3_9c00c1601412e8d3873c42c37000a6886580c992355822496eee57b55528f60b"
   ],
   "superseded_lock_ids": [
     "voidbuye2runnerpollock6r3_4d55eadc456d48aed2e77df8a4897c0756b173761e7a10b0f1b53b24dd4d50a2",
     "voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202",
-    "voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67"
+    "voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67",
+    "voidbuye2runnerpollock6r3_261c86ebce21170cf95479f7817e8a5689cb8438286a189bb239019a035adb5e"
   ],
   "superseded_install_authority": false,
   "protected_install_authorized": false,
@@ -83,5 +86,5 @@
   "funds_movement_authorized": false,
   "production_host_evidence_authority": false,
   "next_gate": "void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan",
-  "lock_id": "voidbuye2runnerpollock6r3_261c86ebce21170cf95479f7817e8a5689cb8438286a189bb239019a035adb5e"
+  "lock_id": "voidbuye2runnerpollock6r3_ee585a52fc383c31c6f61d9d43fa88e7ef97824d86c5e896e143ec91cf7a3ade"
 }
