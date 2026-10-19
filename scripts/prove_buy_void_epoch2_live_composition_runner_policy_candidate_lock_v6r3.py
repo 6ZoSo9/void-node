@@ -16,19 +16,19 @@ V6R2_LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-l
 
 MARKER="VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3_MAIN_INTEGRATION"
 LOCK_PREFIX="voidbuye2runnerpollock6r3_"
-LOCK_ID="voidbuye2runnerpollock6r3_1c5c5b31abd01aa6cf3f080b2cf666980f18a6a2daf22700127fd6d84951f74c"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d"
+LOCK_ID="voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f"
 EXPECTED={
- CANDIDATE:"c462fb935f086dbc0b67305d5efacb5a06fbd9c9",
+ CANDIDATE:"de239b697b93fce57d4a24c39e85b64abb9dbfa4",
  CANDIDATE_WORKFLOW:"eacf6ee3c203e65a412ef057a5fe6fc2104fa682",
- RUNNER:"7967778824f22baca976a59df75f9f808ebebfe2",
+ RUNNER:"4e84b6eb77c284ecf7d85b609cec4d1cf130c7a7",
  COMPAT_CONTRACT:"f37fcd41bbb7efa057b66c3a7ad46d36f2d6e9ae",
- COMPAT_PROOF:"3becee2b1b22141fed6c95812044aeb4877d645a",
+ COMPAT_PROOF:"ebf8b5e18b345e3336b506cb6ba765844b3a766e",
  COMPAT_WORKFLOW:"402267212f3280e54c204a124ccb26c332821f97",
  V6R2_LOCK:"bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b",
 }
-RUNNER_SHA256="a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029"
-RUNNER_BYTES=64960
+RUNNER_SHA256="88e51377e473d4f0352f949f87ab5566078c85dddb1ab3e8e1bbb9908bfba19b"
+RUNNER_BYTES=66548
 NATIVE_SHA256="85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
@@ -55,17 +55,17 @@ assert lock["version"]==4
 assert lock["repository"]=="6ZoSo9/void-node"
 assert lock["integration_pr"]==3546
 assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
-assert lock["integration_head"]=="86cd50bf0933e5caba420008eba577f91cdea0fc"
-assert lock["integration_tree"]=="d47f88d0d006f8ba198a2476dc345ce62bf7f1a1"
-assert lock["stacked_source_head_superseded_for_current_authority"]=="fea69219f0cedc8ba35c7737ec865c202c0054e4"
+assert lock["integration_head"]=="3723f1ccd760b43cdfae1b975770ea2fa023c13a"
+assert lock["integration_tree"]=="0e3cd2d773fc53ed76e6ff0fec5bee4dac1dd858"
+assert lock["stacked_source_head_superseded_for_current_authority"]=="cb8554553dcc97e4abb5a9f8f15a26a487773fb5"
 assert lock["compatibility_hosted_evidence"]=={
  "workflow":"Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1",
- "run_id":39310618025,"job_id":118258923320,"conclusion":"success",
+ "run_id":39315729820,"job_id":118276583700,"conclusion":"success",
 }
 assert lock["candidate_hosted_evidence"]=={
  "workflow":"Buy VOID Epoch-2 live-composition runner policy candidate V6R3",
- "run_id":39310618703,"job_id":118258920779,
- "identity_job_id":118259141001,"conclusion":"success",
+ "run_id":39315730310,"job_id":118276585034,
+ "identity_job_id":118277467748,"conclusion":"success",
 }
 r=lock["candidate_report"]
 assert r["candidate_id"]==CANDIDATE_ID
@@ -84,6 +84,10 @@ assert sc["runtime_ancestor_required"] is True
 assert sc["tracked_checkout_exact_required"] is True
 assert sc["runtime_source_dependency_blob_equality_required"] is True
 assert sc["untracked_paths_source_authority"] is False
+assert sc["canonical_git_dir_worktree_pinned_required"] is True
+assert sc["sealed_probe_runtime_release_cwd_required"] is True
+assert sc["runtime_release_root_custody_required"] is True
+assert sc["runtime_release_path"]=="/opt/void-node-live/releases/4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 assert r["native_binary_sha256"]==NATIVE_SHA256
 assert r["native_binary_identity_reused"] is True
 assert r["native_binary_rebuild_required"] is False
@@ -95,6 +99,8 @@ for k in ("protected_install_authorized","live_execution_authorized","credential
  assert lock[k] is False,k
 assert lock["superseded_install_authority"] is False
 assert "voidbuye2runnerpollock6r3_bdd3e0b6fe28f2a6873920cdb1436914183e817c02b4d4ac9da130e3ec14b365" in lock["superseded_lock_ids"]
+assert "voidbuye2runnerpollock6r3_1c5c5b31abd01aa6cf3f080b2cf666980f18a6a2daf22700127fd6d84951f74c" in lock["superseded_lock_ids"]
+assert "voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d" in lock["superseded_candidate_ids"]
 assert lock["next_gate"]=="void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan"
 material=dict(lock); observed=material.pop("lock_id")
 assert observed==LOCK_ID==LOCK_PREFIX+sha256(canonical(material))
