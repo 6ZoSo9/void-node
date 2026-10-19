@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          parent=7b6e27d36836d8dbe9951efa82485e9c2dec025a
+          parent=aab4988f9c530f1450f152be03c059f7f635058b
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
@@ -83,24 +83,24 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_releaser_integration_v1.c)" = \
-            e1937de85d7090993332b2acff2debf11fe51ac1
+            dc3a478df709c2486f8e02c65f9ed2c9f3a51cb9
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_releaser_integration_v1.py)" = \
-            886fd54718303dd3320d77bddad7b9721d5884d5
+            8f61ebf2421124711273a3472ef3f203f0292bc4
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-releaser-integration-v1.md)" = \
-            3989174a962aef284e5e48f3e863c6cf7c47038a
+            e43c0eb2cbd99e0ecc369d0e3192f43d04d79e24
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_release_pipe_pair_generation_v1.c)" = \
             93390eefd1e72e70af7206e9982c8eaa5e042149
           test "$(git rev-parse HEAD:scripts/prove_apollyon_release_pipe_pair_generation_v1.py)" = \
-            88abd5de23abb4d12d40fa4a2e3672f60413fe29
+            26109cd2a9b47fc3fdd2ee326fdd073b590607c2
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_native_candidate_v1.c)" = \
-            265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36
+            7ce2475cb50d6527b526479892e5d662792ce84b
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_native_candidate_v1.py)" = \
-            23a08c6e8de156ae105a6f60ebdea262ce70e89b
+            daa4f0c33f4b05f7e090b4a3c2e7513e79f2a107
           test "$(git rev-parse HEAD:tools/apollyon-training-start-release-binding-v1.mjs)" = \
-            01757cbd80c12561218ac4ba0a29e9675e42adec
+            a7e4a69b9561fe441a0a1ab7476c6329e2cea3a8
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_binding_v1.mjs)" = \
-            38f63789b5e1ff86e9d38f128e841e22d9c7e495
+            a9a7c85a9bb48996ecce056ad47f2b7dc3d65d28
 
           git diff --check "$base" "$HEAD_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

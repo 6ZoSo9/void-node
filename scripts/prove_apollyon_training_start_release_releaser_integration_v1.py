@@ -14,8 +14,8 @@ SOURCE = ROOT / "ops/xiphos/apollyon_training_start_release_releaser_integration
 TRAINER = ROOT / "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
 PIPE_PAIR = ROOT / "ops/xiphos/apollyon_release_pipe_pair_generation_v1.c"
 
-SOURCE_BLOB = "e1937de85d7090993332b2acff2debf11fe51ac1"
-TRAINER_BLOB = "265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36"
+SOURCE_BLOB = "dc3a478df709c2486f8e02c65f9ed2c9f3a51cb9"
+TRAINER_BLOB = "7ce2475cb50d6527b526479892e5d662792ce84b"
 PIPE_PAIR_BLOB = "93390eefd1e72e70af7206e9982c8eaa5e042149"
 
 MARKER = "VOID_APOLLYON_TRAINING_START_RELEASE_RELEASER_INTEGRATION_V1"
@@ -68,7 +68,7 @@ assert git_blob(PIPE_PAIR.read_bytes()) == PIPE_PAIR_BLOB
 source_text = SOURCE.read_text(encoding="utf-8")
 for required in (
     'PARENT_PIPE_PAIR_BLOB_SHA1 "93390eefd1e72e70af7206e9982c8eaa5e042149"',
-    'TRAINER_NATIVE_BLOB_SHA1 "265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36"',
+    'TRAINER_NATIVE_BLOB_SHA1 "7ce2475cb50d6527b526479892e5d662792ce84b"',
     "PROC_SUPER_MAGIC",
     "singleton_self",
     "release_pipe_fd_scan",

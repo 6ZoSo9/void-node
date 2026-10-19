@@ -21,7 +21,7 @@ function gitBlob(bytes){
 
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs":
-    "5d913eb08d79c76ed926d8b88be05b12f475abd5",
+    "3feed7f71fb6941f8feccf393f151fa9e973d7a4",
   "ops/precision/void_buy_void_user_manager_private_peer_guard_v1.c":
     "d8b30ac499c3bb8a5d223dbc6be687dd175be611",
 })){

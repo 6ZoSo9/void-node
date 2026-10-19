@@ -34,22 +34,22 @@ positive entry is the hosted \`--self-test\` composition.
 
 Parent #3397:
 
-\`7b6e27d36836d8dbe9951efa82485e9c2dec025a\`.
+\`aab4988f9c530f1450f152be03c059f7f635058b\`.
 
 Exact source dependencies:
 
 - #3397 pipe-pair C blob:
   \`93390eefd1e72e70af7206e9982c8eaa5e042149\`;
 - #3397 focused proof blob:
-  \`88abd5de23abb4d12d40fa4a2e3672f60413fe29\`;
+  \`26109cd2a9b47fc3fdd2ee326fdd073b590607c2\`;
 - current #3381 trainer native C blob:
-  \`265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36\`;
+  \`7ce2475cb50d6527b526479892e5d662792ce84b\`;
 - current #3381 focused proof blob:
-  \`23a08c6e8de156ae105a6f60ebdea262ce70e89b\`;
+  \`daa4f0c33f4b05f7e090b4a3c2e7513e79f2a107\`;
 - current #3351 release-binding source blob:
-  \`01757cbd80c12561218ac4ba0a29e9675e42adec\`;
+  \`a7e4a69b9561fe441a0a1ab7476c6329e2cea3a8\`;
 - current #3351 proof blob:
-  \`38f63789b5e1ff86e9d38f128e841e22d9c7e495\`.
+  \`a9a7c85a9bb48996ecce056ad47f2b7dc3d65d28\`.
 
 ## Bounded writer-continuity interval
 
@@ -148,3 +148,15 @@ It does not mutate Xiphos services, protected state, claims, keys, wallets,
 transactions or funds.
 
 **PROTECT THE CORE.**
+
+## October 19 current-parent reconciliation
+
+This generation is a non-force merge-forward over current #3397
+`aab4988f9c530f1450f152be03c059f7f635058b`. All writer-continuity controls from the inherited-ring /
+SCM_RIGHTS repair remain unchanged. The C source changes only the exact current
+trainer-native identity to `7ce2475cb50d6527b526479892e5d662792ce84b`; the focused proof and workflow
+bind the current #3397, #3381 and #3351 dependency generations.
+
+Protected releaser origin, production writer exclusivity, protected
+consumption/winner provenance, actual trainer release, training, credentials,
+transactions, and funds authority remain false/unproven.

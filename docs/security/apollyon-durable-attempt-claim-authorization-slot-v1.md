@@ -10,6 +10,27 @@ Accepted #3233/#3276 bind durable claim records to one authorization and require
 
 This contract adds the missing stable atomic namespace without changing the accepted #3233 `store_policy_id`. The slot namespace is not a second store: it must live under the exact same protected claim state root and store-generation lifecycle, with the same dedicated claim service as its only writer. Publisher, training and custody identities must have no slot write/rename/unlink authority.
 
+## Current-parent binding (October 18, 2026)
+
+The source contract is composed on the updated native process-identity parent
+#3309 `954c160b9a0c0f3585458c0e785bc2be26f9f7f3`. The previous base was
+`030fa29867c1296cc2f91f024f55f4fb9596191f`. Complete nontruncated Git-tree
+comparison identifies 355 upstream changed paths and **zero path overlap** with
+the four authorization-slot contract paths.
+
+The accepted source-only service-candidate module in the current parent has
+Git blob `87019ae1245a2054407dd47835b0b7a891d4d9a2`, replacing historical
+`d67ef39c4cd034844fb0862e180de46ed4cd0c88`. Its own revision differs only
+in two pinned host-plan source-generation identities. The authorization-slot
+contract rebinds this exact parent blob but does not change the authorization
+slot ID derivation, replay uniqueness rules, the stable reviewed store-policy
+ID, or any physical writer/runtime authority.
+
+Every downstream contract that pins the old authorization-slot source blob
+must be independently requalified; an updated parent source identity does not
+make a detached receipt a protected origin, and green CI does not authorize
+claim-service installation, training, or capability issuance.
+
 ## Stable authorization slot
 
 The authorization slot ID is content-addressed from exactly:
