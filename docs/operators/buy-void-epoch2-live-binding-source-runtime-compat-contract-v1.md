@@ -87,8 +87,24 @@ This V4 source is **not installed** and grants no live authority. It preserves t
 - runtime→source delta must be exactly the reviewed 15 ADD-only paths;
 - tracked checkout drift is rejected while unrelated untracked paths remain non-authoritative;
 - credential-qualification and sealed-probe Git blobs must be identical at runtime and source heads;
+- all live Git observation runs with global/system config disabled, replacement objects disabled, lazy fetch disabled, prompts/askpass disabled, and all Git transports denied; missing objects HOLD locally rather than contacting a remote;
 - the sensitive sequence continues to use the runtime head authenticated by the installed native preentry.
 
 The V4 receipt adds explicit source-checkout compatibility fields while keeping transaction/payment/activation/funds authority false.
 
 Next source gate after exact-head CI: derive the V6R3 runner/policy candidate-lock/install/qualification lifecycle. The existing credential native preentry V3 binary remains intentionally unchanged.
+
+## CI-only execution-path correction
+
+The production target remains deliberately bound to fixed `/usr/bin/node` through
+the installed native-preentry policy. Hosted CI is not the production host and
+must not pretend that its toolcache layout is `/usr/bin/node`.
+
+The focused Python source proof therefore resolves `node` from the hosted CI
+`PATH` only for inert `--self-test` / `--plan` execution. This does not alter
+the live runner's fixed target-host `NODE="/usr/bin/node"` constant or installed
+policy identity.
+
+The workflow also pins `actions/checkout` to the repository-reviewed immutable
+commit and disables persisted checkout credentials. These are CI provenance
+controls only; they grant no live authority.
