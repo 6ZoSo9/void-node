@@ -6,9 +6,9 @@ Status: **read-only candidate archive admission**. This source does not install,
 
 ## Exact predecessor
 
-- Candidate acceptance lock: #3494 head `283f135a826895c8b90b6c973d58a7d7f2447eb4`.
-- Accepted lock source: `ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py`, Git blob `2351eaf1f12317b8ae047ad6dd58f29ba116e0c7`.
-- Historical static candidate derivation: #3482 head `2aec1d7a30e9c6b20b7d1cf0831f34c240674727`.
+- Candidate acceptance lock: #3494 head `389531f38cf8aa822987fee4e52ccad3758eada0`.
+- Accepted lock source: `ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py`, Git blob `60308199258475936596e38398b00fda553bd5be`.
+- Historical static candidate derivation: #3482 head `bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c`.
 - Accepted candidate ID: `apollyon_claim_protected_first_entry_static_candidate_v1:2a1fde88ced23606a3e0b6b10bb1205217915b36a0332ee89b5ec81181b32e23`.
 
 The accepted lock source is read and authenticated as a fixed Git blob, then compiled from exactly those retained bytes under Python isolated startup. Before its derivation or validation runs, this verifier replaces the historical lock module's pathname-reopening `stable_file()` helper with a retained `O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK` descriptor reader that revalidates exact visible/FD generation, Git blob and `HEAD:path` identity. This prevents the immutable parent logic from reintroducing a mutable checkout symlink/FIFO race through its four dependency reads. Parent compilation/derivation/revalidation errors are translated into the machine-readable negative-authority `HOLD=accepted_parent_lock_revalidation_failed` contract. The existing parent derivation and validation still reprove repository ancestry, parent blobs, candidate acceptance, and negative install/training authority. No caller-supplied lock is accepted by the public CLI.

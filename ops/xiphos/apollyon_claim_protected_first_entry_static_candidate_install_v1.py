@@ -36,10 +36,10 @@ from typing import Any
 
 MARKER = "VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1"
 ROOT = Path(__file__).resolve().parents[2]
-PARENT_HEAD = "283f135a826895c8b90b6c973d58a7d7f2447eb4"
+PARENT_HEAD = "389531f38cf8aa822987fee4e52ccad3758eada0"
 PARENT_REL = "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
-PARENT_BLOB = "2351eaf1f12317b8ae047ad6dd58f29ba116e0c7"
-ACCEPTED_CANDIDATE_HEAD = "2aec1d7a30e9c6b20b7d1cf0831f34c240674727"
+PARENT_BLOB = "60308199258475936596e38398b00fda553bd5be"
+ACCEPTED_CANDIDATE_HEAD = "bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c"
 ACCEPTED_BINARY = "apollyon-claim-protected-first-entry-static-v1"
 ACCEPTED_INSTALL_LEAF = (
     "/opt/void-apollyon-claim-protected-first-entry-v1/bin/"

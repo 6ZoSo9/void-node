@@ -1,0 +1,147 @@
+name: Buy VOID Epoch-2 native installed qualification v5
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v5.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v5.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v5.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v5.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact V5 qualification generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          repaired_parent=bbe8ca7dd835cfe85fda4667031ea2914b19f09a
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$repaired_parent" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n'             '.github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v5.yml'             'docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v5.md'             'ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py'             'scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py'             | sort > "$expected"
+          git diff --name-only "$repaired_parent" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" =             "a04c2e7665294cdd142426e9eb01ee27c5292b8d"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" =             "c14ec00acffbc55630aa68db0013d97cac068ab3"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v5.md)" =             "d7ad157a837c818e26c4588e310c6db46de88620"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" =             "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
+
+
+          git diff --check "$repaired_parent" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo historical_v4_qualifier_preservation_owned_by_parent=true
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py",
+              "scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V5_SYNTAX_GREEN")
+          PY
+
+      - name: Prove installed qualification source
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e2-native-installed-qualification-v5-proof.log"
+          python3 -I -B             scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V5_PROOF_GREEN"
+            "installer_source_blob_bound=true"
+            "exact_installed_root_required=true"
+            "retained_predecessor_generation_required=true"
+            "retained_predecessor_stability_required=true"
+            "expected_head_policy_binding_required=true"
+            "protected_upgrade_verified=true"
+            "node_generation_binding_required=true"
+            "checkout_generation_binding_required=true"
+            "double_native_self_test_required=true"
+            "descriptor_bound_native_self_test_required=true"
+            "pathname_swap_during_self_test_rejected=true"
+            "retained_fd_executed_during_path_swap=true"
+            "replacement_path_not_executed=true"
+            "runner_execution=false"
+            "live_composition_execution=false"
+            "credential_access=false"
+            "private_key_access=false"
+            "signing=false"
+            "transaction=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "treasury_liquidity_action=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Inert V5 qualification plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e2-native-installed-qualification-v5-plan.log"
+          python3 -I -B             ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py             --plan | tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V5"
+            "mode=plan"
+            "root_required_for_run=true"
+            "install_root=/opt/void-buy-void-epoch2-live-composition-v3"
+            "exact_expected_head_required=true"
+            "installed_generation_verification_required=true"
+            "retained_predecessor_verification_required=true"
+            "node_generation_binding_required=true"
+            "checkout_generation_binding_required=true"
+            "double_native_self_test_required=true"
+            "descriptor_bound_native_self_test_required=true"
+            "native_self_test_execution=false"
+            "runner_execution=false"
+            "live_composition_execution=false"
+            "credential_access=false"
+            "private_key_access=false"
+            "signing=false"
+            "transaction=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "treasury_liquidity_action=false"
+            "funds_movement=false"
+            "production_host_evidence_authority=false"
+            "next_action=SEPARATELY_AUTHORIZE_EPOCH2_V6R2_NATIVE_INSTALLED_READ_ONLY_QUALIFICATION"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check

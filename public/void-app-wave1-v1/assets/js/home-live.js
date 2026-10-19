@@ -26,7 +26,49 @@ const currentRoute = () => {
   return location.hash.replace(/^#\/?/, '').split(/[?\/]/)[0] || 'home';
 };
 
+const clearHomeEvidence = (stateLabel, shellMeta) => {
+  setText('[data-home-network-state]', stateLabel);
+  setText('[data-home-account-state]', stateLabel);
+  setText('[data-home-node-state]', stateLabel);
+  setText('[data-home-void-balance]', '—');
+  setText('[data-home-spendable-wc]', '—');
+  setText('[data-home-production-wc]', '—');
+  setText(
+    '[data-home-balance-note]',
+    stateLabel === 'CHECKING'
+      ? 'Loading fresh account context'
+      : 'Live account context unavailable'
+  );
+  setText(
+    '[data-home-health-value]',
+    stateLabel === 'CHECKING' ? 'Checking' : 'Unavailable'
+  );
+  setText(
+    '[data-home-ready-value]',
+    stateLabel === 'CHECKING' ? 'Checking' : 'Unavailable'
+  );
+  setText('[data-home-peers-value]', '—');
+  setText('[data-home-head-value]', '—');
+  setText('[data-home-mesh-value]', 'HOLD');
+  setText('[data-home-node-name]', 'Local node');
+  setText(
+    '[data-network-context-label]',
+    stateLabel === 'CHECKING' ? 'Checking network' : 'Network unavailable'
+  );
+  setText('[data-network-context-meta]', shellMeta);
+  setText('[data-node-footer-name]', 'Local node');
+  setText('[data-node-footer-meta]', shellMeta);
+  setText(
+    '[data-home-last-updated]',
+    stateLabel === 'CHECKING' ? 'Refreshing live state' : 'Live state unavailable'
+  );
+
+  const headerDot = document.querySelector('[data-network-context-dot]');
+  if (headerDot) headerDot.className = 'status-dot status-dot--warning';
+};
+
 const setLoading = () => {
+  clearHomeEvidence('CHECKING', 'Loading fresh state');
   setChip(
     document.querySelector('[data-home-state-chip]'),
     'info',
@@ -40,6 +82,7 @@ const setLoading = () => {
 };
 
 const setError = (message) => {
+  clearHomeEvidence('UNAVAILABLE', 'Live state unavailable');
   setChip(
     document.querySelector('[data-home-state-chip]'),
     'warning',

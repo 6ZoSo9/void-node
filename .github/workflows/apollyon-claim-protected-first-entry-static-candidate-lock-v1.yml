@@ -78,7 +78,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          parent=2aec1d7a30e9c6b20b7d1cf0831f34c240674727
+          parent=bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
 
@@ -110,20 +110,20 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
-            2351eaf1f12317b8ae047ad6dd58f29ba116e0c7
+            60308199258475936596e38398b00fda553bd5be
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
-            5261be7e756480ca6add3855f23118ebe196af3b
+            1ca4ee7482538e27afe09759f098ab91d5081361
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = \
-            ce0c1767296c13755b5ce95dbecdcae0f4cfb980
+            a5b3cad72b813afacbfc1fea1b3fcee21f6cca34
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
-            2ff81973b10c176523b0bf172a14fe1495a83986
+            99a1823f4b8349b6f65f210c59e1dbce4a4578f0
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
-            4d31e52fe32a7ca9567bf7c2f0f8e6228caf9bea
+            2f518fb95e4fc6ff55a4a41d60f085a5f9576b60
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = \
-            fc7cf98be5b907729f95021d16139e455413d787
+            d3c27cbf63249695d45e47b3dc0ff98f75a961bb
           test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = \
-            a38a8c2d70d77be554af32f225e4d9d8491aea7e
+            e4251199373f4290b873d818b5a07447232eb663
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

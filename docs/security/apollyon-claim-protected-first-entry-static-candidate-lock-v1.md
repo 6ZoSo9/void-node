@@ -22,18 +22,18 @@ grant key/signing/transaction/funds authority.
 
 Parent #3482 exact head:
 
-`2aec1d7a30e9c6b20b7d1cf0831f34c240674727`.
+`bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c`.
 
 Parent-owned blobs:
 
 - candidate derivation tool:
-  `2ff81973b10c176523b0bf172a14fe1495a83986`;
+  `99a1823f4b8349b6f65f210c59e1dbce4a4578f0`;
 - focused candidate proof:
-  `4d31e52fe32a7ca9567bf7c2f0f8e6228caf9bea`;
+  `2f518fb95e4fc6ff55a4a41d60f085a5f9576b60`;
 - candidate security document:
-  `fc7cf98be5b907729f95021d16139e455413d787`;
+  `d3c27cbf63249695d45e47b3dc0ff98f75a961bb`;
 - focused workflow:
-  `a38a8c2d70d77be554af32f225e4d9d8491aea7e`.
+  `e4251199373f4290b873d818b5a07447232eb663`.
 
 The accepted protected-first-entry source parent remains:
 
@@ -71,7 +71,7 @@ accepted binary or make the acceptance lock non-executable.
 The lock accepts exactly:
 
 - candidate ID:
-  `apollyon_claim_protected_first_entry_static_candidate_v1:2a1fde88ced23606a3e0b6b10bb1205217915b36a0332ee89b5ec81181b32e23`;
+  `apollyon_claim_protected_first_entry_static_candidate_v1:81613bf7887ef287f6aa7cbb4a1bbe8ed0f180981fb8fe9538f6f0ab122855d9`;
 - ELF bytes: `808472`;
 - ELF SHA-256:
   `9c414a6aac9bbfc1b07175908e130993141255b132359ccae23ae49ecf5f7b6d`;
@@ -86,13 +86,13 @@ The lock accepts exactly:
 The lock also binds the accepted #3482 evidence envelope:
 
 - canonical candidate-report SHA-256:
-  `8e96b53161b0b5447e5b02499537803ffd680b5f01d6520ec1653fee52c75649`;
+  `6696b52bc43c451af576814d452c827ad89644a14803cab9d24affabb82c189c`;
 - raw candidate-report SHA-256:
-  `dffdd2ce32fcf9dee765f8a6d17b455e100022012c7cd17d9cec1f5d436b484a`;
+  `4bb7a70116da4021a9975f6e8c15c666ba32f5c62d3cedf4a618b22aecf76731`;
 - deterministic inner tar SHA-256:
-  `ca21d9f28b66c408f857ee00480a63585080025a6a76a84efca472e188390944`;
+  `89c3edf89d15f9e263d8d8dd603dd7b068a7eb64380c59852e1000e614a0607a`;
 - hosted wrapper SHA-256:
-  `ae1a062c6bd6a74d446a4cc7bf25242e11f2638f2c17c30dc1b2ae08017fc417`;
+  `9e9dacf414025479b04a2a4026b305a2b7e40131cfbdb30b95e2cbc70af2d0b3`;
 - accepted runner image: `ubuntu24/20261012.334`;
 - accepted GCC SHA-256:
   `1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26`;

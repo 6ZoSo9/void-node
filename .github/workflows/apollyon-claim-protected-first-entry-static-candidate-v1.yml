@@ -69,7 +69,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=a149fe2fbac4cb8bb11ed049dfb12a1d0110bfae
+          parent=e357073c5d7932f924c077a73349e9050dfb78eb
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
 
@@ -100,13 +100,13 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
-            2ff81973b10c176523b0bf172a14fe1495a83986
+            99a1823f4b8349b6f65f210c59e1dbce4a4578f0
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
-            4d31e52fe32a7ca9567bf7c2f0f8e6228caf9bea
+            2f518fb95e4fc6ff55a4a41d60f085a5f9576b60
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = \
-            fc7cf98be5b907729f95021d16139e455413d787
+            d3c27cbf63249695d45e47b3dc0ff98f75a961bb
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_v1.py)" = \
-            598c195252a17b7e4839763387c1970ea13c3b45
+            8348bba0a6a8b6c30ffdcc3a12658f20e99b8592
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

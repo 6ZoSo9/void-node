@@ -21,11 +21,11 @@ acceptance lock, protected install, or Xiphos qualification.
 
 Exact accepted parent:
 
-`a149fe2fbac4cb8bb11ed049dfb12a1d0110bfae`.
+`e357073c5d7932f924c077a73349e9050dfb78eb`.
 
 Exact predecessor proof blob:
 
-`598c195252a17b7e4839763387c1970ea13c3b45`.
+`8348bba0a6a8b6c30ffdcc3a12658f20e99b8592`.
 
 ## Production compile contract
 

@@ -15,7 +15,7 @@ import errno
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
-SOURCE_BLOB = "a5b68208ae501d52ac46a8618aa76085616bd24a"
+SOURCE_BLOB = "8e66a5ad125d89180b6ae4159c22e481db49fdc8"
 
 
 def git_blob(raw: bytes) -> str:
