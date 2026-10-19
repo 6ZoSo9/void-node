@@ -65,6 +65,7 @@ jobs:
           grep -Fx 'existing_slot_fifo_substitution_nonblocking=true' "$out"
           grep -Fx 'existing_slot_bounded_fd_read=true' "$out"
           grep -Fx 'existing_slot_growth_beyond_max_rejected=true' "$out"
+          grep -Fx 'existing_slot_dual_fd_close_fault_safe=true' "$out"
           grep -Fx 'training_execution=false' "$out"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Prove store revalidation request
@@ -86,7 +87,8 @@ jobs:
           case "$EVENT_NAME" in
             pull_request)
               { test "$PR_BASE" = "9e1da5dbb1ae12114a26506fbf1c6bc56780b98f" || \
-                test "$PR_BASE" = "6fa469d57f5dca96845197692a63ca3901fc9683"; }
+                { test "$PR_BASE" = "6fa469d57f5dca96845197692a63ca3901fc9683" || \
+                  test "$PR_BASE" = "2657ebf040f88a14afa872388f8fc13b1c1b3366"; }; }
               BASE="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
