@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="5677075f98ef9639840704d36296834a027ec026"
+assert gblob(INS)=="5356534af1442cdf592a9aa6aba95a4bff2d5e57"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -86,7 +86,13 @@ required=(
     'import sys as _bootstrap_sys',
     'reason=python_isolated_mode_required',
     'def require_privileged_source_custody()',
+    'privileged_source_directory_pre_descent',
+    'privileged_source_directory_pre_queue',
+    'privileged_source_directory_generation_changed_during_scandir',
     'privileged_source_custody_required_before_apply=true',
+    'privileged_source_root_acl_barrier_before_scandir=true',
+    'privileged_source_directory_acl_barrier_before_descent=true',
+    'privileged_source_symlink_resolution_after_directory_acl_barrier=true',
     'trusted_root_launcher_still_required=true',
     'def _runtime_uid_write_audit_builtin(',
     'def _require_runtime_uid_nonwritable(',
@@ -341,6 +347,9 @@ print("candidate_fifo_or_special_file_rejected_before_read=true")
 print("installer_preimport_isolation_guard_bound=true")
 print("installer_checkout_shadowing_rejected_before_execution=true")
 print("installer_privileged_source_custody_bound=true")
+print("installer_privileged_source_root_acl_barrier_bound=true")
+print("installer_privileged_source_directory_acl_barrier_bound=true")
+print("installer_privileged_source_symlink_resolution_order_bound=true")
 print("git_real_in_tree_dir_bound=true")
 print("git_commondir_indirection_rejected=true")
 print("git_object_alternates_rejected=true")

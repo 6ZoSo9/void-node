@@ -332,3 +332,29 @@ Qualifier V3 now closes all three boundaries while remaining unprivileged/read-o
 A runtime-writable trusted-tool or custody-script path therefore HOLDs before
 installed-generation authority. This repair grants no service/systemd, credential,
 signing, transaction/payment/activation, treasury/liquidity, or funds authority.
+
+
+## Privileged source-custody traversal ordering
+
+A current-head manual review found one residual P2 in the root-capable source-custody
+scan. UID/GID/mode metadata was checked recursively, but the effective UID1000 ACL
+write audit was batched only after traversal. A mode-safe root-owned directory with
+a named ACL granting runtime write could therefore be replaced before a later root
+`scandir()` or symlink resolution, causing privileged traversal of attacker-chosen
+metadata before the eventual HOLD.
+
+Installer V4 now establishes the custody barrier in traversal order:
+
+- source root and every ancestor pass the exact runtime-UID non-writability audit
+  before the first recursive scan;
+- every real directory passes ACL-aware non-writability plus exact generation
+  revalidation before it is queued or used as a future `scandir()` target;
+- each directory generation is revalidated immediately after enumeration;
+- symlink target resolution is deferred until all mutation-capable directories are
+  behind the ACL barrier; and
+- the original terminal whole-tree effective non-writability and generation census
+  remains mandatory.
+
+This is availability/custody hardening only; it grants no additional install,
+service/systemd, credential, signing, transaction/payment/activation, treasury, or
+funds authority.

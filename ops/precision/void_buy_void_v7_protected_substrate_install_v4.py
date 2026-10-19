@@ -149,7 +149,10 @@ def require_privileged_source_custody() -> None:
     source_root = pathlib.Path(os.path.abspath(os.fspath(ROOT)))
     if source_root.resolve(strict=True) != source_root:
         raise InstallError("privileged_source_root_alias_forbidden")
+
     runtime_paths: list[pathlib.Path] = []
+    runtime_records: list[tuple[pathlib.Path, tuple[int, int, int, int, int, int, int, int, int]]] = []
+    ancestor_records: list[tuple[pathlib.Path, tuple[int, int, int, int, int, int, int, int, int]]] = []
     current = source_root
     while True:
         st = os.lstat(current)
@@ -161,15 +164,47 @@ def require_privileged_source_custody() -> None:
             or stat.S_IMODE(st.st_mode) & 0o022
         ):
             raise InstallError("privileged_source_ancestor_custody_invalid:" + os.fspath(current))
+        identity = _metadata_identity(st)
         runtime_paths.append(current)
+        ancestor_records.append((current, identity))
         if current == current.parent:
             break
         current = current.parent
-    pending = [source_root]
+
+    # No root traversal begins until the exact runtime identity is unable to
+    # mutate the source root or any ancestor.
+    _require_runtime_uid_nonwritable(runtime_paths, "privileged_source_ancestors")
+    for path, expected in ancestor_records:
+        if _metadata_identity(path.lstat()) != expected:
+            raise InstallError("privileged_source_ancestor_generation_changed:" + os.fspath(path))
+
+    root_identity = _metadata_identity(source_root.lstat())
+    pending: list[tuple[pathlib.Path, tuple[int, int, int, int, int, int, int, int, int]]] = [
+        (source_root, root_identity)
+    ]
+    symlinks: list[
+        tuple[pathlib.Path, tuple[int, int, int, int, int, int, int, int, int], str]
+    ] = []
     checked = 0
+
     while pending:
-        directory = pending.pop()
-        for entry in os.scandir(directory):
+        directory, expected_directory = pending.pop()
+        before = directory.lstat()
+        if (
+            _metadata_identity(before) != expected_directory
+            or not stat.S_ISDIR(before.st_mode)
+            or stat.S_ISLNK(before.st_mode)
+        ):
+            raise InstallError("privileged_source_directory_generation_changed_before_descent:" + os.fspath(directory))
+        _require_runtime_uid_nonwritable([directory], "privileged_source_directory_pre_descent")
+        if _metadata_identity(directory.lstat()) != expected_directory:
+            raise InstallError("privileged_source_directory_generation_changed_before_scandir:" + os.fspath(directory))
+
+        entries = list(os.scandir(directory))
+        if _metadata_identity(directory.lstat()) != expected_directory:
+            raise InstallError("privileged_source_directory_generation_changed_during_scandir:" + os.fspath(directory))
+
+        for entry in entries:
             checked += 1
             if checked > MAX_NODES:
                 raise InstallError("privileged_source_node_limit")
@@ -178,22 +213,47 @@ def require_privileged_source_custody() -> None:
             if st.st_uid != 0 or st.st_gid != 0:
                 raise InstallError("privileged_source_node_owner_invalid:" + os.fspath(path))
             mode = stat.S_IMODE(st.st_mode)
+            identity = _metadata_identity(st)
+
             if stat.S_ISLNK(st.st_mode):
-                try:
-                    resolved = path.resolve(strict=True)
-                except OSError as exc:
-                    raise InstallError("privileged_source_symlink_unavailable:" + os.fspath(path)) from exc
-                if resolved != source_root and source_root not in resolved.parents:
-                    raise InstallError("privileged_source_symlink_escape:" + os.fspath(path))
+                symlinks.append((path, identity, os.readlink(path)))
                 continue
+
             if mode & 0o022:
                 raise InstallError("privileged_source_node_writable:" + os.fspath(path))
             runtime_paths.append(path)
+            runtime_records.append((path, identity))
+
             if stat.S_ISDIR(st.st_mode):
-                pending.append(path)
+                # Establish ACL-aware non-writability before the child can ever
+                # become a future scandir target.
+                _require_runtime_uid_nonwritable([path], "privileged_source_directory_pre_queue")
+                if _metadata_identity(path.lstat()) != identity:
+                    raise InstallError("privileged_source_directory_generation_changed_before_queue:" + os.fspath(path))
+                pending.append((path, identity))
             elif not stat.S_ISREG(st.st_mode):
                 raise InstallError("privileged_source_node_kind_invalid:" + os.fspath(path))
+
+    # Retain the whole-tree terminal audit and generation census.
     _require_runtime_uid_nonwritable(runtime_paths, "privileged_source")
+    for path, expected in ancestor_records:
+        if _metadata_identity(path.lstat()) != expected:
+            raise InstallError("privileged_source_ancestor_generation_changed_terminal:" + os.fspath(path))
+    for path, expected in runtime_records:
+        if _metadata_identity(path.lstat()) != expected:
+            raise InstallError("privileged_source_node_generation_changed_terminal:" + os.fspath(path))
+
+    # Resolve symlinks only after every mutation-capable directory is behind the
+    # ACL barrier. Parent directories are now immutable to the runtime identity.
+    for path, expected, target in symlinks:
+        if _metadata_identity(path.lstat()) != expected or os.readlink(path) != target:
+            raise InstallError("privileged_source_symlink_generation_changed:" + os.fspath(path))
+        try:
+            resolved = path.resolve(strict=True)
+        except OSError as exc:
+            raise InstallError("privileged_source_symlink_unavailable:" + os.fspath(path)) from exc
+        if resolved != source_root and source_root not in resolved.parents:
+            raise InstallError("privileged_source_symlink_escape:" + os.fspath(path))
 
 def _metadata_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int, int, int, int]:
     return (
@@ -1177,6 +1237,9 @@ def self_test() -> None:
     print(MARKER + "_SELF_TEST_GREEN"); print("accepted_v1_lock_remains_install_authority_false=true")
     print("isolated_python_required=true"); print("trusted_root_launcher_still_required=true")
     print("privileged_source_custody_required_before_apply=true")
+    print("privileged_source_root_acl_barrier_before_scandir=true")
+    print("privileged_source_directory_acl_barrier_before_descent=true")
+    print("privileged_source_symlink_resolution_after_directory_acl_barrier=true")
     print("operation_bound_plan_id_required=true"); print("explicit_create_only_confirmation_required=true")
     print("rename_noreplace_required=true"); print("resumable_exact_components=true")
     print("predecessor_v3_installer_merge_tree_bound=true"); print("strict_symlink_target_required=true")
