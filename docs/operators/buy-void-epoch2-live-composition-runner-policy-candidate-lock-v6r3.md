@@ -98,3 +98,40 @@ authority.
 
 No protected install, live execution, credential/key/signing, transaction/payment,
 activation, or funds authority is granted by this lock.
+
+## Runtime-UID ACL-sealed root-tool generation
+
+Accepted source evidence:
+
+```text
+integration_head=613156021f2bea1f14b2ef6f5f281e476138ec70
+integration_tree=e8dab55d99b0a2c6d846221e83825ef595e504b4
+compatibility_run=39339962805
+compatibility_job=118358769619
+candidate_run=39339961945
+candidate_job=118358767699
+candidate_identity_job=118359008105
+
+candidate_id=voidbuye2runnerpolcand6r3_c2d5d08f412be224ad0f05745b5ce3e03dafb5a55d807632ae2b3ec6fb59c6b1
+runner_git_blob=2f17fd716f266fc1e12144799879d949983cc807
+runner_sha256=1685536b4717963dc35459695e80f13841e330ed278b88b6a5004134aab2a030
+runner_bytes=82972
+lock_id=voidbuye2runnerpollock6r3_e65f2b3a34ce06a34bd2cc1e2f91e877fa3c6d67621fd02a191b1aae374a3a21
+```
+
+This generation closes the reviewed runtime-UID executable substitution boundary under
+the declared UID/GID 1000 threat model. Root tools are admitted only after canonical
+root-owned ancestor/leaf checks plus effective runtime-UID write denial; their retained
+generation is revalidated immediately before and after canonical-path execution. Runtime
+Git/Node targets remain inherited-descriptor executions after the `setpriv` identity
+drop. Sealed-v3 applies the same ACL-sealed generation checks to its Git/systemctl tools
+and retains pre/post runtime-source census protection around credential signing.
+
+The prior accepted candidate `voidbuye2runnerpolcand6r3_8ffc05fc...` and lock
+`voidbuye2runnerpollock6r3_7dd8db2619e9c02e...` are explicitly superseded and have
+no install authority.
+
+No protected install, live credential execution, signing, transaction/payment,
+activation, service mutation, treasury/liquidity action, or funds movement is
+authorized by this source lock.
+

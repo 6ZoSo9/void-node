@@ -16,19 +16,19 @@ V6R2_LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-l
 
 MARKER="VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3_MAIN_INTEGRATION"
 LOCK_PREFIX="voidbuye2runnerpollock6r3_"
-LOCK_ID="voidbuye2runnerpollock6r3_7dd8db2619e9c02ef8120e6d5e4e716946b991787dea7128fb51ed63290e4af7"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_8ffc05fc997f4dc19a3174ca588b812afd126565235361bb6048170701ba1af1"
+LOCK_ID="voidbuye2runnerpollock6r3_e65f2b3a34ce06a34bd2cc1e2f91e877fa3c6d67621fd02a191b1aae374a3a21"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_c2d5d08f412be224ad0f05745b5ce3e03dafb5a55d807632ae2b3ec6fb59c6b1"
 EXPECTED={
- CANDIDATE:"184cf2e0fef7c72377b0c5ff26ca268cf6a0735e",
- CANDIDATE_WORKFLOW:"eacf6ee3c203e65a412ef057a5fe6fc2104fa682",
- RUNNER:"340a0cf0eec589a44f20d44143e353ea25250973",
+ CANDIDATE:"6bf1b8ce0cc49a83817453046990895f9ff1ff59",
+ CANDIDATE_WORKFLOW:"a0ddc4b6b070b77cc546c5c4beb02fdb3696672c",
+ RUNNER:"2f17fd716f266fc1e12144799879d949983cc807",
  COMPAT_CONTRACT:"daedec8934ae0488c26650920497b1a08b117a25",
- COMPAT_PROOF:"8ea5167e9ece28c9b8a633fc95a2ea054ecbc2df",
- COMPAT_WORKFLOW:"402267212f3280e54c204a124ccb26c332821f97",
+ COMPAT_PROOF:"95319ab4ccdf2e637c9d7d949c88aa92cce46c60",
+ COMPAT_WORKFLOW:"676fc24e89d67d1592e2ab1813b345f0ef1135db",
  V6R2_LOCK:"bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b",
 }
-RUNNER_SHA256="c5976f6b96a5c29807fb188d0ede4f0fe812512f199a083272df2e1a7acb4953"
-RUNNER_BYTES=70767
+RUNNER_SHA256="1685536b4717963dc35459695e80f13841e330ed278b88b6a5004134aab2a030"
+RUNNER_BYTES=82972
 NATIVE_SHA256="85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
@@ -51,21 +51,21 @@ for path,want in EXPECTED.items():
 raw_lock=exact(LOCK,256*1024)
 lock=json.loads(raw_lock)
 assert lock["schema"]=="void_buy_void_epoch2_live_composition_runner_policy_candidate_lock_v6r3"
-assert lock["version"]==5
+assert lock["version"]==6
 assert lock["repository"]=="6ZoSo9/void-node"
 assert lock["integration_pr"]==3546
 assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
-assert lock["integration_head"]=="a82f93fd11ecc76990cb73c844ec90b9503e8b9a"
-assert lock["integration_tree"]=="d60bb8430377a46c81e5ddee5e92066cf9cbba90"
+assert lock["integration_head"]=="613156021f2bea1f14b2ef6f5f281e476138ec70"
+assert lock["integration_tree"]=="e8dab55d99b0a2c6d846221e83825ef595e504b4"
 assert lock["stacked_source_head_superseded_for_current_authority"]=="cb8554553dcc97e4abb5a9f8f15a26a487773fb5"
 assert lock["compatibility_hosted_evidence"]=={
  "workflow":"Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1",
- "run_id":39319410007,"job_id":118289245313,"conclusion":"success",
+ "run_id":39339962805,"job_id":118358769619,"conclusion":"success",
 }
 assert lock["candidate_hosted_evidence"]=={
  "workflow":"Buy VOID Epoch-2 live-composition runner policy candidate V6R3",
- "run_id":39319409757,"job_id":118289244127,
- "identity_job_id":118289452867,"conclusion":"success",
+ "run_id":39339961945,"job_id":118358767699,
+ "identity_job_id":118359008105,"conclusion":"success",
 }
 r=lock["candidate_report"]
 assert r["candidate_id"]==CANDIDATE_ID
@@ -106,6 +106,8 @@ assert "voidbuye2runnerpollock6r3_1c5c5b31abd01aa6cf3f080b2cf666980f18a6a2daf227
 assert "voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7" in lock["superseded_lock_ids"]
 assert "voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f" in lock["superseded_candidate_ids"]
 assert "voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d" in lock["superseded_candidate_ids"]
+assert "voidbuye2runnerpolcand6r3_8ffc05fc997f4dc19a3174ca588b812afd126565235361bb6048170701ba1af1" in lock["superseded_candidate_ids"]
+assert "voidbuye2runnerpollock6r3_7dd8db2619e9c02ef8120e6d5e4e716946b991787dea7128fb51ed63290e4af7" in lock["superseded_lock_ids"]
 assert lock["next_gate"]=="void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan"
 material=dict(lock); observed=material.pop("lock_id")
 assert observed==LOCK_ID==LOCK_PREFIX+sha256(canonical(material))
