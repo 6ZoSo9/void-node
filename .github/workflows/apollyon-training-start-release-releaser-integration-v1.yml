@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          parent=aab4988f9c530f1450f152be03c059f7f635058b
+          parent=9e1da5dbb1ae12114a26506fbf1c6bc56780b98f
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
@@ -62,9 +62,17 @@ jobs:
             expected="$RUNNER_TEMP/expected.txt"
             actual="$RUNNER_TEMP/actual.txt"
             printf '%s\n' \
+              '.github/workflows/apollyon-training-start-release-native-candidate-v1.yml' \
+              '.github/workflows/apollyon-release-pipe-pair-generation-v1.yml' \
               '.github/workflows/apollyon-training-start-release-releaser-integration-v1.yml' \
+              'docs/security/apollyon-training-start-release-native-candidate-v1.md' \
+              'docs/security/apollyon-release-pipe-pair-generation-v1.md' \
               'docs/security/apollyon-training-start-release-releaser-integration-v1.md' \
+              'ops/xiphos/apollyon_training_start_release_native_candidate_v1.c' \
+              'ops/xiphos/apollyon_release_pipe_pair_generation_v1.c' \
               'ops/xiphos/apollyon_training_start_release_releaser_integration_v1.c' \
+              'scripts/prove_apollyon_training_start_release_native_candidate_v1.py' \
+              'scripts/prove_apollyon_release_pipe_pair_generation_v1.py' \
               'scripts/prove_apollyon_training_start_release_releaser_integration_v1.py' \
               | LC_ALL=C sort > "$expected"
             git diff --no-renames --name-only "$PR_BASE" "$HEAD_SHA" -- | LC_ALL=C sort > "$actual"
