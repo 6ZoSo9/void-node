@@ -156,3 +156,17 @@ with the pinned writer source; record, path and policy semantics do not.
 Composite proof must re-run the hardened writer regressions first, then the
 pure request contract, with exact source Git-blob pins and no granted protected
 host writer/admission/training authority. **PROTECT THE CORE.**
+
+## October 19 — bound to held-inode/bounded-read writer
+
+The request is now pinned to writer blob
+`2165f85ead2a5997c600520e25274943d21e6704`. That writer admits an existing
+slot inode with O_PATH before data-open, reopens only the retained inode with
+O_NONBLOCK, and bounds the actual FD read to 64 KiB + 1.
+
+The composite proof re-runs the FIFO-substitution and growth-amplification
+adversaries before qualifying this pure request. This remains a source-only
+dependency rebind; protected-store origin, current winner/store/claim rereads,
+writer invocation authority, consumption publication and training remain
+false/unperformed.
+
