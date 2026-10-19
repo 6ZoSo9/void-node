@@ -59,6 +59,7 @@ def build_plan() -> dict[str, object]:
         "current_source_head_runtime_observed_required": True,
         "current_source_tree_runtime_observed_required": True,
         "source_runtime_ancestry_bound_required": True,
+        "source_runtime_actual_object_ancestry_required": True,
         "tracked_source_checkout_exact_required": True,
         "runtime_source_dependency_blob_equality_required": True,
         "untracked_paths_source_authority": False,
@@ -130,6 +131,7 @@ def self_test() -> None:
     body = result["body"]
     assert isinstance(body, dict)
     assert body["runtime_policy_rewrite_to_source_head_forbidden"] is True
+    assert body["source_runtime_actual_object_ancestry_required"] is True
     assert body["live_native_v3_binary_replacement_required_for_runner_compat"] is False
     assert body["current_source_head_runtime_observed_required"] is True
     assert body["source_runtime_ancestry_bound_required"] is True
@@ -163,6 +165,7 @@ def emit_plan() -> None:
     print("source_baseline_added_path_count=" + str(SOURCE_BASELINE_ADDED_PATH_COUNT))
     print("current_source_head_runtime_observed_required=true")
     print("source_runtime_ancestry_bound_required=true")
+    print("source_runtime_actual_object_ancestry_required=true")
     print("tracked_source_checkout_exact_required=true")
     print("runtime_source_dependency_blob_equality_required=true")
     print("untracked_paths_source_authority=false")
