@@ -13,12 +13,12 @@ TARGET=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_runner_policy_u
 LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json"
 RUNNER=ROOT/"ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 
-LOCK_ID="voidbuye2runnerpollock6r3_1c5c5b31abd01aa6cf3f080b2cf666980f18a6a2daf22700127fd6d84951f74c"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d"
-LOCK_BLOB="c527f317be6fdb2502e9c93ca43618d68f4a6b8e"
-RUNNER_BLOB="7967778824f22baca976a59df75f9f808ebebfe2"
-PLAN_BLOB="29ee3e6048a60d5d7368d66c871fe3ee3a561c45"
-RUNNER_SHA256="a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029"
+LOCK_ID="voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f"
+LOCK_BLOB="daab812f9925364ad89ff3bd59fdd18b9c98d553"
+RUNNER_BLOB="4e84b6eb77c284ecf7d85b609cec4d1cf130c7a7"
+PLAN_BLOB="b9e69cab21b3031f0fb8000c0970a4cb99163d74"
+RUNNER_SHA256="88e51377e473d4f0352f949f87ab5566078c85dddb1ab3e8e1bbb9908bfba19b"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 def git_blob(raw:bytes)->str:
@@ -40,8 +40,8 @@ for name in (
     assert any(isinstance(node,ast.FunctionDef) and node.name==name for node in tree.body),name
 
 for required in (
-    'LOCK_ID="voidbuye2runnerpollock6r3_1c5c5b31abd01aa6cf3f080b2cf666980f18a6a2daf22700127fd6d84951f74c"',
-    'CANDIDATE_ID="voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d"',
+    'LOCK_ID="voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7"',
+    'CANDIDATE_ID="voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f"',
     'RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
     'QUALIFIER_REPLACEMENT_BLOB="98f8b9fda89e33c50e19008268d97655aad54e6d"',
     'V6_QUALIFIER_BLOB="83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc"',
@@ -57,7 +57,7 @@ for required in (
     'source_after=source_snapshot_fn()',
     'if source_after!=source_before:',
     'raise PlanError("source_generation_changed_during_plan")',
-    'NEW_RUNNER_SHA256="a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029"',
+    'NEW_RUNNER_SHA256="88e51377e473d4f0352f949f87ab5566078c85dddb1ab3e8e1bbb9908bfba19b"',
     'PREDECESSOR_V6R2_ROOT=',
     '"full_root_stage_required":True',
     '"atomic_root_exchange_required":True',
