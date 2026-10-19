@@ -125,7 +125,7 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             445480e625e01e44be8722709d56d5a6541099e2
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            1538866d652ea2fab6e5e76d4052cccaeb11789d
+            bed4c6fe3896ff48dfbc873d078fac943528fa5f
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
             4ddf7889788e12fae6193b82af3e71e1a9f313cb
 
