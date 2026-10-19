@@ -204,3 +204,33 @@ or move funds.
 A future Precision retry remains separately operation-bound.
 
 **PROTECT THE CORE.**
+
+
+## Authenticated V1 execution graph
+
+The V2 repair does not re-import the verified V1 source by pathname.
+
+Before any inherited V1 code executes, it descriptor-reads and Git-blob
+authenticates the complete reviewed 13-module local TypeScript closure. Dynamic
+`import()` / `require()` and non-`node:` bare imports are refused. Only reviewed
+relative modules in the pinned closure and the exact reviewed Node built-in
+import set are admitted.
+
+The authenticated bytes are converted to executable ESM entirely in memory with
+Node's built-in TypeScript stripper. Reviewed relative imports are recursively
+rewritten to content-derived `data:` module URLs; `import.meta.url` is replaced
+with each module's reviewed original file URL before stripping so ROOT and
+direct-entry semantics remain faithful. The parent V1 module is therefore
+executed from authenticated retained bytes, not by reopening its pathname.
+
+After collection, every one of the 13 visible source generations is revalidated
+against the generation that supplied the executed bytes. A path replacement can
+cause HOLD, but cannot substitute already-executed code.
+
+The self-test executes the same graph engine on a fixed two-module in-memory
+fixture and rejects a dependency blob mutation. Hosted proof also pins all 13
+production closure blobs and forbids the historical pathname import.
+
+This closes only source-execution generation binding. All existing host,
+credential, payment, signing, transaction, activation, treasury and funds
+authority remains unchanged.

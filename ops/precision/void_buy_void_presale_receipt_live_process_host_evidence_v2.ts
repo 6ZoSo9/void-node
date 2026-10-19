@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { createRequire, syncBuiltinESMExports } from "node:module";
+import { createRequire, stripTypeScriptTypes, syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -21,6 +21,30 @@ export const PARENT_PROOF_GIT_BLOB_SHA1 =
   "350354779caac35d7442b1315826b8b0c27463e2";
 export const PARENT_PLAN_ID =
   "voidbuyhostevplan1_665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab";
+
+export const PARENT_MODULE_GRAPH_PINS = Object.freeze({
+  "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts": "ba69d46ffa6f7d178de447b469b578fa8e87ea3b",
+  "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts": "d47a6f99870f385c1bc938adbef74535b78eba1f",
+  "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts": "a334ab29477dec3e36862a512191b9701debb73e",
+  "src/economic/buy_void_source_finality_generation_provenance_v7.ts": "390ff1a2ff0437cd8c8693e7807c12275df42573",
+  "src/economic/buy_void_source_finality_live_process_binding_v2.ts": "987c97568a4d1b9814218603df48a65dbfeed18f",
+  "src/economic/buy_void_source_finality_live_process_binding_v1.ts": "73f088779f015a554f16e9eecf8a9fd9de0e1594",
+  "src/economic/buy_void_auto_fulfillment_v1.ts": "b7c963b1d55f000d82ad82289b31107b432503de",
+  "src/economic/buy_void_source_finality_authenticated_composition_v3.ts": "a3dbe4d0fed3034d3ca2c0b3704a758d7c776090",
+  "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts": "419054e00f4d96015cd066be81e8719ee71ac00c",
+  "src/economic/buy_void_verified_payment_v2.ts": "550ede02fc0b7d6874c324af58b5ef9c5591b311",
+  "src/economic/buy_void_payment_rpc_observer_v1.ts": "0073818ad6f6418e895bf794024c9d678b3bef86",
+  "src/economic/buy_void_source_finality_authority_v2.ts": "64953050d74bc0bc6d1e6948ae992d6143edca99",
+  "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts": "5d47cd29929f778b07a59647a80c4384b1497a08",
+} as const);
+const PARENT_ENTRY_REL = "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
+const PARENT_MODULE_GRAPH_PATH_COUNT = 13;
+const PARENT_MODULE_GRAPH_BUILTINS = Object.freeze(new Set([
+  "node:assert/strict", "node:crypto", "node:child_process", "node:fs",
+  "node:http", "node:https", "node:path", "node:perf_hooks", "node:readline",
+  "node:url", "node:util",
+]));
+const MAX_PARENT_DATA_URL_BYTES = 16 * 1024 * 1024;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PARENT_SOURCE = path.join(
@@ -57,6 +81,12 @@ type MutableIdentityDropAudit = {
   working_directory_custody_verified_count: number;
   working_directory_canonicalized_count: number;
 };
+
+type ReviewedSourceGeneration = Readonly<{ bytes: Buffer; opened: fs.BigIntStats }>;
+type ParentModuleGraph = Readonly<{
+  module: ParentModule;
+  generations: ReadonlyMap<string, fs.BigIntStats>;
+}>;
 
 type ParentModule = Readonly<{
   MARKER: typeof PARENT_MARKER;
@@ -201,6 +231,131 @@ function revalidateReviewedSource(
   const current = readExactReviewedSource(absolute, expectedBlob);
   if (!sameStat(opened, current.opened)) {
     fail("lane1_v2_parent_source_generation_changed");
+  }
+}
+
+function resolveReviewedGraphImport(importerRelative: string, specifier: string): string {
+  if (!specifier.startsWith(".")) fail("lane1_v2_parent_graph_nonlocal_import_forbidden");
+  let resolved = path.posix.normalize(path.posix.join(path.posix.dirname(importerRelative), specifier));
+  if (resolved.endsWith(".js")) resolved = resolved.slice(0, -3) + ".ts";
+  if (path.posix.isAbsolute(resolved) || resolved === ".." || resolved.startsWith("../") || !Object.hasOwn(PARENT_MODULE_GRAPH_PINS, resolved)) {
+    fail("lane1_v2_parent_graph_import_outside_reviewed_closure");
+  }
+  return resolved;
+}
+
+function staticModuleSpecifiers(source: string): string[] {
+  if (/\bimport\s*\(/u.test(source) || /\brequire\s*\(/u.test(source)) fail("lane1_v2_parent_graph_dynamic_loader_forbidden");
+  const out: string[] = [];
+  for (const match of source.matchAll(/\bfrom\s+["']([^"']+)["']/gu)) out.push(match[1]!);
+  for (const match of source.matchAll(/\bimport\s+["']([^"']+)["']/gu)) out.push(match[1]!);
+  return out;
+}
+
+function replaceReviewedImport(source: string, specifier: string, dataUrl: string): string {
+  const escaped = specifier.replace(/[.*+?^$()|[\]\\{}]/gu, "\\$&");
+  let count = 0;
+  const fromPattern = new RegExp("(\\bfrom\\s+)([\\\"\'])" + escaped + "\\2", "gu");
+  source = source.replace(fromPattern, (_whole, prefix: string) => { count += 1; return prefix + JSON.stringify(dataUrl); });
+  const importPattern = new RegExp("(\\bimport\\s+)([\\\"\'])" + escaped + "\\2", "gu");
+  source = source.replace(importPattern, (_whole, prefix: string) => { count += 1; return prefix + JSON.stringify(dataUrl); });
+  if (count < 1) fail("lane1_v2_parent_graph_import_rewrite_missing");
+  return source;
+}
+
+function authenticatedTypeScriptDataUrl(
+  graphRoot: string, relative: string, pins: Readonly<Record<string, string>>,
+  sources: ReadonlyMap<string, Buffer>, cache: Map<string, string>, building: Set<string>,
+): string {
+  const cached = cache.get(relative);
+  if (cached) return cached;
+  if (building.has(relative)) fail("lane1_v2_parent_graph_cycle_forbidden");
+  const expected = pins[relative];
+  const bytes = sources.get(relative);
+  if (!expected || !bytes || gitBlob(bytes) !== expected) fail("lane1_v2_parent_graph_source_blob_mismatch");
+  building.add(relative);
+  let source = bytes.toString("utf8");
+  const absolute = path.join(graphRoot, ...relative.split("/"));
+  source = source.replaceAll("import.meta.url", JSON.stringify(pathToFileURL(absolute).href));
+  for (const specifier of staticModuleSpecifiers(source)) {
+    if (specifier.startsWith("node:")) {
+      if (!PARENT_MODULE_GRAPH_BUILTINS.has(specifier)) fail("lane1_v2_parent_graph_builtin_not_reviewed");
+      continue;
+    }
+    const childRelative = resolveReviewedGraphImport(relative, specifier);
+    const childUrl = authenticatedTypeScriptDataUrl(graphRoot, childRelative, pins, sources, cache, building);
+    source = replaceReviewedImport(source, specifier, childUrl);
+  }
+  let javascript: string;
+  try { javascript = stripTypeScriptTypes(source, { mode: "transform", sourceMap: false }); }
+  catch { fail("lane1_v2_parent_graph_typescript_strip_failed"); }
+  const dataUrl = "data:text/javascript;base64," + Buffer.from(javascript, "utf8").toString("base64");
+  if (Buffer.byteLength(dataUrl, "utf8") > MAX_PARENT_DATA_URL_BYTES) fail("lane1_v2_parent_graph_data_url_too_large");
+  building.delete(relative);
+  cache.set(relative, dataUrl);
+  return dataUrl;
+}
+
+async function executeAuthenticatedTypeScriptGraph(
+  graphRoot: string, entryRelative: string, pins: Readonly<Record<string, string>>,
+  sources: ReadonlyMap<string, Buffer>,
+): Promise<unknown> {
+  if (typeof stripTypeScriptTypes !== "function") fail("lane1_v2_typescript_strip_unavailable");
+  if (sources.size !== Object.keys(pins).length) fail("lane1_v2_parent_graph_source_count_invalid");
+  const url = authenticatedTypeScriptDataUrl(graphRoot, entryRelative, pins, sources, new Map(), new Set());
+  return import(url);
+}
+
+export async function testOnlyAuthenticatedModuleGraphV2(): Promise<void> {
+  const entry = "fixture/entry.ts";
+  const dependency = "fixture/dep.ts";
+  const entryBytes = Buffer.from('import { value } from "./dep.js"; export const answer=value+1; export const sourceUrl=import.meta.url;', "utf8");
+  const depBytes = Buffer.from("export const value:number=41;", "utf8");
+  const pins = Object.freeze({ [entry]: gitBlob(entryBytes), [dependency]: gitBlob(depBytes) });
+  const sources = new Map<string, Buffer>([[entry, entryBytes], [dependency, depBytes]]);
+  const result = plainRecord(await executeAuthenticatedTypeScriptGraph("/void-reviewed-graph", entry, pins, sources), "lane1_v2_test_graph_result_invalid");
+  assert.equal(result.answer, 42);
+  assert.equal(result.sourceUrl, pathToFileURL("/void-reviewed-graph/fixture/entry.ts").href);
+  const badSources = new Map(sources);
+  badSources.set(dependency, Buffer.from("export const value=99;", "utf8"));
+  let rejected = false;
+  try { await executeAuthenticatedTypeScriptGraph("/void-reviewed-graph", entry, pins, badSources); }
+  catch (error) { rejected = error instanceof Error && error.message === "lane1_v2_parent_graph_source_blob_mismatch"; }
+  assert.equal(rejected, true);
+}
+
+async function loadExactParent(sourceLease: ReviewedSourceGeneration): Promise<ParentModuleGraph> {
+  if (PARENT_MODULE_GRAPH_PINS[PARENT_ENTRY_REL] !== PARENT_SOURCE_GIT_BLOB_SHA1) fail("lane1_v2_parent_graph_entry_pin_mismatch");
+  const sources = new Map<string, Buffer>();
+  const generations = new Map<string, fs.BigIntStats>();
+  for (const [relative, expectedBlob] of Object.entries(PARENT_MODULE_GRAPH_PINS)) {
+    if (relative === PARENT_ENTRY_REL) {
+      if (gitBlob(sourceLease.bytes) !== expectedBlob) fail("lane1_v2_parent_source_blob_mismatch");
+      sources.set(relative, sourceLease.bytes);
+      generations.set(relative, sourceLease.opened);
+      continue;
+    }
+    const lease = readExactReviewedSource(path.join(ROOT, ...relative.split("/")), expectedBlob);
+    sources.set(relative, lease.bytes);
+    generations.set(relative, lease.opened);
+  }
+  if (sources.size !== PARENT_MODULE_GRAPH_PATH_COUNT || generations.size !== PARENT_MODULE_GRAPH_PATH_COUNT) fail("lane1_v2_parent_graph_path_count_invalid");
+  const imported = plainRecord(
+    await executeAuthenticatedTypeScriptGraph(ROOT, PARENT_ENTRY_REL, PARENT_MODULE_GRAPH_PINS, sources),
+    "lane1_v2_parent_module_invalid",
+  ) as unknown as ParentModule;
+  if (imported.MARKER !== PARENT_MARKER || imported.SCHEMA !== PARENT_SCHEMA || imported.PARENT_PLAN_ID !== PARENT_PLAN_ID || typeof imported.collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1 !== "function") {
+    fail("lane1_v2_parent_module_contract_invalid");
+  }
+  return Object.freeze({ module: imported, generations });
+}
+
+function revalidateParentModuleGraph(graph: ParentModuleGraph): void {
+  if (graph.generations.size !== PARENT_MODULE_GRAPH_PATH_COUNT) fail("lane1_v2_parent_graph_path_count_invalid");
+  for (const [relative, opened] of graph.generations) {
+    const expectedBlob = PARENT_MODULE_GRAPH_PINS[relative as keyof typeof PARENT_MODULE_GRAPH_PINS];
+    if (!expectedBlob) fail("lane1_v2_parent_graph_unpinned_path");
+    revalidateReviewedSource(path.join(ROOT, ...relative.split("/")), expectedBlob, opened);
   }
 }
 
@@ -608,29 +763,6 @@ function validateParentResult(raw: unknown, uid: number, gid: number): PlainReco
   return result;
 }
 
-async function loadExactParent(
-  sourceLease: Readonly<{ bytes: Buffer; opened: fs.BigIntStats }>,
-): Promise<ParentModule> {
-  if (gitBlob(sourceLease.bytes) !== PARENT_SOURCE_GIT_BLOB_SHA1) {
-    fail("lane1_v2_parent_source_blob_mismatch");
-  }
-  const url = pathToFileURL(PARENT_SOURCE);
-  const imported = plainRecord(
-    await import(url.href),
-    "lane1_v2_parent_module_invalid",
-  ) as unknown as ParentModule;
-  if (
-    imported.MARKER !== PARENT_MARKER ||
-    imported.SCHEMA !== PARENT_SCHEMA ||
-    imported.PARENT_PLAN_ID !== PARENT_PLAN_ID ||
-    typeof imported.collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1 !==
-      "function"
-  ) {
-    fail("lane1_v2_parent_module_contract_invalid");
-  }
-  return imported;
-}
-
 export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV2(input: {
   runtime_uid: number;
   runtime_gid: number;
@@ -649,28 +781,26 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV2(inpu
     PARENT_PROOF,
     PARENT_PROOF_GIT_BLOB_SHA1,
   );
+  let parentGraph: ParentModuleGraph | undefined;
   const adapted = await withRuntimeUserSystemctlIdentityDrop(
     uid,
     gid,
     async () => {
-      const parent = await loadExactParent(sourceLease);
-      return parent.collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1({
+      parentGraph = await loadExactParent(sourceLease);
+      return parentGraph.module.collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1({
         runtime_uid: uid,
         runtime_gid: gid,
       });
     },
   );
+  if (!parentGraph) fail("lane1_v2_parent_graph_not_loaded");
   if (
     adapted.audit.systemd_query_count !== 3 ||
     adapted.audit.working_directory_custody_verified_count !== 3
   ) {
     fail("lane1_v2_systemd_query_audit_invalid");
   }
-  revalidateReviewedSource(
-    PARENT_SOURCE,
-    PARENT_SOURCE_GIT_BLOB_SHA1,
-    sourceLease.opened,
-  );
+  revalidateParentModuleGraph(parentGraph);
   revalidateReviewedSource(
     PARENT_PROOF,
     PARENT_PROOF_GIT_BLOB_SHA1,
@@ -686,6 +816,10 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV2(inpu
       "AUTHENTICATED_RECEIPT_AND_SAME_LIVE_PROCESS_EVIDENCE_V2_GREEN_PRODUCTION_AUTHORITY_STILL_HOLD",
     parent_v1_source_git_blob_sha1: PARENT_SOURCE_GIT_BLOB_SHA1,
     parent_v1_proof_git_blob_sha1: PARENT_PROOF_GIT_BLOB_SHA1,
+    parent_v1_authenticated_module_graph_bound: true,
+    parent_v1_module_graph_path_count: PARENT_MODULE_GRAPH_PATH_COUNT,
+    parent_v1_execution_from_authenticated_data_url: true,
+    parent_v1_path_import_performed: false,
     user_systemd_query_runtime_identity_drop_verified: true,
     user_systemd_query_numeric_uid_gid_bound: true,
     user_systemd_query_supplementary_groups_cleared: true,
@@ -700,9 +834,12 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV2(inpu
   });
 }
 
-function selfTest(): void {
+async function selfTest(): Promise<void> {
   assert.equal(PARENT_SOURCE_GIT_BLOB_SHA1.length, 40);
   assert.equal(PARENT_PROOF_GIT_BLOB_SHA1.length, 40);
+  assert.equal(Object.keys(PARENT_MODULE_GRAPH_PINS).length, PARENT_MODULE_GRAPH_PATH_COUNT);
+  assert.equal(PARENT_MODULE_GRAPH_PINS[PARENT_ENTRY_REL], PARENT_SOURCE_GIT_BLOB_SHA1);
+  await testOnlyAuthenticatedModuleGraphV2();
   const built = testOnlyBuildRuntimeUserSystemctlInvocationV2({
     runtime_uid: 1000,
     runtime_gid: 1000,
@@ -733,6 +870,10 @@ function selfTest(): void {
   ]);
   console.log(MARKER + "_SELF_TEST_GREEN");
   console.log("parent_v1_source_and_proof_bound=true");
+  console.log("parent_v1_authenticated_module_graph_bound=true");
+  console.log("parent_v1_module_graph_path_count=13");
+  console.log("parent_v1_execution_from_authenticated_data_url=true");
+  console.log("parent_v1_path_import_performed=false");
   console.log("reviewed_source_open_nonblocking=true");
   console.log("executable_lease_open_nonblocking=true");
   console.log("root_direct_user_bus_query_replaced=true");
@@ -757,7 +898,7 @@ function selfTest(): void {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length === 1 && args[0] === "--self-test") {
-    selfTest();
+    await selfTest();
     return;
   }
   if (

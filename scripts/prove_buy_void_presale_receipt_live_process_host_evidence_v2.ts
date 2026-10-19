@@ -14,8 +14,10 @@ import {
   PARENT_PROOF_GIT_BLOB_SHA1,
   PARENT_SCHEMA,
   PARENT_SOURCE_GIT_BLOB_SHA1,
+  PARENT_MODULE_GRAPH_PINS,
   SCHEMA,
   VERSION,
+  testOnlyAuthenticatedModuleGraphV2,
   testOnlyBuildRuntimeUserSystemctlInvocationV2,
   testOnlyOpenExecutableLeaseV2,
   testOnlyReadExactReviewedSourceV2,
@@ -101,6 +103,11 @@ const parentProof = pin(
   PARENT_PROOF_GIT_BLOB_SHA1,
 ).toString("utf8");
 
+assert.equal(Object.keys(PARENT_MODULE_GRAPH_PINS).length, 13);
+for (const [relative, expected] of Object.entries(PARENT_MODULE_GRAPH_PINS)) {
+  pin(relative, expected);
+}
+
 assert.equal(MARKER, "VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2");
 assert.equal(SCHEMA, "void_buy_void_presale_receipt_live_process_host_evidence_v2");
 assert.equal(VERSION, 2);
@@ -136,6 +143,13 @@ for (const required of [
   "const value = await action()",
   "PARENT_SOURCE_GIT_BLOB_SHA1",
   "PARENT_PROOF_GIT_BLOB_SHA1",
+  "PARENT_MODULE_GRAPH_PINS",
+  "stripTypeScriptTypes",
+  "authenticatedTypeScriptDataUrl(",
+  "executeAuthenticatedTypeScriptGraph(",
+  "revalidateParentModuleGraph(",
+  "parent_v1_execution_from_authenticated_data_url: true",
+  "parent_v1_path_import_performed: false",
   "readExactReviewedSource(",
   "revalidateReviewedSource(",
   "parent.collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV1",
@@ -177,6 +191,8 @@ for (const forbidden of [
   "/environ",
   '"environ"',
   "NODE_PRIVKEY_PATH",
+  "await import(url.href)",
+  "pathToFileURL(PARENT_SOURCE)",
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
@@ -213,6 +229,7 @@ function buildValid() {
   });
 }
 
+await testOnlyAuthenticatedModuleGraphV2();
 const built = buildValid();
 assert.deepEqual(built.setpriv_args, [
   "--reuid=1000",
@@ -460,6 +477,10 @@ try {
 console.log(MARKER + "_PROOF_GREEN");
 console.log("exact_parent_v1_source_blob_bound=true");
 console.log("exact_parent_v1_proof_blob_bound=true");
+console.log("parent_v1_authenticated_module_graph_bound=true");
+console.log("parent_v1_module_graph_path_count=13");
+console.log("parent_v1_execution_from_authenticated_data_url=true");
+console.log("parent_v1_path_import_performed=false");
 console.log("reviewed_source_open_nonblocking=true");
 console.log("executable_lease_open_nonblocking=true");
 console.log("regular_to_fifo_preopen_race_holds=true");

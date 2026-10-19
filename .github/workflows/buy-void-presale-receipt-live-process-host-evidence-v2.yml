@@ -8,6 +8,18 @@ on:
       - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts"
       - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts"
       - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
       - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
   push:
     branches: [main]
@@ -17,6 +29,18 @@ on:
       - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts"
       - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts"
       - "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
       - "scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts"
   workflow_dispatch:
 
@@ -83,11 +107,23 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = d1b025694f5f5a4c49bd9eced68666c55f3663f5
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 3b06512fbb802002f1a891e9e2cd6b06dc143f5e
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md)" = eaf3159f743ebabb5854a7465803c3c835d65078
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 43f9e693698abfb281b7756204eccd25f712b41f
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = fc6186aa991a09be14ca4019b19a4c7499f42fc3
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md)" = e81507d62238ae149217b77c7889250e49d93a89
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = ba69d46ffa6f7d178de447b469b578fa8e87ea3b
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts)" = d47a6f99870f385c1bc938adbef74535b78eba1f
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts)" = a334ab29477dec3e36862a512191b9701debb73e
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_generation_provenance_v7.ts)" = 390ff1a2ff0437cd8c8693e7807c12275df42573
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_live_process_binding_v2.ts)" = 987c97568a4d1b9814218603df48a65dbfeed18f
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_live_process_binding_v1.ts)" = 73f088779f015a554f16e9eecf8a9fd9de0e1594
+          test "$(git rev-parse HEAD:src/economic/buy_void_auto_fulfillment_v1.ts)" = b7c963b1d55f000d82ad82289b31107b432503de
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_authenticated_composition_v3.ts)" = a3dbe4d0fed3034d3ca2c0b3704a758d7c776090
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts)" = 419054e00f4d96015cd066be81e8719ee71ac00c
+          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_v2.ts)" = 550ede02fc0b7d6874c324af58b5ef9c5591b311
+          test "$(git rev-parse HEAD:src/economic/buy_void_payment_rpc_observer_v1.ts)" = 0073818ad6f6418e895bf794024c9d678b3bef86
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_authority_v2.ts)" = 64953050d74bc0bc6d1e6948ae992d6143edca99
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_provider_pair_binding_v1.ts)" = 5d47cd29929f778b07a59647a80c4384b1497a08
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = 350354779caac35d7442b1315826b8b0c27463e2
 
           git diff --check "$base" "$EXPECTED_HEAD"
@@ -105,6 +141,10 @@ jobs:
             'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2_PROOF_GREEN' \
             'exact_parent_v1_source_blob_bound=true' \
             'exact_parent_v1_proof_blob_bound=true' \
+            'parent_v1_authenticated_module_graph_bound=true' \
+            'parent_v1_module_graph_path_count=13' \
+            'parent_v1_execution_from_authenticated_data_url=true' \
+            'parent_v1_path_import_performed=false' \
             'reviewed_source_open_nonblocking=true' \
             'executable_lease_open_nonblocking=true' \
             'regular_to_fifo_preopen_race_holds=true' \
@@ -144,6 +184,10 @@ jobs:
           for marker in \
             'VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2_SELF_TEST_GREEN' \
             'parent_v1_source_and_proof_bound=true' \
+            'parent_v1_authenticated_module_graph_bound=true' \
+            'parent_v1_module_graph_path_count=13' \
+            'parent_v1_execution_from_authenticated_data_url=true' \
+            'parent_v1_path_import_performed=false' \
             'reviewed_source_open_nonblocking=true' \
             'executable_lease_open_nonblocking=true' \
             'root_direct_user_bus_query_replaced=true' \
