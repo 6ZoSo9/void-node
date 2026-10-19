@@ -986,14 +986,14 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
     "acquireExclusiveStoreTransaction","revalidate",
   ];
   const configOwn=Reflect.ownKeys(config);
+  if(configOwn.includes("withExclusiveStoreTransaction")){
+    fail("apollyon_claim_store_impl_v2_legacy_transaction_wrapper_forbidden");
+  }
   if(
     configOwn.length!==configKeys.length||
     configOwn.some(key=>typeof key!=="string"||!configKeys.includes(key))
   )fail(configCode);
   const descriptors=Object.getOwnPropertyDescriptors(config);
-  if(Object.hasOwn(descriptors,"withExclusiveStoreTransaction")){
-    fail("apollyon_claim_store_impl_v2_legacy_transaction_wrapper_forbidden");
-  }
   for(const key of configKeys){
     if(!descriptors[key]||!Object.hasOwn(descriptors[key],"value"))fail(configCode);
   }
