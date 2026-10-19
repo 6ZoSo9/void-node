@@ -8,11 +8,12 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
-SOURCE_BLOB = "bd60a1ec2a57af0d271596c1ab444df5d365145e"
+SOURCE_BLOB = "54a836c98dabc4bde9f40c06453a001aa29a95d9"
 
 PARENT_CONTRACT = ROOT / "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
 PARENT_CONTRACT_BLOB = "833876baf077b9616d08ee9b13b2657a0818dcc5"
@@ -40,6 +41,52 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 mod.self_test()
+
+# The root-capable source must reject non-isolated Python before importing
+# checkout-resolved modules.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-isolation-") as td:
+    temp = Path(td)
+    script = temp / "reader.py"
+    sentinel = temp / "checkout-json-executed"
+    script.write_bytes(TARGET.read_bytes())
+    (temp / "json.py").write_text(
+        "open(" + repr(str(sentinel)) + ", 'w').write('executed')\\n",
+        encoding="utf-8",
+    )
+    denied = subprocess.run(
+        [sys.executable, "-B", str(script), "--self-test"],
+        cwd=temp,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
+        timeout=10,
+        check=False,
+    )
+    assert denied.returncode == 2, denied
+    assert "HOLD=isolated_python_required" in denied.stderr
+    assert not sentinel.exists(), "checkout-local json.py executed before isolation guard"
+    accepted = subprocess.run(
+        [sys.executable, "-I", "-B", str(script), "--self-test"],
+        cwd=temp,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
+        timeout=10,
+        check=False,
+    )
+    assert accepted.returncode == 0, accepted
+    assert (
+        "VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1_SELF_TEST=GREEN"
+        in accepted.stdout
+    )
 
 
 def slot_record() -> dict[str, object]:
@@ -152,8 +199,7 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-root-mode-") 
         "claim_root_metadata_invalid",
     )
 
-# A rejected root must not leak its opened child FD across repeated failures.
-# The source is a potential reusable reader, not just a one-shot CLI.
+# A rejected root must not leak its newly opened child descriptor.
 with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-root-fd-") as td:
     root, _, _ = create_fixture(Path(td), record)
     root.chmod(0o750)
@@ -171,7 +217,7 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-root-fd-") as
         )
     assert sorted(os.listdir("/proc/self/fd")) == before_fds, "rejected root leaked FD"
 
-# A rejected root ACL check happens after the child FD is opened too.
+# ACL rejection also happens after opening the child; it must not leak either.
 with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-acl-fd-") as td:
     root, _, _ = create_fixture(Path(td), record)
     original_acl = mod.require_no_posix_acl
@@ -278,6 +324,47 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-fifo-") as td
         ),
         "slot_file_metadata_invalid",
     )
+
+# A visible special-file replacement immediately before the data-open must
+# never become the object opened for data. The second open must target the
+# already-admitted O_PATH descriptor through /proc/self/fd/<n>.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-held-open-") as td:
+    root, _, leaf = create_fixture(Path(td), record)
+    real_open = mod.os.open
+    data_targets: list[str] = []
+    leaf_data_open_attempts = [0]
+    replaced = [False]
+
+    def held_inode_open(path, flags, *args, **kwargs):
+        text_path = os.fspath(path)
+        o_path = getattr(os, "O_PATH", 0)
+        if text_path == leaf.name and not (flags & o_path):
+            leaf_data_open_attempts[0] += 1
+        if text_path.startswith("/proc/self/fd/") and not replaced[0]:
+            leaf.unlink()
+            os.mkfifo(leaf, 0o600)
+            replaced[0] = True
+            data_targets.append(text_path)
+        return real_open(path, flags, *args, **kwargs)
+
+    mod.os.open = held_inode_open
+    try:
+        expect_hold(
+            lambda: mod.observe_protected_slot(
+                root_path=root,
+                claim_uid=uid,
+                claim_gid=gid,
+                authorization_slot_id=str(record["authorization_slot_id"]),
+                require_trusted_ancestors=False,
+            ),
+            "slot_file_identity_drift",
+        )
+    finally:
+        mod.os.open = real_open
+    assert replaced[0] is True
+    assert leaf_data_open_attempts[0] == 0
+    assert len(data_targets) == 1
+    assert data_targets[0].startswith("/proc/self/fd/")
 
 # Missing host paths must be normalized to the module's Hold contract.
 with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-missing-leaf-") as td:
@@ -463,12 +550,17 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-final-replace
 
 source = TARGET.read_text(encoding="utf-8")
 for required in (
+    '_require_isolated_python()',
+    'HOLD=isolated_python_required',
+    'previous = current',
+    'current = child',
     'CLAIM_STATE_ROOT = Path("/var/lib/void-apollyon-attempt-claim-v2")',
     'SLOT_DIRECTORY_LEAF = "authorization-slots-v1"',
     '"protected_authorization_slot_origin_proven": False',
     '"activation_capability_issuance_authorized": False',
     '"training_start_consumption_authorized": False',
-    'os.open(leaf, READ_FLAGS, dir_fd=directory_fd)',
+    'o_path = getattr(os, "O_PATH", None)',
+    'os.open("/proc/self/fd/" + str(path_fd), HELD_READ_FLAGS)',
     'os.pread(fd, MAX_SLOT_RECORD_BYTES + 1, 0)',
     'getattr(os, "O_NONBLOCK", 0)',
     'require_no_posix_acl(child, "claim_root_ancestor")',
@@ -513,7 +605,12 @@ print("post_second_reread_path_replacement_rejected=true")
 print("visible_slot_directory_replacement_rejected=true")
 print("host_io_errors_normalized_to_hold=true")
 print("rejected_root_descriptor_cleanup_verified=true")
+print("isolated_python_preimport_guard=true")
+print("nonisolated_checkout_module_not_executed=true")
 print("slot_fifo_nonblocking_rejected=true")
+print("slot_opath_admission_precedes_data_open=true")
+print("slot_data_open_uses_held_regular_inode=true")
+print("visible_special_replacement_not_data_opened=true")
 print("recursive_json_rejected_fail_closed=true")
 print("trusted_ancestor_posix_acl_required=true")
 print("descriptor_stable_slot_reread=true")

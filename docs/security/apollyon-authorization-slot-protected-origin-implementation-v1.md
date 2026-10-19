@@ -7,7 +7,7 @@ Status: **source/read-only implementation candidate; complete protected origin r
 ## Parent and scope
 
 Parent: #3526 exact head
-`7487dd794feb765e6d72b04ea98e23a442800a89`.
+`db8c56d7ebe73e0646355bc6fcb4a5141ef7422f`.
 
 This child implements the fixed protected-slot reader/reread boundary named by
 the #3526 contract. It does not issue an activation capability.
@@ -27,10 +27,15 @@ must expose no POSIX access/default ACL. The final claim root and slot directory
 must be exact mode 0700 and owned by the expected claim identity, also without
 POSIX ACLs.
 
-The slot leaf is derived only from the validated authorization-slot ID. It is
-opened read-only with `O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK`; a racing FIFO cannot
-block the privileged reader. The leaf must be regular, mode 0600, link count 1,
-owned by the expected claim identity, bounded to 64 KiB, and have no POSIX ACL.
+The slot leaf is derived only from the validated authorization-slot ID. The
+reader first acquires the visible leaf with Linux `O_PATH|O_NOFOLLOW|O_CLOEXEC`
+and proves that held inode is the exact regular mode-0600, single-link generation
+owned by the expected claim identity and bounded to 64 KiB. Only after that
+admission does it data-open `/proc/self/fd/<held-fd>` with
+`O_RDONLY|O_CLOEXEC|O_NONBLOCK`. The data-open therefore targets the retained
+already-admitted regular inode, never a pathname replacement such as a FIFO or
+device node. The reopened descriptor must match the held and still-visible
+generation and expose no POSIX ACL.
 
 ## Descriptor-stable reread
 
@@ -112,7 +117,10 @@ Adversaries cover wrong root/slot/file modes, hard links, symlinks, FIFO
 substitution, missing slot paths, noncanonical and recursively nested JSON,
 slot-ID/content-address drift, same-byte visible slot replacement after the first
 read, visible slot-directory replacement while the old directory remains retained,
-and same-byte visible slot replacement after the second reread.
+same-byte visible slot replacement after the second reread, and a visible
+regular-to-FIFO replacement immediately before data-open. That last fixture
+requires the data-open target to be only the retained `/proc/self/fd/<held-fd>`
+inode and proves zero data-open attempt on the replacement pathname.
 
 No protected store, service, capability, training, credential, transaction or
 funds action occurs.
@@ -123,7 +131,7 @@ funds action occurs.
 ## Current contract-origin parent (October 18, 2026)
 
 The current source-only parent is #3526 at
-`7487dd794feb765e6d72b04ea98e23a442800a89`, with the protected-origin
+`db8c56d7ebe73e0646355bc6fcb4a5141ef7422f`, with the protected-origin
 contract Git blob `833876baf077b9616d08ee9b13b2657a0818dcc5` and underlying
 authorization-slot source `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`.
 A full untruncated prior/current parent tree comparison yielded 362 changed
@@ -131,8 +139,9 @@ paths and **zero overlap** with this child's four ADD-only files. The accepted
 historical direct parent `e496f4391b2b4e9be006695fcd8845669059a48f`
 remains preserved in first-parent history.
 
-The Python reader changes only those three immutable source-generation pins.
-It retains its fixed root, nonblocking no-follow opens, ACL and path validation,
+The current Python reader also repairs the privileged leaf-open boundary: it
+uses O_PATH admission before any data-open and then reopens only the held,
+already-proven regular inode. It retains its fixed root, ACL/path validation,
 descriptor-held rereads, and final visible name and directory generation
 checks. Disposable proofs use the current pins; no Xiphos protected state is
 observed. Parent contract validity, read-only slot shape and stable inode
@@ -143,27 +152,29 @@ Activation-capability issuance and training remain forbidden.
 
 This generation is rebound to #3526 `e496f4391b2b4e9be006695fcd8845669059a48f`, whose public slot/candidate/requirements preflights reject active and revoked Proxy inputs through their exact namespaced schema errors before `Array.isArray`. The protected reader semantics in this child are otherwise unchanged; complete protected origin and capability issuance remain false.
 
-## Rejected-child descriptor cleanup (October 19, 2026)
+## Rejected traversal descriptor cleanup and privileged Python isolation (October 19, 2026)
 
-The subsequent draft repair over #3531 preserves the same read-only origin
-contract and negative activation-authority fields.
+This follow-up keeps the current held-inode slot admission/reread semantics and
+adds two fail-closed entry-boundary repairs.
 
-In the original `open_root` traversal, metadata or POSIX ACL rejection
-after `os.open(component, ...)` closed the retained **parent** but could
-leave the newly opened **child** descriptor live. A repeatedly invoked reader
-could accumulate descriptors on adversarial root metadata, despite returning
-HOLD each time.
+Every child directory opened during protected-root traversal remains locally
+owned until identity, custody and ACL checks succeed. Rejection closes that
+child once before propagating the original HOLD/error. After validation,
+ownership transfers to the retained `current` descriptor before closing the
+old parent. Repeated wrong-mode and injected ACL failures must leave the
+complete `/proc/self/fd` set unchanged.
 
-Every newly opened child now remains under exception cleanup until its
-metadata, ACL and visible-binding checks succeed. After validation, ownership
-transfers to `current` **before** the previous parent is closed; an
-indeterminate parent-close failure then reaches the existing outer cleanup.
-A failed close is not retried because descriptor ownership is uncertain.
+The root-capable source also requires isolated Python before any
+checkout-resolved import. Immediately after the built-in `sys` import it
+requires `isolated=1`, `ignore_environment=1`, `no_user_site=1`,
+`dont_write_bytecode=1`, and `safe_path=1`; otherwise it emits
+`HOLD=isolated_python_required` and exits before importing `json`,
+`argparse`, or other path-resolved modules. Hosted proof copies the source next
+to a malicious sentinel `json.py`, invokes it without `-I`, and requires the
+sentinel never to execute; the same copy self-tests successfully under
+`python -I -B`.
 
-The disposable proof repeats wrong-root-mode and injected root-ACL HOLDs five
-times and requires the complete `/proc/self/fd` descriptor set to remain
-unchanged. It does not touch the installed Xiphos protected store.
-
-This section supersedes only the historical claim below that the October 18
-rebind changed no reader logic. Complete protected origin, capability issuance,
-training, signing, transactions and funds authority remain **false**.
+These repairs do not establish installed Xiphos source custody,
+claim-service-only writer provenance, current store/claim/terminal/publish-request
+revalidation, capability issuance, trainer admission, training, credential/key
+access, transactions, or funds authority.
