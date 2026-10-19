@@ -46,9 +46,9 @@ jobs:
           git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = ab484c751014973be91cf4c34e8477bad944ef60
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = e810744155ae50f6c49f509ec84dff3eb99bbdde
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 260e854bd53314a79b72dfea2e1257b9fe38b128
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = bd60a1ec2a57af0d271596c1ab444df5d365145e
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 7cc8d5b0d30026e9a6eaf0f126f0cbaa75751ea8
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = f2013d8bc3a893d27e0caf3aa779f82b096c2bad
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 833876baf077b9616d08ee9b13b2657a0818dcc5
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
@@ -77,6 +77,7 @@ jobs:
             'post_second_reread_path_replacement_rejected=true' \
             'visible_slot_directory_replacement_rejected=true' \
             'host_io_errors_normalized_to_hold=true' \
+            'rejected_root_descriptor_cleanup_verified=true' \
             'trusted_ancestor_posix_acl_required=true' \
             'descriptor_stable_slot_reread=true' \
             'protected_origin_completion_required=true' \
