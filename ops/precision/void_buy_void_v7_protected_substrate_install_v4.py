@@ -27,8 +27,8 @@ MATERIALIZER_REL = "scripts/materialize_buy_void_v7_protected_substrate_v2.py"
 MATERIALIZER_BLOB = "474614da950db72082fb95a5174405ce8caf2513"
 PREDECESSOR_INSTALLER_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v3.py"
 PREDECESSOR_INSTALLER_BLOB = "4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
-QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py"
-QUALIFIER_BLOB = "56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
+QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"
+QUALIFIER_BLOB = "c2b07c54759d70f6bfaefd6855d922e0d04310b5"
 
 SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 SOURCE_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
@@ -346,6 +346,7 @@ def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expecte
                            "root_mode": format(SOURCE_RELEASE_ROOT_MODE, "04o"),
                            "tree_digest": source_digest[0], "nodes": source_digest[1], "regular_file_bytes": source_digest[2]},
         "protected_source_root_mode": format(PROTECTED_SOURCE_ROOT_MODE, "04o"),
+        "installed_qualifier": {"path": QUALIFIER_REL, "blob": QUALIFIER_BLOB},
         "native_candidate": {"sha256": sha256_bytes(native_raw), "bytes": len(native_raw)},
         "selector_candidate": {"sha256": sha256_bytes(selector_raw), "bytes": len(selector_raw)},
         "installed_state": {"protected_source_exact": source_exact, "native_preentry_exact": preentry_exact, "selector_exact": selector_exact},
@@ -503,6 +504,7 @@ def source_plan() -> None:
     print("publication_bookkeeping_precedes_parent_fsync=true")
     print("immutable_source_release_root_mode_0555_required=true")
     print("protected_source_root_mode_0755_required=true")
+    print("installed_qualifier_v3_bound=true")
     print("source_control_network=false"); print("protected_filesystem_mutation=false"); print("service_mutation=false")
     print("credential_access=false"); print("signing=false"); print("transaction=false"); print("funds_movement=false")
 
@@ -526,6 +528,8 @@ def self_test() -> None:
     print("immutable_source_release_root_mode_0555_required=true")
     print("protected_source_root_mode_0755_required=true")
     assert SOURCE_RELEASE_ROOT_MODE == 0o555 and PROTECTED_SOURCE_ROOT_MODE == 0o755
+    assert QUALIFIER_REL.endswith("_installed_qualification_v3.py") and len(QUALIFIER_BLOB) == 40
+    print("installed_qualifier_v3_bound=true")
     print("partial_publication_truthful=true"); print("no_rollback_after_publication=true")
     print("service_mutation=false"); print("transaction=false"); print("funds_movement=false")
 
@@ -538,7 +542,7 @@ def plan(native: pathlib.Path, selector: pathlib.Path, expected_head: str) -> No
     print("no_rollback_after_publication=true"); print("filesystem_write=false"); print("service_mutation=false")
     print("credential_access=false"); print("signing=false"); print("transaction=false"); print("funds_movement=false")
     if all(state.values()):
-        print("already_installed=true"); print("next_action=RUN_INSTALLED_QUALIFICATION_V2")
+        print("already_installed=true"); print("next_action=RUN_INSTALLED_QUALIFICATION_V3")
     else:
         print("already_installed=false"); print("next_action=SEPARATELY_AUTHORIZE_V7_PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4")
 
@@ -553,7 +557,7 @@ def apply(native: pathlib.Path, selector: pathlib.Path, expected_head: str, expe
     state = result["body"]["installed_state"]
     if all(state.values()):
         print(MARKER); print("mode=apply"); print("status=ALREADY_GREEN"); print("protected_filesystem_mutation=false")
-        print("next_action=RUN_INSTALLED_QUALIFICATION_V2"); return
+        print("next_action=RUN_INSTALLED_QUALIFICATION_V3"); return
     try:
         if not state["protected_source_exact"]: _publish_source(result["source_digest"])
         if not state["native_preentry_exact"]:
@@ -577,7 +581,7 @@ def apply(native: pathlib.Path, selector: pathlib.Path, expected_head: str, expe
     print("service_mutation=false"); print("systemd_mutation=false"); print("credential_access=false"); print("private_key_access=false")
     print("wallet_or_signer_access=false"); print("signing=false"); print("transaction=false"); print("payment_acceptance=false")
     print("public_presale_activation=false"); print("wc_void_market_activation=false"); print("funds_movement=false")
-    print("next_action=RUN_INSTALLED_QUALIFICATION_V2")
+    print("next_action=RUN_INSTALLED_QUALIFICATION_V3")
 
 def main() -> int:
     parser = argparse.ArgumentParser(); mode = parser.add_mutually_exclusive_group(required=True)

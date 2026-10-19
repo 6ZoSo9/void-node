@@ -8,21 +8,25 @@ INS=ROOT/"ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
 MAT=ROOT/"scripts/materialize_buy_void_v7_protected_substrate_v2.py"
 PRED=ROOT/"ops/precision/void_buy_void_v7_protected_substrate_install_v3.py"
 LOCK=ROOT/"ops/security/buy-void-v7-protected-substrate-candidate-lock-v1.json"
-QUAL=ROOT/"ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py"
+QUAL=ROOT/"ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"
+PRED_QUAL=ROOT/"ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py"
 
 def gblob(path:pathlib.Path)->str:
     cp=subprocess.run(["/usr/bin/git","hash-object",str(path)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=20)
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="c4b039746865ba6eb269f70f439fb22947246063"
+assert gblob(INS)=="bdefbf557a51fd303f0205447215df7def5cd45b"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
-assert gblob(QUAL)=="56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
+assert gblob(QUAL)=="c2b07c54759d70f6bfaefd6855d922e0d04310b5"
+assert gblob(PRED_QUAL)=="56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
 
 src=INS.read_text("utf-8")
+qsrc=QUAL.read_text("utf-8")
 ast.parse(src)
+ast.parse(qsrc)
 
 required=(
     'MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4"',
@@ -46,6 +50,11 @@ required=(
     '"schema": SCHEMA, "version": 4',
     'SEPARATELY_AUTHORIZE_V7_PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4',
     'PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4_GREEN',
+    'QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"',
+    'QUALIFIER_BLOB = "c2b07c54759d70f6bfaefd6855d922e0d04310b5"',
+    '"installed_qualifier": {"path": QUALIFIER_REL, "blob": QUALIFIER_BLOB}',
+    'RUN_INSTALLED_QUALIFICATION_V3',
+    'installed_qualifier_v3_bound=true',
     'immutable_source_release_root_mode_0555_required=true',
     'protected_source_root_mode_0755_required=true',
 )
@@ -54,6 +63,26 @@ for needle in required:
 
 for stale in ('tree_digest(SOURCE_RELEASE)','tree_digest(SOURCE_TARGET)','tree_digest(SOURCE_STAGE)'):
     assert stale not in src, stale
+assert 'RUN_INSTALLED_QUALIFICATION_V2' not in src
+
+qrequired=(
+    'MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V3"',
+    'PREDECESSOR_QUALIFIER_BLOB = "56a7ca798553766af525d9fb1ccbe58b70fe9c1d"',
+    'SOURCE_RELEASE_ROOT_MODE = 0o555',
+    'PROTECTED_SOURCE_ROOT_MODE = 0o755',
+    'def root_metadata_fields_valid(',
+    'def tree_digest(root: pathlib.Path, expected_root_mode: int)',
+    'tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE)',
+    'tree_digest(SOURCE, PROTECTED_SOURCE_ROOT_MODE)',
+    'status=INSTALLED_QUALIFICATION_V3_GREEN',
+    'root_mode_role_split_verified=true',
+    'source_release_root_mode_required=0555',
+    'protected_source_root_mode_required=0755',
+)
+for needle in qrequired:
+    assert needle in qsrc, needle
+assert 'os.chmod(SOURCE_RELEASE' not in qsrc
+assert 'os.chown(SOURCE_RELEASE' not in qsrc
 assert 'os.chmod(SOURCE_RELEASE' not in src
 assert 'os.chown(SOURCE_RELEASE' not in src
 
@@ -66,12 +95,23 @@ cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--source-plan"],stdout=sub
 assert cp.returncode==0 and cp.stderr==""
 assert "immutable_source_release_root_mode_0555_required=true" in cp.stdout.splitlines()
 assert "protected_source_root_mode_0755_required=true" in cp.stdout.splitlines()
+assert "installed_qualifier_v3_bound=true" in cp.stdout.splitlines()
 assert "accepted_v1_lock_install_authority=false" in cp.stdout.splitlines()
+
+cp=subprocess.run([sys.executable,"-I","-B",str(QUAL),"--self-test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
+assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V3_SELF_TEST_GREEN" in cp.stdout.splitlines()
+assert "swapped_root_modes_rejected=true" in cp.stdout.splitlines()
+cp=subprocess.run([sys.executable,"-I","-B",str(QUAL)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
+assert cp.returncode==0 and cp.stderr==""
+assert "source_release_root_mode_required=0555" in cp.stdout.splitlines()
+assert "protected_source_root_mode_required=0755" in cp.stdout.splitlines()
 
 print(MARKER+"_GREEN")
 print("precision_observed_source_release_root_mode_0555_bound=true")
 print("immutable_source_release_root_mode_0555_required=true")
 print("protected_source_root_mode_0755_required=true")
+print("installed_qualifier_v3_bound=true")
+print("qualifier_swapped_root_modes_rejected=true")
 print("source_release_chmod_or_chown_forbidden=true")
 print("tree_child_root_ownership_preserved=true")
 print("tree_group_world_write_rejection_preserved=true")
