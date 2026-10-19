@@ -134,4 +134,3 @@ no install authority.
 No protected install, live credential execution, signing, transaction/payment,
 activation, service mutation, treasury/liquidity action, or funds movement is
 authorized by this source lock.
-
