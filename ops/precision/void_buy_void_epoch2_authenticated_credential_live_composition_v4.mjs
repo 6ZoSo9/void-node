@@ -431,6 +431,63 @@ function git(args){
   return r.stdout;
 }
 
+const MAX_ACTUAL_ANCESTRY_COMMITS=4096;
+const MAX_ACTUAL_COMMIT_PARENTS=64;
+
+function rawCommitParents(oid,gitFn=git){
+  if(!SHA40.test(String(oid||""))){
+    throw new Error("source_runtime_actual_object_oid_invalid");
+  }
+  if(gitFn(["cat-file","-t",oid]).trim()!=="commit"){
+    throw new Error("source_runtime_actual_object_not_commit");
+  }
+  const raw=gitFn(["cat-file","-p",oid]);
+  if(typeof raw!=="string"||Buffer.byteLength(raw,"utf8")>MAX_OUTPUT){
+    throw new Error("source_runtime_actual_object_commit_invalid");
+  }
+  const split=raw.indexOf("\n\n");
+  const header=split>=0?raw.slice(0,split):raw;
+  const lines=header.split("\n");
+  if(lines.length<1||!/^tree [0-9a-f]{40}$/u.test(lines[0])){
+    throw new Error("source_runtime_actual_object_commit_header_invalid");
+  }
+  const parents=[];
+  for(const line of lines){
+    if(!line.startsWith("parent "))continue;
+    const parent=line.slice("parent ".length);
+    if(!SHA40.test(parent)){
+      throw new Error("source_runtime_actual_object_parent_invalid");
+    }
+    parents.push(parent);
+    if(parents.length>MAX_ACTUAL_COMMIT_PARENTS){
+      throw new Error("source_runtime_actual_object_parent_bound_exceeded");
+    }
+  }
+  return parents;
+}
+
+function requireActualObjectAncestry(sourceHead,gitFn=git){
+  if(!SHA40.test(String(sourceHead||""))){
+    throw new Error("source_runtime_actual_object_source_invalid");
+  }
+  const pending=[sourceHead];
+  const seen=new Set();
+  while(pending.length){
+    const oid=pending.pop();
+    if(seen.has(oid))continue;
+    seen.add(oid);
+    if(seen.size>MAX_ACTUAL_ANCESTRY_COMMITS){
+      throw new Error("source_runtime_actual_object_ancestry_bound_exceeded");
+    }
+    if(oid===RUNTIME_HEAD)return true;
+    const parents=rawCommitParents(oid,gitFn);
+    for(let index=parents.length-1;index>=0;index--){
+      if(!seen.has(parents[index]))pending.push(parents[index]);
+    }
+  }
+  throw new Error("source_runtime_actual_object_ancestry_not_found");
+}
+
 function validateSourceCompatibility(value,expectedHead){
   if(!value||typeof value!=="object"||Array.isArray(value)||
      !exactKeys(value,SOURCE_COMPATIBILITY_KEYS)){
@@ -463,9 +520,9 @@ function requireSourceRuntimeCompatibility(expectedHead,gitFn=git){
   if(gitFn(["status","--porcelain=v1","--untracked-files=no"])!==""){
     throw new Error("tracked_checkout_not_exact");
   }
-  // Runtime-sensitive authority may only move forward along the actual source
-  // ancestry. This is a local-object query; network transport remains disabled.
-  gitFn(["merge-base","--is-ancestor",RUNTIME_HEAD,sourceHead]);
+  // Runtime-sensitive authority may only move forward through raw commit
+  // parent headers. Revision-walk metadata such as grafts is never authority.
+  requireActualObjectAncestry(sourceHead,gitFn);
 
   for(const [_label,relative,expectedBlob] of SOURCE_RUNTIME_DEPENDENCY_SPECS){
     const runtimeBlob=gitFn(["rev-parse",RUNTIME_HEAD+":"+relative]).trim();
@@ -1093,6 +1150,7 @@ function plan(){
   console.log("source_checkout_head_runtime_observed=true");
   console.log("source_checkout_tree_runtime_observed=true");
   console.log("source_runtime_ancestry_required=true");
+  console.log("source_runtime_actual_object_ancestry_required=true");
   console.log("tracked_source_checkout_exact_required=true");
   console.log("runtime_source_dependency_blob_equality_required=true");
   console.log("root_qualification_dependency_closure_git_object_bound=true");
@@ -1542,6 +1600,49 @@ function selfTest(){
     throw new Error("nested_source_runtime_dependency_drift_not_rejected");
   }
 
+  const graftSourceHead="a".repeat(40);
+  const graftParent="b".repeat(40);
+  const graftTree="c".repeat(40);
+  let graftMergeBaseCalled=false;
+  const graftGit=(args)=>{
+    if(args[0]==="rev-parse"&&args[1]==="--verify"&&args[2]==="HEAD"){
+      return graftSourceHead+"\n";
+    }
+    if(args[0]==="rev-parse"&&args[1]==="--verify"&&args[2]==="HEAD^{tree}"){
+      return graftTree+"\n";
+    }
+    if(args[0]==="branch"&&args[1]==="--show-current")return "main\n";
+    if(args[0]==="status")return "";
+    if(args[0]==="merge-base"){
+      graftMergeBaseCalled=true;
+      return "";
+    }
+    if(args[0]==="cat-file"&&args[1]==="-t")return "commit\n";
+    if(args[0]==="cat-file"&&args[1]==="-p"){
+      if(args[2]===graftSourceHead){
+        return "tree "+graftTree+"\nparent "+graftParent+
+          "\nauthor test <test@example.invalid> 0 +0000"+
+          "\ncommitter test <test@example.invalid> 0 +0000\n\nsource\n";
+      }
+      if(args[2]===graftParent){
+        return "tree "+graftTree+
+          "\nauthor test <test@example.invalid> 0 +0000"+
+          "\ncommitter test <test@example.invalid> 0 +0000\n\nparent\n";
+      }
+    }
+    throw new Error("source_runtime_graft_fixture_query");
+  };
+  let graftHeld=false;
+  try{
+    requireSourceRuntimeCompatibility(RUNTIME_HEAD,graftGit);
+  }catch(error){
+    graftHeld=String(error?.message||error)===
+      "source_runtime_actual_object_ancestry_not_found";
+  }
+  if(!graftHeld||graftMergeBaseCalled){
+    throw new Error("source_runtime_graft_ancestry_not_rejected");
+  }
+
   console.log(MARKER+"_SELF_TEST_GREEN");
   console.log("native_preentry_required_for_live=true");
   console.log("native_parent_retained_for_child_lifetime=true");
@@ -1562,10 +1663,12 @@ function selfTest(){
   console.log("runtime_policy_head_preserved=true");
   console.log("source_checkout_head_runtime_observed=true");
   console.log("source_runtime_ancestry_required=true");
+  console.log("source_runtime_actual_object_ancestry_required=true");
   console.log("tracked_source_checkout_exact_required=true");
   console.log("source_runtime_dependency_blob_equality_required=true");
   console.log("source_runtime_complete_dependency_set_bound=true");
   console.log("nested_source_runtime_dependency_drift_rejected=true");
+  console.log("source_runtime_graft_ancestry_rejected=true");
   console.log("root_qualification_dependency_closure_git_object_bound=true");
   console.log("authenticated_closure_synthetic_namespace=true");
   console.log("authenticated_closure_namespace_absent_required=true");
