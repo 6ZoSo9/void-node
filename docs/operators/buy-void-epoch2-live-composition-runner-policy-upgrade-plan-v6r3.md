@@ -32,7 +32,7 @@ A separately authorized non-root `--plan` will:
 
 1. authenticate current local `main` with Git transport/lazy fetch disabled;
 2. require the runtime head to remain an ancestor of current source;
-3. require exact accepted lock, Runner V4, credential qualifier and sealed-probe Git blobs;
+3. require the exact accepted lock and Runner V4 at current source HEAD, plus the complete nine-entry runtime-sensitive source closure with exact blob equality at both runtime head and current source HEAD;
 4. descriptor-hash the protected current root, retained V4 predecessor and `/usr/bin/node`;
 5. derive the existing V6R2 policy and require the current root to match it exactly;
 6. derive the new policy using the **same runtime head** and current protected-host Node identity;
