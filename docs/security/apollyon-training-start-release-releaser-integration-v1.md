@@ -187,4 +187,3 @@ This closes a source-level future-composition trainer-integrity gap. It does not
 establish protected releaser origin, production writer exclusivity, trainer
 release authority, training authority, credentials, transactions, or funds
 authority.
-
