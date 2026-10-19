@@ -11,7 +11,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
-const SOURCE_BLOB="269e5f716989269697c86bccbce0373762b8d1b3";
+const SOURCE_BLOB="96d4ac3499d222841f1f7a3c53e14900b68ae8cf";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json";
 const PLAN_BLOB="5face2022dc2cbc573e32e99f88623f381a8a174";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -43,6 +43,8 @@ for(const [key,value] of Object.entries(
      key==="protected_host_adapter_required"||
      key==="authorization_one_time_claim_required"||
      key==="authorization_claim_post_rollback_revalidation_required"||
+     key==="operation_wide_exclusive_lease_required"||
+     key==="operation_lease_terminal_revalidation_required"||
      key==="evidence_transcript_digest_binding_required")
     assert.equal(value,true,key);
   else assert.equal(value,false,key);
@@ -81,7 +83,9 @@ const authorization={
 
 function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
   const order=[];
+  const leaseId="voidbuycustodyoperationlease1_"+"5".repeat(64);
   const before={
+    operation_lease_id:leaseId,
     host_id:"precision-fixture",
     journal_sequence:7,
     journal_tip_sha256:sha("journal-before"),
@@ -98,12 +102,19 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
     reviewed_source_tree:"71c67e62a2b21a98f3f5135ee6aa56e0ef97d262",
   };
   let challenge="";
-  const state={before,authorizationClaims};
+  const state={before,authorizationClaims,leaseId};
   const caps={
     generate_challenge_entropy(){order.push("entropy");return Buffer.alloc(32,0x5a);},
-    observe_before({challenge_id}){order.push("before");challenge=challenge_id;return before;},
-    claim_operation_authorization_once({authorization_id,operation_id,challenge_id}){
-      order.push("claim");
+    acquire_operation_lease({authorization_id,operation_id,challenge_id}){
+      order.push("lease");challenge=challenge_id;
+      state.lease={acquired:true,exclusive:true,authorization_id,operation_id,challenge_id,lease_id:leaseId};
+      return state.lease;
+    },
+    observe_before({challenge_id,operation_lease_id}){
+      order.push("before");challenge=challenge_id;assert.equal(operation_lease_id,leaseId);return before;
+    },
+    claim_operation_authorization_once({authorization_id,operation_id,challenge_id,operation_lease_id}){
+      order.push("claim");assert.equal(operation_lease_id,leaseId);
       const already=authorizationClaims.has(authorization_id);
       if(!already) authorizationClaims.add(authorization_id);
       state.claim={
@@ -113,11 +124,12 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
         operation_id,
         challenge_id,
         claim_id:"voidbuycustodychallengeclaim1_"+"4".repeat(64),
+        operation_lease_id:leaseId,
       };
       return state.claim;
     },
-    append_journal_canary({challenge_id,canary_domain_id}){
-      order.push("append");
+    append_journal_canary({challenge_id,canary_domain_id,operation_lease_id}){
+      order.push("append");assert.equal(operation_lease_id,leaseId);
       assert.equal(challenge_id,challenge);
       assert.equal(canary_domain_id,"void.buyvoid.presale.noncustomer.canary.v1");
       state.append={
@@ -126,61 +138,70 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
         journal_sequence:8,
         journal_tip_sha256:sha("journal-canary"),
         event_sha256:sha("event"),
+        operation_lease_id:leaseId,
       };
       return state.append;
     },
-    advance_high_water({challenge_id}){
-      order.push("high");
-      state.high={challenge_id,high_water_sequence:8,high_water_sha256:sha("high-after")};
+    advance_high_water({challenge_id,operation_lease_id}){
+      order.push("high");assert.equal(operation_lease_id,leaseId);
+      state.high={challenge_id,high_water_sequence:8,high_water_sha256:sha("high-after"),operation_lease_id:leaseId};
       return state.high;
     },
-    sync_close_reopen(){order.push("reopen");return {...before,
+    sync_close_reopen({operation_lease_id}){order.push("reopen");assert.equal(operation_lease_id,leaseId);return {...before,
       journal_sequence:8,journal_tip_sha256:state.append.journal_tip_sha256,
       high_water_sequence:8,high_water_sha256:state.high.high_water_sha256};},
-    append_external_witness({challenge_id}){
-      order.push("witness");
+    append_external_witness({challenge_id,operation_lease_id}){
+      order.push("witness");assert.equal(operation_lease_id,leaseId);
       state.witness={challenge_id,external_witness_sequence:12,
         external_witness_tip_sha256:sha("witness-after"),
         source_journal_tip_sha256:state.append.journal_tip_sha256,
-        source_high_water_sha256:state.high.high_water_sha256};
+        source_high_water_sha256:state.high.high_water_sha256,
+        operation_lease_id:leaseId};
       return state.witness;
     },
-    obtain_second_control_approval({challenge_id}){
-      order.push("second");
+    obtain_second_control_approval({challenge_id,operation_lease_id}){
+      order.push("second");assert.equal(operation_lease_id,leaseId);
       return {approved:true,approval_id:"voidbuycustodysecondcontrol1_"+"2".repeat(64),
         challenge_id,rollback_target_journal_tip_sha256:before.journal_tip_sha256,
-        protected_high_water_sha256:state.high.high_water_sha256};
+        protected_high_water_sha256:state.high.high_water_sha256,
+        operation_lease_id:leaseId};
     },
-    attempt_controlled_journal_rollback({challenge_id,authorization_claim_id}){
-      order.push("rollback");
+    attempt_controlled_journal_rollback({challenge_id,authorization_claim_id,operation_lease_id}){
+      order.push("rollback");assert.equal(operation_lease_id,leaseId);
       assert.equal(authorization_claim_id,state.claim.claim_id);
       return {attempted:true,challenge_id,controller_id:"void.replay.journal.rollback.controller.v1",
         journal_target_sha256:before.journal_tip_sha256,
         protected_high_water_sha256:state.high.high_water_sha256,high_water_mutated:false,
-        authorization_claim_mutated:false};
+        authorization_claim_mutated:false,operation_lease_id:leaseId};
     },
-    observe_after_rollback(){order.push("after");return {...before,
+    observe_after_rollback({operation_lease_id}){order.push("after");assert.equal(operation_lease_id,leaseId);return {...before,
       high_water_sequence:8,high_water_sha256:state.high.high_water_sha256,
       external_witness_sequence:12,external_witness_tip_sha256:state.witness.external_witness_tip_sha256};},
-    attempt_stale_journal_replay({challenge_id}){order.push("stale");
-      return {attempted:true,challenge_id,refused:true,reason:"high_water_ahead_of_journal"};},
-    reobserve_storage_and_policy(){order.push("terminal");return {...before,
+    attempt_stale_journal_replay({challenge_id,operation_lease_id}){order.push("stale");assert.equal(operation_lease_id,leaseId);
+      return {attempted:true,challenge_id,refused:true,reason:"high_water_ahead_of_journal",operation_lease_id:leaseId};},
+    reobserve_storage_and_policy({operation_lease_id}){order.push("terminal");assert.equal(operation_lease_id,leaseId);return {...before,
       high_water_sequence:8,high_water_sha256:state.high.high_water_sha256,
       external_witness_sequence:12,external_witness_tip_sha256:state.witness.external_witness_tip_sha256};},
     revalidate_operation_authorization_claim({
-      authorization_id,operation_id,challenge_id,claim_id,
+      authorization_id,operation_id,challenge_id,claim_id,operation_lease_id,
     }){
-      order.push("claim-revalidate");
+      order.push("claim-revalidate");assert.equal(operation_lease_id,leaseId);
       return {
         present:authorizationClaims.has(authorization_id),
-        authorization_id,operation_id,challenge_id,claim_id,
+        authorization_id,operation_id,challenge_id,claim_id,operation_lease_id:leaseId,
       };
     },
-    authenticate_evidence_origin({challenge_id,operation_id,authorization_claim_id,evidence_sha256}){order.push("origin");
+    revalidate_operation_lease({authorization_id,operation_id,challenge_id,lease_id}){
+      order.push("lease-revalidate");
+      return {present:true,exclusive:true,authorization_id,operation_id,challenge_id,lease_id};
+    },
+    authenticate_evidence_origin({challenge_id,operation_id,authorization_claim_id,operation_lease_id,evidence_sha256}){order.push("origin");
+      assert.equal(operation_lease_id,leaseId);
       assert.equal(authorization_claim_id,state.claim.claim_id);
       assert.match(evidence_sha256,/^sha256:[0-9a-f]{64}$/u);
       state.originEvidenceSha256=evidence_sha256;
       return {authenticated:true,challenge_id,operation_id,authorization_claim_id,
+        operation_lease_id:leaseId,
         origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),
         evidence_sha256};},
   };
@@ -188,7 +209,7 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
   return {caps,order,state};
 }
 
-const expectedOrder=["entropy","before","claim","append","high","reopen","witness","second","rollback","after","stale","terminal","claim-revalidate","origin"];
+const expectedOrder=["entropy","lease","before","claim","append","high","reopen","witness","second","rollback","after","stale","terminal","claim-revalidate","lease-revalidate","origin"];
 {
   const h=makeHarness();
   const result=executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
@@ -205,11 +226,18 @@ const expectedOrder=["entropy","before","claim","append","high","reopen","witnes
   assert.equal(result.authorization_claim_post_rollback_revalidated,true);
   assert.equal(result.authorization_claim_rollback_mutation_forbidden,true);
   assert.equal(result.authorization_claim_authenticated,false);
+  assert.match(result.operation_lease_id,/^voidbuycustodyoperationlease1_[0-9a-f]{64}$/u);
+  assert.equal(result.operation_wide_exclusive_lease_required,true);
+  assert.equal(result.operation_lease_contract_validated,true);
+  assert.equal(result.operation_lease_terminal_revalidated,true);
+  assert.equal(result.operation_lease_bound_to_evidence_origin,true);
+  assert.equal(result.operation_lease_authenticated,false);
+  assert.equal(result.operation_lease_exclusivity_proven,false);
   assert.equal(result.operation_bound_authorization_authenticated,false);
   assert.equal(result.authorization_claim_bound_to_evidence_origin,true);
   assert.equal(
     result.next_gate,
-    "VERSION_CHALLENGE_PLAN_FOR_AUTHORIZATION_CLAIM_THEN_BUILD_PROTECTED_HOST_ADAPTER_V1",
+    "VERSION_CHALLENGE_PLAN_FOR_CLAIM_TRANSCRIPT_AND_OPERATION_LEASE_THEN_BUILD_PROTECTED_HOST_ADAPTER_V1",
   );
   assert.equal(result.non_customer_canary_domain_bound,true);
   assert.equal(result.non_customer_canary_isolation_proven,false);
@@ -258,7 +286,7 @@ const expectedOrder=["entropy","before","claim","append","high","reopen","witnes
   assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
     authorization,capabilities:second.caps,
   }),/authorization_replay_or_claim_failed/);
-  assert.deepEqual(second.order,["entropy","before","claim"]);
+  assert.deepEqual(second.order,["entropy","lease","before","claim"]);
   assert.notEqual(firstResult.challenge_id,second.state.claim.challenge_id);
   assert.equal(second.order.includes("append"),false);
 }
@@ -270,6 +298,20 @@ function mustFail(label,mutator,pattern){
   }),pattern,label);
 }
 mustFail("bad entropy",(c)=>{c.generate_challenge_entropy=()=>Buffer.alloc(31);},/challenge_entropy_invalid/);
+mustFail("operation lease acquisition refused",(c)=>{c.acquire_operation_lease=({
+  authorization_id,operation_id,challenge_id,
+})=>({acquired:false,exclusive:false,authorization_id,operation_id,challenge_id,
+  lease_id:"voidbuycustodyoperationlease1_"+"5".repeat(64)});},/operation_lease_acquisition_failed/);
+mustFail("operation lease substitution",(c,s)=>{
+  const original=c.append_journal_canary;
+  c.append_journal_canary=(args)=>({...original(args),
+    operation_lease_id:"voidbuycustodyoperationlease1_"+"6".repeat(64)});
+},/append_challenge_mismatch/);
+mustFail("operation lease lost before origin",(c)=>{
+  c.revalidate_operation_lease=({authorization_id,operation_id,challenge_id,lease_id})=>({
+    present:false,exclusive:false,authorization_id,operation_id,challenge_id,lease_id,
+  });
+},/operation_lease_not_persistent/);
 
 {
   const {proxy,revoke}=Proxy.revocable({},Object.create(null));
@@ -297,7 +339,7 @@ for(const [field,pattern] of [
   assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV1({
     authorization,capabilities:h.caps,
   }),pattern,field);
-  assert.deepEqual(h.order,["entropy","before"],field);
+  assert.deepEqual(h.order,["entropy","lease","before"],field);
 }
 {
   let entropyInvoked=false;
@@ -412,11 +454,13 @@ mustFail("high water mutation",(c,s,b)=>{c.attempt_controlled_journal_rollback=(
   attempted:true,challenge_id,controller_id:"void.replay.journal.rollback.controller.v1",
   journal_target_sha256:b.journal_tip_sha256,protected_high_water_sha256:s.high.high_water_sha256,
   high_water_mutated:true,authorization_claim_mutated:false,
+  operation_lease_id:s.leaseId,
 });},/controlled_rollback_result_invalid/);
 mustFail("rollback reports claim mutation",(c,s,b)=>{c.attempt_controlled_journal_rollback=({challenge_id})=>({
   attempted:true,challenge_id,controller_id:"void.replay.journal.rollback.controller.v1",
   journal_target_sha256:b.journal_tip_sha256,protected_high_water_sha256:s.high.high_water_sha256,
   high_water_mutated:false,authorization_claim_mutated:true,
+  operation_lease_id:s.leaseId,
 });},/controlled_rollback_result_invalid/);
 mustFail("claim lost during rollback",(c,s)=>{
   const original=c.attempt_controlled_journal_rollback;
@@ -430,8 +474,8 @@ mustFail("high water decrease",(c,s,b)=>{c.observe_after_rollback=()=>({...b,
   high_water_sequence:7,high_water_sha256:b.high_water_sha256,
   external_witness_sequence:12,external_witness_tip_sha256:s.witness.external_witness_tip_sha256,
 });},/protected_high_water_decreased/);
-mustFail("stale replay accepted",(c)=>{c.attempt_stale_journal_replay=({challenge_id})=>({
-  attempted:true,challenge_id,refused:false,reason:"accepted",
+mustFail("stale replay accepted",(c,s)=>{c.attempt_stale_journal_replay=({challenge_id})=>({
+  attempted:true,challenge_id,refused:false,reason:"accepted",operation_lease_id:s.leaseId,
 });},/stale_journal_not_refused/);
 mustFail("terminal journal drift",(c,s,b)=>{c.reobserve_storage_and_policy=()=>({...b,
   journal_sequence:8,journal_tip_sha256:s.append.journal_tip_sha256,
@@ -445,16 +489,18 @@ mustFail("ledger drift",(c,s,b)=>{c.reobserve_storage_and_policy=()=>({...b,
 });},/terminal_binding_drift:allocation_ledger_sha256/);
 mustFail("collapsed storage",(c,s,b)=>{c.observe_before=()=>({...b,high_water_storage_id:b.journal_storage_id});},
   /before_storage_domains_not_distinct/);
-mustFail("origin unauthenticated",(c)=>{c.authenticate_evidence_origin=({
+mustFail("origin unauthenticated",(c,s)=>{c.authenticate_evidence_origin=({
   challenge_id,operation_id,authorization_claim_id,evidence_sha256,
 })=>({
   authenticated:false,challenge_id,operation_id,authorization_claim_id,
+  operation_lease_id:s.leaseId,
   origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),evidence_sha256,
 });},/evidence_origin_not_authenticated/);
-mustFail("origin digest mismatch",(c)=>{c.authenticate_evidence_origin=({
+mustFail("origin digest mismatch",(c,s)=>{c.authenticate_evidence_origin=({
   challenge_id,operation_id,authorization_claim_id,
 })=>({
   authenticated:true,challenge_id,operation_id,authorization_claim_id,
+  operation_lease_id:s.leaseId,
   origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),
   evidence_sha256:sha("different-controller-evidence"),
 });},/evidence_origin_digest_mismatch/);
@@ -520,6 +566,15 @@ console.log("authorization_claim_post_rollback_revalidation_required=true");
 console.log("authorization_claim_post_rollback_revalidated=true");
 console.log("authorization_claim_rollback_mutation_forbidden=true");
 console.log("claim_loss_during_rollback_rejected=true");
+console.log("operation_wide_exclusive_lease_required=true");
+console.log("operation_lease_acquired_before_observation=true");
+console.log("operation_lease_id_bound_to_all_callbacks=true");
+console.log("operation_lease_terminal_revalidation_required=true");
+console.log("operation_lease_terminal_revalidated=true");
+console.log("operation_lease_substitution_rejected=true");
+console.log("operation_lease_loss_rejected=true");
+console.log("operation_lease_authenticated=false");
+console.log("operation_lease_exclusivity_proven=false");
 console.log("challenge_plan_successor_required_before_host_adapter=true");
 console.log("operation_bound_authorization_authenticated=false");
 console.log("non_customer_canary_domain_bound=true");

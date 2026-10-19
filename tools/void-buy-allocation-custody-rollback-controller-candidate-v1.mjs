@@ -17,6 +17,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_AUTHORITY_V1 =
     protected_host_adapter_required: true,
     authorization_one_time_claim_required: true,
     authorization_claim_post_rollback_revalidation_required: true,
+    operation_wide_exclusive_lease_required: true,
+    operation_lease_terminal_revalidation_required: true,
     evidence_transcript_digest_binding_required: true,
     direct_host_filesystem_api_present: false,
     direct_process_api_present: false,
@@ -37,6 +39,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_AUTHORITY_V1 =
     wc_void_market_activation_authorized: false,
     treasury_or_liquidity_action_authorized: false,
     funds_movement: false,
+    operation_lease_authenticated: false,
+    operation_lease_exclusivity_proven: false,
     production_host_evidence_authority: false,
   });
 
@@ -45,6 +49,7 @@ const CANARY_DOMAIN="void.buyvoid.presale.noncustomer.canary.v1";
 const OP_ID=/^voidbuycustodychallengeop1_[0-9a-f]{64}$/u;
 const AUTH_ID=/^voidbuycustodychallengeauth1_[0-9a-f]{64}$/u;
 const CLAIM_ID=/^voidbuycustodychallengeclaim1_[0-9a-f]{64}$/u;
+const LEASE_ID=/^voidbuycustodyoperationlease1_[0-9a-f]{64}$/u;
 const SHA=/^sha256:[0-9a-f]{64}$/u;
 const HEX40=/^[0-9a-f]{40}$/u;
 const ORIGIN=/^voidbuycustodychallengeorigin1_[0-9a-f]{64}$/u;
@@ -54,6 +59,7 @@ const U64_MAX=18446744073709551615n;
 
 const CAPABILITY_KEYS=Object.freeze([
   "generate_challenge_entropy",
+  "acquire_operation_lease",
   "observe_before",
   "claim_operation_authorization_once",
   "append_journal_canary",
@@ -66,6 +72,7 @@ const CAPABILITY_KEYS=Object.freeze([
   "attempt_stale_journal_replay",
   "reobserve_storage_and_policy",
   "revalidate_operation_authorization_claim",
+  "revalidate_operation_lease",
   "authenticate_evidence_origin",
 ]);
 
@@ -78,6 +85,7 @@ const AUTH_KEYS=Object.freeze([
 ]);
 
 const STABLE_CONTEXT_KEYS=Object.freeze([
+  "operation_lease_id",
   "host_id",
   "journal_storage_id",
   "high_water_storage_id",
@@ -201,13 +209,14 @@ function normalizeAuthorization(value){
 
 function normalizeObservation(value,code){
   const keys=[
-    "host_id","journal_sequence","journal_tip_sha256","high_water_sequence",
+    "operation_lease_id","host_id","journal_sequence","journal_tip_sha256","high_water_sequence",
     "high_water_sha256","external_witness_sequence","external_witness_tip_sha256",
     "journal_storage_id","high_water_storage_id","policy_fingerprint_sha256",
     "policy_generation","allocation_ledger_sha256","customer_request_state_sha256",
     "reviewed_source_tree",
   ];
   const o=dataObject(value,keys,code+"_shape");
+  string(o.operation_lease_id,LEASE_ID,code+"_operation_lease_id");
   if(typeof o.host_id!=="string"||o.host_id.length<1||o.host_id.length>128)fail(code+"_host");
   safeInt(o.journal_sequence,code+"_journal_sequence",0);
   safeInt(o.high_water_sequence,code+"_high_water_sequence",0);
@@ -260,9 +269,31 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     entropy_sha256:sha256(entropy),
   });
 
+  const lease=exactResult(callSync(caps.acquire_operation_lease,
+    Object.freeze({
+      authorization_id:authorization.authorization_id,
+      operation_id:authorization.operation_id,
+      challenge_id:challengeId,
+      plan_id:authorization.plan_id,
+      expected_policy_fingerprint_sha256:authorization.expected_policy_fingerprint_sha256,
+      expected_policy_generation:authorization.expected_policy_generation,
+      reviewed_source_tree:authorization.reviewed_source_tree,
+    }),
+    "operation_lease"),
+    ["acquired","exclusive","authorization_id","operation_id","challenge_id","lease_id"],
+    "operation_lease");
+  if(lease.acquired!==true||lease.exclusive!==true||
+     lease.authorization_id!==authorization.authorization_id||
+     lease.operation_id!==authorization.operation_id||
+     lease.challenge_id!==challengeId)
+    fail("operation_lease_acquisition_failed");
+  string(lease.lease_id,LEASE_ID,"operation_lease_id_invalid");
+
   const before=normalizeObservation(callSync(caps.observe_before,
-    Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id}),
+    Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
+      operation_lease_id:lease.lease_id}),
     "observe_before"),"before");
+  if(before.operation_lease_id!==lease.lease_id)fail("before_operation_lease_mismatch");
   if(
     before.policy_fingerprint_sha256!==authorization.expected_policy_fingerprint_sha256||
     before.policy_generation!==authorization.expected_policy_generation
@@ -281,14 +312,16 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
       expected_policy_fingerprint_sha256:authorization.expected_policy_fingerprint_sha256,
       expected_policy_generation:authorization.expected_policy_generation,
       reviewed_source_tree:authorization.reviewed_source_tree,
+      operation_lease_id:lease.lease_id,
     }),
     "authorization_claim"),
-    ["claimed","already_claimed","authorization_id","operation_id","challenge_id","claim_id"],
+    ["claimed","already_claimed","authorization_id","operation_id","challenge_id","claim_id","operation_lease_id"],
     "authorization_claim");
   if(claim.claimed!==true||claim.already_claimed!==false||
      claim.authorization_id!==authorization.authorization_id||
      claim.operation_id!==authorization.operation_id||
-     claim.challenge_id!==challengeId)
+     claim.challenge_id!==challengeId||
+     claim.operation_lease_id!==lease.lease_id)
     fail("authorization_replay_or_claim_failed");
   string(claim.claim_id,CLAIM_ID,"authorization_claim_id_invalid");
 
@@ -296,13 +329,15 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
       canary_domain_id:authorization.canary_domain_id,
       before_journal_sequence:before.journal_sequence,
-      before_journal_tip_sha256:before.journal_tip_sha256}),
+      before_journal_tip_sha256:before.journal_tip_sha256,
+      operation_lease_id:lease.lease_id}),
     "append_journal_canary"),
-    ["challenge_id","canary_domain_id","journal_sequence","journal_tip_sha256","event_sha256"],
+    ["challenge_id","canary_domain_id","journal_sequence","journal_tip_sha256","event_sha256","operation_lease_id"],
     "append_journal");
   if(
     append.challenge_id!==challengeId||
-    append.canary_domain_id!==authorization.canary_domain_id
+    append.canary_domain_id!==authorization.canary_domain_id||
+    append.operation_lease_id!==lease.lease_id
   )fail("append_challenge_mismatch");
   safeInt(append.journal_sequence,"append_journal_sequence_invalid",0);
   if(append.journal_sequence!==before.journal_sequence+1)fail("journal_sequence_not_advanced");
@@ -311,11 +346,13 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
 
   const high=exactResult(callSync(caps.advance_high_water,
     Object.freeze({challenge_id:challengeId,journal_sequence:append.journal_sequence,
-      journal_tip_sha256:append.journal_tip_sha256}),
+      journal_tip_sha256:append.journal_tip_sha256,
+      operation_lease_id:lease.lease_id}),
     "advance_high_water"),
-    ["challenge_id","high_water_sequence","high_water_sha256"],
+    ["challenge_id","high_water_sequence","high_water_sha256","operation_lease_id"],
     "advance_high_water");
-  if(high.challenge_id!==challengeId)fail("high_water_challenge_mismatch");
+  if(high.challenge_id!==challengeId||high.operation_lease_id!==lease.lease_id)
+    fail("high_water_challenge_mismatch");
   if(!Number.isSafeInteger(high.high_water_sequence)||
      high.high_water_sequence<Math.max(before.high_water_sequence+1,append.journal_sequence))
     fail("high_water_not_advanced");
@@ -325,8 +362,10 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     Object.freeze({challenge_id:challengeId,journal_sequence:append.journal_sequence,
       journal_tip_sha256:append.journal_tip_sha256,
       high_water_sequence:high.high_water_sequence,
-      high_water_sha256:high.high_water_sha256}),
+      high_water_sha256:high.high_water_sha256,
+      operation_lease_id:lease.lease_id}),
     "sync_close_reopen"),"reopened");
+  if(reopened.operation_lease_id!==lease.lease_id)fail("sync_reopen_operation_lease_mismatch");
   if(reopened.journal_sequence!==append.journal_sequence||
      reopened.journal_tip_sha256!==append.journal_tip_sha256||
      reopened.high_water_sequence!==high.high_water_sequence||
@@ -340,13 +379,13 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
 
   const witness=exactResult(callSync(caps.append_external_witness,
     Object.freeze({challenge_id:challengeId,journal_tip_sha256:append.journal_tip_sha256,
-      high_water_sha256:high.high_water_sha256}),
+      high_water_sha256:high.high_water_sha256,operation_lease_id:lease.lease_id}),
     "append_external_witness"),
     ["challenge_id","external_witness_sequence","external_witness_tip_sha256",
-     "source_journal_tip_sha256","source_high_water_sha256"],
+     "source_journal_tip_sha256","source_high_water_sha256","operation_lease_id"],
     "external_witness");
   safeInt(witness.external_witness_sequence,"external_witness_sequence_invalid",0);
-  if(witness.challenge_id!==challengeId||
+  if(witness.challenge_id!==challengeId||witness.operation_lease_id!==lease.lease_id||
      witness.external_witness_sequence!==before.external_witness_sequence+1||
      witness.source_journal_tip_sha256!==append.journal_tip_sha256||
      witness.source_high_water_sha256!==high.high_water_sha256)
@@ -356,12 +395,14 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
   const approval=exactResult(callSync(caps.obtain_second_control_approval,
     Object.freeze({challenge_id:challengeId,
       rollback_target_journal_tip_sha256:before.journal_tip_sha256,
-      protected_high_water_sha256:high.high_water_sha256}),
+      protected_high_water_sha256:high.high_water_sha256,
+      operation_lease_id:lease.lease_id}),
     "second_control"),
     ["approved","approval_id","challenge_id","rollback_target_journal_tip_sha256",
-     "protected_high_water_sha256"],
+     "protected_high_water_sha256","operation_lease_id"],
     "second_control");
   if(approval.approved!==true||approval.challenge_id!==challengeId||
+     approval.operation_lease_id!==lease.lease_id||
      approval.rollback_target_journal_tip_sha256!==before.journal_tip_sha256||
      approval.protected_high_water_sha256!==high.high_water_sha256)
     fail("second_control_approval_invalid");
@@ -373,12 +414,14 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     Object.freeze({challenge_id:challengeId,approval_id:approval.approval_id,
       journal_target_sha256:before.journal_tip_sha256,
       protected_high_water_sha256:high.high_water_sha256,
-      authorization_claim_id:claim.claim_id}),
+      authorization_claim_id:claim.claim_id,
+      operation_lease_id:lease.lease_id}),
     "controlled_rollback"),
     ["attempted","challenge_id","controller_id","journal_target_sha256",
-     "protected_high_water_sha256","high_water_mutated","authorization_claim_mutated"],
+     "protected_high_water_sha256","high_water_mutated","authorization_claim_mutated","operation_lease_id"],
     "controlled_rollback");
   if(rollback.attempted!==true||rollback.challenge_id!==challengeId||
+     rollback.operation_lease_id!==lease.lease_id||
      rollback.controller_id!=="void.replay.journal.rollback.controller.v1"||
      rollback.journal_target_sha256!==before.journal_tip_sha256||
      rollback.protected_high_water_sha256!==high.high_water_sha256||
@@ -387,7 +430,9 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     fail("controlled_rollback_result_invalid");
 
   const after=normalizeObservation(callSync(caps.observe_after_rollback,
-    Object.freeze({challenge_id:challengeId}),"observe_after_rollback"),"after");
+    Object.freeze({challenge_id:challengeId,operation_lease_id:lease.lease_id}),
+    "observe_after_rollback"),"after");
+  if(after.operation_lease_id!==lease.lease_id)fail("post_rollback_operation_lease_mismatch");
   if(after.journal_tip_sha256!==before.journal_tip_sha256||
      after.journal_sequence!==before.journal_sequence)
     fail("journal_rollback_target_not_observed");
@@ -401,16 +446,20 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
 
   const stale=exactResult(callSync(caps.attempt_stale_journal_replay,
     Object.freeze({challenge_id:challengeId,stale_journal_tip_sha256:before.journal_tip_sha256,
-      protected_high_water_sha256:high.high_water_sha256}),
+      protected_high_water_sha256:high.high_water_sha256,
+      operation_lease_id:lease.lease_id}),
     "stale_replay"),
-    ["attempted","challenge_id","refused","reason"],
+    ["attempted","challenge_id","refused","reason","operation_lease_id"],
     "stale_replay");
   if(stale.attempted!==true||stale.challenge_id!==challengeId||
+     stale.operation_lease_id!==lease.lease_id||
      stale.refused!==true||stale.reason!=="high_water_ahead_of_journal")
     fail("stale_journal_not_refused");
 
   const terminal=normalizeObservation(callSync(caps.reobserve_storage_and_policy,
-    Object.freeze({challenge_id:challengeId}),"terminal_reobservation"),"terminal");
+    Object.freeze({challenge_id:challengeId,operation_lease_id:lease.lease_id}),
+    "terminal_reobservation"),"terminal");
+  if(terminal.operation_lease_id!==lease.lease_id)fail("terminal_operation_lease_mismatch");
   assertStableContext(before,terminal,"terminal_binding_drift");
   if(
     terminal.journal_sequence!==before.journal_sequence||
@@ -429,16 +478,35 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
       operation_id:authorization.operation_id,
       challenge_id:challengeId,
       claim_id:claim.claim_id,
+      operation_lease_id:lease.lease_id,
     }),
     "authorization_claim_revalidation"),
-    ["present","authorization_id","operation_id","challenge_id","claim_id"],
+    ["present","authorization_id","operation_id","challenge_id","claim_id","operation_lease_id"],
     "authorization_claim_revalidation");
   if(claimAfter.present!==true||
      claimAfter.authorization_id!==authorization.authorization_id||
      claimAfter.operation_id!==authorization.operation_id||
      claimAfter.challenge_id!==challengeId||
-     claimAfter.claim_id!==claim.claim_id)
+     claimAfter.claim_id!==claim.claim_id||
+     claimAfter.operation_lease_id!==lease.lease_id)
     fail("authorization_claim_not_persistent");
+
+  const leaseAfter=exactResult(callSync(caps.revalidate_operation_lease,
+    Object.freeze({
+      authorization_id:authorization.authorization_id,
+      operation_id:authorization.operation_id,
+      challenge_id:challengeId,
+      lease_id:lease.lease_id,
+    }),
+    "operation_lease_revalidation"),
+    ["present","exclusive","authorization_id","operation_id","challenge_id","lease_id"],
+    "operation_lease_revalidation");
+  if(leaseAfter.present!==true||leaseAfter.exclusive!==true||
+     leaseAfter.authorization_id!==authorization.authorization_id||
+     leaseAfter.operation_id!==authorization.operation_id||
+     leaseAfter.challenge_id!==challengeId||
+     leaseAfter.lease_id!==lease.lease_id)
+    fail("operation_lease_not_persistent");
 
   const evidenceTranscript=Object.freeze({
     marker:"VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_EVIDENCE_TRANSCRIPT_V1",
@@ -446,6 +514,8 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     authorization,
     challenge_id:challengeId,
     authorization_claim_id:claim.claim_id,
+    operation_lease_id:lease.lease_id,
+    operation_lease:lease,
     before,
     authorization_claim:claim,
     journal_append:append,
@@ -458,6 +528,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     stale_replay:stale,
     terminal_reobservation:terminal,
     authorization_claim_revalidation:claimAfter,
+    operation_lease_revalidation:leaseAfter,
   });
   const controllerEvidenceSha256=sha256(canonical(evidenceTranscript));
 
@@ -465,13 +536,15 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
       authorization_id:authorization.authorization_id,
       authorization_claim_id:claim.claim_id,
+      operation_lease_id:lease.lease_id,
       evidence_sha256:controllerEvidenceSha256}),
     "evidence_origin"),
-    ["authenticated","challenge_id","operation_id","authorization_claim_id","origin_id","evidence_sha256"],
+    ["authenticated","challenge_id","operation_id","authorization_claim_id","operation_lease_id","origin_id","evidence_sha256"],
     "evidence_origin");
   if(origin.authenticated!==true||origin.challenge_id!==challengeId||
      origin.operation_id!==authorization.operation_id||
-     origin.authorization_claim_id!==claim.claim_id)
+     origin.authorization_claim_id!==claim.claim_id||
+     origin.operation_lease_id!==lease.lease_id)
     fail("evidence_origin_not_authenticated");
   string(origin.origin_id,ORIGIN,"evidence_origin_id_invalid");
   string(origin.evidence_sha256,SHA,"evidence_origin_sha_invalid");
@@ -487,6 +560,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     operation_id:authorization.operation_id,
     challenge_id:challengeId,
     authorization_claim_id:claim.claim_id,
+    operation_lease_id:lease.lease_id,
     controller_id:"void.replay.journal.rollback.controller.v1",
     authorization_record_validated:true,
     authorization_claim_contract_validated:true,
@@ -495,6 +569,12 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     authorization_claim_post_rollback_revalidated:true,
     authorization_claim_rollback_mutation_forbidden:true,
     authorization_claim_authenticated:false,
+    operation_wide_exclusive_lease_required:true,
+    operation_lease_contract_validated:true,
+    operation_lease_terminal_revalidated:true,
+    operation_lease_bound_to_evidence_origin:true,
+    operation_lease_authenticated:false,
+    operation_lease_exclusivity_proven:false,
     operation_bound_authorization_authenticated:false,
     non_customer_canary_domain_bound:true,
     non_customer_canary_isolation_proven:false,
@@ -545,6 +625,6 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     treasury_or_liquidity_action_authorized:false,
     funds_movement:false,
     production_host_evidence_authority:false,
-    next_gate:"VERSION_CHALLENGE_PLAN_FOR_AUTHORIZATION_CLAIM_THEN_BUILD_PROTECTED_HOST_ADAPTER_V1",
+    next_gate:"VERSION_CHALLENGE_PLAN_FOR_CLAIM_TRANSCRIPT_AND_OPERATION_LEASE_THEN_BUILD_PROTECTED_HOST_ADAPTER_V1",
   });
 }

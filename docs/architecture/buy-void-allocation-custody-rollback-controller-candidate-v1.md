@@ -26,23 +26,25 @@ The controller imports only Node crypto/util. It has no direct filesystem,
 process, systemd, socket, network, host-path, credential, wallet, signer, RPC,
 or transaction API.
 
-A future separately reviewed protected host adapter must inject exactly fourteen
+A future separately reviewed protected host adapter must inject exactly sixteen
 synchronous capabilities:
 
 1. generate execution-time challenge entropy;
-2. observe pre-challenge storage/policy/customer state;
-3. durably claim the exact operation authorization once;
-4. append the non-customer journal canary;
-5. advance protected high-water;
-6. sync/close/reopen and prove durability;
-7. append the external-witness event;
-8. obtain high-water second-control approval;
-9. attempt the controlled journal rollback;
-10. observe post-rollback state;
-11. attempt stale-journal replay and prove refusal;
-12. reobserve storage/policy/customer state;
-13. revalidate the exact authorization claim after rollback; and
-14. authenticate evidence origin.
+2. acquire the exact operation-wide exclusive lease;
+3. observe pre-challenge storage/policy/customer state under that lease;
+4. durably claim the exact operation authorization once under that lease;
+5. append the non-customer journal canary;
+6. advance protected high-water;
+7. sync/close/reopen and prove durability;
+8. append the external-witness event;
+9. obtain high-water second-control approval;
+10. attempt the controlled journal rollback;
+11. observe post-rollback state;
+12. attempt stale-journal replay and prove refusal;
+13. reobserve storage/policy/customer state;
+14. revalidate the exact authorization claim after rollback;
+15. revalidate the exact operation lease after rollback; and
+16. authenticate evidence origin.
 
 Async/thenable capabilities fail closed.
 
@@ -125,6 +127,35 @@ observation must show:
 - exact one-time authorization claim still present after rollback; and
 - authenticated evidence origin.
 
+## Operation-wide lease binding
+
+After challenge entropy is derived and before the first storage/policy observation,
+the controller requires a single operation-wide lease capability. The lease record
+must bind the exact authorization ID, operation ID, challenge ID, plan, expected
+policy fingerprint/generation, and reviewed source tree, and must report an opaque
+`voidbuycustodyoperationlease1_<sha256>` lease ID with `acquired=true` and
+`exclusive=true`.
+
+That same lease ID is passed to and echoed by every subsequent capability and
+observation: current-state observation, one-time claim, journal append, high-water
+advance, durability reopen, external witness, second control, rollback,
+post-rollback observation, stale-replay attempt, terminal reobservation, claim
+revalidation, lease revalidation, and evidence-origin authentication. A changed
+lease ID at any stage HOLDs.
+
+Before evidence-origin authentication the controller requires terminal lease
+revalidation with the exact authorization/operation/challenge/lease tuple still
+present and exclusive. Lease acquisition and terminal revalidation are included
+in the controller-computed canonical evidence transcript digest.
+
+This closes the source-level TOCTOU seam where individually valid callbacks
+could otherwise describe a self-consistent transcript while external host state
+changed between callbacks. It does **not** prove that an injected future adapter
+actually owns an OS/kernel lock or that the lease provider is authentic. Those
+remain protected-adapter responsibilities, so
+`operation_lease_authenticated=false` and
+`operation_lease_exclusivity_proven=false` remain deliberate.
+
 ## Evidence-origin transcript digest binding
 
 Before evidence-origin authentication, the controller canonicalizes the complete
@@ -177,6 +208,8 @@ or external witness were authentic.
 
 The candidate therefore also keeps:
 `authorization_claim_authenticated=false`,
+`operation_lease_authenticated=false`,
+`operation_lease_exclusivity_proven=false`,
 `operation_bound_authorization_authenticated=false`,
 `non_customer_canary_isolation_proven=false`,
 `challenge_unpredictability_proven=false`,
@@ -185,12 +218,13 @@ The candidate therefore also keeps:
 
 Next gate:
 
-`VERSION_CHALLENGE_PLAN_FOR_AUTHORIZATION_CLAIM_THEN_BUILD_PROTECTED_HOST_ADAPTER_V1`.
+`VERSION_CHALLENGE_PLAN_FOR_CLAIM_TRANSCRIPT_AND_OPERATION_LEASE_THEN_BUILD_PROTECTED_HOST_ADAPTER_V1`.
 
 The immutable #3516 V1 plan still enumerates its original 20 future-evidence
-requirements. This hardened controller adds a stricter one-time-claim and
-post-rollback claim-survival requirement. A versioned successor must bind that
-stronger requirement and obtain a new content-addressed plan/contract identity
+requirements. This hardened controller adds stricter one-time-claim, post-rollback
+claim-survival, canonical transcript-digest, and operation-wide lease requirements.
+A versioned successor must bind those stronger requirements and obtain a new
+content-addressed plan/contract identity
 before any protected host adapter is built. Do not silently reinterpret the V1
 plan ID as carrying these later semantics.
 
