@@ -50,22 +50,22 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_native_candidate_v1.c)" = \
-            265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36
+            7ce2475cb50d6527b526479892e5d662792ce84b
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_native_candidate_v1.py)" = \
-            23a08c6e8de156ae105a6f60ebdea262ce70e89b
+            daa4f0c33f4b05f7e090b4a3c2e7513e79f2a107
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-native-candidate-v1.md)" = \
-            7cf5820a962b5b04d1003202828cf032652f6d38
+            5996506f8ba9317ea7d34a7506f4d5a6f889c08c
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-release-binding-v1.mjs)" = \
-            01757cbd80c12561218ac4ba0a29e9675e42adec
+            a7e4a69b9561fe441a0a1ab7476c6329e2cea3a8
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_binding_v1.mjs)" = \
-            38f63789b5e1ff86e9d38f128e841e22d9c7e495
+            a9a7c85a9bb48996ecce056ad47f2b7dc3d65d28
           test "$(git rev-parse HEAD:.github/workflows/apollyon-training-start-release-binding-v1.yml)" = \
             c577da33e31b2c32d8a01e42105c7ced8cab0b4f
 
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = 66d16e8af59c844192f1bb1362c2044a35e8c603
+              test "$PR_BASE" = 9e1da5dbb1ae12114a26506fbf1c6bc56780b98f
               git merge-base --is-ancestor "$PR_BASE" "$HEAD"
               expected="$RUNNER_TEMP/expected-scope.txt"
               actual="$RUNNER_TEMP/actual-scope.txt"

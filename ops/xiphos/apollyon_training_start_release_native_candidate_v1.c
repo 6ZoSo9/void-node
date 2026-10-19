@@ -25,7 +25,7 @@
 #include <unistd.h>
 
 #define MARKER "VOID_APOLLYON_TRAINING_START_RELEASE_NATIVE_CANDIDATE_V1"
-#define PARENT_RELEASE_BINDING_BLOB_SHA1 "01757cbd80c12561218ac4ba0a29e9675e42adec"
+#define PARENT_RELEASE_BINDING_BLOB_SHA1 "a7e4a69b9561fe441a0a1ab7476c6329e2cea3a8"
 #define RELEASE_BINDING_PREFIX "apollyon_training_start_release_binding_v1:"
 #define RELEASE_DOMAIN_HEX "c201c621cc904c2e9c0c2527322debc326736b7f5e2c731a1032d2f1d3cb2b16"
 #define RELEASE_FD 3
@@ -934,7 +934,7 @@ static int selftest_environment(void) {
 
 static int self_test(void) {
     if(strcmp(PARENT_RELEASE_BINDING_BLOB_SHA1,
-              "01757cbd80c12561218ac4ba0a29e9675e42adec")!=0) return 60;
+              "a7e4a69b9561fe441a0a1ab7476c6329e2cea3a8")!=0) return 60;
     if(!lower_hex_exact(PARENT_RELEASE_BINDING_BLOB_SHA1,40U)) return 61;
     if(selftest_security_parser()!=0) return 62;
     int frame_rc=selftest_frames();
