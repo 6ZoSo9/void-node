@@ -261,7 +261,7 @@ function exactPrimitiveRecordInput(input,keys,code){
   for(const value of Object.values(snapshot)){
     if(
       value===null||
-      typeof value==="string"||
+      (typeof value==="string"&&value.length>=1&&value.length<=256)||
       typeof value==="boolean"||
       (typeof value==="number"&&Number.isSafeInteger(value))
     )continue;
@@ -885,14 +885,13 @@ function revalidationExpected(stage,sessionBindingId,publishRequestSha,generatio
   });
 }
 function validateRevalidationReceipt(value,expected){
-  const copy=clonePlain(value,"apollyon_claim_store_impl_v2_revalidation_receipt_invalid");
-  exactOwnKeys(
-    copy,Object.keys(expected),
-    "apollyon_claim_store_impl_v2_revalidation_receipt_invalid"
-  );
+  const code="apollyon_claim_store_impl_v2_revalidation_receipt_invalid";
+  // A callback-returned receipt is caller-controlled even when its callback is
+  // an admitted revalidator. Never clone before rejecting accessors/Proxies.
+  const copy=exactPrimitiveRecordInput(value,Object.keys(expected),code);
   if(!SESSION_BINDING_ID.test(copy.session_binding_id)||
      canonical(copy)!==canonical(expected)){
-    fail("apollyon_claim_store_impl_v2_revalidation_receipt_invalid");
+    fail(code);
   }
   return Object.freeze(copy);
 }
@@ -905,7 +904,10 @@ function callRevalidator(config,stage,context){
       ":"+String(error?.message||error)
     );
   }
-  if(result&&typeof result.then==="function"){
+  if(types.isPromise(result)){
+    observeRejectedPromise(
+      result,"apollyon_claim_store_impl_v2_async_revalidator_forbidden",
+    );
     fail("apollyon_claim_store_impl_v2_async_revalidator_forbidden");
   }
   return validateRevalidationReceipt(
