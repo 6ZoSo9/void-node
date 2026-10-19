@@ -40,7 +40,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-    "66b76ea9201f870672c0bc1c3df207b3c95cf68a",
+    "ee1570b561c6c78e114114d66cdbf190c58b091e",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "f557d92e89f3502ee6ac1243411cd43191ec1f37",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
@@ -503,6 +503,85 @@ for(const method of ["classify","publish"]){
     assert.equal(createdCloseAttempts,1);
     assert.deepEqual(fs.readdirSync("/proc/self/fd").sort(),beforeFds);
     assert.deepEqual(fs.readFileSync(final),canonicalBytes(record1));
+  }finally{
+    fs.openSync=originalOpen;
+    fs.closeSync=originalClose;
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+// If BOTH terminal closes report uncertainty, retain both original errors.
+// A later directory close must not erase the created-file close failure after
+// durable one-time record publication. Both synthetic EIOs follow real closes.
+{
+  const root=newRoot();
+  const fd=openRoot(root);
+  const final=path.join(root,leaf1);
+  const baseline=fs.readdirSync("/proc/self/fd").sort();
+  const originalOpen=fs.openSync;
+  const originalClose=fs.closeSync;
+  const ownedDirectoryPath="/proc/self/fd/"+String(fd);
+  let createdFd=-1;
+  let ownedFd=-1;
+  const injected=[];
+  const attempted=[];
+  fs.openSync=function observeDualTerminalOpen(target,flags,...args){
+    const observed=originalOpen.call(fs,target,flags,...args);
+    if(String(target)===ownedDirectoryPath&&
+       typeof flags==="number"&&
+       (flags&Number(fs.constants.O_DIRECTORY||0))!==0){
+      ownedFd=observed;
+    }
+    if(String(target).endsWith("/"+leaf1)&&typeof flags==="number"&&
+       (flags&fs.constants.O_CREAT)!==0&&
+       (flags&fs.constants.O_EXCL)!==0){
+      createdFd=observed;
+    }
+    return observed;
+  };
+  fs.closeSync=function faultBothTerminalCloses(target){
+    let role=null;
+    if(target===createdFd&&!injected.includes("created"))role="created";
+    else if(target===ownedFd&&!injected.includes("directory"))role="directory";
+    if(role!==null){
+      attempted.push(role);
+      const result=originalClose.call(fs,target);
+      injected.push(role);
+      const e=new Error("injected post-kernel-close terminal EIO: "+role);
+      e.code="EIO";
+      throw e;
+    }
+    return originalClose.call(fs,target);
+  };
+  try{
+    assert.throws(
+      ()=>publishApollyonTrainingStartConsumptionProtectedV1({
+        directory_fd:fd,consumption_record:record1,
+      }),
+      error=>{
+        assert.ok(error instanceof AggregateError,"both failures must aggregate");
+        assert.equal(error.message,
+          "apollyon_training_start_writer_both_terminal_closes_uncertain");
+        assert.equal(error.errors.length,2,"both close errors retained");
+        assert.equal(error.errors[0]?.message,
+          "apollyon_training_start_writer_created_record_close_uncertain");
+        assert.equal(error.errors[1]?.message,
+          "apollyon_training_start_writer_owned_directory_close_uncertain");
+        assert.equal(error.errors[0]?.cause?.code,"EIO");
+        assert.equal(error.errors[1]?.cause?.code,"EIO");
+        assert.equal(error.cause,error.errors[0],"created close retained as primary");
+        return true;
+      },
+    );
+    assert.ok(ownedFd>=0&&createdFd>=0);
+    assert.notEqual(ownedFd,createdFd);
+    assert.deepEqual(attempted,["created","directory"],
+      "each terminal descriptor close attempted exactly once");
+    assert.deepEqual(injected,["created","directory"]);
+    assert.deepEqual(fs.readdirSync("/proc/self/fd").sort(),baseline);
+    assert.deepEqual(fs.readFileSync(final),canonicalBytes(record1),
+      "durable one-time record must remain present after dual close errors");
   }finally{
     fs.openSync=originalOpen;
     fs.closeSync=originalClose;
@@ -1073,6 +1152,7 @@ console.log("existing_slot_growth_beyond_max_rejected=true");
 console.log("owned_directory_rejection_close_uncertainty_safe=true");
 console.log("terminal_owned_directory_close_uncertainty_safe=true");
 console.log("created_record_terminal_close_uncertainty_safe=true");
+console.log("dual_terminal_close_errors_preserved=true");
 console.log("existing_slot_dual_fd_close_fault_safe=true");
 console.log("existing_slot_visible_path_race_fixture_exercised=true");
 console.log("protected_consumption_store_origin_proven=false");
