@@ -11,7 +11,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
-const SOURCE_BLOB="be88c888d8619c7a3f0f2107e8baa89b4882e430";
+const SOURCE_BLOB="269e5f716989269697c86bccbce0373762b8d1b3";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json";
 const PLAN_BLOB="5face2022dc2cbc573e32e99f88623f381a8a174";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -42,7 +42,8 @@ for(const [key,value] of Object.entries(
   if(key==="source_only_candidate"||key==="injected_capabilities_required"||
      key==="protected_host_adapter_required"||
      key==="authorization_one_time_claim_required"||
-     key==="authorization_claim_post_rollback_revalidation_required")
+     key==="authorization_claim_post_rollback_revalidation_required"||
+     key==="evidence_transcript_digest_binding_required")
     assert.equal(value,true,key);
   else assert.equal(value,false,key);
 }
