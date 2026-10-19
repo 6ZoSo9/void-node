@@ -9,6 +9,12 @@ on:
       - ".github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml"
       - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
       - "tools/apollyon-training-start-store-revalidation-request-v1.mjs"
+      - "scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs"
+      - "docs/security/apollyon-training-start-consumption-protected-writer-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml"
+      - "scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs"
+      - "docs/security/apollyon-training-start-store-revalidation-request-v1.md"
+      - ".github/workflows/apollyon-training-start-store-revalidation-request-v1.yml"
   push:
     branches: [main]
     paths:
@@ -18,6 +24,12 @@ on:
       - ".github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml"
       - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
       - "tools/apollyon-training-start-store-revalidation-request-v1.mjs"
+      - "scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs"
+      - "docs/security/apollyon-training-start-consumption-protected-writer-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml"
+      - "scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs"
+      - "docs/security/apollyon-training-start-store-revalidation-request-v1.md"
+      - ".github/workflows/apollyon-training-start-store-revalidation-request-v1.yml"
   workflow_dispatch:
 
 permissions:
@@ -43,22 +55,39 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=c619a9112a096240b530bc7b626f6c5a23579aad
+          parent=5507b4a6cb847a459eaefb055989390be1bbd942
+          stacked_parent=c619a9112a096240b530bc7b626f6c5a23579aad
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "$parent"
+              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$stacked_parent"; }
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected-usage.txt"
               actual="$RUNNER_TEMP/actual-usage.txt"
               printf '%s\n' \
+                '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+                '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
+                '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
+                'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
+                'docs/security/apollyon-training-start-consumption-protected-writer-v1.md' \
+                'docs/security/apollyon-training-start-store-revalidation-request-v1.md' \
                 'ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
                 'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
-                'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
-                '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+                'scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs' \
+                'scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs' \
+                'tools/apollyon-training-start-consumption-protected-writer-v1.mjs' \
+                'tools/apollyon-training-start-store-revalidation-request-v1.mjs' \
                 | LC_ALL=C sort > "$expected"
+              if [ "$PR_BASE" = "$stacked_parent" ]; then
+                printf '%s\n' \
+                  '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+                  'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
+                  'ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                  'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                  | LC_ALL=C sort > "$expected"
+              fi
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- \
                 | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
