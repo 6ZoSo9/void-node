@@ -90,12 +90,12 @@ const SOURCE_RUNTIME_DEPENDENCY_SPECS=Object.freeze([
 ]);
 
 const CHILD_MARKER=
-  "VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V3";
+  "VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V4";
 const CHILD_STATUS=
-  "AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V3_GREEN";
+  "AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V4_GREEN_SOURCE_RUNTIME_COMPATIBILITY_EXACT";
 const CHILD_NEXT_ACTION=
-  "BIND_V3R_AUTHENTICATED_EPOCH2_CREDENTIAL_EVIDENCE_IN_DORMANT_CANDIDATE_SUCCESSOR";
-const CHILD_RECEIPT=/^voide2livecomp3_[0-9a-f]{64}$/u;
+  "BIND_V3R_AUTHENTICATED_EPOCH2_CREDENTIAL_EVIDENCE_IN_DORMANT_CANDIDATE_V3_SUCCESSOR";
+const CHILD_RECEIPT=/^voide2livecomp4_[0-9a-f]{64}$/u;
 const SEALED_MARKER=
   "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SEALED_V2";
 const SEALED_ID=/^voide2sealed2_[0-9a-f]{64}$/u;
@@ -486,12 +486,25 @@ function gitObject(expectedHead,relative,expectedBlob){
   }
   return raw;
 }
-function validateChildReceipt(receipt,expectedHead){
+function validateChildReceipt(receipt,expectedHead,compatibility){
+  if(!compatibility||typeof compatibility!=="object"||
+     !SHA40.test(String(compatibility.source_head||""))||
+     !SHA40.test(String(compatibility.source_tree||""))){
+    throw new Error("child_source_compatibility_invalid");
+  }
   const required={
     marker:CHILD_MARKER,
-    version:3,
+    version:4,
     status:CHILD_STATUS,
     source_head:expectedHead,
+    runtime_head:expectedHead,
+    source_checkout_head:compatibility.source_head,
+    source_checkout_tree:compatibility.source_tree,
+    source_runtime_ancestry_bound:true,
+    source_runtime_dependency_blob_equality:true,
+    tracked_source_checkout_exact:true,
+    untracked_paths_enumerated:false,
+    untracked_paths_source_authority:false,
     credential_lock_id:EXPECTED_CREDENTIAL_LOCK,
     runtime_uid:RUNTIME_UID,
     signer_address:EXPECTED_FULFILLER,
@@ -564,13 +577,13 @@ function validateChildReceipt(receipt,expectedHead){
   }
   const copy={...receipt};
   delete copy.receipt_id;
-  const expected="voide2livecomp3_"+
+  const expected="voide2livecomp4_"+
     sha256(Buffer.from(canonical(copy),"utf8"));
   if(receipt.receipt_id!==expected){
     throw new Error("child_receipt_id_mismatch");
   }
 }
-function runNativeLive(runtimeHead){
+function runNativeLive(runtimeHead,compatibility){
   const r=run(FIXED_NATIVE,[
     "--run","--confirm",NATIVE_CONFIRM,"--expected-head",runtimeHead,
   ],{
@@ -585,7 +598,7 @@ function runNativeLive(runtimeHead){
   let receipt;
   try{receipt=JSON.parse(r.stdout);}
   catch{throw new Error("native_live_composition_json_invalid");}
-  validateChildReceipt(receipt,runtimeHead);
+  validateChildReceipt(receipt,runtimeHead,compatibility);
   return receipt;
 }
 function loadCandidate(expectedHead){
@@ -648,7 +661,7 @@ function validateCandidate(c){
 }
 function buildBindingReceipt(compatibility,candidate,child){
   validateCandidate(candidate);
-  validateChildReceipt(child,RUNTIME_HEAD);
+  validateChildReceipt(child,RUNTIME_HEAD,compatibility);
   const remainingGates=[
     "qualify_live_exact_chain_receipt_and_either_zero_fee_envelope_or_per_payment_native_gas_funding",
     "complete_current_chain_2050_one_payment_one_fulfillment_canary",
@@ -681,6 +694,8 @@ function buildBindingReceipt(compatibility,candidate,child){
     authenticated_credential_live_receipt_id:child.receipt_id,
     authenticated_credential_live_receipt_sha256:
       sha256(Buffer.from(canonical(child),"utf8")),
+    child_runner_v4_receipt_bound:true,
+    child_runner_v4_source_checkout_bound:true,
     canonical_chain_id:2050,execution_epoch:2,
     epoch2_presale_contract:EXPECTED_PRESALE,
     epoch2_fulfiller_public_address:EXPECTED_FULFILLER,
@@ -708,7 +723,15 @@ function buildBindingReceipt(compatibility,candidate,child){
       public_presale_activation:false,wc_void_market_activation:false,
       funds_movement:false,automatic_retry:false,
     },
-    production_host_evidence_authority:false,next_action:NEXT_ACTIfunction plan(){
+    production_host_evidence_authority:false,next_action:NEXT_ACTION,
+  };
+  return Object.freeze({
+    ...body,
+    binding_receipt_id:
+      "voide2candbind3r4_"+sha256(Buffer.from(canonical(body),"utf8")),
+  });
+}
+function plan(){
   console.log(MARKER);
   console.log("mode=plan");
   console.log("source_head_runtime_observed=true");
@@ -730,6 +753,8 @@ function buildBindingReceipt(compatibility,candidate,child){
   console.log("exact_dormant_candidate_v4_current_source_git_object_required=true");
   console.log("source_compatibility_before_after_sensitive_sequence_required=true");
   console.log("fixed_runtime_native_v3_live_composition_required=true");
+  console.log("runner_v4_child_receipt_required=true");
+  console.log("runner_v4_child_source_checkout_crosscheck_required=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
   console.log("historical_compat_v3_source_authority=false");
   console.log("canonical_checkout_rewind_performed=false");
@@ -781,6 +806,104 @@ function selfTest(){
      compat.source_runtime_actual_object_ancestry!==true){
     throw new Error("source_compatibility_self_test_failed");
   }
+  const sealed={
+    marker:SEALED_MARKER,
+    version:2,
+    evidence_id:"voide2sealed2_"+"4".repeat(64),
+    source_head:RUNTIME_HEAD,
+    immutable_fulfiller:EXPECTED_FULFILLER,
+    credential_id:EXPECTED_CREDENTIAL_ID,
+    systemd:{main_pid:4242},
+    transaction_constructed:false,
+    rpc_call_performed:false,
+    transaction_broadcast_performed:false,
+    funds_movement:false,
+  };
+  const childBody={
+    marker:CHILD_MARKER,
+    version:4,
+    status:CHILD_STATUS,
+    source_head:RUNTIME_HEAD,
+    runtime_head:RUNTIME_HEAD,
+    source_checkout_head:compat.source_head,
+    source_checkout_tree:compat.source_tree,
+    source_runtime_ancestry_bound:true,
+    source_runtime_dependency_blob_equality:true,
+    tracked_source_checkout_exact:true,
+    untracked_paths_enumerated:false,
+    untracked_paths_source_authority:false,
+    sealed_public_evidence:sealed,
+    credential_lock_id:EXPECTED_CREDENTIAL_LOCK,
+    credential_qualification_sha256:"5".repeat(64),
+    credential_complete_dropin_set_sha256:"6".repeat(64),
+    credential_complete_dropin_set_count:2,
+    credential_complete_credential_set_sha256:"7".repeat(64),
+    credential_complete_credential_set_count:4,
+    credential_epoch2_target_match_count:1,
+    runtime_uid:RUNTIME_UID,
+    manager_pid:2693,
+    manager_start_ticks:"1409",
+    main_pid:4242,
+    service_start_ticks:"998877",
+    signer_address:EXPECTED_FULFILLER,
+    qualification_provenance_authenticated_by_runner:true,
+    privileged_first_entry_authenticated:true,
+    native_preentry_policy_bound:true,
+    root_node_descriptor_execution_bound:true,
+    runner_retained_descriptor_bound:true,
+    native_parent_retained_for_child_lifetime:true,
+    native_parent_process_generation_bound:true,
+    native_parent_installed_generation_bound:true,
+    native_parent_revalidated_after_sensitive_sequence:true,
+    stdin_javascript_source_forbidden:true,
+    qualification_stable_before_after_sealed_probe:true,
+    checkout_revalidated_after_sensitive_sequence:true,
+    complete_dropin_set_bound_across_signing_window:true,
+    complete_credential_set_bound_across_signing_window:true,
+    main_pid_crosscheck:true,
+    loadcredential_binding_crosscheck:true,
+    service_cgroup_hash_crosscheck:true,
+    public_user_bus_sufficient_authority:false,
+    credential_content_access_in_sealed_child:true,
+    credential_content_access_in_runner_parent:false,
+    private_key_material_in_sealed_child:true,
+    private_key_output:false,
+    nontransaction_signature_performed:true,
+    transaction_constructed:false,
+    transaction_submitted:false,
+    transaction_broadcast:false,
+    rpc_call:false,
+    filesystem_write:false,
+    host_mutation:false,
+    service_mutation:false,
+    systemd_mutation:false,
+    payment_acceptance:false,
+    public_presale_activation:false,
+    wc_void_market_activation:false,
+    funds_movement:false,
+    production_host_evidence_authority:false,
+    next_action:CHILD_NEXT_ACTION,
+  };
+  const child=Object.freeze({
+    ...childBody,
+    receipt_id:"voide2livecomp4_"+
+      sha256(Buffer.from(canonical(childBody),"utf8")),
+  });
+  validateChildReceipt(child,RUNTIME_HEAD,compat);
+  let childDriftRejected=false;
+  try{
+    validateChildReceipt(
+      {...child,source_checkout_head:"8".repeat(40)},
+      RUNTIME_HEAD,
+      compat,
+    );
+  }catch(error){
+    childDriftRejected=
+      String(error?.message||error)==="child_receipt_field_invalid:source_checkout_head";
+  }
+  if(!childDriftRejected){
+    throw new Error("runner_v4_child_source_checkout_drift_not_rejected");
+  }
   function fakeGraftOnly(args){
     if(args[0]==="cat-file"&&args[1]==="-t")return "commit\n";
     if(args[0]==="cat-file"&&args[1]==="-p"){
@@ -810,6 +933,9 @@ function selfTest(){
   console.log("untracked_paths_enumerated=false");
   console.log("untracked_paths_source_authority=false");
   console.log("historical_compat_v3_source_authority=false");
+  console.log("runner_v4_child_receipt_required=true");
+  console.log("runner_v4_child_source_checkout_crosscheck=true");
+  console.log("runner_v4_child_source_checkout_drift_rejected=true");
   console.log("native_binder_first_entry_required_for_live=true");
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
@@ -832,7 +958,7 @@ function selfTest(){
     throw new Error("binder_preentry_source_head_not_current");
   }
   const candidate=loadCandidate(before.source_head);
-  const child=runNativeLive(runtimeHead);
+  const child=runNativeLive(runtimeHead,before);
   const after=sourceCompatibility(runtimeHead);
   if(canonical(before)!==canonical(after)){
     throw new Error("source_generation_changed_across_sensitive_sequence");
