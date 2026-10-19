@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="65a11b36cfe7408b7718b6827b260ea52d5048b4";
+const TARGET_BLOB="6a6923c7dfa74db40a8c4eeb06e64a966d935265";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
@@ -307,6 +307,7 @@ function fixture({
   acquire=null,
   release=null,
   onRevalidate=null,
+  returnRevalidation=null,
 }={}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),"void-apollyon-claim-store-v2-"));
   fs.chmodSync(root,0o700);
@@ -359,6 +360,7 @@ function fixture({
       events.push(stage);
       if(onRevalidate!==null)onRevalidate(stage,context);
       if(asyncRevalidator)return Promise.resolve(revalidationReceipt(stage,context));
+      if(returnRevalidation!==null)return returnRevalidation(stage,context);
       if(stage===mutateGenerationStage){
         const drift=generationRecord(
           sha256(Buffer.from(canonical(rootIdentity(fs.fstatSync(rootFd))),"utf8")),
@@ -2117,6 +2119,113 @@ for(const kind of ["symlink","directory","fifo","socket","oversize","malformed",
   }finally{f.cleanup();}
 }
 
+
+{
+  // Carry forward the prior #3538 extra generation preflight coverage on the
+  // newer #3488 core, including direct observations and publication inputs.
+  const f=fixture();
+  let invoked=0;
+  let trapped=0;
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    f.core.publishClaim(publishInput(bundle,f.generation));
+    const getter={...f.generation};
+    Object.defineProperty(getter,"root_identity_sha256",{
+      enumerable:true,get(){invoked+=1;return f.generation.root_identity_sha256;},
+    });
+    const coercing={...f.generation,store_policy_id:{
+      [Symbol.toPrimitive](){invoked+=1;return f.generation.store_policy_id;},
+    }};
+    const proxy=new Proxy(f.generation,{
+      get(){trapped+=1;assert.fail("generation proxy getter invoked");},
+      ownKeys(){trapped+=1;assert.fail("generation proxy ownKeys invoked");},
+      getOwnPropertyDescriptor(){trapped+=1;assert.fail("generation proxy descriptor invoked");},
+      getPrototypeOf(){trapped+=1;assert.fail("generation proxy prototype invoked");},
+    });
+    const revoked=Proxy.revocable(f.generation,{});revoked.revoke();
+    const hidden={...f.generation};
+    Object.defineProperty(hidden,"extra",{value:1,enumerable:false});
+    const symbolic={...f.generation,[Symbol("extra")]:1};
+    const excessive={...f.generation,store_policy_id:"x".repeat(100_000)};
+    const blank={...f.generation,continuity_receipt_id:""};
+    const before=storeSnapshot(f.root);
+    for(const invalid of [getter,coercing,proxy,revoked.proxy,hidden,symbolic,excessive,blank]){
+      for(const operation of ["publishClaim","observeAuthorizationWinner"]){
+        const count=f.txCount();
+        const input=operation==="publishClaim"
+          ?publishInput(bundle,invalid):observationInput(bundle,invalid);
+        withReadOnlyFs(()=>expectError(
+          ()=>f.core[operation](input),
+          "apollyon_claim_store_impl_v2_generation_invalid",
+        ));
+        assert.equal(f.txCount(),count,"invalid generation entered transaction lease");
+      }
+    }
+    assert.equal(invoked,0,"nested generation accessor/coercion executed");
+    assert.equal(trapped,0,"nested generation proxy trap executed");
+    assert.deepEqual(storeSnapshot(f.root),before);
+  }finally{f.cleanup();}
+}
+
+{
+  // Callback result is not validated merely by a trusted callback function.
+  // Return values must be inert plain data before probing Promise/then fields.
+  let getters=0;
+  let traps=0;
+  const variants=[
+    valid=>{
+      const row={...valid};
+      Object.defineProperty(row,"stage",{
+        enumerable:true,get(){getters+=1;throw Error("stage accessor ran");},
+      });
+      return row;
+    },
+    valid=>{
+      const row={...valid};
+      Object.defineProperty(row,"then",{
+        enumerable:false,get(){getters+=1;throw Error("then accessor ran");},
+      });
+      return row;
+    },
+    valid=>new Proxy({...valid},{
+      get(){traps+=1;throw Error("receipt proxy get ran");},
+      ownKeys(){traps+=1;throw Error("receipt proxy ownKeys ran");},
+      getOwnPropertyDescriptor(){traps+=1;throw Error("receipt proxy descriptor ran");},
+    }),
+    valid=>{
+      const revoked=Proxy.revocable({...valid},{});revoked.revoke();return revoked.proxy;
+    },
+    valid=>({...valid,session_binding_id:{
+      [Symbol.toPrimitive](){getters+=1;throw Error("coercion ran");},
+    }}),
+    valid=>({...valid,session_binding_id:"x".repeat(100_000)}),
+    valid=>{
+      const row={...valid};Object.defineProperty(row,"hidden",{value:1});return row;
+    },
+    valid=>({...valid,[Symbol("hidden")]:true}),
+  ];
+  for(const mutate of variants){
+    const f=fixture({returnRevalidation(stage,context){
+      return mutate(revalidationReceipt(stage,context));
+    }});
+    try{
+      const bundle=requestBundle(claimRecord(f.generation));
+      const before=storeSnapshot(f.root);
+      const count=f.txCount();
+      withReadOnlyFs(()=>expectError(
+        ()=>f.core.publishClaim(publishInput(bundle,f.generation)),
+        "apollyon_claim_store_impl_v2_revalidation_receipt_invalid",
+      ));
+      assert.equal(f.txCount(),count+1,"expected one acquired, released transaction");
+      assert.equal(f.releaseCount(),1,"rejected receipt must release lease");
+      requireStoreUnchanged(f);
+      assert.deepEqual(storeSnapshot(f.root),before,"invalid receipt mutated claim store");
+    }finally{f.cleanup();}
+  }
+  assert.equal(getters,0,"a receipt getter, then accessor or coercion executed");
+  assert.equal(traps,0,"receipt Proxy trap executed");
+}
+
 for(const kind of ["active","generation","claim"]){
   const f=fixture();
   try{
@@ -2928,6 +3037,8 @@ console.log("native_promise_rejections_handled_without_caller_then=true");
 console.log("generation_drift_before_mutation_rejected=true");
 console.log("orphan_claim_without_slot_rejected=true");
 console.log("async_revalidator_rejected_before_mutation=true");
+console.log("revalidation_receipt_accessors_then_getters_and_proxy_traps_never_invoked=true");
+console.log("bounded_generation_strings_rejected_before_transaction_lease=true");
 console.log("async_transaction_acquisition_rejected_before_core_mutation=true");
 console.log("held_directory_replacement_rejected_at_all_revalidation_stages=true");
 console.log("final_slot_and_claim_checked_after_success_revalidator=true");
