@@ -158,3 +158,16 @@ claim, terminal, consumption, release, training, credentials and funds
 authority all remain false/unperformed.
 
 **PROTECT THE CORE.**
+
+## Default POSIX ACL custody repair
+
+Directory custody now rejects both `system.posix_acl_access` and
+`system.posix_acl_default`. A mode-0700 directory with a default ACL is not
+treated as ACL-free because future child files/directories can inherit that
+authority-bearing metadata. The disposable proof injects a synthetic default
+ACL on the consumption directory and requires the same fail-closed
+`consumption_directory_extended_acl_present` result with no descriptor leak.
+
+This remains fixture-only evidence; it grants no production writer, protected
+store, training, credential, transaction or funds authority.
+

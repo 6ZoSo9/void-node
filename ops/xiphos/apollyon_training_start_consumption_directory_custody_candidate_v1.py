@@ -73,13 +73,17 @@ def close_once(fd: int, reason: str) -> None:
 
 
 def require_no_extended_acl(fd: int, label: str) -> None:
-    try:
-        os.getxattr(fd, "system.posix_acl_access")
-    except OSError as exc:
-        if exc.errno == errno.ENODATA:
-            return
-        raise Hold(label + "_acl_check_unavailable") from exc
-    hold(label + "_extended_acl_present")
+    # Both access and default POSIX ACLs are authority-bearing directory state.
+    # A default ACL can alter the ACL inherited by future children even when
+    # the directory's own mode is 0700, so custody requires absence of both.
+    for name in ("system.posix_acl_access", "system.posix_acl_default"):
+        try:
+            os.getxattr(fd, name)
+        except OSError as exc:
+            if exc.errno == errno.ENODATA:
+                continue
+            raise Hold(label + "_acl_check_unavailable") from exc
+        hold(label + "_extended_acl_present")
 
 
 def require_private_directory(

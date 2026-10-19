@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
 PINS = {
     "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py":
-        "fcc75c61d1f687541d6a208aefd6c6fce17c3225",
+        "f8062b282ef71e6b345e5ea1ffbad138b3694489",
     "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
         "66b76ea9201f870672c0bc1c3df207b3c95cf68a",
     "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
@@ -182,6 +182,31 @@ with tempfile.TemporaryDirectory(prefix="apollyon-custody-acl-v1-") as td:
     assert hit[0] == 1
     assert fd_set() == baseline
 
+with tempfile.TemporaryDirectory(prefix="apollyon-custody-default-acl-v1-") as td:
+    root, leaf = fixture(td)
+    real_getxattr = mod.os.getxattr
+    hit = [0]
+
+    def injected_default_acl(fd: int, name: str, *args, **kwargs):
+        if (
+            name == "system.posix_acl_default"
+            and os.fstat(fd).st_ino == leaf.stat().st_ino
+        ):
+            hit[0] += 1
+            return b"synthetic default ACL"
+        return real_getxattr(fd, name, *args, **kwargs)
+
+    mod.os.getxattr = injected_default_acl
+    baseline = fd_set()
+    try:
+        expect_hold(
+            lambda: observe(root), "consumption_directory_extended_acl_present",
+        )
+    finally:
+        mod.os.getxattr = real_getxattr
+    assert hit[0] == 1
+    assert fd_set() == baseline
+
 with tempfile.TemporaryDirectory(prefix="apollyon-custody-drift-v1-") as td:
     root, leaf = fixture(td)
     real_open = mod.os.open
@@ -309,6 +334,7 @@ print("synthetic_fixture_directory_custody_observed=true")
 print("fixed_root_descriptor_generation_checked=true")
 print("consumption_directory_descriptor_generation_checked=true")
 print("acl_and_symlink_adversaries_rejected=true")
+print("default_directory_acl_rejected=true")
 print("visible_directory_replacement_rejected=true")
 print("rejected_directory_fd_cleanup_verified=true")
 print("isolated_python_preimport_guard=true")
