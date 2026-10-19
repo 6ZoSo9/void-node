@@ -53,7 +53,7 @@ Base: accepted #3357 exact head
 Important exact source generations:
 
 - authorization-slot V1:
-  `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`;
+  `25629371f6da164e12fecfc08c5f26815418e3a8`;
 - exact request envelope V2:
   `339916ce4a6216af9a73476ad5b78e2d7a300f73`;
 - protected store contract V2:
@@ -1248,3 +1248,27 @@ The native-session proof is rebound to the exact new core Git blob. No native
 bridge runtime/C source changes, privileged Xiphos host interaction, protected
 store publication, training, credentials, signing, transaction or funds
 authority are implied. **PROTECT THE CORE.**
+
+## October 19 — current #3357 authorization-slot generation reconciliation
+
+The historical first child of #3540 is now merged forward without force
+onto current authorization-slot contract #3357
+`62c2bbfd7ca1a871159d036b2cd1391f2d728df5`. The new #3357
+authorization-slot source Git blob is
+`25629371f6da164e12fecfc08c5f26815418e3a8`, replacing the historical
+`c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`.
+This new authorization-slot implementation keeps the public slot APIs and
+source-contract field names, while enforcing stricter primitive input snapshots.
+
+The claim-store core's immutable accepted-slot source pin and both core/native
+fixture proof pins are rebound to the current source generation. The parent
+core still does not gain installed root provenance, privileged callback/writer
+origin, rejected Promise failure-domain containment or claim/training authority.
+No source proof should be called green across this parent change until the
+**new exact-head** GitHub Actions core and Node 22/24/26 native matrix succeed.
+
+The current pull request is intended to be rebased by non-force merge, not to
+rewrite historical audit commits. All eight implementation/proof/doc/workflow
+files remain ADD-only relative to #3357, and the two previously reviewed P2
+repairs (getter-free Buffer copy and declared async/generator provider rejection)
+are preserved. **PROTECT THE CORE.**
