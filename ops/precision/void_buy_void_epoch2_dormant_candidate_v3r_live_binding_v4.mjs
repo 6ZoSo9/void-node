@@ -942,7 +942,13 @@ function selfTest(){
   console.log("runtime_native_receives_runtime_policy_head_only=true");
   console.log("canonical_checkout_rewind_performed=false");
   console.log("installed_policy_mutation=false");
-  console.log("customer_safe_to_pay=false")function live(sourceHead,runtimeHead,confirm){
+  console.log("customer_safe_to_pay=false");
+  console.log("transaction=false");
+  console.log("public_presale_activation=false");
+  console.log("wc_void_market_activation=false");
+  console.log("funds_movement=false");
+}
+function live(sourceHead,runtimeHead,confirm){
   if(confirm!==CONFIRM)throw new Error("explicit_live_confirmation_required");
   if(runtimeHead!==RUNTIME_HEAD||!SHA40.test(String(sourceHead||""))){
     throw new Error("source_runtime_generation_not_accepted");
