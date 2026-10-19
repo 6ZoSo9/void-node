@@ -1,0 +1,67 @@
+name: Buy VOID Epoch-2 live composition native candidate v5
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v5.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-v5.md"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v5.json"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v5.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_candidate_v5.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-candidate-v5.md"
+      - "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v5.json"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-candidate-v5.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Preserve hosted V5 candidate evidence after acceptance
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" = "5021727f1def1ec11f870d735cab65acc1701a5e"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_candidate_v5.py)" = "bc1b7575e8a77d98b81252da39b6e2d3c10760d9"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-candidate-v5.md)" = "7e5d92bb629a24813c6a17e567e1a4a45cc2a820"
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v5.json)" = "db59358bab68a0fa33d0840bd9afe967dd809e61"
+          python3 -I -B - <<'PY'
+          import json
+          from pathlib import Path
+          value=json.loads(Path("ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v5.json").read_text("utf-8"))
+          report=value["candidate_report"]
+          assert report["candidate_id"]=="voidbuye2nativecand5_a377212ff699fb3463d2bfeecc61a16416a98ed5a291771c4a8a73aa003e6308"
+          assert report["git_blob_sha1"]=="cb53a777b51c990b3f34223d20242c04a047f1bf"
+          assert report["sha256"]=="327de6a4e56aa3a677f66ee04b5342d8923a19ab09d3e16ed3f82ef8cda2fcb2"
+          assert report["candidate_script_git_blob_sha1"]=="bc1b7575e8a77d98b81252da39b6e2d3c10760d9"
+          assert report["candidate_workflow_git_blob_sha1"]=="9a2999cf36c3665109632762317b1aa094baf921"
+          assert report["source_proof_git_blob_sha1"]=="3918e59fa7393824f2c98d129dfbead3d3867d99"
+          assert report["source_workflow_git_blob_sha1"]=="43e791da6b7513bf945731f888f0590fc99c7773"
+          assert report["native_source_git_blob_sha1"]=="5021727f1def1ec11f870d735cab65acc1701a5e"
+          assert report["native_binary_sha256"]=="85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8"
+          assert report["native_binary_bytes"]==726976
+          assert report["runner_source_git_blob_sha1"]=="baab733e43c030d24f8d4abd1644f3c4ae55c3b2"
+          assert report["runner_sha256"]=="f6a75184dcc63989328c351fc93e140e6dac103f682f5c58c9f76bccd359a889"
+          assert report["runner_bytes"]==40616
+          assert value["candidate_accepted"] is True
+          assert value["protected_install_authorized"] is False
+          assert value["live_execution_authorized"] is False
+          PY
+          echo VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_NATIVE_CANDIDATE_V5_ACCEPTED_EVIDENCE_PRESERVED
+          echo hosted_candidate_workflow_historical=true
+          echo v5_lock_exact=true
+          echo protected_install_authorized=false
+          echo live_execution_authorized=false
+          echo funds_movement=false
+      - run: git diff --check
