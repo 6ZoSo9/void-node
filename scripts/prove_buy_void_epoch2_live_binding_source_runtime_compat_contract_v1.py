@@ -73,14 +73,15 @@ runner_v4 = RUNNER_V4.read_text()
 for required in (
     'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V4',
     'const RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb";',
-    'const SOURCE_HEAD="0ada7fde0d90c3946b10693f4621cbd690bfcde6";',
-    'const SOURCE_TREE="9e930fba9aacfafb5b163767302786cd7f31c81e";',
+    "function validateSourceCompatibility(value,expectedHead){",
     "function requireSourceRuntimeCompatibility(expectedHead){",
     'git(["status","--porcelain=v1","--untracked-files=no"])',
-    '"diff","--name-status","--no-renames",RUNTIME_HEAD,SOURCE_HEAD,"--"',
-    "source_runtime_add_only_compatibility_exact:true",
-    "source_runtime_dependency_blob_equality_required=true",
-    "untracked_paths_source_authority=false",
+    'git(["merge-base","--is-ancestor",RUNTIME_HEAD,sourceHead])',
+    "source_runtime_ancestry_bound:true",
+    "source_runtime_dependency_blob_equality:true",
+    "tracked_checkout_exact:true",
+    "untracked_paths_enumerated:false",
+    "untracked_paths_source_authority:false",
     'GIT_NO_LAZY_FETCH:"1"',
     'GIT_TERMINAL_PROMPT:"0"',
     'GIT_ASKPASS:"/bin/false"',
@@ -90,12 +91,14 @@ for required in (
     '"-c","core.untrackedCache=false"',
     '"-c","submodule.recurse=false"',
     "checkoutFn=requireSourceRuntimeCompatibility",
+    "source_compatibility_changed_across_sensitive_sequence",
     "voide2livecomp4_",
 ):
     assert required in runner_v4, required
 assert "--untracked-files=all" not in runner_v4
-assert runner_v4.count("ALLOWED_SOURCE_ADDITIONS=Object.freeze([") == 1
-assert runner_v4.count('source_runtime_added_path_count:ALLOWED_SOURCE_ADDITIONS.length') >= 1
+assert "ALLOWED_SOURCE_ADDITIONS" not in runner_v4
+assert 'const SOURCE_HEAD=' not in runner_v4
+assert 'const SOURCE_TREE=' not in runner_v4
 assert 'FIXED_ROOT+"/void_buy_void_epoch2_live_composition_native_preentry_v3"' in runner_v4
 assert "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V3" in runner_v4
 
@@ -119,9 +122,11 @@ for mode in ("--self-test", "--plan"):
         for line in (
             "VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V4_SELF_TEST_GREEN",
             "runtime_policy_head_preserved=true",
-            "source_checkout_head_compile_bound=true",
-            "source_runtime_add_only_compatibility_exact=true",
+            "source_checkout_head_runtime_observed=true",
+            "source_runtime_ancestry_required=true",
+            "tracked_source_checkout_exact_required=true",
             "source_runtime_dependency_blob_equality_required=true",
+            "untracked_paths_enumerated=false",
             "untracked_paths_source_authority=false",
             "git_lazy_fetch_disabled=true",
             "git_transport_disabled=true",
@@ -132,9 +137,12 @@ for mode in ("--self-test", "--plan"):
         for line in (
             "source_generation=v4_source_runtime_compatibility",
             "runtime_expected_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb",
-            "source_checkout_head=0ada7fde0d90c3946b10693f4621cbd690bfcde6",
-            "source_checkout_tree=9e930fba9aacfafb5b163767302786cd7f31c81e",
-            "source_runtime_added_path_count=15",
+            "source_checkout_head_runtime_observed=true",
+            "source_checkout_tree_runtime_observed=true",
+            "source_runtime_ancestry_required=true",
+            "tracked_source_checkout_exact_required=true",
+            "runtime_source_dependency_blob_equality_required=true",
+            "untracked_paths_enumerated=false",
             "git_lazy_fetch_disabled=true",
             "git_transport_disabled=true",
             "git_prompt_and_askpass_disabled=true",
@@ -177,8 +185,14 @@ plan = subprocess.run(
 ).stdout.splitlines()
 rows = dict(line.split("=", 1) for line in plan if "=" in line)
 assert rows["runtime_head"] == "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
-assert rows["source_head"] == "0ada7fde0d90c3946b10693f4621cbd690bfcde6"
-assert rows["source_runtime_added_path_count"] == "15"
+assert rows["source_baseline_head"] == "0ada7fde0d90c3946b10693f4621cbd690bfcde6"
+assert rows["source_baseline_tree"] == "9e930fba9aacfafb5b163767302786cd7f31c81e"
+assert rows["source_baseline_added_path_count"] == "15"
+assert rows["current_source_head_runtime_observed_required"] == "true"
+assert rows["source_runtime_ancestry_bound_required"] == "true"
+assert rows["tracked_source_checkout_exact_required"] == "true"
+assert rows["runtime_source_dependency_blob_equality_required"] == "true"
+assert rows["untracked_paths_source_authority"] == "false"
 assert rows["runtime_policy_sha256"] == "746cfbe2f031868fff3a75f8307986f25c62460085f41a4827e712702a2d6549"
 assert rows["runtime_policy_rewrite_to_source_head_forbidden"] == "true"
 assert rows["credential_native_preentry_v3_preserved"] == "true"
@@ -186,7 +200,11 @@ assert rows["credential_access_authorized"] == "false"
 assert rows["signing_authorized"] == "false"
 assert rows["funds_movement_authorized"] == "false"
 body = json.loads(rows["plan_body_json"])
-assert body["source_head_and_runtime_head_must_be_distinct"] is True
+assert body["source_head_need_not_equal_runtime_policy_head"] is True
+assert body["current_source_head_runtime_observed_required"] is True
+assert body["source_runtime_ancestry_bound_required"] is True
+assert body["tracked_source_checkout_exact_required"] is True
+assert body["runtime_source_dependency_blob_equality_required"] is True
 assert body["live_native_v3_binary_replacement_required_for_runner_compat"] is False
 assert len(body["required_successors"]) == 4
 
@@ -199,7 +217,10 @@ print("exact_live_native_v3_blob_bound=true")
 print("binder_single_head_seam_proven=true")
 print("binder_preentry_policy_head_equality_proven=true")
 print("runner_single_head_seam_proven=true")
-print("runner_v4_source_runtime_compat_source_green=true")
+print("runner_v4_runtime_observed_source_compat_source_green=true")
+print("runner_v4_fixed_current_source_head_absent=true")
+print("runner_v4_source_ancestry_bound=true")
+print("runner_v4_source_snapshot_stable_across_sensitive_sequence=true")
 print("runner_v4_git_lazy_fetch_disabled=true")
 print("runner_v4_git_transport_disabled=true")
 print("runner_v4_git_prompt_and_askpass_disabled=true")
@@ -207,7 +228,7 @@ print("hosted_node_path_resolved_from_ci_environment=true")
 print("runner_v4_preserves_native_v3_policy_boundary=true")
 print("credential_native_preentry_policy_binding_preserved=true")
 print("runtime_policy_rewrite_forbidden=true")
-print("two_head_successor_order_bound=true")
+print("runtime_policy_and_current_source_separation_bound=true")
 print("host_execution=false")
 print("credential_access=false")
 print("signing=false")
