@@ -226,12 +226,15 @@ function trustedExecutable(candidate, leaf) {
 
 function execTrustedExecutable(tool, args, options = {}) {
   revalidateTrustedExecutable(tool);
-  const executable = "/proc/" + String(process.pid) + "/fd/" + String(tool.fd);
+  const executable = "/proc/self/fd/" + String(tool.fd);
+  const stdio = ["ignore", "pipe", "ignore"];
+  while (stdio.length <= tool.fd) stdio.push("ignore");
+  stdio[tool.fd] = tool.fd;
   let result;
   try {
     result = execFileSync(executable, args, {
       ...options,
-      stdio: ["ignore", "pipe", "ignore", tool.fd],
+      stdio,
     });
   } finally {
     revalidateTrustedExecutable(tool);
