@@ -151,3 +151,34 @@ Activation-capability issuance and training remain forbidden.
 ## Prior revoked-Proxy error-normalization rebind (historical)
 
 This generation is rebound to #3526 `e496f4391b2b4e9be006695fcd8845669059a48f`, whose public slot/candidate/requirements preflights reject active and revoked Proxy inputs through their exact namespaced schema errors before `Array.isArray`. The protected reader semantics in this child are otherwise unchanged; complete protected origin and capability issuance remain false.
+
+## October 19 current-parent child — rejected traversal FD cleanup
+
+This successor child starts at the fully CI-green #3531 source head
+`f47a1c5f474821b8ecaf9bcd4e4dadea15528ac1`, not at the historical
+head of #3537. It preserves the later parent's host-I/O normalization,
+stale-directory detection and dependent source pins. It ports only #3537's
+bounded descriptor-owner repair and executable tests.
+
+The old `open_root()` retained `current` as the parent directory and
+opened a new `child` descriptor. If metadata/UID/GID or ACL checks rejected
+the new child before assigning it to `current`, outer cleanup closed only
+the parent and leaked the child. A reusable privileged reader could therefore
+exhaust process descriptors on repeated protected-root HOLDs.
+
+The repair keeps every new child under exception cleanup until its required
+metadata and descriptor-binding checks pass. On success, it transfers
+ownership of the new descriptor to `current` **before** closing the previous
+parent. An uncertain close is not retried; the original negative result is
+retained. The disposable test repeats invalid root-mode and simulated root-ACL
+rejections five times and requires the complete `/proc/self/fd` set to be
+unchanged, without accessing Xiphos host paths.
+
+The old #3537 remains a historical tested implementation, but cannot be
+merged directly after #3531 advanced. This successor does not restore
+training or credential authority; complete protected origin, privileged
+claim-service writer admission, current store/terminal/request revalidation,
+activation capability issuance, training, signing, transaction and funds
+movement remain blocked.
+
+**PROTECT THE CORE.**
