@@ -1250,7 +1250,7 @@ function trustedExecutableSelfTest() {
   } catch {
     writableAncestorHeld = true;
   } finally {
-    try { fs.unlinkSync(fixture); } catch {}
+    try { fs.unlinkSync(fixture); } catch (cleanupError) { void cleanupError; }
   }
   if (!writableAncestorHeld) {
     throw new Error("epoch2_sealed_writable_ancestor_adversary_failed");
