@@ -347,6 +347,7 @@ function runRetainedTrustedExecutable(tool,args,options={}){
   const executable=tool.real;
   const beforeSpawn=options.beforeSpawn;
   if(typeof beforeSpawn==="function")beforeSpawn();
+  revalidateRetainedTrustedExecutable(tool);
   const result=spawnSync(executable,args,{
     cwd:options.cwd??"/",
     env:options.env??cleanRootEnv(),
