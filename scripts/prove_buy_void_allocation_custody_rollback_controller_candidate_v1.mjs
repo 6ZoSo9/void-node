@@ -175,11 +175,13 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
         authorization_id,operation_id,challenge_id,claim_id,
       };
     },
-    authenticate_evidence_origin({challenge_id,operation_id,authorization_claim_id}){order.push("origin");
+    authenticate_evidence_origin({challenge_id,operation_id,authorization_claim_id,evidence_sha256}){order.push("origin");
       assert.equal(authorization_claim_id,state.claim.claim_id);
+      assert.match(evidence_sha256,/^sha256:[0-9a-f]{64}$/u);
+      state.originEvidenceSha256=evidence_sha256;
       return {authenticated:true,challenge_id,operation_id,authorization_claim_id,
         origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),
-        evidence_sha256:sha("evidence")};},
+        evidence_sha256};},
   };
   mutator(caps,state,before,order);
   return {caps,order,state};
@@ -221,6 +223,10 @@ const expectedOrder=["entropy","before","claim","append","high","reopen","witnes
   assert.equal(result.terminal_journal_predecessor_revalidated,true);
   assert.equal(result.allocation_ledger_unchanged_contract_validated,true);
   assert.equal(result.customer_request_state_unchanged_contract_validated,true);
+  assert.match(result.controller_evidence_sha256,/^sha256:[0-9a-f]{64}$/u);
+  assert.equal(result.evidence_transcript_digest_binding_required,true);
+  assert.equal(result.evidence_origin_digest_matches_controller_transcript,true);
+  assert.equal(h.state.originEvidenceSha256,result.controller_evidence_sha256);
   assert.equal(result.evidence_origin_capability_report_validated,true);
   assert.equal(result.evidence_origin_authenticated,false);
   assert.equal(result.injected_capabilities_authenticated,false);
@@ -439,11 +445,18 @@ mustFail("ledger drift",(c,s,b)=>{c.reobserve_storage_and_policy=()=>({...b,
 mustFail("collapsed storage",(c,s,b)=>{c.observe_before=()=>({...b,high_water_storage_id:b.journal_storage_id});},
   /before_storage_domains_not_distinct/);
 mustFail("origin unauthenticated",(c)=>{c.authenticate_evidence_origin=({
-  challenge_id,operation_id,authorization_claim_id,
+  challenge_id,operation_id,authorization_claim_id,evidence_sha256,
 })=>({
   authenticated:false,challenge_id,operation_id,authorization_claim_id,
-  origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),evidence_sha256:sha("evidence"),
+  origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),evidence_sha256,
 });},/evidence_origin_not_authenticated/);
+mustFail("origin digest mismatch",(c)=>{c.authenticate_evidence_origin=({
+  challenge_id,operation_id,authorization_claim_id,
+})=>({
+  authenticated:true,challenge_id,operation_id,authorization_claim_id,
+  origin_id:"voidbuycustodychallengeorigin1_"+"3".repeat(64),
+  evidence_sha256:sha("different-controller-evidence"),
+});},/evidence_origin_digest_mismatch/);
 
 const maxU64Body={...authBody,expected_policy_generation:"18446744073709551615"};
 const maxU64Authorization={
@@ -523,6 +536,8 @@ console.log("post_rollback_binding_stability_required=true");
 console.log("allocation_ledger_unchanged_required=true");
 console.log("customer_request_state_unchanged_required=true");
 console.log("evidence_origin_authentication_required=true");
+console.log("controller_evidence_digest_bound_to_origin=true");
+console.log("mismatched_evidence_origin_digest_rejected=true");
 console.log("evidence_origin_authenticated=false");
 console.log("injected_capabilities_authenticated=false");
 console.log("all_capabilities_preflighted_before_invocation=true");
