@@ -137,3 +137,29 @@ The planner still has no apply mode and does not execute the Runner/native path,
 credentials or private keys, sign/broadcast transactions, accept payments, activate
 the presale/WC market, mutate services, or move funds.
 
+## October 19 latest nonblocking sealed-V3 candidate — source-only plan
+
+This supersedes the preceding generation's **current** lock/planner identities.
+The repaired credential path adds `O_NONBLOCK` and immediate regular-file
+verification, backed by a disposable synthetic FIFO race proof in #3559.
+
+```text
+candidate_id=voidbuye2runnerpolcand6r3_e8fd215f560d8bc0d33f36057967e03a3f3cd6bf90230a776c307e32271c3020
+accepted_lock_id=voidbuye2runnerpollock6r3_7d7410e17650b6112c2f238ea8b59b7510711d8bb4300434ce439332a93aebaf
+accepted_lock_blob=4cc5f59fd50b6bfac532d057f361af8f819adfc0
+runner_git_blob=9e4a87c7f1fda092f16dcd859241cced41960fb8
+runner_sha256=a98c845855a8774d3a60835dabe2f1ec1c2d2e129134fdfc963f0f8cecfddd27
+runner_bytes=82972
+planner_blob=7d7f4e7e00b77b5513c072421287a9219ec72381
+source_compatibility_evidence_run=39343280964
+source_candidate_evidence_run=39343280275
+```
+
+The planner still has **no apply mode**; the installed runtime remains pinned to
+`4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb` and the accepted native
+binary is not rebuilt. Only a separately authorized non-executing, unprivileged
+host plan could follow an independently reviewed and fully green source PR.
+
+No filesystem write, execution of Runner/native, service mutation, credential
+access, wallet/signing, payment acceptance, presale/WC activation, treasury,
+liquidity, or funds movement is granted here. PROTECT THE CORE.
