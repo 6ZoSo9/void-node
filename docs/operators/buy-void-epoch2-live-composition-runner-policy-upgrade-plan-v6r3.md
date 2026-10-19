@@ -91,3 +91,26 @@ planner_blob=b9e69cab21b3031f0fb8000c0970a4cb99163d74
 ```
 
 The planner remains read-only and has no apply mode.
+
+
+## Raw-object ancestry rebind
+
+Current accepted inputs:
+
+```text
+lock_id=voidbuye2runnerpollock6r3_7dd8db2619e9c02ef8120e6d5e4e716946b991787dea7128fb51ed63290e4af7
+candidate_id=voidbuye2runnerpolcand6r3_8ffc05fc997f4dc19a3174ca588b812afd126565235361bb6048170701ba1af1
+runner_blob=340a0cf0eec589a44f20d44143e353ea25250973
+runner_sha256=c5976f6b96a5c29807fb188d0ede4f0fe812512f199a083272df2e1a7acb4953
+runner_bytes=70767
+planner_blob=596265d01d762bc3ecbcb7683e8fb4b5d50ce691
+```
+
+The planner no longer uses revision-walk ancestry. It traverses bounded raw commit
+parent headers and rejects graft-only ancestry. It also refuses a lock unless that
+lock explicitly records raw-object ancestry as required and graft/revision metadata
+as non-authoritative.
+
+The planner remains non-executing and has no apply mode. No protected filesystem
+mutation, Runner/native execution, credential/key/signing, transaction/RPC/payment,
+activation, treasury/liquidity, or funds authority is added.
