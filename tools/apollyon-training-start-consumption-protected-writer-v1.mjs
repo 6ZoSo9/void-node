@@ -63,6 +63,10 @@ export const VOID_APOLLYON_TRAINING_START_CONSUMPTION_PROTECTED_WRITER_AUTHORITY
 
 const SLOT_ID=/^apollyon_training_start_slot_v1:([0-9a-f]{64})$/u;
 const MAX_RECORD_BYTES=64*1024;
+const O_PATH=Number(fs.constants.O_PATH??0o10000000);
+const O_NONBLOCK=Number(fs.constants.O_NONBLOCK||0);
+const O_NOFOLLOW=Number(fs.constants.O_NOFOLLOW||0);
+const O_CLOEXEC=Number(fs.constants.O_CLOEXEC||0);
 
 // No caller object, getter, Proxy trap, or nested graph is allowed to execute
 // before the exact consumption record is validated and a directory FD is owned.
@@ -227,6 +231,24 @@ function assertFinalMetadata(metadata,bytesLength){
     fail("apollyon_training_start_writer_final_metadata_invalid");
   }
 }
+function readBoundedExistingFinal(fd){
+  const buffer=Buffer.alloc(MAX_RECORD_BYTES+1);
+  let offset=0;
+  while(offset<buffer.length){
+    let got;
+    try{got=fs.readSync(fd,buffer,offset,buffer.length-offset,offset);}
+    catch(error){
+      if(error?.code==="EINTR")continue;
+      throw error;
+    }
+    if(!Number.isSafeInteger(got)||got<0){
+      fail("apollyon_training_start_writer_existing_record_read_invalid");
+    }
+    if(got===0)break;
+    offset+=got;
+  }
+  return buffer.subarray(0,offset);
+}
 function readExactFinal(directoryFd,record,directoryIdentity){
   const leaf=apollyonTrainingStartConsumptionSlotLeafV1(record);
   const finalPath=path.join(directoryProcPath(directoryFd),leaf);
@@ -245,28 +267,54 @@ function readExactFinal(directoryFd,record,directoryIdentity){
     fail("apollyon_training_start_writer_existing_record_size_invalid");
   }
   assertFinalMetadata(visibleBefore,Number(visibleBefore.size));
-  const fd=fs.openSync(
-    finalPath,
-    fs.constants.O_RDONLY|
-      Number(fs.constants.O_NOFOLLOW||0)|
-      Number(fs.constants.O_CLOEXEC||0),
-  );
+
+  let pathFd=-1;
+  let fd=-1;
   try{
-    const before=fs.fstatSync(fd,{bigint:true});
-    assertFinalMetadata(before,Number(before.size));
-    const bytes=fs.readFileSync(fd);
-    const after=fs.fstatSync(fd,{bigint:true});
-    const visibleAfter=fs.lstatSync(finalPath,{bigint:true});
+    pathFd=fs.openSync(finalPath,O_PATH|O_NOFOLLOW|O_CLOEXEC);
+    const admitted=fs.fstatSync(pathFd,{bigint:true});
+    const visibleAdmitted=fs.lstatSync(finalPath,{bigint:true});
     if(
-      !sameFileIdentity(before,after)||
-      !sameFileIdentity(after,visibleAfter)||
-      BigInt(bytes.length)!==after.size
+      !sameFileIdentity(visibleBefore,admitted)||
+      !sameFileIdentity(admitted,visibleAdmitted)
     ){
       fail("apollyon_training_start_writer_final_identity_drift");
     }
+    assertFinalMetadata(admitted,Number(admitted.size));
+
+    fd=fs.openSync(
+      "/proc/self/fd/"+String(pathFd),
+      fs.constants.O_RDONLY|O_NONBLOCK|O_CLOEXEC,
+    );
+    const before=fs.fstatSync(fd,{bigint:true});
+    if(!sameFileIdentity(admitted,before)){
+      fail("apollyon_training_start_writer_final_identity_drift");
+    }
+    assertFinalMetadata(before,Number(before.size));
+
+    const bytes=readBoundedExistingFinal(fd);
     if(bytes.length<2||bytes.length>MAX_RECORD_BYTES){
       fail("apollyon_training_start_writer_existing_record_size_invalid");
     }
+
+    const after=fs.fstatSync(fd,{bigint:true});
+    const heldAfter=fs.fstatSync(pathFd,{bigint:true});
+    const visibleAfter=fs.lstatSync(finalPath,{bigint:true});
+    const finalFd=fs.fstatSync(fd,{bigint:true});
+    const finalPathFd=fs.fstatSync(pathFd,{bigint:true});
+    const visibleFinal=fs.lstatSync(finalPath,{bigint:true});
+    if(
+      !sameFileIdentity(admitted,after)||
+      !sameFileIdentity(admitted,heldAfter)||
+      !sameFileIdentity(admitted,visibleAfter)||
+      !sameFileIdentity(admitted,finalFd)||
+      !sameFileIdentity(admitted,finalPathFd)||
+      !sameFileIdentity(admitted,visibleFinal)||
+      BigInt(bytes.length)!==finalFd.size
+    ){
+      fail("apollyon_training_start_writer_final_identity_drift");
+    }
+
     let parsed;
     try{parsed=JSON.parse(bytes.toString("utf8"));}
     catch{fail("apollyon_training_start_writer_existing_record_invalid");}
@@ -287,9 +335,11 @@ function readExactFinal(directoryFd,record,directoryIdentity){
       training_start_consumption_id:record.training_start_consumption_id,
     });
   }finally{
-    fs.closeSync(fd);
+    if(fd>=0)fs.closeSync(fd);
+    if(pathFd>=0)fs.closeSync(pathFd);
   }
 }
+
 function writeAll(fd,bytes){
   let offset=0;
   while(offset<bytes.length){
