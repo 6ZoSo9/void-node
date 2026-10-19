@@ -16,11 +16,11 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="a1a3a60ae55696bb7ffa46934d38b189e3558ee3"
+assert gblob(INS)=="9349273d73c7559851787a3a38a29269c5174179"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
-assert gblob(QUAL)=="2132ed4f545364347e27bd77adc3ab447c0df397"
+assert gblob(QUAL)=="f5c2fbbb838e95dca40b4a5b514a1861cab9da68"
 assert gblob(PRED_QUAL)=="56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
 
 src=INS.read_text("utf-8")
@@ -51,7 +51,7 @@ required=(
     'SEPARATELY_AUTHORIZE_V7_PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4',
     'PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4_GREEN',
     'QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"',
-    'QUALIFIER_BLOB = "2132ed4f545364347e27bd77adc3ab447c0df397"',
+    'QUALIFIER_BLOB = "f5c2fbbb838e95dca40b4a5b514a1861cab9da68"',
     '"installed_qualifier": {"path": QUALIFIER_REL, "blob": QUALIFIER_BLOB}',
     'RUN_INSTALLED_QUALIFICATION_V3',
     'installed_qualifier_v3_bound=true',
@@ -150,9 +150,27 @@ qrequired=(
     'os.access(path, os.W_OK, effective_ids=True)',
     'binary_acl_aware_runtime_nonwritability_verified=true',
     'binary_acl_aware_runtime_nonwritability_required=true',
+    'RUNTIME_UID = 1000',
+    'RUNTIME_GID = 1000',
+    'RUNTIME_SUPPLEMENTARY_GROUPS: tuple[int, ...] = ()',
+    'def runtime_identity_fields_valid(',
+    'def require_runtime_identity() -> None:',
+    'runtime_uid_1000_required',
+    'runtime_gid_1000_required',
+    'runtime_supplementary_groups_must_be_empty',
+    'runtime_identity_bound=true',
+    'runtime_supplementary_groups_empty=true',
+    'runtime_uid_gid_1000_required=true',
+    'runtime_supplementary_groups_empty_required=true',
+    'wrong_runtime_uid_gid_rejected=true',
+    'supplementary_group_state_rejected=true',
+    'runtime_identity_required=1000:1000',
+    'runtime_supplementary_groups_required=empty',
 )
 for needle in qrequired:
     assert needle in qsrc, needle
+qualify_body=qsrc[qsrc.index('def qualify() -> None:'):qsrc.index('def self_test() -> None:')]
+assert qualify_body.index('require_runtime_identity()') < qualify_body.index('require_exact_release_generation()')
 assert 'os.chmod(SOURCE_RELEASE' not in qsrc
 assert 'os.chown(SOURCE_RELEASE' not in qsrc
 assert 'os.chmod(SOURCE_RELEASE' not in src
@@ -222,11 +240,17 @@ assert "binary_root_and_ancestor_custody_required=true" in cp.stdout.splitlines(
 assert "binary_self_test_descriptor_execution_required=true" in cp.stdout.splitlines()
 assert "binary_retained_descriptor_revalidation_required=true" in cp.stdout.splitlines()
 assert "binary_acl_aware_runtime_nonwritability_required=true" in cp.stdout.splitlines()
+assert "runtime_uid_gid_1000_required=true" in cp.stdout.splitlines()
+assert "runtime_supplementary_groups_empty_required=true" in cp.stdout.splitlines()
+assert "wrong_runtime_uid_gid_rejected=true" in cp.stdout.splitlines()
+assert "supplementary_group_state_rejected=true" in cp.stdout.splitlines()
 assert 'subprocess.run(\n            [str(path), "--self-test"]' not in qsrc
 cp=subprocess.run([sys.executable,"-I","-B",str(QUAL)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr==""
 assert "source_release_root_mode_required=0555" in cp.stdout.splitlines()
 assert "protected_source_root_mode_required=0755" in cp.stdout.splitlines()
+assert "runtime_identity_required=1000:1000" in cp.stdout.splitlines()
+assert "runtime_supplementary_groups_required=empty" in cp.stdout.splitlines()
 
 print(MARKER+"_GREEN")
 print("precision_observed_source_release_root_mode_0555_bound=true")
@@ -262,6 +286,9 @@ print("mode_only_nonwritable_is_insufficient_model=true")
 print("installer_acl_aware_runtime_uid_write_audit_bound=true")
 print("runtime_uid_cleared_groups_write_audit_bound=true")
 print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
+print("qualifier_runtime_uid_gid_1000_bound=true")
+print("qualifier_supplementary_groups_empty_bound=true")
+print("qualifier_wrong_identity_adversaries_bound=true")
 print("tree_acl_audit_precedes_privileged_content_reads=true")
 print("tree_regular_descriptor_read_bound=true")
 print("tree_fifo_symlink_race_adversaries_bound=true")
