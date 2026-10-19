@@ -32,8 +32,34 @@ NEW_RUNNER_BYTES=64_960
 
 QUALIFIER_REL="ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
 QUALIFIER_BLOB="74c69fe8a95ed5f361a39971618f43f7c768c865"
+QUALIFIER_REPLACEMENT_REL="ops/precision/void_buy_void_user_manager_credential_query_protected_replace_v3r.py"
+QUALIFIER_REPLACEMENT_BLOB="98f8b9fda89e33c50e19008268d97655aad54e6d"
+V6_QUALIFIER_REL="ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
+V6_QUALIFIER_BLOB="83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc"
+V6_REPLACEMENT_REL="ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py"
+V6_REPLACEMENT_BLOB="f81d9fbead60593258d17dbb8720e1efc867b20f"
+CREDENTIAL_LOCK_V3R_REL="ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json"
+CREDENTIAL_LOCK_V3R_BLOB="c4870f3178aebc9a0bb6557562f663b8480cfefa"
+CREDENTIAL_LOCK_V2_REL="ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
+CREDENTIAL_LOCK_V2_BLOB="b73415ce8fc95ff2d49cbde97a15d701ad5b7937"
+V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json"
+V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748"
+V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs"
+V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6"
 SEALED_REL="scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs"
 SEALED_BLOB="14cbe81e27d04fee77cbe75225ce308bf8561a7b"
+
+SOURCE_RUNTIME_DEPENDENCY_SPECS=(
+    ("qualifier",QUALIFIER_REL,QUALIFIER_BLOB),
+    ("replacement_v3r",QUALIFIER_REPLACEMENT_REL,QUALIFIER_REPLACEMENT_BLOB),
+    ("qualifier_v6",V6_QUALIFIER_REL,V6_QUALIFIER_BLOB),
+    ("replacement_v6",V6_REPLACEMENT_REL,V6_REPLACEMENT_BLOB),
+    ("lock_v3r",CREDENTIAL_LOCK_V3R_REL,CREDENTIAL_LOCK_V3R_BLOB),
+    ("lock_v2",CREDENTIAL_LOCK_V2_REL,CREDENTIAL_LOCK_V2_BLOB),
+    ("lock_v6",V6_LOCK_REL,V6_LOCK_BLOB),
+    ("parser_v4",V4_PARSER_REL,V4_PARSER_BLOB),
+    ("sealed_v2",SEALED_REL,SEALED_BLOB),
+)
 
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 RUNTIME_TREE="de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
@@ -154,20 +180,22 @@ def source_snapshot()->dict[str,Any]:
     expected={
         LOCK_REL:LOCK_BLOB,
         RUNNER_REL:RUNNER_BLOB,
-        QUALIFIER_REL:QUALIFIER_BLOB,
-        SEALED_REL:SEALED_BLOB,
     }
+    for _label,relative,want in SOURCE_RUNTIME_DEPENDENCY_SPECS:
+        prior=expected.get(relative)
+        if prior is not None and prior!=want:
+            raise PlanError("source_dependency_contract_conflict:"+relative)
+        expected[relative]=want
     for relative,want in expected.items():
         current=str(git(["rev-parse","HEAD:"+relative])).strip()
         if current!=want:
             raise PlanError("source_blob_mismatch:"+relative)
-    for relative,want in (
-        (QUALIFIER_REL,QUALIFIER_BLOB),
-        (SEALED_REL,SEALED_BLOB),
-    ):
+
+    for _label,relative,want in SOURCE_RUNTIME_DEPENDENCY_SPECS:
         runtime=str(git(["rev-parse",RUNTIME_HEAD+":"+relative])).strip()
-        if runtime!=want:
-            raise PlanError("runtime_dependency_blob_mismatch:"+relative)
+        current=str(git(["rev-parse","HEAD:"+relative])).strip()
+        if runtime!=want or current!=want:
+            raise PlanError("runtime_source_dependency_blob_mismatch:"+relative)
 
     runner=git(["show","HEAD:"+RUNNER_REL],binary=True)
     assert isinstance(runner,bytes)
@@ -196,6 +224,16 @@ def source_snapshot()->dict[str,Any]:
         or lock_value.get("live_execution_authorized") is not False
     ):
         raise PlanError("accepted_lock_contract_invalid")
+
+    final_head=str(git(["rev-parse","--verify","HEAD"])).strip()
+    final_tree=str(git(["rev-parse","--verify","HEAD^{tree}"])).strip()
+    final_branch=str(git(["branch","--show-current"])).strip()
+    if (
+        final_head!=head or final_tree!=tree or final_branch!=branch
+        or git(["status","--porcelain=v1","--untracked-files=no"])!=""
+    ):
+        raise PlanError("source_generation_changed_during_snapshot")
+
     return {
         "head":head,
         "tree":tree,
@@ -203,9 +241,11 @@ def source_snapshot()->dict[str,Any]:
         "runtime_head_ancestor":True,
         "tracked_checkout_exact":True,
         "runtime_source_dependency_blob_equality":True,
+        "runtime_source_dependency_count":len(SOURCE_RUNTIME_DEPENDENCY_SPECS),
+        "runtime_source_complete_dependency_set_bound":True,
+        "snapshot_terminal_revalidated":True,
         "untracked_paths_source_authority":False,
     }
-
 
 def snapshot_host_file(path:Path,*,executable:bool)->dict[str,Any]:
     try:
@@ -387,11 +427,14 @@ def classify_state(old_policy:bytes,new_policy:bytes)->str:
     return READY_STATE
 
 
-def collect_plan()->dict[str,Any]:
-    if os.geteuid()==0:
-        raise PlanError("nonroot_required_for_plan")
-    source=source_snapshot()
-    node=snapshot_host_file(FIXED_NODE,executable=True)
+def _collect_plan_with_observers(
+    *,
+    source_snapshot_fn,
+    snapshot_host_file_fn,
+    classify_state_fn,
+)->dict[str,Any]:
+    source_before=source_snapshot_fn()
+    node=snapshot_host_file_fn(FIXED_NODE,executable=True)
     old_policy=build_policy(
         runtime_head=RUNTIME_HEAD,
         runner_sha256=OLD_RUNNER_SHA256,
@@ -406,12 +449,18 @@ def collect_plan()->dict[str,Any]:
     )
     if old_policy==new_policy or sha256(old_policy)==sha256(new_policy):
         raise PlanError("new_policy_not_distinct")
-    state=classify_state(old_policy,new_policy)
+    state=classify_state_fn(old_policy,new_policy)
+    source_after=source_snapshot_fn()
+    if source_after!=source_before:
+        raise PlanError("source_generation_changed_during_plan")
     body={
         "schema":SCHEMA,"version":VERSION,
         "accepted_lock_id":LOCK_ID,
         "accepted_candidate_id":CANDIDATE_ID,
-        "source":source,
+        "source":source_after,
+        "runtime_source_dependency_count":len(SOURCE_RUNTIME_DEPENDENCY_SPECS),
+        "runtime_source_complete_dependency_set_bound":True,
+        "source_terminal_revalidated":True,
         "runtime_head":RUNTIME_HEAD,
         "runtime_tree":RUNTIME_TREE,
         "node":node,
@@ -466,6 +515,16 @@ def collect_plan()->dict[str,Any]:
     }
 
 
+
+def collect_plan()->dict[str,Any]:
+    if os.geteuid()==0:
+        raise PlanError("nonroot_required_for_plan")
+    return _collect_plan_with_observers(
+        source_snapshot_fn=source_snapshot,
+        snapshot_host_file_fn=snapshot_host_file,
+        classify_state_fn=classify_state,
+    )
+
 def source_plan()->None:
     print(MARKER)
     print("mode=source-plan")
@@ -481,6 +540,9 @@ def source_plan()->None:
     print("native_sha256="+NATIVE_SHA256)
     print("native_bytes="+str(NATIVE_BYTES))
     print("native_reused=true")
+    print("runtime_source_dependency_count="+str(len(SOURCE_RUNTIME_DEPENDENCY_SPECS)))
+    print("runtime_source_complete_dependency_set_bound=true")
+    print("terminal_source_revalidation_required=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
     print("predecessor_v6r2_retention_required=true")
@@ -495,6 +557,11 @@ def source_plan()->None:
 
 
 def self_test()->None:
+    assert len(SOURCE_RUNTIME_DEPENDENCY_SPECS)==9
+    assert [row[0] for row in SOURCE_RUNTIME_DEPENDENCY_SPECS]==[
+        "qualifier","replacement_v3r","qualifier_v6","replacement_v6",
+        "lock_v3r","lock_v2","lock_v6","parser_v4","sealed_v2",
+    ]
     node={"sha256":"a"*64,"bytes":123456789}
     old_policy=build_policy(
         runtime_head=RUNTIME_HEAD,
@@ -523,6 +590,51 @@ def self_test()->None:
     assert first==second
     assert LOCK_ID.startswith("voidbuye2runnerpollock6r3_")
     assert CANDIDATE_ID.startswith("voidbuye2runnerpolcand6r3_")
+
+    source_base={
+        "head":"b"*40,"tree":"c"*40,"branch":"main",
+        "runtime_head_ancestor":True,
+        "tracked_checkout_exact":True,
+        "runtime_source_dependency_blob_equality":True,
+        "runtime_source_dependency_count":9,
+        "runtime_source_complete_dependency_set_bound":True,
+        "snapshot_terminal_revalidated":True,
+        "untracked_paths_source_authority":False,
+    }
+    stable_calls=0
+    def stable_source():
+        nonlocal stable_calls
+        stable_calls+=1
+        return dict(source_base)
+    stable=_collect_plan_with_observers(
+        source_snapshot_fn=stable_source,
+        snapshot_host_file_fn=lambda _path,executable:dict(node),
+        classify_state_fn=lambda _old,_new:READY_STATE,
+    )
+    assert stable_calls==2
+    assert stable["body"]["source_terminal_revalidated"] is True
+    assert stable["body"]["runtime_source_dependency_count"]==9
+    assert stable["body"]["runtime_source_complete_dependency_set_bound"] is True
+
+    drift_calls=0
+    def drifting_source():
+        nonlocal drift_calls
+        drift_calls+=1
+        value=dict(source_base)
+        if drift_calls==2:
+            value["tree"]="d"*40
+        return value
+    try:
+        _collect_plan_with_observers(
+            source_snapshot_fn=drifting_source,
+            snapshot_host_file_fn=lambda _path,executable:dict(node),
+            classify_state_fn=lambda _old,_new:READY_STATE,
+        )
+    except PlanError as exc:
+        assert str(exc)=="source_generation_changed_during_plan"
+    else:
+        raise AssertionError("late_source_drift_not_rejected")
+
     print(MARKER+"_SELF_TEST_GREEN")
     print("runtime_policy_head_preserved=true")
     print("accepted_v6r3_lock_bound=true")
@@ -530,6 +642,10 @@ def self_test()->None:
     print("native_v3_identity_reused=true")
     print("runner_v4_identity_bound=true")
     print("policy_node_identity_host_derived=true")
+    print("runtime_source_complete_dependency_set_bound=true")
+    print("runtime_source_dependency_count=9")
+    print("terminal_source_revalidation_required=true")
+    print("late_source_drift_rejected=true")
     print("full_root_atomic_exchange_required=true")
     print("v4_predecessor_retained=true")
     print("v6r2_predecessor_retention_required=true")
@@ -541,7 +657,6 @@ def self_test()->None:
     print("signing=false")
     print("transaction=false")
     print("funds_movement=false")
-
 
 def emit_plan()->None:
     result=collect_plan(); body=result["body"]
@@ -565,6 +680,9 @@ def emit_plan()->None:
     print("native_bytes="+str(NATIVE_BYTES))
     print("new_runner_sha256="+NEW_RUNNER_SHA256)
     print("new_runner_bytes="+str(NEW_RUNNER_BYTES))
+    print("runtime_source_dependency_count="+str(body["runtime_source_dependency_count"]))
+    print("runtime_source_complete_dependency_set_bound=true")
+    print("source_terminal_revalidated=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
     print("rename_exchange_required=true")
