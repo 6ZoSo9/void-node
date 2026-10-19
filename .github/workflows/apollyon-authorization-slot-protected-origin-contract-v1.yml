@@ -10,6 +10,16 @@ on:
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
       - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs"
+      - "docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
   workflow_dispatch:
 
 permissions:
@@ -31,6 +41,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -55,6 +66,11 @@ jobs:
             pull_request)
               test -n "$PR_BASE"
               base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
               ;;
             workflow_dispatch)
               base="$(git rev-parse HEAD^)"
