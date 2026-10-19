@@ -8,6 +8,10 @@ on:
       - "docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md"
       - ".github/workflows/apollyon-authorization-slot-protected-origin-implementation-v1.yml"
       - "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs"
+      - "docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
   push:
@@ -18,6 +22,10 @@ on:
       - "docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md"
       - ".github/workflows/apollyon-authorization-slot-protected-origin-implementation-v1.yml"
       - "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs"
+      - "docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
   workflow_dispatch:
@@ -44,7 +52,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=db8c56d7ebe73e0646355bc6fcb4a5141ef7422f
+          STACK_PARENT=1b60642d980b76c13130d5124d83a22c2c01ec30
           # Fresh synchronize event after base retarget; require the exact current #3526 base.
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
@@ -56,11 +64,15 @@ jobs:
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
               printf '%s\n' \
-                'ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py' \
-                'scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py' \
-                'docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md' \
+                '.github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml' \
                 '.github/workflows/apollyon-authorization-slot-protected-origin-implementation-v1.yml' \
-                | sort > "$expected"
+                'docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md' \
+                'docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md' \
+                'ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py' \
+                'scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs' \
+                'scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py' \
+                'tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs' \
+                | LC_ALL=C sort > "$expected"
               git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
               diff -u "$expected" "$actual"
               ;;
@@ -80,12 +92,31 @@ jobs:
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 54a836c98dabc4bde9f40c06453a001aa29a95d9
           test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 8def0726a99c1b29dc4014e72ba7299fe3e1537e
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 57bad587cb53fd6e8ae38dc88d35231d2b3e897a
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 3ec23ebd95278051a0d96912c10bd8af31c77db5
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 833876baf077b9616d08ee9b13b2657a0818dcc5
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = 65d1208c14d638c3d255bcdb50ddce02c8e25dee
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = e621f6c554c48e85f87bcc68435bc64fed5c9fd4
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml)" = a580b3b4b760a01a886530e53cec8c8cea5eec2d
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = 87019ae1245a2054407dd47835b0b7a891d4d9a2
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
 
           git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Reprove protected authorization-slot origin contract
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs
+          node --check scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs
+          out="$RUNNER_TEMP/apollyon-origin-contract.log"
+          node scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs | tee "$out"
+          grep -Fx 'VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_CONTRACT_V1_PROOF_GREEN' "$out"
+          grep -Fx 'protected_authorization_slot_store_proven=false' "$out"
+          grep -Fx 'protected_authorization_slot_origin_proven=false' "$out"
+          grep -Fx 'activation_capability_issuance_authorized=false' "$out"
+          grep -Fx 'training_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Syntax check
