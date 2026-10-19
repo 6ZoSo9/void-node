@@ -177,7 +177,7 @@ and grow a valid regular file at its first read. They require zero visible-path
 data opens, a maximum read request of 64 KiB + 1, and fail-closed rejection.
 
 Current repaired writer blob:
-`66b76ea9201f870672c0bc1c3df207b3c95cf68a`.
+`ee1570b561c6c78e114114d66cdbf190c58b091e`.
 
 ## October 19 — both existing-slot read descriptors close on uncertainty
 
@@ -255,3 +255,30 @@ focused proofs are rebound to that exact source generation. No writer runtime
 logic, path policy, publication semantics, or authority field changed in this
 rebind. Protected host origin, current store/winner/claim verification,
 writer invocation, release/training and funds authority remain unproven.
+
+## October 19 — preserve both terminal descriptor-close uncertainties
+
+The prior writer refused to return success when either a newly-created
+record descriptor or the module-owned directory descriptor failed to close.
+A combined post-durability error exposed one additional diagnostic gap:
+the outer JavaScript `finally` exception replaced an earlier created-record
+close exception, hiding that **both** descriptor releases were indeterminate.
+
+This child remembers the inner
+`apollyon_training_start_writer_created_record_close_uncertain` failure.
+If the subsequent owned-directory close also fails, it raises an
+`AggregateError` with stable message
+`apollyon_training_start_writer_both_terminal_closes_uncertain`, containing
+**both original namespaced errors** in chronological order and preserving the
+first error as `cause`. Each close was already attempted exactly once;
+neither is retried, and durable bytes are never automatically rewritten.
+
+The disposable proof injects EIO *after* each real close, requires both original
+errors, unchanged FD census and unchanged canonical one-time final record.
+Individual close failure outcomes and successful publication are unchanged.
+
+Current corrected writer blob:
+`ee1570b561c6c78e114114d66cdbf190c58b091e`.
+
+All protected store origin, writer invocation, trainer release/training,
+credential, signing, wallet, transaction and funds authority remain **false**.
