@@ -831,9 +831,10 @@ conservative and is not a rollback claim. Observation cleanup errors report
 result and poisoning the shared instance. Descriptor cleanup errors retain their specific
 primary classification. An otherwise successful transaction followed by failed
 release reports `apollyon_claim_store_impl_v2_transaction_cleanup_indeterminate`.
-Genuine Promise rejections are observed through the captured native Promise
-method while the unsupported result is rejected; arbitrary thenables are never
-invoked or awaited.
+Native Promise results are rejected by internal type without attaching handlers,
+reading `.then`, or invoking Promise species construction. The core deliberately
+does **not** claim to contain the process-level unhandled-rejection outcome of an
+already-rejected Promise. Arbitrary thenables are never invoked or awaited.
 
 The per-core reentry guard starts before request validation and remains active
 through acquisition, all revalidation stages, descriptor cleanup and release.
@@ -863,7 +864,14 @@ The callback receipt is exact-schema and binds:
 - claim-record ID;
 - exact stage.
 
-However, a **caller-supplied callback is not host provenance**. Likewise, a
+However, a **caller-supplied callback is not host provenance**. The source core
+also does not sandbox that callback's Node failure domain. In particular, if an
+injected callback creates and returns an already-rejected native Promise without
+installing its own rejection handling, the core can reject the return value
+synchronously without property/species access while the containing Node process
+can still later terminate for an unhandled rejection. Therefore installed
+composition must separately prove both a trusted revalidator callback source and
+containment of callback-level unhandled rejection outcomes. Likewise, a
 caller-supplied acquisition lease is not proof of system-wide serialization.
 The Linux composition supplies an actual advisory lock for cooperating callers;
 it does not establish universal participation or authenticate the revalidator.
@@ -1122,3 +1130,33 @@ thrown-value getter/coercion calls while the store remains unchanged and the
 transaction lease is released. These source defenses do not establish
 installed protected origin, privileged role admission, production claim
 publication, training, credentials, transactions, or funds authority.
+
+
+## October 19 callback failure-domain containment boundary
+
+The getter-free Promise hardening intentionally chooses integrity over implicit
+in-process observation: native Promise returns are detected with
+`util.types.isPromise` and rejected without calling `Promise.prototype.then`,
+reading `.then`, or triggering caller-controlled `constructor`/species
+accessors.
+
+That does **not** make arbitrary injected callbacks safe to execute inside a
+future privileged long-lived claim service. A callback can create an already
+rejected Promise and return it; the core can issue the expected synchronous HOLD
+while Node's unhandled-rejection policy later terminates the process. Hosted proof
+reproduces that behavior in a disposable child and never attempts to suppress it
+inside the source core.
+
+The authority contract therefore records:
+
+```text
+trusted_revalidator_callback_source_required=true
+trusted_revalidator_callback_source_proven=false
+unhandled_rejected_promise_containment_required=true
+unhandled_rejected_promise_containment_proven=false
+```
+
+A future protected host composition must establish those facts by admitting only
+a reviewed callback generation and/or isolating its failure domain before
+claim-service runtime readiness can be asserted. This is an availability and
+integration requirement, not permission to publish claims or execute training.
