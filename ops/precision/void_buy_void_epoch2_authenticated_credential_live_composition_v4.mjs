@@ -90,6 +90,16 @@ const SOURCE_COMPATIBILITY_KEYS=Object.freeze([
   "tracked_checkout_exact","untracked_paths_enumerated",
   "untracked_paths_source_authority",
 ]);
+const QUALIFIER_CLOSURE_SPECS=Object.freeze([
+  Object.freeze(["qualifier",QUALIFIER_REL,QUALIFIER_BLOB]),
+  Object.freeze(["replacement_v3r",QUALIFIER_REPLACEMENT_REL,QUALIFIER_REPLACEMENT_BLOB]),
+  Object.freeze(["qualifier_v6",V6_QUALIFIER_REL,V6_QUALIFIER_BLOB]),
+  Object.freeze(["replacement_v6",V6_REPLACEMENT_REL,V6_REPLACEMENT_BLOB]),
+  Object.freeze(["lock_v3r",CREDENTIAL_LOCK_V3R_REL,CREDENTIAL_LOCK_V3R_BLOB]),
+  Object.freeze(["lock_v2",CREDENTIAL_LOCK_V2_REL,CREDENTIAL_LOCK_V2_BLOB]),
+  Object.freeze(["lock_v6",V6_LOCK_REL,V6_LOCK_BLOB]),
+  Object.freeze(["parser_v4",V4_PARSER_REL,V4_PARSER_BLOB]),
+]);
 const QUALIFICATION_KEYS=Object.freeze([
   "marker","version","read_only","root_execution_required",
   "credential_lock_id","credential_v3r_generation_verified",
@@ -677,21 +687,11 @@ export function qualificationProcessFailure(result){
   return new Error("credential_qualification_failed:"+String(status));
 }
 
-function qualificationClosure(expectedHead){
-  const specs=Object.freeze([
-    ["qualifier",QUALIFIER_REL,QUALIFIER_BLOB],
-    ["replacement_v3r",QUALIFIER_REPLACEMENT_REL,QUALIFIER_REPLACEMENT_BLOB],
-    ["qualifier_v6",V6_QUALIFIER_REL,V6_QUALIFIER_BLOB],
-    ["replacement_v6",V6_REPLACEMENT_REL,V6_REPLACEMENT_BLOB],
-    ["lock_v3r",CREDENTIAL_LOCK_V3R_REL,CREDENTIAL_LOCK_V3R_BLOB],
-    ["lock_v2",CREDENTIAL_LOCK_V2_REL,CREDENTIAL_LOCK_V2_BLOB],
-    ["lock_v6",V6_LOCK_REL,V6_LOCK_BLOB],
-    ["parser_v4",V4_PARSER_REL,V4_PARSER_BLOB],
-  ]);
+function qualificationClosure(expectedHead,gitObjectFn=gitObject){
   const closure={};
   try{
-    for(const [label,relative,blob] of specs){
-      closure[label]=gitObject(expectedHead,relative,blob);
+    for(const [label,relative,blob] of QUALIFIER_CLOSURE_SPECS){
+      closure[label]=gitObjectFn(expectedHead,relative,blob);
     }
     return closure;
   }catch(error){
@@ -1380,6 +1380,48 @@ function selfTest(){
       throw new Error("git_environment_self_test_failed:"+key);
     }
   }
+
+  const closureCalls=[];
+  const testClosure=qualificationClosure(
+    "1".repeat(40),
+    (head,relative,blob)=>{
+      closureCalls.push([head,relative,blob]);
+      return Buffer.from(blob,"ascii");
+    },
+  );
+  if(closureCalls.length!==QUALIFIER_CLOSURE_SPECS.length||
+     closureCalls.length!==8||
+     Object.keys(testClosure).sort().join(",")!==
+       QUALIFIER_CLOSURE_SPECS.map((row)=>row[0]).sort().join(",")){
+    throw new Error("qualification_closure_self_test_failed");
+  }
+  for(let i=0;i<QUALIFIER_CLOSURE_SPECS.length;i++){
+    const [label,relative,blob]=QUALIFIER_CLOSURE_SPECS[i];
+    const [headGot,relativeGot,blobGot]=closureCalls[i];
+    if(headGot!=="1".repeat(40)||relativeGot!==relative||blobGot!==blob||
+       testClosure[label].toString("ascii")!==blob){
+      throw new Error("qualification_closure_identity_self_test_failed:"+label);
+    }
+  }
+  const bootstrapProbe=pythonBootstrap(testClosure);
+  for(const required of [
+    "root_checkout_source_read_forbidden",
+    "root_checkout_lock_read_forbidden",
+    "q._direct_source_bytes=no_source",
+    "v6._direct_source_bytes=no_source",
+    "m._direct_repo_bytes=repo_bytes",
+    "q._load_dependencies=load_dependencies",
+    "v6._load_replacement=load_replacement",
+  ]){
+    if(!bootstrapProbe.includes(required)){
+      throw new Error("qualification_bootstrap_guard_self_test_failed:"+required);
+    }
+  }
+  if(bootstrapProbe.includes("'__name__':'__main__'")||
+     bootstrapProbe.includes("path.read_bytes()")){
+    throw new Error("qualification_bootstrap_unsafe_path_self_test_failed");
+  }
+  for(const value of Object.values(testClosure))value.fill(0);
 
   console.log(MARKER+"_SELF_TEST_GREEN");
   console.log("native_preentry_required_for_live=true");
