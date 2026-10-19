@@ -1,0 +1,139 @@
+name: Apollyon training-start directory custody fixture v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml"
+      - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
+      - "tools/apollyon-training-start-store-revalidation-request-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml"
+      - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
+      - "tools/apollyon-training-start-store-revalidation-request-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact source generation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind source and parent generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          parent=c746acd9a993aa3af6fe67bf0e831fcfbee29be3
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git merge-base --is-ancestor "$parent" "$HEAD_SHA"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE" = "$parent"
+              base="$PR_BASE"
+              expected="$RUNNER_TEMP/expected-usage.txt"
+              actual="$RUNNER_TEMP/actual-usage.txt"
+              printf '%s\n' \
+                'ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
+                '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+                | LC_ALL=C sort > "$expected"
+              git diff --no-renames --name-only "$base" "$HEAD_SHA" -- \
+                | LC_ALL=C sort > "$actual"
+              diff -u "$expected" "$actual"
+              ;;
+            push)
+              base="$PUSH_BEFORE"
+              test -n "$base"
+              test "$base" != "0000000000000000000000000000000000000000"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 42408e7a65e3565a8a98cb4e23985c3ca76045bc
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 491d37488b0128c746ad84c7e1b9d5d4a76b398e
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 17b847c0ff586da2a0f9abfb05154b32aea9d574
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 473b4148e6bcb755bb8bf7c6af890150a9f43efe
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = be9347a157c7e220aa65cf3dad1c8b7781904277
+
+          git diff --check "$base" "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax without Python bytecode writes
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for name in (
+              "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py",
+              "scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py",
+          ):
+              compile(Path(name).read_text("utf-8"), name, "exec", dont_inherit=True)
+          print("synthetic_custody_python_syntax_valid=true")
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove read-only fixture custody and negative host authority
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-consumption-directory-custody.log"
+          python3 -I -B scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py | tee "$out"
+          for marker in \
+            'VOID_APOLLYON_TRAINING_START_CONSUMPTION_DIRECTORY_CUSTODY_CANDIDATE_V1_PROOF_GREEN' \
+            'synthetic_fixture_directory_custody_observed=true' \
+            'fixed_root_descriptor_generation_checked=true' \
+            'consumption_directory_descriptor_generation_checked=true' \
+            'acl_and_symlink_adversaries_rejected=true' \
+            'visible_directory_replacement_rejected=true' \
+            'rejected_directory_fd_cleanup_verified=true' \
+            'isolated_python_preimport_guard=true' \
+            'live_host_entrypoint_disabled=true' \
+            'production_path_not_opened=true' \
+            'protected_store_origin_proven=false' \
+            'current_store_generation_revalidation_performed=false' \
+            'writer_invocation_authorized=false' \
+            'training_execution_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Check CLI refuses live host reads
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-consumption-directory-custody-selftest.log"
+          python3 -I -B ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py --self-test | tee "$out"
+          grep -Fx 'VOID_APOLLYON_TRAINING_START_CONSUMPTION_DIRECTORY_CUSTODY_CANDIDATE_V1_SELF_TEST_GREEN' "$out"
+          grep -Fx 'live_host_path_read_supported=false' "$out"
+          grep -Fx 'protected_store_origin_proven=false' "$out"
+          grep -Fx 'writer_invocation_authorized=false' "$out"
+          grep -Fx 'training_execution_authorized=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
