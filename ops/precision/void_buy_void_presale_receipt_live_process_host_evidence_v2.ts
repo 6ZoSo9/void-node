@@ -256,17 +256,24 @@ function staticModuleSpecifiers(source: string): string[] {
   return out;
 }
 
-function replaceReviewedImport(source: string, specifier: string, dataUrl: string): string {
-  const escaped = specifier.replace(/[.*+?^$()|[\]\\{}]/gu, "\\$&");
+function replaceReviewedImport(
+  source: string,
+  specifier: string,
+  dataUrl: string,
+): string {
   let count = 0;
-  const fromPattern = new RegExp("(\\bfrom\\s+)([\\\"\'])" + escaped + "\\2", "gu");
-  source = source.replace(fromPattern, (_whole, prefix: string) => { count += 1; return prefix + JSON.stringify(dataUrl); });
-  const importPattern = new RegExp("(\\bimport\\s+)([\\\"\'])" + escaped + "\\2", "gu");
-  source = source.replace(importPattern, (_whole, prefix: string) => { count += 1; return prefix + JSON.stringify(dataUrl); });
+  const pattern = /\b(from|import)\s+(["'])([^"']+)\2/gu;
+  const rewritten = source.replace(
+    pattern,
+    (whole, keyword: string, quote: string, observed: string) => {
+      if (observed !== specifier) return whole;
+      count += 1;
+      return keyword + " " + JSON.stringify(dataUrl);
+    },
+  );
   if (count < 1) fail("lane1_v2_parent_graph_import_rewrite_missing");
-  return source;
+  return rewritten;
 }
-
 function authenticatedTypeScriptDataUrl(
   graphRoot: string, relative: string, pins: Readonly<Record<string, string>>,
   sources: ReadonlyMap<string, Buffer>, cache: Map<string, string>, building: Set<string>,
