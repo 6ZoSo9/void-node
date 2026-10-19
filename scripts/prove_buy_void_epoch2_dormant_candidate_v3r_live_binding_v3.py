@@ -15,8 +15,8 @@ COMPAT_V3 = ROOT / "ops/precision/void_buy_void_presale_epoch2_installed_generat
 COMPAT_V2 = ROOT / "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
 COMPAT_V1 = ROOT / "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
 
-BINDER_BLOB = "bf45a1d4aea6c788d9baa5e481491aedab621e38"
-NATIVE_BLOB = "95131a524a42d4e0bf548af8ffd2cc6dc04974e2"
+BINDER_BLOB = "f33a670181d7b6a870a8fecefa76b9ec10a769db"
+NATIVE_BLOB = "53fd41e52ad9e5edc40146eb7af3b40dfa861b61"
 COMPAT_V3_BLOB = "f9e3b1f5501a56e7ce1a191f12507186e79c28d4"
 COMPAT_V2_BLOB = "a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2"
 COMPAT_V1_BLOB = "6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577"
@@ -52,9 +52,9 @@ assert git_blob(native_raw) == NATIVE_BLOB
 assert git_blob(COMPAT_V3.read_bytes()) == COMPAT_V3_BLOB
 assert git_blob(COMPAT_V2.read_bytes()) == COMPAT_V2_BLOB
 assert git_blob(COMPAT_V1.read_bytes()) == COMPAT_V1_BLOB
-assert len(binder_raw) == 39086
+assert len(binder_raw) == 39250
 assert len(native_raw) == 20700
-assert hashlib.sha256(binder_raw).hexdigest() == "ed493ca65805f5e6549569a2d02d4e3d7e7178436c6a266fc89cceea69b1d30f"
+assert hashlib.sha256(binder_raw).hexdigest() == "717c413afffd51ade4ac690f73e19f3f824c805142f4438b15f1e35009945bef"
 
 binder = binder_raw.decode("utf-8")
 native = native_raw.decode("utf-8")
@@ -66,6 +66,8 @@ for required in (
     '"746cfbe2f031868fff3a75f8307986f25c62460085f41a4827e712702a2d6549";',
     'const COMPAT_V3_BLOB="' + COMPAT_V3_BLOB + '";',
     'const COMPAT_V3_BYTES=27024;',
+    'const FIXED_COMPAT_V3=BINDER_PREENTRY_ROOT+"/compat/ops/precision/"+COMPAT_V3_NAME;',
+    '"untracked_paths_source_authority:false"',
     "function validateQualification(q,sourceHead,runtimeHead){",
     "function runQualification(sourceHead,runtimeHead){",
     "function runNativeLive(runtimeHead){",
@@ -98,12 +100,12 @@ for forbidden in (
 
 live_at = binder.index("function live(sourceHead,runtimeHead,confirm){")
 preentry_at = binder.index("const binderProof=requireBinderPreentry(sourceHead,runtimeHead);", live_at)
-checkout1_at = binder.index("requireExactCheckout(sourceHead);", preentry_at)
+checkout1_at = binder.index("requireSourceHead(sourceHead);", preentry_at)
 candidate_at = binder.index("const candidate=loadCandidate(sourceHead);", checkout1_at)
 before_at = binder.index("const before=runQualification(sourceHead,runtimeHead);", candidate_at)
 child_at = binder.index("const child=runNativeLive(runtimeHead);", before_at)
 after_at = binder.index("const after=runQualification(sourceHead,runtimeHead);", child_at)
-checkout2_at = binder.index("requireExactCheckout(sourceHead);", after_at)
+checkout2_at = binder.index("requireSourceHead(sourceHead);", after_at)
 revalidate_at = binder.index("revalidateBinderPreentry(binderProof,sourceHead,runtimeHead);", checkout2_at)
 assert live_at < preentry_at < checkout1_at < candidate_at < before_at < child_at < after_at < checkout2_at < revalidate_at
 
@@ -113,7 +115,7 @@ for required in (
     '#define CONFIRM "' + CONFIRM + '"',
     '#define PROOF_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V3"',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
-    "#define BINDER_BYTES 39086U",
+    "#define BINDER_BYTES 39250U",
     "static void parse_args(int argc,char**argv,char source_head[41],char runtime_head[41])",
     'strcmp(argv[4],"--source-head")',
     'strcmp(argv[6],"--runtime-head")',
@@ -154,6 +156,8 @@ for line in (
     "runtime_head_exact=true",
     "runtime_policy_head_preserved=true",
     "compatibility_v3_installed_source_required=true",
+    "compatibility_v3_nested_install_root_required=true",
+    "untracked_paths_source_authority=false",
     "native_binder_first_entry_required_for_live=true",
     "binder_parent_proof_binds_source_and_runtime_heads=true",
     "runtime_native_receives_runtime_policy_head_only=true",
@@ -178,6 +182,8 @@ for line in (
     "runtime_head=" + RUNTIME_HEAD,
     "runtime_policy_sha256=" + RUNTIME_POLICY_SHA256,
     "binder_parent_proof_binds_source_and_runtime_heads=true",
+    "source_tracked_bytes_authenticated_by_compatibility_v3=true",
+    "untracked_paths_source_authority=false",
     "source_runtime_compatibility_qualification_before_after_required=true",
     "runtime_native_receives_runtime_policy_head_only=true",
     "canonical_checkout_rewind_performed=false",
@@ -266,6 +272,9 @@ print("native_preentry_blob_bound=true")
 print("compat_v3_v2_v1_blobs_bound=true")
 print("source_runtime_two_head_contract=true")
 print("source_head_candidate_authentication_bound=true")
+print("source_tracked_bytes_authenticated_by_compatibility_v3=true")
+print("untracked_paths_source_authority=false")
+print("compatibility_v3_nested_install_root_required=true")
 print("runtime_head_policy_qualification_bound=true")
 print("runtime_native_receives_runtime_policy_head_only=true")
 print("binder_parent_proof_binds_source_and_runtime_heads=true")
