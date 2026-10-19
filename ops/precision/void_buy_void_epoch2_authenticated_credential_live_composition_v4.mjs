@@ -25,6 +25,25 @@ const QUALIFIER_REL=
 const SEALED_REL=
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs";
 const QUALIFIER_BLOB="74c69fe8a95ed5f361a39971618f43f7c768c865";
+const QUALIFIER_REPLACEMENT_REL=
+  "ops/precision/void_buy_void_user_manager_credential_query_protected_replace_v3r.py";
+const QUALIFIER_REPLACEMENT_BLOB="98f8b9fda89e33c50e19008268d97655aad54e6d";
+const V6_QUALIFIER_REL=
+  "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py";
+const V6_QUALIFIER_BLOB="83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc";
+const V6_REPLACEMENT_REL=
+  "ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py";
+const V6_REPLACEMENT_BLOB="f81d9fbead60593258d17dbb8720e1efc867b20f";
+const CREDENTIAL_LOCK_V3R_REL=
+  "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json";
+const CREDENTIAL_LOCK_V3R_BLOB="c4870f3178aebc9a0bb6557562f663b8480cfefa";
+const CREDENTIAL_LOCK_V2_REL=
+  "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json";
+const CREDENTIAL_LOCK_V2_BLOB="b73415ce8fc95ff2d49cbde97a15d701ad5b7937";
+const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
+const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
+const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
+const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
 const SEALED_BLOB="14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
   "probeBuyVoidEpoch2InstalledCredentialSigningCapabilitySealedV2";
@@ -658,24 +677,144 @@ export function qualificationProcessFailure(result){
   return new Error("credential_qualification_failed:"+String(status));
 }
 
-function pythonBootstrap(source){
-  const absolute=path.join(ROOT,QUALIFIER_REL);
-  const encoded=source.toString("base64");
+function qualificationClosure(expectedHead){
+  const specs=Object.freeze([
+    ["qualifier",QUALIFIER_REL,QUALIFIER_BLOB],
+    ["replacement_v3r",QUALIFIER_REPLACEMENT_REL,QUALIFIER_REPLACEMENT_BLOB],
+    ["qualifier_v6",V6_QUALIFIER_REL,V6_QUALIFIER_BLOB],
+    ["replacement_v6",V6_REPLACEMENT_REL,V6_REPLACEMENT_BLOB],
+    ["lock_v3r",CREDENTIAL_LOCK_V3R_REL,CREDENTIAL_LOCK_V3R_BLOB],
+    ["lock_v2",CREDENTIAL_LOCK_V2_REL,CREDENTIAL_LOCK_V2_BLOB],
+    ["lock_v6",V6_LOCK_REL,V6_LOCK_BLOB],
+    ["parser_v4",V4_PARSER_REL,V4_PARSER_BLOB],
+  ]);
+  const closure={};
+  try{
+    for(const [label,relative,blob] of specs){
+      closure[label]=gitObject(expectedHead,relative,blob);
+    }
+    return closure;
+  }catch(error){
+    for(const value of Object.values(closure)){
+      if(Buffer.isBuffer(value))value.fill(0);
+    }
+    throw error;
+  }
+}
+
+function pythonBootstrap(closure){
+  const encoded={};
+  for(const [key,value] of Object.entries(closure)){
+    encoded[key]=value.toString("base64");
+  }
+  const expected={
+    qualifier:QUALIFIER_BLOB,
+    replacement_v3r:QUALIFIER_REPLACEMENT_BLOB,
+    qualifier_v6:V6_QUALIFIER_BLOB,
+    replacement_v6:V6_REPLACEMENT_BLOB,
+    lock_v3r:CREDENTIAL_LOCK_V3R_BLOB,
+    lock_v2:CREDENTIAL_LOCK_V2_BLOB,
+    lock_v6:V6_LOCK_BLOB,
+    parser_v4:V4_PARSER_BLOB,
+  };
+  const paths={
+    qualifier:path.join(ROOT,QUALIFIER_REL),
+    replacement_v3r:path.join(ROOT,QUALIFIER_REPLACEMENT_REL),
+    qualifier_v6:path.join(ROOT,V6_QUALIFIER_REL),
+    replacement_v6:path.join(ROOT,V6_REPLACEMENT_REL),
+    lock_v3r:path.join(ROOT,CREDENTIAL_LOCK_V3R_REL),
+    lock_v2:path.join(ROOT,CREDENTIAL_LOCK_V2_REL),
+    lock_v6:path.join(ROOT,V6_LOCK_REL),
+    parser_v4:path.join(ROOT,V4_PARSER_REL),
+  };
   return [
-    "import base64,sys",
-    "source=base64.b64decode("+JSON.stringify(encoded)+")",
-    "path="+JSON.stringify(absolute),
-    "sys.argv=[path,'--run']",
-    "scope={'__name__':'__main__','__file__':path,'__package__':''}",
-    "exec(compile(source,path,'exec',dont_inherit=True),scope)",
+    "import base64,hashlib,sys,types",
+    "payload="+JSON.stringify(encoded),
+    "expected="+JSON.stringify(expected),
+    "paths="+JSON.stringify(paths),
+    "raw={k:base64.b64decode(v) for k,v in payload.items()}",
+    "def git_blob(data):",
+    " return hashlib.sha1(b'blob '+str(len(data)).encode('ascii')+b'\\0'+data).hexdigest()",
+    "for key,want in expected.items():",
+    " if git_blob(raw[key])!=want: raise RuntimeError('closure_blob_mismatch:'+key)",
+    "def module_from(label,name):",
+    " m=types.ModuleType(name)",
+    " m.__file__=paths[label]",
+    " m.__package__=''",
+    " exec(compile(raw[label],paths[label],'exec',dont_inherit=True),m.__dict__)",
+    " return m",
+    "def make_v3_replacement():",
+    " m=module_from('replacement_v3r','void_buy_void_user_manager_credential_query_protected_replace_v3r_exact')",
+    " def repo_bytes(p):",
+    "  p=str(p)",
+    "  if p==paths['lock_v3r']: return raw['lock_v3r']",
+    "  if p==paths['lock_v2']: return raw['lock_v2']",
+    "  raise m.ReplaceError('root_checkout_lock_read_forbidden')",
+    " m._direct_repo_bytes=repo_bytes",
+    " return m",
+    "def make_v6_replacement():",
+    " m=module_from('replacement_v6','void_buy_void_user_manager_query_protected_replace_v6_exact')",
+    " def repo_bytes(p):",
+    "  if str(p)==paths['lock_v6']: return raw['lock_v6']",
+    "  raise m.ReplaceError('root_checkout_lock_read_forbidden')",
+    " m._direct_repo_bytes=repo_bytes",
+    " return m",
+    "def make_v6_qualifier():",
+    " v6=module_from('qualifier_v6','void_buy_void_user_manager_query_live_qualification_v6_exact')",
+    " def no_source(_p): raise v6.QualificationError('root_checkout_source_read_forbidden')",
+    " v6._direct_source_bytes=no_source",
+    " def load_replacement():",
+    "  if git_blob(raw['replacement_v6'])!=v6.REPLACE_SOURCE_GIT_BLOB_SHA1: raise v6.QualificationError('replacement_source_blob_mismatch')",
+    "  if git_blob(raw['parser_v4'])!=v6.V4_PARSER_GIT_BLOB_SHA1: raise v6.QualificationError('v4_parser_source_blob_mismatch')",
+    "  m=make_v6_replacement()",
+    "  lock=m.accepted_lock()",
+    "  if m.GREEN_STATE!='V6_GREEN_WITH_V1_V2_PREDECESSORS': raise v6.QualificationError('replacement_green_state_contract_mismatch')",
+    "  if lock.get('lock_id')!='voidbuyumqelflock6_3627a98945579452b01c79b4d114c54d858122496f2b20a20ddfd7fae6b0307c': raise v6.QualificationError('corrected_v6_lock_id_mismatch')",
+    "  return m",
+    " v6._load_replacement=load_replacement",
+    " return v6",
+    "q=module_from('qualifier','void_buy_void_user_manager_credential_query_installed_qualification_v3r_exact')",
+    "def no_source(_p): raise q.QualificationError('root_checkout_source_read_forbidden')",
+    "q._direct_source_bytes=no_source",
+    "def load_dependencies():",
+    " if git_blob(raw['replacement_v3r'])!=q.REPLACEMENT_SOURCE_GIT_BLOB_SHA1: raise q.QualificationError('replacement_source_blob_mismatch')",
+    " replacement=make_v3_replacement()",
+    " lock=replacement.accepted_lock()",
+    " if lock.get('lock_id')!=q.LOCK_ID: raise q.QualificationError('credential_v3r_lock_id_mismatch')",
+    " if replacement.LOCK_ID!=q.LOCK_ID: raise q.QualificationError('replacement_lock_id_mismatch')",
+    " if replacement.V3_QUERY_SHA256!='d60e5719a4d785dbfaca90074ed3313ef9e0cae84c3f933af44d7faf84763923': raise q.QualificationError('replacement_v3_query_identity_mismatch')",
+    " if git_blob(raw['qualifier_v6'])!=q.V6_QUALIFIER_SOURCE_GIT_BLOB_SHA1: raise q.QualificationError('v6_qualifier_source_blob_mismatch')",
+    " return replacement,make_v6_qualifier()",
+    "q._load_dependencies=load_dependencies",
+    "sys.argv=[paths['qualifier'],'--run']",
+    "try:",
+    " rc=q.main()",
+    "except q.QualificationError as exc:",
+    " print(q.MARKER)",
+    " print('status=HOLD')",
+    " print('reason='+str(exc))",
+    " print('query_execution_state=unknown_or_partial')",
+    " print('credential_contents_read=false')",
+    " print('host_mutation=false')",
+    " print('filesystem_write=false')",
+    " print('service_mutation=false')",
+    " print('systemd_mutation=false')",
+    " print('payment_acceptance=false')",
+    " print('public_presale_activation=false')",
+    " print('wc_void_market_activation=false')",
+    " print('transaction=false')",
+    " print('funds_movement=false')",
+    " print('production_host_evidence_authority=false')",
+    " rc=2",
+    "raise SystemExit(rc)",
     "",
   ].join("\n");
 }
 
 function runQualification(expectedHead){
-  const source=gitObject(expectedHead,QUALIFIER_REL,QUALIFIER_BLOB);
+  const closure=qualificationClosure(expectedHead);
   try{
-    const bootstrap=pythonBootstrap(source);
+    const bootstrap=pythonBootstrap(closure);
     const r=run(PYTHON,["-I","-B","-"],{
       env:cleanRootEnv(),
       input:bootstrap,
@@ -687,7 +826,9 @@ function runQualification(expectedHead){
     validateQualification(parsed);
     return parsed;
   }finally{
-    source.fill(0);
+    for(const value of Object.values(closure)){
+      if(Buffer.isBuffer(value))value.fill(0);
+    }
   }
 }
 
@@ -896,6 +1037,9 @@ function plan(){
   console.log("source_runtime_ancestry_required=true");
   console.log("tracked_source_checkout_exact_required=true");
   console.log("runtime_source_dependency_blob_equality_required=true");
+  console.log("root_qualification_dependency_closure_git_object_bound=true");
+  console.log("root_checkout_dependency_path_reads_forbidden=true");
+  console.log("qualifier_closure_unprivileged_git_read_required=true");
   console.log("untracked_paths_enumerated=false");
   console.log("untracked_paths_source_authority=false");
   console.log("git_lazy_fetch_disabled=true");
@@ -1259,6 +1403,9 @@ function selfTest(){
   console.log("source_runtime_ancestry_required=true");
   console.log("tracked_source_checkout_exact_required=true");
   console.log("source_runtime_dependency_blob_equality_required=true");
+  console.log("root_qualification_dependency_closure_git_object_bound=true");
+  console.log("root_checkout_dependency_path_reads_forbidden=true");
+  console.log("qualifier_closure_unprivileged_git_read_required=true");
   console.log("untracked_paths_enumerated=false");
   console.log("untracked_paths_source_authority=false");
   console.log("git_lazy_fetch_disabled=true");
