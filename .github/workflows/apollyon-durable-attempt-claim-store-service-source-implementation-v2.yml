@@ -73,14 +73,13 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=4a4db086ae00c8dbfb362d254c466d02287de070
-          security_child_parent=f2621046cb8660bbab007c3c1895ef521797ba56
+          parent=62c2bbfd7ca1a871159d036b2cd1391f2d728df5
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
           case "$EVENT_NAME" in
             pull_request)
-              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$security_child_parent"; }
+              test "$PR_BASE" = "$parent"
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
@@ -94,13 +93,6 @@ jobs:
                 'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
                 'tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs' \
                 | LC_ALL=C sort > "$expected"
-              if [ "$PR_BASE" = "$security_child_parent" ]; then
-                printf '%s\n' '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \
-                  'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \
-                  'scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs' \
-                  'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \
-                  'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' | LC_ALL=C sort > "$expected"
-              fi
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
               ;;
@@ -119,27 +111,27 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            390a1ee07bfe28c4b376724894a28fe8ae195887
+            3c58d8c2b028b92e7725046914f6f3f51e13c7e9
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            53a71ae6a48736680f085ba49e967f5a9834fe1f
+            c64ea25579ad8efdf9fb00db08a11a1820114679
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            c1a1e188d06254fc22ffab1a91fc7494941000f1
+            c541fd7d6609f3b5fc5cfa96074615c0fc77e817
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
             864f90e46510403b30f558f1ccd8719be88f1180
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            f55a5efd6a9ddf5a7921c2e5d540079f164f4586
+            abced72b8b7a4b29da72241197df4b353f60c5b2
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
             5355ffd2856e0f0c57f6e52fd1b347441b94e4d7
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
-            c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
+            25629371f6da164e12fecfc08c5f26815418e3a8
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs)" = \
             339916ce4a6216af9a73476ad5b78e2d7a300f73
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-contract-v2.mjs)" = \
