@@ -95,11 +95,11 @@ jobs:
                 'tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs' \
                 | LC_ALL=C sort > "$expected"
               if [ "$PR_BASE" = "$hardening_parent" ]; then
-                printf '%s\\n' \\
-                  '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \\
-                  'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \\
-                  'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \\
-                  'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \\
+                printf '%s\n' \
+                  '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \
+                  'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \
+                  'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \
+                  'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
                   | LC_ALL=C sort > "$expected"
               fi
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- | LC_ALL=C sort > "$actual"
