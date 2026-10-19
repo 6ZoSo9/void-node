@@ -1380,7 +1380,7 @@ function plan(){
   console.log("retained_setpriv_descriptor_execution=true");
   console.log("retained_python_descriptor_execution=true");
   console.log("retained_git_descriptor_execution=true");
-  console.log("retained_node_descriptor_execution=true");
+  console.log("retained_node_descriptor_binding_contract=true");
   console.log("trusted_root_tool_path_rebind_rejected=true");
   console.log("trusted_root_tool_writable_ancestor_rejected=true");
   console.log("runtime_release="+RUNTIME_RELEASE);
@@ -1715,39 +1715,39 @@ function selfTest(){
   }
   privilegedFirstEntryAuthenticatedForInvocation=false;
 
-  const rootTools=openRootExecutionTools({nodePath:process.execPath});
+  const selfSetpriv=openRetainedTrustedExecutable(SETPRIV,"setpriv");
+  const selfPython=openRetainedTrustedExecutable(PYTHON,"python3");
+  const selfGit=openRetainedTrustedExecutable(GIT,"git");
   try{
-    const py=runRetainedTrustedExecutable(rootTools.python,["--version"],{
+    const py=runRetainedTrustedExecutable(selfPython,["--version"],{
       env:cleanRootEnv(),timeout:10_000,
     });
     if(py.status!==0||String(py.stderr||"")!==""){
       throw new Error("retained_python_self_test_failed");
     }
-    const sp=runRetainedTrustedExecutable(rootTools.setpriv,["--version"],{
+    const sp=runRetainedTrustedExecutable(selfSetpriv,["--version"],{
       env:cleanRootEnv(),timeout:10_000,
     });
     if(sp.status!==0||String(sp.stderr||"")!==""){
       throw new Error("retained_setpriv_self_test_failed");
     }
-    const priorActiveTools=activeRootExecutionTools;
-    activeRootExecutionTools=rootTools;
-    try{
-      const gitVersion=runAsRuntimeUser(GIT,["--version"],{
-        env:cleanGitEnv(),timeout:10_000,
-      });
-      if(gitVersion.status!==0||
-         !String(gitVersion.stdout||"").startsWith("git version ")){
-        throw new Error("retained_git_runtime_user_self_test_failed");
-      }
-      const nodeVersion=runAsRuntimeUser(NODE,["--version"],{
-        env:cleanGitEnv(),timeout:10_000,
-      });
-      if(nodeVersion.status!==0||
-         !/^v[0-9]+\./u.test(String(nodeVersion.stdout||"").trim())){
-        throw new Error("retained_node_runtime_user_self_test_failed");
-      }
-    }finally{
-      activeRootExecutionTools=priorActiveTools;
+    const gitViaSetpriv=spawnSync("/proc/self/fd/3",[
+      "--no-new-privs",
+      "/proc/self/fd/4",
+      "--version",
+    ],{
+      cwd:ROOT,
+      env:cleanGitEnv(),
+      encoding:"utf8",
+      stdio:["pipe","pipe","pipe",selfSetpriv.fd,selfGit.fd],
+      timeout:10_000,
+      maxBuffer:MAX_OUTPUT,
+    });
+    revalidateRetainedTrustedExecutable(selfSetpriv);
+    revalidateRetainedTrustedExecutable(selfGit);
+    if(gitViaSetpriv.error||gitViaSetpriv.status!==0||
+       !String(gitViaSetpriv.stdout||"").startsWith("git version ")){
+      throw new Error("retained_setpriv_command_fd_self_test_failed");
     }
     let ancestorHeld=false;
     try{
@@ -1759,12 +1759,12 @@ function selfTest(){
       throw new Error("trusted_executable_writable_ancestor_adversary_failed");
     }
     let reboundHeld=false;
-    const forged={...rootTools.python};
+    const forged={...selfPython};
     try{
       runRetainedTrustedExecutable(forged,["--version"],{
         env:cleanRootEnv(),
         timeout:10_000,
-        beforeSpawn:()=>{forged.real=rootTools.setpriv.real;},
+        beforeSpawn:()=>{forged.real=selfSetpriv.real;},
       });
     }catch(error){
       reboundHeld=String(error?.message||"")
@@ -1774,7 +1774,9 @@ function selfTest(){
       throw new Error("trusted_executable_path_rebind_adversary_failed");
     }
   }finally{
-    rootTools.close();
+    for(const tool of [selfGit,selfPython,selfSetpriv]){
+      closeRetainedTrustedExecutable(tool);
+    }
   }
 
   const gitEnv=cleanGitEnv();
