@@ -1,0 +1,888 @@
+#!/usr/bin/env node
+// Current-generation dormant-candidate credential binding.
+// Live authority requires this reviewed Git object on stdin.
+// Caller-supplied live receipts are never accepted.
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+export const MARKER =
+  "VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4";
+export const CONFIRM =
+  "RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4";
+export const STATUS =
+  "EPOCH2_DYNAMIC_SOURCE_RUNTIME_SIGNER_AND_AUTHENTICATED_CREDENTIAL_PROVEN_REMAINING_GATES_HOLD";
+export const NEXT_ACTION =
+  "QUALIFY_LIVE_EXACT_CHAIN_RECEIPT_AND_EITHER_ZERO_FEE_ENVELOPE_OR_PER_PAYMENT_NATIVE_GAS_FUNDING";
+
+const ROOT="/home/zoso/dev/void-node";
+const RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb";
+const RUNTIME_TREE="de12c9d2d5e475d435d21da3b047d7b63b69e2b7";
+const RUNTIME_POLICY_SHA256=
+  "746cfbe2f031868fff3a75f8307986f25c62460085f41a4827e712702a2d6549";
+
+const CANDIDATE_REL=
+  "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json";
+const CANDIDATE_BLOB="e569c9211e01f14c7c00dd1c5041d4dfb0817609";
+
+const FIXED_NATIVE=
+  "/opt/void-buy-void-epoch2-live-composition-v3/"+
+  "void_buy_void_epoch2_live_composition_native_preentry_v3";
+const BINDER_PREENTRY_ROOT=
+  "/opt/void-buy-void-epoch2-dormant-v3r-binding-v4";
+const FIXED_BINDER_PREENTRY=
+  BINDER_PREENTRY_ROOT+
+  "/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4";
+const FIXED_BINDER_SOURCE=
+  BINDER_PREENTRY_ROOT+
+  "/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs";
+const BINDER_PREENTRY_MARKER=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4";
+const BINDER_PREENTRY_ENV=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4";
+const BINDER_FD_ENV=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4_BINDER_FD";
+const BINDER_PROOF_FD_ENV=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4_PROOF_FD";
+const BINDER_PROOF_SCHEMA=
+  "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4";
+const FIXED_NODE="/usr/bin/node";
+const NATIVE_CONFIRM=
+  "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V3";
+
+const QUALIFIER_REL=
+  "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py";
+const QUALIFIER_BLOB="74c69fe8a95ed5f361a39971618f43f7c768c865";
+const QUALIFIER_REPLACEMENT_REL=
+  "ops/precision/void_buy_void_user_manager_credential_query_protected_replace_v3r.py";
+const QUALIFIER_REPLACEMENT_BLOB="98f8b9fda89e33c50e19008268d97655aad54e6d";
+const V6_QUALIFIER_REL=
+  "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py";
+const V6_QUALIFIER_BLOB="83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc";
+const V6_REPLACEMENT_REL=
+  "ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py";
+const V6_REPLACEMENT_BLOB="f81d9fbead60593258d17dbb8720e1efc867b20f";
+const CREDENTIAL_LOCK_V3R_REL=
+  "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json";
+const CREDENTIAL_LOCK_V3R_BLOB="c4870f3178aebc9a0bb6557562f663b8480cfefa";
+const CREDENTIAL_LOCK_V2_REL=
+  "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json";
+const CREDENTIAL_LOCK_V2_BLOB="b73415ce8fc95ff2d49cbde97a15d701ad5b7937";
+const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
+const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
+const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
+const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
+const SEALED_REL=
+  "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs";
+const SEALED_BLOB="14cbe81e27d04fee77cbe75225ce308bf8561a7b";
+const SOURCE_RUNTIME_DEPENDENCY_SPECS=Object.freeze([
+  Object.freeze(["qualifier",QUALIFIER_REL,QUALIFIER_BLOB]),
+  Object.freeze(["replacement_v3r",QUALIFIER_REPLACEMENT_REL,QUALIFIER_REPLACEMENT_BLOB]),
+  Object.freeze(["qualifier_v6",V6_QUALIFIER_REL,V6_QUALIFIER_BLOB]),
+  Object.freeze(["replacement_v6",V6_REPLACEMENT_REL,V6_REPLACEMENT_BLOB]),
+  Object.freeze(["lock_v3r",CREDENTIAL_LOCK_V3R_REL,CREDENTIAL_LOCK_V3R_BLOB]),
+  Object.freeze(["lock_v2",CREDENTIAL_LOCK_V2_REL,CREDENTIAL_LOCK_V2_BLOB]),
+  Object.freeze(["lock_v6",V6_LOCK_REL,V6_LOCK_BLOB]),
+  Object.freeze(["parser_v4",V4_PARSER_REL,V4_PARSER_BLOB]),
+  Object.freeze(["sealed_v2",SEALED_REL,SEALED_BLOB]),
+]);
+
+const CHILD_MARKER=
+  "VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V3";
+const CHILD_STATUS=
+  "AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V3_GREEN";
+const CHILD_NEXT_ACTION=
+  "BIND_V3R_AUTHENTICATED_EPOCH2_CREDENTIAL_EVIDENCE_IN_DORMANT_CANDIDATE_SUCCESSOR";
+const CHILD_RECEIPT=/^voide2livecomp3_[0-9a-f]{64}$/u;
+const SEALED_MARKER=
+  "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SEALED_V2";
+const SEALED_ID=/^voide2sealed2_[0-9a-f]{64}$/u;
+
+const CANDIDATE_MARKER=
+  "VOID_BUY_VOID_PAYMENT_KEYED_EPOCH2_DORMANT_CANDIDATE_V4";
+const CANDIDATE_STATUS=
+  "EPOCH2_SOURCE_CANDIDATE_SIGNER_CONTROL_PROVEN_CREDENTIAL_AND_ACTIVATION_HOLD";
+const EXPECTED_FULFILLER=
+  "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a";
+const EXPECTED_PRESALE=
+  "0x530bc90ba74f2539a9e484ccb1be9291c3bc35ce";
+const EXPECTED_CREDENTIAL_ID="buy-void-epoch2-fulfiller-v1";
+const EXPECTED_CREDENTIAL_LOCK=
+  "voidbuyumqcredelflock3r_"+
+  "8b064214e22ce54ac193b426f38b9d6a7ea4cee07b38b68c8d1eeb6c51de6f34";
+const EXPECTED_SOURCE_BINDING=
+  "5fde8cc7fcd0493619c105ac9f367063fbdacd74e8ae50df76454c6d298206f1";
+
+const RUNTIME_UID=1000;
+const RUNTIME_GID=1000;
+const RUNTIME_HOME="/home/zoso";
+const GIT="/usr/bin/git";
+const PYTHON="/usr/bin/python3";
+const SETPRIV="/usr/bin/setpriv";
+const CANONICAL_GIT_DIR=ROOT+"/.git";
+const MAX_OUTPUT=8*1024*1024;
+const SHA40=/^[0-9a-f]{40}$/u;
+const HEX64=/^[0-9a-f]{64}$/u;
+
+function sha256(bytes){
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+function gitBlob(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+bytes.length+"\0","utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+function canonical(value){
+  if(value===null)return "null";
+  if(typeof value==="boolean")return value?"true":"false";
+  if(typeof value==="string")return JSON.stringify(value);
+  if(typeof value==="number"){
+    if(!Number.isSafeInteger(value))throw new Error("noncanonical_number");
+    return String(value);
+  }
+  if(Array.isArray(value))return "["+value.map(canonical).join(",")+"]";
+  if(!value||typeof value!=="object")throw new Error("noncanonical_value");
+  return "{"+Object.keys(value).sort()
+    .map((key)=>JSON.stringify(key)+":"+canonical(value[key])).join(",")+"}";
+}
+function safeReason(value){
+  const text=String(value??"unknown")
+    .replace(/[^A-Za-z0-9_.:-]+/gu,"_").slice(0,240);
+  return text||"unknown";
+}
+function cleanGitEnv(){
+  return {
+    PATH:"/usr/bin:/bin",HOME:RUNTIME_HOME,LANG:"C",LC_ALL:"C",TZ:"UTC",
+    GIT_OPTIONAL_LOCKS:"0",GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_NO_LAZY_FETCH:"1",GIT_TERMINAL_PROMPT:"0",
+    GIT_ASKPASS:"/bin/false",GIT_PROTOCOL_FROM_USER:"0",
+    GIT_ALLOW_PROTOCOL:"",GIT_PAGER:"",
+    GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+  };
+}
+function cleanRootEnv(){
+  return {PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C",TZ:"UTC"};
+}
+function run(command,args,options={}){
+  const r=spawnSync(command,args,{
+    cwd:options.cwd??ROOT,
+    env:options.env??cleanRootEnv(),
+    input:options.input,
+    encoding:"utf8",
+    stdio:[options.stdinIgnore===true?"ignore":"pipe","pipe","pipe"],
+    timeout:options.timeout??120_000,
+    maxBuffer:MAX_OUTPUT,
+  });
+  if(r.error)throw new Error("spawn_error:"+safeReason(r.error.message));
+  return r;
+}
+function assertTrustedExecutable(file){
+  const real=fs.realpathSync(file);
+  const st=fs.lstatSync(real,{bigint:true});
+  if(!st.isFile()||st.isSymbolicLink()||st.uid!==0n||
+     (st.mode&0o022n)!==0n){
+    throw new Error("trusted_executable_invalid:"+path.basename(file));
+  }
+}
+function sameFileIdentity(left,right){
+  return left.dev===right.dev&&left.ino===right.ino&&
+    left.uid===right.uid&&left.gid===right.gid&&
+    left.mode===right.mode&&left.nlink===right.nlink&&
+    left.size===right.size;
+}
+function readProcStartTicks(pid){
+  if(!Number.isSafeInteger(pid)||pid<=1){
+    throw new Error("binder_preentry_process_pid_invalid");
+  }
+  const raw=fs.readFileSync("/proc/"+String(pid)+"/stat","utf8");
+  const right=raw.lastIndexOf(")");
+  if(right<0||raw[right+1]!==" "){
+    throw new Error("binder_preentry_process_stat_invalid");
+  }
+  const fields=raw.slice(right+2).trim().split(/\s+/u);
+  const value=fields[19];
+  if(!/^[1-9][0-9]*$/u.test(String(value||""))){
+    throw new Error("binder_preentry_process_start_ticks_invalid");
+  }
+  return String(value);
+}
+function parseBinderParentProof(fd){
+  let raw;
+  try{raw=fs.readFileSync(fd,{encoding:"utf8"});}
+  finally{try{fs.closeSync(fd);}catch(closeError){void closeError;}}
+  if(Buffer.byteLength(raw,"utf8")<2||Buffer.byteLength(raw,"utf8")>2048){
+    throw new Error("binder_preentry_parent_proof_size_invalid");
+  }
+  let proof;
+  try{proof=JSON.parse(raw);}
+  catch{throw new Error("binder_preentry_parent_proof_json_invalid");}
+  if(!proof||typeof proof!=="object"||Array.isArray(proof)){
+    throw new Error("binder_preentry_parent_proof_object_invalid");
+  }
+  const keys=Object.keys(proof).sort();
+  const expected=[
+    "schema","parent_pid","parent_start_ticks","child_pid","child_start_ticks",
+    "preentry_dev","preentry_ino","binder_dev","binder_ino",
+    "node_dev","node_ino","source_head","runtime_head",
+  ].sort();
+  if(JSON.stringify(keys)!==JSON.stringify(expected)){
+    throw new Error("binder_preentry_parent_proof_schema_invalid");
+  }
+  if(proof.schema!==BINDER_PROOF_SCHEMA||
+     !Number.isSafeInteger(proof.parent_pid)||proof.parent_pid<=1||
+     !Number.isSafeInteger(proof.child_pid)||proof.child_pid<=1||
+     !SHA40.test(String(proof.source_head||""))||
+     !SHA40.test(String(proof.runtime_head||""))){
+    throw new Error("binder_preentry_parent_proof_identity_invalid");
+  }
+  for(const key of [
+    "parent_start_ticks","child_start_ticks",
+    "preentry_dev","preentry_ino","binder_dev","binder_ino",
+    "node_dev","node_ino",
+  ]){
+    if(!/^[1-9][0-9]*$/u.test(String(proof[key]||""))){
+      throw new Error("binder_preentry_parent_proof_field_invalid:"+key);
+    }
+  }
+  return Object.freeze(proof);
+}
+function revalidateBinderPreentry(proof,sourceHead,runtimeHead){
+  if(proof.source_head!==sourceHead){
+    throw new Error("binder_preentry_source_head_proof_mismatch");
+  }
+  if(proof.runtime_head!==runtimeHead){
+    throw new Error("binder_preentry_runtime_head_proof_mismatch");
+  }
+  if(process.pid!==proof.child_pid||process.ppid!==proof.parent_pid){
+    throw new Error("binder_preentry_parent_child_pid_mismatch");
+  }
+  if(readProcStartTicks(process.pid)!==proof.child_start_ticks||
+     readProcStartTicks(process.ppid)!==proof.parent_start_ticks){
+    throw new Error("binder_preentry_parent_child_generation_mismatch");
+  }
+  let parentExe;
+  try{parentExe=fs.realpathSync.native("/proc/"+String(process.ppid)+"/exe");}
+  catch{throw new Error("binder_preentry_parent_executable_unavailable");}
+  if(parentExe!==FIXED_BINDER_PREENTRY){
+    throw new Error("binder_preentry_parent_executable_mismatch");
+  }
+  const preentry=fs.lstatSync(FIXED_BINDER_PREENTRY,{bigint:true});
+  const parentActual=fs.statSync(
+    "/proc/"+String(process.ppid)+"/exe",
+    {bigint:true},
+  );
+  const visibleBinder=fs.lstatSync(FIXED_BINDER_SOURCE,{bigint:true});
+  const visibleNode=fs.lstatSync(fs.realpathSync(FIXED_NODE),{bigint:true});
+  const nodeActual=fs.statSync("/proc/self/exe",{bigint:true});
+  if(!sameFileIdentity(preentry,parentActual)){
+    throw new Error("binder_preentry_parent_running_generation_mismatch");
+  }
+  if(!sameFileIdentity(visibleNode,nodeActual)){
+    throw new Error("binder_preentry_node_running_generation_mismatch");
+  }
+  const fdRaw=String(process.env[BINDER_FD_ENV]??"");
+  if(!/^[0-9]{1,3}$/u.test(fdRaw)){
+    throw new Error("binder_preentry_binder_fd_invalid");
+  }
+  const binderFd=Number(fdRaw);
+  if(!Number.isSafeInteger(binderFd)||binderFd<3){
+    throw new Error("binder_preentry_binder_fd_invalid");
+  }
+  const retainedBinder=fs.fstatSync(binderFd,{bigint:true});
+  const pairs=[
+    ["preentry_dev",preentry.dev],["preentry_ino",preentry.ino],
+    ["binder_dev",retainedBinder.dev],["binder_ino",retainedBinder.ino],
+    ["node_dev",visibleNode.dev],["node_ino",visibleNode.ino],
+  ];
+  for(const [key,value] of pairs){
+    if(String(value)!==proof[key]){
+      throw new Error("binder_preentry_installed_generation_mismatch:"+key);
+    }
+  }
+  if(!retainedBinder.isFile()||visibleBinder.isSymbolicLink()||
+     !visibleBinder.isFile()||retainedBinder.uid!==0n||
+     (retainedBinder.mode&0o022n)!==0n||
+     !sameFileIdentity(retainedBinder,visibleBinder)){
+    throw new Error("binder_preentry_binder_generation_invalid");
+  }
+  if(fs.realpathSync(process.execPath)!==fs.realpathSync(FIXED_NODE)){
+    throw new Error("binder_preentry_node_executable_mismatch");
+  }
+  return true;
+}
+function requireBinderPreentry(sourceHead,runtimeHead){
+  if(process.argv[1]!=="-"){
+    throw new Error("binder_native_stdin_entry_required");
+  }
+  if(process.env[BINDER_PREENTRY_ENV]!==BINDER_PREENTRY_MARKER){
+    throw new Error("binder_native_parent_marker_required");
+  }
+  for(const name of [
+    "NODE_OPTIONS","NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH","LD_AUDIT",
+    "PYTHONPATH","PYTHONHOME",
+  ]){
+    if(Object.hasOwn(process.env,name)){
+      throw new Error("binder_preentry_loader_environment_not_clean:"+name);
+    }
+  }
+  const proofRaw=String(process.env[BINDER_PROOF_FD_ENV]??"");
+  if(!/^[0-9]{1,3}$/u.test(proofRaw)){
+    throw new Error("binder_preentry_proof_fd_invalid");
+  }
+  const proofFd=Number(proofRaw);
+  if(!Number.isSafeInteger(proofFd)||proofFd<3){
+    throw new Error("binder_preentry_proof_fd_invalid");
+  }
+  const proof=parseBinderParentProof(proofFd);
+  revalidateBinderPreentry(proof,sourceHead,runtimeHead);
+  return proof;
+}
+
+function runAsRuntimeUser(command,args,options={}){
+  return run(SETPRIV,[
+    "--no-new-privs",
+    "--reuid="+String(RUNTIME_UID),
+    "--regid="+String(RUNTIME_UID),
+    "--clear-groups",
+    command,
+    ...args,
+  ],{
+    cwd:options.cwd??ROOT,
+    env:options.env??cleanGitEnv(),
+    input:options.input,
+    timeout:options.timeout??30_000,
+  });
+}
+function git(args){
+  const r=runAsRuntimeUser(GIT,[
+    "--git-dir="+CANONICAL_GIT_DIR,
+    "--work-tree="+ROOT,
+    "-c","core.worktree="+ROOT,
+    "-c","core.fileMode=true",
+    "-c","core.fsmonitor=false",
+    "-c","core.hooksPath=/dev/null",
+    "-c","core.untrackedCache=false",
+    "-c","core.sparseCheckout=false",
+    "-c","core.sparseCheckoutCone=false",
+    "-c","submodule.recurse=false",
+    ...args,
+  ],{env:cleanGitEnv(),timeout:15_000});
+  if(r.status!==0)throw new Error("git_failed:"+String(args[0]));
+  if(r.stderr!=="")throw new Error("git_unexpected_stderr:"+String(args[0]));
+  return r.stdout;
+}
+const MAX_ACTUAL_ANCESTRY_COMMITS=4096;
+const MAX_ACTUAL_COMMIT_PARENTS=64;
+function rawCommitParents(oid,gitFn=git){
+  if(!SHA40.test(String(oid||""))){
+    throw new Error("source_runtime_actual_object_oid_invalid");
+  }
+  if(gitFn(["cat-file","-t",oid]).trim()!=="commit"){
+    throw new Error("source_runtime_actual_object_not_commit");
+  }
+  const raw=gitFn(["cat-file","-p",oid]);
+  if(typeof raw!=="string"||Buffer.byteLength(raw,"utf8")>MAX_OUTPUT){
+    throw new Error("source_runtime_actual_object_commit_invalid");
+  }
+  const split=raw.indexOf("\n\n");
+  const header=split>=0?raw.slice(0,split):raw;
+  const lines=header.split("\n");
+  if(lines.length<1||!/^tree [0-9a-f]{40}$/u.test(lines[0])){
+    throw new Error("source_runtime_actual_object_commit_header_invalid");
+  }
+  const parents=[];
+  for(const line of lines){
+    if(!line.startsWith("parent "))continue;
+    const parent=line.slice("parent ".length);
+    if(!SHA40.test(parent)){
+      throw new Error("source_runtime_actual_object_parent_invalid");
+    }
+    parents.push(parent);
+    if(parents.length>MAX_ACTUAL_COMMIT_PARENTS){
+      throw new Error("source_runtime_actual_object_parent_bound_exceeded");
+    }
+  }
+  return parents;
+}
+function requireActualObjectAncestry(sourceHead,gitFn=git){
+  if(!SHA40.test(String(sourceHead||""))){
+    throw new Error("source_runtime_actual_object_source_invalid");
+  }
+  const pending=[sourceHead];
+  const seen=new Set();
+  while(pending.length){
+    const oid=pending.pop();
+    if(seen.has(oid))continue;
+    seen.add(oid);
+    if(seen.size>MAX_ACTUAL_ANCESTRY_COMMITS){
+      throw new Error("source_runtime_actual_object_ancestry_bound_exceeded");
+    }
+    if(oid===RUNTIME_HEAD)return true;
+    const parents=rawCommitParents(oid,gitFn);
+    for(let index=parents.length-1;index>=0;index--){
+      if(!seen.has(parents[index]))pending.push(parents[index]);
+    }
+  }
+  throw new Error("source_runtime_actual_object_ancestry_not_found");
+}
+function sourceCompatibility(expectedRuntimeHead,gitFn=git){
+  if(expectedRuntimeHead!==RUNTIME_HEAD){
+    throw new Error("runtime_expected_head_mismatch");
+  }
+  const sourceHead=gitFn(["rev-parse","--verify","HEAD"]).trim();
+  const sourceTree=gitFn(["rev-parse","--verify","HEAD^{tree}"]).trim();
+  if(!SHA40.test(sourceHead)||!SHA40.test(sourceTree)){
+    throw new Error("source_generation_identity_invalid");
+  }
+  if(gitFn(["branch","--show-current"]).trim()!=="main"){
+    throw new Error("source_branch_not_main");
+  }
+  if(gitFn(["status","--porcelain=v1","--untracked-files=no"])!==""){
+    throw new Error("tracked_source_checkout_not_exact");
+  }
+  requireActualObjectAncestry(sourceHead,gitFn);
+  for(const [_label,relative,expectedBlob] of SOURCE_RUNTIME_DEPENDENCY_SPECS){
+    const runtimeBlob=gitFn(["rev-parse",RUNTIME_HEAD+":"+relative]).trim();
+    const sourceBlob=gitFn(["rev-parse",sourceHead+":"+relative]).trim();
+    if(runtimeBlob!==expectedBlob||sourceBlob!==expectedBlob){
+      throw new Error("source_runtime_dependency_blob_mismatch:"+relative);
+    }
+  }
+  const candidateBlob=gitFn(["rev-parse",sourceHead+":"+CANDIDATE_REL]).trim();
+  if(candidateBlob!==CANDIDATE_BLOB){
+    throw new Error("source_candidate_blob_mismatch");
+  }
+  const finalHead=gitFn(["rev-parse","--verify","HEAD"]).trim();
+  const finalTree=gitFn(["rev-parse","--verify","HEAD^{tree}"]).trim();
+  if(finalHead!==sourceHead||finalTree!==sourceTree||
+     gitFn(["branch","--show-current"]).trim()!=="main"||
+     gitFn(["status","--porcelain=v1","--untracked-files=no"])!==""){
+    throw new Error("source_generation_changed_during_compatibility");
+  }
+  return Object.freeze({
+    runtime_head:RUNTIME_HEAD,
+    source_head:sourceHead,
+    source_tree:sourceTree,
+    source_runtime_actual_object_ancestry:true,
+    source_runtime_dependency_count:SOURCE_RUNTIME_DEPENDENCY_SPECS.length,
+    source_runtime_complete_dependency_set_bound:true,
+    tracked_source_checkout_exact:true,
+    untracked_paths_enumerated:false,
+    untracked_paths_source_authority:false,
+  });
+}
+function gitObject(expectedHead,relative,expectedBlob){
+  if(!SHA40.test(String(expectedHead||""))){
+    throw new Error("git_object_expected_head_invalid");
+  }
+  const raw=Buffer.from(git(["cat-file","blob",expectedHead+":"+relative]),"utf8");
+  if(gitBlob(raw)!==expectedBlob){
+    raw.fill(0);
+    throw new Error("git_object_blob_mismatch:"+relative);
+  }
+  return raw;
+}
+function validateChildReceipt(receipt,expectedHead){
+  const required={
+    marker:CHILD_MARKER,
+    version:3,
+    status:CHILD_STATUS,
+    source_head:expectedHead,
+    credential_lock_id:EXPECTED_CREDENTIAL_LOCK,
+    runtime_uid:RUNTIME_UID,
+    signer_address:EXPECTED_FULFILLER,
+    qualification_provenance_authenticated_by_runner:true,
+    privileged_first_entry_authenticated:true,
+    native_preentry_policy_bound:true,
+    root_node_descriptor_execution_bound:true,
+    runner_retained_descriptor_bound:true,
+    native_parent_retained_for_child_lifetime:true,
+    native_parent_process_generation_bound:true,
+    native_parent_installed_generation_bound:true,
+    native_parent_revalidated_after_sensitive_sequence:true,
+    stdin_javascript_source_forbidden:true,
+    qualification_stable_before_after_sealed_probe:true,
+    checkout_revalidated_after_sensitive_sequence:true,
+    complete_dropin_set_bound_across_signing_window:true,
+    complete_credential_set_bound_across_signing_window:true,
+    main_pid_crosscheck:true,
+    loadcredential_binding_crosscheck:true,
+    service_cgroup_hash_crosscheck:true,
+    public_user_bus_sufficient_authority:false,
+    credential_content_access_in_sealed_child:true,
+    credential_content_access_in_runner_parent:false,
+    private_key_material_in_sealed_child:true,
+    private_key_output:false,
+    nontransaction_signature_performed:true,
+    transaction_constructed:false,
+    transaction_submitted:false,
+    transaction_broadcast:false,
+    rpc_call:false,
+    filesystem_write:false,
+    host_mutation:false,
+    service_mutation:false,
+    systemd_mutation:false,
+    payment_acceptance:false,
+    public_presale_activation:false,
+    wc_void_market_activation:false,
+    funds_movement:false,
+    production_host_evidence_authority:false,
+    next_action:CHILD_NEXT_ACTION,
+  };
+  for(const [key,want] of Object.entries(required)){
+    if(receipt?.[key]!==want)throw new Error("child_receipt_field_invalid:"+key);
+  }
+  if(!CHILD_RECEIPT.test(String(receipt.receipt_id||""))||
+     !Number.isSafeInteger(receipt.manager_pid)||receipt.manager_pid<=1||
+     !Number.isSafeInteger(receipt.main_pid)||receipt.main_pid<=1||
+     typeof receipt.manager_start_ticks!=="string"||
+     !/^[1-9][0-9]*$/u.test(receipt.manager_start_ticks)||
+     typeof receipt.service_start_ticks!=="string"||
+     !/^[1-9][0-9]*$/u.test(receipt.service_start_ticks)||
+     !HEX64.test(String(receipt.credential_complete_dropin_set_sha256||""))||
+     !HEX64.test(String(receipt.credential_complete_credential_set_sha256||""))||
+     receipt.credential_epoch2_target_match_count!==1){
+    throw new Error("child_receipt_identity_invalid");
+  }
+  const sealed=receipt.sealed_public_evidence;
+  if(!sealed||typeof sealed!=="object"||Array.isArray(sealed)||
+     sealed.marker!==SEALED_MARKER||sealed.version!==2||
+     !SEALED_ID.test(String(sealed.evidence_id||""))||
+     sealed.source_head!==expectedHead||
+     sealed.immutable_fulfiller!==EXPECTED_FULFILLER||
+     sealed.credential_id!==EXPECTED_CREDENTIAL_ID||
+     sealed.systemd?.main_pid!==receipt.main_pid||
+     sealed.transaction_constructed!==false||
+     sealed.rpc_call_performed!==false||
+     sealed.transaction_broadcast_performed!==false||
+     sealed.funds_movement!==false){
+    throw new Error("child_sealed_evidence_invalid");
+  }
+  const copy={...receipt};
+  delete copy.receipt_id;
+  const expected="voide2livecomp3_"+
+    sha256(Buffer.from(canonical(copy),"utf8"));
+  if(receipt.receipt_id!==expected){
+    throw new Error("child_receipt_id_mismatch");
+  }
+}
+function runNativeLive(runtimeHead){
+  const r=run(FIXED_NATIVE,[
+    "--run","--confirm",NATIVE_CONFIRM,"--expected-head",runtimeHead,
+  ],{
+    env:cleanRootEnv(),
+    stdinIgnore:true,
+    timeout:120_000,
+  });
+  if(r.status!==0){
+    throw new Error("native_live_composition_failed:"+String(r.status));
+  }
+  if(r.stderr!=="")throw new Error("native_live_composition_unexpected_stderr");
+  let receipt;
+  try{receipt=JSON.parse(r.stdout);}
+  catch{throw new Error("native_live_composition_json_invalid");}
+  validateChildReceipt(receipt,runtimeHead);
+  return receipt;
+}
+function loadCandidate(expectedHead){
+  const raw=gitObject(expectedHead,CANDIDATE_REL,CANDIDATE_BLOB);
+  try{
+    let candidate;
+    try{candidate=JSON.parse(raw.toString("utf8"));}
+    catch{throw new Error("dormant_candidate_json_invalid");}
+    validateCandidate(candidate);
+    return candidate;
+  }finally{raw.fill(0);}
+}
+function validateCandidate(c){
+  if(c?.marker!==CANDIDATE_MARKER||c.version!==4||
+     c.status!==CANDIDATE_STATUS||c.canonical_chain_id!==2050||
+     c.execution_epoch!==2||c.epoch2_presale_contract!==EXPECTED_PRESALE||
+     c.epoch2_fulfiller_public_address!==EXPECTED_FULFILLER){
+    throw new Error("dormant_candidate_header_invalid");
+  }
+  const cfg=c.candidate_configuration;
+  if(!cfg||cfg.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED!=="0"||
+     cfg.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED!=="0"||
+     cfg.VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CONTRACT_ADDRESS!==EXPECTED_PRESALE||
+     cfg.VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS!==EXPECTED_FULFILLER||
+     cfg.VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID!==EXPECTED_SOURCE_BINDING){
+    throw new Error("dormant_candidate_configuration_invalid");
+  }
+  const s=c.signer_credential_state;
+  if(!s||s.signer_offchain_control_proven!==true||
+     !HEX64.test(String(s.signer_control_evidence_id_sha256||""))||
+     !HEX64.test(String(s.signer_control_message_sha256||""))||
+     !SHA40.test(String(s.signer_control_source_head||""))||
+     !SHA40.test(String(s.signer_control_source_tree||""))||
+     s.systemd_credential_identity_proven!==false||
+     s.epoch2_credential_binding_evidence_id!==null||
+     s.legacy_wallet_credential_reuse_authorized!==false||
+     s.credential_path_selected!==false||
+     s.private_key_material_read!==false){
+    throw new Error("dormant_candidate_signer_state_invalid");
+  }
+  const expectedGates=[
+    "independently_attest_systemd_credential_identity_and_active_signing_capability",
+    "bind_accepted_epoch2_signer_evidence_to_current_runtime_source_generation",
+    "qualify_live_exact_chain_receipt_and_either_zero_fee_envelope_or_per_payment_native_gas_funding",
+    "complete_current_chain_2050_one_payment_one_fulfillment_canary",
+    "coupled_presale_and_wc_void_market_sovereign_activation",
+  ];
+  if(canonical(c.explicit_remaining_gates)!==canonical(expectedGates)){
+    throw new Error("dormant_candidate_remaining_gates_invalid");
+  }
+  const authority=c.authority;
+  if(!authority||authority.candidate_only!==true){
+    throw new Error("dormant_candidate_authority_invalid");
+  }
+  for(const [key,value] of Object.entries(authority)){
+    if(key!=="candidate_only"&&value!==false){
+      throw new Error("dormant_candidate_authority_overclaim:"+key);
+    }
+  }
+}
+function buildBindingReceipt(compatibility,candidate,child){
+  validateCandidate(candidate);
+  validateChildReceipt(child,RUNTIME_HEAD);
+  const remainingGates=[
+    "qualify_live_exact_chain_receipt_and_either_zero_fee_envelope_or_per_payment_native_gas_funding",
+    "complete_current_chain_2050_one_payment_one_fulfillment_canary",
+    "coupled_presale_and_wc_void_market_sovereign_activation",
+  ];
+  const body={
+    marker:MARKER,version:4,status:STATUS,
+    source_head:compatibility.source_head,
+    source_tree:compatibility.source_tree,
+    runtime_head:RUNTIME_HEAD,runtime_tree:RUNTIME_TREE,
+    source_runtime_actual_object_ancestry:true,
+    source_runtime_complete_dependency_set_bound:true,
+    source_runtime_dependency_count:SOURCE_RUNTIME_DEPENDENCY_SPECS.length,
+    tracked_source_checkout_exact:true,
+    untracked_paths_enumerated:false,
+    untracked_paths_source_authority:false,
+    source_candidate_path:CANDIDATE_REL,
+    source_candidate_git_blob:CANDIDATE_BLOB,
+    source_candidate_marker:candidate.marker,
+    signer_control_evidence_id_sha256:
+      candidate.signer_credential_state.signer_control_evidence_id_sha256,
+    signer_control_message_sha256:
+      candidate.signer_credential_state.signer_control_message_sha256,
+    signer_control_source_head:
+      candidate.signer_credential_state.signer_control_source_head,
+    source_runtime_compatibility_sha256:
+      sha256(Buffer.from(canonical(compatibility),"utf8")),
+    runtime_policy_sha256:RUNTIME_POLICY_SHA256,
+    authenticated_credential_live_receipt:child,
+    authenticated_credential_live_receipt_id:child.receipt_id,
+    authenticated_credential_live_receipt_sha256:
+      sha256(Buffer.from(canonical(child),"utf8")),
+    canonical_chain_id:2050,execution_epoch:2,
+    epoch2_presale_contract:EXPECTED_PRESALE,
+    epoch2_fulfiller_public_address:EXPECTED_FULFILLER,
+    signer_credential_state:{
+      signer_offchain_control_proven:true,
+      systemd_credential_identity_proven:true,
+      active_signing_capability_proven:true,
+      runtime_source_generation_bound:true,
+      source_runtime_compatibility_exact:true,
+      authenticated_private_manager_generation_bound:true,
+      protected_v6r2_generation_verified:true,
+      retained_v4_predecessor_verified:true,
+      epoch2_authenticated_credential_receipt_id:child.receipt_id,
+      legacy_wallet_credential_reuse_authorized:false,
+      private_key_material_read_in_sealed_child:true,
+      private_key_material_output:false,
+      transaction_signing_proven:false,
+    },
+    explicit_remaining_gates:remainingGates,
+    customer_safe_to_pay:false,
+    authority:{
+      candidate_only:true,operational_configuration_selected:false,
+      credential_or_wallet_access:false,service_mutation:false,signer_access:false,
+      transaction_signing:false,transaction_broadcast:false,
+      public_presale_activation:false,wc_void_market_activation:false,
+      funds_movement:false,automatic_retry:false,
+    },
+    production_host_evidence_authority:false,next_action:NEXT_ACTIfunction plan(){
+  console.log(MARKER);
+  console.log("mode=plan");
+  console.log("source_head_runtime_observed=true");
+  console.log("source_tree_runtime_observed=true");
+  console.log("runtime_head="+RUNTIME_HEAD);
+  console.log("runtime_policy_sha256="+RUNTIME_POLICY_SHA256);
+  console.log("source_runtime_actual_object_ancestry_required=true");
+  console.log("source_runtime_revision_walk_metadata_authority=false");
+  console.log("source_runtime_dependency_count="+String(SOURCE_RUNTIME_DEPENDENCY_SPECS.length));
+  console.log("source_runtime_complete_dependency_set_bound=true");
+  console.log("tracked_source_checkout_exact_required=true");
+  console.log("untracked_paths_enumerated=false");
+  console.log("untracked_paths_source_authority=false");
+  console.log("native_binder_first_entry_required_for_live=true");
+  console.log("private_binder_parent_proof_required_for_live=true");
+  console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
+  console.log("caller_stdin_alone_authority=false");
+  console.log("root_required_for_run=true");
+  console.log("exact_dormant_candidate_v4_current_source_git_object_required=true");
+  console.log("source_compatibility_before_after_sensitive_sequence_required=true");
+  console.log("fixed_runtime_native_v3_live_composition_required=true");
+  console.log("runtime_native_receives_runtime_policy_head_only=true");
+  console.log("historical_compat_v3_source_authority=false");
+  console.log("canonical_checkout_rewind_performed=false");
+  console.log("installed_policy_mutation=false");
+  console.log("arbitrary_live_receipt_input_accepted=false");
+  console.log("signer_control_predecessor_evidence_required=true");
+  console.log("credential_content_access=false");
+  console.log("private_key_access=false");
+  console.log("signing=false");
+  console.log("transaction=false");
+  console.log("payment_acceptance=false");
+  console.log("customer_safe_to_pay=false");
+  console.log("public_presale_activation=false");
+  console.log("wc_void_market_activation=false");
+  console.log("funds_movement=false");
+  console.log("production_host_evidence_authority=false");
+  console.log("next_action=SEPARATELY_AUTHORIZE_EPOCH2_V3R_DORMANT_CANDIDATE_LIVE_BINDING_V4");
+}
+function selfTest(){
+  if(!HEX64.test(RUNTIME_POLICY_SHA256)||SOURCE_RUNTIME_DEPENDENCY_SPECS.length!==9){
+    throw new Error("runtime_compatibility_identity_self_test_failed");
+  }
+  const fakeSource="1".repeat(40);
+  const fakeTree="2".repeat(40);
+  const fakeRuntimeTree="3".repeat(40);
+  function fakeGit(args){
+    const joined=args.join(" ");
+    if(joined==="rev-parse --verify HEAD")return fakeSource+"\n";
+    if(joined==="rev-parse --verify HEAD^{tree}")return fakeTree+"\n";
+    if(joined==="branch --show-current")return "main\n";
+    if(joined==="status --porcelain=v1 --untracked-files=no")return "";
+    if(args[0]==="cat-file"&&args[1]==="-t")return "commit\n";
+    if(args[0]==="cat-file"&&args[1]==="-p"){
+      if(args[2]===fakeSource)return "tree "+fakeTree+"\nparent "+RUNTIME_HEAD+"\n\nsource\n";
+      if(args[2]===RUNTIME_HEAD)return "tree "+fakeRuntimeTree+"\n\nruntime\n";
+      throw new Error("fake_commit_unknown");
+    }
+    if(args[0]==="rev-parse"&&args.length===2&&args[1].includes(":")){
+      const [head,relative]=args[1].split(":",2);
+      if(relative===CANDIDATE_REL&&head===fakeSource)return CANDIDATE_BLOB+"\n";
+      const row=SOURCE_RUNTIME_DEPENDENCY_SPECS.find((entry)=>entry[1]===relative);
+      if(row&&(head===fakeSource||head===RUNTIME_HEAD))return row[2]+"\n";
+    }
+    throw new Error("fake_git_unhandled:"+joined);
+  }
+  const compat=sourceCompatibility(RUNTIME_HEAD,fakeGit);
+  if(compat.source_head!==fakeSource||compat.source_tree!==fakeTree||
+     compat.source_runtime_dependency_count!==9||
+     compat.source_runtime_actual_object_ancestry!==true){
+    throw new Error("source_compatibility_self_test_failed");
+  }
+  function fakeGraftOnly(args){
+    if(args[0]==="cat-file"&&args[1]==="-t")return "commit\n";
+    if(args[0]==="cat-file"&&args[1]==="-p"){
+      if(args[2]===fakeSource)return "tree "+fakeTree+"\n\nsource\n";
+      if(args[2]===RUNTIME_HEAD)return "tree "+fakeRuntimeTree+"\n\nruntime\n";
+    }
+    return fakeGit(args);
+  }
+  let graftRejected=false;
+  try{requireActualObjectAncestry(fakeSource,fakeGraftOnly);}
+  catch(error){
+    graftRejected=String(error?.message||error)==="source_runtime_actual_object_ancestry_not_found";
+  }
+  if(!graftRejected)throw new Error("graft_only_ancestry_not_rejected");
+  console.log(MARKER+"_SELF_TEST_GREEN");
+  console.log("source_head_compile_constant_absent=true");
+  console.log("source_tree_compile_constant_absent=true");
+  console.log("source_head_runtime_observed=true");
+  console.log("source_tree_runtime_observed=true");
+  console.log("runtime_head_exact=true");
+  console.log("runtime_policy_head_preserved=true");
+  console.log("source_runtime_actual_object_ancestry_required=true");
+  console.log("source_runtime_graft_only_ancestry_rejected=true");
+  console.log("source_runtime_dependency_count=9");
+  console.log("source_runtime_complete_dependency_set_bound=true");
+  console.log("tracked_source_checkout_exact_required=true");
+  console.log("untracked_paths_enumerated=false");
+  console.log("untracked_paths_source_authority=false");
+  console.log("historical_compat_v3_source_authority=false");
+  console.log("native_binder_first_entry_required_for_live=true");
+  console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
+  console.log("runtime_native_receives_runtime_policy_head_only=true");
+  console.log("canonical_checkout_rewind_performed=false");
+  console.log("installed_policy_mutation=false");
+  console.log("customer_safe_to_pay=false")function live(sourceHead,runtimeHead,confirm){
+  if(confirm!==CONFIRM)throw new Error("explicit_live_confirmation_required");
+  if(runtimeHead!==RUNTIME_HEAD||!SHA40.test(String(sourceHead||""))){
+    throw new Error("source_runtime_generation_not_accepted");
+  }
+  const binderProof=requireBinderPreentry(sourceHead,runtimeHead);
+  if(typeof process.geteuid!=="function"||process.geteuid()!==0){
+    throw new Error("root_required_for_live_binding");
+  }
+  assertTrustedExecutable(GIT);
+  assertTrustedExecutable(SETPRIV);
+  assertTrustedExecutable(FIXED_NATIVE);
+  const before=sourceCompatibility(runtimeHead);
+  if(before.source_head!==sourceHead){
+    throw new Error("binder_preentry_source_head_not_current");
+  }
+  const candidate=loadCandidate(before.source_head);
+  const child=runNativeLive(runtimeHead);
+  const after=sourceCompatibility(runtimeHead);
+  if(canonical(before)!==canonical(after)){
+    throw new Error("source_generation_changed_across_sensitive_sequence");
+  }
+  revalidateBinderPreentry(binderProof,before.source_head,runtimeHead);
+  const receipt=buildBindingReceipt(before,candidate,child);
+  console.log(JSON.stringify(receipt,null,2));
+}
+function main(){
+  const args=process.argv.slice(2);
+  if(args.length===1&&args[0]==="--self-test"){selfTest();return;}
+  if(args.length===1&&args[0]==="--plan"){plan();return;}
+  if(args[0]==="--run"){
+    const confirmAt=args.indexOf("--confirm");
+    const sourceAt=args.indexOf("--source-head");
+    const runtimeAt=args.indexOf("--runtime-head");
+    const confirm=confirmAt>=0?args[confirmAt+1]:"";
+    const sourceHead=sourceAt>=0?args[sourceAt+1]:"";
+    const runtimeHead=runtimeAt>=0?args[runtimeAt+1]:"";
+    if(!sourceHead)throw new Error("source_head_required");
+    if(!runtimeHead)throw new Error("runtime_head_required");
+    live(sourceHead,runtimeHead,confirm);
+    return;
+  }
+  throw new Error(
+    "usage: binder --self-test | --plan | --run --confirm <token> --source-head <sha> --runtime-head <sha>"
+  );
+}
+function printHold(error){
+  console.error(JSON.stringify({
+    marker:MARKER+"_HOLD",status:"HOLD",reason:safeReason(error?.message||error),
+    live_composition_state:"unknown_or_partial_if_live_started",
+    credential_content_access_state:"unknown_or_partial_if_live_started",
+    private_key_output:false,transaction_constructed:false,
+    transaction_submitted:false,transaction_broadcast:false,
+    filesystem_write:false,host_mutation:false,service_mutation:false,
+    systemd_mutation:false,payment_acceptance:false,customer_safe_to_pay:false,
+    public_presale_activation:false,wc_void_market_activation:false,
+    funds_movement:false,production_host_evidence_authority:false,
+  },null,2));
+}
+const directFileExecution=process.argv[1]&&process.argv[1]!=="-"&&
+  path.resolve(process.argv[1])===fileURLToPath(import.meta.url);
+if(process.argv[1]==="-"){
+  try{main();}catch(error){printHold(error);process.exitCode=2;}
+}else if(directFileExecution){
+  if(process.argv.slice(2).includes("--run")){
+    printHold(new Error("binder_native_first_entry_required"));
+    process.exitCode=2;
+  }else{
+    try{main();}catch(error){printHold(error);process.exitCode=2;}
+  }
+}
