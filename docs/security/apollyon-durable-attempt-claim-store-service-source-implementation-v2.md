@@ -365,8 +365,11 @@ Local callback receipts are captured as a frozen null-prototype object containin
 only the existing 13 primitive fields before the native post-check. Thus neither
 an inherited `then` getter nor nested property getters can execute later through
 the core's receipt processing. Async/generator callbacks are refused; a returned
-native Promise is rejected and its rejection is observed through the captured
-Promise intrinsic. The core still validates the exact accepted receipt values.
+native Promise is rejected without observing it. Even a captured
+`Promise.prototype.then` can execute the returned Promise's own
+`constructor`/species getter. The provider must independently own any
+rejected Promise's failure lifecycle. The core still validates the exact
+accepted receipt values; protected-host failure containment remains unproven.
 
 A successful source operation leaves this reusable one-peer adapter available for the next
 operation. Call `close()` explicitly when the session is finished; success does
@@ -1089,8 +1092,12 @@ its exact content binding, but snapshots its exact own primitive fields using
 the existing descriptor-only preflight. Active/revoked Proxies, accessors,
 unexpected hidden/symbol keys, nested objects and oversized strings are
 rejected without invoking hostile getters or Proxy traps. Native Promises
-are recognized with `util.types.isPromise` instead of reading `.then`, and
-their rejection handlers are attached through the retained native method.
+are recognized with `util.types.isPromise` instead of reading `.then`.
+Neither the reusable core nor the repaired native-session bridge invokes
+captured `Promise.prototype.then` on these values: intrinsic `then` would
+perform constructor/species lookup and could execute caller-owned accessors.
+A synchronous provider returning an unhandled rejected Promise still requires
+independently reviewed source provenance and host failure-domain containment.
 The source also bounds primitive generation/authorization-slot strings to
 1–256 characters before the existing semantic validators, matching the
 already bounded native-session primitive-data transport.
@@ -1160,3 +1167,25 @@ A future protected host composition must establish those facts by admitting only
 a reviewed callback generation and/or isolating its failure domain before
 claim-service runtime readiness can be asserted. This is an availability and
 integration requirement, not permission to publish claims or execute training.
+
+## October 19 native-session Promise constructor/getter fix
+
+The native bridge rejects callback-returned genuine native Promises by internal
+type before performing any receipt work. It no longer uses a captured intrinsic
+`Promise.prototype.then` to observe their rejection. A new disposable native
+session case returns a fulfilled Promise with a hostile own `constructor`
+accessor, and requires one callback invocation, **zero** constructor getter
+invocations, failed/closed session, no persisted-slot/claim changes and exact
+cleanup of retained native handles. The existing rejected-Promise fixture now
+arranges rejection disposition inside the intentionally invalid *provider*
+without requiring the adapter to read or invoke Promise-controlled properties.
+A source-shape proof separately rejects the historical `PROMISE_THEN` hook.
+
+**This is not unhandled-rejection containment.** A normal synchronous
+callback returning an already-rejected Promise can still terminate an
+unisolated Node process after the source core/adapter synchronously HOLDs.
+The authority contract keeps trusted callback origin and host failure-domain
+containment required but unproven; there is no privileged Xiphos integration,
+claim publication, training, credential, transaction, or funds authorization.
+
+**PROTECT THE CORE.**

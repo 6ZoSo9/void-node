@@ -24,7 +24,7 @@ const C_REL="ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c"
 const PROCESS_REL="ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c";
 const PROCESS_HEADER_REL="ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h";
 const ADDON_REL="build/Release/apollyon_claim_store_native_bridge_v2.node";
-const JS_BLOB="3a46492c841047431f2086f5e8c37a51c20ff2a4";
+const JS_BLOB="864f90e46510403b30f558f1ccd8719be88f1180";
 const C_BLOB="96df365a812c645e6210ea5728c8f38851019d50";
 const PINNED=Object.freeze({
   [JS_REL]:JS_BLOB,
@@ -1466,7 +1466,19 @@ async function sessionAdapterCases(plan,bridge){
         process.env.APOLLYON_TEST_SESSION_SEND_FAULT="after_send_close";
       }
       const receipt=revalidationReceipt(stage,context);
-      if(plan.case==="session_callback_async")return Promise.reject(new Error("fixture_async_local_receipt"));
+      if(plan.case==="session_callback_async"){
+        const rejected=Promise.reject(new Error("fixture_async_local_receipt"));
+        // An invalid provider owns its own rejection lifecycle, never the bridge.
+        rejected.catch(()=>undefined);
+        return rejected;
+      }
+      if(plan.case==="session_callback_hostile_promise_constructor"){
+        const nativePromise=Promise.resolve(receipt);
+        Object.defineProperty(nativePromise,"constructor",{
+          get(){getters+=1;assert.fail("hostile Promise constructor getter executed");},
+        });
+        return nativePromise;
+      }
       return receipt;
     };
     if(plan.case==="session_valid")for(const peer of Object.values(peers)){
@@ -1549,6 +1561,11 @@ async function sessionAdapterCases(plan,bridge){
       assert.ok(errorMessages(failure).some(value=>value.includes("apollyon_claim_store_session_v2_")),
         errorMessages(failure).join("\n"));
       assert.equal(Object.isFrozen(failure.cleanup_errors),true);
+      if(plan.case==="session_callback_hostile_promise_constructor"){
+        assert.equal(callbacks,1,"hostile native Promise fixture must invoke callback once");
+        assert.equal(getters,0,"hostile native Promise constructor getter executed");
+        assert.deepEqual(storeSnapshot(f.root),before,"hostile Promise rejection mutated store");
+      }
       if(plan.case==="session_request_no_eof"||plan.case==="session_challenge_no_eof"){
         assert.ok(elapsed>=4500&&elapsed<7500,"session request/challenge requires EOF within its total deadline");
       }
@@ -1701,6 +1718,9 @@ async function main(args){
   try{
     const copied=copySourceClosure(snapshot);
     assert.ok(copied.has("tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs"));
+    const nativeBridgeSource=fs.readFileSync(path.join(snapshot,JS_REL),"utf8");
+    assert.equal(nativeBridgeSource.includes("PROMISE_THEN"),false,
+      "bridge source must not observe forbidden native Promises with intrinsic then");
     const addon=path.join(snapshot,ADDON_REL);
     fs.mkdirSync(path.dirname(addon),{recursive:true,mode:0o755});
     const compileAddon=(extraSources=[],extraLinkerFlags=[])=>{
@@ -1772,7 +1792,8 @@ async function main(args){
       "session_control_early_bytes","session_control_early_eof","session_wrong_challenge","session_wrong_digest",
       "session_challenge_short","session_challenge_extra","session_challenge_delayed_extra","session_challenge_no_eof",
       "session_challenge_rights",
-      "session_callback_async","session_callback_tojson","session_generation_alias","session_control_before_slot",
+      "session_callback_async","session_callback_hostile_promise_constructor",
+      "session_callback_tojson","session_generation_alias","session_control_before_slot",
       "session_publisher_after_slot","session_control_before_ack","session_publisher_cleanup","session_ack_shutdown"]){
       runFixture(sessionFixture,{node:process.execPath,proof,case:kind});
     }
@@ -1844,7 +1865,8 @@ async function main(args){
   console.log("native_session_no_raw_publish_or_observe_entrypoint_exposed=true");
   console.log("native_session_config_and_operation_accessors_rejected_without_invocation=true");
   console.log("native_session_cmdline_and_generation_input_aliases_cannot_redirect=true");
-  console.log("native_session_async_local_receipt_observed_rejected_and_session_closed=true");
+  console.log("native_session_async_local_receipt_rejected_without_observation_and_session_closed=true");
+  console.log("native_session_hostile_promise_constructor_getter_not_invoked=true");
   console.log("native_session_callback_serialization_getter_rejected_without_invocation=true");
   console.log("native_session_reentry_rejected_without_closing_active_pair=true");
   console.log("native_session_peer_exit_or_exec_at_each_publication_boundary_suppresses_ack=true");

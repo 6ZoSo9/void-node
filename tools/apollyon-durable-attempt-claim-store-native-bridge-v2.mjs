@@ -35,7 +35,6 @@ const SET_BYTES=Uint8Array.prototype.set;
 const ALLOC_BYTES=Buffer.alloc;
 const FROM_BYTES=Buffer.from;
 const JSON_STRINGIFY=JSON.stringify;
-const PROMISE_THEN=Promise.prototype.then;
 const TYPED_ARRAY=Object.getPrototypeOf(Uint8Array.prototype);
 const BYTE_LENGTH=Object.getOwnPropertyDescriptor(TYPED_ARRAY,"byteLength").get;
 const ARRAY_BUFFER=Object.getOwnPropertyDescriptor(TYPED_ARRAY,"buffer").get;
@@ -155,8 +154,9 @@ function capturePeer(input){
 function captureLocalRevalidation(callback,stage,context){
   const result=APPLY(callback,undefined,[stage,context]);
   if(types.isPromise(result)){
-    // Observe native rejection without reading a caller-owned .then property.
-    APPLY(PROMISE_THEN,result,[undefined,()=>undefined]);
+    // Never observe a callback-owned Promise. Even intrinsic then() reads its
+    // constructor/species and could execute a caller-controlled accessor.
+    // A trusted provider must own any rejected Promise's failure lifecycle.
     fail("apollyon_claim_store_bridge_v2_async_revalidator_forbidden");
   }
   const receipt=exactDataInput(result,RECEIPT_KEYS,

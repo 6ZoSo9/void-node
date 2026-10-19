@@ -117,14 +117,14 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
             e6522fdac3a572aeed3fe62afdfab3dcb1d453d9
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            4e80fdd403a9f81f0939d7b7962588aadc57e424
+            fd7bbc0f29b32a38dbf6a4f7e2f0b078d6c02b5b
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
-            3a46492c841047431f2086f5e8c37a51c20ff2a4
+            864f90e46510403b30f558f1ccd8719be88f1180
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            7e974c0d05c5e532419bc81005176235d4c9c6db
+            f5d10e750d5abc38e94a330ddf6b08381b07bd37
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
@@ -315,6 +315,8 @@ jobs:
           for marker in \
             'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_NATIVE_BRIDGE_V2_PROOF_GREEN' \
             'native_session_fragmented_actual_request_challenge_and_canonical_response_proven=true' \
+            'native_session_async_local_receipt_rejected_without_observation_and_session_closed=true' \
+            'native_session_hostile_promise_constructor_getter_not_invoked=true' \
             'native_session_required_inline_urgent_byte_handling_and_urgent_input_rejection_proven=true' \
             'native_session_request_and_challenge_ancillary_descriptors_rejected_without_leak=true' \
             'native_session_challenge_exchange_performed=true' \
