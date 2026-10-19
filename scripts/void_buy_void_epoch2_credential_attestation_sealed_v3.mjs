@@ -226,15 +226,12 @@ function trustedExecutable(candidate, leaf) {
 
 function execTrustedExecutable(tool, args, options = {}) {
   revalidateTrustedExecutable(tool);
-  const executable = "/proc/self/fd/" + String(tool.fd);
-  const stdio = ["ignore", "pipe", "ignore"];
-  while (stdio.length <= tool.fd) stdio.push("ignore");
-  stdio[tool.fd] = tool.fd;
+  const executable = tool.real;
   let result;
   try {
     result = execFileSync(executable, args, {
       ...options,
-      stdio,
+      stdio: ["ignore", "pipe", "ignore"],
     });
   } finally {
     revalidateTrustedExecutable(tool);
@@ -1256,8 +1253,8 @@ function trustedExecutableSelfTest() {
     throw new Error("epoch2_sealed_writable_ancestor_adversary_failed");
   }
   console.log(MARKER + "_SELF_TEST_GREEN");
-  console.log("trusted_git_retained_descriptor_execution=true");
-  console.log("trusted_systemctl_retained_descriptor_execution=true");
+  console.log("trusted_git_retained_generation_revalidated_path_execution=true");
+  console.log("trusted_systemctl_retained_generation_revalidated_path_execution=true");
   console.log("trusted_executable_path_rebind_rejected=true");
   console.log("trusted_executable_writable_ancestor_rejected=true");
   console.log("credential_content_read=false");
@@ -1463,7 +1460,7 @@ async function main() {
       runtime_source_acl_barrier_and_pre_post_census_stable: true,
       runtime_source_revalidated_after_final_observation: true,
       trusted_tool_ancestor_nonwritability_verified: true,
-      trusted_tool_retained_descriptor_execution: true,
+      trusted_tool_retained_generation_revalidated_path_execution: true,
       trusted_tool_generation_revalidated: true,
       runtime_source_revalidated_immediately_before_evidence: true,
       privileged_first_entry_authenticated: false,
