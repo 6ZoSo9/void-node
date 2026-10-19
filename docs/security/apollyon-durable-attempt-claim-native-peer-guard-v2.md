@@ -22,10 +22,28 @@ the claim service, publisher, root revalidator, store writer, systemd unit or
 host installation.
 
 It is stacked on #3291 exact head
-`562139b1582bd6b926ac0c8ce67f06c30c2f23d0` and its proof pins the accepted
-handoff source blob `5d913eb08d79c76ed926d8b88be05b12f475abd5` plus the
+`8c890c9afff0d9b80f5c5788a4ed25c0394069ff` and its proof pins the accepted
+handoff source blob `3feed7f71fb6941f8feccf393f151fa9e973d7a4` plus the
 reviewed native kernel peer reference
 `d8b30ac499c3bb8a5d223dbc6be687dd175be611`.
+
+## Current-parent source reconciliation
+
+The #3291 handoff parent advanced its commit ancestry without changing the
+reviewed challenge, peer identity, EOF, or no-authority semantics. Across the
+complete (nontruncated) old-parent to current-parent Git tree, 348 paths changed,
+**none** of the four source paths owned by this native-guard candidate. The
+handoff contract source itself differs only in two reviewed transitive dependency
+blob pins: request-envelope `339916ce4a6216af9a73476ad5b78e2d7a300f73`
+and claim-store service candidate
+`87019ae1245a2054407dd47835b0b7a891d4d9a2`. The native peer
+reference remains blob `d8b30ac499c3bb8a5d223dbc6be687dd175be611`.
+
+The native C self-test and focused workflow are byte-identical to the prior
+accepted generation. This child is source-only: its refreshed parent binding
+does not qualify downstream #3306 or later stacked claims, nor grant privileged
+host/process, protected-store, trainer, signer, wallet, transaction or funds
+authority. Each downstream source pin requires its own exact-head requalification.
 
 ## Self-test boundary
 
