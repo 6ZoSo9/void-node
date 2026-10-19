@@ -27,17 +27,17 @@
 #define BINDER_FD_ENV_PREFIX "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V3_BINDER_FD="
 #define PROOF_FD_ENV_PREFIX "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V3_PROOF_FD="
 #define PROOF_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V3"
-#define BINDER_GIT_BLOB "bf45a1d4aea6c788d9baa5e481491aedab621e38"
-#define BINDER_BYTES 39086U
+#define BINDER_GIT_BLOB "f33a670181d7b6a870a8fecefa76b9ec10a769db"
+#define BINDER_BYTES 39250U
 #define MAX_POLICY_BYTES 1024U
 #define MAX_RUNNER_BYTES (4U * 1024U * 1024U)
 #define MAX_NODE_BYTES (512U * 1024U * 1024U)
 
 static const unsigned char BINDER_SHA256[32]={
-  0xed,0x49,0x3c,0xa6,0x58,0x05,0xf5,0xe6,
-  0x54,0x95,0x69,0xa2,0xd0,0x2d,0x4e,0x3d,
-  0x7e,0x71,0x78,0x43,0x6c,0x6a,0x26,0x6f,
-  0xc8,0x9c,0xce,0xea,0x69,0xb1,0xd3,0x0f
+  0x71,0x7c,0x41,0x3a,0xff,0xfd,0x51,0xad,
+  0xe4,0xac,0x69,0x0f,0x73,0xe1,0x9f,0x3f,
+  0x82,0x4c,0x80,0x51,0x42,0xf4,0x43,0x8b,
+  0x15,0xf1,0xe3,0x50,0x09,0x94,0x5b,0xef
 };
 
 typedef struct{unsigned char data[64];uint32_t datalen;uint64_t bitlen;uint32_t state[8];} sha256_ctx;
@@ -186,7 +186,7 @@ static int self_test_hold(bool post_source){
 }
 static int self_test(void){
   static const unsigned char abc_expected[32]={0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
-  unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=39086U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
+  unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=39250U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
   puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("source_runtime_two_head_contract=true");puts("runtime_policy_head_separate_from_source_head=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("failure_truth_boundary_test_modes=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
 }
 int main(int argc,char**argv){
