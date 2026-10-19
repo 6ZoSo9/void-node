@@ -160,7 +160,7 @@ host writer/admission/training authority. **PROTECT THE CORE.**
 ## October 19 — bound to held-inode/bounded-read writer
 
 The request is now pinned to writer blob
-`2165f85ead2a5997c600520e25274943d21e6704`. That writer admits an existing
+`d32f1c5761fa5b95f28c2b2edd1253ca9b28f034`. That writer admits an existing
 slot inode with O_PATH before data-open, reopens only the retained inode with
 O_NONBLOCK, and bounds the actual FD read to 64 KiB + 1.
 
@@ -169,3 +169,16 @@ adversaries before qualifying this pure request. This remains a source-only
 dependency rebind; protected-store origin, current winner/store/claim rereads,
 writer invocation authority, consumption publication and training remain
 false/unperformed.
+
+## October 19 — descriptor cleanup dependency rebind
+
+The source-only revalidation request now pins the writer generation that
+attempts both existing-slot read descriptor closes even if the first close
+reports an error. The fixed store path, content-addressed record, consumption
+slot and all negative host/trainer authority fields remain unchanged.
+Composite qualification reruns the writer's EIO-after-close regression before
+the pure request proof, which must bind the exact updated writer Git blob.
+
+Passing this source proof does not establish installed directory provenance,
+privileged current-generation/winner/claim rereads, consumption publication,
+trainer activation, credentials, signing or funds authority.
