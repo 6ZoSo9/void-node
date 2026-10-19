@@ -450,6 +450,7 @@ export function publishApollyonTrainingStartConsumptionProtectedV1(input){
     snapshot.consumption_record,
   );
   const owned=openOwnedDirectoryFd(snapshot.directory_fd);
+  let createdCloseUncertainty=null;
   try{
     const existing=readExactFinal(owned.fd,record,owned.identity);
     if(existing.status==="already_consumed")return alreadyReceipt(record);
@@ -511,10 +512,28 @@ export function publishApollyonTrainingStartConsumptionProtectedV1(input){
         "apollyon_training_start_writer_created_record_close_uncertain",
       );
     }
+  }catch(error){
+    if(error?.message==="apollyon_training_start_writer_created_record_close_uncertain"){
+      createdCloseUncertainty=error;
+    }
+    throw error;
   }finally{
-    closeOwnedTerminalFd(
-      owned.fd,
-      "apollyon_training_start_writer_owned_directory_close_uncertain",
-    );
+    try{
+      closeOwnedTerminalFd(
+        owned.fd,
+        "apollyon_training_start_writer_owned_directory_close_uncertain",
+      );
+    }catch(directoryCloseError){
+      if(createdCloseUncertainty!==null){
+        // Two indeterminate close results must remain separately inspectable.
+        // Both close attempts already occurred exactly once; never retry.
+        throw new AggregateError(
+          [createdCloseUncertainty,directoryCloseError],
+          "apollyon_training_start_writer_both_terminal_closes_uncertain",
+          {cause:createdCloseUncertainty},
+        );
+      }
+      throw directoryCloseError;
+    }
   }
 }
