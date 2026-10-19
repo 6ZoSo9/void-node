@@ -20,7 +20,7 @@ CANDIDATE_PREFIX = "voidbuye2runnerpolcand6r3_"
 
 RUNNER_REL = "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 RUNNER = ROOT / RUNNER_REL
-RUNNER_GIT_BLOB_SHA1 = "4e84b6eb77c284ecf7d85b609cec4d1cf130c7a7"
+RUNNER_GIT_BLOB_SHA1 = "71c77b67aefeed1a0c52b62d6b0a58f5ddeff249"
 RUNNER_INSTALL_MODE = "0444"
 
 NATIVE_SOURCE_REL = "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
@@ -226,6 +226,7 @@ def validate_runner_transcripts(self_test: str, plan: str) -> None:
         "runtime_policy_head_preserved=true",
         "source_checkout_head_runtime_observed=true",
         "source_runtime_ancestry_required=true",
+        "source_runtime_actual_object_ancestry_required=true",
         "tracked_source_checkout_exact_required=true",
         "source_runtime_dependency_blob_equality_required=true",
         "source_runtime_complete_dependency_set_bound=true",
@@ -253,6 +254,7 @@ def validate_runner_transcripts(self_test: str, plan: str) -> None:
         "source_checkout_head_runtime_observed=true",
         "source_checkout_tree_runtime_observed=true",
         "source_runtime_ancestry_required=true",
+        "source_runtime_actual_object_ancestry_required=true",
         "tracked_source_checkout_exact_required=true",
         "runtime_source_dependency_blob_equality_required=true",
         "root_qualification_dependency_closure_git_object_bound=true",
@@ -486,6 +488,7 @@ def self_test() -> None:
     print("runtime_policy_head_preserved=true")
     print("current_source_head_runtime_observed=true")
     print("source_runtime_ancestry_required=true")
+    print("source_runtime_actual_object_ancestry_required=true")
     print("tracked_source_checkout_exact_required=true")
     print("runtime_source_dependency_blob_equality_required=true")
     print("untracked_paths_source_authority=false")
