@@ -73,7 +73,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=1b60642d980b76c13130d5124d83a22c2c01ec30
+          parent=4a4db086ae00c8dbfb362d254c466d02287de070
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
