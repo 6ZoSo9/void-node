@@ -284,7 +284,7 @@ for(const required of [
   "INTRINSIC_ARRAY_BUFFER",
   "INTRINSIC_TYPED_SET",
   "types.isSharedArrayBuffer(backing)",
-  "SET_TYPED_ARRAY",
+  "INTRINSIC_TYPED_SET",
   "function exactPrimitiveRecordInput",
   "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_KEYS_V1",
   '"before_slot_publication"',
