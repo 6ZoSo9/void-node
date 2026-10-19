@@ -147,4 +147,3 @@ validator before ordering or migration commitment calculation.
 This changes only rejection/preflight behavior. Valid slot IDs, slot-record
 content addresses, deterministic slot-set commitments, migration semantics and
 all deliberate non-authority flags remain unchanged.
-
