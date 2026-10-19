@@ -543,7 +543,7 @@ for(const required of [
   "Object.getOwnPropertyDescriptor(value,key)",
   '"/var/lib/void-apollyon-attempt-claim-v2"',
   '"/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1"',
-  '"473b4148e6bcb755bb8bf7c6af890150a9f43efe"',
+  '"66b76ea9201f870672c0bc1c3df207b3c95cf68a"',
   '"87019ae1245a2054407dd47835b0b7a891d4d9a2"',
   "protected_store_origin_proven:false",
   "current_store_generation_revalidation_performed:false",
