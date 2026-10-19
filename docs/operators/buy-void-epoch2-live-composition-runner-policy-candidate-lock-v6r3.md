@@ -2,39 +2,44 @@
 
 Marker: `VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3`.
 
-Status: **accepted post-P1 source candidate identity only**. The lock does not
-install, execute, or activate the candidate.
+Status: **accepted source candidate identity only**. This lock does not install,
+execute, activate, or grant credential/signing/economic authority.
 
 ## Current accepted exact generation
 
-Hosted evidence:
+The candidate payload is unchanged after the repaired #3535 compatibility
+reconciliation:
 
 ```text
-candidate_head=8adfab987d759260dc826ab6ae473c35131223e8
-compatibility_run=39286886878
-compatibility_job=118176008215
+candidate_head=95feac7bf64a92a891640d80d7a2eed0fdb4cb49
+compatibility_run=39302930907
+compatibility_job=118232536377
 compatibility_conclusion=success
-candidate_run=39286886430
-candidate_job=118176008157
+candidate_run=39302929811
+candidate_job=118232533789
+candidate_identity_job=118233036839
 candidate_conclusion=success
-candidate_id=voidbuye2runnerpolcand6r3_9c00c1601412e8d3873c42c37000a6886580c992355822496eee57b55528f60b
+candidate_id=voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d
 ```
 
 Runner V4 accepted identity:
 
 ```text
-git_blob_sha1=8e3c588f9c7275dcb0e351d2785b5a923982f133
-sha256=730effadd9b95ec43d609759239ce43ab61e9e118c6c897cd0e13faa37a0e7f4
-bytes=61692
+git_blob_sha1=7967778824f22baca976a59df75f9f808ebebfe2
+sha256=a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029
+bytes=64960
 install_mode=0444
 ```
 
-The source compatibility proof binds the complete eight-object credential
-qualification dependency closure before root execution. Root Python receives
-only exact runtime Git-object bytes; checkout source/lock pathname reads are
-fail-closed, and module-derived closure paths are cross-bound before use.
+Compatibility acceptance provenance is rebound to the repaired parent generation:
 
-The accepted native V3 binary is still reused unchanged:
+```text
+compat_contract_git_blob_sha1=f37fcd41bbb7efa057b66c3a7ad46d36f2d6e9ae
+compat_proof_git_blob_sha1=65c72cd077ee413a6c7f4aa2b7b4aeb4dd5aa51a
+compat_workflow_git_blob_sha1=88d4fcbedfdccb6e33ea733beb2033571e45f876
+```
+
+The accepted native V3 binary remains reused unchanged:
 
 ```text
 native_sha256=85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8
@@ -42,40 +47,32 @@ native_bytes=726976
 native_binary_rebuild_required=false
 ```
 
-Current lock ID:
+Current lock:
 
-`voidbuye2runnerpollock6r3_261c86ebce21170cf95479f7817e8a5689cb8438286a189bb239019a035adb5e`.
+```text
+lock_blob=c86912d4e632d4525bfd1d32cb2c01524fb0ebfb
+lock_id=voidbuye2runnerpollock6r3_decff2ebef64d6e8eb332a1ff5d363906c08322c8949bff9e9abdce48088522d
+```
 
 ## Policy rule
 
 The lock accepts a policy **template**, not host policy bytes. A future protected
-plan must bind the actual protected-host Node identity while preserving runtime
-HEAD `4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`. Canonical source HEAD must
-never replace that runtime policy head.
+plan must bind the descriptor-observed protected-host Node identity while
+preserving runtime HEAD
+`4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`. Canonical source HEAD must never
+replace that runtime policy head.
 
 ## Superseded generations
 
-These candidate IDs have no current install authority:
+The following prior final lock is now superseded by the compatibility-provenance
+rebind and has no current install authority:
 
-```text
-voidbuye2runnerpolcand6r3_eee91de4d93ea4ab3068621659a8420255772b49f25556f3d93cbd67d3059c0a
-voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d
-```
+`voidbuye2runnerpollock6r3_ee585a52fc383c31c6f61d9d43fa88e7ef97824d86c5e896e143ec91cf7a3ade`.
 
-These lock IDs are superseded:
-
-```text
-voidbuye2runnerpollock6r3_4d55eadc456d48aed2e77df8a4897c0756b173761e7a10b0f1b53b24dd4d50a2
-voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202
-voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67
-```
-
+Earlier candidate/lock IDs listed in the lock JSON are likewise historical only.
 `superseded_install_authority=false`.
 
 ## Authority
-
-The lock accepts candidate/runner/native-reuse/policy-template identity only.
-All execution and economic authority remains false:
 
 ```text
 protected_install_authorized=false
@@ -97,9 +94,3 @@ Next gate:
 `void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan`.
 
 PROTECT THE CORE.
-
-## Historical generations
-
-The V6R3 candidate/lock lineage before the post-P1 root-read closure is retained
-only as historical evidence. None of those prior IDs grants current install
-authority.
