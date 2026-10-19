@@ -30,3 +30,7 @@ mutation, credential/key access, signing, transaction/RPC, presale/WC
 activation or funds movement is authorized by this repair.
 
 PROTECT THE CORE.
+
+## Review hardening
+
+Before PR publication, source review additionally required the V2 materializer Git observer to disable repository callbacks, lazy fetch and transports, and to revalidate the repository after both binary builds. Installer V3 now emits an internal plan-body version of 3, V3-specific plan keys, V3 authorization next-action text and a V3 success status; no inherited V2 operation string is accepted as V3 authority.

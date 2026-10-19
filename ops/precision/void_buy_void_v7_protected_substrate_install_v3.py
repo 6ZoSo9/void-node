@@ -24,7 +24,7 @@ LOCK_REL = "ops/security/buy-void-v7-protected-substrate-candidate-lock-v1.json"
 LOCK_BLOB = "831f6e3f79a62a334662cebc6d2c39133bc7a309"
 LOCK_ID = "voidv7substratelock1_6014a83805170202a6117b6004b94e1daddb2dd9123c17802002e72c8002a649"
 MATERIALIZER_REL = "scripts/materialize_buy_void_v7_protected_substrate_v2.py"
-MATERIALIZER_BLOB = "e31a97227abaa27b18fc1be321b83f35b707cb90"
+MATERIALIZER_BLOB = "474614da950db72082fb95a5174405ce8caf2513"
 PREDECESSOR_INSTALLER_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v2.py"
 PREDECESSOR_INSTALLER_BLOB = "aae2d1a011053ea0665bf07972d9670cca73f6da"
 QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py"
@@ -150,9 +150,9 @@ def verify_repository(expected_head: str) -> None:
     if git_text(ROOT, "status", "--porcelain=v1", "--untracked-files=all") != "":
         raise InstallError("checkout_not_clean")
     if not git_is_ancestor(ROOT, ACCEPTANCE_MERGE, expected_head):
-        raise InstallError("accepted_v1_merge_not_current_ancestor")
+        raise InstallError("accepted_v2_installer_merge_not_current_ancestor")
     if git_text(ROOT, "rev-parse", ACCEPTANCE_MERGE + "^{tree}") != ACCEPTANCE_TREE:
-        raise InstallError("accepted_v1_merge_tree_mismatch")
+        raise InstallError("accepted_v2_installer_merge_tree_mismatch")
     for rel, blob in {
         LOCK_REL: LOCK_BLOB, MATERIALIZER_REL: MATERIALIZER_BLOB,
         PREDECESSOR_INSTALLER_REL: PREDECESSOR_INSTALLER_BLOB, QUALIFIER_REL: QUALIFIER_BLOB,
@@ -338,8 +338,8 @@ def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expecte
     if not (source_exact and preentry_exact and selector_exact):
         ensure_stage_roots_absent()
     body = {
-        "schema": SCHEMA, "version": 2, "expected_head": expected_head,
-        "accepted_v1_merge": ACCEPTANCE_MERGE, "accepted_v1_tree": ACCEPTANCE_TREE, "accepted_lock_id": LOCK_ID,
+        "schema": SCHEMA, "version": 3, "expected_head": expected_head,
+        "accepted_v2_installer_merge": ACCEPTANCE_MERGE, "accepted_v2_installer_tree": ACCEPTANCE_TREE, "accepted_lock_id": LOCK_ID,
         "source_release": {"head": SOURCE_HEAD, "tree": SOURCE_TREE, "path": os.fspath(SOURCE_RELEASE),
                            "tree_digest": source_digest[0], "nodes": source_digest[1], "regular_file_bytes": source_digest[2]},
         "native_candidate": {"sha256": sha256_bytes(native_raw), "bytes": len(native_raw)},
@@ -490,7 +490,7 @@ def _publish_binary(stage: pathlib.Path, stage_name: str, target_name: str, file
     _create_binary_stage(stage, filename, raw, digest); _rename_noreplace(stage_name, target_name, stage, label)
 
 def source_plan() -> None:
-    print(MARKER); print("mode=source-plan"); print("source_only=true"); print("accepted_v1_merge=" + ACCEPTANCE_MERGE)
+    print(MARKER); print("mode=source-plan"); print("source_only=true"); print("accepted_v2_installer_merge=" + ACCEPTANCE_MERGE)
     print("accepted_v1_lock_id=" + LOCK_ID); print("accepted_v1_lock_install_authority=false")
     print("operation_bound_plan_id_required=true"); print("explicit_create_only_confirmation_required=true")
     print("resumable_exact_components=true"); print("mismatched_component_holds=true")
@@ -503,7 +503,7 @@ def source_plan() -> None:
 def self_test() -> None:
     assert SOURCE_TARGET == pathlib.Path("/opt/void-buy-void-v7-reviewed-v1")
     assert PREENTRY_TARGET.name == PREENTRY_NAME and SELECTOR_TARGET.name == SELECTOR_NAME
-    sample = {"schema": SCHEMA, "version": 2, "expected_head": "a" * 40}
+    sample = {"schema": SCHEMA, "version": 3, "expected_head": "a" * 40}
     pid = PLAN_PREFIX + sha256_bytes(canonical(sample))
     assert pid.startswith(PLAN_PREFIX) and len(pid) == len(PLAN_PREFIX) + 64
     assert getattr(ctypes.CDLL(None), "renameat2", None) is not None
@@ -531,7 +531,7 @@ def plan(native: pathlib.Path, selector: pathlib.Path, expected_head: str) -> No
     if all(state.values()):
         print("already_installed=true"); print("next_action=RUN_INSTALLED_QUALIFICATION_V2")
     else:
-        print("already_installed=false"); print("next_action=SEPARATELY_AUTHORIZE_V7_PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V2")
+        print("already_installed=false"); print("next_action=SEPARATELY_AUTHORIZE_V7_PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V3")
 
 def apply(native: pathlib.Path, selector: pathlib.Path, expected_head: str, expected_plan_id: str, confirm: str) -> None:
     if confirm != CONFIRM_TOKEN: raise InstallError("explicit_create_only_confirmation_required")
@@ -562,7 +562,7 @@ def apply(native: pathlib.Path, selector: pathlib.Path, expected_head: str, expe
         raise
     final = collect_plan(native, selector, expected_head)
     if not all(final["body"]["installed_state"].values()): raise InstallError("final_installed_state_not_exact")
-    print(MARKER); print("mode=apply"); print("status=PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V2_GREEN")
+    print(MARKER); print("mode=apply"); print("status=PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V3_GREEN")
     print("plan_id=" + expected_plan_id); print("published_components=" + ",".join(_PUBLISHED)); print("protected_install_performed=true")
     print("partial_publication_possible=true"); print("no_rollback_after_publication=true")
     print("service_mutation=false"); print("systemd_mutation=false"); print("credential_access=false"); print("private_key_access=false")

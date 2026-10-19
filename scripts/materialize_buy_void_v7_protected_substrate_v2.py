@@ -25,18 +25,21 @@ NATIVE_FLAGS=("-std=c11","-Wall","-Wextra","-Werror","-O2")
 MARKER="VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_MATERIALIZER_V2"
 class E(RuntimeError): pass
 def sha(p): return hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
+GIT_ENV={"PATH":"/usr/bin:/bin","HOME":"/nonexistent","LANG":"C","LC_ALL":"C","TZ":"UTC","GIT_CONFIG_NOSYSTEM":"1","GIT_CONFIG_GLOBAL":"/dev/null","GIT_CONFIG_SYSTEM":"/dev/null","GIT_NO_REPLACE_OBJECTS":"1","GIT_OPTIONAL_LOCKS":"0","GIT_TERMINAL_PROMPT":"0","GIT_ASKPASS":"/bin/false","GIT_NO_LAZY_FETCH":"1","GIT_PROTOCOL_FROM_USER":"0","GIT_ALLOW_PROTOCOL":"","GIT_PAGER":""}
 def git(*args):
- p=subprocess.run(["/usr/bin/git","-C",str(ROOT),*args],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,env={"PATH":"/usr/bin:/bin","HOME":"/nonexistent","LANG":"C","LC_ALL":"C","TZ":"UTC","GIT_CONFIG_NOSYSTEM":"1","GIT_CONFIG_GLOBAL":"/dev/null","GIT_CONFIG_SYSTEM":"/dev/null","GIT_NO_REPLACE_OBJECTS":"1","GIT_OPTIONAL_LOCKS":"0","GIT_TERMINAL_PROMPT":"0"},timeout=30)
- if p.returncode: raise E("git_failed:"+str(args[0]))
+ p=subprocess.run(["/usr/bin/git","-c","core.hooksPath=/dev/null","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","submodule.recurse=false","--no-replace-objects","-C",str(ROOT),*args],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,env=GIT_ENV,timeout=30)
+ if p.returncode or p.stderr!="": raise E("git_failed:"+str(args[0]))
  return p.stdout.strip()
+def ancestor(base,head):
+ p=subprocess.run(["/usr/bin/git","-c","core.hooksPath=/dev/null","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","submodule.recurse=false","--no-replace-objects","-C",str(ROOT),"merge-base","--is-ancestor",base,head],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=GIT_ENV,timeout=20)
+ if p.returncode not in (0,1) or p.stdout or p.stderr: raise E("git_ancestor_failed")
+ return p.returncode==0
 def verify():
  if git("branch","--show-current")!="main": raise E("main_required")
  head=git("rev-parse","HEAD")
- a=subprocess.run(["/usr/bin/git","-C",str(ROOT),"merge-base","--is-ancestor",ACCEPTED_SOURCE_HEAD,head],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
- if a.returncode: raise E("accepted_source_not_ancestor")
+ if not ancestor(ACCEPTED_SOURCE_HEAD,head): raise E("accepted_source_not_ancestor")
  if git("rev-parse",REPAIR_PARENT+"^{tree}")!=REPAIR_PARENT_TREE: raise E("repair_parent_tree_mismatch")
- b=subprocess.run(["/usr/bin/git","-C",str(ROOT),"merge-base","--is-ancestor",REPAIR_PARENT,head],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
- if b.returncode: raise E("repair_parent_not_current_ancestor")
+ if not ancestor(REPAIR_PARENT,head): raise E("repair_parent_not_current_ancestor")
  if git("rev-parse","HEAD:"+LOCK_REL)!=LOCK_GIT_BLOB: raise E("lock_blob_mismatch")
  if git("rev-parse","HEAD:"+V1_MATERIALIZER_REL)!=V1_MATERIALIZER_BLOB: raise E("historical_v1_materializer_blob_mismatch")
  lock=json.loads((ROOT/LOCK_REL).read_text())
@@ -78,6 +81,9 @@ def main():
   print("accepted_native_identity_preserved=true")
   print("historical_v1_materializer_preserved=true")
   print("historical_v1_materializer_install_authority=false")
+  print("git_callbacks_neutralized=true")
+  print("git_lazy_fetch_disabled=true")
+  print("git_transport_denied=true")
   print("protected_substrate_install_authorized=false")
   return
  if ns.source_plan:
@@ -100,6 +106,7 @@ def main():
  ns.derive.mkdir(mode=0o700,parents=True,exist_ok=False)
  one(SELECTOR_SOURCE_REL,SELECTOR_SHA256,SELECTOR_BYTES,"selector",ns.derive,build_selector,"VOID_BUY_VOID_V2_NATIVE_SELECTOR_GUARD_V1_SELF_TEST_GREEN")
  one(NATIVE_SOURCE_REL,NATIVE_SHA256,NATIVE_BYTES,"native-preentry",ns.derive,build_native,"VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1_SELF_TEST=GREEN")
+ verify()
  print(MARKER+"_DERIVE_GREEN")
  print("output="+str(ns.derive))
  print("selector_contract=SELECTOR_FLAGS_PLUS_STRIP")
