@@ -14,7 +14,7 @@ SOURCE = ROOT / "ops/xiphos/apollyon_training_start_release_releaser_integration
 TRAINER = ROOT / "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
 PIPE_PAIR = ROOT / "ops/xiphos/apollyon_release_pipe_pair_generation_v1.c"
 
-SOURCE_BLOB = "003087ec2124eea8df8f66b2b17d111fcf98c5d5"
+SOURCE_BLOB = "e1937de85d7090993332b2acff2debf11fe51ac1"
 TRAINER_BLOB = "265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36"
 PIPE_PAIR_BLOB = "93390eefd1e72e70af7206e9982c8eaa5e042149"
 
@@ -88,6 +88,12 @@ for required in (
     "__NR_execveat",
     "__NR_openat",
     "__NR_creat",
+    "__NR_io_uring_setup",
+    "__NR_io_uring_enter",
+    "__NR_io_uring_register",
+    "__NR_recvmsg",
+    "__NR_recvmmsg",
+    "required writer-continuity syscalls unavailable",
     "__NR_socket",
     "__NR_sendmsg",
     "__NR_pidfd_getfd",
@@ -219,6 +225,8 @@ with tempfile.TemporaryDirectory(
         "creat_procfd_reopen_blocked=true",
         "writer_cloexec_clear_ioctl_blocked=true",
         "releaser_exec_transition_blocked=true",
+        "io_uring_setup_enter_register_denied=true",
+        "scm_rights_receive_denied=true",
         "protected_releaser_origin_proven=false",
         "writer_exclusivity_host_proven=false",
         "trainer_release_authorized=false",
@@ -292,6 +300,8 @@ print("late_writer_escape_syscalls_blocked=true")
 print("creat_procfd_reopen_blocked=true")
 print("writer_cloexec_clear_ioctl_blocked=true")
 print("releaser_exec_transition_blocked=true")
+print("io_uring_setup_enter_register_denied=true")
+print("scm_rights_receive_denied=true")
 print("extra_releaser_thread_rejected=true")
 print("child_retained_writer_rejected=true")
 print("wrong_trainer_pipe_rejected=true")

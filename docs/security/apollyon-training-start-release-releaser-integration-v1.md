@@ -22,7 +22,8 @@ This gate closes the next bounded source gap with an actual hosted composition:
 7. it installs an irreversible seccomp writer-continuity filter;
 8. the filter blocks late task creation, FD duplication, proc/dev-fd reopen
    duplication, close-on-exec clearing, executable-image replacement,
-   socket creation/FD passing, pidfd_getfd and io_uring setup;
+   socket creation/FD passing or receipt, pidfd_getfd, and io_uring
+   setup/enter/register;
 9. the releaser writes the exact 64-byte frame and closes its sole writer;
 10. the actual #3381 trainer gate must observe the frame + EOF and exit zero.
 
@@ -79,9 +80,12 @@ The filter denies:
 - open / openat / openat2 plus the distinct creat syscall, preventing
   /proc/self/fd or /dev/fd reopen duplication through either interface;
 - socket / socketpair;
-- sendmsg / sendmmsg SCM_RIGHTS transfer;
+- sendmsg / sendmmsg SCM_RIGHTS transfer, plus recvmsg / recvmmsg
+  descriptor receipt through any inherited standard socket;
 - pidfd_getfd;
-- io_uring setup.
+- io_uring setup / enter / register. Blocking only new rings is insufficient:
+  an already inherited ring at fd 0/1/2 could submit async open requests
+  despite normal open/creat syscall-entry restrictions.
 
 The hosted fixture also separates **releaser proof time** from the trainer's
 one-second frame deadline. Before allowing the child to exec, the parent attaches
@@ -100,6 +104,10 @@ The releaser then proves representative late duplication/reopen/socket attempts,
 including a direct creat(2) reopen of the release writer through /proc/self/fd,
 an FIONCLEX attempt against the sole writer, and direct execve/execveat syscall
 attempts all return EPERM before it resumes the trainer and writes the frame.
+It additionally calls io_uring setup/enter/register and recvmsg/recvmmsg
+with deliberately invalid FDs after the filter installs. They must return
+EPERM *before* kernel FD validation. These are source/fixture adversaries,
+not installed Xiphos or actual inherited-ring authority evidence.
 
 ## Adversarial fixtures
 

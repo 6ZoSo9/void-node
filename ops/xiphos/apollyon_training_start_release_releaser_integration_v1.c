@@ -44,6 +44,12 @@
 #error "unsupported architecture"
 #endif
 
+#if !defined(__NR_io_uring_setup) || !defined(__NR_io_uring_enter) || \
+    !defined(__NR_io_uring_register) || !defined(__NR_recvmsg) || \
+    !defined(__NR_recvmmsg)
+#error "required writer-continuity syscalls unavailable"
+#endif
+
 struct linux_dirent64_local {
     uint64_t d_ino;
     int64_t d_off;
@@ -488,12 +494,28 @@ static int install_writer_continuity_filter(void) {
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_sendmmsg,0,1),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
 #endif
+#ifdef __NR_recvmsg
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_recvmsg,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+#endif
+#ifdef __NR_recvmmsg
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_recvmmsg,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+#endif
 #ifdef __NR_pidfd_getfd
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_pidfd_getfd,0,1),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
 #endif
 #ifdef __NR_io_uring_setup
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_io_uring_setup,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+#endif
+#ifdef __NR_io_uring_enter
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_io_uring_enter,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+#endif
+#ifdef __NR_io_uring_register
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_io_uring_register,0,1),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
 #endif
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ALLOW),
@@ -1041,6 +1063,33 @@ static int fixture_run(
         return 137;
     }
 
+    /* Filters must deny at syscall entry, even for invalid FDs/arguments.
+     * This also excludes inherited ring/socket use through standard FDs. */
+    errno=0;
+    if(syscall(__NR_io_uring_setup,1U,NULL)>=0 || errno!=EPERM) {
+        cleanup_child(child);
+        return 148;
+    }
+    errno=0;
+    if(syscall(__NR_io_uring_enter,-1,0U,0U,0U,NULL,0U)>=0 || errno!=EPERM) {
+        cleanup_child(child);
+        return 149;
+    }
+    errno=0;
+    if(syscall(__NR_io_uring_register,-1,0U,NULL,0U)>=0 || errno!=EPERM) {
+        cleanup_child(child);
+        return 150;
+    }
+    errno=0;
+    if(syscall(__NR_recvmsg,-1,&denied_message,0)>=0 || errno!=EPERM) {
+        cleanup_child(child);
+        return 151;
+    }
+    errno=0;
+    if(syscall(__NR_recvmmsg,-1,NULL,0U,0U,NULL)>=0 || errno!=EPERM) {
+        cleanup_child(child);
+        return 152;
+    }
     unsigned char frame[64];
     if(!decode_frame(frame_hex,frame)) {
         cleanup_child(child);
@@ -1087,6 +1136,8 @@ static int fixture_run(
     puts("creat_procfd_reopen_blocked=true");
     puts("writer_cloexec_clear_ioctl_blocked=true");
     puts("releaser_exec_transition_blocked=true");
+    puts("io_uring_setup_enter_register_denied=true");
+    puts("scm_rights_receive_denied=true");
     puts("exact_frame_written_and_sole_writer_closed=true");
     puts("trainer_gate_exit_zero=true");
     puts("protected_releaser_origin_proven=false");
@@ -1161,6 +1212,8 @@ int main(int argc,char **argv) {
     puts("creat_procfd_reopen_blocked=true");
     puts("writer_cloexec_clear_ioctl_blocked=true");
     puts("releaser_exec_transition_blocked=true");
+    puts("io_uring_setup_enter_register_denied=true");
+    puts("scm_rights_receive_denied=true");
     puts("protected_releaser_origin_proven=false");
     puts("writer_exclusivity_host_proven=false");
     puts("trainer_release_authorized=false");
