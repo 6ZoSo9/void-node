@@ -54,6 +54,7 @@ jobs:
           set -euo pipefail
 
           parent=9e1da5dbb1ae12114a26506fbf1c6bc56780b98f
+          # Fresh direct-base synchronize after stack flatten; require current #3351.
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
