@@ -63,6 +63,7 @@ for required in (
     'COMPAT_V3_BLOB = "' + COMPAT_BLOB + '"',
     '"current_source_head_runtime_observed_required": True',
     '"source_runtime_ancestry_bound_required": True',
+    '"source_runtime_actual_object_ancestry_required": True',
     '"tracked_source_checkout_exact_required": True',
     '"runtime_source_dependency_blob_equality_required": True',
 ):
@@ -94,7 +95,10 @@ for required in (
     "function validateSourceCompatibility(value,expectedHead){",
     "function requireSourceRuntimeCompatibility(expectedHead,gitFn=git){",
     'gitFn(["status","--porcelain=v1","--untracked-files=no"])',
-    'gitFn(["merge-base","--is-ancestor",RUNTIME_HEAD,sourceHead])',
+    "function requireActualObjectAncestry(sourceHead,gitFn=git){",
+    'gitFn(["cat-file","-t",oid])',
+    'gitFn(["cat-file","-p",oid])',
+    "source_runtime_actual_object_ancestry_not_found",
     "source_runtime_ancestry_bound:true",
     "source_runtime_dependency_blob_equality:true",
     "function qualificationClosure(expectedHead,gitObjectFn=gitObject){",
@@ -170,9 +174,12 @@ for mode in ("--self-test", "--plan"):
             "runtime_policy_head_preserved=true",
             "source_checkout_head_runtime_observed=true",
             "source_runtime_ancestry_required=true",
+            "source_runtime_actual_object_ancestry_required=true",
+            "source_runtime_actual_object_ancestry_required=true",
             "tracked_source_checkout_exact_required=true",
             "source_runtime_dependency_blob_equality_required=true",
             "source_runtime_complete_dependency_set_bound=true",
+    "source_runtime_graft_ancestry_rejected=true",
             "nested_source_runtime_dependency_drift_rejected=true",
             "authenticated_closure_synthetic_namespace=true",
             "authenticated_closure_namespace_absent_required=true",
@@ -248,6 +255,7 @@ assert rows["source_baseline_tree"] == "9e930fba9aacfafb5b163767302786cd7f31c81e
 assert rows["source_baseline_added_path_count"] == "15"
 assert rows["current_source_head_runtime_observed_required"] == "true"
 assert rows["source_runtime_ancestry_bound_required"] == "true"
+assert rows["source_runtime_actual_object_ancestry_required"] == "true"
 assert rows["tracked_source_checkout_exact_required"] == "true"
 assert rows["runtime_source_dependency_blob_equality_required"] == "true"
 assert rows["untracked_paths_source_authority"] == "false"
@@ -261,6 +269,7 @@ body = json.loads(rows["plan_body_json"])
 assert body["source_head_need_not_equal_runtime_policy_head"] is True
 assert body["current_source_head_runtime_observed_required"] is True
 assert body["source_runtime_ancestry_bound_required"] is True
+assert body["source_runtime_actual_object_ancestry_required"] is True
 assert body["tracked_source_checkout_exact_required"] is True
 assert body["runtime_source_dependency_blob_equality_required"] is True
 assert body["live_native_v3_binary_replacement_required_for_runner_compat"] is False
@@ -279,6 +288,8 @@ print("runner_single_head_seam_proven=true")
 print("runner_v4_runtime_observed_source_compat_source_green=true")
 print("runner_v4_fixed_current_source_head_absent=true")
 print("runner_v4_source_ancestry_bound=true")
+print("runner_v4_actual_object_ancestry_bound=true")
+print("runner_v4_graft_ancestry_rejected=true")
 print("runner_v4_source_snapshot_stable_across_sensitive_sequence=true")
 print("runner_v4_git_lazy_fetch_disabled=true")
 print("runner_v4_git_transport_disabled=true")
