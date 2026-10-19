@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-PARENT_HEAD = "8b8c128889276f942402928325b2342b24ca6b98"
+PARENT_HEAD = "2df0817b5fc3456c68f32063fb28dda5bdc8ec44"
 PROOF = "scripts/prove_apollyon_claim_protected_first_entry_v1.py"
 WORKFLOW = ".github/workflows/apollyon-claim-protected-first-entry-v1.yml"
 

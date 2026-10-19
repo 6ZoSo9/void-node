@@ -1242,7 +1242,7 @@ try {
 
 /**
  * Exercise the ACTUAL mounted Wave 3 Wallet HTTP adapter, not a handwritten
- * snapshot, with three independent malformed HTTP-200 upstream bodies.
+ * snapshot, with malformed, wrong-account, and missing-account HTTP-200 upstream bodies.
  * This mock HTTP app and its three fixed sources are fully in-process.
  */
 const oldMountedWalletApp = (globalThis as any).__void_http_app;
@@ -1257,18 +1257,20 @@ const validUpstream = (): Map<string, Record<string, unknown>> => new Map([
     "/__void/participant/wallet/status",
     {
       ok: true,
+      account: "account-A",
       has_wallet: true,
       unlocked: false,
       address: "0x" + "a".repeat(40),
       native_gas: "1",
     },
   ],
-  ["/wc/balance", { ok: true, balance: 3, count: 2 }],
+  ["/wc/balance", { ok: true, account: "account-A", balance: 3, count: 2 }],
   [
     "/wc/production/balance",
     {
       ok: true,
       marker: "VOID_WC_PRODUCTION_BALANCE_V1",
+      account: "account-A",
       balance: 1.5,
       count: 1,
       ledger_version: "v1",
@@ -1363,17 +1365,31 @@ try {
     return snapshot;
   };
 
-  const variants: Array<{
-    source: (typeof sourceKeys)[number];
-    route: string;
-    wrongField: string;
-    wrongValue: string;
-  }> = [
+  type MountedWalletAdversary =
+    | {
+        source: (typeof sourceKeys)[number];
+        route: string;
+        wrongField: string;
+        wrongValue: string;
+      }
+    | {
+        source: (typeof sourceKeys)[number];
+        route: string;
+        wrongField: string;
+        deleteField: true;
+      };
+  const variants: MountedWalletAdversary[] = [
     {
       source: "wallet_status",
       route: "/__void/participant/wallet/status",
       wrongField: "has_wallet",
       wrongValue: "yes",
+    },
+    {
+      source: "wallet_status",
+      route: "/__void/participant/wallet/status",
+      wrongField: "account",
+      wrongValue: "account-B",
     },
     {
       source: "ledger_wc",
@@ -1387,11 +1403,47 @@ try {
       wrongField: "count",
       wrongValue: "1",
     },
+    {
+      source: "ledger_wc",
+      route: "/wc/balance",
+      wrongField: "account",
+      wrongValue: "account-B",
+    },
+    {
+      source: "production_wc",
+      route: "/wc/production/balance",
+      wrongField: "account",
+      wrongValue: "account-B",
+    },
+    {
+      source: "wallet_status",
+      route: "/__void/participant/wallet/status",
+      wrongField: "account",
+      deleteField: true,
+    },
+    {
+      source: "ledger_wc",
+      route: "/wc/balance",
+      wrongField: "account",
+      deleteField: true,
+    },
+    {
+      source: "production_wc",
+      route: "/wc/production/balance",
+      wrongField: "account",
+      deleteField: true,
+    },
   ];
   for (const variant of variants) {
     upstreamBodies.clear();
     for (const [key, value] of validUpstream()) upstreamBodies.set(key, value);
-    upstreamBodies.get(variant.route)![variant.wrongField] = variant.wrongValue;
+    const upstreamBody = upstreamBodies.get(variant.route)!;
+    if ("deleteField" in variant) {
+      assert.equal(variant.deleteField, true);
+      delete upstreamBody[variant.wrongField];
+    } else {
+      upstreamBody[variant.wrongField] = variant.wrongValue;
+    }
 
     // Actual HTTP adapter must preserve transport HTTP 200 but reject exactly
     // one malformed semantic source. No synthetic snapshot toggles are used.
@@ -1413,6 +1465,7 @@ try {
     if (variant.source === "wallet_status") {
       assert.equal(snapshot.wallet.address, "");
       assert.equal(snapshot.wallet.native_gas_available, false);
+      assert.equal(snapshot.wallet.native_gas_display, "—");
       assert.equal(adapterNodes.get("[data-wallet-state-chip]")?.textContent,
         "Wallet status unavailable");
     } else {
@@ -1466,6 +1519,9 @@ for (const marker of [
   "export function walletAccountIdV1(raw: unknown): string | null",
   'if (typeof raw !== "string") return null;',
   "const account = walletAccountIdV1(req?.query?.account);",
+  "const walletAccountMatches = walletBody.account === account;",
+  "const ledgerAccountMatches = ledgerBody.account === account;",
+  "const productionAccountMatches = productionBody.account === account;",
 ]) {
   assert.ok(adapterSource.includes(marker), `missing Wallet adapter boundary: ${marker}`);
 }
@@ -1534,6 +1590,8 @@ for (const forbidden of [
 console.log("VOID_UI_WAVE3_WALLET_EVIDENCE_BOUNDARY_V1_GREEN");
 console.log("server_numeric_types_strict=true");
 console.log("server_account_query_type_strict=true");
+console.log("server_wallet_source_account_bound=true");
+console.log("server_wc_source_account_bound=true");
 console.log("server_response_stream_bounded=true");
 console.log("server_deadline_owns_body=true");
 console.log("server_redirects_rejected=true");
@@ -1548,6 +1606,7 @@ console.log("browser_available_evidence_source_bound=true");
 console.log("browser_native_gas_wallet_bound=true");
 console.log("browser_wallet_source_unavailable_truthful=true");
 console.log("wallet_actual_adapter_http200_invalid_body_isolated=true");
+console.log("wallet_actual_adapter_missing_account_rejected=true");
 console.log("wallet_actual_adapter_http200_valid_recovery=true");
 console.log("browser_wallet_stale_evidence_cleared=true");
 console.log("browser_wallet_invalid_input_supersedes_active_request=true");

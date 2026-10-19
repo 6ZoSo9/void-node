@@ -22,7 +22,34 @@ const drawers = {
   more: document.getElementById('mobile-more'),
   command: document.getElementById('command-menu'),
 };
+const commandSearch = document.getElementById('command-search');
+const commandResults = document.getElementById('command-results');
+const commandLinks = [...commandResults.querySelectorAll('a')];
+const commandEmpty = document.getElementById('command-empty');
 let lastFocused = null;
+
+function normalizeCommandQuery(value) {
+  return value.trim().toLowerCase();
+}
+
+function filterCommandResults() {
+  const query = normalizeCommandQuery(commandSearch.value);
+  let visibleCount = 0;
+
+  commandLinks.forEach((link) => {
+    const matches = !query || normalizeCommandQuery(link.textContent).includes(query);
+    link.hidden = !matches;
+    if (matches) visibleCount += 1;
+  });
+
+  commandEmpty.hidden = visibleCount !== 0;
+  return commandLinks.filter((link) => !link.hidden);
+}
+
+function resetCommandSearch() {
+  commandSearch.value = '';
+  filterCommandResults();
+}
 
 function currentRoute() {
   const value = location.hash.replace(/^#\/?/, '').split(/[?\/]/)[0];
@@ -85,6 +112,7 @@ function openLayer(name) {
   setModalBackgroundInert(true);
   document.body.style.overflow = 'hidden';
   const target = drawers[name];
+  if (name === 'command') resetCommandSearch();
   target.querySelector('button, input, a')?.focus();
 }
 
@@ -143,6 +171,16 @@ document.addEventListener('click', (event) => {
   if (action === 'open-network') location.hash = '#/network';
   if (action === 'open-account') toast('Account menu is a Wave 1 shell slot.');
   if (action === 'close-overlay') closeAll();
+});
+
+commandSearch.addEventListener('input', filterCommandResults);
+commandSearch.addEventListener('keydown', (event) => {
+  if (!['Enter', 'ArrowDown'].includes(event.key)) return;
+  const firstVisible = filterCommandResults()[0];
+  if (!firstVisible) return;
+  event.preventDefault();
+  if (event.key === 'Enter') firstVisible.click();
+  else firstVisible.focus();
 });
 
 overlay.addEventListener('click', () => closeAll());
