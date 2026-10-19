@@ -90,6 +90,16 @@ jobs:
                   'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
                   | LC_ALL=C sort > "$expected"
               fi
+              if [ "$PR_BASE" = "$fixture_scope_parent" ]; then
+                printf '%s\n' \
+                  '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
+                  '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
+                  '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+                  'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
+                  'ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                  'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                  | LC_ALL=C sort > "$expected"
+              fi
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- \
                 | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
