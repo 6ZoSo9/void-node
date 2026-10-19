@@ -1,0 +1,60 @@
+{
+  "accepted_source_generation": {
+    "branch": "main",
+    "head": "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb",
+    "tree": "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
+  },
+  "candidate_packet_identity_accepted": true,
+  "credential_access_authorized": false,
+  "funds_movement_authorized": false,
+  "installed_qualification_authority": false,
+  "launcher_body": {
+    "bytes": 11979,
+    "git_blob_sha1": "ef0dc3b74e850d84569aab2ed2156b5cafdfeac4",
+    "sha256": "f2f864fc6e4f95c2cc7b258d68ecbeb95e7c006ead3951cbca39e0b3bbe37346"
+  },
+  "lock_id": "voidv7substratelock1_6014a83805170202a6117b6004b94e1daddb2dd9123c17802002e72c8002a649",
+  "marker": "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_CANDIDATE_LOCK_V1",
+  "materializer_source_authorized_for_review": true,
+  "native_preentry": {
+    "binary_bytes": 21600,
+    "binary_identity_accepted": true,
+    "binary_sha256": "8ce663ff7e3713fc6bf615dd743350be9e50dff729fdb3d609b065b158397851",
+    "self_test_green": true,
+    "source_git_blob_sha1": "14fbb6759589ca2719da6a52d058891d987b2db9",
+    "two_builds_byte_identical": true
+  },
+  "native_preentry_binary_identity_accepted": true,
+  "next_gate": "void_buy_void_v7_protected_substrate_materializer_v1",
+  "payment_acceptance_authorized": false,
+  "private_key_access_authorized": false,
+  "protected_installer_apply_authorized": false,
+  "protected_source_generation_bound": true,
+  "protected_substrate_install_authorized": false,
+  "provider_rpc_contact_authorized": false,
+  "public_presale_activation_authorized": false,
+  "receipt_publication_authorized": false,
+  "repository": "6ZoSo9/void-node",
+  "schema": "void_buy_void_v7_protected_substrate_candidate_lock_v1",
+  "selector": {
+    "accepted_selector_lock_id": "voidbsv2elflock1_048564b0a351a5ba3b9f980962d9261fa14a49823b5075ca4794bbeefecbb232",
+    "binary_bytes": 26680,
+    "binary_identity_accepted": true,
+    "binary_sha256": "048564b0a351a5ba3b9f980962d9261fa14a49823b5075ca4794bbeefecbb232",
+    "source_git_blob_sha1": "b7aad6ecea7afa5b7f931b50b4b463e992b19748"
+  },
+  "selector_binary_identity_accepted": true,
+  "signing_authorized": false,
+  "toolchain": {
+    "cc_sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+    "strip_sha256": "0d980587ada7ab12193f39271f060d5663aa2f289b0e80d2a0274ce7306e4e42"
+  },
+  "transaction_authorized": false,
+  "upstream_acceptance_candidate": {
+    "candidate_lock_id": "voidv7substratecand1_61cf1ffe7d7594b8157c2920d09c925ddbc1842bd99d3f9da112e04f453340a2",
+    "materializer_plan_sha256": "e38d5ffeb92c2b283944b25df4af153a47806d9cb7dc0c7e61e483beece8b669",
+    "packet_sha256": "32a57b4d3755db21d315ab2b8ac42288e3f37ed86e97d19f2264fbf67d6d4618"
+  },
+  "version": 1,
+  "wc_void_market_activation_authorized": false
+}
