@@ -500,12 +500,20 @@ function readRecordAt(dirFd,leaf,uid,gid,mode,code,options={}){
   },cleanups,"apollyon_claim_store_impl_v2_descriptor_cleanup_failed");
 }
 function validateStoreGenerationRecordV2(input){
-  const value=clonePlain(input,"apollyon_claim_store_impl_v2_generation_invalid");
-  exactOwnKeys(
-    value,
-    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,
-    "apollyon_claim_store_impl_v2_generation_invalid",
+  const code="apollyon_claim_store_impl_v2_generation_invalid";
+  // Caller-origin generation evidence must be inert before any cloning, coercion,
+  // store lease, or descriptor access. structuredClone invokes own JS getters.
+  const value=exactDataInput(
+    input,VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,code,
   );
+  for(const key of VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2){
+    const field=value[key];
+    if(
+      (field!==null&&typeof field!=="string"&&typeof field!=="number"&&
+       typeof field!=="boolean")||
+      (typeof field==="string"&&(field.length<1||field.length>256))
+    )fail(code);
+  }
   const policy=qualifyApollyonDurableAttemptClaimStorePolicyV2();
   if(
     value.marker!=="VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_V2"||
