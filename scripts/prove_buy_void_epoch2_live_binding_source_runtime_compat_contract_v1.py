@@ -27,7 +27,7 @@ LOCK_V6 = ROOT / "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
 PARSER_V4 = ROOT / "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
 
 EXPECTED = {
-    COMPAT: "f9e3b1f5501a56e7ce1a191f12507186e79c28d4",
+    COMPAT: "5c24b4a807c9d01ca357372aca042bb8d81b6b92",
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
