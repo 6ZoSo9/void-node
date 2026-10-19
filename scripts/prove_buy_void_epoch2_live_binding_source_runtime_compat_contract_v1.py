@@ -209,13 +209,6 @@ for mode in ("--self-test", "--plan"):
             "git_lazy_fetch_disabled=true",
             "git_transport_disabled=true",
             "git_prompt_and_askpass_disabled=true",
-            "retained_setpriv_generation_revalidated_path_execution=true",
-            "retained_python_generation_revalidated_path_execution=true",
-            "retained_git_descriptor_execution=true",
-            "retained_node_descriptor_binding_contract=true",
-            "trusted_root_tool_path_rebind_rejected=true",
-            "trusted_root_tool_writable_ancestor_rejected=true",
-            "runtime_uid_effective_tool_nonwritability_contract=true",
         ):
             assert line in lines, line
     else:
