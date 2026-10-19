@@ -22,15 +22,15 @@ V6R2_LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-l
 
 MARKER="VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3"
 LOCK_PREFIX="voidbuye2runnerpollock6r3_"
-LOCK_ID="voidbuye2runnerpollock6r3_ee585a52fc383c31c6f61d9d43fa88e7ef97824d86c5e896e143ec91cf7a3ade"
+LOCK_ID="voidbuye2runnerpollock6r3_decff2ebef64d6e8eb332a1ff5d363906c08322c8949bff9e9abdce48088522d"
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d"
 RUNNER_BLOB="7967778824f22baca976a59df75f9f808ebebfe2"
 RUNNER_SHA256="a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029"
 RUNNER_BYTES=64960
 CANDIDATE_BLOB="c462fb935f086dbc0b67305d5efacb5a06fbd9c9"
 CANDIDATE_WORKFLOW_BLOB="d289636b0e7cfe4a0bff44ead7d8642682fc09c6"
-COMPAT_CONTRACT_BLOB="cb82a71cf83348f3709719cb1c8b44f3f687eabb"
-COMPAT_PROOF_BLOB="1fb858fe995e0b73d676f3db271ca714d59988cf"
+COMPAT_CONTRACT_BLOB="f37fcd41bbb7efa057b66c3a7ad46d36f2d6e9ae"
+COMPAT_PROOF_BLOB="65c72cd077ee413a6c7f4aa2b7b4aeb4dd5aa51a"
 COMPAT_WORKFLOW_BLOB="88d4fcbedfdccb6e33ea733beb2033571e45f876"
 V6R2_LOCK_BLOB="bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 NATIVE_SHA256="85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8"
@@ -81,18 +81,18 @@ lock=json.loads(exact_file(LOCK,256*1024))
 assert lock["schema"]=="void_buy_void_epoch2_live_composition_runner_policy_candidate_lock_v6r3"
 assert lock["marker"]==MARKER
 assert lock["version"]==3
-assert lock["candidate_head"]=="464391674f58fb8fb6d61860bce1f2e794a35a29"
+assert lock["candidate_head"]=="95feac7bf64a92a891640d80d7a2eed0fdb4cb49"
 assert lock["compatibility_hosted_evidence"]=={
     "workflow":"Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1",
-    "run_id":39292627615,
-    "job_id":118196911620,
+    "run_id":39302930907,
+    "job_id":118232536377,
     "conclusion":"success",
 }
 assert lock["candidate_hosted_evidence"]=={
     "workflow":"Buy VOID Epoch-2 live-composition runner policy candidate V6R3",
-    "run_id":39292626619,
-    "job_id":118196908327,
-    "identity_job_id":118199376688,
+    "run_id":39302929811,
+    "job_id":118232533789,
+    "identity_job_id":118233036839,
     "conclusion":"success",
 }
 r=lock["candidate_report"]
@@ -135,6 +135,7 @@ assert lock["superseded_lock_ids"]==[
     "voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202",
     "voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67",
     "voidbuye2runnerpollock6r3_261c86ebce21170cf95479f7817e8a5689cb8438286a189bb239019a035adb5e",
+    "voidbuye2runnerpollock6r3_ee585a52fc383c31c6f61d9d43fa88e7ef97824d86c5e896e143ec91cf7a3ade",
 ]
 assert lock["superseded_install_authority"] is False
 for key in (
