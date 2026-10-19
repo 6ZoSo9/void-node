@@ -85,14 +85,14 @@ jobs:
           EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c
+          parent=e357073c5d7932f924c077a73349e9050dfb78eb
           test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
           git merge-base --is-ancestor "$parent" "$EXACT_HEAD"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = 7462e0e90fa8ec068bd82039c9c07a3359c0d6de
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = 688cc664efe03ac634c1d182bed976c1ed3e0421
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = c4b477f769a11a54a3c2ff5d37365b8faafc47fa
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml)" = 4e116366ddf60539a77ef7bac5a913e9b5458055
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml)" = 1a190897286c617d807ff4c8f6bb27cbfe41d7b0
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = 5d116c59ef905789aa9498275353c5bc493949f6
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = f4007803bea7ddc029e04390c594f0827e8eeb3f
@@ -101,7 +101,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 99a1823f4b8349b6f65f210c59e1dbce4a4578f0
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 2f518fb95e4fc6ff55a4a41d60f085a5f9576b60
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = d3c27cbf63249695d45e47b3dc0ff98f75a961bb
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = e4251199373f4290b873d818b5a07447232eb663
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = 02a4825ef3d58bb41e7ceb9692f820ae5da83ef3
 
           case "$EVENT_NAME" in
             pull_request)
@@ -110,14 +110,18 @@ jobs:
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
               printf '%s\n' \
-                '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
+                '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
                 '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
-                'docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+                '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
+                'docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
                 'docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
-                'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                'docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+                'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
                 'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
-                'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
                 'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+                'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
                 | LC_ALL=C sort > "$expected"
               git diff --no-renames --name-only "$base" "$EXACT_HEAD" -- | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
