@@ -394,6 +394,119 @@ for(const method of ["classify","publish"]){
   }
 }
 
+// Terminal-success cleanup must classify owned-directory uncertainty rather
+// than leaking a raw close error after a valid classification or durable create.
+for(const method of ["classify","publish"]){
+  const root=newRoot();
+  const fd=openRoot(root);
+  const final=path.join(root,leaf1);
+  if(method==="classify"){
+    fs.writeFileSync(final,canonicalBytes(record1),{mode:0o600});
+    fs.chmodSync(final,0o600);
+  }
+  const beforeFds=fs.readdirSync("/proc/self/fd").sort();
+  const originalOpen=fs.openSync;
+  const originalClose=fs.closeSync;
+  const directoryPath="/proc/self/fd/"+String(fd);
+  let ownedFd=-1;
+  let ownedCloseAttempts=0;
+  fs.openSync=function observedOpen(target,flags,...args){
+    const opened=originalOpen.call(fs,target,flags,...args);
+    if(String(target)===directoryPath&&typeof flags==="number"&&
+       (flags&Number(fs.constants.O_DIRECTORY||0))!==0){
+      ownedFd=opened;
+    }
+    return opened;
+  };
+  fs.closeSync=function injectedOwnedTerminalClose(target){
+    if(target===ownedFd){
+      ownedCloseAttempts+=1;
+      const result=originalClose.call(fs,target);
+      const fault=new Error("simulated EIO after real terminal owned-directory close");
+      fault.code="EIO";
+      throw fault;
+    }
+    return originalClose.call(fs,target);
+  };
+  try{
+    const run=method==="publish"
+      ?()=>publishApollyonTrainingStartConsumptionProtectedV1({
+        directory_fd:fd,consumption_record:record1,
+      })
+      :()=>classifyApollyonTrainingStartConsumptionProtectedSlotV1({
+        directory_fd:fd,expected_consumption_record:record1,
+      });
+    assert.throws(run,error=>{
+      assert.match(String(error.message),/owned_directory_close_uncertain/u);
+      assert.equal(error.cause?.code,"EIO");
+      return true;
+    });
+    assert.ok(ownedFd>=0);
+    assert.equal(ownedCloseAttempts,1);
+    assert.deepEqual(fs.readdirSync("/proc/self/fd").sort(),beforeFds);
+    assert.deepEqual(fs.readFileSync(final),canonicalBytes(record1));
+  }finally{
+    fs.openSync=originalOpen;
+    fs.closeSync=originalClose;
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+// A durable create followed by created-record close uncertainty must report the
+// exact ambiguous terminal state while leaving the one-time bytes durable.
+{
+  const root=newRoot();
+  const fd=openRoot(root);
+  const final=path.join(root,leaf1);
+  const beforeFds=fs.readdirSync("/proc/self/fd").sort();
+  const originalOpen=fs.openSync;
+  const originalClose=fs.closeSync;
+  let createdFd=-1;
+  let createdCloseAttempts=0;
+  fs.openSync=function observedCreate(target,flags,...args){
+    const opened=originalOpen.call(fs,target,flags,...args);
+    if(
+      String(target).endsWith("/"+leaf1)&&typeof flags==="number"&&
+      (flags&fs.constants.O_CREAT)!==0&&(flags&fs.constants.O_EXCL)!==0
+    ){
+      createdFd=opened;
+    }
+    return opened;
+  };
+  fs.closeSync=function injectedCreatedTerminalClose(target){
+    if(target===createdFd){
+      createdCloseAttempts+=1;
+      const result=originalClose.call(fs,target);
+      const fault=new Error("simulated EIO after real created-record close");
+      fault.code="EIO";
+      throw fault;
+    }
+    return originalClose.call(fs,target);
+  };
+  try{
+    assert.throws(
+      ()=>publishApollyonTrainingStartConsumptionProtectedV1({
+        directory_fd:fd,consumption_record:record1,
+      }),
+      error=>{
+        assert.match(String(error.message),/created_record_close_uncertain/u);
+        assert.equal(error.cause?.code,"EIO");
+        return true;
+      },
+    );
+    assert.ok(createdFd>=0);
+    assert.equal(createdCloseAttempts,1);
+    assert.deepEqual(fs.readdirSync("/proc/self/fd").sort(),beforeFds);
+    assert.deepEqual(fs.readFileSync(final),canonicalBytes(record1));
+  }finally{
+    fs.openSync=originalOpen;
+    fs.closeSync=originalClose;
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
 // A failed data close must never prevent the retained O_PATH descriptor
 // from being closed. Inject EIO *after* a real close and require both closes.
 for(const scenario of [
@@ -954,6 +1067,8 @@ console.log("existing_slot_fifo_substitution_nonblocking=true");
 console.log("existing_slot_bounded_fd_read=true");
 console.log("existing_slot_growth_beyond_max_rejected=true");
 console.log("owned_directory_rejection_close_uncertainty_safe=true");
+console.log("terminal_owned_directory_close_uncertainty_safe=true");
+console.log("created_record_terminal_close_uncertainty_safe=true");
 console.log("existing_slot_dual_fd_close_fault_safe=true");
 console.log("existing_slot_visible_path_race_fixture_exercised=true");
 console.log("protected_consumption_store_origin_proven=false");
