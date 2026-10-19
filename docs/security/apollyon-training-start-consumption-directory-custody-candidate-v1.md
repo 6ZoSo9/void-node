@@ -107,9 +107,9 @@ those host checks and issues no ability to consume a training-start slot.
 Current dependencies pinned by the disposable proof:
 
 - protected writer Git blob:
-  `66b76ea9201f870672c0bc1c3df207b3c95cf68a`
+  `ee1570b561c6c78e114114d66cdbf190c58b091e`
 - fixed protected-store request Git blob:
-  `051209be6307f9b0784aa6c428f0c4d5b202b7f9`
+  `772c8f59bb75730651cb5579016904994b974c1f`
 
 No installed Xiphos state, service, private key, wallet, transaction,
 funds movement or trainer start is requested or permitted.
@@ -120,8 +120,8 @@ funds movement or trainer start is requested or permitted.
 ## Current close-hardened writer generation
 
 The fixture is now pinned to protected writer
-`66b76ea9201f870672c0bc1c3df207b3c95cf68a` and revalidation-request source
-`051209be6307f9b0784aa6c428f0c4d5b202b7f9`.
+`ee1570b561c6c78e114114d66cdbf190c58b091e` and revalidation-request source
+`772c8f59bb75730651cb5579016904994b974c1f`.
 
 Those parent sources classify terminal created-record and owned-directory close
 uncertainty after a durable publication. This fixture still does not call the
