@@ -11,9 +11,9 @@ export const VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1 =
 export const APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1 = Object.freeze({
   parent_head:"81b553a0cd3ab5f75db3d282ffec6a0e536e2977",
   training_start_consumption_contract_head:
-    "fdf47e77cd12eee38efe741edb02fa2fd39135e2",
+    "bdadfcc6854d6f4e1804347e51b940e897a8da9f",
   training_start_consumption_contract_blob_sha1:
-    "60987b860fb7159d88f4f601b76878e7d8ccca92",
+    "42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3",
   training_start_consumption_contract_in_parent_lineage:false,
   training_start_consumption_integration_required:true,
   retired_v2_qualifier_blob_sha1:

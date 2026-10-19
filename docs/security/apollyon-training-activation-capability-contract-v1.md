@@ -10,8 +10,8 @@ Accepted #3480 leaves the supported Apollyon generation with no reviewed trainin
 
 A separate accepted Draft stack already defines the one-time training-start consumption authority:
 
-- PR #3333 exact head: fdf47e77cd12eee38efe741edb02fa2fd39135e2
-- exact consumption-contract source blob: 60987b860fb7159d88f4f601b76878e7d8ccca92
+- PR #3333 exact head: bdadfcc6854d6f4e1804347e51b940e897a8da9f
+- exact consumption-contract source blob: 42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3
 
 That contract owns the authorization-wide apollyon_training_start_slot_v1 namespace, the content-addressed blocked pre-training generation, create-once protected consumption, replay/collision/lost-ACK behavior, the exact apollyon_training_start_consumption_v1 record, and the release/no-retry boundary.
 
@@ -34,7 +34,7 @@ The #3333 source is not present in that parent lineage. This contract therefore 
 A later integration gate must bring the exact #3333 contract into the active stack or otherwise execute that exact reviewed source before any capability may be issued.
 
 Hosted CI does not assume the unrelated commit object happened to arrive with the parent checkout. It explicitly fetches the advertised active #3333 branch
-ren/apollyon-training-start-consumption-contract-v1-20261016, requires FETCH_HEAD to equal fdf47e77cd12eee38efe741edb02fa2fd39135e2, and then requires the consumption-contract path at that fetched head to equal blob 60987b860fb7159d88f4f601b76878e7d8ccca92. Branch deletion or force-push therefore fails closed instead of silently accepting another generation.
+ren/apollyon-training-start-consumption-contract-v1-20261016, requires FETCH_HEAD to equal bdadfcc6854d6f4e1804347e51b940e897a8da9f, and then requires the consumption-contract path at that fetched head to equal blob 42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3. Branch deletion or force-push therefore fails closed instead of silently accepting another generation.
 
 The current contract must not pretend that merely copying #3333 identifiers into a caller-supplied object proves their protected origin.
 

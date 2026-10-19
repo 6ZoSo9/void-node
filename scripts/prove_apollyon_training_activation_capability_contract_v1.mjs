@@ -22,8 +22,8 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
 const SOURCE_BLOB="b03a62fd2399908a0d2107e4263377279e62899e";
 const PARENT_HEAD="81b553a0cd3ab5f75db3d282ffec6a0e536e2977";
-const CONSUMPTION_HEAD="fdf47e77cd12eee38efe741edb02fa2fd39135e2";
-const CONSUMPTION_BLOB="60987b860fb7159d88f4f601b76878e7d8ccca92";
+const CONSUMPTION_HEAD="bdadfcc6854d6f4e1804347e51b940e897a8da9f";
+const CONSUMPTION_BLOB="42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3";
 
 function gitBlob(bytes){
   return crypto.createHash("sha1")
