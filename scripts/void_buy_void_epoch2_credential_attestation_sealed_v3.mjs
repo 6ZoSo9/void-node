@@ -791,7 +791,7 @@ function observationStable(before, after) {
   return Object.keys(before).length === Object.keys(after).length;
 }
 
-function openCredentialGeneration(directory) {
+function openCredentialGeneration(directory, options = {}) {
   let dirFd = -1;
   let keyFd = -1;
   let scratch = null;
@@ -809,8 +809,14 @@ function openCredentialGeneration(directory) {
     }
     const uid = BigInt(process.getuid());
     const noFollow = fs.constants.O_NOFOLLOW;
+    const nonBlock = fs.constants.O_NONBLOCK;
     const directoryFlag = fs.constants.O_DIRECTORY;
+    const beforeKeyOpen = options?.beforeKeyOpen;
+    if (beforeKeyOpen !== undefined && typeof beforeKeyOpen !== "function") {
+      throw new Error("epoch2_sealed_credential_test_hook_invalid");
+    }
     if (!Number.isInteger(noFollow) || noFollow === 0 ||
+        !Number.isInteger(nonBlock) || nonBlock === 0 ||
         !Number.isInteger(directoryFlag) || directoryFlag === 0 ||
         !fs.existsSync("/proc/self/fd")) {
       throw new Error("epoch2_sealed_fd_primitives_unavailable");
@@ -860,8 +866,17 @@ function openCredentialGeneration(directory) {
 
     const pinned =
       "/proc/self/fd/" + String(dirFd) + "/" + CREDENTIAL_ID;
-    keyFd = fs.openSync(pinned, fs.constants.O_RDONLY | noFollow);
+    if (beforeKeyOpen) {
+      beforeKeyOpen({ directory, visiblePath, pinned });
+    }
+    keyFd = fs.openSync(
+      pinned,
+      fs.constants.O_RDONLY | noFollow | nonBlock,
+    );
     const openedKey = fs.fstatSync(keyFd, { bigint: true });
+    if (!openedKey.isFile() || openedKey.isSymbolicLink()) {
+      throw new Error("epoch2_sealed_credential_file_open_type_invalid");
+    }
     if (!statIdentitySame(beforeKey, openedKey)) {
       throw new Error("epoch2_sealed_credential_file_replaced");
     }
@@ -1207,7 +1222,48 @@ function buildChallenge(source, observation) {
   }
 }
 
+function credentialFifoRaceSelfTest() {
+  const fixture = fs.mkdtempSync(
+    "/tmp/void-sealed-v3-credential-fifo-race-",
+  );
+  const leaf = path.join(fixture, CREDENTIAL_ID);
+  let swapped = false;
+  let held = false;
+  try {
+    fs.writeFileSync(leaf, Buffer.from([0x31]), { mode: 0o600 });
+    try {
+      openCredentialGeneration(fixture, {
+        beforeKeyOpen: () => {
+          fs.unlinkSync(leaf);
+          execFileSync("mkfifo", [leaf], {
+            env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
+            stdio: ["ignore", "ignore", "pipe"],
+            timeout: 5_000,
+          });
+          fs.chmodSync(leaf, 0o600);
+          swapped = true;
+        },
+      });
+    } catch (error) {
+      held =
+        swapped &&
+        String(error?.message || "") ===
+          "epoch2_sealed_credential_file_open_type_invalid";
+    }
+  } finally {
+    try {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    } catch (cleanupError) {
+      void cleanupError;
+    }
+  }
+  if (!held) {
+    throw new Error("epoch2_sealed_credential_fifo_race_adversary_failed");
+  }
+}
+
 function trustedExecutableSelfTest() {
+  credentialFifoRaceSelfTest();
   const gitVersion = execTrustedExecutable(GIT_TOOL, ["--version"], {
     encoding: "utf8",
     timeout: 10_000,
@@ -1257,6 +1313,8 @@ function trustedExecutableSelfTest() {
   console.log("trusted_systemctl_retained_generation_revalidated_path_execution=true");
   console.log("trusted_executable_path_rebind_rejected=true");
   console.log("trusted_executable_writable_ancestor_rejected=true");
+  console.log("credential_regular_to_fifo_race_rejected=true");
+  console.log("credential_open_nonblocking_required=true");
   console.log("credential_content_read=false");
   console.log("signing_performed=false");
   console.log("transaction_constructed=false");
