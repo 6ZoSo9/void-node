@@ -221,4 +221,3 @@ and leave the process FD set unchanged.
 
 This remains source-only cleanup hardening and grants no protected-store,
 publication, trainer, training, credential, transaction, or funds authority.
-
