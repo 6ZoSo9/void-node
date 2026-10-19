@@ -13,11 +13,11 @@ TARGET=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_runner_policy_u
 LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json"
 RUNNER=ROOT/"ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 
-LOCK_ID="voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d"
-LOCK_BLOB="84aed3b9c1f0f3f540c7d12b4cc33d0c132a74f0"
-RUNNER_BLOB="62029fafa7073ab3768fec01f2147a7f4eefce2b"
-RUNNER_SHA256="0f87747439b82887033295cf04022c9a2a491c726f8d6acad8b0efc2e8dcdc71"
+LOCK_ID="voidbuye2runnerpollock6r3_261c86ebce21170cf95479f7817e8a5689cb8438286a189bb239019a035adb5e"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_9c00c1601412e8d3873c42c37000a6886580c992355822496eee57b55528f60b"
+LOCK_BLOB="a68f32c5abb3138a5b64503d9c4dbee9ded0425d"
+RUNNER_BLOB="8e3c588f9c7275dcb0e351d2785b5a923982f133"
+RUNNER_SHA256="730effadd9b95ec43d609759239ce43ab61e9e118c6c897cd0e13faa37a0e7f4"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 def git_blob(raw:bytes)->str:
@@ -37,10 +37,10 @@ for name in (
     assert any(isinstance(node,ast.FunctionDef) and node.name==name for node in tree.body),name
 
 for required in (
-    'LOCK_ID="voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67"',
-    'CANDIDATE_ID="voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d"',
+    'LOCK_ID="voidbuye2runnerpollock6r3_261c86ebce21170cf95479f7817e8a5689cb8438286a189bb239019a035adb5e"',
+    'CANDIDATE_ID="voidbuye2runnerpolcand6r3_9c00c1601412e8d3873c42c37000a6886580c992355822496eee57b55528f60b"',
     'RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
-    'NEW_RUNNER_SHA256="0f87747439b82887033295cf04022c9a2a491c726f8d6acad8b0efc2e8dcdc71"',
+    'NEW_RUNNER_SHA256="730effadd9b95ec43d609759239ce43ab61e9e118c6c897cd0e13faa37a0e7f4"',
     'PREDECESSOR_V6R2_ROOT=',
     '"full_root_stage_required":True',
     '"atomic_root_exchange_required":True',
