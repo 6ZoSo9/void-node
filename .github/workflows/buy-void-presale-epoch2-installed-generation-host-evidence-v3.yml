@@ -106,7 +106,7 @@ jobs:
           check_tree_entry scripts/prove_buy_void_v7_protected_substrate_source_proposal_v3.py 100755 568bd08c6c3a120864a6b4f69a8d5b5cb41f5f72
           check_tree_entry .github/workflows/buy-void-v7-protected-substrate-install-v2.yml 100644 f2bfa4df16c4c4a69be275dd504b7a458512e7db
           check_tree_entry docs/operators/buy-void-v7-protected-substrate-install-v2.md 100644 a6d81892b9493258e7c8f4aaf8ac4981955ec42a
-          check_tree_entry ops/precision/void_buy_void_v7_protected-substrate-install-v2.py 100755 aae2d1a011053ea0665bf07972d9670cca73f6da
+          check_tree_entry ops/precision/void_buy_void_v7_protected_substrate_install_v2.py 100755 aae2d1a011053ea0665bf07972d9670cca73f6da
           check_tree_entry scripts/prove_buy_void_v7_protected_substrate_install_v2.py 100755 7d09250dab932971e18171d667bfb98994e05e7e
 
           git diff --check "$EXPECTED_PARENT" "$EXPECTED_HEAD"
