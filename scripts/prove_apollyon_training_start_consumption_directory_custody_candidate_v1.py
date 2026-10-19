@@ -15,9 +15,9 @@ PINS = {
     "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py":
         "42408e7a65e3565a8a98cb4e23985c3ca76045bc",
     "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-        "66b76ea9201f870672c0bc1c3df207b3c95cf68a",
+        "ee1570b561c6c78e114114d66cdbf190c58b091e",
     "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-        "051209be6307f9b0784aa6c428f0c4d5b202b7f9",
+        "772c8f59bb75730651cb5579016904994b974c1f",
 }
 
 
