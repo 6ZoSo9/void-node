@@ -98,7 +98,7 @@ jobs:
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-v1.md)" = \
             73aa87efd722bb23188fd52ea49abe525f9ec59e
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_v1.py)" = \
-            a2bc0c031c82625d554c20572e279699cb0a07a4
+            8348bba0a6a8b6c30ffdcc3a12658f20e99b8592
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_no_exec_lock_v1.c)" = \
             475b0e06605a64ba885c027d2163e87ab0fa0cfa

@@ -24,7 +24,7 @@ PINNED = {
     "scripts/apollyon_claim_protected_first_entry_v1_selftest.c":
         "cd6d969cb9578ac32620be60822ff743803146ab",
     "docs/security/apollyon-claim-protected-first-entry-v1.md":
-        "c806bb973660be2cc5631fc18552944453d4cbc4",
+        "73aa87efd722bb23188fd52ea49abe525f9ec59e",
     "ops/xiphos/apollyon_claim_no_exec_lock_v1.c":
         "475b0e06605a64ba885c027d2163e87ab0fa0cfa",
     "ops/xiphos/apollyon_claim_no_exec_lock_v1.h":
