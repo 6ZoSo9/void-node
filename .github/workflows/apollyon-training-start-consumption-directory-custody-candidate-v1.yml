@@ -107,10 +107,10 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 42408e7a65e3565a8a98cb4e23985c3ca76045bc
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = e58d933ef767e2bfdf77217207f64084b705ecee
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 17b847c0ff586da2a0f9abfb05154b32aea9d574
-          test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 473b4148e6bcb755bb8bf7c6af890150a9f43efe
-          test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = be9347a157c7e220aa65cf3dad1c8b7781904277
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 9f3f4c8c0350587c72be99f25703cce6eb9bac96
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = eca97a6b5d5b758ffa8263b3cb2dd73af9cc8608
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 66b76ea9201f870672c0bc1c3df207b3c95cf68a
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 3edccf081b85d5cf1b2ce84d53d046c82e447593
 
           git diff --check "$base" "$HEAD_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
