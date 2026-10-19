@@ -8,6 +8,9 @@ on:
       - "docs/security/apollyon-training-start-release-binding-v1.md"
       - ".github/workflows/apollyon-training-start-release-binding-v1.yml"
       - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "scripts/prove_apollyon_training_start_consumption_contract_v1.mjs"
+      - "docs/security/apollyon-training-start-consumption-contract-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-contract-v1.yml"
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
@@ -22,6 +25,9 @@ on:
       - "docs/security/apollyon-training-start-release-binding-v1.md"
       - ".github/workflows/apollyon-training-start-release-binding-v1.yml"
       - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "scripts/prove_apollyon_training_start_consumption_contract_v1.mjs"
+      - "docs/security/apollyon-training-start-consumption-contract-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-contract-v1.yml"
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
@@ -62,8 +68,22 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
           case "$EVENT_NAME" in
             pull_request)
-              test -n "$PR_BASE"
+              test "$PR_BASE" = "1b60642d980b76c13130d5124d83a22c2c01ec30"
               BASE="$PR_BASE"
+              expected="$RUNNER_TEMP/expected.txt"
+              actual="$RUNNER_TEMP/actual.txt"
+              printf '%s\n' \
+                '.github/workflows/apollyon-training-start-consumption-contract-v1.yml' \
+                '.github/workflows/apollyon-training-start-release-binding-v1.yml' \
+                'docs/security/apollyon-training-start-consumption-contract-v1.md' \
+                'docs/security/apollyon-training-start-release-binding-v1.md' \
+                'scripts/prove_apollyon_training_start_consumption_contract_v1.mjs' \
+                'scripts/prove_apollyon_training_start_release_binding_v1.mjs' \
+                'tools/apollyon-training-start-consumption-contract-v1.mjs' \
+                'tools/apollyon-training-start-release-binding-v1.mjs' \
+                | LC_ALL=C sort > "$expected"
+              git diff --no-renames --name-only "$BASE" "$HEAD" -- | LC_ALL=C sort > "$actual"
+              diff -u "$expected" "$actual"
               ;;
             push)
               test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"

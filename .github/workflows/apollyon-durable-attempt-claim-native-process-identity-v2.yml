@@ -75,8 +75,28 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
           case "$EVENT_NAME" in
             pull_request)
-              test -n "$PR_BASE"
+              test "$PR_BASE" = "8c890c9afff0d9b80f5c5788a4ed25c0394069ff"
               BASE="$PR_BASE"
+              expected="$RUNNER_TEMP/expected.txt"
+              actual="$RUNNER_TEMP/actual.txt"
+              printf '%s\n' \
+                '.github/workflows/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.yml' \
+                '.github/workflows/apollyon-durable-attempt-claim-native-peer-guard-v2.yml' \
+                '.github/workflows/apollyon-durable-attempt-claim-native-process-identity-v2.yml' \
+                'docs/security/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.md' \
+                'docs/security/apollyon-durable-attempt-claim-native-peer-guard-v2.md' \
+                'docs/security/apollyon-durable-attempt-claim-native-process-identity-v2.md' \
+                'ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c' \
+                'ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c' \
+                'ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h' \
+                'scripts/apollyon_durable_attempt_claim_native_process_identity_v2_selftest.c' \
+                'scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_integration_v2.mjs' \
+                'scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs' \
+                'scripts/prove_apollyon_durable_attempt_claim_native_process_identity_v2.mjs' \
+                'tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs' \
+                | LC_ALL=C sort > "$expected"
+              git diff --no-renames --name-only "$BASE" "$HEAD" -- | LC_ALL=C sort > "$actual"
+              diff -u "$expected" "$actual"
               ;;
             push)
               test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"
