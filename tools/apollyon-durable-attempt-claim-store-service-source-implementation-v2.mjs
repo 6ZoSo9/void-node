@@ -128,7 +128,6 @@ const O_CLOEXEC=fs.constants.O_CLOEXEC??0;
 const COPY_BYTES=Buffer.prototype.copy;
 const ALLOC_BYTES=Buffer.alloc;
 const APPLY=Reflect.apply;
-const PROMISE_THEN=Promise.prototype.then;
 const CLEANUP_RECORDS=new WeakMap();
 
 function storeError(code,cause){
@@ -143,12 +142,6 @@ function errorField(error,key){
   }
   const descriptor=Object.getOwnPropertyDescriptor(error,key);
   return descriptor&&Object.hasOwn(descriptor,"value")?descriptor.value:undefined;
-}
-function observeRejectedPromise(value,code){
-  if(!types.isPromise(value))return;
-  // Observe native rejection without dispatching a caller-supplied .then method.
-  try{APPLY(PROMISE_THEN,value,[undefined,()=>undefined]);}
-  catch(error){throw storeError(code,error);}
 }
 function withCleanup(operation,cleanups,code){
   let result,primaryError;
@@ -205,9 +198,8 @@ function validateTransactionLease(lease){
   const code="apollyon_claim_store_impl_v2_transaction_lease_invalid";
   if(!lease||typeof lease!=="object"||types.isProxy(lease))fail(code);
   if(types.isPromise(lease)){
-    observeRejectedPromise(
-      lease,"apollyon_claim_store_impl_v2_async_transaction_acquisition_forbidden"
-    );
+    // This API is synchronous. Do not observe a forbidden Promise: even
+    // intrinsic then/species handling can execute caller-controlled accessors.
     fail("apollyon_claim_store_impl_v2_async_transaction_acquisition_forbidden");
   }
   const proto=Object.getPrototypeOf(lease);
@@ -899,15 +891,13 @@ function callRevalidator(config,stage,context){
   let result;
   try{result=config.revalidate(stage,Object.freeze(structuredClone(context)));}
   catch(error){
-    throw new Error(
-      "apollyon_claim_store_impl_v2_revalidation_failed:"+stage+
-      ":"+String(error?.message||error)
-    );
+    // Preserve the thrown value only as Error.cause. Never read message,
+    // toString, Symbol.toPrimitive, or other caller-controlled properties.
+    throw storeError("apollyon_claim_store_impl_v2_revalidation_failed:"+stage,error);
   }
   if(types.isPromise(result)){
-    observeRejectedPromise(
-      result,"apollyon_claim_store_impl_v2_async_revalidator_forbidden",
-    );
+    // A Promise is forbidden by this synchronous boundary. Reject it by
+    // internal type only; do not attach handlers or trigger species lookup.
     fail("apollyon_claim_store_impl_v2_async_revalidator_forbidden");
   }
   return validateRevalidationReceipt(
@@ -1069,9 +1059,8 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
           throw storeError("apollyon_claim_store_impl_v2_transaction_release_failed",error);
         }
         if(result!==undefined){
-          observeRejectedPromise(
-            result,"apollyon_claim_store_impl_v2_transaction_release_result_invalid",
-          );
+          // Synchronous release must return undefined. Do not inspect or
+          // observe a returned Promise/thenable/value before rejecting it.
           fail("apollyon_claim_store_impl_v2_transaction_release_result_invalid");
         }
       },

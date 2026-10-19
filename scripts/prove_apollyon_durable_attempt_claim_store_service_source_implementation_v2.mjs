@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="6a6923c7dfa74db40a8c4eeb06e64a966d935265";
+const TARGET_BLOB="07013ab562c3e3cd7093d63f0a4507a6870d22b9";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
@@ -293,6 +293,9 @@ for(const forbidden of [
   "eth_send",
   "createPrivateKey",
   "production_claim_store_mutation_performed:true",
+  "PROMISE_THEN",
+  "observeRejectedPromise(",
+  "String(error?.message||error)",
   "production_durable_attempt_claim_performed:true",
   "attempt_claim_authorized:true",
   "training_execution_authorized:true",
@@ -1700,6 +1703,59 @@ for(const role of ["record","pending_record","stale_pending","rejected_directory
 }
 
 {
+  let promiseConstructorGetterCalls=0;
+  const f=fixture({returnRevalidation(stage,context){
+    const forbidden=Promise.resolve(revalidationReceipt(stage,context));
+    Object.defineProperty(forbidden,"constructor",{
+      configurable:false,
+      get(){
+        promiseConstructorGetterCalls+=1;
+        assert.fail("revalidator Promise constructor getter invoked");
+      },
+    });
+    return forbidden;
+  }});
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const before=storeSnapshot(f.root);
+    expectError(
+      ()=>f.core.publishClaim(publishInput(bundle,f.generation)),
+      "apollyon_claim_store_impl_v2_async_revalidator_forbidden",
+    );
+    assert.equal(promiseConstructorGetterCalls,0);
+    assert.equal(f.releaseCount(),1);
+    assert.deepEqual(storeSnapshot(f.root),before);
+  }finally{f.cleanup();}
+}
+
+{
+  let messageGetterCalls=0;
+  let coercionCalls=0;
+  const thrown=Object.create(null);
+  Object.defineProperty(thrown,"message",{
+    enumerable:true,
+    get(){messageGetterCalls+=1;assert.fail("thrown message getter invoked");},
+  });
+  Object.defineProperty(thrown,Symbol.toPrimitive,{
+    value(){coercionCalls+=1;assert.fail("thrown value coerced");},
+  });
+  const f=fixture({onRevalidate(){throw thrown;}});
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const before=storeSnapshot(f.root);
+    const error=expectError(
+      ()=>f.core.publishClaim(publishInput(bundle,f.generation)),
+      "apollyon_claim_store_impl_v2_revalidation_failed:before_slot_publication",
+    );
+    assert.equal(error.cause,thrown);
+    assert.equal(messageGetterCalls,0);
+    assert.equal(coercionCalls,0);
+    assert.equal(f.releaseCount(),1);
+    assert.deepEqual(storeSnapshot(f.root),before);
+  }finally{f.cleanup();}
+}
+
+{
   const f=fixture();
   try{
     expectError(
@@ -1728,37 +1784,31 @@ for(const role of ["record","pending_record","stale_pending","rejected_directory
 }
 
 {
-  const unhandled=[];
-  const observeUnhandled=reason=>{unhandled.push(reason);};
-  let callerThenReads=0;
-  process.on("unhandledRejection",observeUnhandled);
-  try{
-    for(const stage of ["acquisition","release"]){
-      const rejection=Promise.reject(new Error("fixture_unhandled_"+stage));
-      Object.defineProperty(rejection,"then",{
-        get(){callerThenReads+=1;assert.fail("caller Promise.then getter invoked");},
-      });
-      const f=fixture(stage==="acquisition"
-        ?{acquire:()=>rejection}
-        :{release:()=>rejection});
-      try{
-        const input=publishInput(requestBundle(claimRecord(f.generation)),f.generation);
-        expectError(
-          ()=>f.core.publishClaim(input),
-          stage==="acquisition"
-            ?"apollyon_claim_store_impl_v2_async_transaction_acquisition_forbidden"
-            :"apollyon_claim_store_impl_v2_transaction_cleanup_indeterminate",
-        );
-        if(stage==="acquisition")requireStoreUnchanged(f);
-        assert.equal(f.releaseCount(),stage==="acquisition"?0:1);
-        requireCoreUnusable(f,input);
-      }finally{f.cleanup();}
-    }
-    // Native rejection reporting happens before the next event-loop turn.
-    await new Promise(resolve=>setImmediate(resolve));
-    assert.deepEqual(unhandled,[],"rejected native capabilities must not escape as unhandled rejections");
-    assert.equal(callerThenReads,0);
-  }finally{process.off("unhandledRejection",observeUnhandled);}
+  let constructorGetterCalls=0;
+  for(const stage of ["acquisition","release"]){
+    const forbidden=Promise.resolve(stage);
+    Object.defineProperty(forbidden,"constructor",{
+      configurable:false,
+      get(){constructorGetterCalls+=1;assert.fail("Promise constructor getter invoked");},
+    });
+    const f=fixture(stage==="acquisition"
+      ?{acquire:()=>forbidden}
+      :{release:()=>forbidden});
+    try{
+      const input=publishInput(requestBundle(claimRecord(f.generation)),f.generation);
+      expectError(
+        ()=>f.core.publishClaim(input),
+        stage==="acquisition"
+          ?"apollyon_claim_store_impl_v2_async_transaction_acquisition_forbidden"
+          :"apollyon_claim_store_impl_v2_transaction_cleanup_indeterminate",
+      );
+      if(stage==="acquisition")requireStoreUnchanged(f);
+      assert.equal(f.releaseCount(),stage==="acquisition"?0:1);
+      requireCoreUnusable(f,input);
+    }finally{f.cleanup();}
+  }
+  assert.equal(constructorGetterCalls,0,
+    "forbidden transaction Promises are rejected without species/constructor access");
 }
 
 // Retained descriptors must remain attached to their visible namespace after
@@ -3037,7 +3087,9 @@ console.log("request_size_rejected_before_private_copy=true");
 console.log("operation_keyset_rejected_before_descriptor_capture=true");
 console.log("generation_nested_graph_rejected_before_clone=true");
 console.log("authorization_slot_nested_graph_rejected_before_clone=true");
-console.log("native_promise_rejections_handled_without_caller_then=true");
+console.log("forbidden_native_promises_rejected_without_observation=true");
+console.log("promise_constructor_getters_not_invoked=true");
+console.log("revalidator_thrown_values_not_stringified=true");
 console.log("generation_drift_before_mutation_rejected=true");
 console.log("orphan_claim_without_slot_rejected=true");
 console.log("async_revalidator_rejected_before_mutation=true");

@@ -1087,3 +1087,24 @@ perform signing, or move funds. Any actual authorizer still requires the
 independent protected origin/host composition gates and code review.
 
 **PROTECT THE CORE.**
+
+## Getter-free forbidden-Promise and thrown-value boundary (October 19, 2026)
+
+The reusable core is synchronous. A native Promise returned by transaction
+acquisition, transaction release, or the revalidator is therefore rejected
+without attempting to observe it. The core no longer invokes an intrinsic
+`Promise.prototype.then`, attaches a handler, performs species construction,
+or reads any Promise `constructor` property. This closes the case where a
+native Promise has a hostile own `constructor` accessor.
+
+A value thrown by the revalidator is also never formatted from caller
+properties. The core emits the fixed internal code
+`apollyon_claim_store_impl_v2_revalidation_failed:<stage>` and preserves the
+original thrown value only as `Error.cause`; it does not read `message`,
+coerce the object, or invoke `Symbol.toPrimitive`.
+
+Hosted regressions require zero Promise-constructor getter calls and zero
+thrown-value getter/coercion calls while the store remains unchanged and the
+transaction lease is released. These source defenses do not establish
+installed protected origin, privileged role admission, production claim
+publication, training, credentials, transactions, or funds authority.
