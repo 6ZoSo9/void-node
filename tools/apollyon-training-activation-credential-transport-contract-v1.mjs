@@ -8,7 +8,7 @@ export const VOID_APOLLYON_TRAINING_ACTIVATION_CREDENTIAL_TRANSPORT_CONTRACT_V1 
   "VOID_APOLLYON_TRAINING_ACTIVATION_CREDENTIAL_TRANSPORT_CONTRACT_V1";
 
 export const APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1=Object.freeze({
-  head:"e7f2456c2fc5ac5d6938bf5e475897ec6a06d5ae",
+  head:"25ccc3043c1039cc85b2829472d985e67b2eb47f",
   capability_contract_blob:"cdf72610b121ecb05edbcad89cdb6256ad1e4945",
   capability_credential_name:"apollyon-training-activation-v1",
   retired_activator_required:true,
