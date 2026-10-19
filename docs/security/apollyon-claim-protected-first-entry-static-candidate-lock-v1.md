@@ -215,4 +215,3 @@ retain descriptor-bound visible-file authentication.
 This distinction prevents a flattened CI workflow from being falsely presented
 as the workflow that produced the already-recorded historical artifact/report
 digests.
-
