@@ -437,6 +437,46 @@ try {
 }
 
 const realSpawnSync = childProcess.spawnSync;
+const retainedSmokeFlags =
+  fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK;
+const retainedSetprivFd = fs.openSync("/usr/bin/setpriv", retainedSmokeFlags);
+const retainedEchoFd = fs.openSync("/bin/echo", retainedSmokeFlags);
+try {
+  const retainedSmoke = Reflect.apply(realSpawnSync, childProcess, [
+    "/proc/self/fd/" + String(retainedSetprivFd),
+    [
+      "--no-new-privs",
+      "/proc/self/fd/4",
+      "retained-fd-smoke",
+    ],
+    {
+      cwd: "/",
+      encoding: "utf8",
+      env: {
+        PATH: "/usr/bin:/bin",
+        HOME: "/nonexistent",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+      stdio: ["ignore", "pipe", "pipe", retainedSetprivFd, retainedEchoFd],
+      timeout: 10_000,
+    },
+  ]) as Readonly<{
+    error?: Error;
+    status: number | null;
+    signal: NodeJS.Signals | null;
+    stdout: string;
+    stderr: string;
+  }>;
+  assert.equal(retainedSmoke.error, undefined);
+  assert.equal(retainedSmoke.signal, null);
+  assert.equal(retainedSmoke.status, 0);
+  assert.equal(retainedSmoke.stdout, "retained-fd-smoke\n");
+  assert.equal(retainedSmoke.stderr, "");
+} finally {
+  fs.closeSync(retainedEchoFd);
+  fs.closeSync(retainedSetprivFd);
+}
 const calls: SpawnCall[] = [];
 const fakeSpawnSync = ((...raw: unknown[]) => {
   calls.push(Object.freeze({ command: raw[0], args: raw[1], options: raw[2] }));
@@ -594,6 +634,7 @@ console.log("no_new_privileges_required=true");
 console.log("inheritable_permitted_effective_bounding_ambient_caps_cleared=true");
 console.log("setpriv_descriptor_execution_required=true");
 console.log("setpriv_parent_visible_fd_execution_required=true");
+console.log("retained_setpriv_target_fd_real_execution_green=true");
 console.log("systemctl_descriptor_execution_required=true");
 console.log("runtime_executable_acl_nonwritability_required=true");
 console.log("runtime_executable_acl_audit_uses_current_node_exe=true");
