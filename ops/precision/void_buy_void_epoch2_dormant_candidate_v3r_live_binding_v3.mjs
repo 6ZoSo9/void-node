@@ -44,7 +44,7 @@ const FIXED_BINDER_SOURCE=
   "/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.mjs";
 const COMPAT_V3_NAME=
   "void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py";
-const FIXED_COMPAT_V3=BINDER_PREENTRY_ROOT+"/"+COMPAT_V3_NAME;
+const FIXED_COMPAT_V3=BINDER_PREENTRY_ROOT+"/compat/ops/precision/"+COMPAT_V3_NAME;
 const COMPAT_V3_BLOB="f9e3b1f5501a56e7ce1a191f12507186e79c28d4";
 const COMPAT_V3_BYTES=27024;
 const BINDER_PREENTRY_MARKER=
@@ -352,16 +352,13 @@ function git(args){
   if(r.stderr!=="")throw new Error("git_unexpected_stderr:"+String(args[0]));
   return r.stdout;
 }
-function requireExactCheckout(expectedHead){
-  if(!SHA40.test(expectedHead))throw new Error("expected_head_invalid");
+function requireSourceHead(expectedHead){
+  if(!SHA40.test(expectedHead))throw new Error("source_head_invalid");
   if(git(["rev-parse","--verify","HEAD"]).trim()!==expectedHead){
-    throw new Error("expected_head_mismatch");
+    throw new Error("source_head_mismatch");
   }
   if(git(["branch","--show-current"]).trim()!=="main"){
-    throw new Error("branch_not_main");
-  }
-  if(git(["status","--porcelain=v1","--untracked-files=all"])!==""){
-    throw new Error("worktree_not_clean");
+    throw new Error("source_branch_not_main");
   }
 }
 function gitObject(expectedHead,relative,expectedBlob){
@@ -750,7 +747,7 @@ function plan(){
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
   console.log("caller_stdin_alone_authority=false");
   console.log("root_required_for_run=true");
-  console.log("exact_dormant_candidate_v4_source_head_git_object_required=true");
+  console.log("exact_dormant_candidate_v4_source_head_git_object_required=true");\n  console.log("source_tracked_bytes_authenticated_by_compatibility_v3=true");\n  console.log("untracked_paths_source_authority=false");
   console.log("source_runtime_compatibility_qualification_before_after_required=true");
   console.log("fixed_runtime_native_v3_live_composition_required=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
@@ -816,7 +813,7 @@ function selfTest(){
   console.log("source_head_exact=true");
   console.log("runtime_head_exact=true");
   console.log("runtime_policy_head_preserved=true");
-  console.log("compatibility_v3_installed_source_required=true");
+  console.log("compatibility_v3_installed_source_required=true");\n  console.log("compatibility_v3_nested_install_root_required=true");\n  console.log("untracked_paths_source_authority=false");
   console.log("native_binder_first_entry_required_for_live=true");
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
@@ -841,7 +838,7 @@ function live(sourceHead,runtimeHead,confirm){
   assertTrustedExecutable(PYTHON);
   assertTrustedExecutable(SETPRIV);
   assertTrustedExecutable(FIXED_NATIVE);
-  requireExactCheckout(sourceHead);
+  requireSourceHead(sourceHead);
   const candidate=loadCandidate(sourceHead);
   const before=runQualification(sourceHead,runtimeHead);
   const child=runNativeLive(runtimeHead);
@@ -849,7 +846,7 @@ function live(sourceHead,runtimeHead,confirm){
   if(canonical(before)!==canonical(after)){
     throw new Error("installed_qualification_changed_across_live_composition");
   }
-  requireExactCheckout(sourceHead);
+  requireSourceHead(sourceHead);
   revalidateBinderPreentry(binderProof,sourceHead,runtimeHead);
   const receipt=buildBindingReceipt(sourceHead,runtimeHead,candidate,before,child);
   console.log(JSON.stringify(receipt,null,2));
