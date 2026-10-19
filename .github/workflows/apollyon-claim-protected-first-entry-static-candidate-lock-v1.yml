@@ -79,7 +79,7 @@ jobs:
           set -euo pipefail
 
           accepted_parent=e357073c5d7932f924c077a73349e9050dfb78eb
-          review_base=2df0817b5fc3456c68f32063fb28dda5bdc8ec44
+          review_base=5b664b154e551f42446585c7dc7efa6ede778182
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$accepted_parent" "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$review_base" "$EXPECTED_HEAD"
@@ -139,7 +139,7 @@ jobs:
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = \
             d3c27cbf63249695d45e47b3dc0ff98f75a961bb
           test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = \
-            7cff2326c48190e79402590d708c3296b31892aa
+            523f340cff0a9b5d77a60559d55a13aae857a3a9
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
