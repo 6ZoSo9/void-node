@@ -109,3 +109,28 @@ a fixed current-source SHA. The historical candidate and lock remain explicitly
 superseded with no install authority.
 
 Acceptance still does **not** authorize protected installation or live execution.
+
+
+## Immutable-workflow provenance repair
+
+Current accepted generation after the repository Actions-reference guard repair:
+
+```text
+candidate_head=539075ad44f5fef150c7fbfdb4ca6e8115a7b682
+candidate_workflow_git_blob_sha1=0e2f3c7dbbebdaa6c7120699aad35890646dc954
+compatibility_run=39275749198
+compatibility_job=118139485564
+candidate_run=39275748113
+candidate_job=118139481605
+candidate_id=voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d
+lock_id=voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67
+```
+
+The candidate identity is unchanged because the candidate report does not derive
+authority from the workflow file. The acceptance lock changes because hosted
+provenance is explicitly bound to the immutable checkout-pinned workflow.
+
+The previous repaired lock
+`voidbuye2runnerpollock6r3_00b9bdf7...` is now also superseded and has no
+install authority. No protected install or live execution is authorized by this
+provenance repair.
