@@ -226,7 +226,7 @@ function trustedExecutable(candidate, leaf) {
 
 function execTrustedExecutable(tool, args, options = {}) {
   revalidateTrustedExecutable(tool);
-  const executable = "/proc/self/fd/" + String(tool.fd);
+  const executable = "/proc/" + String(process.pid) + "/fd/" + String(tool.fd);
   let result;
   try {
     result = execFileSync(executable, args, {
