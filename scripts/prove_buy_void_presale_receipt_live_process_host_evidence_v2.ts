@@ -28,7 +28,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TARGET_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts";
-const TARGET_BLOB = "f75120cedd8b599f1d371244664700c63215eb71";
+const TARGET_BLOB = "96b1ffafcc938619d36385111265177841555ec2";
 const PARENT_SOURCE_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
 const PARENT_PROOF_REL =
@@ -113,6 +113,8 @@ for (const [relative, expected] of Object.entries(PARENT_MODULE_GRAPH_PINS)) {
 assert.equal(MARKER, "VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2");
 assert.equal(SCHEMA, "void_buy_void_presale_receipt_live_process_host_evidence_v2");
 assert.equal(VERSION, 2);
+assert.equal(source.includes('mode: "strip"'), true, "portable_strip_mode_missing");
+assert.equal(source.includes('mode: "transform"'), false, "removed_transform_mode_reintroduced");
 assert.equal(PARENT_MARKER, "VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V1");
 assert.equal(PARENT_SCHEMA, "void_buy_void_presale_receipt_live_process_host_evidence_v1");
 assert.equal(
@@ -497,6 +499,7 @@ console.log("parent_v1_authenticated_module_graph_bound=true");
 console.log("parent_v1_module_graph_path_count=13");
 console.log("parent_v1_execution_from_authenticated_data_url=true");
 console.log("production_v1_module_graph_executed_in_ci=true");
+console.log("portable_erasable_typescript_strip_mode=true");
 console.log("parent_v1_path_import_performed=false");
 console.log("reviewed_source_open_nonblocking=true");
 console.log("executable_lease_open_nonblocking=true");
