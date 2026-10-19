@@ -169,4 +169,3 @@ adversaries before qualifying this pure request. This remains a source-only
 dependency rebind; protected-store origin, current winner/store/claim rereads,
 writer invocation authority, consumption publication and training remain
 false/unperformed.
-
