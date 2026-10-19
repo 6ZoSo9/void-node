@@ -46,7 +46,7 @@ const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
 const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
 const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
 const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
-const SEALED_BLOB="6eaf10258e9e84a8835afb70758d24bd9982d56b";
+const SEALED_BLOB="411272e54ab8599213c29d550fe55e1823da0c8b";
 const SEALED_RUNTIME_PREDECESSOR_BLOB=
   "14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
@@ -420,7 +420,7 @@ function openRootExecutionTools(options={}){
   }catch(error){
     for(const tool of [nodeTool,gitTool,python,setpriv]){
       if(tool!==null){
-        try{closeRetainedTrustedExecutable(tool);}catch{}
+        try{closeRetainedTrustedExecutable(tool);}catch(closeError){void closeError;}
       }
     }
     throw error;
