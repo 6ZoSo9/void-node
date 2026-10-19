@@ -23,13 +23,20 @@ the historical #3535 compatibility V3 source.
 
 ## Runtime/current-source split
 
-Runtime policy authority remains:
+Runtime policy authority remains anchored to:
 
 ```text
 runtime_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
 runtime_tree=de12c9d2d5e475d435d21da3b047d7b63b69e2b7
-runtime_policy_sha256=746cfbe2f031868fff3a75f8307986f25c62460085f41a4827e712702a2d6549
+runner_v4_sha256=c5976f6b96a5c29807fb188d0ede4f0fe812512f199a083272df2e1a7acb4953
 ```
+
+The **policy SHA-256 is not a source constant** in V4. #3546 derives the final policy
+from the protected host's exact Node executable identity plus runtime head and Runner V4
+identity. The existing V3 native first-entry authenticates that installed policy before
+dispatching Runner V4, and the child receipt must report `native_preentry_policy_bound=true`.
+The Binder therefore records policy authority through the authenticated child rather than
+reusing the predecessor policy hash.
 
 Current source is observed at live execution from the canonical checkout. The binder
 requires:
@@ -84,15 +91,17 @@ Binder V4 then:
 
 The installed native/Runner V4 receipt is runtime evidence. Current-source compatibility is
 a separate proof, and the two are cross-bound by the child's observed source HEAD/tree.
-A Runner V3 receipt is rejected. V4 does not revive or reinterpret historical compatibility V3 output.
+A Runner V3 receipt is rejected. The Binder does not restate historical V6R2/predecessor
+generation claims that Runner V4 does not expose. V4 does not revive or reinterpret
+historical compatibility V3 output.
 
 ## Exact source identities
 
 ```text
-binder_git_blob=c15ad6eb1b8d70e3df5fd802d4de4443f9566ada
-binder_sha256=a35c76d19a92a2d5625b4c67b9235c2972b68f43083297c221fe73b6117b8187
-binder_bytes=43225
-native_preentry_git_blob=c89955b821f2cce97289c92acbb31160a32d0b5d
+binder_git_blob=e93f917307ff12350a34395c6f87307232886ff9
+binder_sha256=4c0f505403ca6cb0a788726d8daa1853acb39f13c1eb1c4943cc299bc8080dd5
+binder_bytes=43375
+native_preentry_git_blob=026c59a1d7c389bcdf1a552de4828b7c1764743b
 dormant_candidate_git_blob=e569c9211e01f14c7c00dd1c5041d4dfb0817609
 runtime_dependency_count=9
 ```
