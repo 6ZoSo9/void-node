@@ -28,6 +28,10 @@ for required in (
     "RENAME_EXCHANGE=2",
     "plan_changed_at_publication_boundary",
     "automatic_rollback_attempted=",
+    "publication_state=",
+    "published_rolled_back_green",
+    "published_needs_inspection",
+    "trusted_fixed_executable_allow_symlink",
     "predecessor_v6r2_retained=true",
     "runner_execution=false",
     "credential_access=false",
@@ -74,6 +78,9 @@ print("exact_runner_blob_bound=true")
 print("atomic_root_exchange_primitive_bound=true")
 print("predecessor_v6r2_retention_bound=true")
 print("automatic_rollback_path_present=true")
+print("publication_aware_failure_truth=true")
+print("python_fixed_symlink_policy_bound=true")
+print("generic_exception_hold_normalization=true")
 print("operation_bound_plan_id_required=true")
 print("explicit_confirmation_required=true")
 print("source_modes_nonmutating=true")
