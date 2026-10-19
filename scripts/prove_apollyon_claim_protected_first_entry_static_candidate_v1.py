@@ -9,7 +9,7 @@ import types
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "2ff81973b10c176523b0bf172a14fe1495a83986"
+TARGET_BLOB = "99a1823f4b8349b6f65f210c59e1dbce4a4578f0"
 FIXED_SELF = (
     "/opt/void-apollyon-claim-protected-first-entry-v1/bin/"
     "apollyon_claim_protected_first_entry_v1"
@@ -152,8 +152,8 @@ expect_rejected(
 
 source = TARGET.read_text(encoding="utf-8")
 for required in (
-    'PARENT_HEAD = "a149fe2fbac4cb8bb11ed049dfb12a1d0110bfae"',
-    'PREDECESSOR_PROOF_BLOB = "598c195252a17b7e4839763387c1970ea13c3b45"',
+    'PARENT_HEAD = "e357073c5d7932f924c077a73349e9050dfb78eb"',
+    'PREDECESSOR_PROOF_BLOB = "8348bba0a6a8b6c30ffdcc3a12658f20e99b8592"',
     '"-static"',
     '"-no-pie"',
     '"-Wl,--build-id=none"',
