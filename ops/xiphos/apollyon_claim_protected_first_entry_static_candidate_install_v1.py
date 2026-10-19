@@ -36,9 +36,9 @@ from typing import Any
 
 MARKER = "VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1"
 ROOT = Path(__file__).resolve().parents[2]
-PARENT_HEAD = "34bcf8ae71bdae6b64b0475776fd0910b212bb48"
+PARENT_HEAD = "2367e6d8fd67faaae70827edddacb75d524e1db5"
 PARENT_REL = "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
-PARENT_BLOB = "7462e0e90fa8ec068bd82039c9c07a3359c0d6de"
+PARENT_BLOB = "8eab5515fbe844e930aed97db4195b8ef86c42ef"
 ACCEPTED_CANDIDATE_HEAD = "bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c"
 ACCEPTED_BINARY = "apollyon-claim-protected-first-entry-static-v1"
 ACCEPTED_INSTALL_LEAF = (
