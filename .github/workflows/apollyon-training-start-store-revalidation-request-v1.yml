@@ -99,7 +99,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "caf363e7ab1e7de21f6ba44e4eaa8c7cdb5980e1"
+              { test "$PR_BASE" = "caf363e7ab1e7de21f6ba44e4eaa8c7cdb5980e1" || \
+                test "$PR_BASE" = "8ff987b7fe14630107a0a32a1d0831d271a78330"; }
               BASE="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
@@ -117,6 +118,16 @@ jobs:
                 'ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
                 'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
                 | LC_ALL=C sort > "$expected"
+              if [ "$PR_BASE" = "8ff987b7fe14630107a0a32a1d0831d271a78330" ]; then
+                printf '%s\n' \
+                  '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
+                  '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
+                  '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+                  'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
+                  'ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                  'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                  | LC_ALL=C sort > "$expected"
+              fi
               git diff --no-renames --name-only "$BASE" "$HEAD" -- | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
               ;;
