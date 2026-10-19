@@ -154,3 +154,28 @@ canonical #3333 record and exact one-attempt semantics are unchanged.
 This child does not select/prove the protected Xiphos directory capability;
 that remains a separate privileged host gate. No service, training, credential,
 key, wallet or funds authority is gained. **PROTECT THE CORE.**
+
+## October 19 — existing-slot held-inode and bounded-read repair
+
+The existing-slot classification path now treats the visible slot pathname as
+adversarial between metadata inspection and data access.
+
+After the initial bounded regular-file check, the writer opens the leaf with
+Linux `O_PATH|O_NOFOLLOW|O_CLOEXEC`, revalidates that admitted inode against
+the visible generation, and data-opens only `/proc/self/fd/<held-path-fd>`
+with `O_NONBLOCK|O_CLOEXEC`. A raced FIFO, device, symlink or other special
+inode therefore cannot become a blocking or side-effecting visible-path data
+open.
+
+The actual FD read is independently bounded to a fixed
+`MAX_RECORD_BYTES+1` buffer. Growth beyond 64 KiB is rejected without
+`readFileSync` or an unbounded allocation. Held data FD, held O_PATH FD and
+visible pathname identities are revalidated after the read.
+
+Disposable regressions replace a valid slot with a FIFO at the admission seam
+and grow a valid regular file at its first read. They require zero visible-path
+data opens, a maximum read request of 64 KiB + 1, and fail-closed rejection.
+
+Current repaired writer blob:
+`2165f85ead2a5997c600520e25274943d21e6704`.
+
