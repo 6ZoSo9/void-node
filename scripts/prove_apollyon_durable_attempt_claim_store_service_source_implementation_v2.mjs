@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="eaca329759e640a258d015448ca377d5de17aa29";
+const TARGET_BLOB="2d72a28e9daaeabcab58975a6f362c438c720592";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="445480e625e01e44be8722709d56d5a6541099e2";
 
@@ -279,8 +279,11 @@ for(const required of [
   "fs.linkSync(pendingPath,finalPath)",
   "apollyon_claim_store_impl_v2_orphan_claim_without_slot",
   "MAX_PUBLISH_REQUEST_BYTES=65536",
-  "length>MAX_PUBLISH_REQUEST_BYTES",
-  "BYTE_LENGTH_GETTER",
+  "byteLength>MAX_PUBLISH_REQUEST_BYTES",
+  "INTRINSIC_BYTE_LENGTH",
+  "INTRINSIC_ARRAY_BUFFER",
+  "INTRINSIC_TYPED_SET",
+  "types.isSharedArrayBuffer(backing)",
   "SET_TYPED_ARRAY",
   "function exactPrimitiveRecordInput",
   "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_KEYS_V1",
@@ -940,6 +943,41 @@ function requireFixedLeaseHelperCall(executable,args,options){
     assert.equal(f.releaseCount(),1);
     assert.equal(getterCalls,0);
     assert.equal(callerCopyCalls,0);
+  }finally{f.cleanup();}
+}
+
+{
+  // Shared backing can be modified concurrently by another thread. Reject it
+  // before transaction acquisition without reading caller-owned accessors.
+  const f=fixture();
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const shared=Buffer.from(new SharedArrayBuffer(bundle.requestBytes.length));
+    bundle.requestBytes.copy(shared);
+    let sharedGetterCalls=0;
+    for(const key of ["length","byteLength","buffer","constructor"]){
+      Object.defineProperty(shared,key,{
+        configurable:true,
+        get(){
+          sharedGetterCalls+=1;
+          assert.fail("shared-backed caller "+key+" getter invoked");
+        },
+      });
+    }
+    const before=storeSnapshot(f.root);
+    expectError(
+      ()=>prepareApollyonDurableAttemptClaimPublisherForwardV2(shared),
+      "apollyon_claim_store_impl_v2_publisher_input_invalid",
+    );
+    expectError(
+      ()=>f.core.publishClaim({
+        ...publishInput(bundle,f.generation),request_bytes:shared,
+      }),
+      "apollyon_claim_store_impl_v2_request_bytes_invalid",
+    );
+    assert.equal(f.txCount(),0,"shared-backed bytes did not enter store lease");
+    assert.equal(sharedGetterCalls,0,"shared backing was rejected without caller getter");
+    assert.deepEqual(storeSnapshot(f.root),before);
   }finally{f.cleanup();}
 }
 
@@ -3282,6 +3320,7 @@ console.log("publisher_forward_private_bytes_survive_all_mutation=true");
 console.log("publisher_input_copy_override_not_invoked=true");
 console.log("publisher_caller_buffer_intrinsic_slots_no_getters=true");
 console.log("publisher_and_core_intrinsic_request_bounds_enforced=true");
+console.log("publisher_shared_backing_rejected_before_transaction=true");
 console.log("publisher_later_copy_override_not_invoked=true");
 console.log("request_size_rejected_before_private_copy=true");
 console.log("operation_keyset_rejected_before_descriptor_capture=true");
