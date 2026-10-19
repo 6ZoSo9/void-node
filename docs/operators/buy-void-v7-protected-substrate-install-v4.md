@@ -148,3 +148,50 @@ The in-script guard does not authenticate Python startup hooks that can execute
 before script entry. A separately reviewed root-custodied launcher must still pin
 the interpreter, require `-I -B`, sanitize the environment, authenticate the
 landed installer/input generation, and only then enter this apply path.
+
+
+## Privileged Git-metadata provenance closure
+
+Filesystem ownership alone is not sufficient Git provenance for a root-capable
+installer. A root-owned working tree can still delegate Git authority to metadata
+or object storage outside that tree.
+
+Before accepting Git-derived evidence, installer V4 now requires a self-contained
+repository contract for every Git root used by the lifecycle:
+
+- the installer checkout `ROOT`;
+- immutable `SOURCE_RELEASE`;
+- copied `SOURCE_STAGE` before its Git generation check; and
+- installed `SOURCE_TARGET` before its Git generation check.
+
+For each root, `.git` and `.git/objects` must be real canonical in-tree
+directories. Gitfile and `commondir` indirection are rejected. The gate also
+rejects `config.worktree`, shallow state, grafts, object alternates,
+HTTP alternates, local-config include/includeIf delegation, `core.worktree`,
+worktree-config/partial-clone extensions, and promisor/partial-clone remote state.
+
+Only after those bytes and paths are checked directly does a dropped-UID Git probe
+require:
+
+- `rev-parse --git-dir` resolves exactly to the in-tree `.git`;
+- `rev-parse --git-common-dir` resolves to that same directory;
+- `rev-parse --show-toplevel` resolves exactly to the trusted source root; and
+- `rev-parse --is-shallow-repository` is exactly `false`.
+
+The direct metadata snapshot is repeated after those probes and must remain the
+same generation. Replacement objects, hooks, fsmonitor, submodule recursion,
+lazy fetch and user-controlled transports remain disabled by the existing Git
+execution environment.
+
+Source-only self-test adversaries cover gitfile, commondir, alternates,
+HTTP-alternates, grafts, shallow state, config includes, `core.worktree`,
+worktree-config extension and promisor state.
+
+For the immutable source release, full root-owned/non-writable tree custody and
+tree digest are established before its first Git generation check. Stage and
+installed target likewise pass their role-specific tree custody/digest checks
+before their first Git observations.
+
+This closes only Git metadata/object provenance. It does not replace the separate
+trusted root-custodied launcher required before privileged apply and grants no
+merge, protected filesystem apply, payment, activation, or funds authority.

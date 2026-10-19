@@ -32,6 +32,7 @@ import pathlib
 import shutil
 import stat
 import subprocess
+import tempfile
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -150,6 +151,186 @@ def require_privileged_source_custody() -> None:
             elif not stat.S_ISREG(st.st_mode):
                 raise InstallError("privileged_source_node_kind_invalid:" + os.fspath(path))
 
+def _metadata_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int, int, int, int]:
+    return (
+        st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink,
+        st.st_size, st.st_mtime_ns, st.st_ctime_ns,
+    )
+
+def _read_metadata_file(path: pathlib.Path, label: str, max_bytes: int = 1024 * 1024) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
+    before = path.lstat()
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_nlink != 1
+        or before.st_size < 0
+        or before.st_size > max_bytes
+    ):
+        raise InstallError(label + "_metadata_file_invalid:" + os.fspath(path))
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        opened = os.fstat(fd)
+        if _metadata_identity(opened) != _metadata_identity(before):
+            raise InstallError(label + "_metadata_file_rebound:" + os.fspath(path))
+        chunks: list[bytes] = []
+        remaining = opened.st_size + 1
+        while remaining:
+            part = os.read(fd, min(64 * 1024, remaining))
+            if not part:
+                break
+            chunks.append(part)
+            remaining -= len(part)
+        raw = b"".join(chunks)
+        if len(raw) != opened.st_size:
+            raise InstallError(label + "_metadata_file_size_changed:" + os.fspath(path))
+        after = os.fstat(fd)
+        visible = path.lstat()
+        if _metadata_identity(after) != _metadata_identity(opened):
+            raise InstallError(label + "_metadata_file_generation_changed:" + os.fspath(path))
+        if _metadata_identity(visible) != _metadata_identity(opened):
+            raise InstallError(label + "_metadata_file_visible_changed:" + os.fspath(path))
+        return raw, _metadata_identity(opened)
+    finally:
+        os.close(fd)
+
+def _git_config_closed(raw: bytes, label: str) -> None:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise InstallError(label + "_git_config_not_utf8") from exc
+    if "\x00" in text:
+        raise InstallError(label + "_git_config_nul")
+    section = ""
+    for lineno, original in enumerate(text.splitlines(), 1):
+        line = original.strip()
+        if not line or line.startswith("#") or line.startswith(";"):
+            continue
+        if line.endswith("\\"):
+            raise InstallError(label + "_git_config_continuation_forbidden:" + str(lineno))
+        if line.startswith("["):
+            if not line.endswith("]"):
+                raise InstallError(label + "_git_config_section_invalid:" + str(lineno))
+            section = line[1:-1].strip().lower()
+            if section == "include" or section.startswith("includeif "):
+                raise InstallError(label + "_git_config_include_forbidden")
+            continue
+        key_part = line.split("=", 1)[0].strip()
+        key = key_part.split(None, 1)[0].lower() if key_part else ""
+        if not key:
+            raise InstallError(label + "_git_config_key_invalid:" + str(lineno))
+        if key.startswith("include.") or key.startswith("includeif."):
+            raise InstallError(label + "_git_config_include_forbidden")
+        if section == "core" and key == "worktree":
+            raise InstallError(label + "_git_config_core_worktree_forbidden")
+        if section == "extensions" and key in ("worktreeconfig", "partialclone"):
+            raise InstallError(label + "_git_config_extension_forbidden:" + key)
+        if section.startswith('remote "') and key in ("promisor", "partialclonefilter"):
+            raise InstallError(label + "_git_config_promisor_forbidden")
+
+def _direct_git_metadata_snapshot(root: pathlib.Path, label: str) -> tuple[object, ...]:
+    root_abs = pathlib.Path(os.path.abspath(os.fspath(root)))
+    try:
+        if root_abs.resolve(strict=True) != root_abs:
+            raise InstallError(label + "_git_root_alias_forbidden")
+    except OSError as exc:
+        raise InstallError(label + "_git_root_unavailable") from exc
+    git_dir = root_abs / ".git"
+    gst = git_dir.lstat()
+    if not stat.S_ISDIR(gst.st_mode) or stat.S_ISLNK(gst.st_mode):
+        raise InstallError(label + "_git_dir_must_be_real_directory")
+    if git_dir.resolve(strict=True) != git_dir:
+        raise InstallError(label + "_git_dir_alias_forbidden")
+    objects = git_dir / "objects"
+    ost = objects.lstat()
+    if not stat.S_ISDIR(ost.st_mode) or stat.S_ISLNK(ost.st_mode):
+        raise InstallError(label + "_git_objects_must_be_real_directory")
+    if objects.resolve(strict=True) != objects:
+        raise InstallError(label + "_git_objects_alias_forbidden")
+    forbidden = (
+        git_dir / "commondir",
+        git_dir / "config.worktree",
+        git_dir / "shallow",
+        git_dir / "info" / "grafts",
+        objects / "info" / "alternates",
+        objects / "info" / "http-alternates",
+    )
+    for path in forbidden:
+        if path.exists() or path.is_symlink():
+            raise InstallError(label + "_git_metadata_indirection_forbidden:" + path.name)
+    config_raw, config_identity = _read_metadata_file(git_dir / "config", label + "_git_config")
+    _git_config_closed(config_raw, label)
+    return (
+        _metadata_identity(gst),
+        _metadata_identity(ost),
+        config_identity,
+        sha256_bytes(config_raw),
+    )
+
+def _git_probe_text(root: pathlib.Path, *args: str) -> str:
+    argv = [
+        os.fspath(FIXED_GIT), "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
+        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
+        "--no-replace-objects", "-C", os.fspath(root), *args,
+    ]
+    if os.geteuid() == 0:
+        if not FIXED_SETPRIV.is_file():
+            raise InstallError("setpriv_unavailable")
+        argv = [os.fspath(FIXED_SETPRIV), "--no-new-privs", "--reuid=1000", "--regid=1000", "--clear-groups", *argv]
+    elif os.geteuid() != RUNTIME_UID or os.getegid() != RUNTIME_GID:
+        raise InstallError("repository_observer_identity_invalid")
+    cp = subprocess.run(
+        argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, check=False, timeout=30, env=_git_env(),
+    )
+    if cp.returncode != 0 or cp.stderr != "":
+        raise InstallError("git_provenance_probe_failed:" + (args[0] if args else "unknown"))
+    return cp.stdout.strip()
+
+def _resolve_git_reported(root: pathlib.Path, value: str, label: str) -> pathlib.Path:
+    candidate = pathlib.Path(value)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    try:
+        return candidate.resolve(strict=True)
+    except OSError as exc:
+        raise InstallError(label + "_git_reported_path_unavailable") from exc
+
+def require_git_metadata_provenance(root: pathlib.Path, label: str) -> None:
+    before = _direct_git_metadata_snapshot(root, label)
+    expected_git_dir = (root / ".git").resolve(strict=True)
+    observed_git_dir = _resolve_git_reported(root, _git_probe_text(root, "rev-parse", "--git-dir"), label)
+    observed_common_dir = _resolve_git_reported(root, _git_probe_text(root, "rev-parse", "--git-common-dir"), label)
+    observed_top = _resolve_git_reported(root, _git_probe_text(root, "rev-parse", "--show-toplevel"), label)
+    shallow = _git_probe_text(root, "rev-parse", "--is-shallow-repository")
+    after = _direct_git_metadata_snapshot(root, label)
+    if before != after:
+        raise InstallError(label + "_git_metadata_generation_changed")
+    if observed_git_dir != expected_git_dir:
+        raise InstallError(label + "_git_dir_not_in_tree")
+    if observed_common_dir != expected_git_dir:
+        raise InstallError(label + "_git_common_dir_not_in_tree")
+    if observed_top != root.resolve(strict=True):
+        raise InstallError(label + "_git_toplevel_mismatch")
+    if shallow != "false":
+        raise InstallError(label + "_git_shallow_forbidden")
+
+def _write_git_metadata_fixture(root: pathlib.Path, config: str = "[core]\nrepositoryformatversion = 0\nbare = false\n") -> None:
+    (root / ".git" / "objects" / "info").mkdir(parents=True)
+    (root / ".git" / "info").mkdir(parents=True)
+    (root / ".git" / "config").write_text(config, "utf-8")
+
+def _assert_git_metadata_fixture_rejected(mutator: Any) -> None:
+    with tempfile.TemporaryDirectory(prefix="void-v7-git-metadata-self-test-") as td:
+        root = pathlib.Path(td) / "repo"
+        root.mkdir()
+        _write_git_metadata_fixture(root)
+        mutator(root)
+        try:
+            _direct_git_metadata_snapshot(root, "self_test")
+        except InstallError:
+            return
+        raise AssertionError("git_metadata_adversary_not_rejected")
+
 def install_parent_custody() -> tuple[tuple[str, int, int, int, int, int, int], ...]:
     current = INSTALL_PARENT
     first = True
@@ -244,6 +425,7 @@ def git_is_ancestor(root: pathlib.Path, base: str, head: str) -> bool:
     return cp.returncode == 0
 
 def verify_repository(expected_head: str) -> None:
+    require_git_metadata_provenance(ROOT, "checkout")
     if len(expected_head) != 40 or any(ch not in "0123456789abcdef" for ch in expected_head):
         raise InstallError("expected_head_invalid")
     if git_text(ROOT, "rev-parse", "--verify", "HEAD") != expected_head:
@@ -301,6 +483,7 @@ def accepted_lock(expected_head: str) -> dict[str, Any]:
 def verify_source_release() -> None:
     if SOURCE_RELEASE.resolve() != SOURCE_RELEASE or not SOURCE_RELEASE.is_dir() or SOURCE_RELEASE.is_symlink():
         raise InstallError("source_release_path_invalid")
+    require_git_metadata_provenance(SOURCE_RELEASE, "source_release")
     if git_text(SOURCE_RELEASE, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD:
         raise InstallError("source_release_head_mismatch")
     if git_text(SOURCE_RELEASE, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
@@ -424,6 +607,7 @@ def source_target_state(source_digest: tuple[str, int, int]) -> bool:
         raise InstallError("protected_source_target_metadata_invalid")
     if tree_digest(SOURCE_TARGET, PROTECTED_SOURCE_ROOT_MODE) != source_digest:
         raise InstallError("protected_source_target_generation_mismatch")
+    require_git_metadata_provenance(SOURCE_TARGET, "protected_source")
     if git_text(SOURCE_TARGET, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_TARGET, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
         raise InstallError("protected_source_target_git_generation_mismatch")
     if git_text(SOURCE_TARGET, "symbolic-ref", "--short", "-q", "HEAD") != "main" or git_text(SOURCE_TARGET, "status", "--porcelain=v1", "--untracked-files=all") != "":
@@ -439,10 +623,10 @@ def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expecte
     install_parent_custody()
     verify_repository(expected_head)
     accepted_lock(expected_head)
+    source_digest = tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE)
     verify_source_release()
     native_raw = read_candidate(native_path, NATIVE_SHA256, NATIVE_BYTES, "native")
     selector_raw = read_candidate(selector_path, SELECTOR_SHA256, SELECTOR_BYTES, "selector")
-    source_digest = tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE)
     source_exact = source_target_state(source_digest)
     preentry_exact = exact_binary_root(PREENTRY_DIR, PREENTRY_NAME, NATIVE_SHA256, NATIVE_BYTES, "native_preentry")
     selector_exact = exact_binary_root(SELECTOR_DIR, SELECTOR_NAME, SELECTOR_SHA256, SELECTOR_BYTES, "selector")
@@ -460,6 +644,8 @@ def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expecte
         "selector_candidate": {"sha256": sha256_bytes(selector_raw), "bytes": len(selector_raw)},
         "installed_state": {"protected_source_exact": source_exact, "native_preentry_exact": preentry_exact, "selector_exact": selector_exact},
         "install_parent_custody_exact": True,
+        "git_metadata_provenance_self_contained": True,
+        "git_metadata_indirection_rejected": True,
         "create_only": True, "resumable_exact_components": True, "mismatched_component_holds": True,
         "partial_publication_possible": True, "no_rollback_after_publication": True,
         "service_mutation": False, "systemd_mutation": False, "credential_access": False, "private_key_access": False,
@@ -601,9 +787,11 @@ def _cleanup_stage(stage: pathlib.Path) -> None:
 
 def _publish_source(expected_digest: tuple[str, int, int]) -> None:
     if SOURCE_STAGE.exists() or SOURCE_STAGE.is_symlink(): raise InstallError("source_stage_preexisting")
-    _copy_tree(SOURCE_RELEASE, SOURCE_STAGE); verify_source_release()
+    _copy_tree(SOURCE_RELEASE, SOURCE_STAGE)
     if tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE) != expected_digest: raise InstallError("source_release_changed_during_copy")
+    verify_source_release()
     if tree_digest(SOURCE_STAGE, PROTECTED_SOURCE_ROOT_MODE) != expected_digest: raise InstallError("source_stage_digest_mismatch")
+    require_git_metadata_provenance(SOURCE_STAGE, "source_stage")
     if git_text(SOURCE_STAGE, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_STAGE, "status", "--porcelain=v1", "--untracked-files=all") != "":
         raise InstallError("source_stage_git_generation_invalid")
     _rename_noreplace(SOURCE_STAGE_NAME, SOURCE_NAME, SOURCE_STAGE, "protected_source")
@@ -627,6 +815,8 @@ def source_plan() -> None:
     print("immutable_source_release_root_mode_0555_required=true")
     print("protected_source_root_mode_0755_required=true")
     print("installed_qualifier_v3_bound=true")
+    print("git_metadata_provenance_required_for_all_roots=true")
+    print("git_external_metadata_and_object_indirection_rejected=true")
     print("source_control_network=false"); print("protected_filesystem_mutation=false"); print("service_mutation=false")
     print("credential_access=false"); print("signing=false"); print("transaction=false"); print("funds_movement=false")
 
@@ -661,6 +851,28 @@ def self_test() -> None:
     print("candidate_open_nonblocking_required=true")
     print("candidate_retained_fd_regular_single_link_required=true")
     print("candidate_fifo_or_special_file_rejected_before_read=true")
+    _assert_git_metadata_fixture_rejected(lambda root: ((root / ".git").rename(root / ".git.real"), (root / ".git").write_text("gitdir: /tmp/hostile\n", "utf-8")))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "commondir").write_text("/tmp/hostile\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "objects" / "info" / "alternates").write_text("/tmp/hostile-objects\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "objects" / "info" / "http-alternates").write_text("https://invalid.example/objects\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "info" / "grafts").write_text("0" * 81 + "\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "shallow").write_text("0" * 40 + "\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[include]\npath = /tmp/hostile\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[core]\nworktree = /tmp/hostile\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[extensions]\nworktreeConfig = true\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text('[remote "origin"]\npromisor = true\n', "utf-8"))
+    print("git_real_in_tree_dir_required=true")
+    print("git_commondir_indirection_rejected=true")
+    print("git_object_alternates_rejected=true")
+    print("git_http_alternates_rejected=true")
+    print("git_grafts_rejected=true")
+    print("git_shallow_rejected=true")
+    print("git_local_config_include_rejected=true")
+    print("git_core_worktree_redirect_rejected=true")
+    print("git_worktree_config_extension_rejected=true")
+    print("git_promisor_partial_clone_rejected=true")
+    print("git_exact_dir_common_toplevel_required=true")
+    print("git_metadata_provenance_required_for_all_roots=true")
     assert QUALIFIER_REL.endswith("_installed_qualification_v3.py") and len(QUALIFIER_BLOB) == 40
     print("installed_qualifier_v3_bound=true")
     print("partial_publication_truthful=true"); print("no_rollback_after_publication=true")
