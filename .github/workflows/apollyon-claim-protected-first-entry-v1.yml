@@ -153,7 +153,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
             5355ffd2856e0f0c57f6e52fd1b347441b94e4d7
 
-          git diff --check "$parent" "$EXPECTED_HEAD"
+          git diff --check "$review_base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Prove protected fixed first entry

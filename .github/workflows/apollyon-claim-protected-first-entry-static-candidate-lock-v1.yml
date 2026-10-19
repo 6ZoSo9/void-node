@@ -157,7 +157,7 @@ jobs:
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = \
             d3c27cbf63249695d45e47b3dc0ff98f75a961bb
           test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = \
-            523f340cff0a9b5d77a60559d55a13aae857a3a9
+            5814e9ece8fe2f8dee6539a1e066f3717b97108a
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

@@ -94,7 +94,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = 8eab5515fbe844e930aed97db4195b8ef86c42ef
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = ff857fb066b2dce16d7cb1234e16bea42a0af6a4
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = 66978e327037854927ee7811cd15671c148e5968
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml)" = 2be7ddff2bd96ea8421bdc7de940384cebf9ab6b
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml)" = 1232ed44fe44b79d27e9da4949ba0cbc8c3e429e
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = 4425034fc89bafbf0b9c5e481db0a5ec8f416aeb
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = cba656f693d42bb80b5e28716fd00a6540fdd8c6
@@ -103,8 +103,8 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 99a1823f4b8349b6f65f210c59e1dbce4a4578f0
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 2f518fb95e4fc6ff55a4a41d60f085a5f9576b60
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = d3c27cbf63249695d45e47b3dc0ff98f75a961bb
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = 523f340cff0a9b5d77a60559d55a13aae857a3a9
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-v1.yml)" = 55fce80fe644ea9b8c5f54b01f6cd42530af8456
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = 5814e9ece8fe2f8dee6539a1e066f3717b97108a
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-v1.yml)" = 84fef8fc28e8414fdd5e446ebb6b46773eb60016
 
           case "$EVENT_NAME" in
             pull_request)
