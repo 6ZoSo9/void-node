@@ -35,6 +35,27 @@ const WORKFLOW=path.join(
 );
 
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
+function revokedProxy(target){
+  const {proxy,revoke}=Proxy.revocable(target,{});
+  revoke();
+  return proxy;
+}
+function reflectionTrapProxy(target){
+  let trapCalls=0;
+  const trip=()=>{
+    trapCalls+=1;
+    throw new Error("proxy_trap_invoked");
+  };
+  return {
+    proxy:new Proxy(target,{
+      get:trip,
+      getPrototypeOf:trip,
+      getOwnPropertyDescriptor:trip,
+      ownKeys:trip,
+    }),
+    trapCalls:()=>trapCalls,
+  };
+}
 function gitBlob(bytes){
   return crypto.createHash("sha1")
     .update(Buffer.from("blob "+bytes.length+"\0","ascii"))
@@ -42,7 +63,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-    "2018ea49a45df3fe398ec4c8ec3bb8eb3c9d6812",
+    "111b3f866a91d7c47f057d6192fdc02a7d580b4a",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
     "a08927b7b16884a9bf0c28328047afdab49649ea",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
@@ -223,6 +244,121 @@ assert.match(
   /^apollyon_training_store_revalidation_request_v1:[0-9a-f]{64}$/u,
 );
 
+// The request envelope and persisted record are hostile inputs. Reject them
+// before structuredClone in the historical parent can execute accessors.
+{
+  let getterCalls=0;
+  const hostile={};
+  Object.defineProperty(hostile,"consumption_record",{
+    enumerable:true,
+    get(){getterCalls+=1;return record;},
+  });
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1(hostile),
+    /input_invalid/u,
+  );
+  assert.equal(getterCalls,0);
+}
+{
+  const hostile=reflectionTrapProxy({consumption_record:record});
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1(hostile.proxy),
+    /input_invalid/u,
+  );
+  assert.equal(hostile.trapCalls(),0);
+}
+for(const target of [{consumption_record:record},[]]){
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1(
+      revokedProxy(target),
+    ),
+    /input_invalid/u,
+  );
+}
+{
+  const hostileRecord={...record};
+  let getterCalls=0;
+  Object.defineProperty(hostileRecord,"authorization_id",{
+    enumerable:true,
+    get(){getterCalls+=1;return record.authorization_id;},
+  });
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1({
+      consumption_record:hostileRecord,
+    }),
+    /consumption_record_input_invalid/u,
+  );
+  assert.equal(getterCalls,0);
+}
+{
+  const hostile=reflectionTrapProxy(record);
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1({
+      consumption_record:hostile.proxy,
+    }),
+    /consumption_record_input_invalid/u,
+  );
+  assert.equal(hostile.trapCalls(),0);
+}
+for(const target of [record,[]]){
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1({
+      consumption_record:revokedProxy(target),
+    }),
+    /consumption_record_input_invalid/u,
+  );
+}
+{
+  const bad={consumption_record:record};
+  Object.defineProperty(bad,"hidden_unknown",{
+    enumerable:false,value:true,
+  });
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1(bad),
+    /input_invalid/u,
+  );
+}
+{
+  const bad={consumption_record:record};
+  bad[Symbol("hidden")]=true;
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1(bad),
+    /input_invalid/u,
+  );
+}
+{
+  const badRecord={...record};
+  Object.defineProperty(badRecord,"hidden_unknown",{
+    enumerable:false,value:true,
+  });
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1({
+      consumption_record:badRecord,
+    }),
+    /consumption_record_input_invalid/u,
+  );
+}
+{
+  const badRecord={...record};
+  badRecord[Symbol("hidden")]=true;
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1({
+      consumption_record:badRecord,
+    }),
+    /consumption_record_input_invalid/u,
+  );
+}
+{
+  const badRecord={...record};
+  for(let index=0;index<4096;index+=1)badRecord["untrusted_"+index]=index;
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1({
+      consumption_record:badRecord,
+    }),
+    /consumption_record_input_invalid/u,
+  );
+}
+
 for(const key of [
   "protected_store_origin_proven",
   "current_store_generation_revalidation_performed",
@@ -382,7 +518,9 @@ const source=fs.readFileSync(
   "utf8",
 );
 for(const required of [
-  "structuredClone(value)",
+  "captureEnvelope(input)",
+  "captureConsumptionRecord(consumptionRecordInput)",
+  "Object.getOwnPropertyDescriptor(value,key)",
   '"/var/lib/void-apollyon-attempt-claim-v2"',
   '"/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1"',
   '"a08927b7b16884a9bf0c28328047afdab49649ea"',
@@ -458,6 +596,13 @@ console.log("fixed_claim_state_root_bound=true");
 console.log("fixed_training_start_consumption_directory_bound=true");
 console.log("authorization_winner_identity_bound=true");
 console.log("current_store_generation_identity_bound=true");
+console.log("request_accessor_rejected_before_read=true");
+console.log("record_accessor_rejected_before_parent_clone=true");
+console.log("request_proxy_rejected_before_reflection=true");
+console.log("record_proxy_rejected_before_parent_clone=true");
+console.log("revoked_proxy_namespaced_rejection=true");
+console.log("hidden_symbol_unknown_keys_rejected=true");
+console.log("oversized_record_keyset_rejected_before_copy=true");
 console.log("durable_claim_identity_bound=true");
 console.log("training_start_consumption_slot_bound=true");
 console.log("training_start_consumption_slot_leaf_bound=true");

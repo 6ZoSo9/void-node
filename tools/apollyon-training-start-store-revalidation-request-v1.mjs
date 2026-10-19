@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import {types as utilTypes} from "node:util";
 
 import {
   canonicalApollyonClaimContractJsonV1,
@@ -8,6 +9,7 @@ import {
   qualifyApollyonDurableAttemptClaimStoreServiceSourceCandidateV2,
 } from "./apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs";
 import {
+  VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1,
   validateApollyonTrainingStartConsumptionRecordV1,
 } from "./apollyon-training-start-consumption-contract-v1.mjs";
 
@@ -83,13 +85,45 @@ export const FIXED_TRAINING_START_CONSUMPTION_DIRECTORY =
 function fail(code){throw new Error(code);}
 function canonical(value){return canonicalApollyonClaimContractJsonV1(value);}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
-function clonePlain(value,code){
-  let copy;
-  try{copy=structuredClone(value);}catch{fail(code);}
-  if(!copy||typeof copy!=="object"||Array.isArray(copy))fail(code);
-  const proto=Object.getPrototypeOf(copy);
+function plainObject(value,code){
+  if(!value||typeof value!=="object"||utilTypes.isProxy(value)||Array.isArray(value)){
+    fail(code);
+  }
+  const proto=Object.getPrototypeOf(value);
   if(proto!==Object.prototype&&proto!==null)fail(code);
-  return copy;
+  return value;
+}
+function captureEnvelope(input){
+  const code="apollyon_training_start_store_revalidation_request_v1_input_invalid";
+  const value=plainObject(input,code);
+  const own=Reflect.ownKeys(value);
+  if(own.length!==1||own[0]!=="consumption_record")fail(code);
+  const descriptor=Object.getOwnPropertyDescriptor(value,"consumption_record");
+  if(!descriptor?.enumerable||!Object.hasOwn(descriptor,"value"))fail(code);
+  return descriptor.value;
+}
+function captureConsumptionRecord(input){
+  const code=
+    "apollyon_training_start_store_revalidation_request_v1_consumption_record_input_invalid";
+  const value=plainObject(input,code);
+  const expected=VOID_APOLLYON_TRAINING_START_CONSUMPTION_RECORD_KEYS_V1;
+  const own=Reflect.ownKeys(value);
+  if(own.length!==expected.length||own.some((key)=>typeof key!=="string"))fail(code);
+  const allowed=new Set(expected);
+  const snapshot={};
+  for(const key of own){
+    if(!allowed.has(key))fail(code);
+    const descriptor=Object.getOwnPropertyDescriptor(value,key);
+    if(!descriptor?.enumerable||!Object.hasOwn(descriptor,"value"))fail(code);
+    const item=descriptor.value;
+    if(
+      typeof item!=="string"&&typeof item!=="boolean"&&
+      !(typeof item==="number"&&Number.isSafeInteger(item))
+    )fail(code);
+    snapshot[key]=item;
+  }
+  for(const key of expected)if(!Object.hasOwn(snapshot,key))fail(code);
+  return snapshot;
 }
 const CONSUMPTION_SLOT_ID=
   /^apollyon_training_start_slot_v1:([0-9a-f]{64})$/u;
@@ -100,26 +134,12 @@ function consumptionSlotLeaf(record){
   }
   return "training-start-consumption-v1-"+match[1]+".json";
 }
-function exactOwnKeys(value,expected,code){
-  const actual=Object.keys(value).sort();
-  const wanted=[...expected].sort();
-  if(actual.length!==wanted.length||actual.some((key,index)=>key!==wanted[index])){
-    fail(code);
-  }
-}
-
 export function qualifyApollyonTrainingStartStoreRevalidationRequestV1(input){
-  const snapshot=clonePlain(
-    input,
-    "apollyon_training_start_store_revalidation_request_v1_input_invalid",
-  );
-  exactOwnKeys(
-    snapshot,
-    ["consumption_record"],
-    "apollyon_training_start_store_revalidation_request_v1_input_invalid",
-  );
+  const consumptionRecordInput=captureEnvelope(input);
+  const consumptionRecordSnapshot=
+    captureConsumptionRecord(consumptionRecordInput);
   const record=validateApollyonTrainingStartConsumptionRecordV1(
-    snapshot.consumption_record,
+    consumptionRecordSnapshot,
   );
   const candidate=
     qualifyApollyonDurableAttemptClaimStoreServiceSourceCandidateV2();

@@ -19,6 +19,13 @@ This contract derives that request from one exact validated #3333 persisted
 training-start consumption record. It accepts no caller-selected path, filename,
 "proven" boolean, service name or arbitrary revalidation identity.
 
+Before the historical #3333 validator is invoked, this gate snapshots the
+one-key request envelope and every exact persisted-record field from enumerable
+own **data descriptors**. Active/revoked Proxies, accessors, hidden/symbol/unknown
+keys, arrays, non-plain objects, non-primitive record values and oversized key
+sets fail closed before any caller getter or Proxy trap can run and before the
+historical validator's `structuredClone` sees the record.
+
 ## Fixed protected-store target
 
 The accepted #3276 service-source candidate fixes the claim state root at:
