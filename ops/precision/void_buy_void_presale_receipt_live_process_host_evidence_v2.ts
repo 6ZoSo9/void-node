@@ -811,8 +811,9 @@ function executeRuntimeUserSystemctl(
       cwd: "/",
       stdio: ["ignore", "pipe", "pipe", setpriv.fd, systemctl.fd],
     };
+    const setprivExecutable = "/proc/self/fd/" + String(setpriv.fd);
     const result = Reflect.apply(originalSpawnSync, childProcess, [
-      "/proc/self/fd/3",
+      setprivExecutable,
       built.setpriv_args,
       childOptions,
     ]);
