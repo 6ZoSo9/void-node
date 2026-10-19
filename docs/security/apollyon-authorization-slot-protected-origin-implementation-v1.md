@@ -178,3 +178,35 @@ These repairs do not establish installed Xiphos source custody,
 claim-service-only writer provenance, current store/claim/terminal/publish-request
 revalidation, capability issuance, trainer admission, training, credential/key
 access, transactions, or funds authority.
+
+## Explicit root-descriptor close-uncertainty HOLD (October 19 follow-up)
+
+The source/test-only child of #3537 distinguishes three previously
+underreported cleanup failures in `open_root()`. The existing code closed
+rejected or retained directory FDs at most once but silently swallowed
+`OSError` when closing the rejected child and the outer retained descriptor.
+A close failure does not establish whether the kernel released the descriptor;
+reporting only the original metadata/ACL rejection hid this uncertainty.
+
+The new machine-readable HOLD reasons are:
+
+- `claim_root_rejected_child_close_uncertain`: rejected child FD close failed;
+- `claim_root_prior_parent_close_uncertain`: transferring validated child
+  ownership succeeded, but closing the prior parent FD failed;
+- `claim_root_traversal_close_uncertain`: outer exception cleanup of the
+  retained current FD failed.
+
+The close syscall is never retried because its result can be indeterminate.
+The cleanup HOLD takes precedence over an earlier validation or filesystem
+error when necessary, while Python's exception chain preserves the failure
+context. This is deliberately more conservative, never a success receipt.
+
+Disposable tests monkeypatch `os.close` to raise a simulated I/O error
+**after** invoking the real close. This proves each of the three uncertain
+close branches returns the explicit HOLD and leaves the FD set unchanged
+without intentionally leaking a real descriptor. The tests do not model all
+possible kernel failures; that uncertainty is exactly why the reader HOLDs.
+
+This child changes no accepted slot bytes, generation pins, installed source,
+claim writer, root capability, training or credential authority. Complete
+protected origin, privileged host admission, and training remain false.
