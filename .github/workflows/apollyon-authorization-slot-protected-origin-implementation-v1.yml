@@ -45,12 +45,13 @@ jobs:
         run: |
           set -euo pipefail
           STACK_PARENT=db8c56d7ebe73e0646355bc6fcb4a5141ef7422f
+          CLEANUP_PARENT=f47a1c5f474821b8ecaf9bcd4e4dadea15528ac1
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "$STACK_PARENT"
+              { test "$PR_BASE" = "$STACK_PARENT" || test "$PR_BASE" = "$CLEANUP_PARENT"; }
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
@@ -77,9 +78,9 @@ jobs:
               ;;
           esac
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 4410c373a3b0baf24d764fdb8033369851e57ee4
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = cc488ed8cf072c6439a0192ece366c8df2e99988
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 4289e2d15dfe821cbf7969d2aed68fc2dc071853
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = cc1cbf5b6c665a1fde14126de51e698badc631c1
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 51c9077a7d6aae9d5d5cfe38ee5020a6fe93fe0e
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 540d84df857a07ce8aeb8417ac83b1df57b0bdd9
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 833876baf077b9616d08ee9b13b2657a0818dcc5
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
@@ -111,6 +112,7 @@ jobs:
             'post_second_reread_path_replacement_rejected=true' \
             'visible_slot_directory_replacement_rejected=true' \
             'host_io_errors_normalized_to_hold=true' \
+            'rejected_root_descriptor_cleanup_verified=true' \
             'trusted_ancestor_posix_acl_required=true' \
             'descriptor_stable_slot_reread=true' \
             'protected_origin_completion_required=true' \
