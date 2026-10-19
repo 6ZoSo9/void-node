@@ -20,7 +20,7 @@ The source finalizer accepts only:
 4. one content-addressed inert pre-training admission generation.
 
 The #3357 source dependency is pinned by exact Git blob
-`93582c324ca85aeff56eb61f82b32f1e4c18dfe9`. A merely well-formed slot
+`c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`. A merely well-formed slot
 record is not protected-origin proof: the future implementation must reread and
 revalidate the unique protected authorization-slot winner before it may publish
 a training-start consumption record.

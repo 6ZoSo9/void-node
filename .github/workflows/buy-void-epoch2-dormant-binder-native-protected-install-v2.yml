@@ -1,0 +1,159 @@
+name: Buy VOID Epoch-2 dormant binder protected installer v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v2.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py"
+      - "scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py"
+      - "docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md"
+      - "docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml"
+      - ".github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v2.yml"
+      - "ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V3 lock and V2 installer scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          base="${PR_BASE:-}"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse "$EXPECTED_HEAD^1")"
+          fi
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml' \
+            '.github/workflows/buy-void-epoch2-dormant-binder-native-protected-install-v2.yml' \
+            'docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md' \
+            'docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c' \
+            'ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py' \
+            'scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-binder-native-candidate-lock-v3.json)" =             5aa397be684dd1c87ca84fcb4d70ab3ebc176eb1
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_installer_first_entry_v1.c)" =             5f1195d0c0a328be4334ad5b7f6e32b150776cab
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             f3d6b1559be7490303cf36338c4bfa38fdaa390a
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_installer_first_entry_v1.py)" =             40affd58e8618567296e1a62d2c51f9edcc736e8
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py)" =             31da472f1ef1c655ae5f06da09591aefbee7c791
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-installer-first-entry-v1.md)" =             767573be85fe5419e0c6e489932baa491bc65826
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-binder-native-protected-install-v2.md)" =             698841cc5c88873c69e6899b1354e92cc3eeb160
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-epoch2-dormant-binder-installer-first-entry-v1.yml)" =             9be18d476ef11b0f3ec0c1fa4ef083b73417f43d
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c)" =             4fdf3f627f407335b9d50800fbbc913d1edae523
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs)" =             9c29eb4716077e459b9154f39d0f30cf2e56729f
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax check without bytecode writes
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_epoch2_dormant_binder_native_protected_install_v2.py",
+              "scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PROTECTED_INSTALL_V2_SYNTAX_GREEN")
+          PY
+
+      - name: Prove V3-bound create-only installer
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/dormant-binder-install-v2-proof.log"
+          python3 -I -B scripts/prove_buy_void_epoch2_dormant_binder_native_protected_install_v2.py |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PROTECTED_INSTALL_V2_PROOF_GREEN"
+            "accepted_dormant_binder_v3_lock_bound=true"
+            "post_3363_verified_helper_generation_bound=true"
+            "accepted_v3_lock_parser_exercised=true"
+            "superseded_pre_3363_locks_install_authority=false"
+            "exact_native_candidate_bound=true"
+            "exact_binder_git_object_bound=true"
+            "distinct_fixed_install_root=true"
+            "authenticated_first_entry_fd_contract_required_for_apply=true"
+            "authenticated_first_entry_parent_proof_required=true"
+            "forged_direct_parent_rejected=true"
+            "parent_revalidated_before_first_mutation=true"
+            "parent_revalidated_before_publication=true"
+            "running_python_generation_binding_required=true"
+            "create_only=true"
+            "atomic_root_publication_required=true"
+            "rename_noreplace_required=true"
+            "native_mode_0555=true"
+            "binder_mode_0444=true"
+            "staging_cleanup_before_publication_failure=true"
+            "explicit_apply_confirmation_required=true"
+            "operation_bound_plan_id_required=true"
+            "plan_id_validation_precedes_host_access=true"
+            "prepublication_revalidation_required=true"
+            "retained_stage_directory_generation_required=true"
+            "generation_bound_stage_cleanup_required=true"
+            "post_publication_visible_generation_binding_required=true"
+            "post_publication_rollback=false"
+            "single_final_root_publish_call=true"
+            "truthful_post_publication_failure_receipt=true"
+            "post_publication_failure_requires_inspection=true"
+            "native_execution=false"
+            "binder_execution=false"
+            "credential_access=false"
+            "private_key_access=false"
+            "signing=false"
+            "transaction=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "funds_movement=false"
+            "production_host_evidence_authority=false"
+            "next_gate=EPOCH2_DORMANT_BINDER_INSTALLED_READ_ONLY_QUALIFICATION_V2"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
