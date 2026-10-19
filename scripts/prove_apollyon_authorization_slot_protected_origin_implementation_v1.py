@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
-SOURCE_BLOB = "54a836c98dabc4bde9f40c06453a001aa29a95d9"
+SOURCE_BLOB = "fed329bdcd4773af438c10867bb02ecbd934e1f2"
 
 PARENT_CONTRACT = ROOT / "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
 PARENT_CONTRACT_BLOB = "833876baf077b9616d08ee9b13b2657a0818dcc5"
@@ -244,6 +244,84 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-acl-fd-") as 
     finally:
         mod.require_no_posix_acl = original_acl
     assert sorted(os.listdir("/proc/self/fd")) == before_fds, "ACL rejection leaked FD"
+
+# A failed close must be surfaced as a distinct HOLD. Inject EIO *after*
+# actually closing the FD, so the disposable fixture proves diagnostic
+# precedence without leaking an intentional live descriptor.
+def expect_uncertain_close(
+    target_identity: os.stat_result,
+    run,
+    reason: str,
+) -> None:
+    original_close = mod.os.close
+    fired = [False]
+    before_fds = sorted(os.listdir("/proc/self/fd"))
+
+    def simulated_close(fd: int) -> None:
+        info = mod.os.fstat(fd)
+        original_close(fd)
+        if (
+            not fired[0]
+            and info.st_dev == target_identity.st_dev
+            and info.st_ino == target_identity.st_ino
+        ):
+            fired[0] = True
+            raise OSError(5, "injected close uncertainty after kernel close")
+
+    mod.os.close = simulated_close
+    try:
+        expect_hold(run, reason)
+    finally:
+        mod.os.close = original_close
+    assert fired[0], "the intended close site was not exercised"
+    assert sorted(os.listdir("/proc/self/fd")) == before_fds, "descriptor drift"
+
+
+# Rejected child cleanup uncertainty must not masquerade as metadata HOLD.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-close-child-") as td:
+    root, _, _ = create_fixture(Path(td), record)
+    root.chmod(0o750)
+    expect_uncertain_close(
+        root.stat(),
+        lambda: mod.observe_protected_slot(
+            root_path=root,
+            claim_uid=uid,
+            claim_gid=gid,
+            authorization_slot_id=str(record["authorization_slot_id"]),
+            require_trusted_ancestors=False,
+        ),
+        "claim_root_rejected_child_close_uncertain",
+    )
+
+# A successful ownership transfer followed by a failed parent close is
+# uncertain, even though the outer handler still closes the owned child.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-close-parent-") as td:
+    root, _, _ = create_fixture(Path(td), record)
+    expect_uncertain_close(
+        os.stat("/"),
+        lambda: mod.observe_protected_slot(
+            root_path=root,
+            claim_uid=uid,
+            claim_gid=gid,
+            authorization_slot_id=str(record["authorization_slot_id"]),
+            require_trusted_ancestors=False,
+        ),
+        "claim_root_prior_parent_close_uncertain",
+    )
+
+# The final traversal cleanup must disclose close uncertainty as well.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-close-current-") as td:
+    missing = Path("/") / ("void-nonexistent-" + Path(td).name)
+    expect_uncertain_close(
+        os.stat("/"),
+        lambda: mod.open_root(
+            missing,
+            claim_uid=uid,
+            claim_gid=gid,
+            require_trusted_ancestors=False,
+        ),
+        "claim_root_traversal_close_uncertain",
+    )
 
 # Slot directory must remain private.
 with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-dir-mode-") as td:
@@ -605,6 +683,7 @@ print("post_second_reread_path_replacement_rejected=true")
 print("visible_slot_directory_replacement_rejected=true")
 print("host_io_errors_normalized_to_hold=true")
 print("rejected_root_descriptor_cleanup_verified=true")
+print("root_traversal_close_uncertainty_disclosed=true")
 print("isolated_python_preimport_guard=true")
 print("nonisolated_checkout_module_not_executed=true")
 print("slot_fifo_nonblocking_rejected=true")
