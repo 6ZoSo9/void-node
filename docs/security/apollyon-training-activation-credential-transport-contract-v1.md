@@ -12,9 +12,9 @@ This is not a claim that the currently installed Xiphos systemd unit has any cre
 
 ## Exact source parent
 
-- #3525 branch head: `e7f2456c2fc5ac5d6938bf5e475897ec6a06d5ae`
+- #3525 branch head: `25ccc3043c1039cc85b2829472d985e67b2eb47f`
 - #3525 capability source blob: `cdf72610b121ecb05edbcad89cdb6256ad1e4945`
-- parent proof blob: `3cd658baed9e744cf7b33ba2e192dc0558c9af43`
+- parent proof blob: `3399a147d5e6013bfb02c44baaf06c30ca798b40`
 - parent security document blob: `fc834c8b296307fc6575e2cbc4cd8ba2e1516733`
 - selected fixed candidate credential name: `apollyon-training-activation-v1`
 - bearer secret required length: exactly 32 bytes
