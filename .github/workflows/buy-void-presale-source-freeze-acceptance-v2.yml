@@ -54,7 +54,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = 174d536807f03fd7b6ff44820d4e378c7055150e
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py)" = 12a7fd68ef7deb98dcb82287409979c244eff190
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py)" = 69a2a78193d0240bc0003db779abdba25ce77944
           test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-acceptance-v2.md)" = e2de7f5ea4396da6c09faa42f4a25bf1a18d0fe1
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
