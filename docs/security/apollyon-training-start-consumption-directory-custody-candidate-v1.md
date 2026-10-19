@@ -131,10 +131,60 @@ source generation.
 
 ## October 19 — writer diagnostic source rebind
 
-The fixture observer remains byte-identical at source blob
-`42408e7a65e3565a8a98cb4e23985c3ca76045bc`. The writer and request
+The synthetic fixture observer now uses the strict disposable-root/default ACL
+source blob `f8062b282ef71e6b345e5ea1ffbad138b3694489`. The writer and request
 are rebound to the corrected source generations `76f5a6bcbc9854a1133cd1324eb862cb50102c0e` and
-`079576db7f880872f2d4dea8e7759bd536161516`. This source-only PR does **not** include the separate
-#3552 disposable-root lexical confinement or default-POSIX-ACL checks; those
-must be merged into one new exact source/CI generation before either branch
-is promoted. Fixture observation never grants Xiphos or trainer authority.
+`079576db7f880872f2d4dea8e7759bd536161516`. This new composite source generation also includes #3552's disposable-root
+lexical confinement and default-POSIX-ACL rejection. This is still fixture-only
+source evidence; host bind-mount provenance remains independently unproven. Fixture observation never grants Xiphos or trainer authority.
+
+## Fixture namespace guard (October 19)
+
+The source-only library function is importable, so disabling the CLI's
+`--live-read` option is **not sufficient** to ensure that callers cannot
+inspect arbitrary host paths. Before this repair, any absolute root outside
+the single forbidden production-root prefix passed lexical admission and
+could reach retained-FD traversal if its directory metadata matched.
+The receipt still said `fixture_only=true`, which overstated the path
+admission boundary.
+
+`root_fixture_path()` now permits only synthetic disposable roots under
+`/tmp/apollyon-*/<fixture-root>`. This lexical requirement is enforced
+**before the first open or stat**, and the fixed production root remains
+denied separately. The proof injects a handler that rejects any host FD open,
+then checks unrelated private roots in `/var/tmp`, `/tmp`, `/home` and
+`/opt` all return `fixture_root_outside_disposable_namespace` without
+entering traversal. Ordinary positive and adversarial disposable fixtures
+retain their descriptor checks and negative authority.
+
+A test-like pathname is **not** cryptographic or mount-namespace proof that
+a path is synthetic. A privileged bind mount could still defeat purely
+lexical scoping. Consequently this defense is strictly a source-level
+restriction on the fixture API, not a future installed Xiphos reader, and no
+writer directory descriptor is ever returned. The CLI `--live-read` remains
+unconditionally disabled. Protected origin, current generation, winner,
+claim, terminal, consumption, release, training, credentials and funds
+authority all remain false/unperformed.
+
+**PROTECT THE CORE.**
+
+## Default POSIX ACL custody repair
+
+Directory custody now rejects both `system.posix_acl_access` and
+`system.posix_acl_default`. A mode-0700 directory with a default ACL is not
+treated as ACL-free because future child files/directories can inherit that
+authority-bearing metadata. The disposable proof injects a synthetic default
+ACL on the consumption directory and requires the same fail-closed
+`consumption_directory_extended_acl_present` result with no descriptor leak.
+
+This remains fixture-only evidence; it grants no production writer, protected
+store, training, credential, transaction or funds authority.
+
+## Composite fixture identity (October 19)
+
+This exact source generation combines the terminal-close provenance repair in
+protected writer blob `76f5a6bcbc9854a1133cd1324eb862cb50102c0e` with the synthetic-only root/default ACL
+observer blob `f8062b282ef71e6b345e5ea1ffbad138b3694489`. The custody
+proof is pinned to the same writer and protected request generation `079576db7f880872f2d4dea8e7759bd536161516`.
+No installed host reader, protected store claim, training, credential, key,
+transaction or funds authority is promoted by this source-only composition.

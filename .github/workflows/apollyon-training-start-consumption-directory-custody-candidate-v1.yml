@@ -122,9 +122,9 @@ jobs:
               ;;
           esac
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 42408e7a65e3565a8a98cb4e23985c3ca76045bc
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = f4a9bf54c8a7302ca2104736cc7e57b698dfda50
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 7a8aca622220a63d82a84140d14775c9fc933a6c
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = f8062b282ef71e6b345e5ea1ffbad138b3694489
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = b5e463ffa9e74fadca5a7b2f947c8cb3d6d3addc
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 721d1fd42e539fc48d4c584b2b55a6fd077e4274
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 76f5a6bcbc9854a1133cd1324eb862cb50102c0e
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 079576db7f880872f2d4dea8e7759bd536161516
 
@@ -156,6 +156,8 @@ jobs:
             'fixed_root_descriptor_generation_checked=true' \
             'consumption_directory_descriptor_generation_checked=true' \
             'acl_and_symlink_adversaries_rejected=true' \
+            'default_directory_acl_rejected=true' \
+            'non_disposable_fixture_roots_rejected_before_io=true' \
             'visible_directory_replacement_rejected=true' \
             'rejected_directory_fd_cleanup_verified=true' \
             'isolated_python_preimport_guard=true' \
