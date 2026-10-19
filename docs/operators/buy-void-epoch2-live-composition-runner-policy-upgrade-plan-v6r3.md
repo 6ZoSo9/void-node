@@ -97,3 +97,46 @@ runtime_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
 This remains a non-executing source plan. No protected install, policy mutation,
 live credential execution, signing, transaction/payment, activation, treasury or
 funds authority is granted.
+
+
+## Complete source/runtime dependency closure and terminal revalidation
+
+The non-executing planner must match Runner V4's complete runtime-sensitive
+source closure before a host plan can claim source/runtime compatibility.
+
+The bound set is exactly nine entries:
+
+```text
+qualifier
+replacement_v3r
+qualifier_v6
+replacement_v6
+lock_v3r
+lock_v2
+lock_v6
+parser_v4
+sealed_v2
+```
+
+For every entry the planner requires the reviewed Git blob at both runtime head
+`4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb` and current source HEAD.
+The accepted V6R3 lock and Runner V4 are additionally required at current
+source HEAD.
+
+Each source snapshot re-observes HEAD/tree/branch/tracked status after all
+dependency/lock/Runner reads. The host plan then takes a second complete source
+snapshot after Node and protected-root observations and requires byte-for-byte
+equality with the first snapshot before emitting the content-addressed plan ID.
+
+The self-test contains an executable late-source-drift adversary and must emit:
+
+```text
+runtime_source_complete_dependency_set_bound=true
+runtime_source_dependency_count=9
+terminal_source_revalidation_required=true
+late_source_drift_rejected=true
+```
+
+This repair does not add apply mode, filesystem mutation, runner/native
+execution, credential access, signing, transaction, payment, activation, or
+funds authority.
