@@ -11,6 +11,7 @@ import {
   validateApollyonDurableAttemptClaimRecordEnvelopeV2,
 } from "./apollyon-durable-attempt-claim-request-envelope-v2.mjs";
 import {
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_KEYS_V1,
   deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1,
   validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
 } from "./apollyon-durable-attempt-claim-authorization-slot-v1.mjs";
@@ -116,6 +117,7 @@ const SLOT_RECORD_ID=
   /^apollyon_attempt_claim_auth_slot_record_v1:[0-9a-f]{64}$/u;
 const SESSION_BINDING_ID=/^apollyon_claim_source_session_v2:[0-9a-f]{64}$/u;
 const MAX_RECORD_BYTES=256*1024;
+const MAX_PUBLISH_REQUEST_BYTES=65536;
 const ROOT_MODE=0o700;
 const DIRECTORY_MODE=0o700;
 const RECORD_MODE=0o600;
@@ -241,8 +243,11 @@ function exactDataInput(input,keys,code){
   if(!input||typeof input!=="object"||types.isProxy(input)||Array.isArray(input))fail(code);
   const proto=Object.getPrototypeOf(input);
   if(proto!==Object.prototype&&proto!==null)fail(code);
+  const own=Reflect.ownKeys(input);
+  if(own.length!==keys.length||own.some(key=>typeof key!=="string"))fail(code);
+  const expected=new Set(keys);
+  if(own.some(key=>!expected.has(key)))fail(code);
   const descriptors=Object.getOwnPropertyDescriptors(input);
-  if(Reflect.ownKeys(descriptors).length!==keys.length)fail(code);
   const snapshot={};
   for(const key of keys){
     const descriptor=descriptors[key];
@@ -251,8 +256,26 @@ function exactDataInput(input,keys,code){
   }
   return snapshot;
 }
+function exactPrimitiveRecordInput(input,keys,code){
+  const snapshot=exactDataInput(input,keys,code);
+  for(const value of Object.values(snapshot)){
+    if(
+      value===null||
+      typeof value==="string"||
+      typeof value==="boolean"||
+      (typeof value==="number"&&Number.isSafeInteger(value))
+    )continue;
+    fail(code);
+  }
+  return snapshot;
+}
 function copyRequestBytes(input,code){
-  if(types.isProxy(input)||!Buffer.isBuffer(input))fail(code);
+  if(
+    types.isProxy(input)||
+    !Buffer.isBuffer(input)||
+    input.length<3||
+    input.length>MAX_PUBLISH_REQUEST_BYTES
+  )fail(code);
   const bytes=ALLOC_BYTES(input.length);
   APPLY(COPY_BYTES,input,[bytes]);
   return bytes;
@@ -500,9 +523,8 @@ function readRecordAt(dirFd,leaf,uid,gid,mode,code,options={}){
   },cleanups,"apollyon_claim_store_impl_v2_descriptor_cleanup_failed");
 }
 function validateStoreGenerationRecordV2(input){
-  const value=clonePlain(input,"apollyon_claim_store_impl_v2_generation_invalid");
-  exactOwnKeys(
-    value,
+  const value=exactPrimitiveRecordInput(
+    input,
     VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_GENERATION_RECORD_KEYS_V2,
     "apollyon_claim_store_impl_v2_generation_invalid",
   );
@@ -929,13 +951,11 @@ function createSuccessResponse(record,publishRequestSha,outcome){
 }
 
 export function prepareApollyonDurableAttemptClaimPublisherForwardV2(input){
-  if(!Buffer.isBuffer(input)){
-    fail("apollyon_claim_store_impl_v2_publisher_input_invalid");
-  }
-  // Separate allocations also isolate the entire ArrayBuffer exposed by a copy.
-  const frameLength=input.length;
-  const bytes=ALLOC_BYTES(frameLength);
-  APPLY(COPY_BYTES,input,[bytes]);
+  // Enforce the canonical request envelope bound before any private allocation.
+  const bytes=copyRequestBytes(
+    input,"apollyon_claim_store_impl_v2_publisher_input_invalid",
+  );
+  const frameLength=bytes.length;
   const parsed=parseApollyonDurableAttemptClaimPublishRequestBytesV2(bytes);
   return Object.freeze({
     marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_PUBLISHER_FORWARD_V2",
@@ -961,15 +981,19 @@ export function prepareApollyonDurableAttemptClaimPublisherForwardV2(input){
 export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
   const configCode="apollyon_claim_store_impl_v2_config_invalid";
   if(!config||typeof config!=="object"||types.isProxy(config))fail(configCode);
-  const descriptors=Object.getOwnPropertyDescriptors(config);
-  if(Object.hasOwn(descriptors,"withExclusiveStoreTransaction")){
-    fail("apollyon_claim_store_impl_v2_legacy_transaction_wrapper_forbidden");
-  }
   const configKeys=[
     "root_fd","claim_uid","claim_gid","session_binding_id",
     "acquireExclusiveStoreTransaction","revalidate",
   ];
-  if(Reflect.ownKeys(descriptors).length!==configKeys.length)fail(configCode);
+  const configOwn=Reflect.ownKeys(config);
+  if(
+    configOwn.length!==configKeys.length||
+    configOwn.some(key=>typeof key!=="string"||!configKeys.includes(key))
+  )fail(configCode);
+  const descriptors=Object.getOwnPropertyDescriptors(config);
+  if(Object.hasOwn(descriptors,"withExclusiveStoreTransaction")){
+    fail("apollyon_claim_store_impl_v2_legacy_transaction_wrapper_forbidden");
+  }
   for(const key of configKeys){
     if(!descriptors[key]||!Object.hasOwn(descriptors[key],"value"))fail(configCode);
   }
@@ -1131,8 +1155,13 @@ export function createApollyonDurableAttemptClaimStoreServiceCoreV2(config){
       fail("apollyon_claim_store_impl_v2_publish_input_invalid");
     }
     const {parsed,record,generation}=parseRequestAndGeneration(snapshot);
-    const slot=validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1(
+    const slotInput=exactPrimitiveRecordInput(
       snapshot.authorization_slot_record,
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_KEYS_V1,
+      "apollyon_claim_store_impl_v2_publish_input_invalid",
+    );
+    const slot=validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1(
+      slotInput,
     );
     requireSlotMatchesRequest(slot,record,parsed.publish_request_sha256);
     const context=acquisitionContext(
