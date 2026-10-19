@@ -197,35 +197,78 @@ def git(*args: str) -> str:
         raise LockError("git_output_invalid") from exc
 
 
+def _same_file(a: os.stat_result, b: os.stat_result) -> bool:
+    return all(
+        getattr(a, field) == getattr(b, field)
+        for field in (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_uid",
+            "st_gid",
+            "st_nlink",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+        )
+    )
+
+
+def _close_fd(fd: int, relative: str) -> None:
+    try:
+        os.close(fd)
+    except OSError as exc:
+        raise LockError("parent_source_close_failed:" + relative) from exc
+
+
 def stable_file(relative: str, expected_blob: str) -> bytes:
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or os.path.isabs(relative)
+        or ".." in Path(relative).parts
+    ):
+        hold("parent_source_path_invalid:" + str(relative))
     path = ROOT / relative
     try:
         before = path.lstat()
-        raw = path.read_bytes()
-        after = path.lstat()
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or stat.S_ISLNK(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size < 1
+            or before.st_size > MAX_SOURCE_BYTES
+        ):
+            hold("parent_source_metadata_invalid:" + relative)
+        fd = os.open(
+            path,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
     except OSError as exc:
         raise LockError("parent_source_unavailable:" + relative) from exc
-    if (
-        not stat.S_ISREG(before.st_mode)
-        or stat.S_ISLNK(before.st_mode)
-        or before.st_nlink != 1
-        or before.st_size < 1
-        or before.st_size > MAX_SOURCE_BYTES
-    ):
-        hold("parent_source_metadata_invalid:" + relative)
-    for field in (
-        "st_dev",
-        "st_ino",
-        "st_mode",
-        "st_uid",
-        "st_gid",
-        "st_nlink",
-        "st_size",
-        "st_mtime_ns",
-        "st_ctime_ns",
-    ):
-        if getattr(before, field) != getattr(after, field):
+    try:
+        opened = os.fstat(fd)
+        if not _same_file(before, opened):
             hold("parent_source_generation_changed:" + relative)
+        chunks: list[bytes] = []
+        remaining = before.st_size
+        while remaining:
+            chunk = os.read(fd, min(65536, remaining))
+            if not chunk:
+                hold("parent_source_short_read:" + relative)
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(fd, 1) != b"":
+            hold("parent_source_grew:" + relative)
+        after = os.fstat(fd)
+        visible = path.lstat()
+        if not _same_file(opened, after) or not _same_file(after, visible):
+            hold("parent_source_generation_changed:" + relative)
+        raw = b"".join(chunks)
+    except OSError as exc:
+        raise LockError("parent_source_read_failed:" + relative) from exc
+    finally:
+        _close_fd(fd, relative)
     if len(raw) != before.st_size or git_blob(raw) != expected_blob:
         hold("parent_source_blob_invalid:" + relative)
     if git("rev-parse", "HEAD:" + relative) != expected_blob:

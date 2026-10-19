@@ -110,11 +110,11 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
-            60308199258475936596e38398b00fda553bd5be
+            2d328245a4850f90ee33a15750e3ba9db00515ad
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = \
-            1ca4ee7482538e27afe09759f098ab91d5081361
+            4aec479957387e1604174176d318643eb91d967a
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = \
-            a5b3cad72b813afacbfc1fea1b3fcee21f6cca34
+            c3923497634a84bec5709515ad1fe72e5f3b68b3
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = \
             99a1823f4b8349b6f65f210c59e1dbce4a4578f0
@@ -157,6 +157,11 @@ jobs:
           for marker in \
             'VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_LOCK_V1_PROOF_GREEN' \
             'lock_source_blob_bound=true' \
+            'parent_source_descriptor_bound=true' \
+            'parent_source_symlink_fifo_rejected=true' \
+            'parent_source_replacement_race_rejected=true' \
+            'parent_source_growth_rejected=true' \
+            'parent_source_close_failure_machine_readable=true' \
             'historical_parent_candidate_rederived=false' \
             'accepted_parent_evidence_identity_bound=true' \
             'accepted_parent_report_digest_bound=true' \
