@@ -104,3 +104,16 @@ The focused workflow re-proves the static candidate acceptance lock before
 running archive adversaries and watches the lock's complete protected-first-entry
 dependency closure. This is review-stack consolidation only: the archive is not
 installed or executed, and Xiphos/install/training authority remains false.
+
+## Flattened repaired-lock generation
+
+The archive-admission layer in the consolidated PR now binds repaired static-lock
+generation `2367e6d8fd67faaae70827edddacb75d524e1db5` and lock source blob
+`8eab5515fbe844e930aed97db4195b8ef86c42ef`.
+
+That lock still authenticates the original accepted #3482 workflow/artifact
+evidence from its historical Git tree while allowing the current flattened
+candidate workflow to carry a broader CI-only path scope. The accepted candidate
+ID, binary identity, historical artifact digests and negative install/training
+authority are unchanged.
+
