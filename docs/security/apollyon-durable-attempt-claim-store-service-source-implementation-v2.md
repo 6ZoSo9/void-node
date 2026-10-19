@@ -1272,3 +1272,29 @@ credentials, keys, transactions and funds authority are unchanged and
 remain false or unproven.
 
 **PROTECT THE CORE.**
+
+## Shared-backed request buffer rejection (October 19, 2026)
+
+The reusable claim-store core now treats a genuine Buffer backed by
+`SharedArrayBuffer` as an invalid request-byte source. Even when the object is
+non-Proxy and carries hostile own `length`, `byteLength`, `buffer`, or
+`constructor` accessors, request admission reads only captured intrinsic
+TypedArray slots.
+
+The core obtains intrinsic byte length and backing buffer with captured
+TypedArray getters, rejects shared backing before allocation or store-lease
+acquisition, then copies accepted private-backed bytes with the captured
+TypedArray `set` intrinsic. No caller-owned Buffer property or `copy`
+override participates.
+
+Disposable proof covers both the public forward helper and `publishClaim()`:
+a shared-backed request must fail with the existing namespaced input error,
+execute zero hostile getters, acquire zero transactions, and leave the store
+snapshot unchanged.
+
+This closes the #3550 shared-memory request boundary while preserving the
+already-qualified getter-free Buffer sizing/copying, async/generator provider
+preflight, and Linux lease over-keyed input bound. It does not prove trusted
+provider origin, rejected-Promise failure-domain containment, installed Xiphos
+origin, production claim publication, training, credentials, transactions, or
+funds authority.
