@@ -44,7 +44,7 @@ jobs:
             '.github/workflows/buy-void-v7-protected-substrate-install-v4.yml' \
             'docs/operators/buy-void-v7-protected-substrate-install-v4.md' \
             'ops/precision/void_buy_void_v7_protected_substrate_install_v4.py' \
-            'scripts/prove_buy_void_v7-protected-substrate-install-v4.py' \
+            'scripts/prove_buy_void_v7_protected_substrate_install_v4.py' \
             | sort > "$expected"
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
