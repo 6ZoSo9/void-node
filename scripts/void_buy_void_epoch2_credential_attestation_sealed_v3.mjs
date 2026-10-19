@@ -860,8 +860,20 @@ function openCredentialGeneration(directory) {
 
     const pinned =
       "/proc/self/fd/" + String(dirFd) + "/" + CREDENTIAL_ID;
-    keyFd = fs.openSync(pinned, fs.constants.O_RDONLY | noFollow);
+    // An attacker swapping the prechecked regular file for a FIFO must never
+    // block the synchronous credential probe before retained-FD type checks.
+    const nonblock = fs.constants.O_NONBLOCK;
+    if (!Number.isInteger(nonblock) || nonblock === 0) {
+      throw new Error("epoch2_sealed_credential_nonblocking_open_unavailable");
+    }
+    keyFd = fs.openSync(
+      pinned, fs.constants.O_RDONLY | noFollow | nonblock,
+    );
     const openedKey = fs.fstatSync(keyFd, { bigint: true });
+    if (!openedKey.isFile() || openedKey.isSymbolicLink() ||
+        openedKey.nlink !== 1n || openedKey.size !== beforeKey.size) {
+      throw new Error("epoch2_sealed_credential_file_opened_type_invalid");
+    }
     if (!statIdentitySame(beforeKey, openedKey)) {
       throw new Error("epoch2_sealed_credential_file_replaced");
     }
