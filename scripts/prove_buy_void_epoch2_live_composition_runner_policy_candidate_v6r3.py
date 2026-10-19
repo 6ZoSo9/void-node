@@ -20,7 +20,7 @@ CANDIDATE_PREFIX = "voidbuye2runnerpolcand6r3_"
 
 RUNNER_REL = "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 RUNNER = ROOT / RUNNER_REL
-RUNNER_GIT_BLOB_SHA1 = "8e3c588f9c7275dcb0e351d2785b5a923982f133"
+RUNNER_GIT_BLOB_SHA1 = "7967778824f22baca976a59df75f9f808ebebfe2"
 RUNNER_INSTALL_MODE = "0444"
 
 NATIVE_SOURCE_REL = "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
@@ -228,6 +228,11 @@ def validate_runner_transcripts(self_test: str, plan: str) -> None:
         "source_runtime_ancestry_required=true",
         "tracked_source_checkout_exact_required=true",
         "source_runtime_dependency_blob_equality_required=true",
+        "source_runtime_complete_dependency_set_bound=true",
+        "nested_source_runtime_dependency_drift_rejected=true",
+        "authenticated_closure_synthetic_namespace=true",
+        "authenticated_closure_namespace_absent_required=true",
+        "root_qualification_user_checkout_file_namespace=false",
         "root_qualification_dependency_closure_git_object_bound=true",
         "root_checkout_dependency_path_reads_forbidden=true",
         "root_qualification_closure_path_contract_bound=true",
