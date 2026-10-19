@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="9349273d73c7559851787a3a38a29269c5174179"
+assert gblob(INS)=="20763833d67b88182672e1c27d22048348781c8d"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -98,6 +98,8 @@ required=(
     'def _read_regular_sha256_exact(',
     '_require_runtime_uid_nonwritable(runtime_directories, "tree_directories")',
     '_require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")',
+    'tree_root_acl_audit_precedes_first_scandir=true',
+    'tree_directory_acl_audit_precedes_descent=true',
     'tree_directory_acl_audit_precedes_regular_file_reads=true',
     'tree_regular_acl_audit_precedes_regular_file_reads=true',
     'tree_regular_descriptor_nofollow_nonblocking_required=true',
@@ -117,6 +119,12 @@ tree_body=src[src.index('def tree_digest('):src.index('def candidate_fd_metadata
 dir_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_directories, "tree_directories")')
 reg_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")')
 content_read=tree_body.index('digest = _read_regular_sha256_exact(')
+root_pre_descent=tree_body.index('_require_runtime_uid_nonwritable([root], "tree_root_pre_descent")')
+first_scandir=tree_body.index('os.scandir(directory)')
+child_pre_descent=tree_body.index('_require_runtime_uid_nonwritable([child], "tree_directory_pre_descent")')
+child_queue=tree_body.index('pending.append((child, rel / entry.name))')
+assert root_pre_descent < first_scandir
+assert first_scandir < child_pre_descent < child_queue
 assert dir_audit < reg_audit < content_read
 binary_body=src[src.index('def exact_binary_root('):src.index('def source_target_state(')]
 root_audit=binary_body.index('_require_runtime_uid_nonwritable([root], label + "_installed_root")')
@@ -214,6 +222,8 @@ assert "git_promisor_partial_clone_rejected=true" in cp.stdout.splitlines()
 assert "git_exact_dir_common_toplevel_required=true" in cp.stdout.splitlines()
 assert "git_metadata_provenance_required_for_all_roots=true" in cp.stdout.splitlines()
 assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitlines()
+assert "tree_root_acl_audit_precedes_first_scandir=true" in cp.stdout.splitlines()
+assert "tree_directory_acl_audit_precedes_descent=true" in cp.stdout.splitlines()
 assert "tree_directory_acl_audit_precedes_regular_file_reads=true" in cp.stdout.splitlines()
 assert "tree_regular_acl_audit_precedes_regular_file_reads=true" in cp.stdout.splitlines()
 assert "tree_regular_descriptor_nofollow_nonblocking_required=true" in cp.stdout.splitlines()
@@ -290,6 +300,8 @@ print("qualifier_runtime_uid_gid_1000_bound=true")
 print("qualifier_supplementary_groups_empty_bound=true")
 print("qualifier_wrong_identity_adversaries_bound=true")
 print("tree_acl_audit_precedes_privileged_content_reads=true")
+print("tree_root_acl_audit_precedes_first_scandir_bound=true")
+print("tree_directory_acl_audit_precedes_descent_bound=true")
 print("tree_regular_descriptor_read_bound=true")
 print("tree_fifo_symlink_race_adversaries_bound=true")
 print("installed_binary_acl_audit_precedes_hash_bound=true")
