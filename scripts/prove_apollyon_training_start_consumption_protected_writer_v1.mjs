@@ -886,6 +886,11 @@ const expectedTriggerPaths=[
   "tools/apollyon-live-source-session-terminal-receipt-v2.mjs",
   "tools/apollyon-live-custody-service-source-session-binding-v2.mjs",
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs",
+  ".github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml",
+  "docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md",
+  "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py",
+  "scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py",
+
 ];
 function eventTriggerPaths(yaml,eventName,nextEventName){
   const lines=yaml.split("\n");
