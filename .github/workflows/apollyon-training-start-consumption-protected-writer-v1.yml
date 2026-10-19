@@ -57,6 +57,7 @@ jobs:
           grep -Fx 'existing_slot_fifo_substitution_nonblocking=true' "$out"
           grep -Fx 'existing_slot_bounded_fd_read=true' "$out"
           grep -Fx 'existing_slot_growth_beyond_max_rejected=true' "$out"
+          grep -Fx 'existing_slot_dual_fd_close_fault_safe=true' "$out"
           grep -Fx 'training_execution=false' "$out"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
