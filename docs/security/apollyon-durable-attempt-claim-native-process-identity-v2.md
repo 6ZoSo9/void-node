@@ -4,6 +4,19 @@ Marker: `VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_NATIVE_PROCESS_IDENTITY_V2`
 
 Status: **source/test library only; no claim-service runtime or host installation**.
 
+
+## Flattened native provenance review generation
+
+The current PR directly targets #3291 at
+`8c890c9afff0d9b80f5c5788a4ed25c0394069ff` and contains the complete
+14-file native provenance closure: the #3300 peer guard, #3306 integration, and
+this process-identity primitive. The three focused workflows requalify their
+respective source layers on the same direct-base diff.
+
+This consolidation changes PR stacking only. It does not establish installed
+claim-service origin, privileged role admission, durable claim publication,
+training, credential/key access, transactions, or funds authority.
+
 ## Purpose
 
 Accepted #3306 still leaves direct publisher→revalidator PPid lineage and exact
