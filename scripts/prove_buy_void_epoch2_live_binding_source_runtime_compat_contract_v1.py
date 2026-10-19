@@ -5,6 +5,7 @@ import ast
 import hashlib
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -80,6 +81,14 @@ for required in (
     "source_runtime_add_only_compatibility_exact:true",
     "source_runtime_dependency_blob_equality_required=true",
     "untracked_paths_source_authority=false",
+    'GIT_NO_LAZY_FETCH:"1"',
+    'GIT_TERMINAL_PROMPT:"0"',
+    'GIT_ASKPASS:"/bin/false"',
+    'GIT_PROTOCOL_FROM_USER:"0"',
+    'GIT_ALLOW_PROTOCOL:""',
+    'GIT_PAGER:""',
+    '"-c","core.untrackedCache=false"',
+    '"-c","submodule.recurse=false"',
     "checkoutFn=requireSourceRuntimeCompatibility",
     "voide2livecomp4_",
 ):
@@ -90,7 +99,8 @@ assert runner_v4.count('source_runtime_added_path_count:ALLOWED_SOURCE_ADDITIONS
 assert 'FIXED_ROOT+"/void_buy_void_epoch2_live_composition_native_preentry_v3"' in runner_v4
 assert "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V3" in runner_v4
 
-node = "/usr/bin/node"
+node = shutil.which("node")
+assert node is not None and pathlib.Path(node).is_file(), "hosted_node_unavailable"
 for mode in ("--self-test", "--plan"):
     cp = subprocess.run(
         [node, str(RUNNER_V4), mode],
@@ -113,6 +123,9 @@ for mode in ("--self-test", "--plan"):
             "source_runtime_add_only_compatibility_exact=true",
             "source_runtime_dependency_blob_equality_required=true",
             "untracked_paths_source_authority=false",
+            "git_lazy_fetch_disabled=true",
+            "git_transport_disabled=true",
+            "git_prompt_and_askpass_disabled=true",
         ):
             assert line in lines, line
     else:
@@ -122,6 +135,9 @@ for mode in ("--self-test", "--plan"):
             "source_checkout_head=0ada7fde0d90c3946b10693f4621cbd690bfcde6",
             "source_checkout_tree=9e930fba9aacfafb5b163767302786cd7f31c81e",
             "source_runtime_added_path_count=15",
+            "git_lazy_fetch_disabled=true",
+            "git_transport_disabled=true",
+            "git_prompt_and_askpass_disabled=true",
             "credential_content_access=false",
             "nontransaction_signature=false",
         ):
@@ -184,6 +200,10 @@ print("binder_single_head_seam_proven=true")
 print("binder_preentry_policy_head_equality_proven=true")
 print("runner_single_head_seam_proven=true")
 print("runner_v4_source_runtime_compat_source_green=true")
+print("runner_v4_git_lazy_fetch_disabled=true")
+print("runner_v4_git_transport_disabled=true")
+print("runner_v4_git_prompt_and_askpass_disabled=true")
+print("hosted_node_path_resolved_from_ci_environment=true")
 print("runner_v4_preserves_native_v3_policy_boundary=true")
 print("credential_native_preentry_policy_binding_preserved=true")
 print("runtime_policy_rewrite_forbidden=true")
