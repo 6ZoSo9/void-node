@@ -125,3 +125,32 @@ candidate `87019ae1245a2054407dd47835b0b7a891d4d9a2`.
 Protected-store origin, current store-generation and protected-winner
 revalidation, trainer release, training, credentials, transactions, and funds
 authority remain false/unperformed.
+
+## October 19 — inert writer-input preflight (stacked child)
+
+The protected writer is a reusable source-only filesystem mutation primitive.
+Its previous `publishApollyonTrainingStartConsumptionProtectedV1()` and
+`classifyApollyonTrainingStartConsumptionProtectedSlotV1()` called
+`structuredClone(input)` before inspecting the input's own property
+descriptors. Native structured cloning invokes enumerable JavaScript getters.
+The historical proof even expected a caller-owned getter to execute once
+during a successful publication. That expectation is unsafe for a later
+privileged writer boundary.
+
+Both entry points now require an exact two-field plain data envelope before
+directory-FD access. The supplied persisted consumption record is separately
+snapshotted from its 26 exact own enumerable data descriptors, permitting
+only bounded 1..256-character strings, primitive booleans, and safe integers.
+Active/revoked proxies, accessors, nested objects, coercion hooks, hidden or
+symbol fields, unknown fields, and 4096-key amplification fail closed before
+any historical validator clone or filesystem access. The exported slot-leaf
+derivation helper uses the same prevalidation.
+
+The disposable proof checks that malformed input cannot execute a getter,
+proxy trap, implicit coercion, or clone a caller-owned object, and that neither
+public operation creates a slot on malformed input. The accepted complete
+canonical #3333 record and exact one-attempt semantics are unchanged.
+
+This child does not select/prove the protected Xiphos directory capability;
+that remains a separate privileged host gate. No service, training, credential,
+key, wallet or funds authority is gained. **PROTECT THE CORE.**
