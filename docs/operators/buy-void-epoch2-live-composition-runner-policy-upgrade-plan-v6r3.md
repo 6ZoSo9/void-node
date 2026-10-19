@@ -69,3 +69,20 @@ implementation and operation. If already GREEN, the next gate is installed
 read-only qualification.
 
 PROTECT THE CORE.
+
+
+## Immutable-workflow lock rebind
+
+The accepted V6R3 lock was reissued after the repository Actions-reference guard
+required the candidate workflow to pin `actions/checkout` immutably.
+
+Current accepted lock:
+
+```text
+lock_blob=84aed3b9c1f0f3f540c7d12b4cc33d0c132a74f0
+lock_id=voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67
+candidate_id=voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d
+```
+
+The candidate identity is unchanged. This planner remains non-executing and has
+no apply mode; the rebind adds no host/install/live authority.
