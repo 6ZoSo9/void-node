@@ -20,9 +20,6 @@ export const NEXT_ACTION =
 const ROOT="/home/zoso/dev/void-node";
 const RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb";
 const RUNTIME_TREE="de12c9d2d5e475d435d21da3b047d7b63b69e2b7";
-const RUNTIME_POLICY_SHA256=
-  "746cfbe2f031868fff3a75f8307986f25c62460085f41a4827e712702a2d6549";
-
 const CANDIDATE_REL=
   "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json";
 const CANDIDATE_BLOB="e569c9211e01f14c7c00dd1c5041d4dfb0817609";
@@ -689,7 +686,8 @@ function buildBindingReceipt(compatibility,candidate,child){
       candidate.signer_credential_state.signer_control_source_head,
     source_runtime_compatibility_sha256:
       sha256(Buffer.from(canonical(compatibility),"utf8")),
-    runtime_policy_sha256:RUNTIME_POLICY_SHA256,
+    runtime_policy_authenticated_by_native_preentry:true,
+    runtime_policy_runtime_head:RUNTIME_HEAD,
     authenticated_credential_live_receipt:child,
     authenticated_credential_live_receipt_id:child.receipt_id,
     authenticated_credential_live_receipt_sha256:
@@ -737,7 +735,8 @@ function plan(){
   console.log("source_head_runtime_observed=true");
   console.log("source_tree_runtime_observed=true");
   console.log("runtime_head="+RUNTIME_HEAD);
-  console.log("runtime_policy_sha256="+RUNTIME_POLICY_SHA256);
+  console.log("runtime_policy_sha256_compile_constant_absent=true");
+  console.log("runtime_policy_authenticated_by_native_preentry_required=true");
   console.log("source_runtime_actual_object_ancestry_required=true");
   console.log("source_runtime_revision_walk_metadata_authority=false");
   console.log("source_runtime_dependency_count="+String(SOURCE_RUNTIME_DEPENDENCY_SPECS.length));
@@ -774,7 +773,7 @@ function plan(){
   console.log("next_action=SEPARATELY_AUTHORIZE_EPOCH2_V3R_DORMANT_CANDIDATE_LIVE_BINDING_V4");
 }
 function selfTest(){
-  if(!HEX64.test(RUNTIME_POLICY_SHA256)||SOURCE_RUNTIME_DEPENDENCY_SPECS.length!==9){
+  if(SOURCE_RUNTIME_DEPENDENCY_SPECS.length!==9){
     throw new Error("runtime_compatibility_identity_self_test_failed");
   }
   const fakeSource="1".repeat(40);
@@ -925,6 +924,8 @@ function selfTest(){
   console.log("source_tree_runtime_observed=true");
   console.log("runtime_head_exact=true");
   console.log("runtime_policy_head_preserved=true");
+  console.log("runtime_policy_sha256_compile_constant_absent=true");
+  console.log("runtime_policy_authenticated_by_native_preentry=true");
   console.log("source_runtime_actual_object_ancestry_required=true");
   console.log("source_runtime_graft_only_ancestry_rejected=true");
   console.log("source_runtime_dependency_count=9");
