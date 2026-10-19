@@ -206,3 +206,37 @@ These repairs do not establish installed Xiphos source custody,
 claim-service-only writer provenance, current store/claim/terminal/publish-request
 revalidation, capability issuance, trainer admission, training, credential/key
 access, transactions, or funds authority.
+
+## October 19 — explicit root descriptor close-uncertainty HOLD
+
+This draft child of the flattened #3537 generation `7850afc995608e188668dce2ea568eba99d23690`
+adds a narrow negative-result diagnostic to the existing protected root reader.
+
+Previously `open_root()` silently discarded `OSError` from `os.close(child)`
+on a rejected child, and from outer `os.close(current)` cleanup. A close
+failure is inherently ambiguous: the kernel may already have closed the FD
+or it may still be open. The initial metadata/ACL HOLD alone did not disclose
+that custody uncertainty. Likewise, failure closing a previous parent after
+ownership transfer became only a generic host-I/O HOLD.
+
+The three exact new HOLD reasons are:
+
+- `claim_root_rejected_child_close_uncertain`: rejected child FD close failed.
+- `claim_root_prior_parent_close_uncertain`: prior parent close failed after
+  the validated child became the retained `current` FD.
+- `claim_root_traversal_close_uncertain`: outer retained-current close failed.
+
+Each close is attempted only once. A cleanup uncertainty HOLD takes precedence
+over an earlier validation reason, with the exception chain retained. No
+retry or false success occurs. The observable result is **more conservative**
+rather than a new authorization.
+
+The disposable proof injects an `OSError` after a *real* kernel close on
+each of the three paths. It requires the matching distinct HOLD and a stable
+`/proc/self/fd` census, without intentionally leaking a live descriptor.
+This test verifies diagnostic honesty, not every possible Linux close failure.
+
+The existing held-regular-inode slot reader, content-address validation,
+isolated-Python preimport guard, and all negative host/capability/training
+authority flags remain unchanged. No protected Xiphos access or privileged
+host installation occurs. **PROTECT THE CORE.**

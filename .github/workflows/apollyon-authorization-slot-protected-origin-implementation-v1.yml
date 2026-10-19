@@ -90,9 +90,9 @@ jobs:
               ;;
           esac
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 54a836c98dabc4bde9f40c06453a001aa29a95d9
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 8def0726a99c1b29dc4014e72ba7299fe3e1537e
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 3ec23ebd95278051a0d96912c10bd8af31c77db5
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = fed329bdcd4773af438c10867bb02ecbd934e1f2
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 69c57518b9be5e639264d4d43e826ace9595bf94
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = e9242bf23cf5668ee071c9f4234ae79492812dd0
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 833876baf077b9616d08ee9b13b2657a0818dcc5
           test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = 65d1208c14d638c3d255bcdb50ddce02c8e25dee
           test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = e621f6c554c48e85f87bcc68435bc64fed5c9fd4
@@ -144,6 +144,7 @@ jobs:
             'visible_slot_directory_replacement_rejected=true' \
             'host_io_errors_normalized_to_hold=true' \
             'rejected_root_descriptor_cleanup_verified=true' \
+            'root_traversal_close_uncertainty_disclosed=true' \
             'isolated_python_preimport_guard=true' \
             'nonisolated_checkout_module_not_executed=true' \
             'trusted_ancestor_posix_acl_required=true' \
