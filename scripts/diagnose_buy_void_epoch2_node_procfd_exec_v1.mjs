@@ -8,7 +8,7 @@ const FLAGS=fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOC
 const MAX_OUT=4096;
 const NODE=fs.realpathSync(process.execPath);
 const ENV={PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C",HOME:"/nonexistent",TZ:"UTC"};
-const FILES={true:"/usr/bin/true",setpriv:"/usr/bin/setpriv",node:NODE};
+const FILES={true:"/usr/bin/true",setpriv:"/usr/bin/setpriv",node:NODE,python:fs.realpathSync("/usr/bin/python3"),git:fs.realpathSync("/usr/bin/git")};
 function fail(message){throw new Error(message);}
 function lease(file){
   if(fs.realpathSync(file)!==file)fail("noncanonical_executable");
@@ -61,7 +61,7 @@ function selfTest(){
 }
 function run(){
   check();
-  const t=lease(FILES.true),s=lease(FILES.setpriv),n=lease(FILES.node);
+  const t=lease(FILES.true),s=lease(FILES.setpriv),n=lease(FILES.node),py=lease(FILES.python),g=lease(FILES.git);
   try{
     const cases=[];
     cases.push(attempt("canonical_true",FILES.true,[],["ignore","pipe","pipe"]));
@@ -80,7 +80,11 @@ function run(){
     cases.push(attempt("node_child_fixed_fd3_version","/proc/self/fd/3",[
       "--version",
     ],["ignore","pipe","pipe",n.fd]));
-    revalidate(t);revalidate(s);revalidate(n);
+    cases.push(attempt("python_child_fd3_pipe","/proc/self/fd/3",["--version"],["pipe","pipe","pipe",py.fd]));
+    cases.push(attempt("git_child_fd3_pipe","/proc/self/fd/3",["--version"],["pipe","pipe","pipe",g.fd]));
+    cases.push(attempt("setpriv_to_git_fd4_pipe",FILES.setpriv,["--no-new-privs","/proc/self/fd/4","--version"],["pipe","pipe","pipe","ignore",g.fd]));
+    cases.push(attempt("nested_setpriv_fd3_git_fd4_pipe","/proc/self/fd/3",["--no-new-privs","/proc/self/fd/4","--version"],["pipe","pipe","pipe",s.fd,g.fd]));
+    revalidate(t);revalidate(s);revalidate(n);revalidate(py);revalidate(g);
     const result={
       marker:MARKER,status:"DIAGNOSTIC_ONLY_NO_PRODUCTION_AUTHORITY",
       node_version:process.versions.node,uid:process.getuid(),euid:process.geteuid(),
@@ -92,7 +96,7 @@ function run(){
     console.log(JSON.stringify(result));
     if(!cases[0].ok)fail("baseline_canonical_execution_failed");
   }finally{
-    fs.closeSync(n.fd);fs.closeSync(s.fd);fs.closeSync(t.fd);
+    fs.closeSync(g.fd);fs.closeSync(py.fd);fs.closeSync(n.fd);fs.closeSync(s.fd);fs.closeSync(t.fd);
   }
 }
 try{
