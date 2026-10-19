@@ -343,6 +343,22 @@ def stable_file(relative: str, expected_blob: str) -> bytes:
     return raw
 
 
+def historical_parent_blob(relative: str, expected_blob: str) -> str:
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or os.path.isabs(relative)
+        or ".." in Path(relative).parts
+    ):
+        hold("parent_historical_source_path_invalid:" + str(relative))
+    observed = git("rev-parse", PARENT_HEAD + ":" + relative)
+    if observed != expected_blob:
+        hold("parent_historical_source_blob_invalid:" + relative)
+    if git("cat-file", "-t", observed) != "blob":
+        hold("parent_historical_source_type_invalid:" + relative)
+    return observed
+
+
 def repository_lineage() -> dict[str, str]:
     head = git("rev-parse", "--verify", "HEAD^{commit}")
     for ancestor, descendant, reason in (
@@ -373,7 +389,14 @@ def repository_lineage() -> dict[str, str]:
 def accepted_parent_evidence() -> dict[str, Any]:
     repository_lineage()
     for relative, expected in PARENT_BLOBS.items():
-        stable_file(relative, expected)
+        if relative == PARENT_WORKFLOW_REL:
+            # The flattened PR intentionally has a new CI workflow scope.
+            # Preserve the accepted artifact provenance by authenticating the
+            # historical #3482 workflow from its exact Git object instead of
+            # relabeling old build evidence as current-workflow evidence.
+            historical_parent_blob(relative, expected)
+        else:
+            stable_file(relative, expected)
     return {
         "head": PARENT_HEAD,
         "accepted_base": PARENT_ACCEPTED_BASE,
