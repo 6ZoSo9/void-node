@@ -23,6 +23,8 @@ const ROOT="/home/zoso/dev/void-node";
 const QUALIFIER_REL=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py";
 const SEALED_REL=
+  "scripts/void_buy_void_epoch2_credential_attestation_sealed_v3.mjs";
+const SEALED_RUNTIME_PREDECESSOR_REL=
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs";
 const QUALIFIER_BLOB="74c69fe8a95ed5f361a39971618f43f7c768c865";
 const QUALIFIER_REPLACEMENT_REL=
@@ -44,9 +46,11 @@ const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
 const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
 const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
 const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
-const SEALED_BLOB="14cbe81e27d04fee77cbe75225ce308bf8561a7b";
+const SEALED_BLOB="53c86d154d4fc98b434b61157f16fb51e6d34eb9";
+const SEALED_RUNTIME_PREDECESSOR_BLOB=
+  "14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
-  "probeBuyVoidEpoch2InstalledCredentialSigningCapabilitySealedV2";
+  "probeBuyVoidEpoch2InstalledCredentialSigningCapabilitySealedV3";
 const EXPECTED_CREDENTIAL_ID="buy-void-epoch2-fulfiller-v1";
 const EXPECTED_CREDENTIAL_LOCK_ID=
   "voidbuyumqcredelflock3r_8b064214e22ce54ac193b426f38b9d6a7ea4cee07b38b68c8d1eeb6c51de6f34";
@@ -57,9 +61,9 @@ const QUALIFIER_MARKER=
 const QUALIFIER_NEXT_ACTION=
   "BIND_V3R_AUTHENTICATED_CREDENTIAL_METADATA_IN_EPOCH2_LIVE_COMPOSITION_SUCCESSOR";
 const SEALED_MARKER=
-  "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SEALED_V2";
+  "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SEALED_V3";
 const SEALED_STATUS=
-  "EPOCH2_INSTALLED_CREDENTIAL_SIGNING_CAPABILITY_GREEN";
+  "EPOCH2_INSTALLED_CREDENTIAL_SIGNING_CAPABILITY_V3_GREEN";
 const RUNTIME_UID=1000;
 const RUNTIME_GID=1000;
 const RUNTIME_HOME="/home/zoso";
@@ -81,7 +85,7 @@ const PREENTRY_PROOF_SCHEMA="VOID_BUY_VOID_EPOCH2_NATIVE_PARENT_PROOF_V3";
 const MAX_OUTPUT=2*1024*1024;
 const SHA40=/^[0-9a-f]{40}$/u;
 const HEX64=/^[0-9a-f]{64}$/u;
-const SEALED_ID=/^voide2sealed2_[0-9a-f]{64}$/u;
+const SEALED_ID=/^voide2sealed3_[0-9a-f]{64}$/u;
 
 const RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb";
 const RUNTIME_RELEASE="/opt/void-node-live/releases/"+RUNTIME_HEAD;
@@ -89,6 +93,7 @@ const CANONICAL_GIT_DIR=ROOT+"/.git";
 const SOURCE_COMPATIBILITY_KEYS=Object.freeze([
   "runtime_head","source_head","source_tree",
   "source_runtime_ancestry_bound","source_runtime_dependency_blob_equality",
+  "source_only_dependency_blob_bound",
   "tracked_checkout_exact","untracked_paths_enumerated",
   "untracked_paths_source_authority",
 ]);
@@ -104,7 +109,14 @@ const QUALIFIER_CLOSURE_SPECS=Object.freeze([
 ]);
 const SOURCE_RUNTIME_DEPENDENCY_SPECS=Object.freeze([
   ...QUALIFIER_CLOSURE_SPECS,
-  Object.freeze(["sealed_v2",SEALED_REL,SEALED_BLOB]),
+  Object.freeze([
+    "sealed_v2_runtime_predecessor",
+    SEALED_RUNTIME_PREDECESSOR_REL,
+    SEALED_RUNTIME_PREDECESSOR_BLOB,
+  ]),
+]);
+const SOURCE_ONLY_DEPENDENCY_SPECS=Object.freeze([
+  Object.freeze(["sealed_v3",SEALED_REL,SEALED_BLOB]),
 ]);
 const AUTHENTICATED_CLOSURE_ROOT="/__void_authenticated_qualifier_closure_v1__";
 const QUALIFICATION_KEYS=Object.freeze([
@@ -498,6 +510,7 @@ function validateSourceCompatibility(value,expectedHead){
      !SHA40.test(String(value.source_tree||""))||
      value.source_runtime_ancestry_bound!==true||
      value.source_runtime_dependency_blob_equality!==true||
+     value.source_only_dependency_blob_bound!==true||
      value.tracked_checkout_exact!==true||
      value.untracked_paths_enumerated!==false||
      value.untracked_paths_source_authority!==false){
@@ -531,12 +544,19 @@ function requireSourceRuntimeCompatibility(expectedHead,gitFn=git){
       throw new Error("source_runtime_dependency_blob_mismatch:"+relative);
     }
   }
+  for(const [_label,relative,expectedBlob] of SOURCE_ONLY_DEPENDENCY_SPECS){
+    const sourceBlob=gitFn(["rev-parse",sourceHead+":"+relative]).trim();
+    if(sourceBlob!==expectedBlob){
+      throw new Error("source_only_dependency_blob_mismatch:"+relative);
+    }
+  }
   const result=Object.freeze({
     runtime_head:RUNTIME_HEAD,
     source_head:sourceHead,
     source_tree:sourceTree,
     source_runtime_ancestry_bound:true,
     source_runtime_dependency_blob_equality:true,
+    source_only_dependency_blob_bound:true,
     tracked_checkout_exact:true,
     untracked_paths_enumerated:false,
     untracked_paths_source_authority:false,
@@ -924,7 +944,7 @@ function validateSealedRecord(record,expectedHead){
   }
   for(const [key,want] of Object.entries({
     marker:SEALED_MARKER,
-    version:2,
+    version:3,
     status:SEALED_STATUS,
     source_head:expectedHead,
     source_branch:"main",
@@ -934,6 +954,11 @@ function validateSealedRecord(record,expectedHead){
     credential_content_read:true,
     immutable_fulfiller_identity_proven:true,
     active_signing_capability_proven:true,
+    runtime_source_acl_nonwritability_verified:true,
+    runtime_source_descriptor_reads_bound:true,
+    runtime_source_generation_retained_through_signing:true,
+    runtime_source_revalidated_after_final_observation:true,
+    runtime_source_revalidated_immediately_before_evidence:true,
     privileged_first_entry_authenticated:false,
     credential_generation_retained_through_signing:true,
     credential_generation_revalidated_after_final_observation:true,
@@ -999,9 +1024,12 @@ function requireTrustedRuntimeRelease(){
   return RUNTIME_RELEASE;
 }
 
-function runSealedProbe(expectedHead){
+function runSealedProbe(expectedHead,sourceHead){
   const runtimeRelease=requireTrustedRuntimeRelease();
-  const source=gitObject(expectedHead,SEALED_REL,SEALED_BLOB);
+  if(!SHA40.test(String(sourceHead||""))){
+    throw new Error("sealed_source_head_invalid");
+  }
+  const source=gitObject(sourceHead,SEALED_REL,SEALED_BLOB);
   try{
     const r=runAsRuntimeUser(NODE,[
       "--input-type=module",
@@ -1011,6 +1039,8 @@ function runSealedProbe(expectedHead){
       SEALED_CONFIRM,
       "--expected-head",
       expectedHead,
+      "--sealed-source-blob",
+      SEALED_BLOB,
     ],{
       cwd:runtimeRelease,
       env:cleanGitEnv(),
@@ -1074,6 +1104,7 @@ export function buildReceipt({
     source_checkout_tree:sourceCompatibility.source_tree,
     source_runtime_ancestry_bound:true,
     source_runtime_dependency_blob_equality:true,
+    source_only_dependency_blob_bound:true,
     tracked_source_checkout_exact:true,
     untracked_paths_enumerated:false,
     untracked_paths_source_authority:false,
@@ -1098,6 +1129,7 @@ export function buildReceipt({
     service_start_ticks:String(qualification.service_start_ticks),
     signer_address:sealedRecord.immutable_fulfiller,
     qualification_provenance_authenticated_by_runner:true,
+    sealed_probe_source_authenticated_by_runner:true,
     privileged_first_entry_authenticated:true,
     native_preentry_policy_bound:true,
     root_node_descriptor_execution_bound:true,
@@ -1186,6 +1218,8 @@ function plan(){
   console.log("qualification_before_after_sealed_probe_required=true");
   console.log("checkout_revalidation_after_sensitive_sequence_required=true");
   console.log("sealed_git_object_probe_required=true");
+  console.log("sealed_v3_runtime_source_custody_required=true");
+  console.log("sealed_v3_terminal_source_revalidation_required=true");
   console.log("sealed_probe_runs_as_runtime_uid=true");
   console.log("credential_content_access=false");
   console.log("private_key_access=false");
@@ -1286,6 +1320,7 @@ function selfTest(){
     source_tree:"3".repeat(40),
     source_runtime_ancestry_bound:true,
     source_runtime_dependency_blob_equality:true,
+    source_only_dependency_blob_bound:true,
     tracked_checkout_exact:true,
     untracked_paths_enumerated:false,
     untracked_paths_source_authority:false,
@@ -1305,6 +1340,7 @@ function selfTest(){
      receipt.source_checkout_tree!=="3".repeat(40)||
      receipt.source_runtime_ancestry_bound!==true||
      receipt.source_runtime_dependency_blob_equality!==true||
+     receipt.source_only_dependency_blob_bound!==true||
      receipt.tracked_source_checkout_exact!==true||
      receipt.untracked_paths_enumerated!==false||
      receipt.untracked_paths_source_authority!==false||
@@ -1399,6 +1435,7 @@ function selfTest(){
     source_tree:"5".repeat(40),
     source_runtime_ancestry_bound:true,
     source_runtime_dependency_blob_equality:true,
+    source_only_dependency_blob_bound:true,
     tracked_checkout_exact:true,
     untracked_paths_enumerated:false,
     untracked_paths_source_authority:false,
@@ -1561,8 +1598,9 @@ function selfTest(){
   }
   for(const value of Object.values(testClosure))value.fill(0);
 
-  if(SOURCE_RUNTIME_DEPENDENCY_SPECS.length!==9){
-    throw new Error("source_runtime_dependency_set_cardinality_invalid");
+  if(SOURCE_RUNTIME_DEPENDENCY_SPECS.length!==9||
+     SOURCE_ONLY_DEPENDENCY_SPECS.length!==1){
+    throw new Error("source_dependency_set_cardinality_invalid");
   }
   const driftSourceHead="8".repeat(40);
   const driftSourceTree="9".repeat(40);
@@ -1598,6 +1636,9 @@ function selfTest(){
           if(relative===driftRelative)return "0".repeat(40)+"\n";
           return blob+"\n";
         }
+      }
+      for(const [_label,relative,blob] of SOURCE_ONLY_DEPENDENCY_SPECS){
+        if(spec===driftSourceHead+":"+relative)return blob+"\n";
       }
     }
     throw new Error("source_runtime_dependency_drift_fixture_query");
@@ -1678,6 +1719,10 @@ function selfTest(){
   console.log("source_runtime_actual_object_ancestry_required=true");
   console.log("tracked_source_checkout_exact_required=true");
   console.log("source_runtime_dependency_blob_equality_required=true");
+  console.log("source_only_sealed_v3_blob_bound=true");
+  console.log("sealed_v3_runtime_source_acl_nonwritability_required=true");
+  console.log("sealed_v3_terminal_source_revalidation_required=true");
+  console.log("source_only_sealed_v3_blob_bound=true");
   console.log("source_runtime_complete_dependency_set_bound=true");
   console.log("nested_source_runtime_dependency_drift_rejected=true");
   console.log("source_runtime_graft_ancestry_rejected=true");
@@ -1713,7 +1758,7 @@ function runSensitiveSequence({
   validateSourceCompatibility(sourceBefore,expectedHead);
 
   const before=qualificationFn(expectedHead);
-  const sealedRecord=sealedFn(expectedHead);
+  const sealedRecord=sealedFn(expectedHead,sourceBefore.source_head);
   const after=qualificationFn(expectedHead);
 
   if(canonical(before)!==canonical(after)){
