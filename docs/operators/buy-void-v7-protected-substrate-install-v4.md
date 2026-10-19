@@ -26,7 +26,7 @@ V4 preserves V3 and binds it as the exact predecessor:
 - predecessor V3 installer blob: `4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38`;
 - materializer V2 blob: `474614da950db72082fb95a5174405ce8caf2513`;
 - historical installed qualifier V2 blob: `56a7ca798553766af525d9fb1ccbe58b70fe9c1d`;
-- installed qualifier V3 blob: `c2b07c54759d70f6bfaefd6855d922e0d04310b5`.
+- installed qualifier V3 blob: `d3ad73b041ec7357e2ad8e758caf9d9390a4785b`.
 
 The mode contract is role-specific:
 
@@ -60,3 +60,29 @@ Source/CI GREEN does not authorize `--apply`. A real `/opt` create-only publicat
 This repair does not perform or authorize chmod/chown of the active release, protected `/opt` publication, service/systemd mutation, credential/private-key/wallet access, signing, transaction/RPC, payment acceptance, presale/WC activation, treasury/liquidity action, or funds movement.
 
 PROTECT THE CORE.
+
+
+## Qualifier binary-execution custody repair
+
+Independent manual review of exact head `b8d877d219390dc6d807caf0361d4617b4623ad5`
+found that qualifier V3 authenticated the native preentry and selector leaf files,
+then executed them again by pathname without re-proving custody of their binary-root
+directories. A runtime-UID-writable parent directory could therefore permit a
+pathname swap between leaf validation and self-test execution.
+
+This generation closes that gap. Qualifier V3 now:
+
+- requires the immediate native/selector binary roots to remain exact root-owned
+  `0755` directories and every ancestor to remain root-owned, non-symlink and
+  non-group/world-writable;
+- opens each exact `0555` ELF once with `O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK`;
+- authenticates size and SHA-256 from the retained descriptor;
+- executes both self-tests through `/proc/self/fd/<n>` with only that reviewed
+  descriptor inherited;
+- revalidates retained-descriptor identity, visible pathname identity and the full
+  ancestor snapshot before/after execution; and
+- re-hashes the retained descriptor after both self-tests before GREEN.
+
+The qualifier remains unprivileged and read-only. This repair grants no protected
+filesystem apply, service/systemd mutation, credential/key/wallet access, signing,
+transaction/payment/activation, treasury/liquidity, or funds authority.

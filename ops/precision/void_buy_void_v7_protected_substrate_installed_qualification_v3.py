@@ -192,6 +192,55 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                 raise E("tree_node_kind_invalid:" + relative)
     return h.hexdigest(), nodes, total
 
+def _stat_identity(st: os.stat_result) -> dict[str, int]:
+    return {
+        "dev": st.st_dev, "ino": st.st_ino, "mode": stat.S_IMODE(st.st_mode),
+        "uid": st.st_uid, "gid": st.st_gid, "nlink": st.st_nlink,
+        "size": st.st_size, "mtime_ns": st.st_mtime_ns, "ctime_ns": st.st_ctime_ns,
+    }
+
+def _binary_ancestor_snapshot(path: pathlib.Path, label: str) -> tuple[tuple[str, int, int, int, int, int, int], ...]:
+    if not path.is_absolute() or "\x00" in str(path):
+        raise E(label + "_absolute_path_required")
+    current = path.parent
+    first = True
+    rows: list[tuple[str, int, int, int, int, int, int]] = []
+    while True:
+        st = os.lstat(current)
+        mode = stat.S_IMODE(st.st_mode)
+        if (
+            not stat.S_ISDIR(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or mode & 0o022
+        ):
+            raise E(label + "_ancestor_custody_invalid:" + str(current))
+        if first and mode != 0o755:
+            raise E(label + "_binary_root_mode_invalid:" + str(current))
+        rows.append((str(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_ctime_ns))
+        if current == current.parent:
+            break
+        current = current.parent
+        first = False
+    return tuple(rows)
+
+def _read_fd_exact(fd: int, expected_bytes: int, label: str) -> bytes:
+    os.lseek(fd, 0, os.SEEK_SET)
+    chunks: list[bytes] = []
+    remaining = expected_bytes + 1
+    while remaining:
+        part = os.read(fd, min(1024 * 1024, remaining))
+        if not part:
+            break
+        chunks.append(part)
+        remaining -= len(part)
+    raw = b"".join(chunks)
+    if len(raw) != expected_bytes:
+        raise E(label + "_descriptor_size_changed")
+    os.lseek(fd, 0, os.SEEK_SET)
+    return raw
+
 def exact_file(path: pathlib.Path, mode: int, expected_bytes: int, digest: str) -> dict[str, int]:
     st = path.lstat()
     if (
@@ -205,28 +254,66 @@ def exact_file(path: pathlib.Path, mode: int, expected_bytes: int, digest: str) 
         or sha256_file(path) != digest
     ):
         raise E("installed_file_invalid:" + str(path))
-    return {
-        "dev": st.st_dev, "ino": st.st_ino, "mode": stat.S_IMODE(st.st_mode),
-        "uid": st.st_uid, "gid": st.st_gid, "nlink": st.st_nlink,
-        "size": st.st_size, "mtime_ns": st.st_mtime_ns, "ctime_ns": st.st_ctime_ns,
-    }
+    return _stat_identity(st)
 
-def run_self(path: pathlib.Path, marker: str, expected: dict[str, int]) -> str:
-    def generation() -> dict[str, int]:
-        st = path.lstat()
-        return {
-            "dev": st.st_dev, "ino": st.st_ino, "mode": stat.S_IMODE(st.st_mode),
-            "uid": st.st_uid, "gid": st.st_gid, "nlink": st.st_nlink,
-            "size": st.st_size, "mtime_ns": st.st_mtime_ns, "ctime_ns": st.st_ctime_ns,
-        }
-    before = generation()
-    if before != expected:
-        raise E("self_test_generation_mismatch:" + str(path))
+def open_exact_executable_lease(
+    path: pathlib.Path,
+    mode: int,
+    expected_bytes: int,
+    digest: str,
+    label: str,
+) -> tuple[int, dict[str, int], tuple[tuple[str, int, int, int, int, int, int], ...]]:
+    ancestors = _binary_ancestor_snapshot(path, label)
+    before = path.lstat()
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_uid != 0
+        or before.st_gid != 0
+        or before.st_nlink != 1
+        or stat.S_IMODE(before.st_mode) != mode
+        or before.st_size != expected_bytes
+    ):
+        raise E(label + "_installed_file_invalid")
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        opened = os.fstat(fd)
+        if _stat_identity(opened) != _stat_identity(before):
+            raise E(label + "_descriptor_open_generation_mismatch")
+        raw = _read_fd_exact(fd, expected_bytes, label)
+        after = os.fstat(fd)
+        visible = path.lstat()
+        if _stat_identity(after) != _stat_identity(opened):
+            raise E(label + "_descriptor_generation_changed")
+        if _stat_identity(visible) != _stat_identity(opened):
+            raise E(label + "_visible_generation_changed")
+        if _binary_ancestor_snapshot(path, label) != ancestors:
+            raise E(label + "_ancestor_generation_changed")
+        if hashlib.sha256(raw).hexdigest() != digest:
+            raise E(label + "_descriptor_sha256_mismatch")
+        return fd, _stat_identity(opened), ancestors
+    except BaseException:
+        os.close(fd)
+        raise
+
+def run_self_lease(
+    path: pathlib.Path,
+    marker: str,
+    fd: int,
+    expected: dict[str, int],
+    ancestors: tuple[tuple[str, int, int, int, int, int, int], ...],
+    label: str,
+    digest: str,
+) -> str:
+    if _stat_identity(os.fstat(fd)) != expected:
+        raise E(label + "_retained_descriptor_generation_mismatch")
     outputs: list[str] = []
     env = {"PATH":"/usr/bin:/bin","HOME":"/nonexistent","LANG":"C","LC_ALL":"C","TZ":"UTC"}
     for _ in range(2):
+        if _binary_ancestor_snapshot(path, label) != ancestors:
+            raise E(label + "_ancestor_generation_changed_before_exec")
         cp = subprocess.run(
-            [str(path), "--self-test"],
+            [f"/proc/self/fd/{fd}", "--self-test"],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -234,12 +321,23 @@ def run_self(path: pathlib.Path, marker: str, expected: dict[str, int]) -> str:
             env=env,
             timeout=10,
             check=False,
+            pass_fds=(fd,),
         )
         if cp.returncode != 0 or cp.stderr != "" or marker not in cp.stdout:
-            raise E("self_test_failed:" + str(path))
+            raise E(label + "_self_test_failed")
+        if _stat_identity(os.fstat(fd)) != expected or _stat_identity(path.lstat()) != expected:
+            raise E(label + "_generation_changed_during_self_test")
+        if _binary_ancestor_snapshot(path, label) != ancestors:
+            raise E(label + "_ancestor_generation_changed_after_exec")
         outputs.append(cp.stdout)
-    if outputs[0] != outputs[1] or generation() != before:
-        raise E("self_test_not_stable:" + str(path))
+    if outputs[0] != outputs[1]:
+        raise E(label + "_self_test_output_not_stable")
+    if hashlib.sha256(_read_fd_exact(fd, expected["size"], label)).hexdigest() != digest:
+        raise E(label + "_retained_descriptor_sha256_changed")
+    if _stat_identity(os.fstat(fd)) != expected or _stat_identity(path.lstat()) != expected:
+        raise E(label + "_terminal_generation_changed")
+    if _binary_ancestor_snapshot(path, label) != ancestors:
+        raise E(label + "_terminal_ancestor_generation_changed")
     return hashlib.sha256(outputs[0].encode()).hexdigest()
 
 def qualify() -> None:
@@ -253,11 +351,28 @@ def qualify() -> None:
     target_before = tree_digest(SOURCE, PROTECTED_SOURCE_ROOT_MODE)
     if target_before != release_before:
         raise E("protected_source_not_byte_identical_to_active_release")
-    preentry = exact_file(PREENTRY, 0o555, NATIVE_BYTES, NATIVE_SHA)
-    selector = exact_file(SELECTOR, 0o555, SELECTOR_BYTES, SELECTOR_SHA)
-    exact_file(LAUNCHER, 0o444, LAUNCHER_BYTES, LAUNCHER_SHA)
-    native_self = run_self(PREENTRY, "VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1_SELF_TEST=GREEN", preentry)
-    selector_self = run_self(SELECTOR, "VOID_BUY_VOID_V2_NATIVE_SELECTOR_GUARD_V1_SELF_TEST_GREEN", selector)
+    pre_fd = selector_fd = -1
+    try:
+        pre_fd, preentry, pre_ancestors = open_exact_executable_lease(
+            PREENTRY, 0o555, NATIVE_BYTES, NATIVE_SHA, "native_preentry"
+        )
+        selector_fd, selector, selector_ancestors = open_exact_executable_lease(
+            SELECTOR, 0o555, SELECTOR_BYTES, SELECTOR_SHA, "selector"
+        )
+        exact_file(LAUNCHER, 0o444, LAUNCHER_BYTES, LAUNCHER_SHA)
+        native_self = run_self_lease(
+            PREENTRY, "VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1_SELF_TEST=GREEN",
+            pre_fd, preentry, pre_ancestors, "native_preentry", NATIVE_SHA,
+        )
+        selector_self = run_self_lease(
+            SELECTOR, "VOID_BUY_VOID_V2_NATIVE_SELECTOR_GUARD_V1_SELF_TEST_GREEN",
+            selector_fd, selector, selector_ancestors, "selector", SELECTOR_SHA,
+        )
+    finally:
+        if selector_fd >= 0:
+            os.close(selector_fd)
+        if pre_fd >= 0:
+            os.close(pre_fd)
     target_after = tree_digest(SOURCE, PROTECTED_SOURCE_ROOT_MODE)
     release_after = tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE)
     if target_before != target_after or release_before != release_after or target_after != release_after:
@@ -276,6 +391,9 @@ def qualify() -> None:
     print("source_regular_file_bytes=" + str(target_after[2]))
     print("native_self_test_sha256=" + native_self)
     print("selector_self_test_sha256=" + selector_self)
+    print("binary_root_and_ancestor_custody_verified=true")
+    print("binary_self_test_descriptor_execution=true")
+    print("binary_retained_descriptor_post_execution_revalidated=true")
     print("installed_generation_evidence_authority=true")
     print("privileged_execution_authorized=false")
     print("receipt_publication_authorized=false")
@@ -315,6 +433,9 @@ def self_test() -> None:
     print("protected_source_root_mode_0755_required=true")
     print("swapped_root_modes_rejected=true")
     print("nonroot_root_metadata_rejected=true")
+    print("binary_root_and_ancestor_custody_required=true")
+    print("binary_self_test_descriptor_execution_required=true")
+    print("binary_retained_descriptor_revalidation_required=true")
     print("host_mutation=false")
 
 def main() -> None:

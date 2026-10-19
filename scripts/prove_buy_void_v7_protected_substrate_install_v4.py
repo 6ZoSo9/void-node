@@ -16,11 +16,11 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="bdefbf557a51fd303f0205447215df7def5cd45b"
+assert gblob(INS)=="77ec8d1fa463571ba45155179479ff551d21fc9c"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
-assert gblob(QUAL)=="c2b07c54759d70f6bfaefd6855d922e0d04310b5"
+assert gblob(QUAL)=="d3ad73b041ec7357e2ad8e758caf9d9390a4785b"
 assert gblob(PRED_QUAL)=="56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
 
 src=INS.read_text("utf-8")
@@ -51,7 +51,7 @@ required=(
     'SEPARATELY_AUTHORIZE_V7_PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4',
     'PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4_GREEN',
     'QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"',
-    'QUALIFIER_BLOB = "c2b07c54759d70f6bfaefd6855d922e0d04310b5"',
+    'QUALIFIER_BLOB = "d3ad73b041ec7357e2ad8e758caf9d9390a4785b"',
     '"installed_qualifier": {"path": QUALIFIER_REL, "blob": QUALIFIER_BLOB}',
     'RUN_INSTALLED_QUALIFICATION_V3',
     'installed_qualifier_v3_bound=true',
@@ -78,6 +78,14 @@ qrequired=(
     'root_mode_role_split_verified=true',
     'source_release_root_mode_required=0555',
     'protected_source_root_mode_required=0755',
+    'def _binary_ancestor_snapshot(path: pathlib.Path, label: str)',
+    'def open_exact_executable_lease(',
+    'os.O_NOFOLLOW | os.O_NONBLOCK',
+    '[f"/proc/self/fd/{fd}", "--self-test"]',
+    'pass_fds=(fd,)',
+    'binary_root_and_ancestor_custody_verified=true',
+    'binary_self_test_descriptor_execution=true',
+    'binary_retained_descriptor_post_execution_revalidated=true',
 )
 for needle in qrequired:
     assert needle in qsrc, needle
@@ -101,6 +109,10 @@ assert "accepted_v1_lock_install_authority=false" in cp.stdout.splitlines()
 cp=subprocess.run([sys.executable,"-I","-B",str(QUAL),"--self-test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V3_SELF_TEST_GREEN" in cp.stdout.splitlines()
 assert "swapped_root_modes_rejected=true" in cp.stdout.splitlines()
+assert "binary_root_and_ancestor_custody_required=true" in cp.stdout.splitlines()
+assert "binary_self_test_descriptor_execution_required=true" in cp.stdout.splitlines()
+assert "binary_retained_descriptor_revalidation_required=true" in cp.stdout.splitlines()
+assert 'subprocess.run(\n            [str(path), "--self-test"]' not in qsrc
 cp=subprocess.run([sys.executable,"-I","-B",str(QUAL)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr==""
 assert "source_release_root_mode_required=0555" in cp.stdout.splitlines()
@@ -112,6 +124,9 @@ print("immutable_source_release_root_mode_0555_required=true")
 print("protected_source_root_mode_0755_required=true")
 print("installed_qualifier_v3_bound=true")
 print("qualifier_swapped_root_modes_rejected=true")
+print("qualifier_binary_root_ancestor_custody_bound=true")
+print("qualifier_binary_descriptor_execution_bound=true")
+print("qualifier_binary_post_execution_revalidation_bound=true")
 print("source_release_chmod_or_chown_forbidden=true")
 print("tree_child_root_ownership_preserved=true")
 print("tree_group_world_write_rejection_preserved=true")
