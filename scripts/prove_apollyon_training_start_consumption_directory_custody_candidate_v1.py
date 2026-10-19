@@ -17,7 +17,7 @@ PINS = {
     "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
         "66b76ea9201f870672c0bc1c3df207b3c95cf68a",
     "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-        "3edccf081b85d5cf1b2ce84d53d046c82e447593",
+        "051209be6307f9b0784aa6c428f0c4d5b202b7f9",
 }
 
 

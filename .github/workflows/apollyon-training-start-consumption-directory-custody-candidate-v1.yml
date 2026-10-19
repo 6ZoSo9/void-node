@@ -55,7 +55,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=5507b4a6cb847a459eaefb055989390be1bbd942
+          parent=caf363e7ab1e7de21f6ba44e4eaa8c7cdb5980e1
           stacked_parent=c619a9112a096240b530bc7b626f6c5a23579aad
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
@@ -107,10 +107,10 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 42408e7a65e3565a8a98cb4e23985c3ca76045bc
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 9f3f4c8c0350587c72be99f25703cce6eb9bac96
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = eca97a6b5d5b758ffa8263b3cb2dd73af9cc8608
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 9d29c972331e175306ef216ca9b9b3924a0e5734
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 2ff40dd73dcc91b617f02c81572eed0f8b512565
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 66b76ea9201f870672c0bc1c3df207b3c95cf68a
-          test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 3edccf081b85d5cf1b2ce84d53d046c82e447593
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 051209be6307f9b0784aa6c428f0c4d5b202b7f9
 
           git diff --check "$base" "$HEAD_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

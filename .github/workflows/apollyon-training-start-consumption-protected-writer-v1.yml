@@ -84,7 +84,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "5507b4a6cb847a459eaefb055989390be1bbd942"
+              test "$PR_BASE" = "caf363e7ab1e7de21f6ba44e4eaa8c7cdb5980e1"
               BASE="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"

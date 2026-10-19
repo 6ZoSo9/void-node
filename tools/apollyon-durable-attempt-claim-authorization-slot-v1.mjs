@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import {types as utilTypes} from "node:util";
 import {
   canonicalApollyonClaimContractJsonV1,
 } from "./apollyon-candidate-training-attempt-claim-contract-v1.mjs";
@@ -165,21 +166,75 @@ const STORE_CONTINUITY_ID=/^apollyon_claim_store_continuity_v2:[0-9a-f]{64}$/u;
 function fail(code){throw new Error(code);}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
 function canonical(value){return canonicalApollyonClaimContractJsonV1(value);}
-function exactOwnKeys(value,expected,code){
-  if(!value||typeof value!=="object"||Array.isArray(value))fail(code);
-  const actual=Object.keys(value).sort();
-  const wanted=[...expected].sort();
-  if(actual.length!==wanted.length||actual.some((key,index)=>key!==wanted[index])){
+function exactDataSnapshot(input,expected,code){
+  if(
+    !input||typeof input!=="object"||utilTypes.isProxy(input)||Array.isArray(input)
+  )fail(code);
+  const proto=Object.getPrototypeOf(input);
+  if(proto!==Object.prototype&&proto!==null)fail(code);
+  const own=Reflect.ownKeys(input);
+  if(own.length!==expected.length||own.some(key=>typeof key!=="string"))fail(code);
+  const allowed=new Set(expected);
+  if(own.some(key=>!allowed.has(key)))fail(code);
+  const descriptors=Object.getOwnPropertyDescriptors(input);
+  const snapshot={};
+  for(const key of expected){
+    const descriptor=descriptors[key];
+    if(
+      !descriptor||descriptor.enumerable!==true||
+      !Object.hasOwn(descriptor,"value")
+    )fail(code);
+    snapshot[key]=descriptor.value;
+  }
+  return snapshot;
+}
+function exactPrimitiveSnapshot(input,expected,code){
+  const snapshot=exactDataSnapshot(input,expected,code);
+  for(const value of Object.values(snapshot)){
+    if(
+      value===null||
+      typeof value==="boolean"||
+      (typeof value==="number"&&Number.isSafeInteger(value))||
+      (typeof value==="string"&&value.length>=1&&value.length<=256)
+    )continue;
     fail(code);
   }
+  return snapshot;
 }
-function clonePlain(value,code){
-  let copy;
-  try{copy=structuredClone(value);}catch{fail(code);}
-  if(!copy||typeof copy!=="object"||Array.isArray(copy))fail(code);
-  const proto=Object.getPrototypeOf(copy);
-  if(proto!==Object.prototype&&proto!==null)fail(code);
-  return copy;
+function exactRecordArraySnapshot(input,code){
+  if(
+    !input||typeof input!=="object"||utilTypes.isProxy(input)||
+    !Array.isArray(input)||Object.getPrototypeOf(input)!==Array.prototype
+  )fail(code);
+  const lengthDescriptor=Object.getOwnPropertyDescriptor(input,"length");
+  if(
+    !lengthDescriptor||!Object.hasOwn(lengthDescriptor,"value")||
+    !Number.isSafeInteger(lengthDescriptor.value)||lengthDescriptor.value<0
+  )fail(code);
+  const length=lengthDescriptor.value;
+  const own=Reflect.ownKeys(input);
+  if(own.length!==length+1)fail(code);
+  const descriptors=Object.getOwnPropertyDescriptors(input);
+  const indexes=[];
+  const snapshot=new Array(length);
+  for(const key of own){
+    if(key==="length")continue;
+    if(typeof key!=="string"||!/^(?:0|[1-9][0-9]*)$/u.test(key))fail(code);
+    const index=Number(key);
+    if(!Number.isSafeInteger(index)||index<0||index>=length||String(index)!==key){
+      fail(code);
+    }
+    const descriptor=descriptors[key];
+    if(
+      !descriptor||descriptor.enumerable!==true||
+      !Object.hasOwn(descriptor,"value")
+    )fail(code);
+    indexes.push(index);
+    snapshot[index]=descriptor.value;
+  }
+  indexes.sort((a,b)=>a-b);
+  if(indexes.length!==length||indexes.some((value,index)=>value!==index))fail(code);
+  return snapshot;
 }
 function validateOneAttemptAuthority(value){
   if(!AUTH_ID.test(value.authorization_id)||
@@ -196,8 +251,7 @@ function validateStableAuthority(value){
 }
 
 export function deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1(input){
-  const value=clonePlain(input,"apollyon_claim_auth_slot_v1_id_input_invalid");
-  exactOwnKeys(value,[
+  const value=exactPrimitiveSnapshot(input,[
     "attempt_limit","authorization_id","automatic_retry_authorized",
   ],"apollyon_claim_auth_slot_v1_id_input_invalid");
   validateOneAttemptAuthority(value);
@@ -227,8 +281,7 @@ export function qualifyApollyonDurableAttemptClaimAuthorizationSlotPolicyV1(){
 }
 
 export function qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1(input){
-  const value=clonePlain(input,"apollyon_claim_auth_slot_v1_record_input_invalid");
-  exactOwnKeys(value,[
+  const value=exactPrimitiveSnapshot(input,[
     "attempt_limit",
     "authorization_id",
     "automatic_retry_authorized",
@@ -281,9 +334,8 @@ export function qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1(inpu
 }
 
 export function validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1(input){
-  const value=clonePlain(input,"apollyon_claim_auth_slot_v1_record_invalid");
-  exactOwnKeys(
-    value,
+  const value=exactPrimitiveSnapshot(
+    input,
     VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_KEYS_V1,
     "apollyon_claim_auth_slot_v1_record_invalid",
   );
@@ -313,11 +365,14 @@ export function validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1(inp
 }
 
 export function classifyApollyonDurableAttemptClaimAuthorizationSlotRecoveryV1(input){
-  const value=clonePlain(input,"apollyon_claim_auth_slot_v1_recovery_input_invalid");
-  exactOwnKeys(value,[
+  const value=exactDataSnapshot(input,[
     "authorization_slot_id","expected_slot_record","observed_slot_record",
   ],"apollyon_claim_auth_slot_v1_recovery_input_invalid");
-  if(!SLOT_ID.test(value.authorization_slot_id)){
+  if(
+    typeof value.authorization_slot_id!=="string"||
+    value.authorization_slot_id.length>256||
+    !SLOT_ID.test(value.authorization_slot_id)
+  ){
     fail("apollyon_claim_auth_slot_v1_recovery_slot_invalid");
   }
   const expected=validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1(
@@ -359,8 +414,8 @@ export function classifyApollyonDurableAttemptClaimAuthorizationSlotRecoveryV1(i
 
 
 function validatedSortedAuthorizationSlotRecordsV1(input){
-  if(!Array.isArray(input))fail("apollyon_claim_auth_slot_v1_set_invalid");
-  const records=input.map(
+  const inert=exactRecordArraySnapshot(input,"apollyon_claim_auth_slot_v1_set_invalid");
+  const records=inert.map(
     record=>validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1(record)
   );
   records.sort((a,b)=>a.authorization_slot_id===b.authorization_slot_id?0:(a.authorization_slot_id<b.authorization_slot_id?-1:1));
@@ -374,9 +429,8 @@ function validatedSortedAuthorizationSlotRecordsV1(input){
 }
 
 export function qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1(input){
-  const value=clonePlain(input,"apollyon_claim_auth_slot_v1_set_input_invalid");
-  exactOwnKeys(
-    value,["authorization_slot_records"],
+  const value=exactDataSnapshot(
+    input,["authorization_slot_records"],
     "apollyon_claim_auth_slot_v1_set_input_invalid",
   );
   const records=validatedSortedAuthorizationSlotRecordsV1(
@@ -398,15 +452,20 @@ export function qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1(input){
 }
 
 export function qualifyApollyonDurableAttemptClaimAuthorizationSlotMigrationV1(input){
-  const value=clonePlain(input,"apollyon_claim_auth_slot_v1_migration_input_invalid");
-  exactOwnKeys(value,[
+  const value=exactDataSnapshot(input,[
     "new_authorization_slot_records",
     "new_store_generation_id",
     "old_authorization_slot_records",
     "old_store_generation_id",
     "parent_store_continuity_receipt_id",
   ],"apollyon_claim_auth_slot_v1_migration_input_invalid");
-  if(!STORE_GENERATION_ID.test(value.old_store_generation_id)||
+  if(typeof value.old_store_generation_id!=="string"||
+     typeof value.new_store_generation_id!=="string"||
+     typeof value.parent_store_continuity_receipt_id!=="string"||
+     value.old_store_generation_id.length>256||
+     value.new_store_generation_id.length>256||
+     value.parent_store_continuity_receipt_id.length>256||
+     !STORE_GENERATION_ID.test(value.old_store_generation_id)||
      !STORE_GENERATION_ID.test(value.new_store_generation_id)||
      value.old_store_generation_id===value.new_store_generation_id||
      !STORE_CONTINUITY_ID.test(value.parent_store_continuity_receipt_id)){

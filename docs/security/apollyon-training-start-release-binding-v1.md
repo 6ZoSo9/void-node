@@ -5,6 +5,13 @@ Marker: `VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_V1`
 Status: **pure source/test contract; no protected consumption-store observation, release channel, trainer release, or training execution exists here**.
 
 
+## October 19 current #3357 caller-preflight rebind
+
+- Direct parent #3357: `62c2bbfd7ca1a871159d036b2cd1391f2d728df5`.
+- Rebound consumption source blob: `f557d92e89f3502ee6ac1243411cd43191ec1f37`.
+- Authorization-slot source blob: `25629371f6da164e12fecfc08c5f26815418e3a8`.
+- Release-binding semantics and negative authority remain unchanged; protected consumption/winner origin and live training authority remain unproven.
+
 ## Flattened consumption + release review generation
 
 The current PR directly targets #3357 at
@@ -136,9 +143,9 @@ on the designated host before any release authority can be considered.
 This repaired release-binding generation is stacked on #3333
 `bdadfcc6854d6f4e1804347e51b940e897a8da9f` and binds:
 - training-start consumption source Git blob
-  `42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3`;
+  `f557d92e89f3502ee6ac1243411cd43191ec1f37`;
 - authorization-slot source Git blob
-  `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`.
+  `25629371f6da164e12fecfc08c5f26815418e3a8`.
 
 Both modules are included in focused PR/main-push trigger closure. Frozen prior
 release-binding generations remain historical evidence only.

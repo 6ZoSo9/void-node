@@ -109,7 +109,7 @@ Current dependencies pinned by the disposable proof:
 - protected writer Git blob:
   `66b76ea9201f870672c0bc1c3df207b3c95cf68a`
 - fixed protected-store request Git blob:
-  `3edccf081b85d5cf1b2ce84d53d046c82e447593`
+  `051209be6307f9b0784aa6c428f0c4d5b202b7f9`
 
 No installed Xiphos state, service, private key, wallet, transaction,
 funds movement or trainer start is requested or permitted.
@@ -121,7 +121,7 @@ funds movement or trainer start is requested or permitted.
 
 The fixture is now pinned to protected writer
 `66b76ea9201f870672c0bc1c3df207b3c95cf68a` and revalidation-request source
-`3edccf081b85d5cf1b2ce84d53d046c82e447593`.
+`051209be6307f9b0784aa6c428f0c4d5b202b7f9`.
 
 Those parent sources classify terminal created-record and owned-directory close
 uncertainty after a durable publication. This fixture still does not call the

@@ -128,7 +128,7 @@ eight-file writer + protected-store revalidation-request layer.
 
 The protected-writer implementation remains byte-identical at
 `a08927b7b16884a9bf0c28328047afdab49649ea`. Its current proof binds
-#3333 consumption source `42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3`,
+#3333 consumption source `f557d92e89f3502ee6ac1243411cd43191ec1f37`,
 authorization-slot source `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`, and claim-service
 candidate `87019ae1245a2054407dd47835b0b7a891d4d9a2`.
 
