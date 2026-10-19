@@ -230,9 +230,30 @@ def require_secure_context()->None:
     if present:
         raise UpgradeError("forbidden_apply_environment:"+",".join(present))
     trusted_dir(Path("/"))
+    trusted_dir(Path("/usr"))
+    trusted_dir(Path("/usr/bin"))
     trusted_dir(INSTALL_PARENT,0o755)
-    for p in (FIXED_PYTHON,FIXED_GIT,FIXED_SETPRIV):
+    for p in (FIXED_GIT,FIXED_SETPRIV):
         hash_exact_file_dynamic_executable(p)
+    trusted_fixed_executable_allow_symlink(FIXED_PYTHON)
+
+
+def trusted_fixed_executable_allow_symlink(path:Path)->dict[str,Any]:
+    try:
+        visible=path.lstat()
+    except OSError as exc:
+        raise UpgradeError("tool_identity_unavailable:"+str(path)) from exc
+    if stat.S_ISLNK(visible.st_mode):
+        if visible.st_uid!=0 or visible.st_gid!=0 or (visible.st_mode&0o022)!=0:
+            raise UpgradeError("tool_symlink_invalid:"+str(path))
+        try:
+            resolved=path.resolve(strict=True)
+        except OSError as exc:
+            raise UpgradeError("tool_symlink_target_unavailable:"+str(path)) from exc
+        if resolved.parent!=Path("/usr/bin"):
+            raise UpgradeError("tool_symlink_target_outside_usr_bin:"+str(path))
+        return hash_exact_file_dynamic_executable(resolved)
+    return hash_exact_file_dynamic_executable(path)
 
 
 def hash_exact_file_dynamic_executable(path:Path)->dict[str,Any]:
@@ -582,6 +603,18 @@ def apply(expected_plan_id:str,confirm:str)->None:
         elif stage_created:
             rollback_attempted=True
             rollback_green=cleanup_stage(opt_fd); stage_created=False
+        print("publication="+str(published).lower())
+        if published:
+            print(
+                "publication_state="+(
+                    "published_rolled_back_green"
+                    if rollback_green else "published_needs_inspection"
+                )
+            )
+            print("final_state_verified="+str(rollback_green).lower())
+        else:
+            print("publication_state=not_published")
+            print("final_state_verified=false")
         print("automatic_rollback_attempted="+str(rollback_attempted).lower())
         print("automatic_rollback_green="+str(rollback_green).lower())
         raise
@@ -663,10 +696,14 @@ def main()->int:
 if __name__=="__main__":
     try:
         raise SystemExit(main())
-    except UpgradeError as exc:
+    except Exception as exc:
         print(MARKER)
         print("status=HOLD")
-        print("reason="+re.sub(r"[^A-Za-z0-9_:./,-]","_",str(exc)[:1000]))
+        reason=(
+            str(exc) if isinstance(exc,UpgradeError)
+            else type(exc).__name__+":"+str(exc)
+        )
+        print("reason="+re.sub(r"[^A-Za-z0-9_:./,-]","_",reason[:1000]))
         print("runner_execution=false")
         print("native_execution=false")
         print("credential_access=false")
