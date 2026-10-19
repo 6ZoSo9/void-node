@@ -64,7 +64,7 @@ jobs:
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v3.md)" = fb41f19ccd32f8f7492119ce54ca7687e74a63ba
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = fb330c9bdce689d274f9ce9080571035135d56d5
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = 954618dbcb1fe60fb9ad210dd7bd13b9fbccce0c
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = f0033074810b13f81ee8117041fff2d7232b75d0
 
           git cat-file -e "$RUNTIME_HEAD^{commit}"
           git cat-file -e "$SOURCE_HEAD^{commit}"
