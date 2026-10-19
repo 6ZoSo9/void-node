@@ -71,3 +71,24 @@ production_host_evidence_authority=false
 Next source gate: `IMPLEMENT_EPOCH2_CREDENTIAL_RUNNER_V4_SOURCE_RUNTIME_COMPAT_SOURCE_ONLY`.
 
 PROTECT THE CORE.
+
+
+## Step 1 source implementation
+
+The first required successor is now present in this Draft as:
+
+`ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs`.
+
+This V4 source is **not installed** and grants no live authority. It preserves the existing installed native preentry V3 fixed-path/policy boundary and V3 confirmation token, but replaces the runner's historical single-head checkout requirement with an exact source/runtime compatibility check:
+
+- runtime head is fixed to `4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`;
+- source head is fixed to `0ada7fde0d90c3946b10693f4621cbd690bfcde6`;
+- source tree is fixed to `9e930fba9aacfafb5b163767302786cd7f31c81e`;
+- runtime→source delta must be exactly the reviewed 15 ADD-only paths;
+- tracked checkout drift is rejected while unrelated untracked paths remain non-authoritative;
+- credential-qualification and sealed-probe Git blobs must be identical at runtime and source heads;
+- the sensitive sequence continues to use the runtime head authenticated by the installed native preentry.
+
+The V4 receipt adds explicit source-checkout compatibility fields while keeping transaction/payment/activation/funds authority false.
+
+Next source gate after exact-head CI: derive the V6R3 runner/policy candidate-lock/install/qualification lifecycle. The existing credential native preentry V3 binary remains intentionally unchanged.
