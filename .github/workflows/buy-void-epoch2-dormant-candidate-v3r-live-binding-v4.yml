@@ -60,13 +60,13 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs)" = \
-            "f5cf208d8a0c12a72ed885fec286563092d23a0e"
+            "c15ad6eb1b8d70e3df5fd802d4de4443f9566ada"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c)" = \
-            "afe6dbc8d4e2b80117500ac961e99a0c80a78f60"
+            "c89955b821f2cce97289c92acbb31160a32d0b5d"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py)" = \
-            "50b2ea30d290c1ac65df9292891b0add4812b17f"
+            "22567ab61be8c84f1db050d5151342e9ddb9758e"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md)" = \
-            "4979136175db9359a09040a0695c0a429fbb7304"
+            "c86c5828c808a5505787db78534b13b3b57a11b8"
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -88,6 +88,9 @@ jobs:
           grep -Fx 'source_runtime_dependency_count=9' "$RUNNER_TEMP/proof.log"
           grep -Fx 'source_runtime_complete_dependency_set_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'historical_compat_v3_source_authority=false' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'runner_v4_child_receipt_required=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'runner_v4_child_source_checkout_crosscheck_bound=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'runner_v4_child_source_checkout_drift_rejected=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'native_preentry_binds_exact_binder_bytes=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'host_execution=false' "$RUNNER_TEMP/proof.log"
           grep -Fx 'credential_access=false' "$RUNNER_TEMP/proof.log"
