@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
+      - 'ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs'
       - 'scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
       - 'docs/operators/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.md'
       - '.github/workflows/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.yml'
@@ -16,6 +17,7 @@ on:
     branches: [ main ]
     paths:
       - 'ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
+      - 'ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs'
       - 'scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
       - 'docs/operators/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.md'
       - '.github/workflows/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.yml'
@@ -36,15 +38,27 @@ jobs:
       - uses: actions/checkout@v4
       - name: Python syntax
         run: |
-          python3 -m py_compile             ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py             scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py
+          python3 -m py_compile \
+            ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py \
+            scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py
+      - name: Runner V4 syntax and inert modes
+        run: |
+          node --check ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs
+          node ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs --self-test
+          node ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs --plan
       - name: Source self-test
         run: |
-          python3 -I -B             ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py             --self-test
+          python3 -I -B \
+            ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py \
+            --self-test
       - name: Source plan
         run: |
-          python3 -I -B             ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py             --plan
-      - name: Exact contract proof
+          python3 -I -B \
+            ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py \
+            --plan
+      - name: Exact contract and runner proof
         run: |
-          python3 -I -B             scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py
+          python3 -I -B \
+            scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py
       - name: Diff hygiene
         run: git diff --check
