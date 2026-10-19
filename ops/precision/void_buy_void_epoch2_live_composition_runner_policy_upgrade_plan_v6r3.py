@@ -21,8 +21,8 @@ FIXED_GIT=Path("/usr/bin/git")
 FIXED_NODE=Path("/usr/bin/node")
 
 LOCK_REL="ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json"
-LOCK_BLOB="c86912d4e632d4525bfd1d32cb2c01524fb0ebfb"
-LOCK_ID="voidbuye2runnerpollock6r3_decff2ebef64d6e8eb332a1ff5d363906c08322c8949bff9e9abdce48088522d"
+LOCK_BLOB="be4c1496a702ba4f2a622001576d22b9b4aeca4b"
+LOCK_ID="voidbuye2runnerpollock6r3_bdd3e0b6fe28f2a6873920cdb1436914183e817c02b4d4ac9da130e3ec14b365"
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d"
 
 RUNNER_REL="ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"

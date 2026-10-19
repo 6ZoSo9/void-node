@@ -10,8 +10,8 @@ There is no apply mode in this generation.
 ## Current accepted inputs
 
 ```text
-lock_blob=c86912d4e632d4525bfd1d32cb2c01524fb0ebfb
-lock_id=voidbuye2runnerpollock6r3_decff2ebef64d6e8eb332a1ff5d363906c08322c8949bff9e9abdce48088522d
+lock_blob=be4c1496a702ba4f2a622001576d22b9b4aeca4b
+lock_id=voidbuye2runnerpollock6r3_bdd3e0b6fe28f2a6873920cdb1436914183e817c02b4d4ac9da130e3ec14b365
 candidate_id=voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d
 runner_git_blob=7967778824f22baca976a59df75f9f808ebebfe2
 runner_sha256=a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029
@@ -78,3 +78,22 @@ read-only qualification.
 The planner itself remains non-executing and has no `--apply` mode.
 
 PROTECT THE CORE.
+
+
+## Exact-PR-head successor lock rebind
+
+Upgrade-plan source is rebound only after the successor V6R3 lock is proved. The
+runner/candidate/runtime-policy identities are unchanged; only hosted-evidence provenance
+and the resulting lock address moved.
+
+```text
+accepted_lock_id=voidbuye2runnerpollock6r3_bdd3e0b6fe28f2a6873920cdb1436914183e817c02b4d4ac9da130e3ec14b365
+accepted_lock_blob=be4c1496a702ba4f2a622001576d22b9b4aeca4b
+candidate_id=voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d
+runner_git_blob=7967778824f22baca976a59df75f9f808ebebfe2
+runtime_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
+```
+
+This remains a non-executing source plan. No protected install, policy mutation,
+live credential execution, signing, transaction/payment, activation, treasury or
+funds authority is granted.
