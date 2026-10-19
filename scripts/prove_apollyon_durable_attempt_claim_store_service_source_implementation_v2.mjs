@@ -35,7 +35,7 @@ const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
 const TARGET_BLOB="eaca329759e640a258d015448ca377d5de17aa29";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
-const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
+const LEASE_BLOB="445480e625e01e44be8722709d56d5a6541099e2";
 
 const PINNED=Object.freeze({
   [TARGET_REL]:TARGET_BLOB,
@@ -2709,6 +2709,51 @@ for(const kind of ["slot","claim"]){
   }finally{fs.fstatSync=originalStat;f.cleanup();}
 }
 
+// The Linux lease adapter must reject an oversized ordinary (non-Proxy) own-key
+// config *before* Object.getOwnPropertyDescriptors materializes thousands of
+// attacker-selected descriptor objects, and before root metadata or FD access.
+{
+  const f=fixture();
+  const before=storeSnapshot(f.root);
+  const excess={...linuxLeaseConfig(f)};
+  for(let index=0;index<4096;index++)excess["untrusted_"+index]=index;
+  const originalDescriptors=Object.getOwnPropertyDescriptors;
+  const originalFstat=fs.fstatSync;
+  let oversizedSnapshots=0;
+  let rootStats=0;
+  try{
+    Object.getOwnPropertyDescriptors=function observedDescriptors(input){
+      if(input===excess){
+        oversizedSnapshots+=1;
+        assert.fail("over-keyed lease configuration reached descriptor snapshot");
+      }
+      return Reflect.apply(originalDescriptors,Object,[input]);
+    };
+    fs.fstatSync=(...args)=>{
+      rootStats+=1;
+      return originalFstat(...args);
+    };
+    withObservedFs({},({opened})=>{
+      expectError(
+        ()=>createApollyonDurableAttemptClaimStoreServiceWithLinuxTransactionV2(excess),
+        "apollyon_claim_store_lease_v2_config_invalid",
+      );
+      assert.equal(opened.length,0,"over-keyed config cannot open an FD");
+    });
+    assert.equal(oversizedSnapshots,0,
+      "over-keyed lease configuration rejected before descriptor capture");
+    assert.equal(rootStats,0,
+      "over-keyed lease configuration rejected before root metadata IO");
+    assert.equal(f.txCount(),0,"over-keyed config cannot acquire a transaction");
+    assert.equal(f.releaseCount(),0);
+  }finally{
+    Object.getOwnPropertyDescriptors=originalDescriptors;
+    fs.fstatSync=originalFstat;
+    try{assert.deepEqual(storeSnapshot(f.root),before);}
+    finally{f.cleanup();}
+  }
+}
+
 // This adapter uses real kernel locks. Its proof stores and child processes are disposable.
 {
   const f=fixture();
@@ -3281,6 +3326,7 @@ console.log("existing_recovery_fsyncs_actual_final_inode_and_directory=true");
 console.log("eexist_recovery_fsyncs_actual_final_inode_and_directory=true");
 console.log("session_binding_coercion_forbidden_before_store_access=true");
 console.log("linux_lease_factory_exact_data_configuration_proven=true");
+console.log("linux_lease_overkeyed_config_rejected_before_descriptor_capture=true");
 console.log("linux_lease_factory_preserves_core_api_without_raw_lock_export=true");
 console.log("linux_lease_fixed_bounded_helper_and_clean_environment_proven=true");
 console.log("linux_lease_helper_exits_while_private_description_retains_lock=true");

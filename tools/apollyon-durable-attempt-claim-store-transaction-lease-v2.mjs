@@ -43,8 +43,15 @@ function exactDataInput(input,keys,code){
   if(!input||typeof input!=="object"||types.isProxy(input)||Array.isArray(input))fail(code);
   const proto=Object.getPrototypeOf(input);
   if(proto!==Object.prototype&&proto!==null)fail(code);
+  // Reject oversized or unexpected own-key sets before materializing every
+  // property descriptor of a caller-owned object. The core uses the same
+  // bounded pre-snapshot convention for untrusted records.
+  const own=Reflect.ownKeys(input);
+  if(
+    own.length!==keys.length||
+    own.some(key=>typeof key!=="string"||!keys.includes(key))
+  )fail(code);
   const descriptors=Object.getOwnPropertyDescriptors(input);
-  if(Reflect.ownKeys(descriptors).length!==keys.length)fail(code);
   const snapshot={};
   for(const key of keys){
     const descriptor=descriptors[key];

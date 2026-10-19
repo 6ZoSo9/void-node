@@ -123,18 +123,18 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
             eaca329759e640a258d015448ca377d5de17aa29
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
-            f485b9e6fc29eab549ebba07e1b49f24c7659092
+            445480e625e01e44be8722709d56d5a6541099e2
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            93d09665b65c63bcbb92452d2e1ac10b45135952
+            712913aec99d952021797dd40eeb27182bca9a94
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            73f974e6156e05d5415c26c162e6a728a0d74341
+            c7fc8f4c8e58ebb2e162a5b6b1f244bde5b79576
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
             864f90e46510403b30f558f1ccd8719be88f1180
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            a535a64eea622600d00ef652e94044e3cc54c9f3
+            db877270d3d0a1b9269ddd9ac820070192b6b382
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
@@ -259,6 +259,7 @@ jobs:
             'eexist_recovery_fsyncs_actual_final_inode_and_directory=true' \
             'session_binding_coercion_forbidden_before_store_access=true' \
             'linux_lease_factory_exact_data_configuration_proven=true' \
+            'linux_lease_overkeyed_config_rejected_before_descriptor_capture=true' \
             'linux_lease_factory_preserves_core_api_without_raw_lock_export=true' \
             'linux_lease_fixed_bounded_helper_and_clean_environment_proven=true' \
             'linux_lease_helper_exits_while_private_description_retains_lock=true' \

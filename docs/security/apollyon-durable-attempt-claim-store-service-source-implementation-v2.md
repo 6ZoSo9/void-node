@@ -82,7 +82,7 @@ Important exact source generations:
 The Linux composition uses the same implementation core, now at Git blob
 `65a11b36cfe7408b7718b6827b260ea52d5048b4`. Its source is
 `tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs`, blob
-`f485b9e6fc29eab549ebba07e1b49f24c7659092`. The Linux lease blob is unchanged. The core changes in this rebind only in its
+`445480e625e01e44be8722709d56d5a6541099e2`. The Linux lease blob now includes an early own-key cardinality and allowlist precheck before descriptor snapshotting. The core changes in this rebind only in its
 four immutable upstream source-generation pins. The bridge links these exact accepted #3309 sources,
 already present in the base, without modifying them:
 
@@ -1242,5 +1242,33 @@ The claims `trusted_revalidator_callback_source_proven=false`,
 `unhandled_rejected_promise_containment_proven=false`, protected origin,
 cross-UID host admission, claim publication, training and any credential,
 key, wallet, transaction or funds authority remain **false/unproven**.
+
+**PROTECT THE CORE.**
+
+## October 19 — Linux lease own-key amplification guard
+
+The source-level transaction-lease adapter's exact configuration/context
+snapshot now rejects an unexpected own-key count or name via
+`Reflect.ownKeys(input)` **before**
+`Object.getOwnPropertyDescriptors(input)`. An otherwise genuine plain
+(non-Proxy) JavaScript object with thousands of surplus keys could previously
+force a large descriptor allocation *before* its invalid configuration was
+rejected. This is a future-host resource/availability boundary, not evidence
+of Xiphos store compromise.
+
+The new executable 4,096-surplus-key config adversary instruments
+`Object.getOwnPropertyDescriptors` and `fs.fstatSync` and requires a
+machine-readable `apollyon_claim_store_lease_v2_config_invalid` without
+snapshotting that object, opening descriptors, observing root metadata,
+acquiring a transaction lease, or changing disposable store bytes. The
+same exact-data helper also rejects invalid transaction-acquisition context
+key sets before descriptor snapshot. Existing Proxy/accessor, fsync,
+same-root kernel flock, cleanup and no-retry adversaries remain.
+
+This only strengthens synchronous source-input preflight. Protected store
+origin, trusted callback source, rejection failure-domain containment,
+claim/winner lineage, production publication, Xiphos execution, training,
+credentials, keys, transactions and funds authority are unchanged and
+remain false or unproven.
 
 **PROTECT THE CORE.**
