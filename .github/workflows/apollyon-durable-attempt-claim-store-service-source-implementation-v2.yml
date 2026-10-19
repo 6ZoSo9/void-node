@@ -123,9 +123,9 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            f5ebe8dd85ab11c5c5a705304b64afd0980b6cfa
+            53a71ae6a48736680f085ba49e967f5a9834fe1f
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            eecc0fb17b3bc28925248ded1a35b89802e113a2
+            c1a1e188d06254fc22ffab1a91fc7494941000f1
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
@@ -215,6 +215,7 @@ jobs:
             'request_size_rejected_before_private_copy=true' \
             'caller_buffer_intrinsic_byte_length_and_copy_no_getters=true' \
             'shared_request_buffer_rejected_before_transaction=true' \
+            'shared_request_own_accessors_rejected_without_invocation=true' \
             'declared_async_generator_core_providers_rejected_before_io=true' \
             'operation_keyset_rejected_before_descriptor_capture=true' \
             'generation_nested_graph_rejected_before_clone=true' \
