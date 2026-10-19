@@ -77,7 +77,7 @@ export const PARENT_STORE_CONTRACT_BLOB_SHA1 =
 export const CANONICALIZER_V1_BLOB_SHA1 =
   "f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 export const AUTHORIZATION_SLOT_V1_BLOB_SHA1 =
-  "c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8";
+  "25629371f6da164e12fecfc08c5f26815418e3a8";
 
 const HASH64=/^[0-9a-f]{64}$/u;
 const STORE_CONTRACT_ID=/^apollyon_claim_store_contract_v2:[0-9a-f]{64}$/u;

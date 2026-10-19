@@ -35,11 +35,11 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
     "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8",
+    "25629371f6da164e12fecfc08c5f26815418e3a8",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "87019ae1245a2054407dd47835b0b7a891d4d9a2",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
-    "42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3",
+    "f557d92e89f3502ee6ac1243411cd43191ec1f37",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
