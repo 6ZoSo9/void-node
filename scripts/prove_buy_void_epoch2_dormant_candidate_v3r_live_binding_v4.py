@@ -12,10 +12,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
 PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
 
-BINDER_BLOB = "c15ad6eb1b8d70e3df5fd802d4de4443f9566ada"
-BINDER_SHA256 = "a35c76d19a92a2d5625b4c67b9235c2972b68f43083297c221fe73b6117b8187"
-BINDER_BYTES = 43225
-PREENTRY_BLOB = "c89955b821f2cce97289c92acbb31160a32d0b5d"
+BINDER_BLOB = "e93f917307ff12350a34395c6f87307232886ff9"
+BINDER_SHA256 = "4c0f505403ca6cb0a788726d8daa1853acb39f13c1eb1c4943cc299bc8080dd5"
+BINDER_BYTES = 43375
+PREENTRY_BLOB = "026c59a1d7c389bcdf1a552de4828b7c1764743b"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 CANDIDATE_REL = "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
@@ -79,6 +79,9 @@ for forbidden in (
     'NEXT_ACTIfunction',
     'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V3";',
     '/^voide2livecomp3_',
+    'RUNTIME_POLICY_SHA256',
+    'protected_v6r2_generation_verified:true',
+    'retained_v4_predecessor_verified:true',
 ):
     assert forbidden not in binder, forbidden
 
@@ -118,6 +121,12 @@ for required in (
     'child_runner_v4_source_checkout_bound:true',
     'const child=runNativeLive(runtimeHead,before);',
     'runner_v4_child_source_checkout_drift_rejected=true',
+    'runtime_policy_authenticated_by_native_preentry:true',
+    'runtime_policy_runtime_head:RUNTIME_HEAD',
+    'runtime_policy_sha256_compile_constant_absent=true',
+    'runtime_policy_authenticated_by_native_preentry_required=true',
+    'native_parent_installed_generation_bound:true',
+    'runner_v4_source_checkout_bound:true',
 ):
     assert required in binder, required
 
@@ -130,7 +139,7 @@ for required in (
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4',
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
-    '#define BINDER_BYTES 43225U',
+    '#define BINDER_BYTES 43375U',
     'void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs',
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4',
     '(char*)"--source-head",source_head',
@@ -179,6 +188,8 @@ for mode in ("--self-test", "--plan"):
             "source_head_runtime_observed=true",
             "source_tree_runtime_observed=true",
             "runtime_policy_head_preserved=true",
+            "runtime_policy_sha256_compile_constant_absent=true",
+            "runtime_policy_authenticated_by_native_preentry=true",
             "source_runtime_actual_object_ancestry_required=true",
             "source_runtime_graft_only_ancestry_rejected=true",
             "source_runtime_dependency_count=9",
@@ -207,6 +218,8 @@ for mode in ("--self-test", "--plan"):
             "historical_compat_v3_source_authority=false",
             "runner_v4_child_receipt_required=true",
             "runner_v4_child_source_checkout_crosscheck_required=true",
+            "runtime_policy_sha256_compile_constant_absent=true",
+            "runtime_policy_authenticated_by_native_preentry_required=true",
             "credential_content_access=false",
             "signing=false",
             "transaction=false",
@@ -273,6 +286,9 @@ print("historical_compat_v3_source_authority=false")
 print("runner_v4_child_receipt_required=true")
 print("runner_v4_child_source_checkout_crosscheck_bound=true")
 print("runner_v4_child_source_checkout_drift_rejected=true")
+print("runtime_policy_sha256_compile_constant_absent=true")
+print("runtime_policy_authenticated_by_native_preentry=true")
+print("historical_generation_overclaim_absent=true")
 print("native_preentry_binds_exact_binder_bytes=true")
 print("host_execution=false")
 print("credential_access=false")
