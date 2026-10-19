@@ -65,24 +65,11 @@ const HEX64=/^[0-9a-f]{64}$/u;
 const SEALED_ID=/^voide2sealed2_[0-9a-f]{64}$/u;
 
 const RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb";
-const SOURCE_HEAD="0ada7fde0d90c3946b10693f4621cbd690bfcde6";
-const SOURCE_TREE="9e930fba9aacfafb5b163767302786cd7f31c81e";
-const ALLOWED_SOURCE_ADDITIONS=Object.freeze([
-  "docs/operators/buy-void-v7-protected-substrate-source-proposal-v3.md",
-  "ops/precision/void_buy_void_v7_protected_substrate_install_v1.py",
-  "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py",
-  "ops/security/buy-void-v7-protected-substrate-candidate-lock-v1.json",
-  "scripts/materialize_buy_void_v7_protected_substrate_v1.py",
-  "scripts/prove_buy_void_v7_protected_substrate_source_proposal_v3.py",
-  ".github/workflows/buy-void-v7-protected-substrate-install-v2.yml",
-  "docs/operators/buy-void-v7-protected-substrate-install-v2.md",
-  "ops/precision/void_buy_void_v7_protected_substrate_install_v2.py",
-  "scripts/prove_buy_void_v7_protected_substrate_install_v2.py",
-  ".github/workflows/buy-void-v7-materializer-v2-install-v3.yml",
-  "docs/operators/buy-void-v7-materializer-v2-install-v3.md",
-  "ops/precision/void_buy_void_v7_protected_substrate_install_v3.py",
-  "scripts/materialize_buy_void_v7_protected_substrate_v2.py",
-  "scripts/prove_buy_void_v7_materializer_v2_install_v3.py",
+const SOURCE_COMPATIBILITY_KEYS=Object.freeze([
+  "runtime_head","source_head","source_tree",
+  "source_runtime_ancestry_bound","source_runtime_dependency_blob_equality",
+  "tracked_checkout_exact","untracked_paths_enumerated",
+  "untracked_paths_source_authority",
 ]);
 const QUALIFICATION_KEYS=Object.freeze([
   "marker","version","read_only","root_execution_required",
@@ -402,55 +389,64 @@ function git(args){
   return r.stdout;
 }
 
+function validateSourceCompatibility(value,expectedHead){
+  if(!value||typeof value!=="object"||Array.isArray(value)||
+     !exactKeys(value,SOURCE_COMPATIBILITY_KEYS)){
+    throw new Error("source_compatibility_shape_invalid");
+  }
+  if(value.runtime_head!==expectedHead||expectedHead!==RUNTIME_HEAD||
+     !SHA40.test(String(value.source_head||""))||
+     !SHA40.test(String(value.source_tree||""))||
+     value.source_runtime_ancestry_bound!==true||
+     value.source_runtime_dependency_blob_equality!==true||
+     value.tracked_checkout_exact!==true||
+     value.untracked_paths_enumerated!==false||
+     value.untracked_paths_source_authority!==false){
+    throw new Error("source_compatibility_value_invalid");
+  }
+}
+
 function requireSourceRuntimeCompatibility(expectedHead){
   if(expectedHead!==RUNTIME_HEAD){
     throw new Error("runtime_expected_head_mismatch");
   }
-  const head=git(["rev-parse","--verify","HEAD"]).trim();
-  const tree=git(["rev-parse","--verify","HEAD^{tree}"]).trim();
-  if(head!==SOURCE_HEAD)throw new Error("source_head_mismatch");
-  if(tree!==SOURCE_TREE)throw new Error("source_tree_mismatch");
+  const sourceHead=git(["rev-parse","--verify","HEAD"]).trim();
+  const sourceTree=git(["rev-parse","--verify","HEAD^{tree}"]).trim();
+  if(!SHA40.test(sourceHead)||!SHA40.test(sourceTree)){
+    throw new Error("source_generation_identity_invalid");
+  }
   if(git(["branch","--show-current"]).trim()!=="main"){
     throw new Error("branch_not_main");
   }
   if(git(["status","--porcelain=v1","--untracked-files=no"])!==""){
     throw new Error("tracked_checkout_not_exact");
   }
-  const rows=git([
-    "diff","--name-status","--no-renames",RUNTIME_HEAD,SOURCE_HEAD,"--",
-  ]).trimEnd().split("\n").filter(Boolean);
-  if(rows.length!==ALLOWED_SOURCE_ADDITIONS.length){
-    throw new Error("source_runtime_delta_count_mismatch");
-  }
-  const allowed=new Set(ALLOWED_SOURCE_ADDITIONS);
-  const observed=new Set();
-  for(const row of rows){
-    if(!row.startsWith("A\t"))throw new Error("source_runtime_delta_not_add_only");
-    const relative=row.slice(2);
-    if(!allowed.has(relative)||observed.has(relative)){
-      throw new Error("source_runtime_delta_path_invalid");
-    }
-    observed.add(relative);
-  }
-  if(observed.size!==allowed.size){
-    throw new Error("source_runtime_delta_incomplete");
-  }
+  // Runtime-sensitive authority may only move forward along the actual source
+  // ancestry. This is a local-object query; network transport remains disabled.
+  git(["merge-base","--is-ancestor",RUNTIME_HEAD,sourceHead]);
+
   for(const [relative,expectedBlob] of [
     [QUALIFIER_REL,QUALIFIER_BLOB],
     [SEALED_REL,SEALED_BLOB],
   ]){
     const runtimeBlob=git(["rev-parse",RUNTIME_HEAD+":"+relative]).trim();
-    const sourceBlob=git(["rev-parse",SOURCE_HEAD+":"+relative]).trim();
+    const sourceBlob=git(["rev-parse",sourceHead+":"+relative]).trim();
     if(runtimeBlob!==expectedBlob||sourceBlob!==expectedBlob){
       throw new Error("source_runtime_dependency_blob_mismatch:"+relative);
     }
   }
-  return Object.freeze({
+  const result=Object.freeze({
     runtime_head:RUNTIME_HEAD,
-    source_head:SOURCE_HEAD,
-    source_tree:SOURCE_TREE,
-    source_runtime_added_path_count:ALLOWED_SOURCE_ADDITIONS.length,
+    source_head:sourceHead,
+    source_tree:sourceTree,
+    source_runtime_ancestry_bound:true,
+    source_runtime_dependency_blob_equality:true,
+    tracked_checkout_exact:true,
+    untracked_paths_enumerated:false,
+    untracked_paths_source_authority:false,
   });
+  validateSourceCompatibility(result,expectedHead);
+  return result;
 }
 function gitObject(expectedHead,relative,expectedBlob){
   const r=runAsRuntimeUser(GIT,[
@@ -807,19 +803,24 @@ function crossCheck(record,q){
 
 export function buildReceipt({
   expectedHead,
+  sourceCompatibility,
   qualification,
   sealedRecord,
 }){
+  validateSourceCompatibility(sourceCompatibility,expectedHead);
   const body={
     marker:MARKER,
     version:4,
     status:STATUS,
     source_head:expectedHead,
     runtime_head:expectedHead,
-    source_checkout_head:SOURCE_HEAD,
-    source_checkout_tree:SOURCE_TREE,
-    source_runtime_add_only_compatibility_exact:true,
-    source_runtime_added_path_count:ALLOWED_SOURCE_ADDITIONS.length,
+    source_checkout_head:sourceCompatibility.source_head,
+    source_checkout_tree:sourceCompatibility.source_tree,
+    source_runtime_ancestry_bound:true,
+    source_runtime_dependency_blob_equality:true,
+    tracked_source_checkout_exact:true,
+    untracked_paths_enumerated:false,
+    untracked_paths_source_authority:false,
     sealed_public_evidence:sealedRecord,
     credential_lock_id:qualification.credential_lock_id,
     credential_qualification_sha256:
@@ -890,10 +891,12 @@ function plan(){
   console.log("mode=plan");
   console.log("source_generation=v4_source_runtime_compatibility");
   console.log("runtime_expected_head="+RUNTIME_HEAD);
-  console.log("source_checkout_head="+SOURCE_HEAD);
-  console.log("source_checkout_tree="+SOURCE_TREE);
-  console.log("source_runtime_add_only_compatibility_required=true");
-  console.log("source_runtime_added_path_count="+String(ALLOWED_SOURCE_ADDITIONS.length));
+  console.log("source_checkout_head_runtime_observed=true");
+  console.log("source_checkout_tree_runtime_observed=true");
+  console.log("source_runtime_ancestry_required=true");
+  console.log("tracked_source_checkout_exact_required=true");
+  console.log("runtime_source_dependency_blob_equality_required=true");
+  console.log("untracked_paths_enumerated=false");
   console.log("untracked_paths_source_authority=false");
   console.log("git_lazy_fetch_disabled=true");
   console.log("git_transport_disabled=true");
@@ -1012,8 +1015,19 @@ function selfTest(){
     evidence_id:"voide2sealed1_"+"b".repeat(64),
     immutable_fulfiller:EXPECTED_FULFILLER,
   };
+  const syntheticSourceCompatibility={
+    runtime_head:"c".repeat(40),
+    source_head:"2".repeat(40),
+    source_tree:"3".repeat(40),
+    source_runtime_ancestry_bound:true,
+    source_runtime_dependency_blob_equality:true,
+    tracked_checkout_exact:true,
+    untracked_paths_enumerated:false,
+    untracked_paths_source_authority:false,
+  };
   const receipt=buildReceipt({
     expectedHead:"c".repeat(40),
+    sourceCompatibility:syntheticSourceCompatibility,
     qualification:q,
     sealedRecord:sealed,
   });
@@ -1022,10 +1036,13 @@ function selfTest(){
   }
   if(receipt.version!==4||
      receipt.runtime_head!=="c".repeat(40)||
-     receipt.source_checkout_head!==SOURCE_HEAD||
-     receipt.source_checkout_tree!==SOURCE_TREE||
-     receipt.source_runtime_add_only_compatibility_exact!==true||
-     receipt.source_runtime_added_path_count!==ALLOWED_SOURCE_ADDITIONS.length||
+     receipt.source_checkout_head!=="2".repeat(40)||
+     receipt.source_checkout_tree!=="3".repeat(40)||
+     receipt.source_runtime_ancestry_bound!==true||
+     receipt.source_runtime_dependency_blob_equality!==true||
+     receipt.tracked_source_checkout_exact!==true||
+     receipt.untracked_paths_enumerated!==false||
+     receipt.untracked_paths_source_authority!==false||
      receipt.production_host_evidence_authority!==false||
      receipt.transaction_constructed!==false||
      receipt.funds_movement!==false||
@@ -1111,9 +1128,19 @@ function selfTest(){
   }
 
   let checkoutCount=0;
+  const stableSource={
+    runtime_head:"d".repeat(40),
+    source_head:"4".repeat(40),
+    source_tree:"5".repeat(40),
+    source_runtime_ancestry_bound:true,
+    source_runtime_dependency_blob_equality:true,
+    tracked_checkout_exact:true,
+    untracked_paths_enumerated:false,
+    untracked_paths_source_authority:false,
+  };
   const stableSequence=runSensitiveSequence({
     expectedHead:"d".repeat(40),
-    checkoutFn:()=>{checkoutCount+=1; return "d".repeat(40);},
+    checkoutFn:()=>{checkoutCount+=1; return {...stableSource};},
     qualificationFn:()=>({...q}),
     sealedFn:()=>({...sealed}),
     crossFn:()=>{},
@@ -1130,7 +1157,16 @@ function selfTest(){
       checkoutFn:()=>{
         driftChecks+=1;
         if(driftChecks===2)throw new Error("late_source_drift");
-        return "e".repeat(40);
+        return {
+          runtime_head:"e".repeat(40),
+          source_head:"6".repeat(40),
+          source_tree:"7".repeat(40),
+          source_runtime_ancestry_bound:true,
+          source_runtime_dependency_blob_equality:true,
+          tracked_checkout_exact:true,
+          untracked_paths_enumerated:false,
+          untracked_paths_source_authority:false,
+        };
       },
       qualificationFn:()=>({...q}),
       sealedFn:()=>({...sealed}),
@@ -1219,9 +1255,11 @@ function selfTest(){
   console.log("unexpected_qualification_exit_not_reclassified_as_hold=true");
   console.log("runner_parent_credential_content_access=false");
   console.log("runtime_policy_head_preserved=true");
-  console.log("source_checkout_head_compile_bound=true");
-  console.log("source_runtime_add_only_compatibility_exact=true");
+  console.log("source_checkout_head_runtime_observed=true");
+  console.log("source_runtime_ancestry_required=true");
+  console.log("tracked_source_checkout_exact_required=true");
   console.log("source_runtime_dependency_blob_equality_required=true");
+  console.log("untracked_paths_enumerated=false");
   console.log("untracked_paths_source_authority=false");
   console.log("git_lazy_fetch_disabled=true");
   console.log("git_transport_disabled=true");
@@ -1239,7 +1277,8 @@ function runSensitiveSequence({
   sealedFn=runSealedProbe,
   crossFn=crossCheck,
 }){
-  checkoutFn(expectedHead);
+  const sourceBefore=checkoutFn(expectedHead);
+  validateSourceCompatibility(sourceBefore,expectedHead);
 
   const before=qualificationFn(expectedHead);
   const sealedRecord=sealedFn(expectedHead);
@@ -1252,10 +1291,15 @@ function runSensitiveSequence({
 
   // Close the source-generation window after all sensitive observations and
   // before constructing or emitting a receipt.
-  checkoutFn(expectedHead);
+  const sourceAfter=checkoutFn(expectedHead);
+  validateSourceCompatibility(sourceAfter,expectedHead);
+  if(canonical(sourceBefore)!==canonical(sourceAfter)){
+    throw new Error("source_compatibility_changed_across_sensitive_sequence");
+  }
 
   return buildReceipt({
     expectedHead,
+    sourceCompatibility:sourceBefore,
     qualification:before,
     sealedRecord,
   });
