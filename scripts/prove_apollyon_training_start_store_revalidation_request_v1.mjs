@@ -63,7 +63,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-    "111b3f866a91d7c47f057d6192fdc02a7d580b4a",
+    "028a48c47fa0e7edf5ef98f2b005bed856a22646",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
     "a08927b7b16884a9bf0c28328047afdab49649ea",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
@@ -358,6 +358,26 @@ for(const target of [record,[]]){
     /consumption_record_input_invalid/u,
   );
 }
+{
+  const badRecord={...record,authorization_id:"x".repeat(100000)};
+  const originalClone=globalThis.structuredClone;
+  let cloneCalls=0;
+  globalThis.structuredClone=(value)=>{
+    cloneCalls+=1;
+    return originalClone(value);
+  };
+  try{
+    assert.throws(
+      ()=>qualifyApollyonTrainingStartStoreRevalidationRequestV1({
+        consumption_record:badRecord,
+      }),
+      /consumption_record_input_invalid/u,
+    );
+  }finally{
+    globalThis.structuredClone=originalClone;
+  }
+  assert.equal(cloneCalls,0);
+}
 
 for(const key of [
   "protected_store_origin_proven",
@@ -603,6 +623,7 @@ console.log("record_proxy_rejected_before_parent_clone=true");
 console.log("revoked_proxy_namespaced_rejection=true");
 console.log("hidden_symbol_unknown_keys_rejected=true");
 console.log("oversized_record_keyset_rejected_before_copy=true");
+console.log("oversized_record_string_rejected_before_parent_clone=true");
 console.log("durable_claim_identity_bound=true");
 console.log("training_start_consumption_slot_bound=true");
 console.log("training_start_consumption_slot_leaf_bound=true");

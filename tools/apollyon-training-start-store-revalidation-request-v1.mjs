@@ -116,10 +116,15 @@ function captureConsumptionRecord(input){
     const descriptor=Object.getOwnPropertyDescriptor(value,key);
     if(!descriptor?.enumerable||!Object.hasOwn(descriptor,"value"))fail(code);
     const item=descriptor.value;
-    if(
-      typeof item!=="string"&&typeof item!=="boolean"&&
-      !(typeof item==="number"&&Number.isSafeInteger(item))
-    )fail(code);
+    if(typeof item==="string"){
+      if(item.length<1||item.length>256)fail(code);
+    }else if(typeof item==="boolean"){
+      // accepted primitive; exact semantic value is checked by #3333
+    }else if(typeof item==="number"){
+      if(!Number.isSafeInteger(item))fail(code);
+    }else{
+      fail(code);
+    }
     snapshot[key]=item;
   }
   for(const key of expected)if(!Object.hasOwn(snapshot,key))fail(code);
