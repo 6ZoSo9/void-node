@@ -13,12 +13,12 @@ TARGET=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_runner_policy_u
 LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json"
 RUNNER=ROOT/"ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 
-LOCK_ID="voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f"
-LOCK_BLOB="daab812f9925364ad89ff3bd59fdd18b9c98d553"
-RUNNER_BLOB="4e84b6eb77c284ecf7d85b609cec4d1cf130c7a7"
-PLAN_BLOB="b9e69cab21b3031f0fb8000c0970a4cb99163d74"
-RUNNER_SHA256="88e51377e473d4f0352f949f87ab5566078c85dddb1ab3e8e1bbb9908bfba19b"
+LOCK_ID="voidbuye2runnerpollock6r3_7dd8db2619e9c02ef8120e6d5e4e716946b991787dea7128fb51ed63290e4af7"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_8ffc05fc997f4dc19a3174ca588b812afd126565235361bb6048170701ba1af1"
+LOCK_BLOB="1201d727080b999a253d9223aee8d961f204c2db"
+RUNNER_BLOB="340a0cf0eec589a44f20d44143e353ea25250973"
+PLAN_BLOB="596265d01d762bc3ecbcb7683e8fb4b5d50ce691"
+RUNNER_SHA256="c5976f6b96a5c29807fb188d0ede4f0fe812512f199a083272df2e1a7acb4953"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 def git_blob(raw:bytes)->str:
@@ -52,12 +52,18 @@ for required in (
     'V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6"',
     'SOURCE_RUNTIME_DEPENDENCY_SPECS=(',
     '"runtime_source_dependency_count":len(SOURCE_RUNTIME_DEPENDENCY_SPECS)',
+    "def raw_commit_parents(oid:str)->list[str]:",
+    "def require_actual_object_ancestry(source_head:str)->None:",
+    'git(["cat-file","-t",oid])',
+    'git(["cat-file","-p",oid],binary=True)',
+    "source_runtime_actual_object_ancestry_not_found",
+    "source_runtime_graft_ancestry_rejected=true",
     '"runtime_source_complete_dependency_set_bound":True',
     '"source_terminal_revalidated":True',
     'source_after=source_snapshot_fn()',
     'if source_after!=source_before:',
     'raise PlanError("source_generation_changed_during_plan")',
-    'NEW_RUNNER_SHA256="88e51377e473d4f0352f949f87ab5566078c85dddb1ab3e8e1bbb9908bfba19b"',
+    'NEW_RUNNER_SHA256="c5976f6b96a5c29807fb188d0ede4f0fe812512f199a083272df2e1a7acb4953"',
     'PREDECESSOR_V6R2_ROOT=',
     '"full_root_stage_required":True',
     '"atomic_root_exchange_required":True',
@@ -100,6 +106,9 @@ for mode in ("--self-test","--source-plan"):
             "runner_v4_identity_bound=true",
             "policy_node_identity_host_derived=true",
             "runtime_source_complete_dependency_set_bound=true",
+            "source_runtime_actual_object_ancestry_required=true",
+            "source_runtime_actual_object_ancestry_required=true",
+            "source_runtime_graft_ancestry_rejected=true",
             "runtime_source_dependency_count=9",
             "terminal_source_revalidation_required=true",
             "late_source_drift_rejected=true",
@@ -131,13 +140,16 @@ for mode in ("--self-test","--source-plan"):
             assert line in lines,line
 
 lock=json.loads(LOCK.read_bytes())
-assert lock["version"]==4
+assert lock["version"]==5
 assert lock["integration_pr"]==3546
 assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
-assert lock["integration_head"]=="86cd50bf0933e5caba420008eba577f91cdea0fc"
+assert lock["integration_head"]=="a82f93fd11ecc76990cb73c844ec90b9503e8b9a"
 assert lock["stacked_source_head_superseded_for_current_authority"]=="fea69219f0cedc8ba35c7737ec865c202c0054e4"
 assert lock["lock_id"]==LOCK_ID
 assert lock["candidate_report"]["candidate_id"]==CANDIDATE_ID
+assert lock["candidate_report"]["source_compatibility"]["actual_object_ancestry_required"] is True
+assert lock["candidate_report"]["source_compatibility"]["revision_walk_metadata_authority"] is False
+assert lock["candidate_report"]["source_compatibility"]["graft_ancestry_authority"] is False
 assert lock["protected_install_authorized"] is False
 assert lock["live_execution_authorized"] is False
 
@@ -153,6 +165,8 @@ print("runtime_source_complete_dependency_set_bound=true")
 print("runtime_source_dependency_count=9")
 print("terminal_source_revalidation_required=true")
 print("late_source_drift_rejected=true")
+print("source_runtime_actual_object_ancestry_required=true")
+print("source_runtime_graft_ancestry_rejected=true")
 print("full_root_atomic_exchange_required=true")
 print("v6r2_predecessor_retention_required=true")
 print("filesystem_write=false")
