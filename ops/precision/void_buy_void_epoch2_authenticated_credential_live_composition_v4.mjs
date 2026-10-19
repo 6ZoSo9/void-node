@@ -745,6 +745,7 @@ function pythonBootstrap(closure){
     " return m",
     "def make_v3_replacement():",
     " m=module_from('replacement_v3r','void_buy_void_user_manager_credential_query_protected_replace_v3r_exact')",
+    " if str(m.LOCK_PATH)!=paths['lock_v3r'] or str(m.V2_LOCK_PATH)!=paths['lock_v2']: raise m.ReplaceError('closure_path_contract_mismatch')",
     " def repo_bytes(p):",
     "  p=str(p)",
     "  if p==paths['lock_v3r']: return raw['lock_v3r']",
@@ -754,6 +755,7 @@ function pythonBootstrap(closure){
     " return m",
     "def make_v6_replacement():",
     " m=module_from('replacement_v6','void_buy_void_user_manager_query_protected_replace_v6_exact')",
+    " if str(m.LOCK_PATH)!=paths['lock_v6']: raise m.ReplaceError('closure_path_contract_mismatch')",
     " def repo_bytes(p):",
     "  if str(p)==paths['lock_v6']: return raw['lock_v6']",
     "  raise m.ReplaceError('root_checkout_lock_read_forbidden')",
@@ -761,6 +763,7 @@ function pythonBootstrap(closure){
     " return m",
     "def make_v6_qualifier():",
     " v6=module_from('qualifier_v6','void_buy_void_user_manager_query_live_qualification_v6_exact')",
+    " if str(v6.REPLACE_SOURCE)!=paths['replacement_v6'] or str(v6.V4_PARSER_SOURCE)!=paths['parser_v4']: raise v6.QualificationError('closure_path_contract_mismatch')",
     " def no_source(_p): raise v6.QualificationError('root_checkout_source_read_forbidden')",
     " v6._direct_source_bytes=no_source",
     " def load_replacement():",
@@ -774,6 +777,7 @@ function pythonBootstrap(closure){
     " v6._load_replacement=load_replacement",
     " return v6",
     "q=module_from('qualifier','void_buy_void_user_manager_credential_query_installed_qualification_v3r_exact')",
+    "if str(q.REPLACEMENT_SOURCE)!=paths['replacement_v3r'] or str(q.V6_QUALIFIER_SOURCE)!=paths['qualifier_v6']: raise q.QualificationError('closure_path_contract_mismatch')",
     "def no_source(_p): raise q.QualificationError('root_checkout_source_read_forbidden')",
     "q._direct_source_bytes=no_source",
     "def load_dependencies():",
@@ -1039,6 +1043,7 @@ function plan(){
   console.log("runtime_source_dependency_blob_equality_required=true");
   console.log("root_qualification_dependency_closure_git_object_bound=true");
   console.log("root_checkout_dependency_path_reads_forbidden=true");
+  console.log("root_qualification_closure_path_contract_bound=true");
   console.log("qualifier_closure_unprivileged_git_read_required=true");
   console.log("untracked_paths_enumerated=false");
   console.log("untracked_paths_source_authority=false");
@@ -1412,6 +1417,7 @@ function selfTest(){
     "m._direct_repo_bytes=repo_bytes",
     "q._load_dependencies=load_dependencies",
     "v6._load_replacement=load_replacement",
+    "closure_path_contract_mismatch",
   ]){
     if(!bootstrapProbe.includes(required)){
       throw new Error("qualification_bootstrap_guard_self_test_failed:"+required);
@@ -1447,6 +1453,7 @@ function selfTest(){
   console.log("source_runtime_dependency_blob_equality_required=true");
   console.log("root_qualification_dependency_closure_git_object_bound=true");
   console.log("root_checkout_dependency_path_reads_forbidden=true");
+  console.log("root_qualification_closure_path_contract_bound=true");
   console.log("qualifier_closure_unprivileged_git_read_required=true");
   console.log("untracked_paths_enumerated=false");
   console.log("untracked_paths_source_authority=false");
