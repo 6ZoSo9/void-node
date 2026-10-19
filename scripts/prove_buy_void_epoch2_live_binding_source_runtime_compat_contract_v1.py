@@ -31,7 +31,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "7967778824f22baca976a59df75f9f808ebebfe2",
+    RUNNER_V4: "4e84b6eb77c284ecf7d85b609cec4d1cf130c7a7",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -132,6 +132,21 @@ assert 'const SOURCE_HEAD=' not in runner_v4
 assert 'const SOURCE_TREE=' not in runner_v4
 assert 'FIXED_ROOT+"/void_buy_void_epoch2_live_composition_native_preentry_v3"' in runner_v4
 assert "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V3" in runner_v4
+for required in (
+    'const RUNTIME_RELEASE="/opt/void-node-live/releases/"+RUNTIME_HEAD;',
+    'const CANONICAL_GIT_DIR=ROOT+"/.git";',
+    '"--git-dir="+CANONICAL_GIT_DIR',
+    '"--work-tree="+ROOT',
+    '"-c","core.worktree="+ROOT',
+    '"-c","core.fileMode=true"',
+    "function requireTrustedRuntimeRelease(){",
+    "const runtimeRelease=requireTrustedRuntimeRelease();",
+    "cwd:runtimeRelease",
+    'canonical_git_dir_worktree_pinned=true',
+    'sealed_probe_runtime_release_cwd_required=true',
+    'runtime_release_root_custody_required=true',
+):
+    assert required in runner_v4, required
 
 node = shutil.which("node")
 assert node is not None and pathlib.Path(node).is_file(), "hosted_node_unavailable"
@@ -268,6 +283,9 @@ print("runner_v4_source_snapshot_stable_across_sensitive_sequence=true")
 print("runner_v4_git_lazy_fetch_disabled=true")
 print("runner_v4_git_transport_disabled=true")
 print("runner_v4_git_prompt_and_askpass_disabled=true")
+print("runner_v4_canonical_git_dir_worktree_pinned=true")
+print("runner_v4_sealed_probe_runtime_release_cwd=true")
+print("runner_v4_runtime_release_root_custody_required=true")
 print("runner_v4_qualifier_closure_git_object_bound=true")
 print("runner_v4_complete_source_runtime_dependency_set_bound=true")
 print("runner_v4_nested_source_runtime_dependency_drift_rejected=true")
