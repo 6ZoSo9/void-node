@@ -136,10 +136,16 @@ def clean_git_env()->dict[str,str]:
 
 def git(args:list[str],*,binary:bool=False)->bytes|str:
     command=[
-        str(FIXED_GIT),"-C",str(FIXED_CHECKOUT),
+        str(FIXED_GIT),
+        "--git-dir="+str(FIXED_CHECKOUT/".git"),
+        "--work-tree="+str(FIXED_CHECKOUT),
+        "-c","core.worktree="+str(FIXED_CHECKOUT),
+        "-c","core.fileMode=true",
         "-c","core.fsmonitor=false",
         "-c","core.hooksPath=/dev/null",
         "-c","core.untrackedCache=false",
+        "-c","core.sparseCheckout=false",
+        "-c","core.sparseCheckoutCone=false",
         "-c","submodule.recurse=false",
         *args,
     ]
@@ -165,6 +171,60 @@ def git(args:list[str],*,binary:bool=False)->bytes|str:
         raise PlanError("git_output_invalid") from exc
 
 
+MAX_ACTUAL_ANCESTRY_COMMITS=4096
+MAX_ACTUAL_COMMIT_PARENTS=64
+
+
+def raw_commit_parents(oid:str)->list[str]:
+    if HEX40.fullmatch(oid) is None:
+        raise PlanError("source_runtime_actual_object_oid_invalid")
+    kind=str(git(["cat-file","-t",oid])).strip()
+    if kind!="commit":
+        raise PlanError("source_runtime_actual_object_not_commit")
+    raw=git(["cat-file","-p",oid],binary=True)
+    assert isinstance(raw,bytes)
+    header=raw.split(b"\n\n",1)[0]
+    lines=header.split(b"\n")
+    if not lines or not re.fullmatch(rb"tree [0-9a-f]{40}",lines[0]):
+        raise PlanError("source_runtime_actual_object_commit_header_invalid")
+    parents:list[str]=[]
+    for line in lines:
+        if not line.startswith(b"parent "):
+            continue
+        parent_raw=line[len(b"parent "):]
+        try:
+            parent=parent_raw.decode("ascii","strict")
+        except UnicodeError as exc:
+            raise PlanError("source_runtime_actual_object_parent_invalid") from exc
+        if HEX40.fullmatch(parent) is None:
+            raise PlanError("source_runtime_actual_object_parent_invalid")
+        parents.append(parent)
+        if len(parents)>MAX_ACTUAL_COMMIT_PARENTS:
+            raise PlanError("source_runtime_actual_object_parent_bound_exceeded")
+    return parents
+
+
+def require_actual_object_ancestry(source_head:str)->None:
+    if HEX40.fullmatch(source_head) is None:
+        raise PlanError("source_runtime_actual_object_source_invalid")
+    pending=[source_head]
+    seen:set[str]=set()
+    while pending:
+        oid=pending.pop()
+        if oid in seen:
+            continue
+        seen.add(oid)
+        if len(seen)>MAX_ACTUAL_ANCESTRY_COMMITS:
+            raise PlanError("source_runtime_actual_object_ancestry_bound_exceeded")
+        if oid==RUNTIME_HEAD:
+            return
+        parents=raw_commit_parents(oid)
+        for parent in reversed(parents):
+            if parent not in seen:
+                pending.append(parent)
+    raise PlanError("source_runtime_actual_object_ancestry_not_found")
+
+
 def source_snapshot()->dict[str,Any]:
     head=str(git(["rev-parse","--verify","HEAD"])).strip()
     tree=str(git(["rev-parse","--verify","HEAD^{tree}"])).strip()
@@ -175,7 +235,7 @@ def source_snapshot()->dict[str,Any]:
         raise PlanError("source_branch_not_main")
     if git(["status","--porcelain=v1","--untracked-files=no"])!="":
         raise PlanError("source_tracked_checkout_not_exact")
-    git(["merge-base","--is-ancestor",RUNTIME_HEAD,head])
+    require_actual_object_ancestry(head)
 
     expected={
         LOCK_REL:LOCK_BLOB,
@@ -542,6 +602,7 @@ def source_plan()->None:
     print("native_reused=true")
     print("runtime_source_dependency_count="+str(len(SOURCE_RUNTIME_DEPENDENCY_SPECS)))
     print("runtime_source_complete_dependency_set_bound=true")
+    print("source_runtime_actual_object_ancestry_required=true")
     print("terminal_source_revalidation_required=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
@@ -635,6 +696,49 @@ def self_test()->None:
     else:
         raise AssertionError("late_source_drift_not_rejected")
 
+    original_git=globals()["git"]
+    graft_source="a"*40
+    graft_parent="b"*40
+    graft_tree="c"*40
+    merge_base_called=False
+    def graft_git(args:list[str],*,binary:bool=False):
+        nonlocal merge_base_called
+        if args[:2]==["cat-file","-t"]:
+            value=b"commit\n" if binary else "commit\n"
+            return value
+        if args[:2]==["cat-file","-p"]:
+            oid=args[2]
+            if oid==graft_source:
+                raw=(
+                    "tree "+graft_tree+"\nparent "+graft_parent+
+                    "\nauthor test <test@example.invalid> 0 +0000"+
+                    "\ncommitter test <test@example.invalid> 0 +0000\n\nsource\n"
+                ).encode("ascii")
+            elif oid==graft_parent:
+                raw=(
+                    "tree "+graft_tree+
+                    "\nauthor test <test@example.invalid> 0 +0000"+
+                    "\ncommitter test <test@example.invalid> 0 +0000\n\nparent\n"
+                ).encode("ascii")
+            else:
+                raise PlanError("graft_fixture_unexpected_oid")
+            return raw if binary else raw.decode("ascii")
+        if args and args[0]=="merge-base":
+            merge_base_called=True
+            return b"" if binary else ""
+        raise PlanError("graft_fixture_unexpected_query")
+    globals()["git"]=graft_git
+    try:
+        try:
+            require_actual_object_ancestry(graft_source)
+        except PlanError as exc:
+            assert str(exc)=="source_runtime_actual_object_ancestry_not_found"
+        else:
+            raise AssertionError("graft_ancestry_not_rejected")
+        assert merge_base_called is False
+    finally:
+        globals()["git"]=original_git
+
     print(MARKER+"_SELF_TEST_GREEN")
     print("runtime_policy_head_preserved=true")
     print("accepted_v6r3_lock_bound=true")
@@ -643,9 +747,11 @@ def self_test()->None:
     print("runner_v4_identity_bound=true")
     print("policy_node_identity_host_derived=true")
     print("runtime_source_complete_dependency_set_bound=true")
+    print("source_runtime_actual_object_ancestry_required=true")
     print("runtime_source_dependency_count=9")
     print("terminal_source_revalidation_required=true")
     print("late_source_drift_rejected=true")
+    print("source_runtime_graft_ancestry_rejected=true")
     print("full_root_atomic_exchange_required=true")
     print("v4_predecessor_retained=true")
     print("v6r2_predecessor_retention_required=true")
@@ -682,6 +788,7 @@ def emit_plan()->None:
     print("new_runner_bytes="+str(NEW_RUNNER_BYTES))
     print("runtime_source_dependency_count="+str(body["runtime_source_dependency_count"]))
     print("runtime_source_complete_dependency_set_bound=true")
+    print("source_runtime_actual_object_ancestry_required=true")
     print("source_terminal_revalidated=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
