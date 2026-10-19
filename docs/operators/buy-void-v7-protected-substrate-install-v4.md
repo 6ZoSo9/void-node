@@ -125,3 +125,26 @@ The source self-test explicitly proves that regular/single-link/exact-size metad
 is accepted while FIFO, multi-link, and wrong-size metadata are rejected before
 candidate bytes are consumed. This repair grants no new install/payment/activation
 authority.
+
+
+## Privileged Python/source entry boundary
+
+Installer V4 is root-capable, so source validation cannot begin after importing
+checkout-shadowable Python modules from an untrusted invocation environment.
+
+The installer now imports only built-in `sys` first and requires isolated Python
+with safe-path semantics before importing `argparse`, `ctypes`, `json`,
+`pathlib`, or other stdlib modules. Hosted proof places a hostile
+checkout-local `argparse.py` next to a disposable installer copy and requires
+non-isolated execution to HOLD before that module can execute.
+
+For `--apply`, the installer additionally requires the executing checkout,
+its ancestor chain, and every checkout/.git node to be root-owned and
+non-group/world-writable, with symlinks confined inside the same trusted source
+root. This intentionally rejects privileged apply directly from the ordinary
+user-owned canonical checkout.
+
+The in-script guard does not authenticate Python startup hooks that can execute
+before script entry. A separately reviewed root-custodied launcher must still pin
+the interpreter, require `-I -B`, sanitize the environment, authenticate the
+landed installer/input generation, and only then enter this apply path.

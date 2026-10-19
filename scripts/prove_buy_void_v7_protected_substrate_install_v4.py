@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import ast, pathlib, subprocess, sys
+import ast, pathlib, subprocess, sys, tempfile
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 MARKER="VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_PROOF"
@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="3e30b0d4a32ec65456245f1875934bd356d6d75a"
+assert gblob(INS)=="e520abdb2f4e64647c84dd59173a1f93ecf8d753"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -70,6 +70,11 @@ required=(
     'candidate_open_nonblocking_required=true',
     'candidate_retained_fd_regular_single_link_required=true',
     'candidate_fifo_or_special_file_rejected_before_read=true',
+    'import sys as _bootstrap_sys',
+    'reason=python_isolated_mode_required',
+    'def require_privileged_source_custody()',
+    'privileged_source_custody_required_before_apply=true',
+    'trusted_root_launcher_still_required=true',
 )
 for needle in required:
     assert needle in src, needle
@@ -106,6 +111,17 @@ assert 'os.chmod(SOURCE_RELEASE' not in qsrc
 assert 'os.chown(SOURCE_RELEASE' not in qsrc
 assert 'os.chmod(SOURCE_RELEASE' not in src
 assert 'os.chown(SOURCE_RELEASE' not in src
+
+with tempfile.TemporaryDirectory(prefix="void-v7-installer-isolation-") as td:
+    t=pathlib.Path(td)
+    guarded=t/"installer.py"
+    guarded.write_text(src,"utf-8")
+    marker=t/"shadow-executed"
+    (t/"argparse.py").write_text("open("+repr(str(marker))+",'w').write('executed')\nraise RuntimeError('shadow')\n","utf-8")
+    bad=subprocess.run([sys.executable,str(guarded),"--self-test"],cwd=t,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=10)
+    assert bad.returncode==2
+    assert "reason=python_isolated_mode_required" in bad.stdout.splitlines()
+    assert not marker.exists()
 
 cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--self-test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_SELF_TEST_GREEN" in cp.stdout.splitlines()
@@ -152,6 +168,10 @@ print("install_parent_descriptor_identity_bound=true")
 print("candidate_open_nonblocking_bound=true")
 print("candidate_retained_fd_regular_single_link_bound=true")
 print("candidate_fifo_or_special_file_rejected_before_read=true")
+print("installer_preimport_isolation_guard_bound=true")
+print("installer_checkout_shadowing_rejected_before_execution=true")
+print("installer_privileged_source_custody_bound=true")
+print("trusted_root_launcher_still_required=true")
 print("accepted_native_selector_identity_preserved=true")
 print("create_only_publication_preserved=true")
 print("operation_bound_plan_v4_required=true")

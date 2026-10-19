@@ -1,6 +1,28 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+# Built-in-only bootstrap guard. This does not authenticate Python startup hooks;
+# privileged execution still requires a separately reviewed trusted launcher.
+import sys as _bootstrap_sys
+
+_BOOTSTRAP_MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4"
+if (
+    _bootstrap_sys.flags.isolated != 1
+    or not getattr(_bootstrap_sys.flags, "safe_path", False)
+):
+    if __name__ == "__main__":
+        print(_BOOTSTRAP_MARKER)
+        print("status=HOLD")
+        print("reason=python_isolated_mode_required")
+        print("protected_filesystem_mutation=false")
+        print("service_mutation=false")
+        print("credential_access=false")
+        print("signing=false")
+        print("transaction=false")
+        print("funds_movement=false")
+        raise SystemExit(2)
+    raise RuntimeError("python_isolated_mode_required")
+
 import argparse
 import ctypes
 import hashlib
@@ -13,7 +35,7 @@ import subprocess
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4"
+MARKER = _BOOTSTRAP_MARKER
 SCHEMA = "void_buy_void_v7_protected_substrate_install_plan_v4"
 PLAN_PREFIX = "voidv7substrateinstallplan4_"
 CONFIRM_TOKEN = "INSTALL_ACCEPTED_VOID_V7_PROTECTED_SUBSTRATE_V4_CREATE_ONLY"
@@ -79,6 +101,54 @@ def git_blob_sha1(raw: bytes) -> str:
     h = hashlib.sha1()
     h.update(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw)
     return h.hexdigest()
+
+def require_privileged_source_custody() -> None:
+    if os.geteuid() != 0 or os.getuid() != 0:
+        raise InstallError("root_required_for_privileged_source_custody")
+    source_root = pathlib.Path(os.path.abspath(os.fspath(ROOT)))
+    if source_root.resolve(strict=True) != source_root:
+        raise InstallError("privileged_source_root_alias_forbidden")
+    current = source_root
+    while True:
+        st = os.lstat(current)
+        if (
+            not stat.S_ISDIR(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or stat.S_IMODE(st.st_mode) & 0o022
+        ):
+            raise InstallError("privileged_source_ancestor_custody_invalid:" + os.fspath(current))
+        if current == current.parent:
+            break
+        current = current.parent
+    pending = [source_root]
+    checked = 0
+    while pending:
+        directory = pending.pop()
+        for entry in os.scandir(directory):
+            checked += 1
+            if checked > MAX_NODES:
+                raise InstallError("privileged_source_node_limit")
+            path = pathlib.Path(entry.path)
+            st = os.lstat(path)
+            if st.st_uid != 0 or st.st_gid != 0:
+                raise InstallError("privileged_source_node_owner_invalid:" + os.fspath(path))
+            mode = stat.S_IMODE(st.st_mode)
+            if stat.S_ISLNK(st.st_mode):
+                try:
+                    resolved = path.resolve(strict=True)
+                except OSError as exc:
+                    raise InstallError("privileged_source_symlink_unavailable:" + os.fspath(path)) from exc
+                if resolved != source_root and source_root not in resolved.parents:
+                    raise InstallError("privileged_source_symlink_escape:" + os.fspath(path))
+                continue
+            if mode & 0o022:
+                raise InstallError("privileged_source_node_writable:" + os.fspath(path))
+            if stat.S_ISDIR(st.st_mode):
+                pending.append(path)
+            elif not stat.S_ISREG(st.st_mode):
+                raise InstallError("privileged_source_node_kind_invalid:" + os.fspath(path))
 
 def install_parent_custody() -> tuple[tuple[str, int, int, int, int, int, int], ...]:
     current = INSTALL_PARENT
@@ -547,6 +617,7 @@ def source_plan() -> None:
     print(MARKER); print("mode=source-plan"); print("source_only=true"); print("accepted_v2_installer_merge=" + PREDECESSOR_MERGE)
     print("accepted_v1_lock_id=" + LOCK_ID); print("accepted_v1_lock_install_authority=false")
     print("operation_bound_plan_id_required=true"); print("explicit_create_only_confirmation_required=true")
+    print("isolated_python_required=true"); print("trusted_root_launcher_still_required=true")
     print("resumable_exact_components=true"); print("mismatched_component_holds=true")
     print("partial_publication_possible=true"); print("no_rollback_after_publication=true")
     print("predecessor_v3_installer_merge_tree_bound=true"); print("strict_symlink_target_required=true")
@@ -572,6 +643,8 @@ def self_test() -> None:
     assert sentinel not in _CREATED_STAGES and "self_test_component" in _PUBLISHED
     _PUBLISHED.remove("self_test_component")
     print(MARKER + "_SELF_TEST_GREEN"); print("accepted_v1_lock_remains_install_authority_false=true")
+    print("isolated_python_required=true"); print("trusted_root_launcher_still_required=true")
+    print("privileged_source_custody_required_before_apply=true")
     print("operation_bound_plan_id_required=true"); print("explicit_create_only_confirmation_required=true")
     print("rename_noreplace_required=true"); print("resumable_exact_components=true")
     print("predecessor_v3_installer_merge_tree_bound=true"); print("strict_symlink_target_required=true")
@@ -608,6 +681,7 @@ def plan(native: pathlib.Path, selector: pathlib.Path, expected_head: str) -> No
 
 def apply(native: pathlib.Path, selector: pathlib.Path, expected_head: str, expected_plan_id: str, confirm: str) -> None:
     if confirm != CONFIRM_TOKEN: raise InstallError("explicit_create_only_confirmation_required")
+    require_privileged_source_custody()
     if (not expected_plan_id.startswith(PLAN_PREFIX) or len(expected_plan_id) != len(PLAN_PREFIX) + 64
             or any(ch not in "0123456789abcdef" for ch in expected_plan_id[len(PLAN_PREFIX):])):
         raise InstallError("expected_plan_id_invalid")
