@@ -46,7 +46,7 @@ const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
 const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
 const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
 const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
-const SEALED_BLOB="53c86d154d4fc98b434b61157f16fb51e6d34eb9";
+const SEALED_BLOB="8c6bc4f41afd4d98ecfef59ac707de9f826d5e76";
 const SEALED_RUNTIME_PREDECESSOR_BLOB=
   "14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
@@ -234,14 +234,158 @@ function run(command,args,options={}){
   return result;
 }
 
-function assertTrustedExecutable(file){
-  const real=fs.realpathSync(file);
-  const st=fs.lstatSync(real,{bigint:true});
-  if(!st.isFile()||st.isSymbolicLink()||st.uid!==0n||
-     (st.mode&0o022n)!==0n){
-    throw new Error("trusted_executable_invalid:"+path.basename(file));
+function requireRootOwnedExecutableAncestors(real,label){
+  const root=path.parse(real).root;
+  const parts=path.relative(root,path.dirname(real))
+    .split(path.sep).filter(Boolean);
+  let current=root;
+  const inspect=(candidate)=>{
+    const st=fs.lstatSync(candidate,{bigint:true});
+    const mode=st.mode&0o7777n;
+    if(!st.isDirectory()||st.isSymbolicLink()||
+       st.uid!==0n||st.gid!==0n||(mode&0o022n)!==0n){
+      throw new Error("trusted_executable_ancestor_invalid:"+label);
+    }
+  };
+  inspect(root);
+  for(const part of parts){
+    current=path.join(current,part);
+    inspect(current);
   }
-  return real;
+}
+
+function sameTrustedExecutableGeneration(left,right){
+  return sameFileIdentity(left,right)&&
+    left.mtimeNs===right.mtimeNs&&left.ctimeNs===right.ctimeNs;
+}
+
+function revalidateRetainedTrustedExecutable(tool){
+  requireRootOwnedExecutableAncestors(tool.real,tool.label);
+  const retained=fs.fstatSync(tool.fd,{bigint:true});
+  const visible=fs.lstatSync(tool.real,{bigint:true});
+  const mode=visible.mode&0o7777n;
+  if(!visible.isFile()||visible.isSymbolicLink()||
+     visible.uid!==0n||visible.gid!==0n||visible.nlink!==1n||
+     (mode&0o022n)!==0n||(mode&0o111n)===0n||
+     !sameTrustedExecutableGeneration(tool.opened,retained)||
+     !sameTrustedExecutableGeneration(retained,visible)){
+    throw new Error("trusted_executable_generation_changed:"+tool.label);
+  }
+}
+
+function openRetainedTrustedExecutable(file,label){
+  const real=fs.realpathSync(file);
+  requireRootOwnedExecutableAncestors(real,label);
+  const before=fs.lstatSync(real,{bigint:true});
+  const mode=before.mode&0o7777n;
+  if(!before.isFile()||before.isSymbolicLink()||
+     before.uid!==0n||before.gid!==0n||before.nlink!==1n||
+     (mode&0o022n)!==0n||(mode&0o111n)===0n){
+    throw new Error("trusted_executable_invalid:"+label);
+  }
+  const noFollow=fs.constants.O_NOFOLLOW;
+  if(!Number.isInteger(noFollow)||noFollow===0){
+    throw new Error("trusted_executable_nofollow_unavailable");
+  }
+  const fd=fs.openSync(real,fs.constants.O_RDONLY|noFollow);
+  let success=false;
+  try{
+    const opened=fs.fstatSync(fd,{bigint:true});
+    if(!sameTrustedExecutableGeneration(before,opened)){
+      throw new Error("trusted_executable_rebound:"+label);
+    }
+    const tool={fd,real,label,opened};
+    revalidateRetainedTrustedExecutable(tool);
+    success=true;
+    return tool;
+  }finally{
+    if(!success)fs.closeSync(fd);
+  }
+}
+
+function closeRetainedTrustedExecutable(tool){
+  if(tool&&Number.isInteger(tool.fd)&&tool.fd>=0){
+    fs.closeSync(tool.fd);
+    tool.fd=-1;
+  }
+}
+
+function runRetainedTrustedExecutable(tool,args,options={}){
+  revalidateRetainedTrustedExecutable(tool);
+  const childFd=3;
+  const beforeSpawn=options.beforeSpawn;
+  if(typeof beforeSpawn==="function")beforeSpawn();
+  const result=spawnSync("/proc/self/fd/"+String(childFd),args,{
+    cwd:options.cwd??ROOT,
+    env:options.env??cleanRootEnv(),
+    encoding:"utf8",
+    input:options.input,
+    stdio:["pipe","pipe","pipe",tool.fd],
+    timeout:options.timeout??60_000,
+    maxBuffer:MAX_OUTPUT,
+  });
+  try{
+    if(result.error){
+      throw new Error("spawn_error:"+safeReason(result.error.message));
+    }
+    return result;
+  }finally{
+    revalidateRetainedTrustedExecutable(tool);
+  }
+}
+
+function assertTrustedExecutable(file){
+  const tool=openRetainedTrustedExecutable(file,path.basename(file));
+  try{
+    return tool.real;
+  }finally{
+    closeRetainedTrustedExecutable(tool);
+  }
+}
+
+let activeRootExecutionTools=null;
+
+function openRootExecutionTools(){
+  assertTrustedExecutable(GIT);
+  assertTrustedExecutable(NODE);
+  const setpriv=openRetainedTrustedExecutable(SETPRIV,"setpriv");
+  let python=null;
+  try{
+    python=openRetainedTrustedExecutable(PYTHON,"python3");
+    return {
+      setpriv,
+      python,
+      revalidate(){
+        revalidateRetainedTrustedExecutable(setpriv);
+        revalidateRetainedTrustedExecutable(python);
+      },
+      close(){
+        let first=null;
+        for(const tool of [python,setpriv]){
+          try{
+            revalidateRetainedTrustedExecutable(tool);
+          }catch(error){
+            if(first===null)first=error;
+          }
+          try{closeRetainedTrustedExecutable(tool);}
+          catch(error){if(first===null)first=error;}
+        }
+        if(first!==null)throw first;
+      },
+    };
+  }catch(error){
+    if(python!==null)closeRetainedTrustedExecutable(python);
+    closeRetainedTrustedExecutable(setpriv);
+    throw error;
+  }
+}
+
+function requireActiveRootExecutionTools(){
+  if(!activeRootExecutionTools){
+    throw new Error("root_execution_tools_not_retained");
+  }
+  activeRootExecutionTools.revalidate();
+  return activeRootExecutionTools;
 }
 
 function sameFileIdentity(left,right){
@@ -409,7 +553,8 @@ function requireNativePreentry(expectedHead){
 }
 
 function runAsRuntimeUser(command,args,options={}){
-  return run(SETPRIV,[
+  const tools=requireActiveRootExecutionTools();
+  return runRetainedTrustedExecutable(tools.setpriv,[
     "--no-new-privs",
     "--reuid="+String(RUNTIME_UID),
     "--regid="+String(RUNTIME_GID),
@@ -920,7 +1065,8 @@ function runQualification(expectedHead){
     if(bootstrap.includes(ROOT)){
       throw new Error("authenticated_closure_bootstrap_user_checkout_path");
     }
-    const r=run(PYTHON,["-I","-B","-"],{
+    const tools=requireActiveRootExecutionTools();
+    const r=runRetainedTrustedExecutable(tools.python,["-I","-B","-"],{
       env:cleanRootEnv(),
       input:bootstrap,
       timeout:60_000,
@@ -955,10 +1101,13 @@ function validateSealedRecord(record,expectedHead){
     immutable_fulfiller_identity_proven:true,
     active_signing_capability_proven:true,
     runtime_source_acl_nonwritability_verified:true,
-    runtime_source_descriptor_reads_bound:true,
-    runtime_source_generation_retained_through_signing:true,
+    runtime_source_bounded_descriptor_reads_per_census:true,
+    runtime_source_acl_barrier_and_pre_post_census_stable:true,
     runtime_source_revalidated_after_final_observation:true,
     runtime_source_revalidated_immediately_before_evidence:true,
+    trusted_tool_ancestor_nonwritability_verified:true,
+    trusted_tool_retained_descriptor_execution:true,
+    trusted_tool_generation_revalidated:true,
     privileged_first_entry_authenticated:false,
     credential_generation_retained_through_signing:true,
     credential_generation_revalidated_after_final_observation:true,
@@ -1197,7 +1346,15 @@ function plan(){
   console.log("canonical_git_dir_worktree_pinned=true");
   console.log("sealed_probe_runtime_release_cwd_required=true");
   console.log("runtime_release_root_custody_required=true");
+  console.log("retained_setpriv_descriptor_execution=true");
+  console.log("retained_python_descriptor_execution=true");
+  console.log("trusted_root_tool_path_rebind_rejected=true");
+  console.log("trusted_root_tool_writable_ancestor_rejected=true");
   console.log("runtime_release="+RUNTIME_RELEASE);
+  console.log("retained_setpriv_descriptor_execution_required=true");
+  console.log("retained_python_descriptor_execution_required=true");
+  console.log("root_tool_ancestor_custody_required=true");
+  console.log("root_tool_terminal_generation_revalidation_required=true");
   console.log("protected_native_entry_accepted_by_this_pr=false");
   console.log("protected_native_entry_install_authorized=false");
   console.log("live_execution_authorized=false");
@@ -1465,6 +1622,7 @@ function selfTest(){
           source_tree:"7".repeat(40),
           source_runtime_ancestry_bound:true,
           source_runtime_dependency_blob_equality:true,
+          source_only_dependency_blob_bound:true,
           tracked_checkout_exact:true,
           untracked_paths_enumerated:false,
           untracked_paths_source_authority:false,
@@ -1521,6 +1679,48 @@ function selfTest(){
     throw new Error("post_native_auth_hold_receipt_not_true");
   }
   privilegedFirstEntryAuthenticatedForInvocation=false;
+
+  const rootTools=openRootExecutionTools();
+  try{
+    const py=runRetainedTrustedExecutable(rootTools.python,["--version"],{
+      env:cleanRootEnv(),timeout:10_000,
+    });
+    if(py.status!==0||String(py.stderr||"")!==""){
+      throw new Error("retained_python_self_test_failed");
+    }
+    const sp=runRetainedTrustedExecutable(rootTools.setpriv,["--version"],{
+      env:cleanRootEnv(),timeout:10_000,
+    });
+    if(sp.status!==0||String(sp.stderr||"")!==""){
+      throw new Error("retained_setpriv_self_test_failed");
+    }
+    let ancestorHeld=false;
+    try{
+      requireRootOwnedExecutableAncestors(
+        "/tmp/void-runner-v4-exec-fixture","fixture",
+      );
+    }catch{ancestorHeld=true;}
+    if(!ancestorHeld){
+      throw new Error("trusted_executable_writable_ancestor_adversary_failed");
+    }
+    let reboundHeld=false;
+    const forged={...rootTools.python};
+    try{
+      runRetainedTrustedExecutable(forged,["--version"],{
+        env:cleanRootEnv(),
+        timeout:10_000,
+        beforeSpawn:()=>{forged.real=rootTools.setpriv.real;},
+      });
+    }catch(error){
+      reboundHeld=String(error?.message||"")
+        .includes("trusted_executable_generation_changed");
+    }
+    if(!reboundHeld){
+      throw new Error("trusted_executable_path_rebind_adversary_failed");
+    }
+  }finally{
+    rootTools.close();
+  }
 
   const gitEnv=cleanGitEnv();
   for(const [key,value] of Object.entries({
@@ -1791,12 +1991,7 @@ function runLiveLifecycle({
     typeof process.geteuid==="function" ? process.geteuid() : -1
   ),
   nativeFn=requireNativePreentry,
-  trustedExecutablesFn=()=>{
-    assertTrustedExecutable(GIT);
-    assertTrustedExecutable(PYTHON);
-    assertTrustedExecutable(NODE);
-    assertTrustedExecutable(SETPRIV);
-  },
+  trustedExecutablesFn=openRootExecutionTools,
   sensitiveFn=runSensitiveSequence,
   revalidateFn=revalidateNativePreentry,
   emitFn=(receipt)=>console.log(JSON.stringify(receipt,null,2)),
@@ -1810,11 +2005,19 @@ function runLiveLifecycle({
   const nativeProof=nativeFn(expectedHead);
   privilegedFirstEntryAuthenticatedForInvocation=true;
 
-  trustedExecutablesFn();
-  const receipt=sensitiveFn({expectedHead});
-  revalidateFn(nativeProof,expectedHead);
-  emitFn(receipt);
-  return receipt;
+  const tools=trustedExecutablesFn();
+  const priorTools=activeRootExecutionTools;
+  if(tools)activeRootExecutionTools=tools;
+  try{
+    const receipt=sensitiveFn({expectedHead});
+    if(tools)tools.revalidate();
+    revalidateFn(nativeProof,expectedHead);
+    emitFn(receipt);
+    return receipt;
+  }finally{
+    activeRootExecutionTools=priorTools;
+    if(tools&&typeof tools.close==="function")tools.close();
+  }
 }
 
 function live(expectedHead,confirm){
