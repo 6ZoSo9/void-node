@@ -3,23 +3,23 @@
   "marker": "VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3",
   "version": 2,
   "repository": "6ZoSo9/void-node",
-  "candidate_head": "6bad5e7bea8db683b53622387923c493370b8e64",
+  "candidate_head": "539075ad44f5fef150c7fbfdb4ca6e8115a7b682",
   "compatibility_hosted_evidence": {
     "workflow": "Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1",
-    "run_id": 39272638928,
-    "job_id": 118128683759,
+    "run_id": 39275749198,
+    "job_id": 118139485564,
     "conclusion": "success"
   },
   "candidate_hosted_evidence": {
     "workflow": "Buy VOID Epoch-2 live-composition runner policy candidate V6R3",
-    "run_id": 39272637721,
-    "job_id": 118128679712,
+    "run_id": 39275748113,
+    "job_id": 118139481605,
     "conclusion": "success"
   },
   "candidate_report": {
     "candidate_id": "voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d",
     "candidate_script_git_blob_sha1": "cecca32b8c9de8105e92abea915bd142813eb429",
-    "candidate_workflow_git_blob_sha1": "439d270427c2bac9cffe1ea1877ab92dbf622673",
+    "candidate_workflow_git_blob_sha1": "0e2f3c7dbbebdaa6c7120699aad35890646dc954",
     "compat_contract_git_blob_sha1": "cb82a71cf83348f3709719cb1c8b44f3f687eabb",
     "compat_proof_git_blob_sha1": "528a5785814c2a89e9d692ee681090b1f19e9b11",
     "compat_workflow_git_blob_sha1": "7d2952394ec219f39e5d18dc96143685a6062d45",
@@ -63,7 +63,8 @@
     "voidbuye2runnerpolcand6r3_eee91de4d93ea4ab3068621659a8420255772b49f25556f3d93cbd67d3059c0a"
   ],
   "superseded_lock_ids": [
-    "voidbuye2runnerpollock6r3_4d55eadc456d48aed2e77df8a4897c0756b173761e7a10b0f1b53b24dd4d50a2"
+    "voidbuye2runnerpollock6r3_4d55eadc456d48aed2e77df8a4897c0756b173761e7a10b0f1b53b24dd4d50a2",
+    "voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202"
   ],
   "superseded_install_authority": false,
   "protected_install_authorized": false,
@@ -80,5 +81,5 @@
   "funds_movement_authorized": false,
   "production_host_evidence_authority": false,
   "next_gate": "void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan",
-  "lock_id": "voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202"
+  "lock_id": "voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67"
 }
