@@ -4,6 +4,21 @@ Marker: `VOID_APOLLYON_TRAINING_START_RELEASE_BINDING_V1`
 
 Status: **pure source/test contract; no protected consumption-store observation, release channel, trainer release, or training execution exists here**.
 
+
+## Flattened consumption + release review generation
+
+The current PR directly targets #3357 at
+`1b60642d980b76c13130d5124d83a22c2c01ec30` and contains the complete
+eight-file source closure: the four #3333 one-time training-start consumption
+contract files and the four release-binding files. The #3333 workflow continues
+to qualify its own contract on this direct diff, while the release-binding
+workflow enforces the combined eight-file PR scope.
+
+This consolidation changes review stacking only. It does not establish protected
+consumption/winner origin, durability revalidation, release-channel origin,
+trainer release, training execution, credentials, transactions, or funds
+authority.
+
 ## Purpose
 
 Accepted #3333 exact head `bdadfcc6854d6f4e1804347e51b940e897a8da9f`
