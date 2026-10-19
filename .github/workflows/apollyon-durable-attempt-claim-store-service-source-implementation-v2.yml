@@ -127,14 +127,14 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
             bed4c6fe3896ff48dfbc873d078fac943528fa5f
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            4ddf7889788e12fae6193b82af3e71e1a9f313cb
+            033115735c152dc391320c3bbf880d0a285a3d83
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
-            864f90e46510403b30f558f1ccd8719be88f1180
+            69694ab1c8ffd8021817a449255eca956f91a7e8
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            c791265fb7733226e869751211384fa678fb6403
+            848a061a0b246e138ec8ed775ed8a87f159476f6
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
@@ -329,6 +329,7 @@ jobs:
             --node-headers "$node_headers" | tee "$out"
           for marker in \
             'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_NATIVE_BRIDGE_V2_PROOF_GREEN' \
+            'native_bridge_overkeyed_config_and_groups_rejected_before_descriptor_capture=true' \
             'native_session_fragmented_actual_request_challenge_and_canonical_response_proven=true' \
             'native_session_async_local_receipt_rejected_without_observation_and_session_closed=true' \
             'native_session_hostile_promise_constructor_getter_not_invoked=true' \

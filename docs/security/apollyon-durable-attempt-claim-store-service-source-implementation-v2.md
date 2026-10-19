@@ -1298,3 +1298,28 @@ preflight, and Linux lease over-keyed input bound. It does not prove trusted
 provider origin, rejected-Promise failure-domain containment, installed Xiphos
 origin, production claim publication, training, credentials, transactions, or
 funds authority.
+
+## October 19 native-bridge cardinality preflight repair
+
+The native JS bridge now applies the same bounded-shape rule already used by
+the hardened core and Linux lease adapter. Caller-owned plain config/operation
+objects are checked with `Reflect.ownKeys` for exact cardinality, string-only
+keys and the allowed key set **before** `Object.getOwnPropertyDescriptors`
+materializes a descriptor table.
+
+Supplementary-group arrays are also bounded by their genuine Array `length`
+slot (0..64) before enumerating or snapshotting element descriptors. This
+prevents a large ordinary object or dense group array from forcing descriptor
+amplification before fail-closed rejection.
+
+Disposable native-bridge proofs use 4,096-surplus-key configs and 4,096-element
+group arrays for both the one-peer adapter and paired-session constructors.
+They instrument `Object.getOwnPropertyDescriptors` and require zero snapshots
+of the oversized inputs, zero retained native descriptor acquisition, and
+unchanged store state.
+
+This closes only the source-level input-amplification boundary. Trusted callback
+origin, already-rejected Promise failure-domain containment, installed protected
+Xiphos origin, production claim publication, training, credentials, transactions
+and funds authority remain unproven.
+

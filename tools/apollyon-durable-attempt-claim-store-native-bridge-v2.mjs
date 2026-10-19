@@ -72,8 +72,12 @@ function exactDataInput(input,keys,code){
   if(!input||typeof input!=="object"||types.isProxy(input)||Array.isArray(input))fail(code);
   const proto=Object.getPrototypeOf(input);
   if(proto!==Object.prototype&&proto!==null)fail(code);
+  // Bound caller-owned shape before materializing a descriptor table.
+  const own=Reflect.ownKeys(input);
+  if(own.length!==keys.length||own.some(key=>typeof key!=="string"))fail(code);
+  const expected=new Set(keys);
+  if(own.some(key=>!expected.has(key)))fail(code);
   const descriptors=Object.getOwnPropertyDescriptors(input);
-  if(Reflect.ownKeys(descriptors).length!==keys.length)fail(code);
   const snapshot=Object.create(null);
   for(const key of keys){
     if(!Object.hasOwn(descriptors,key))fail(code);
@@ -114,9 +118,12 @@ function integer(value,min,max,code){
 function captureGroups(input,code){
   if(types.isProxy(input)||!Array.isArray(input)||
      Object.getPrototypeOf(input)!==Array.prototype)fail(code);
+  // Genuine Array length is an own non-accessor slot. Reject oversized arrays
+  // before enumerating or snapshotting all caller-owned element descriptors.
+  const length=integer(input.length,0,64,code);
+  const own=Reflect.ownKeys(input);
+  if(own.length!==length+1)fail(code);
   const descriptors=Object.getOwnPropertyDescriptors(input);
-  const length=integer(descriptors.length?.value,0,64,code);
-  if(Reflect.ownKeys(descriptors).length!==length+1)fail(code);
   const copy=[];
   for(let index=0;index<length;index+=1){
     if(!Object.hasOwn(descriptors,String(index)))fail(code);

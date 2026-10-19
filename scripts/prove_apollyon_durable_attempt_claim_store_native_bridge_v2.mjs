@@ -24,7 +24,7 @@ const C_REL="ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c"
 const PROCESS_REL="ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c";
 const PROCESS_HEADER_REL="ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h";
 const ADDON_REL="build/Release/apollyon_claim_store_native_bridge_v2.node";
-const JS_BLOB="864f90e46510403b30f558f1ccd8719be88f1180";
+const JS_BLOB="69694ab1c8ffd8021817a449255eca956f91a7e8";
 const C_BLOB="96df365a812c645e6210ea5728c8f38851019d50";
 const PINNED=Object.freeze({
   [JS_REL]:JS_BLOB,
@@ -1033,6 +1033,28 @@ async function adapterCases(plan,bridge){
       const proxy=new Proxy(peer,{get(){traps+=1;assert.fail();},ownKeys(){traps+=1;assert.fail();}});
       const revoked=Proxy.revocable(peer,{});revoked.revoke();
       const shared=Buffer.from(new SharedArrayBuffer(peer.expected_cmdline_bytes.length));
+      const overkey={...cfg};
+      for(let index=0;index<4096;index+=1)overkey["surplus_"+index]=index;
+      const overgroups=Array.from({length:4096},(_,index)=>index);
+      const originalDescriptors=Object.getOwnPropertyDescriptors;
+      let forbiddenDescriptorSnapshots=0;
+      Object.getOwnPropertyDescriptors=function boundedDescriptorProbe(value){
+        if(value===overkey||value===overgroups){
+          forbiddenDescriptorSnapshots+=1;
+          assert.fail("over-sized bridge input reached descriptor snapshot");
+        }
+        return originalDescriptors(value);
+      };
+      try{
+        expectError(()=>create(overkey),"apollyon_claim_store_bridge_v2_config_invalid");
+        expectError(
+          ()=>create({...cfg,peer_identity:{...peer,expected_supplementary_gids:overgroups}}),
+          "apollyon_claim_store_bridge_v2_peer_config_invalid",
+        );
+      }finally{Object.getOwnPropertyDescriptors=originalDescriptors;}
+      assert.equal(forbiddenDescriptorSnapshots,0);
+      assert.deepEqual(descriptorSet(),beforeDescriptors,
+        "over-sized bridge inputs are rejected before native descriptor acquisition");
       const invalid=[accessor,{...cfg,peer_identity:peerAccessor},{...cfg,extra:true},
         {...cfg,peer_identity:proxy},{...cfg,peer_identity:revoked.proxy},
         {...cfg,peer_identity:{...peer,expected_supplementary_gids:groups}},
@@ -1395,6 +1417,30 @@ async function sessionAdapterCases(plan,bridge){
       Object.defineProperty(accessor,"control_peer_identity",{enumerable:true,get(){getters+=1;return peers.control_peer_identity;}});
       const peerAccessor={...peers.publisher_peer_identity};
       Object.defineProperty(peerAccessor,"socket_fd",{enumerable:true,get(){getters+=1;return plan.publisher.socket_fd;}});
+      const overkey={...cfg};
+      for(let index=0;index<4096;index+=1)overkey["surplus_"+index]=index;
+      const overgroups=Array.from({length:4096},(_,index)=>index);
+      const originalDescriptors=Object.getOwnPropertyDescriptors;
+      let forbiddenDescriptorSnapshots=0;
+      Object.getOwnPropertyDescriptors=function boundedDescriptorProbe(value){
+        if(value===overkey||value===overgroups){
+          forbiddenDescriptorSnapshots+=1;
+          assert.fail("over-sized session input reached descriptor snapshot");
+        }
+        return originalDescriptors(value);
+      };
+      try{
+        expectError(()=>create(overkey),"apollyon_claim_store_session_v2_config_invalid");
+        expectError(
+          ()=>create({...cfg,publisher_peer_identity:{
+            ...peers.publisher_peer_identity,expected_supplementary_gids:overgroups,
+          }}),
+          "apollyon_claim_store_bridge_v2_peer_config_invalid",
+        );
+      }finally{Object.getOwnPropertyDescriptors=originalDescriptors;}
+      assert.equal(forbiddenDescriptorSnapshots,0);
+      assert.deepEqual(descriptorSet(),baseline,
+        "over-sized session inputs are rejected before native descriptor acquisition");
       const bad=[accessor,{...cfg,publisher_peer_identity:peerAccessor},{...cfg,peer_identity:peers.control_peer_identity},
         {...cfg,revalidate:async()=>({})},{...cfg,revalidate:function*(){yield {};}},
         {...cfg,publisher_peer_identity:new Proxy(peers.publisher_peer_identity,{get(){getters+=1;assert.fail();}})}];
@@ -1815,6 +1861,7 @@ async function main(args){
   }finally{fs.rmSync(temporary,{recursive:true,force:true});}
 
   console.log("VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_NATIVE_BRIDGE_V2_PROOF_GREEN");
+  console.log("native_bridge_overkeyed_config_and_groups_rejected_before_descriptor_capture=true");
   console.log("native_bridge_exact_source_and_process_parent_blobs_pinned=true");
   console.log("native_bridge_strict_napi8_source_build_in_disposable_snapshot=true");
   console.log("inherited_anonymous_pipe_fragmented_exact_request_and_eof_proven=true");
