@@ -72,6 +72,26 @@ def _close_fd(fd: int, reason: str) -> None:
         raise Hold(reason) from exc
 
 
+def _close_read_fds(
+    data_fd: int,
+    path_fd: int,
+    data_reason: str,
+    path_reason: str,
+) -> None:
+    first: Hold | None = None
+    for fd, reason in ((data_fd, data_reason), (path_fd, path_reason)):
+        if fd < 0:
+            continue
+        try:
+            os.close(fd)
+        except OSError as exc:
+            if first is None:
+                first = Hold(reason)
+                first.__cause__ = exc
+    if first is not None:
+        raise first
+
+
 def canonical(value: Any) -> bytes:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
@@ -229,8 +249,12 @@ def _read_parent_dependency_source(
     except OSError as exc:
         raise Hold("accepted_parent_dependency_read_failed") from exc
     finally:
-        _close_fd(fd, "accepted_parent_dependency_close_failed")
-        _close_fd(path_fd, "accepted_parent_dependency_path_close_failed")
+        _close_read_fds(
+            fd,
+            path_fd,
+            "accepted_parent_dependency_close_failed",
+            "accepted_parent_dependency_path_close_failed",
+        )
 
 
 def load_accepted_parent_lock() -> dict[str, Any]:
@@ -259,8 +283,12 @@ def load_accepted_parent_lock() -> dict[str, Any]:
     except OSError as exc:
         raise Hold("accepted_parent_source_read_failed") from exc
     finally:
-        _close_fd(fd, "accepted_parent_source_close_failed")
-        _close_fd(path_fd, "accepted_parent_source_path_close_failed")
+        _close_read_fds(
+            fd,
+            path_fd,
+            "accepted_parent_source_close_failed",
+            "accepted_parent_source_path_close_failed",
+        )
 
     # The module is compiled from the exact retained bytes, not reopened by name.
     module = types.ModuleType("accepted_apollyon_first_entry_lock")
@@ -325,8 +353,12 @@ def read_untrusted_tar(path: Path) -> bytes:
     except OSError as exc:
         raise Hold("archive_file_read_failed") from exc
     finally:
-        _close_fd(fd, "archive_file_close_failed")
-        _close_fd(path_fd, "archive_file_path_close_failed")
+        _close_read_fds(
+            fd,
+            path_fd,
+            "archive_file_close_failed",
+            "archive_file_path_close_failed",
+        )
 
 
 def verify_archive_bytes(raw: bytes, lock: dict[str, Any]) -> dict[str, Any]:
