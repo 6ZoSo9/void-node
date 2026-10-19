@@ -80,6 +80,37 @@ def git_blob_sha1(raw: bytes) -> str:
     h.update(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw)
     return h.hexdigest()
 
+def install_parent_custody() -> tuple[tuple[str, int, int, int, int, int, int], ...]:
+    current = INSTALL_PARENT
+    first = True
+    rows: list[tuple[str, int, int, int, int, int, int]] = []
+    while True:
+        st = os.lstat(current)
+        mode = stat.S_IMODE(st.st_mode)
+        if (
+            not stat.S_ISDIR(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or mode & 0o022
+        ):
+            raise InstallError("install_parent_custody_invalid:" + os.fspath(current))
+        if first and mode != 0o755:
+            raise InstallError("install_parent_mode_invalid:" + os.fspath(current))
+        rows.append((os.fspath(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink))
+        if current == current.parent:
+            break
+        current = current.parent
+        first = False
+    return tuple(rows)
+
+def install_parent_fd_matches(fd: int, expected: tuple[tuple[str, int, int, int, int, int, int], ...]) -> bool:
+    if not expected or expected[0][0] != os.fspath(INSTALL_PARENT):
+        return False
+    st = os.fstat(fd)
+    row = expected[0]
+    return (st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink) == row[1:]
+
 def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
 
@@ -328,6 +359,7 @@ def ensure_stage_roots_absent() -> None:
             raise InstallError("staging_root_preexisting:" + os.fspath(stage))
 
 def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expected_head: str) -> dict[str, Any]:
+    install_parent_custody()
     verify_repository(expected_head)
     accepted_lock(expected_head)
     verify_source_release()
@@ -350,6 +382,7 @@ def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expecte
         "native_candidate": {"sha256": sha256_bytes(native_raw), "bytes": len(native_raw)},
         "selector_candidate": {"sha256": sha256_bytes(selector_raw), "bytes": len(selector_raw)},
         "installed_state": {"protected_source_exact": source_exact, "native_preentry_exact": preentry_exact, "selector_exact": selector_exact},
+        "install_parent_custody_exact": True,
         "create_only": True, "resumable_exact_components": True, "mismatched_component_holds": True,
         "partial_publication_possible": True, "no_rollback_after_publication": True,
         "service_mutation": False, "systemd_mutation": False, "credential_access": False, "private_key_access": False,
@@ -395,6 +428,7 @@ def _copy_regular(src: pathlib.Path, dst: pathlib.Path, mode: int) -> None:
         os.close(sfd)
 
 def _copy_tree(src_root: pathlib.Path, dst_root: pathlib.Path) -> None:
+    install_parent_custody()
     root_st, root_mode = src_root.lstat(), stat.S_IMODE(src_root.lstat().st_mode)
     if (not stat.S_ISDIR(root_st.st_mode) or stat.S_ISLNK(root_st.st_mode) or root_st.st_uid != 0 or root_st.st_gid != 0 or root_mode != SOURCE_RELEASE_ROOT_MODE):
         raise InstallError("source_release_root_metadata_invalid")
@@ -429,6 +463,7 @@ def _copy_tree(src_root: pathlib.Path, dst_root: pathlib.Path) -> None:
     recurse(src_root, dst_root)
 
 def _create_binary_stage(stage: pathlib.Path, filename: str, raw: bytes, expected_sha: str) -> None:
+    install_parent_custody()
     global _WRITE_PERFORMED
     stage.mkdir(mode=0o755); _CREATED_STAGES.add(stage); _WRITE_PERFORMED = True
     os.chown(stage, 0, 0); os.chmod(stage, 0o755)
@@ -464,18 +499,25 @@ def _record_publication_after_rename(stage: pathlib.Path, label: str) -> None:
 def _rename_noreplace(old_name: str, new_name: str, stage: pathlib.Path, label: str) -> None:
     libc = ctypes.CDLL(None, use_errno=True); renameat2 = getattr(libc, "renameat2", None)
     if renameat2 is None: raise InstallError("renameat2_unavailable")
+    expected_parent = install_parent_custody()
     parent_fd = os.open(INSTALL_PARENT, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
     try:
+        if not install_parent_fd_matches(parent_fd, expected_parent):
+            raise InstallError("install_parent_descriptor_identity_mismatch")
         if renameat2(parent_fd, old_name.encode(), parent_fd, new_name.encode(), RENAME_NOREPLACE) != 0:
             raise InstallError("rename_noreplace_failed:" + str(ctypes.get_errno()))
         _record_publication_after_rename(stage, label)
         os.fsync(parent_fd)
+        if not install_parent_fd_matches(parent_fd, expected_parent):
+            raise InstallError("install_parent_descriptor_generation_changed")
+        install_parent_custody()
     finally:
         os.close(parent_fd)
 
 def _cleanup_stage(stage: pathlib.Path) -> None:
     if stage not in _CREATED_STAGES:
         return
+    install_parent_custody()
     if stage.exists() and not stage.is_symlink():
         shutil.rmtree(stage)
     _CREATED_STAGES.discard(stage)
@@ -502,6 +544,8 @@ def source_plan() -> None:
     print("partial_publication_possible=true"); print("no_rollback_after_publication=true")
     print("predecessor_v3_installer_merge_tree_bound=true"); print("strict_symlink_target_required=true")
     print("publication_bookkeeping_precedes_parent_fsync=true")
+    print("install_parent_root_owned_0755_required=true")
+    print("install_parent_descriptor_identity_required=true")
     print("immutable_source_release_root_mode_0555_required=true")
     print("protected_source_root_mode_0755_required=true")
     print("installed_qualifier_v3_bound=true")
@@ -525,6 +569,8 @@ def self_test() -> None:
     print("rename_noreplace_required=true"); print("resumable_exact_components=true")
     print("predecessor_v3_installer_merge_tree_bound=true"); print("strict_symlink_target_required=true")
     print("publication_bookkeeping_precedes_parent_fsync=true")
+    print("install_parent_root_owned_0755_required=true")
+    print("install_parent_descriptor_identity_required=true")
     print("immutable_source_release_root_mode_0555_required=true")
     print("protected_source_root_mode_0755_required=true")
     assert SOURCE_RELEASE_ROOT_MODE == 0o555 and PROTECTED_SOURCE_ROOT_MODE == 0o755

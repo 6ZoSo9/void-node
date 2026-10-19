@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="77ec8d1fa463571ba45155179479ff551d21fc9c"
+assert gblob(INS)=="952e59ad3de6892091bc70f5cb1c281f5f5f5526"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -57,6 +57,13 @@ required=(
     'installed_qualifier_v3_bound=true',
     'immutable_source_release_root_mode_0555_required=true',
     'protected_source_root_mode_0755_required=true',
+    'def install_parent_custody()',
+    'def install_parent_fd_matches(',
+    '"install_parent_custody_exact": True',
+    'install_parent_descriptor_identity_mismatch',
+    'install_parent_descriptor_generation_changed',
+    'install_parent_root_owned_0755_required=true',
+    'install_parent_descriptor_identity_required=true',
 )
 for needle in required:
     assert needle in src, needle
@@ -131,6 +138,8 @@ print("source_release_chmod_or_chown_forbidden=true")
 print("tree_child_root_ownership_preserved=true")
 print("tree_group_world_write_rejection_preserved=true")
 print("strict_internal_symlink_containment_preserved=true")
+print("install_parent_root_owned_0755_bound=true")
+print("install_parent_descriptor_identity_bound=true")
 print("accepted_native_selector_identity_preserved=true")
 print("create_only_publication_preserved=true")
 print("operation_bound_plan_v4_required=true")

@@ -86,3 +86,22 @@ This generation closes that gap. Qualifier V3 now:
 The qualifier remains unprivileged and read-only. This repair grants no protected
 filesystem apply, service/systemd mutation, credential/key/wallet access, signing,
 transaction/payment/activation, treasury/liquidity, or funds authority.
+
+
+## Protected publication-parent custody repair
+
+The protected installer also treats `/opt` as part of the privileged publication
+boundary. Fixed staging names are safe only while their parent cannot be renamed or
+rewritten by the runtime UID.
+
+Installer V4 now fails closed unless `/opt` and its ancestor chain are
+non-symlink, root-owned, non-group/world-writable directories and the immediate
+`/opt` publication root is exact mode `0755`. Before each create-only
+`renameat2(..., RENAME_NOREPLACE)`, it opens `/opt` with
+`O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`, requires the retained descriptor to match
+the authenticated parent identity, and revalidates that identity plus path custody
+after publication.
+
+This prevents an unprivileged stage-name swap from substituting attacker-controlled
+content between staging and create-only publication. No additional host authority is
+granted.
