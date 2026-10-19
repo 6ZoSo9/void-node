@@ -135,3 +135,42 @@ No protected install, live credential execution, signing, transaction/payment,
 activation, service mutation, treasury/liquidity action, or funds movement is
 authorized by this source lock.
 
+## October 19 nonblocking sealed V3 rebind — latest source identity
+
+This section supersedes the earlier accepted-source identity **for this stacked
+integration**. The FIFO-safe credential open from #3559 is bound to Runner V4 via
+source-only #3560. The candidate, compatibility proof, accepted lock, and
+non-executing planner are bound as a coherent exact-generation chain.
+
+```text
+integration_pr=3546
+stacked_fix_pr=3559
+stacked_rebind_pr=3560
+integration_evidence_head=bb1cac1c5e4be10a32024251147d5a09418a426c
+integration_evidence_tree=eaf33b0ad00f4479dad4ec1e6300a6bce34bd7b0
+compatibility_run=39343280964
+compatibility_job=118369732520
+candidate_run=39343280275
+candidate_job=118369730178
+candidate_identity_job=118369847695
+
+sealed_v3_blob=ad4df07e9875e3c92eb8da01d6fd735d68417a45
+candidate_proof_blob=2a20d4eecace7fe01508fbceaa6a137df44c0743
+compatibility_proof_blob=ff93b8c84406dfe8762bdc2215f611f9683fcdfa
+candidate_id=voidbuye2runnerpolcand6r3_e8fd215f560d8bc0d33f36057967e03a3f3cd6bf90230a776c307e32271c3020
+runner_git_blob=9e4a87c7f1fda092f16dcd859241cced41960fb8
+runner_sha256=a98c845855a8774d3a60835dabe2f1ec1c2d2e129134fdfc963f0f8cecfddd27
+runner_bytes=82972
+accepted_lock_blob=4cc5f59fd50b6bfac532d057f361af8f819adfc0
+accepted_lock_id=voidbuye2runnerpollock6r3_7d7410e17650b6112c2f238ea8b59b7510711d8bb4300434ce439332a93aebaf
+```
+
+The previous candidate `c2d5d08f...` and lock `e65f2b3a...` are explicitly
+superseded in the current lock JSON; neither implies production authority.
+Acceptance here means **reviewable source identity only**, not approval of
+credential/signing operations. The independent review gate is unsatisfied.
+Keep #3560/#3559/#3546 Draft; await a green exact-head full CI wall.
+
+No protected host plan/apply, live credential access, service action, RPC,
+signing, payment acceptance, public presale/WC activation, treasury/liquidity
+action, or funds movement is authorized. PROTECT THE CORE.
