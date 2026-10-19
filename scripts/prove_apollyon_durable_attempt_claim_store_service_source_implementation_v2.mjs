@@ -464,7 +464,7 @@ function requireFrozenObservation(value){
   };
   visit(value);
 }
-function withReadOnlyFs(run){
+function withReadOnlyFs(run,{allowPendingRead=false}={}){
   const denied=[];
   const names=[
     "writeSync","writevSync","writeFileSync","appendFileSync","truncateSync",
@@ -486,8 +486,10 @@ function withReadOnlyFs(run){
       denied.push("openSync:write");
       throw ioError("fixture_readonly_open_denied");
     }
-    assert.equal(String(pathname).includes(VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.pending_directory),
-      false,"observation never opens pending recovery state");
+    if(!allowPendingRead)assert.equal(
+      String(pathname).includes(VOID_APOLLYON_CLAIM_STORE_LAYOUT_V2.pending_directory),
+      false,"observation never opens pending recovery state",
+    );
     return originalOpen(pathname,flags,...args);
   };
   try{return run();}
@@ -2212,10 +2214,12 @@ for(const kind of ["symlink","directory","fifo","socket","oversize","malformed",
       const bundle=requestBundle(claimRecord(f.generation));
       const before=storeSnapshot(f.root);
       const count=f.txCount();
+      // Publisher needs read-only access to the pending directory before the
+      // first revalidation callback; still deny all mutating filesystem APIs.
       withReadOnlyFs(()=>expectError(
         ()=>f.core.publishClaim(publishInput(bundle,f.generation)),
         "apollyon_claim_store_impl_v2_revalidation_receipt_invalid",
-      ));
+      ),{allowPendingRead:true});
       assert.equal(f.txCount(),count+1,"expected one acquired, released transaction");
       assert.equal(f.releaseCount(),1,"rejected receipt must release lease");
       requireStoreUnchanged(f);
