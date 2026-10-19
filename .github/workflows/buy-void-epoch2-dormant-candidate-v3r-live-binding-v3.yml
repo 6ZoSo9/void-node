@@ -74,13 +74,13 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.mjs)" = \
-            "bf45a1d4aea6c788d9baa5e481491aedab621e38"
+            "f33a670181d7b6a870a8fecefa76b9ec10a769db"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v3.c)" = \
-            "95131a524a42d4e0bf548af8ffd2cc6dc04974e2"
+            "53fd41e52ad9e5edc40146eb7af3b40dfa861b61"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.py)" = \
-            "1989b5574866ac691e6c0d0975285019b67ce172"
+            "a6d54270af5c387313143e53ad368a5c92b54411"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v3.md)" = \
-            "c5874dc4d7130a481318051e5e3f8ddacad8cac8"
+            "e802bc3a9fe4f262a2825ca27be204b66da5f42f"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = \
             "f9e3b1f5501a56e7ce1a191f12507186e79c28d4"
@@ -127,6 +127,9 @@ jobs:
             "compat_v3_v2_v1_blobs_bound=true"
             "source_runtime_two_head_contract=true"
             "source_head_candidate_authentication_bound=true"
+            "source_tracked_bytes_authenticated_by_compatibility_v3=true"
+            "untracked_paths_source_authority=false"
+            "compatibility_v3_nested_install_root_required=true"
             "runtime_head_policy_qualification_bound=true"
             "runtime_native_receives_runtime_policy_head_only=true"
             "binder_parent_proof_binds_source_and_runtime_heads=true"
