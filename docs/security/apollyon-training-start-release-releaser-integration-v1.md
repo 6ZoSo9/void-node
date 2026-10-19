@@ -160,3 +160,31 @@ bind the current #3397, #3381 and #3351 dependency generations.
 Protected releaser origin, production writer exclusivity, protected
 consumption/winner provenance, actual trainer release, training, credentials,
 transactions, and funds authority remain false/unproven.
+
+## October 19 trainer-state mutation closure
+
+The terminal confinement interval now protects not only release-writer
+continuity but also the already-validated stopped trainer generation.
+
+The releaser is still the root ptrace tracer while the UID/GID-1000 trainer is
+stopped at `PTRACE_EVENT_EXEC`. Exact `/proc/<pid>/exe` identity alone cannot
+prove continuous reviewed execution if the tracer may alter memory or registers
+after that check. Therefore the seccomp filter now:
+
+- argument-gates `ptrace`: only `PTRACE_DETACH`, the one operation required
+  by the reviewed terminal sequence, is allowed after filter installation;
+- rejects all other ptrace requests, including mutating POKEDATA/SETREGS-style
+  control;
+- rejects `process_vm_writev`.
+
+The hosted adversary issues `PTRACE_POKEDATA` with a deliberately invalid
+address and a zero-length `process_vm_writev` after filter installation and
+requires both to fail with `EPERM` at syscall entry. The normal final
+`PTRACE_DETACH` must still succeed after the exact frame is buffered and the
+sole writer is closed.
+
+This closes a source-level future-composition trainer-integrity gap. It does not
+establish protected releaser origin, production writer exclusivity, trainer
+release authority, training authority, credentials, transactions, or funds
+authority.
+

@@ -46,7 +46,8 @@
 
 #if !defined(__NR_io_uring_setup) || !defined(__NR_io_uring_enter) || \
     !defined(__NR_io_uring_register) || !defined(__NR_recvmsg) || \
-    !defined(__NR_recvmmsg)
+    !defined(__NR_recvmmsg) || !defined(__NR_ptrace) || \
+    !defined(__NR_process_vm_writev)
 #error "required writer-continuity syscalls unavailable"
 #endif
 
@@ -417,6 +418,23 @@ static int install_writer_continuity_filter(void) {
 #if defined(__x86_64__)
         BPF_JUMP(BPF_JMP|BPF_JSET|BPF_K,X32_SYSCALL_BIT_V1,0,1),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_KILL_PROCESS),
+#endif
+#ifdef __NR_ptrace
+        /*
+         * The stopped trainer must remain immutable after generation proof.
+         * The reviewed flow needs only the final DETACH. Deny every mutating
+         * or alternate-control ptrace request in the terminal interval.
+         */
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_ptrace,0,4),
+        BPF_STMT(BPF_LD|BPF_W|BPF_ABS,(uint32_t)offsetof(struct seccomp_data,args)),
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,(uint32_t)PTRACE_DETACH,1,0),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ALLOW),
+        BPF_STMT(BPF_LD|BPF_W|BPF_ABS,(uint32_t)offsetof(struct seccomp_data,nr)),
+#endif
+#ifdef __NR_process_vm_writev
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_process_vm_writev,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
 #endif
 #ifdef __NR_clone
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_clone,0,1),
@@ -943,6 +961,34 @@ static int fixture_run(
         return 128;
     }
 
+    /*
+     * Executable inode identity is not enough if the root tracer can rewrite
+     * the stopped UID-1000 trainer after the proof. The filter must reject
+     * tracer mutation while still allowing the reviewed final DETACH.
+     */
+    errno=0;
+    if(
+        ptrace(PTRACE_POKEDATA,child,NULL,NULL)>=0 ||
+        errno!=EPERM
+    ) {
+        cleanup_child(child);
+        return 153;
+    }
+    errno=0;
+    if(
+        syscall(
+            __NR_process_vm_writev,
+            child,
+            NULL,0UL,
+            NULL,0UL,
+            0UL
+        )>=0 ||
+        errno!=EPERM
+    ) {
+        cleanup_child(child);
+        return 154;
+    }
+
     errno=0;
     pid_t unexpected=fork();
     if(unexpected==0) _exit(201);
@@ -1138,6 +1184,8 @@ static int fixture_run(
     puts("releaser_exec_transition_blocked=true");
     puts("io_uring_setup_enter_register_denied=true");
     puts("scm_rights_receive_denied=true");
+    puts("ptrace_mutation_denied_detach_allowed=true");
+    puts("process_vm_writev_denied=true");
     puts("exact_frame_written_and_sole_writer_closed=true");
     puts("trainer_gate_exit_zero=true");
     puts("protected_releaser_origin_proven=false");
@@ -1214,6 +1262,8 @@ int main(int argc,char **argv) {
     puts("releaser_exec_transition_blocked=true");
     puts("io_uring_setup_enter_register_denied=true");
     puts("scm_rights_receive_denied=true");
+    puts("ptrace_mutation_denied_detach_allowed=true");
+    puts("process_vm_writev_denied=true");
     puts("protected_releaser_origin_proven=false");
     puts("writer_exclusivity_host_proven=false");
     puts("trainer_release_authorized=false");

@@ -83,11 +83,11 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_releaser_integration_v1.c)" = \
-            dc3a478df709c2486f8e02c65f9ed2c9f3a51cb9
+            a8a6f44855a30d39b61461649c4168ce1ec38c64
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_releaser_integration_v1.py)" = \
-            8f61ebf2421124711273a3472ef3f203f0292bc4
+            ccf728fbc0e8a383f2cbdc1ff76f0f91d62af05b
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-releaser-integration-v1.md)" = \
-            e43c0eb2cbd99e0ecc369d0e3192f43d04d79e24
+            4d41f3c65868637461c84bcfd7e487891a10d42f
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_release_pipe_pair_generation_v1.c)" = \
             93390eefd1e72e70af7206e9982c8eaa5e042149
@@ -152,6 +152,8 @@ jobs:
             'releaser_exec_transition_blocked=true' \
             'io_uring_setup_enter_register_denied=true' \
             'scm_rights_receive_denied=true' \
+            'ptrace_mutation_denied_detach_allowed=true' \
+            'process_vm_writev_denied=true' \
             'extra_releaser_thread_rejected=true' \
             'child_retained_writer_rejected=true' \
             'wrong_trainer_pipe_rejected=true' \
