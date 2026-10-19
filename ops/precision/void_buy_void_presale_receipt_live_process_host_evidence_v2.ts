@@ -299,7 +299,7 @@ function authenticatedTypeScriptDataUrl(
   }
   let javascript: string;
   try { javascript = stripTypeScriptTypes(source, { mode: "transform", sourceMap: false }); }
-  catch { fail("lane1_v2_parent_graph_typescript_strip_failed"); }
+  catch { fail("lane1_v2_parent_graph_typescript_strip_failed:" + relative); }
   const dataUrl = "data:text/javascript;base64," + Buffer.from(javascript, "utf8").toString("base64");
   if (Buffer.byteLength(dataUrl, "utf8") > MAX_PARENT_DATA_URL_BYTES) fail("lane1_v2_parent_graph_data_url_too_large");
   building.delete(relative);
