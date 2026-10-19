@@ -1,0 +1,108 @@
+name: VOID Buy VOID V7 protected substrate install v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v7-protected-substrate-install-v2.yml"
+      - "docs/operators/buy-void-v7-protected-substrate-install-v2.md"
+      - "ops/precision/void_buy_void_v7_protected_substrate_install_v2.py"
+      - "scripts/prove_buy_void_v7_protected_substrate_install_v2.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-v7-protected-substrate-install-v2.yml"
+      - "docs/operators/buy-void-v7-protected-substrate-install-v2.md"
+      - "ops/precision/void_buy_void_v7_protected_substrate_install_v2.py"
+      - "scripts/prove_buy_void_v7_protected_substrate_install_v2.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact proposal scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            workflow_dispatch) base="44f7cf576cdc4460397677a27af2f587a33d424d" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          test "$base" = "44f7cf576cdc4460397677a27af2f587a33d424d"
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-v7-protected-substrate-install-v2.yml' \
+            'docs/operators/buy-void-v7-protected-substrate-install-v2.md' \
+            'ops/precision/void_buy_void_v7_protected_substrate_install_v2.py' \
+            'scripts/prove_buy_void_v7_protected_substrate_install_v2.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v2.py)" = "aae2d1a011053ea0665bf07972d9670cca73f6da"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v2.py)" = "7d09250dab932971e18171d667bfb98994e05e7e"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v2.md)" = "a6d81892b9493258e7c8f4aaf8ac4981955ec42a"
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo 'proposal_scope_exact=true'
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/precision/void_buy_void_v7_protected_substrate_install_v2.py",
+              "scripts/prove_buy_void_v7_protected_substrate_install_v2.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V2_SYNTAX_GREEN")
+          PY
+
+      - name: Non-operational installer modes
+        run: |
+          set -euo pipefail
+          target="ops/precision/void_buy_void_v7_protected_substrate_install_v2.py"
+          python3 -I -B "$target" --self-test | tee "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V2_SELF_TEST_GREEN' "$RUNNER_TEMP/self-test.log"
+          grep -Fx 'publication_bookkeeping_precedes_parent_fsync=true' "$RUNNER_TEMP/self-test.log"
+          python3 -I -B "$target" --source-plan | tee "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'accepted_v1_lock_install_authority=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'accepted_v1_merge_tree_bound=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'strict_symlink_target_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'publication_bookkeeping_precedes_parent_fsync=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'protected_filesystem_mutation=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'transaction=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/source-plan.log"
+
+      - name: Focused source proof
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_v7_protected_substrate_install_v2.py"
+          python3 -I -B "$proof" --base-root "$PWD" --overlay-root "$PWD" | tee "$RUNNER_TEMP/proof.log"
+          grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V2_PROOF_GREEN' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'accepted_v1_lock_preserved_install_authority_false=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'publication_bookkeeping_precedes_parent_fsync=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'proposal_scope_exact=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'partial_publication_truthful=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'transaction=false' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/proof.log"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
