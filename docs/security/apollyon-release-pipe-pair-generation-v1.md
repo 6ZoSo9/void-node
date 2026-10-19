@@ -68,7 +68,7 @@ This generation is a non-force merge-forward over current #3381
 `458e8d3e8e7b52c1963788b9d09b7e4ea2294f45`. The #3397 native same-pipe C source remains byte-identical
 at `93390eefd1e72e70af7206e9982c8eaa5e042149`; only the focused proof and
 documentation bind the current #3381 native C generation
-`7ce2475cb50d6527b526479892e5d662792ce84b`.
+`3c81dbbe694f421a0e6cbc18d8fb7d6f4c7fd983`.
 
 Writer exclusivity, protected releaser origin, trainer/releaser lineage,
 protected-store provenance, trainer release, training, credentials,

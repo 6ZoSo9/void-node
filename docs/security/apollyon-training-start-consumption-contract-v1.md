@@ -4,6 +4,12 @@ Marker: `VOID_APOLLYON_TRAINING_START_CONSUMPTION_V1`
 
 Status: **pure source/test contract; no protected consumption store, trainer release, or training execution exists here**.
 
+## October 19 current #3357 caller-preflight rebind
+
+- Direct parent #3357: `62c2bbfd7ca1a871159d036b2cd1391f2d728df5`.
+- Authorization-slot source blob: `25629371f6da164e12fecfc08c5f26815418e3a8`.
+- Consumption semantics and negative authority remain unchanged; this rebind imports the stricter slot caller-object preflight.
+
 ## Purpose
 
 The accepted protected attempt-claim store contract (#3233) deliberately makes durable-claim success non-bearer authority. A durable claim proves that one exact attempt claim exists, but it does not permit a trainer to start.
@@ -20,7 +26,7 @@ The source finalizer accepts only:
 4. one content-addressed inert pre-training admission generation.
 
 The #3357 source dependency is pinned by exact Git blob
-`c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`. A merely well-formed slot
+`25629371f6da164e12fecfc08c5f26815418e3a8`. A merely well-formed slot
 record is not protected-origin proof: the future implementation must reread and
 revalidate the unique protected authorization-slot winner before it may publish
 a training-start consumption record.

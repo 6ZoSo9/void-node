@@ -59,9 +59,9 @@ Exact source dependencies:
 - #3397 pipe-pair C blob:
   \`93390eefd1e72e70af7206e9982c8eaa5e042149\`;
 - #3397 focused proof blob:
-  \`26109cd2a9b47fc3fdd2ee326fdd073b590607c2\`;
+  \`5c7a1310486bde1463b169563e394af69e022209\`;
 - current #3381 trainer native C blob:
-  \`7ce2475cb50d6527b526479892e5d662792ce84b\`;
+  \`3c81dbbe694f421a0e6cbc18d8fb7d6f4c7fd983\`;
 - current #3381 focused proof blob:
   \`daa4f0c33f4b05f7e090b4a3c2e7513e79f2a107\`;
 - current #3351 release-binding source blob:
@@ -172,7 +172,7 @@ transactions or funds.
 This generation is a non-force merge-forward over current #3397
 `aab4988f9c530f1450f152be03c059f7f635058b`. All writer-continuity controls from the inherited-ring /
 SCM_RIGHTS repair remain unchanged. The C source changes only the exact current
-trainer-native identity to `7ce2475cb50d6527b526479892e5d662792ce84b`; the focused proof and workflow
+trainer-native identity to `3c81dbbe694f421a0e6cbc18d8fb7d6f4c7fd983`; the focused proof and workflow
 bind the current #3397, #3381 and #3351 dependency generations.
 
 Protected releaser origin, production writer exclusivity, protected

@@ -15,7 +15,7 @@ This candidate is stacked on accepted #3351 exact head
 
 It binds exact #3351 release-binding source Git blob:
 
-`a7e4a69b9561fe441a0a1ab7476c6329e2cea3a8`.
+`b83b9e72a2c0e139bf677e6d045a0b31100d733a`.
 
 The parent contract remains authoritative for the 64-byte release-frame domain,
 trainer/releaser policy requirements, unique authorization→claim winner lineage,
