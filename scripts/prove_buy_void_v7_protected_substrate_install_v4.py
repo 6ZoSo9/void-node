@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import ast, os, pathlib, stat, subprocess, sys, tempfile
+import ast, os, pathlib, shutil, stat, subprocess, sys, tempfile
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 MARKER="VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_PROOF"
@@ -214,6 +214,30 @@ with tempfile.TemporaryDirectory(prefix="void-v7-effective-write-model-") as td:
     assert (mode & 0o022)==0
     assert os.access(model,os.W_OK,effective_ids=True)
 
+with tempfile.TemporaryDirectory(prefix="void-v7-trusted-tool-path-swap-") as td:
+    t=pathlib.Path(td)
+    visible=t/"tool"
+    retained=t/"retained-python"
+    shutil.copyfile(sys.executable,visible)
+    os.chmod(visible,0o555)
+    fd=os.open(visible,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        before=os.fstat(fd)
+        visible.rename(retained)
+        visible.write_text("#!/bin/sh\\nprintf \'ATTACKER\\\\n\'\\n","utf-8")
+        os.chmod(visible,0o555)
+        after_visible=visible.lstat()
+        assert (after_visible.st_dev,after_visible.st_ino)!=(before.st_dev,before.st_ino)
+        cp_swap=subprocess.run(
+            [f"/proc/self/fd/{fd}","-I","-B","-c","print(\'RETAINED_ORIGINAL\')"],
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=20,
+            pass_fds=(fd,),
+        )
+        assert cp_swap.returncode==0 and cp_swap.stderr=="" and cp_swap.stdout.strip()=="RETAINED_ORIGINAL"
+        assert (os.fstat(fd).st_dev,os.fstat(fd).st_ino)==(before.st_dev,before.st_ino)
+    finally:
+        os.close(fd)
+
 cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--self-test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_SELF_TEST_GREEN" in cp.stdout.splitlines()
 assert "immutable_source_release_root_mode_0555_required=true" in cp.stdout.splitlines()
@@ -317,6 +341,7 @@ print("runtime_write_audit_external_helper_free_bound=true")
 print("trusted_tool_root_descriptor_execution_bound=true")
 print("trusted_tool_ancestor_acl_custody_bound=true")
 print("trusted_tool_terminal_revalidation_bound=true")
+print("trusted_tool_descriptor_path_swap_adversary_bound=true")
 print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
 print("qualifier_runtime_uid_gid_1000_bound=true")
 print("qualifier_supplementary_groups_empty_bound=true")

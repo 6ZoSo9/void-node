@@ -303,3 +303,6 @@ The separately reviewed trusted root launcher remains required for Python startu
 custody. This repair does not authorize merge, protected `/opt` apply, service or
 systemd mutation, credentials, signing, transaction/payment/activation, treasury,
 or funds movement.
+
+
+The hosted source proof also performs a disposable visible-path swap: it retains an executable descriptor, replaces the visible pathname with an attacker script, and proves descriptor-path execution still runs the originally retained generation while the visible inode drift is detectable. This regression is non-privileged and source/CI-only.
