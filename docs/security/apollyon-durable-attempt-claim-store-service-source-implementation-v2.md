@@ -5,6 +5,20 @@ Marker:
 
 Status: **source/test integration of the durable core, Linux transaction lease, inherited publisher-pipe reader, retained native peer checks and one-use paired socket/challenge session. Installed service and privileged host qualification remain unproven**.
 
+## Flattened current generation (October 19, 2026)
+
+This PR now directly targets #3357 at
+`1b60642d980b76c13130d5124d83a22c2c01ec30` and contains the complete
+former #3488 eight-file claim-store/native-session implementation plus the
+subsequent generation-input and callback-boundary hardening. The direct diff is
+exactly those eight added files and zero behind.
+
+The flattened source preserves descriptor-bound durable publication, Linux
+transaction leasing, one-use native peer/session composition, strict caller
+record prevalidation, getter-free synchronous callback rejection, and all
+negative authority. The former #3488 PR is no longer a required intermediate
+source dependency once this generation qualifies on the direct base.
+
 ## Purpose
 
 The accepted Apollyon claim-store stack defined all of the pieces surrounding a durable claim writer, but the concrete service core was still missing:
