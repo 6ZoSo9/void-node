@@ -57,6 +57,25 @@ const PARENT_PROOF = path.join(
 );
 const SYSTEMCTL = "/usr/bin/systemctl";
 const SETPRIV = "/usr/bin/setpriv";
+export const RUNTIME_EXECUTABLE_ACL_AUDIT_MARKER =
+  "VOID_BUY_VOID_PRESALE_RECEIPT_LIVE_PROCESS_HOST_EVIDENCE_V2_EXECUTABLE_ACL_AUDIT_GREEN";
+const RUNTIME_EXECUTABLE_ACL_AUDIT_SOURCE = [
+  'import fs from "node:fs";',
+  'const [uidText,gidText,...paths]=process.argv.slice(1);',
+  'const uid=Number(uidText);',
+  'const gid=Number(gidText);',
+  'if(!Number.isSafeInteger(uid)||uid<=0||!Number.isSafeInteger(gid)||gid<=0||paths.length<1)process.exit(91);',
+  'if(typeof process.setgroups!=="function"||typeof process.setgid!=="function"||typeof process.setuid!=="function")process.exit(92);',
+  'process.setgroups([]);',
+  'process.setgid(gid);',
+  'process.setuid(uid);',
+  'if(process.getuid()!==uid||process.geteuid()!==uid||process.getgid()!==gid||process.getegid()!==gid||process.getgroups().length!==0)process.exit(93);',
+  'for(const candidate of paths){',
+  '  try{fs.accessSync(candidate,fs.constants.W_OK);process.exit(94);}',
+  '  catch(error){if(!error||(error.code!=="EACCES"&&error.code!=="EPERM"))process.exit(95);}',
+  '}',
+  'process.stdout.write(' + JSON.stringify(RUNTIME_EXECUTABLE_ACL_AUDIT_MARKER) + ' + "\\n");',
+].join("\n");
 const SERVICE_UNIT = "void-node-live.service";
 const MAX_PARENT_BYTES = 2 * 1024 * 1024;
 const UINT = /^[1-9][0-9]*$/u;
@@ -75,11 +94,13 @@ type IdentityDropAudit = Readonly<{
   systemd_query_count: number;
   working_directory_custody_verified_count: number;
   working_directory_canonicalized_count: number;
+  executable_acl_runtime_nonwritability_verified_count: number;
 }>;
 type MutableIdentityDropAudit = {
   systemd_query_count: number;
   working_directory_custody_verified_count: number;
   working_directory_canonicalized_count: number;
+  executable_acl_runtime_nonwritability_verified_count: number;
 };
 
 type ReviewedSourceGeneration = Readonly<{ bytes: Buffer; opened: fs.BigIntStats }>;
@@ -172,6 +193,125 @@ function proveRootCustodyPath(absolute: string, wantDirectory: boolean): void {
     if (next === cursor) break;
     cursor = next;
   }
+}
+
+function executableAclAuditPaths(
+  executables: readonly string[],
+): readonly string[] {
+  if (!Array.isArray(executables) || executables.length < 1) {
+    fail("lane1_v2_executable_acl_audit_set_invalid");
+  }
+  const seen = new Set<string>();
+  for (const raw of executables) {
+    if (
+      typeof raw !== "string" ||
+      !path.isAbsolute(raw) ||
+      path.resolve(raw) !== raw
+    ) {
+      fail("lane1_v2_executable_acl_audit_path_invalid");
+    }
+    const canonical = fs.realpathSync.native(raw);
+    if (canonical !== raw) {
+      fail("lane1_v2_executable_acl_audit_symlink_forbidden");
+    }
+    let cursor = canonical;
+    for (;;) {
+      seen.add(cursor);
+      const next = path.dirname(cursor);
+      if (next === cursor) break;
+      cursor = next;
+    }
+  }
+  return Object.freeze([...seen].sort());
+}
+
+export function testOnlyBuildRuntimeExecutableAclAuditV2(input: {
+  runtime_uid: number;
+  runtime_gid: number;
+  executables: readonly string[];
+}): Readonly<{
+  command: string;
+  args: readonly string[];
+  child_options: Readonly<Record<string, unknown>>;
+  audit_paths: readonly string[];
+}> {
+  const uid = positive(input.runtime_uid, "lane1_v2_runtime_uid_invalid");
+  const gid = positive(input.runtime_gid, "lane1_v2_runtime_gid_invalid");
+  const auditPaths = executableAclAuditPaths(input.executables);
+  return Object.freeze({
+    command: "/proc/self/exe",
+    args: Object.freeze([
+      "--input-type=module",
+      "-e",
+      RUNTIME_EXECUTABLE_ACL_AUDIT_SOURCE,
+      String(uid),
+      String(gid),
+      ...auditPaths,
+    ]),
+    child_options: Object.freeze({
+      cwd: "/",
+      encoding: "utf8",
+      env: Object.freeze({
+        PATH: "/usr/bin:/bin",
+        HOME: "/nonexistent",
+        LANG: "C",
+        LC_ALL: "C",
+      }),
+      stdio: Object.freeze(["ignore", "pipe", "pipe"]),
+      timeout: 10_000,
+    }),
+    audit_paths: auditPaths,
+  });
+}
+
+function requireRuntimeExecutableAclAudit(
+  uid: number,
+  gid: number,
+  executables: readonly string[],
+  spawnFn: SpawnSyncFunction,
+): number {
+  const built = testOnlyBuildRuntimeExecutableAclAuditV2({
+    runtime_uid: uid,
+    runtime_gid: gid,
+    executables,
+  });
+  const result = Reflect.apply(spawnFn, childProcess, [
+    built.command,
+    built.args,
+    built.child_options,
+  ]) as Readonly<{
+    error?: Error;
+    status: number | null;
+    signal: NodeJS.Signals | null;
+    stdout: string;
+    stderr: string;
+  }>;
+  if (
+    result.error !== undefined ||
+    result.signal !== null ||
+    result.status !== 0 ||
+    result.stdout !== RUNTIME_EXECUTABLE_ACL_AUDIT_MARKER + "\n" ||
+    result.stderr !== ""
+  ) {
+    fail("lane1_v2_executable_runtime_acl_audit_failed");
+  }
+  return built.audit_paths.length;
+}
+
+export function testOnlyRequireRuntimeExecutableAclAuditV2(
+  input: {
+    runtime_uid: number;
+    runtime_gid: number;
+    executables: readonly string[];
+  },
+  spawnFn: SpawnSyncFunction,
+): number {
+  return requireRuntimeExecutableAclAudit(
+    positive(input.runtime_uid, "lane1_v2_runtime_uid_invalid"),
+    positive(input.runtime_gid, "lane1_v2_runtime_gid_invalid"),
+    input.executables,
+    spawnFn,
+  );
 }
 
 function readExactReviewedSource(
@@ -691,12 +831,19 @@ async function withRuntimeUserSystemctlIdentityDrop<T>(
   action: () => Promise<T>,
 ): Promise<Readonly<{ value: T; audit: IdentityDropAudit }>> {
   if (patchActive) fail("lane1_v2_child_process_patch_already_active");
-  patchActive = true;
   const original = childProcess.spawnSync;
+  const executableAclCount = requireRuntimeExecutableAclAudit(
+    uid,
+    gid,
+    [SETPRIV, SYSTEMCTL],
+    original,
+  );
+  patchActive = true;
   const audit: MutableIdentityDropAudit = {
     systemd_query_count: 0,
     working_directory_custody_verified_count: 0,
     working_directory_canonicalized_count: 0,
+    executable_acl_runtime_nonwritability_verified_count: executableAclCount,
   };
   const patched = ((...raw: unknown[]): unknown => {
     const [command, args, options] = raw;
@@ -822,7 +969,8 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV2(inpu
   if (!parentGraph) fail("lane1_v2_parent_graph_not_loaded");
   if (
     adapted.audit.systemd_query_count !== 3 ||
-    adapted.audit.working_directory_custody_verified_count !== 3
+    adapted.audit.working_directory_custody_verified_count !== 3 ||
+    adapted.audit.executable_acl_runtime_nonwritability_verified_count < 5
   ) {
     fail("lane1_v2_systemd_query_audit_invalid");
   }
@@ -853,6 +1001,9 @@ export async function collectBuyVoidPresaleReceiptLiveProcessHostEvidenceV2(inpu
     user_systemd_query_capability_sets_cleared: true,
     user_systemd_query_setpriv_descriptor_bound: true,
     user_systemd_query_systemctl_descriptor_bound: true,
+    user_systemd_query_executable_acl_runtime_nonwritability_verified: true,
+    user_systemd_query_executable_acl_audit_path_count:
+      adapted.audit.executable_acl_runtime_nonwritability_verified_count,
     systemd_working_directory_root_custody_verified: true,
     systemd_working_directory_canonicalized:
       adapted.audit.working_directory_canonicalized_count > 0,
@@ -894,6 +1045,22 @@ async function selfTest(): Promise<void> {
     "--ambient-caps=-all",
     "--bounding-set=-all",
   ]);
+  const aclBuilt = testOnlyBuildRuntimeExecutableAclAuditV2({
+    runtime_uid: 1000,
+    runtime_gid: 1000,
+    executables: [SETPRIV, SYSTEMCTL],
+  });
+  assert.equal(aclBuilt.command, "/proc/self/exe");
+  assert.equal(aclBuilt.audit_paths.includes(SETPRIV), true);
+  assert.equal(aclBuilt.audit_paths.includes(SYSTEMCTL), true);
+  assert.equal(aclBuilt.audit_paths.includes("/usr/bin"), true);
+  assert.equal(aclBuilt.audit_paths.includes("/usr"), true);
+  assert.equal(aclBuilt.audit_paths.includes("/"), true);
+  assert.equal(aclBuilt.args.includes("1000"), true);
+  assert.equal(
+    String(aclBuilt.args[2]).includes("fs.accessSync(candidate,fs.constants.W_OK)"),
+    true,
+  );
   console.log(MARKER + "_SELF_TEST_GREEN");
   console.log("parent_v1_source_and_proof_bound=true");
   console.log("parent_v1_authenticated_module_graph_bound=true");
@@ -908,6 +1075,8 @@ async function selfTest(): Promise<void> {
   console.log("no_new_privileges_required=true");
   console.log("all_capability_sets_cleared=true");
   console.log("setpriv_and_systemctl_descriptor_execution_required=true");
+  console.log("runtime_executable_acl_nonwritability_required=true");
+  console.log("runtime_executable_acl_audit_uses_current_node_exe=true");
   console.log("systemd_working_directory_root_custody_required=true");
   console.log("systemd_working_directory_canonicalization_required=true");
   console.log("builtin_spawn_sync_patch_scoped_and_restored=true");
