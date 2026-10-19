@@ -626,6 +626,36 @@ def install_parent_fd_matches(fd: int, expected: tuple[tuple[str, int, int, int,
     row = expected[0]
     return (st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink) == row[1:]
 
+def source_release_ancestor_custody() -> tuple[tuple[str, int, int, int, int, int, int], ...]:
+    current = SOURCE_RELEASE.parent
+    rows: list[tuple[str, int, int, int, int, int, int]] = []
+    audit_paths: list[pathlib.Path] = []
+    while True:
+        st = os.lstat(current)
+        mode = stat.S_IMODE(st.st_mode)
+        if (
+            not stat.S_ISDIR(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or mode & 0o022
+        ):
+            raise InstallError("source_release_ancestor_custody_invalid:" + os.fspath(current))
+        rows.append((os.fspath(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink))
+        audit_paths.append(current)
+        if current == current.parent:
+            break
+        current = current.parent
+    _require_runtime_uid_nonwritable(audit_paths, "source_release_ancestors")
+    return tuple(rows)
+
+def revalidate_source_release_ancestor_custody(
+    expected: tuple[tuple[str, int, int, int, int, int, int], ...]
+) -> None:
+    observed = source_release_ancestor_custody()
+    if observed != expected:
+        raise InstallError("source_release_ancestor_generation_changed")
+
 def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
 
@@ -734,6 +764,7 @@ def accepted_lock(expected_head: str) -> dict[str, Any]:
     return lock
 
 def verify_source_release() -> None:
+    ancestors = source_release_ancestor_custody()
     if SOURCE_RELEASE.resolve() != SOURCE_RELEASE or not SOURCE_RELEASE.is_dir() or SOURCE_RELEASE.is_symlink():
         raise InstallError("source_release_path_invalid")
     require_git_metadata_provenance(SOURCE_RELEASE, "source_release")
@@ -745,6 +776,7 @@ def verify_source_release() -> None:
         raise InstallError("source_release_branch_not_main")
     if git_text(SOURCE_RELEASE, "status", "--porcelain=v1", "--untracked-files=all") != "":
         raise InstallError("source_release_not_clean")
+    revalidate_source_release_ancestor_custody(ancestors)
 
 def _read_regular_sha256_exact(
     path: pathlib.Path,
@@ -1021,8 +1053,11 @@ def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expecte
     install_parent_custody()
     verify_repository(expected_head)
     accepted_lock(expected_head)
+    source_ancestors = source_release_ancestor_custody()
     source_digest = tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE)
+    revalidate_source_release_ancestor_custody(source_ancestors)
     verify_source_release()
+    revalidate_source_release_ancestor_custody(source_ancestors)
     native_raw = read_candidate(native_path, NATIVE_SHA256, NATIVE_BYTES, "native")
     selector_raw = read_candidate(selector_path, SELECTOR_SHA256, SELECTOR_BYTES, "selector")
     source_exact = source_target_state(source_digest)
@@ -1185,9 +1220,13 @@ def _cleanup_stage(stage: pathlib.Path) -> None:
 
 def _publish_source(expected_digest: tuple[str, int, int]) -> None:
     if SOURCE_STAGE.exists() or SOURCE_STAGE.is_symlink(): raise InstallError("source_stage_preexisting")
+    source_ancestors = source_release_ancestor_custody()
     _copy_tree(SOURCE_RELEASE, SOURCE_STAGE)
+    revalidate_source_release_ancestor_custody(source_ancestors)
     if tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE) != expected_digest: raise InstallError("source_release_changed_during_copy")
+    revalidate_source_release_ancestor_custody(source_ancestors)
     verify_source_release()
+    revalidate_source_release_ancestor_custody(source_ancestors)
     if tree_digest(SOURCE_STAGE, PROTECTED_SOURCE_ROOT_MODE) != expected_digest: raise InstallError("source_stage_digest_mismatch")
     require_git_metadata_provenance(SOURCE_STAGE, "source_stage")
     if git_text(SOURCE_STAGE, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_STAGE, "status", "--porcelain=v1", "--untracked-files=all") != "":
@@ -1219,6 +1258,8 @@ def source_plan() -> None:
     print("trusted_tool_root_descriptor_execution_required=true")
     print("trusted_tool_ancestor_acl_custody_required=true")
     print("runtime_write_audit_external_helper_free=true")
+    print("source_release_ancestor_acl_custody_required=true")
+    print("source_release_ancestor_generation_revalidation_required=true")
     print("source_control_network=false"); print("protected_filesystem_mutation=false"); print("service_mutation=false")
     print("credential_access=false"); print("signing=false"); print("transaction=false"); print("funds_movement=false")
 
@@ -1329,6 +1370,8 @@ def self_test() -> None:
     print("trusted_tool_root_descriptor_execution_required=true")
     print("trusted_tool_ancestor_acl_custody_required=true")
     print("runtime_write_audit_external_helper_free=true")
+    print("source_release_ancestor_acl_custody_required=true")
+    print("source_release_ancestor_generation_revalidation_required=true")
     assert QUALIFIER_REL.endswith("_installed_qualification_v3.py") and len(QUALIFIER_BLOB) == 40
     print("installed_qualifier_v3_bound=true")
     print("partial_publication_truthful=true"); print("no_rollback_after_publication=true")

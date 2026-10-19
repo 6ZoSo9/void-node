@@ -358,3 +358,22 @@ Installer V4 now establishes the custody barrier in traversal order:
 This is availability/custody hardening only; it grants no additional install,
 service/systemd, credential, signing, transaction/payment/activation, treasury, or
 funds authority.
+
+
+## Active source-release ancestor custody barrier
+
+A later privileged review found that the immutable release root itself was
+ACL-audited before descent, but its parent chain
+`/opt/void-node-live/releases -> /opt/void-node-live -> /opt -> /` was not
+explicitly bound before root-side `resolve()`, tree enumeration and copy.
+
+Installer V4 now establishes that ancestor barrier before the first privileged
+source-release traversal. Every ancestor must be a non-symlink root-owned directory,
+must not be group/world writable, and must be effectively non-writable to the exact
+runtime UID/GID 1000 with cleared supplementary groups. The complete ancestor
+generation snapshot is revalidated around source digest, source-generation
+verification and protected-source copying.
+
+This closes only the privileged traversal ordering/custody gap. It does not grant
+merge, protected filesystem apply, service/systemd, credential/key/wallet, signing,
+transaction/payment/activation, treasury/liquidity or funds authority.

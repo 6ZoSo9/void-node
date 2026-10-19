@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="5356534af1442cdf592a9aa6aba95a4bff2d5e57"
+assert gblob(INS)=="234a0ace67297715cab0b9ab69ec86fa089f4e27"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -94,6 +94,10 @@ required=(
     'privileged_source_directory_acl_barrier_before_descent=true',
     'privileged_source_symlink_resolution_after_directory_acl_barrier=true',
     'trusted_root_launcher_still_required=true',
+    'def source_release_ancestor_custody()',
+    'def revalidate_source_release_ancestor_custody(',
+    'source_release_ancestor_acl_custody_required=true',
+    'source_release_ancestor_generation_revalidation_required=true',
     'def _runtime_uid_write_audit_builtin(',
     'def _require_runtime_uid_nonwritable(',
     'os.fork()',
@@ -287,6 +291,8 @@ assert "tree_regular_symlink_race_rejected_nofollow=true" in cp.stdout.splitline
 assert "trusted_tool_root_descriptor_execution_required=true" in cp.stdout.splitlines()
 assert "trusted_tool_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
 assert "runtime_write_audit_external_helper_free=true" in cp.stdout.splitlines()
+assert "source_release_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
+assert "source_release_ancestor_generation_revalidation_required=true" in cp.stdout.splitlines()
 
 cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--source-plan"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr==""
@@ -300,6 +306,8 @@ assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitli
 assert "trusted_tool_root_descriptor_execution_required=true" in cp.stdout.splitlines()
 assert "trusted_tool_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
 assert "runtime_write_audit_external_helper_free=true" in cp.stdout.splitlines()
+assert "source_release_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
+assert "source_release_ancestor_generation_revalidation_required=true" in cp.stdout.splitlines()
 
 cp=subprocess.run([sys.executable,"-I","-B",str(QUAL),"--self-test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V3_SELF_TEST_GREEN" in cp.stdout.splitlines()
@@ -366,6 +374,8 @@ print("runtime_write_audit_external_helper_free_bound=true")
 print("trusted_tool_root_descriptor_execution_bound=true")
 print("trusted_tool_ancestor_acl_custody_bound=true")
 print("trusted_tool_terminal_revalidation_bound=true")
+print("source_release_ancestor_acl_custody_bound=true")
+print("source_release_ancestor_generation_revalidation_bound=true")
 print("trusted_tool_descriptor_path_swap_adversary_bound=true")
 print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
 print("qualifier_runtime_uid_gid_1000_bound=true")
