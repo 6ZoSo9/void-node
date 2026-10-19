@@ -18,6 +18,20 @@ This consolidation changes PR ancestry only; it does not widen authority or
 establish claim-service-only writer provenance, protected origin, capability
 issuance, or training authority.
 
+## Flattened protected-origin contract + reader PR generation
+
+This PR now directly targets #3357 at
+`1b60642d980b76c13130d5124d83a22c2c01ec30`. Its direct scope is the
+complete eight-file protected-origin layer: four source-only contract files plus
+four hardened read-only implementation files.
+
+The focused reader workflow re-proves the protected-origin contract before the
+filesystem reader proof. The separate contract workflow remains present and
+continues to watch the claim-slot/store-candidate dependency closure. This
+consolidation changes PR stacking only; claim-service-only writer provenance,
+current store/claim/terminal/request revalidation and activation authority remain
+unproven.
+
 ## Parent and scope
 
 Parent: #3526 exact head
