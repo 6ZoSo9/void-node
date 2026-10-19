@@ -98,6 +98,7 @@ jobs:
                 printf '%s\n' \
                   '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \
                   'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \
+                  'scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs' \
                   'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \
                   'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
                   | LC_ALL=C sort > "$expected"
@@ -126,14 +127,14 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
             66a4a6cce86fc53ce75b35edc4cb79a000dad9d7
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            d4ed4b4cdbbb459e17a9306927bd77447d23014c
+            27e678bacf6c54f883da69e37b241e491f6ad111
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
             3a46492c841047431f2086f5e8c37a51c20ff2a4
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            d73371b190460e82b7d6ff4f431833b006305fd2
+            b61f2796bdfaca10c1105caa240f26d2cd45bc86
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
