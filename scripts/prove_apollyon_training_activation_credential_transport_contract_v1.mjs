@@ -24,9 +24,9 @@ const SOURCE=path.join(ROOT,"tools/apollyon-training-activation-credential-trans
 const PARENT=path.join(ROOT,"tools/apollyon-training-activation-capability-contract-v1.mjs");
 const PARENT_PROOF=path.join(ROOT,"scripts/prove_apollyon_training_activation_capability_contract_v1.mjs");
 const PARENT_DOC=path.join(ROOT,"docs/security/apollyon-training-activation-capability-contract-v1.md");
-const EXPECTED_PARENT_BLOB="b03a62fd2399908a0d2107e4263377279e62899e";
-const EXPECTED_PARENT_PROOF_BLOB="2231d477f842973eb63efde223a1fbaaaa737043";
-const EXPECTED_PARENT_DOC_BLOB="c1682ea2638202d4610f73beb3347fbc8cba2490";
+const EXPECTED_PARENT_BLOB="cdf72610b121ecb05edbcad89cdb6256ad1e4945";
+const EXPECTED_PARENT_PROOF_BLOB="3cd658baed9e744cf7b33ba2e192dc0558c9af43";
+const EXPECTED_PARENT_DOC_BLOB="fc834c8b296307fc6575e2cbc4cd8ba2e1516733";
 const gitBlob=(data)=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+data.length+"\0","ascii")).update(data).digest("hex");
 
@@ -35,7 +35,7 @@ assert.equal(gitBlob(fs.readFileSync(PARENT_PROOF)),EXPECTED_PARENT_PROOF_BLOB);
 assert.equal(gitBlob(fs.readFileSync(PARENT_DOC)),EXPECTED_PARENT_DOC_BLOB);
 assert.equal(
   APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.head,
-  "5cd7bf7b9a9d35c576eb6b25ea4b5e2a72775d5e",
+  "e7f2456c2fc5ac5d6938bf5e475897ec6a06d5ae",
 );
 assert.equal(APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.capability_contract_blob,EXPECTED_PARENT_BLOB);
 assert.equal(APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.retired_activator_required,true);
