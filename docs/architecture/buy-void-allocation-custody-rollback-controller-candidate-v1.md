@@ -125,6 +125,26 @@ observation must show:
 - exact one-time authorization claim still present after rollback; and
 - authenticated evidence origin.
 
+## Evidence-origin transcript digest binding
+
+Before evidence-origin authentication, the controller canonicalizes the complete
+validated challenge transcript: authorization, challenge identity, pre-challenge
+observation, one-time claim, canary append, protected high-water advance,
+sync/close/reopen observation, external witness, second-control approval,
+controlled rollback result, post-rollback observation, stale-replay refusal,
+terminal reobservation, and post-rollback claim revalidation.
+
+The controller computes `controller_evidence_sha256` from that canonical
+transcript and passes the exact digest to `authenticate_evidence_origin`.
+The origin capability must return that same digest. A different but syntactically
+valid SHA-256 fails closed at `evidence_origin_digest_mismatch`.
+
+This proves only that the capability report is bound to the controller transcript.
+It does not authenticate the injected capability, host adapter, entropy source,
+or storage devices. Therefore `evidence_origin_authenticated=false` and
+`injected_capabilities_authenticated=false` remain unchanged until a future
+distinctly reviewed protected adapter proves those authorities.
+
 ## Deliberate non-promotion
 
 Even a successful synthetic candidate sequence returns:
