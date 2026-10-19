@@ -12,9 +12,9 @@ PLAN_PREFIX = "voidbuye2livebindcompat1_"
 
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 RUNTIME_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
-SOURCE_HEAD = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"
-SOURCE_TREE = "9e930fba9aacfafb5b163767302786cd7f31c81e"
-SOURCE_RUNTIME_ADDED_PATH_COUNT = 15
+SOURCE_BASELINE_HEAD = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"
+SOURCE_BASELINE_TREE = "9e930fba9aacfafb5b163767302786cd7f31c81e"
+SOURCE_BASELINE_ADDED_PATH_COUNT = 15
 RUNTIME_POLICY_SHA256 = "746cfbe2f031868fff3a75f8307986f25c62460085f41a4827e712702a2d6549"
 SOURCE_HEAD_POLICY_SHA256 = "e2abc327cca40f0233eb344609f1db01f790c35af443e86afa1f69a6b671ae06"
 
@@ -53,10 +53,15 @@ def build_plan() -> dict[str, object]:
         "version": VERSION,
         "runtime_head": RUNTIME_HEAD,
         "runtime_tree": RUNTIME_TREE,
-        "source_head": SOURCE_HEAD,
-        "source_tree": SOURCE_TREE,
-        "source_runtime_add_only_compatibility_required": True,
-        "source_runtime_added_path_count": SOURCE_RUNTIME_ADDED_PATH_COUNT,
+        "source_baseline_head": SOURCE_BASELINE_HEAD,
+        "source_baseline_tree": SOURCE_BASELINE_TREE,
+        "source_baseline_add_only_path_count": SOURCE_BASELINE_ADDED_PATH_COUNT,
+        "current_source_head_runtime_observed_required": True,
+        "current_source_tree_runtime_observed_required": True,
+        "source_runtime_ancestry_bound_required": True,
+        "tracked_source_checkout_exact_required": True,
+        "runtime_source_dependency_blob_equality_required": True,
+        "untracked_paths_source_authority": False,
         "compatibility_host_evidence_v3_rel": COMPAT_V3_REL,
         "compatibility_host_evidence_v3_blob": COMPAT_V3_BLOB,
         "runtime_policy_sha256": RUNTIME_POLICY_SHA256,
@@ -78,9 +83,9 @@ def build_plan() -> dict[str, object]:
         "live_native_v3_binary_replacement_required_for_runner_compat": False,
         "runner_bytes_and_policy_upgrade_required": True,
         "binder_bytes_and_binder_native_preentry_upgrade_required": True,
-        "source_head_and_runtime_head_must_be_distinct": True,
+        "source_head_need_not_equal_runtime_policy_head": True,
         "runtime_sensitive_credential_and_sealed_evidence_head": RUNTIME_HEAD,
-        "canonical_source_checkout_head": SOURCE_HEAD,
+        "canonical_source_checkout_head_runtime_observed": True,
         "required_successors": list(REQUIRED_SUCCESSORS),
         "implementation_order": [
             REQUIRED_SUCCESSORS[0],
@@ -113,11 +118,11 @@ def build_plan() -> dict[str, object]:
 def self_test() -> None:
     assert len(RUNTIME_HEAD) == 40
     assert len(RUNTIME_TREE) == 40
-    assert len(SOURCE_HEAD) == 40
-    assert len(SOURCE_TREE) == 40
-    assert RUNTIME_HEAD != SOURCE_HEAD
+    assert len(SOURCE_BASELINE_HEAD) == 40
+    assert len(SOURCE_BASELINE_TREE) == 40
+    assert RUNTIME_HEAD != SOURCE_BASELINE_HEAD
     assert RUNTIME_POLICY_SHA256 != SOURCE_HEAD_POLICY_SHA256
-    assert SOURCE_RUNTIME_ADDED_PATH_COUNT == 15
+    assert SOURCE_BASELINE_ADDED_PATH_COUNT == 15
     assert len(REQUIRED_SUCCESSORS) == 4
     result = build_plan()
     assert str(result["plan_id"]).startswith(PLAN_PREFIX)
@@ -126,14 +131,17 @@ def self_test() -> None:
     assert isinstance(body, dict)
     assert body["runtime_policy_rewrite_to_source_head_forbidden"] is True
     assert body["live_native_v3_binary_replacement_required_for_runner_compat"] is False
+    assert body["current_source_head_runtime_observed_required"] is True
+    assert body["source_runtime_ancestry_bound_required"] is True
+    assert body["runtime_source_dependency_blob_equality_required"] is True
     assert body["credential_access_authorized"] is False
     assert body["funds_movement_authorized"] is False
     print(MARKER + "_SELF_TEST_GREEN")
-    print("two_head_contract_required=true")
+    print("runtime_policy_and_current_source_separation_required=true")
     print("runtime_policy_head_preservation_required=true")
     print("runtime_policy_rewrite_to_source_head_forbidden=true")
     print("credential_native_preentry_v3_preserved=true")
-    print("runner_v4_source_runtime_compat_required=true")
+    print("runner_v4_runtime_observed_source_compat_required=true")
     print("binder_v3_source_runtime_compat_required=true")
     print("binder_native_preentry_v3_required=true")
     print("credential_access_authorized=false")
@@ -150,9 +158,14 @@ def emit_plan() -> None:
     print("plan_id=" + str(result["plan_id"]))
     print("runtime_head=" + RUNTIME_HEAD)
     print("runtime_tree=" + RUNTIME_TREE)
-    print("source_head=" + SOURCE_HEAD)
-    print("source_tree=" + SOURCE_TREE)
-    print("source_runtime_added_path_count=" + str(SOURCE_RUNTIME_ADDED_PATH_COUNT))
+    print("source_baseline_head=" + SOURCE_BASELINE_HEAD)
+    print("source_baseline_tree=" + SOURCE_BASELINE_TREE)
+    print("source_baseline_added_path_count=" + str(SOURCE_BASELINE_ADDED_PATH_COUNT))
+    print("current_source_head_runtime_observed_required=true")
+    print("source_runtime_ancestry_bound_required=true")
+    print("tracked_source_checkout_exact_required=true")
+    print("runtime_source_dependency_blob_equality_required=true")
+    print("untracked_paths_source_authority=false")
     print("runtime_policy_sha256=" + RUNTIME_POLICY_SHA256)
     print("source_head_policy_sha256=" + SOURCE_HEAD_POLICY_SHA256)
     print("runtime_policy_head_preservation_required=true")
