@@ -4,6 +4,12 @@ Marker: `VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_CONTRACT_V1`
 
 Status: **source/test/CI boundary only; protected store observation is required but not implemented or proven by this gate**.
 
+## October 19 current #3357 caller-preflight rebind
+
+- Direct parent #3357: `62c2bbfd7ca1a871159d036b2cd1391f2d728df5`.
+- Authorization-slot source blob: `25629371f6da164e12fecfc08c5f26815418e3a8`.
+- The protected-origin contract remains source/test-only; this rebind imports the stricter caller-object preflight without widening protected-origin or activation authority.
+
 ## Purpose
 
 Accepted #3357 defines the unique authorization-wide slot and exact
@@ -27,7 +33,7 @@ before any activation capability may be issued.
 - #3357 exact head:
   `1b60642d980b76c13130d5124d83a22c2c01ec30`
 - authorization-slot source blob:
-  `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`
+  `25629371f6da164e12fecfc08c5f26815418e3a8`
 - canonicalizer blob:
   `f97fafb0148527ae3a954e2752faef8c7fc9e88e`
 - transitive store-service candidate blob:

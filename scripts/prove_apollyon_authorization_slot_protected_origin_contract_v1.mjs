@@ -23,8 +23,8 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs";
-const SOURCE_BLOB="833876baf077b9616d08ee9b13b2657a0818dcc5";
-const PARENT_SLOT_BLOB="c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8";
+const SOURCE_BLOB="638897cd9c60f519c29b3019dbdbd27fdc59fdd9";
+const PARENT_SLOT_BLOB="25629371f6da164e12fecfc08c5f26815418e3a8";
 const CANONICALIZER_BLOB="f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 const PARENT_SERVICE_CANDIDATE_BLOB=
   "87019ae1245a2054407dd47835b0b7a891d4d9a2";

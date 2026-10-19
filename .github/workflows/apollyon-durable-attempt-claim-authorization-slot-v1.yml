@@ -45,7 +45,21 @@ jobs:
           set -euo pipefail
           node --check tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs
           node --check scripts/prove_apollyon_durable_attempt_claim_authorization_slot_v1.mjs
-          node scripts/prove_apollyon_durable_attempt_claim_authorization_slot_v1.mjs
+          out="$RUNNER_TEMP/apollyon-authorization-slot-v1.log"
+          node scripts/prove_apollyon_durable_attempt_claim_authorization_slot_v1.mjs | tee "$out"
+          for marker in \
+            'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_V1_PROOF_GREEN' \
+            'caller_accessors_rejected_before_read=true' \
+            'proxy_inputs_rejected_before_reflection=true' \
+            'caller_coercion_not_invoked=true' \
+            'nested_slot_record_accessors_not_invoked=true' \
+            'slot_array_accessors_not_invoked=true' \
+            'authorization_slot_publication_performed=false' \
+            'durable_attempt_claim_performed=false' \
+            'training_execution=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
         env:

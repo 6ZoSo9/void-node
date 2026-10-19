@@ -4,6 +4,14 @@ Marker: `VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1`.
 
 Status: **source/read-only implementation candidate; complete protected origin remains unproven**.
 
+## October 19 current #3357 caller-preflight rebind
+
+- Direct parent #3357: `62c2bbfd7ca1a871159d036b2cd1391f2d728df5`.
+- Rebound protected-origin contract blob: `638897cd9c60f519c29b3019dbdbd27fdc59fdd9`.
+- Rebound authorization-slot source blob: `25629371f6da164e12fecfc08c5f26815418e3a8`.
+- Held-inode admission, rejected-traversal cleanup and pre-import isolated-Python protections are unchanged.
+- Claim-service-only writer provenance, current store/claim/terminal/request revalidation, complete protected origin, capability issuance and training remain false/unproven.
+
 ## Flattened current source generation (October 19, 2026)
 
 This PR now directly targets the current #3526 protected-origin contract at
@@ -160,8 +168,8 @@ funds action occurs.
 
 The current source-only parent is #3526 at
 `db8c56d7ebe73e0646355bc6fcb4a5141ef7422f`, with the protected-origin
-contract Git blob `833876baf077b9616d08ee9b13b2657a0818dcc5` and underlying
-authorization-slot source `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`.
+contract Git blob `638897cd9c60f519c29b3019dbdbd27fdc59fdd9` and underlying
+authorization-slot source `25629371f6da164e12fecfc08c5f26815418e3a8`.
 A full untruncated prior/current parent tree comparison yielded 362 changed
 paths and **zero overlap** with this child's four ADD-only files. The accepted
 historical direct parent `e496f4391b2b4e9be006695fcd8845669059a48f`

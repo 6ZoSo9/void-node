@@ -13,12 +13,12 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
-SOURCE_BLOB = "fed329bdcd4773af438c10867bb02ecbd934e1f2"
+SOURCE_BLOB = "37ec91b9e90b21b4d582825942fe098359ad0160"
 
 PARENT_CONTRACT = ROOT / "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
-PARENT_CONTRACT_BLOB = "833876baf077b9616d08ee9b13b2657a0818dcc5"
+PARENT_CONTRACT_BLOB = "638897cd9c60f519c29b3019dbdbd27fdc59fdd9"
 PARENT_SLOT = ROOT / "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
-PARENT_SLOT_BLOB = "c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8"
+PARENT_SLOT_BLOB = "25629371f6da164e12fecfc08c5f26815418e3a8"
 CANONICALIZER = ROOT / "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 CANONICALIZER_BLOB = "f97fafb0148527ae3a954e2752faef8c7fc9e88e"
 

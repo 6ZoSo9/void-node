@@ -52,7 +52,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=4a4db086ae00c8dbfb362d254c466d02287de070
+          STACK_PARENT=62c2bbfd7ca1a871159d036b2cd1391f2d728df5
           # Fresh synchronize event after base retarget; require the exact current #3526 base.
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
@@ -90,15 +90,15 @@ jobs:
               ;;
           esac
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = fed329bdcd4773af438c10867bb02ecbd934e1f2
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 69c57518b9be5e639264d4d43e826ace9595bf94
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = e9242bf23cf5668ee071c9f4234ae79492812dd0
-          test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 833876baf077b9616d08ee9b13b2657a0818dcc5
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = 65d1208c14d638c3d255bcdb50ddce02c8e25dee
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = e621f6c554c48e85f87bcc68435bc64fed5c9fd4
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml)" = a580b3b4b760a01a886530e53cec8c8cea5eec2d
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 37ec91b9e90b21b4d582825942fe098359ad0160
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 582486f0151290297e03362bde05f1e8526b9ef1
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = fa3d2a8b1fdf177080996f36322982c744061bfd
+          test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 638897cd9c60f519c29b3019dbdbd27fdc59fdd9
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = a0da1bc21221234db8e984e2093778f4ee822de7
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = 7a0f2a851948557e2e93e960650b410fb5b21288
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml)" = fa086bfe741fbe9d30eb6c168b4535e28ca18cb9
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = 87019ae1245a2054407dd47835b0b7a891d4d9a2
-          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = 25629371f6da164e12fecfc08c5f26815418e3a8
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
 
           git diff --check "$base" "$EXPECTED_HEAD"

@@ -49,14 +49,14 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = \
-            833876baf077b9616d08ee9b13b2657a0818dcc5
+            638897cd9c60f519c29b3019dbdbd27fdc59fdd9
           test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = \
-            65d1208c14d638c3d255bcdb50ddce02c8e25dee
+            a0da1bc21221234db8e984e2093778f4ee822de7
           test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = \
-            e621f6c554c48e85f87bcc68435bc64fed5c9fd4
+            7a0f2a851948557e2e93e960650b410fb5b21288
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
-            c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
+            25629371f6da164e12fecfc08c5f26815418e3a8
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = \
             f97fafb0148527ae3a954e2752faef8c7fc9e88e
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = \
