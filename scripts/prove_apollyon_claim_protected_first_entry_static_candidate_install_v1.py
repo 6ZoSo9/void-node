@@ -15,7 +15,7 @@ import errno
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
-SOURCE_BLOB = "5d116c59ef905789aa9498275353c5bc493949f6"
+SOURCE_BLOB = "4425034fc89bafbf0b9c5e481db0a5ec8f416aeb"
 
 
 def git_blob(raw: bytes) -> str:
@@ -494,8 +494,8 @@ else:
 
 source = TARGET.read_text(encoding="utf-8")
 for required in (
-    'PARENT_HEAD = "34bcf8ae71bdae6b64b0475776fd0910b212bb48"',
-    'PARENT_BLOB = "7462e0e90fa8ec068bd82039c9c07a3359c0d6de"',
+    'PARENT_HEAD = "2367e6d8fd67faaae70827edddacb75d524e1db5"',
+    'PARENT_BLOB = "8eab5515fbe844e930aed97db4195b8ef86c42ef"',
     "_require_isolated_python()",
     "def load_accepted_parent_lock()",
     "git_blob(raw) != PARENT_BLOB",
