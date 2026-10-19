@@ -70,10 +70,18 @@ jobs:
               expected="$RUNNER_TEMP/expected-scope.txt"
               actual="$RUNNER_TEMP/actual-scope.txt"
               printf '%s\n' \
+                '.github/workflows/apollyon-release-pipe-pair-generation-v1.yml' \
                 '.github/workflows/apollyon-training-start-release-native-candidate-v1.yml' \
+                '.github/workflows/apollyon-training-start-release-releaser-integration-v1.yml' \
+                'docs/security/apollyon-release-pipe-pair-generation-v1.md' \
                 'docs/security/apollyon-training-start-release-native-candidate-v1.md' \
+                'docs/security/apollyon-training-start-release-releaser-integration-v1.md' \
+                'ops/xiphos/apollyon_release_pipe_pair_generation_v1.c' \
                 'ops/xiphos/apollyon_training_start_release_native_candidate_v1.c' \
+                'ops/xiphos/apollyon_training_start_release_releaser_integration_v1.c' \
+                'scripts/prove_apollyon_release_pipe_pair_generation_v1.py' \
                 'scripts/prove_apollyon_training_start_release_native_candidate_v1.py' \
+                'scripts/prove_apollyon_training_start_release_releaser_integration_v1.py' \
                 | sort > "$expected"
               git diff --name-only "$PR_BASE" "$HEAD" -- | sort > "$actual"
               diff -u "$expected" "$actual"
