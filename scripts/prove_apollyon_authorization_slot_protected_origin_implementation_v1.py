@@ -12,7 +12,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
-SOURCE_BLOB = "ab484c751014973be91cf4c34e8477bad944ef60"
+SOURCE_BLOB = "4410c373a3b0baf24d764fdb8033369851e57ee4"
 
 PARENT_CONTRACT = ROOT / "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
 PARENT_CONTRACT_BLOB = "833876baf077b9616d08ee9b13b2657a0818dcc5"
@@ -232,6 +232,47 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-fifo-") as td
         "slot_file_metadata_invalid",
     )
 
+# A visible special-file replacement immediately before the data-open must
+# never become the object opened for data. The second open must target the
+# already-admitted O_PATH descriptor through /proc/self/fd/<n>.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-held-open-") as td:
+    root, _, leaf = create_fixture(Path(td), record)
+    real_open = mod.os.open
+    data_targets: list[str] = []
+    leaf_data_open_attempts = [0]
+    replaced = [False]
+
+    def held_inode_open(path, flags, *args, **kwargs):
+        text_path = os.fspath(path)
+        o_path = getattr(os, "O_PATH", 0)
+        if text_path == leaf.name and not (flags & o_path):
+            leaf_data_open_attempts[0] += 1
+        if text_path.startswith("/proc/self/fd/") and not replaced[0]:
+            leaf.unlink()
+            os.mkfifo(leaf, 0o600)
+            replaced[0] = True
+            data_targets.append(text_path)
+        return real_open(path, flags, *args, **kwargs)
+
+    mod.os.open = held_inode_open
+    try:
+        expect_hold(
+            lambda: mod.observe_protected_slot(
+                root_path=root,
+                claim_uid=uid,
+                claim_gid=gid,
+                authorization_slot_id=str(record["authorization_slot_id"]),
+                require_trusted_ancestors=False,
+            ),
+            "slot_file_identity_drift",
+        )
+    finally:
+        mod.os.open = real_open
+    assert replaced[0] is True
+    assert leaf_data_open_attempts[0] == 0
+    assert len(data_targets) == 1
+    assert data_targets[0].startswith("/proc/self/fd/")
+
 # Missing host paths must be normalized to the module's Hold contract.
 with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-missing-leaf-") as td:
     root, _, leaf = create_fixture(Path(td), record)
@@ -421,7 +462,8 @@ for required in (
     '"protected_authorization_slot_origin_proven": False',
     '"activation_capability_issuance_authorized": False',
     '"training_start_consumption_authorized": False',
-    'os.open(leaf, READ_FLAGS, dir_fd=directory_fd)',
+    'o_path = getattr(os, "O_PATH", None)',
+    'os.open("/proc/self/fd/" + str(path_fd), HELD_READ_FLAGS)',
     'os.pread(fd, MAX_SLOT_RECORD_BYTES + 1, 0)',
     'getattr(os, "O_NONBLOCK", 0)',
     'require_no_posix_acl(child, "claim_root_ancestor")',
@@ -466,6 +508,9 @@ print("post_second_reread_path_replacement_rejected=true")
 print("visible_slot_directory_replacement_rejected=true")
 print("host_io_errors_normalized_to_hold=true")
 print("slot_fifo_nonblocking_rejected=true")
+print("slot_opath_admission_precedes_data_open=true")
+print("slot_data_open_uses_held_regular_inode=true")
+print("visible_special_replacement_not_data_opened=true")
 print("recursive_json_rejected_fail_closed=true")
 print("trusted_ancestor_posix_acl_required=true")
 print("descriptor_stable_slot_reread=true")
