@@ -45,6 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           STACK_PARENT=db8c56d7ebe73e0646355bc6fcb4a5141ef7422f
+          # Fresh synchronize event after base retarget; require the exact current #3526 base.
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
