@@ -63,9 +63,9 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-    "5dc2d21b5f6b2e03439d4deb070906fd05583493",
+    "fce8347cbc827722693972a58c490c687f5d7796",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-    "a08927b7b16884a9bf0c28328047afdab49649ea",
+    "09380e0d75a1a9e668684fac143a334d556afdfd",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
@@ -543,7 +543,7 @@ for(const required of [
   "Object.getOwnPropertyDescriptor(value,key)",
   '"/var/lib/void-apollyon-attempt-claim-v2"',
   '"/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1"',
-  '"a08927b7b16884a9bf0c28328047afdab49649ea"',
+  '"09380e0d75a1a9e668684fac143a334d556afdfd"',
   '"87019ae1245a2054407dd47835b0b7a891d4d9a2"',
   "protected_store_origin_proven:false",
   "current_store_generation_revalidation_performed:false",
