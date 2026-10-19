@@ -1189,3 +1189,60 @@ containment required but unproven; there is no privileged Xiphos integration,
 claim publication, training, credential, transaction, or funds authorization.
 
 **PROTECT THE CORE.**
+
+## October 19 — Buffer intrinsic snapshot and synchronous provider shape
+
+This security child starts from the **15/15 CI-green** #3540 exact head
+`f2621046cb8660bbab007c3c1895ef521797ba56`. It addresses two
+independently reviewed P2 source boundaries without changing installed services,
+protected data or production authority.
+
+### Request Buffer's *real* byte length and private copy
+
+The reusable core previously tested `input.length` and invoked the captured
+`Buffer.prototype.copy` method directly on the caller's Buffer. A real
+non-Proxy Buffer may define **own getters** for `length`, `byteLength`,
+`buffer` or `copy`. Reading `length` executes a getter before bounds
+validation; the native copy method can also access the caller's
+`byteLength` getter. This invalidates the intended non-executable raw
+request-byte input boundary.
+
+The revised core:
+
+- rejects Proxy/non-Buffer inputs *before* any own property read;
+- reads the actual typed-array `byteLength` and backing buffer through
+  captured `%TypedArray%.prototype` intrinsic getters via `Reflect.apply`;
+- rejects shared backing (mutable from another thread), detached/invalid
+  backing and lengths outside 3..65536 **before** allocation;
+- creates a private bounded Buffer and uses the captured typed-array
+  `set` intrinsic (receiver = private Buffer, source = caller Buffer),
+  without calling any caller-owned `length`, `byteLength`, `buffer`,
+  `copy` or `constructor` property.
+
+The disposable proof injects throwing getters at all five fields and requires
+zero invocations across the publisher forward, claim publication and read-only
+authorization winner observation paths, while still matching the exact
+unmodified request SHA. A shared-backed Buffer must fail before store lease
+acquisition or protected fixture mutation. Existing caller override, private
+copy and oversized input tests remain required.
+
+### Core callback preflight
+
+The core constructor now rejects **declared** async, generator and async-generator
+functions for both `acquireExclusiveStoreTransaction` and `revalidate`
+before filesystem metadata reads or callback invocation. Disposable tests
+require the exact `config_invalid` HOLD for all six combinations, zero
+provider invocations, zero store leases, no revalidation stages and unchanged
+fixture bytes.
+
+**This does not solve** a normal synchronous function that nevertheless returns
+a rejected native Promise. No Promise then/species observer is added, because
+that can execute an untrusted constructor getter. The source retains
+`trusted_revalidator_callback_source_proven=false` and
+`unhandled_rejected_promise_containment_proven=false`. Genuine host
+failure-domain isolation and protected revalidation remain separate gates.
+
+The native-session proof is rebound to the exact new core Git blob. No native
+bridge runtime/C source changes, privileged Xiphos host interaction, protected
+store publication, training, credentials, signing, transaction or funds
+authority are implied. **PROTECT THE CORE.**
