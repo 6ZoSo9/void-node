@@ -20,7 +20,7 @@ CANDIDATE_PREFIX = "voidbuye2runnerpolcand6r3_"
 
 RUNNER_REL = "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 RUNNER = ROOT / RUNNER_REL
-RUNNER_GIT_BLOB_SHA1 = "46da5a2df6ccace675ae6f572b11ba011b41efc8"
+RUNNER_GIT_BLOB_SHA1 = "4d50bec847c697bac75e40121173b4840eeab879"
 RUNNER_INSTALL_MODE = "0444"
 
 NATIVE_SOURCE_REL = "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
@@ -43,9 +43,9 @@ V6R2_CANDIDATE_ID = (
 
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 RUNTIME_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
-SOURCE_HEAD = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"
-SOURCE_TREE = "9e930fba9aacfafb5b163767302786cd7f31c81e"
-SOURCE_RUNTIME_ADDED_PATH_COUNT = 15
+SOURCE_BASELINE_HEAD = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"
+SOURCE_BASELINE_TREE = "9e930fba9aacfafb5b163767302786cd7f31c81e"
+SOURCE_BASELINE_ADDED_PATH_COUNT = 15
 POLICY_SCHEMA = "VOID_BUY_VOID_EPOCH2_NATIVE_PREENTRY_POLICY_V3"
 
 MAX_RUNNER_BYTES = 4 * 1024 * 1024
@@ -224,9 +224,11 @@ def validate_runner_transcripts(self_test: str, plan: str) -> None:
     for line in (
         "VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V4_SELF_TEST_GREEN",
         "runtime_policy_head_preserved=true",
-        "source_checkout_head_compile_bound=true",
-        "source_runtime_add_only_compatibility_exact=true",
+        "source_checkout_head_runtime_observed=true",
+        "source_runtime_ancestry_required=true",
+        "tracked_source_checkout_exact_required=true",
         "source_runtime_dependency_blob_equality_required=true",
+        "untracked_paths_enumerated=false",
         "untracked_paths_source_authority=false",
         "transaction=false",
         "funds_movement=false",
@@ -239,10 +241,12 @@ def validate_runner_transcripts(self_test: str, plan: str) -> None:
         "mode=plan",
         "source_generation=v4_source_runtime_compatibility",
         "runtime_expected_head=" + RUNTIME_HEAD,
-        "source_checkout_head=" + SOURCE_HEAD,
-        "source_checkout_tree=" + SOURCE_TREE,
-        "source_runtime_add_only_compatibility_required=true",
-        "source_runtime_added_path_count=15",
+        "source_checkout_head_runtime_observed=true",
+        "source_checkout_tree_runtime_observed=true",
+        "source_runtime_ancestry_required=true",
+        "tracked_source_checkout_exact_required=true",
+        "runtime_source_dependency_blob_equality_required=true",
+        "untracked_paths_enumerated=false",
         "credential_content_access=false",
         "private_key_access=false",
         "nontransaction_signature=false",
@@ -283,10 +287,18 @@ def derive_report() -> dict[str, Any]:
         "status": "candidate_only_unaccepted",
         "runtime_head": RUNTIME_HEAD,
         "runtime_tree": RUNTIME_TREE,
-        "source_head": SOURCE_HEAD,
-        "source_tree": SOURCE_TREE,
-        "source_runtime_add_only_compatibility_exact": True,
-        "source_runtime_added_path_count": SOURCE_RUNTIME_ADDED_PATH_COUNT,
+        "source_compatibility": {
+            "precision_baseline_head": SOURCE_BASELINE_HEAD,
+            "precision_baseline_tree": SOURCE_BASELINE_TREE,
+            "precision_baseline_add_only_path_count": SOURCE_BASELINE_ADDED_PATH_COUNT,
+            "current_source_head_runtime_observed": True,
+            "current_source_tree_runtime_observed": True,
+            "runtime_ancestor_required": True,
+            "tracked_checkout_exact_required": True,
+            "runtime_source_dependency_blob_equality_required": True,
+            "untracked_paths_enumerated": False,
+            "untracked_paths_source_authority": False,
+        },
         "runner": {
             "path": RUNNER_REL,
             "git_blob_sha1": RUNNER_GIT_BLOB_SHA1,
@@ -346,14 +358,23 @@ def validate_report(report: object) -> dict[str, Any]:
         raise CandidateError("candidate_report_status_invalid")
     if report.get("runtime_head") != RUNTIME_HEAD:
         raise CandidateError("candidate_runtime_head_invalid")
-    if report.get("source_head") != SOURCE_HEAD:
-        raise CandidateError("candidate_source_head_invalid")
-    if report.get("source_tree") != SOURCE_TREE:
-        raise CandidateError("candidate_source_tree_invalid")
-    if report.get("source_runtime_added_path_count") != 15:
-        raise CandidateError("candidate_source_runtime_count_invalid")
-    if report.get("source_runtime_add_only_compatibility_exact") is not True:
-        raise CandidateError("candidate_source_runtime_contract_invalid")
+    source_compat = report.get("source_compatibility")
+    if not isinstance(source_compat, dict):
+        raise CandidateError("candidate_source_compatibility_missing")
+    expected_source_compat = {
+        "precision_baseline_head": SOURCE_BASELINE_HEAD,
+        "precision_baseline_tree": SOURCE_BASELINE_TREE,
+        "precision_baseline_add_only_path_count": SOURCE_BASELINE_ADDED_PATH_COUNT,
+        "current_source_head_runtime_observed": True,
+        "current_source_tree_runtime_observed": True,
+        "runtime_ancestor_required": True,
+        "tracked_checkout_exact_required": True,
+        "runtime_source_dependency_blob_equality_required": True,
+        "untracked_paths_enumerated": False,
+        "untracked_paths_source_authority": False,
+    }
+    if source_compat != expected_source_compat:
+        raise CandidateError("candidate_source_compatibility_invalid")
 
     runner = report.get("runner")
     if not isinstance(runner, dict):
@@ -451,6 +472,11 @@ def self_test() -> None:
     print("v6r2_native_identity_reused=true")
     print("native_binary_rebuild_required=false")
     print("runtime_policy_head_preserved=true")
+    print("current_source_head_runtime_observed=true")
+    print("source_runtime_ancestry_required=true")
+    print("tracked_source_checkout_exact_required=true")
+    print("runtime_source_dependency_blob_equality_required=true")
+    print("untracked_paths_source_authority=false")
     print("policy_identity_deferred_to_protected_host=true")
     print("candidate_accepted=false")
     print("protected_install_authorized=false")
