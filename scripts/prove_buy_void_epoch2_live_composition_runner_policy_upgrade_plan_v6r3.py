@@ -143,7 +143,7 @@ assert lock["version"]==5
 assert lock["integration_pr"]==3546
 assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
 assert lock["integration_head"]=="a82f93fd11ecc76990cb73c844ec90b9503e8b9a"
-assert lock["stacked_source_head_superseded_for_current_authority"]=="fea69219f0cedc8ba35c7737ec865c202c0054e4"
+assert lock["stacked_source_head_superseded_for_current_authority"]=="cb8554553dcc97e4abb5a9f8f15a26a487773fb5"
 assert lock["lock_id"]==LOCK_ID
 assert lock["candidate_report"]["candidate_id"]==CANDIDATE_ID
 assert lock["candidate_report"]["source_compatibility"]["actual_object_ancestry_required"] is True
