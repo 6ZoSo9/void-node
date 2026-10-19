@@ -14,6 +14,7 @@ COMPAT = ROOT / "ops/precision/void_buy_void_presale_epoch2_installed_generation
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
 BINDER_PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
 RUNNER = ROOT / "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+RUNNER_V4 = ROOT / "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 LIVE_NATIVE = ROOT / "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
 
 EXPECTED = {
@@ -66,6 +67,65 @@ assert 'git(["status","--porcelain=v1","--untracked-files=all"])' in runner
 assert "const before=qualificationFn(expectedHead);" in runner
 assert "const sealedRecord=sealedFn(expectedHead);" in runner
 assert "const after=qualificationFn(expectedHead);" in runner
+
+runner_v4 = RUNNER_V4.read_text()
+for required in (
+    'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V4',
+    'const RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb";',
+    'const SOURCE_HEAD="0ada7fde0d90c3946b10693f4621cbd690bfcde6";',
+    'const SOURCE_TREE="9e930fba9aacfafb5b163767302786cd7f31c81e";',
+    "function requireSourceRuntimeCompatibility(expectedHead){",
+    'git(["status","--porcelain=v1","--untracked-files=no"])',
+    '"diff","--name-status","--no-renames",RUNTIME_HEAD,SOURCE_HEAD,"--"',
+    "source_runtime_add_only_compatibility_exact:true",
+    "source_runtime_dependency_blob_equality_required=true",
+    "untracked_paths_source_authority=false",
+    "checkoutFn=requireSourceRuntimeCompatibility",
+    "voide2livecomp4_",
+):
+    assert required in runner_v4, required
+assert "--untracked-files=all" not in runner_v4
+assert runner_v4.count("ALLOWED_SOURCE_ADDITIONS=Object.freeze([") == 1
+assert runner_v4.count('source_runtime_added_path_count:ALLOWED_SOURCE_ADDITIONS.length') >= 1
+assert 'FIXED_ROOT+"/void_buy_void_epoch2_live_composition_native_preentry_v3"' in runner_v4
+assert "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V3" in runner_v4
+
+node = "/usr/bin/node"
+for mode in ("--self-test", "--plan"):
+    cp = subprocess.run(
+        [node, str(RUNNER_V4), mode],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=30,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LANG": "C", "LC_ALL": "C"},
+    )
+    assert cp.returncode == 0, (mode, cp.stdout, cp.stderr)
+    assert cp.stderr == "", (mode, cp.stderr)
+    lines = set(cp.stdout.splitlines())
+    if mode == "--self-test":
+        for line in (
+            "VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V4_SELF_TEST_GREEN",
+            "runtime_policy_head_preserved=true",
+            "source_checkout_head_compile_bound=true",
+            "source_runtime_add_only_compatibility_exact=true",
+            "source_runtime_dependency_blob_equality_required=true",
+            "untracked_paths_source_authority=false",
+        ):
+            assert line in lines, line
+    else:
+        for line in (
+            "source_generation=v4_source_runtime_compatibility",
+            "runtime_expected_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb",
+            "source_checkout_head=0ada7fde0d90c3946b10693f4621cbd690bfcde6",
+            "source_checkout_tree=9e930fba9aacfafb5b163767302786cd7f31c81e",
+            "source_runtime_added_path_count=15",
+            "credential_content_access=false",
+            "nontransaction_signature=false",
+        ):
+            assert line in lines, line
 
 live_native = LIVE_NATIVE.read_text()
 assert "if (strcmp(requested_head, policy.expected_head) != 0)" in live_native
@@ -123,6 +183,8 @@ print("exact_live_native_v3_blob_bound=true")
 print("binder_single_head_seam_proven=true")
 print("binder_preentry_policy_head_equality_proven=true")
 print("runner_single_head_seam_proven=true")
+print("runner_v4_source_runtime_compat_source_green=true")
+print("runner_v4_preserves_native_v3_policy_boundary=true")
 print("credential_native_preentry_policy_binding_preserved=true")
 print("runtime_policy_rewrite_forbidden=true")
 print("two_head_successor_order_bound=true")
