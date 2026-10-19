@@ -38,7 +38,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5
+          STACK_PARENT=bda34d45f7c4bee8b64531fcbc027d6aefb2a64f
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
@@ -54,16 +54,16 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-acceptance-v2.json)" = 174d536807f03fd7b6ff44820d4e378c7055150e
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py)" = c349530e430a925176824ff94d4ee314c8ca2545
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_acceptance_v2.py)" = 91b2a40be2451becd67c5a36de23e432a8b043a1
           test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-acceptance-v2.md)" = e2de7f5ea4396da6c09faa42f4a25bf1a18d0fe1
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 668eab35bca38b8ed90b1e11f75647f80b677436
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 884fa63bf5c2386e6a01beea6265f6d7b9d48a72
           test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-candidate-v2.md)" = e0862b321d7af50ea1ca06d9c4eb45a462b42446
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-source-freeze-candidate-v2.yml)" = eeea03077bc445575f0828084532c6cf46f3619d
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-source-freeze-candidate-v2.yml)" = 342e6f0fefc6a9b110efe2fc7710f99498e80364
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-current-source-enforcement-successor-v1.json)" = 774db38ccb771f393b44d589a455144b99d36f6b
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs)" = 6777b900a61d979355671ebee502c4b7ebb6b5dd
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml)" = 4f2c36b201cb7030c3ed0075400b65e01c8090fb
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml)" = 8d5d24d60b13b6659d056c15bbd9af36ab696b86
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json)" = 4e23ecbb64eb26c14f5ab15af85eb86d59c3a718
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = 589845615654da8b688764377b34296267ac0063
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73

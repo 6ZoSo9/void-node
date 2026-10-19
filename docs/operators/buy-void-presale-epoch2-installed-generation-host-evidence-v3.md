@@ -34,7 +34,7 @@ V3 therefore introduces an exact **source/runtime compatibility view**.
 V3 descriptor-loads exact V2 source blob:
 
 ```text
-a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2
+fb330c9bdce689d274f9ce9080571035135d56d5
 ```
 
 V2 continues to descriptor-load exact V1 source blob:
@@ -247,3 +247,10 @@ four #3534 additions, V3 now requires exactly fifteen additions over runtime hea
 
 The allowlist remains finite and exact. A sixteenth tracked addition, deletion,
 rename, mode change, or modification of any runtime path is HOLD.
+
+
+## Reconciled inherited V2 generation
+
+This generation rebinds only the exact stacked V2 source/proof after the upstream
+reconciliation train. Runtime head, canonical source head/tree, and the exact
+fifteen-path ADD-only compatibility relation remain unchanged.

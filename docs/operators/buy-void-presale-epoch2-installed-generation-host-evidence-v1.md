@@ -7,7 +7,7 @@ Status: **source/CI-only collector definition; no Precision qualification has be
 
 Parent plan:
 
-`voidbuyhostevplan1_665336abc8030749d2d540f412c4dc597ecece47ecb5aa9f2928529adeba5aab`
+`voidbuyhostevplan1_42809a0e54b1adf4537df6ec848d3327299dee2895becd174d60e4f287dae1b7`
 
 This gate implements only #3507 lane:
 
@@ -475,3 +475,13 @@ and mtime after the recursive query, or restore an ancestor's mtime after changi
 it. Both Git outputs are verified to look like main in every adversary, while
 wrapper and delegated checks must reject the changed retained generation. No
 filesystem locking or production mutation is introduced.
+
+
+## Parent-plan reconciliation
+
+This generation rebinds only the exact parent #3507 plan after the upstream
+reconciliation train. Parent head is
+`34420fed1c0886efdb84a3c53752cbd2646fe016`, parent plan blob is
+`3a503e0b64fe56f58f2c344531034192d9005b94`, and parent plan ID is
+`voidbuyhostevplan1_42809a0e54b1adf4537df6ec848d3327299dee2895becd174d60e4f287dae1b7`. No installed-generation evidence semantics or
+authority fields change.

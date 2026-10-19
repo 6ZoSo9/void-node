@@ -31,7 +31,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          EXPECTED_PARENT: 66e87783bb16fa20870d428e9530aaee92cf5c1a
+          EXPECTED_PARENT: 08d701fccfcd41770cbf653fdf78e1fc445f38fe
           RUNTIME_HEAD: 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
           SOURCE_HEAD: 0ada7fde0d90c3946b10693f4621cbd690bfcde6
           SOURCE_TREE: 9e930fba9aacfafb5b163767302786cd7f31c81e
@@ -59,11 +59,11 @@ jobs:
           git diff --name-only "$EXPECTED_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = f9e3b1f5501a56e7ce1a191f12507186e79c28d4
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = 74e8cd72588ebc9fcbbb108c12e5f55ea60e52cf
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v3.md)" = 3dcac309368e822251aa2de15292c588a0fcad01
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = ef9307452caaa9a946419a9dbc4139eef2322180
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = 5c24b4a807c9d01ca357372aca042bb8d81b6b92
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = b5ccb401a00061fb24e0d68e6e52e8e3baa4cc10
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v3.md)" = fb41f19ccd32f8f7492119ce54ca7687e74a63ba
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = fb330c9bdce689d274f9ce9080571035135d56d5
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = 954618dbcb1fe60fb9ad210dd7bd13b9fbccce0c
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577
 
           git cat-file -e "$RUNTIME_HEAD^{commit}"

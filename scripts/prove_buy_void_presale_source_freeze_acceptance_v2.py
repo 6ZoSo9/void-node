@@ -30,11 +30,11 @@ SOURCE_COMMIT = "05614762b1b4638e05e539fd7d20cbf670e1570b"
 SOURCE_TREE = "4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e"
 
 FREEZE_PROOF_REL = "scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
-FREEZE_PROOF_BLOB = "668eab35bca38b8ed90b1e11f75647f80b677436"
+FREEZE_PROOF_BLOB = "884fa63bf5c2386e6a01beea6265f6d7b9d48a72"
 FREEZE_DOC_REL = "docs/architecture/buy-void-presale-source-freeze-candidate-v2.md"
 FREEZE_DOC_BLOB = "e0862b321d7af50ea1ca06d9c4eb45a462b42446"
 FREEZE_WORKFLOW_REL = ".github/workflows/buy-void-presale-source-freeze-candidate-v2.yml"
-FREEZE_WORKFLOW_BLOB = "eeea03077bc445575f0828084532c6cf46f3619d"
+FREEZE_WORKFLOW_BLOB = "342e6f0fefc6a9b110efe2fc7710f99498e80364"
 
 SUCCESSOR_HEAD = "d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5"
 SUCCESSOR_REL = "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
@@ -46,7 +46,7 @@ SUCCESSOR_ID = (
 SUCCESSOR_PROOF_REL = "scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs"
 SUCCESSOR_PROOF_BLOB = "6777b900a61d979355671ebee502c4b7ebb6b5dd"
 SUCCESSOR_WORKFLOW_REL = ".github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml"
-SUCCESSOR_WORKFLOW_BLOB = "4f2c36b201cb7030c3ed0075400b65e01c8090fb"
+SUCCESSOR_WORKFLOW_BLOB = "8d5d24d60b13b6659d056c15bbd9af36ab696b86"
 
 CANDIDATE_REL = "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
 CANDIDATE_BLOB = "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718"

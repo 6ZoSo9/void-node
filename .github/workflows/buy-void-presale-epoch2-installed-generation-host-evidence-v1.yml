@@ -57,7 +57,7 @@ jobs:
               test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
               base="$PUSH_BEFORE"
               ;;
-            workflow_dispatch) base="89fba1e80c2441bc90ff0387543177e0eb5b5788" ;;
+            workflow_dispatch) base="34420fed1c0886efdb84a3c53752cbd2646fe016" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
@@ -73,11 +73,11 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 4981ccf99c029a0b90042747f9023107826202ef
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 22581e64c9a38292da3bc6593bf2a8f756d6f0b8
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = f0033074810b13f81ee8117041fff2d7232b75d0
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = 4a4344feb4184d5a4b0ec39453a3618b1a768053
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v1.md)" = 2ce5a773bfe8c8c062221431177f4db072f10608
 
-          test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = 3a503e0b64fe56f58f2c344531034192d9005b94
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = a04c2e7665294cdd142426e9eb01ee27c5292b8d
           test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = c14ec00acffbc55630aa68db0013d97cac068ab3
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = fd7a06490ccf6fb14831d8b0372a892e2764c9dc
