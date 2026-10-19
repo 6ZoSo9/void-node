@@ -348,7 +348,7 @@ function runRetainedTrustedExecutable(tool,args,options={}){
   const beforeSpawn=options.beforeSpawn;
   if(typeof beforeSpawn==="function")beforeSpawn();
   const result=spawnSync(executable,args,{
-    cwd:options.cwd??ROOT,
+    cwd:options.cwd??"/",
     env:options.env??cleanRootEnv(),
     encoding:"utf8",
     input:options.input,
@@ -1770,7 +1770,7 @@ function selfTest(){
       "/proc/self/fd/4",
       "--version",
     ],{
-      cwd:ROOT,
+      cwd:"/",
       env:cleanGitEnv(),
       encoding:"utf8",
       stdio:["pipe","pipe","pipe","ignore",selfGit.fd],
