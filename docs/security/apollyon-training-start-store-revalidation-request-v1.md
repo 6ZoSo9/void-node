@@ -160,7 +160,7 @@ host writer/admission/training authority. **PROTECT THE CORE.**
 ## October 19 — bound to held-inode/bounded-read writer
 
 The request is now pinned to writer blob
-`66b76ea9201f870672c0bc1c3df207b3c95cf68a`. That writer admits an existing
+`ee1570b561c6c78e114114d66cdbf190c58b091e`. That writer admits an existing
 slot inode with O_PATH before data-open, reopens only the retained inode with
 O_NONBLOCK, and bounds the actual FD read to 64 KiB + 1.
 
@@ -202,7 +202,7 @@ writer admission, consumption publication, training, signing or funds activity.
 
 ## October 19 — writer owned-directory cleanup binding
 
-The request is rebound to writer blob `66b76ea9201f870672c0bc1c3df207b3c95cf68a`, which now surfaces
+The request is rebound to writer blob `ee1570b561c6c78e114114d66cdbf190c58b091e`, which now surfaces
 cleanup uncertainty if an owned duplicate of the caller directory must be
 discarded after failed validation. This does not promote the writer or request
 to protected-store authority.
@@ -230,3 +230,19 @@ focused proofs are rebound to that exact source generation. No writer runtime
 logic, path policy, publication semantics, or authority field changed in this
 rebind. Protected host origin, current store/winner/claim verification,
 writer invocation, release/training and funds authority remain unproven.
+
+## October 19 — dual terminal-close diagnostic dependency
+
+This request binds the new writer blob
+`ee1570b561c6c78e114114d66cdbf190c58b091e`.
+Alongside the individually namespaced terminal close errors, a future
+host revalidator must treat
+`apollyon_training_start_writer_both_terminal_closes_uncertain`
+as a **failed/indeterminate one-time publication outcome**. It cannot
+assume the slot remained absent or automatically retry the writer.
+
+The composed test injects EIO after both real descriptor closes and
+preserves both original errors. The request still performs no host-path
+IO and issues no writer/trainer authority. Protected Xiphos store lineage,
+winner, claim, terminal, credential, transaction and funds checks are
+separate blocked gates.
