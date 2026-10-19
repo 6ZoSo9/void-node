@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="69677cfd8bdc185389df34cd9d79e6ea7ecb6c62"
+assert gblob(INS)=="a1a3a60ae55696bb7ffa46934d38b189e3558ee3"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -97,6 +97,17 @@ required=(
     '_require_runtime_uid_nonwritable(runtime_paths, "tree")',
     '_require_runtime_uid_nonwritable([root, path], label + "_installed")',
     'acl_aware_runtime_uid_nonwritability_required=true',
+    'def _read_regular_sha256_exact(',
+    '_require_runtime_uid_nonwritable(runtime_directories, "tree_directories")',
+    '_require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")',
+    'tree_directory_acl_audit_precedes_regular_file_reads=true',
+    'tree_regular_acl_audit_precedes_regular_file_reads=true',
+    'tree_regular_descriptor_nofollow_nonblocking_required=true',
+    'tree_regular_descriptor_generation_revalidation_required=true',
+    'installed_binary_acl_audit_precedes_hash=true',
+    'installed_binary_descriptor_hash_required=true',
+    'tree_regular_fifo_race_rejected_nonblocking=true',
+    'tree_regular_symlink_race_rejected_nofollow=true',
 )
 for needle in required:
     assert needle in src, needle
@@ -104,6 +115,17 @@ for needle in required:
 for stale in ('tree_digest(SOURCE_RELEASE)','tree_digest(SOURCE_TARGET)','tree_digest(SOURCE_STAGE)'):
     assert stale not in src, stale
 assert 'RUN_INSTALLED_QUALIFICATION_V2' not in src
+tree_body=src[src.index('def tree_digest('):src.index('def candidate_fd_metadata_valid(')]
+dir_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_directories, "tree_directories")')
+reg_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")')
+content_read=tree_body.index('digest = _read_regular_sha256_exact(')
+assert dir_audit < reg_audit < content_read
+binary_body=src[src.index('def exact_binary_root('):src.index('def source_target_state(')]
+root_audit=binary_body.index('_require_runtime_uid_nonwritable([root], label + "_installed_root")')
+leaf_audit=binary_body.index('_require_runtime_uid_nonwritable([path], label + "_installed_leaf")')
+binary_read=binary_body.index('_read_regular_sha256_exact(path, file_identity, label + "_installed_binary")')
+assert root_audit < leaf_audit < binary_read
+assert 'sha256_file(' not in src
 
 qrequired=(
     'MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V3"',
@@ -176,6 +198,14 @@ assert "git_promisor_partial_clone_rejected=true" in cp.stdout.splitlines()
 assert "git_exact_dir_common_toplevel_required=true" in cp.stdout.splitlines()
 assert "git_metadata_provenance_required_for_all_roots=true" in cp.stdout.splitlines()
 assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitlines()
+assert "tree_directory_acl_audit_precedes_regular_file_reads=true" in cp.stdout.splitlines()
+assert "tree_regular_acl_audit_precedes_regular_file_reads=true" in cp.stdout.splitlines()
+assert "tree_regular_descriptor_nofollow_nonblocking_required=true" in cp.stdout.splitlines()
+assert "tree_regular_descriptor_generation_revalidation_required=true" in cp.stdout.splitlines()
+assert "installed_binary_acl_audit_precedes_hash=true" in cp.stdout.splitlines()
+assert "installed_binary_descriptor_hash_required=true" in cp.stdout.splitlines()
+assert "tree_regular_fifo_race_rejected_nonblocking=true" in cp.stdout.splitlines()
+assert "tree_regular_symlink_race_rejected_nofollow=true" in cp.stdout.splitlines()
 
 cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--source-plan"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr==""
@@ -234,6 +264,10 @@ print("mode_only_nonwritable_is_insufficient_model=true")
 print("installer_acl_aware_runtime_uid_write_audit_bound=true")
 print("runtime_uid_cleared_groups_write_audit_bound=true")
 print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
+print("tree_acl_audit_precedes_privileged_content_reads=true")
+print("tree_regular_descriptor_read_bound=true")
+print("tree_fifo_symlink_race_adversaries_bound=true")
+print("installed_binary_acl_audit_precedes_hash_bound=true")
 print("accepted_native_selector_identity_preserved=true")
 print("create_only_publication_preserved=true")
 print("operation_bound_plan_v4_required=true")

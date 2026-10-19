@@ -549,12 +549,50 @@ def verify_source_release() -> None:
     if git_text(SOURCE_RELEASE, "status", "--porcelain=v1", "--untracked-files=all") != "":
         raise InstallError("source_release_not_clean")
 
-def sha256_file(path: pathlib.Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb", buffering=0) as f:
-        for chunk in iter(lambda: f.read(COPY_CHUNK), b""):
-            h.update(chunk)
-    return h.hexdigest()
+def _read_regular_sha256_exact(
+    path: pathlib.Path,
+    expected: tuple[int, int, int, int, int, int, int, int, int],
+    label: str,
+) -> str:
+    before = path.lstat()
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_nlink < 1
+        or before.st_size < 0
+        or before.st_size > MAX_FILE_BYTES
+        or _metadata_identity(before) != expected
+    ):
+        raise InstallError(label + "_visible_generation_invalid:" + os.fspath(path))
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != before.st_nlink
+            or opened.st_size != before.st_size
+            or _metadata_identity(opened) != expected
+        ):
+            raise InstallError(label + "_opened_generation_invalid:" + os.fspath(path))
+        h = hashlib.sha256()
+        remaining = opened.st_size
+        while remaining:
+            part = os.read(fd, min(COPY_CHUNK, remaining))
+            if not part:
+                raise InstallError(label + "_short_read:" + os.fspath(path))
+            h.update(part)
+            remaining -= len(part)
+        if os.read(fd, 1):
+            raise InstallError(label + "_grew_during_read:" + os.fspath(path))
+        after = os.fstat(fd)
+        visible = path.lstat()
+        if _metadata_identity(after) != expected:
+            raise InstallError(label + "_descriptor_generation_changed:" + os.fspath(path))
+        if _metadata_identity(visible) != expected:
+            raise InstallError(label + "_visible_generation_changed:" + os.fspath(path))
+        return h.hexdigest()
+    finally:
+        os.close(fd)
 
 def _strict_internal_symlink(path: pathlib.Path, root: pathlib.Path, label: str) -> pathlib.Path:
     try:
@@ -565,15 +603,55 @@ def _strict_internal_symlink(path: pathlib.Path, root: pathlib.Path, label: str)
         raise InstallError(label + "_escapes_root:" + os.fspath(path))
     return resolved
 
+def _revalidate_tree_record(
+    root: pathlib.Path,
+    record: tuple[pathlib.Path, str, str, int, tuple[int, int, int, int, int, int, int, int, int], str | None],
+) -> None:
+    child, relative, kind, _mode, expected, target = record
+    st = child.lstat()
+    if _metadata_identity(st) != expected:
+        raise InstallError("tree_generation_changed:" + relative)
+    if kind == "L":
+        if not stat.S_ISLNK(st.st_mode):
+            raise InstallError("tree_symlink_kind_changed:" + relative)
+        if os.readlink(child) != target:
+            raise InstallError("tree_symlink_target_changed:" + relative)
+        _strict_internal_symlink(child, root, "tree_symlink")
+    elif kind == "D":
+        if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
+            raise InstallError("tree_directory_kind_changed:" + relative)
+    elif kind == "F":
+        if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
+            raise InstallError("tree_regular_kind_changed:" + relative)
+    else:
+        raise InstallError("tree_record_kind_invalid:" + relative)
+
 def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, int]:
     if root.resolve() != root or not root.is_dir() or root.is_symlink():
         raise InstallError("tree_root_invalid:" + os.fspath(root))
     rst = root.lstat()
-    if rst.st_uid != 0 or rst.st_gid != 0 or stat.S_IMODE(rst.st_mode) != expected_root_mode:
+    if (
+        not stat.S_ISDIR(rst.st_mode)
+        or stat.S_ISLNK(rst.st_mode)
+        or rst.st_uid != 0
+        or rst.st_gid != 0
+        or stat.S_IMODE(rst.st_mode) != expected_root_mode
+    ):
         raise InstallError("tree_root_metadata_invalid:" + os.fspath(root))
-    h, nodes, total = hashlib.sha256(), 0, 0
-    runtime_paths: list[pathlib.Path] = [root]
+    root_identity = _metadata_identity(rst)
+    nodes, total = 0, 0
+    records: list[
+        tuple[
+            pathlib.Path, str, str, int,
+            tuple[int, int, int, int, int, int, int, int, int],
+            str | None,
+        ]
+    ] = []
+    runtime_directories: list[pathlib.Path] = [root]
+    runtime_regulars: list[pathlib.Path] = []
     pending: list[tuple[pathlib.Path, pathlib.PurePosixPath]] = [(root, pathlib.PurePosixPath("."))]
+
+    # Pass 1 is metadata-only: no regular-file contents are opened or read.
     while pending:
         directory, rel = pending.pop()
         for entry in sorted(os.scandir(directory), key=lambda e: e.name):
@@ -587,10 +665,10 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                 raise InstallError("tree_node_not_root_owned:" + relative)
             if not stat.S_ISLNK(st.st_mode) and mode & 0o022:
                 raise InstallError("tree_node_writable:" + relative)
-            if not stat.S_ISLNK(st.st_mode):
-                runtime_paths.append(child)
+            identity = _metadata_identity(st)
             if stat.S_ISDIR(st.st_mode):
-                h.update(("D\0" + relative + "\0" + format(mode, "04o") + "\n").encode())
+                runtime_directories.append(child)
+                records.append((child, relative, "D", mode, identity, None))
                 pending.append((child, rel / entry.name))
             elif stat.S_ISREG(st.st_mode):
                 if st.st_size > MAX_FILE_BYTES:
@@ -598,13 +676,44 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                 total += st.st_size
                 if total > MAX_TOTAL_BYTES:
                     raise InstallError("tree_total_bytes_limit")
-                h.update(("F\0" + relative + "\0" + format(mode, "04o") + "\0" + str(st.st_size) + "\0" + sha256_file(child) + "\n").encode())
+                runtime_regulars.append(child)
+                records.append((child, relative, "F", mode, identity, None))
             elif stat.S_ISLNK(st.st_mode):
-                _strict_internal_symlink(child, root, "tree_symlink")
-                h.update(("L\0" + relative + "\0" + os.readlink(child) + "\n").encode())
+                records.append((child, relative, "L", mode, identity, os.readlink(child)))
             else:
                 raise InstallError("tree_node_kind_invalid:" + relative)
-    _require_runtime_uid_nonwritable(runtime_paths, "tree")
+
+    # Establish ACL-aware runtime non-writability of every mutation-capable
+    # directory before any regular-file content is read.
+    _require_runtime_uid_nonwritable(runtime_directories, "tree_directories")
+    if _metadata_identity(root.lstat()) != root_identity:
+        raise InstallError("tree_root_generation_changed")
+    for record in records:
+        _revalidate_tree_record(root, record)
+
+    # With directory entries now runtime-immutable, prove each regular file is
+    # also non-writable by the runtime UID before reading its contents.
+    _require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")
+    if _metadata_identity(root.lstat()) != root_identity:
+        raise InstallError("tree_root_generation_changed")
+    for record in records:
+        _revalidate_tree_record(root, record)
+
+    h = hashlib.sha256()
+    for child, relative, kind, mode, identity, target in records:
+        if kind == "D":
+            h.update(("D\0" + relative + "\0" + format(mode, "04o") + "\n").encode())
+        elif kind == "F":
+            digest = _read_regular_sha256_exact(child, identity, "tree_regular")
+            h.update(("F\0" + relative + "\0" + format(mode, "04o") + "\0" + str(identity[6]) + "\0" + digest + "\n").encode())
+        else:
+            _revalidate_tree_record(root, (child, relative, kind, mode, identity, target))
+            h.update(("L\0" + relative + "\0" + str(target) + "\n").encode())
+
+    if _metadata_identity(root.lstat()) != root_identity:
+        raise InstallError("tree_root_generation_changed_terminal")
+    for record in records:
+        _revalidate_tree_record(root, record)
     return h.hexdigest(), nodes, total
 
 def candidate_fd_metadata_valid(mode: int, nlink: int, size: int, expected_bytes: int) -> bool:
@@ -649,15 +758,40 @@ def exact_binary_root(root: pathlib.Path, filename: str, expected_sha: str, expe
     if not root.exists() and not root.is_symlink():
         return False
     st = root.lstat()
-    if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_uid != 0 or st.st_gid != 0 or stat.S_IMODE(st.st_mode) != 0o755:
+    if (
+        not stat.S_ISDIR(st.st_mode)
+        or stat.S_ISLNK(st.st_mode)
+        or st.st_uid != 0
+        or st.st_gid != 0
+        or stat.S_IMODE(st.st_mode) != 0o755
+    ):
         raise InstallError(label + "_root_metadata_invalid")
+    root_identity = _metadata_identity(st)
+    _require_runtime_uid_nonwritable([root], label + "_installed_root")
+    if _metadata_identity(root.lstat()) != root_identity:
+        raise InstallError(label + "_root_generation_changed")
     if sorted(os.listdir(root)) != [filename]:
         raise InstallError(label + "_root_entries_invalid")
-    path, fst = root / filename, (root / filename).lstat()
-    if (not stat.S_ISREG(fst.st_mode) or stat.S_ISLNK(fst.st_mode) or fst.st_uid != 0 or fst.st_gid != 0 or fst.st_nlink != 1
-            or stat.S_IMODE(fst.st_mode) != 0o555 or fst.st_size != expected_bytes or sha256_file(path) != expected_sha):
+    path = root / filename
+    fst = path.lstat()
+    if (
+        not stat.S_ISREG(fst.st_mode)
+        or stat.S_ISLNK(fst.st_mode)
+        or fst.st_uid != 0
+        or fst.st_gid != 0
+        or fst.st_nlink != 1
+        or stat.S_IMODE(fst.st_mode) != 0o555
+        or fst.st_size != expected_bytes
+    ):
         raise InstallError(label + "_installed_binary_invalid")
-    _require_runtime_uid_nonwritable([root, path], label + "_installed")
+    file_identity = _metadata_identity(fst)
+    _require_runtime_uid_nonwritable([path], label + "_installed_leaf")
+    if _metadata_identity(root.lstat()) != root_identity or _metadata_identity(path.lstat()) != file_identity:
+        raise InstallError(label + "_installed_generation_changed")
+    if _read_regular_sha256_exact(path, file_identity, label + "_installed_binary") != expected_sha:
+        raise InstallError(label + "_installed_binary_invalid")
+    if _metadata_identity(root.lstat()) != root_identity or _metadata_identity(path.lstat()) != file_identity:
+        raise InstallError(label + "_installed_generation_changed_terminal")
     return True
 
 def source_target_state(source_digest: tuple[str, int, int]) -> bool:
@@ -914,6 +1048,51 @@ def self_test() -> None:
     print("candidate_open_nonblocking_required=true")
     print("candidate_retained_fd_regular_single_link_required=true")
     print("candidate_fifo_or_special_file_rejected_before_read=true")
+    print("tree_metadata_pass_precedes_acl_audit=true")
+    print("tree_directory_acl_audit_precedes_regular_file_reads=true")
+    print("tree_regular_acl_audit_precedes_regular_file_reads=true")
+    print("tree_regular_descriptor_nofollow_nonblocking_required=true")
+    print("tree_regular_descriptor_generation_revalidation_required=true")
+    print("installed_binary_acl_audit_precedes_hash=true")
+    print("installed_binary_descriptor_hash_required=true")
+    with tempfile.TemporaryDirectory(prefix="void-v7-tree-read-race-") as td:
+        troot = pathlib.Path(td)
+        reviewed = troot / "reviewed"
+        reviewed.write_bytes(b"reviewed-bytes")
+        os.chmod(reviewed, 0o444)
+        spoof = reviewed.lstat()
+        expected = _metadata_identity(spoof)
+
+        class _RacePath:
+            def __init__(self, actual: pathlib.Path, fake: os.stat_result) -> None:
+                self.actual = actual
+                self.fake = fake
+            def lstat(self) -> os.stat_result:
+                return self.fake
+            def __fspath__(self) -> str:
+                return os.fspath(self.actual)
+
+        fifo = troot / "race-fifo"
+        os.mkfifo(fifo, 0o600)
+        try:
+            _read_regular_sha256_exact(_RacePath(fifo, spoof), expected, "self_test_fifo")
+        except (InstallError, OSError):
+            pass
+        else:
+            raise AssertionError("fifo_race_unexpected_success")
+
+        outside = troot / "outside"
+        outside.write_bytes(b"must-not-be-read")
+        link = troot / "race-link"
+        link.symlink_to(outside)
+        try:
+            _read_regular_sha256_exact(_RacePath(link, spoof), expected, "self_test_symlink")
+        except (InstallError, OSError):
+            pass
+        else:
+            raise AssertionError("symlink_race_unexpected_success")
+    print("tree_regular_fifo_race_rejected_nonblocking=true")
+    print("tree_regular_symlink_race_rejected_nofollow=true")
     _assert_git_metadata_fixture_rejected(lambda root: ((root / ".git").rename(root / ".git.real"), (root / ".git").write_text("gitdir: /tmp/hostile\n", "utf-8")))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "commondir").write_text("/tmp/hostile\n", "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "objects" / "info" / "alternates").write_text("/tmp/hostile-objects\n", "utf-8"))

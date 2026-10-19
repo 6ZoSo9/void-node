@@ -226,3 +226,35 @@ retained-FD authenticated bytes.
 This hardening grants no merge, protected filesystem apply, service/systemd,
 credential/key/wallet, signing, transaction/payment/activation, treasury/liquidity,
 or funds authority.
+
+
+## ACL-audit ordering and descriptor-read closure
+
+The root-capable installer does not read reviewed tree file contents until effective
+runtime-identity non-writability is established.
+
+For each source/protected/staging tree, V4 now uses a two-pass contract:
+
+1. enumerate and validate metadata only; no regular-file contents are opened;
+2. require effective UID/GID 1000 non-writability of the tree root and every
+   directory that can mutate descendant directory entries;
+3. revalidate the complete metadata generation;
+4. require effective runtime non-writability of every regular file;
+5. revalidate the complete metadata generation again; and
+6. hash regular files only through retained
+   `O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK` descriptors with exact
+   type/dev/ino/nlink/size/mtime/ctime binding, bounded EOF, and terminal visible
+   generation revalidation.
+
+Installed native/selector binary classification follows the same ordering: binary
+root custody and effective non-writability are established first, the exact leaf is
+then proven non-writable, and SHA-256 is computed from the retained no-follow,
+nonblocking descriptor rather than a pathname reopen.
+
+Source self-test includes regular-metadata -> FIFO and regular-metadata -> symlink
+substitution adversaries. The FIFO case must fail without blocking and the symlink
+case must fail without following or reading the external target.
+
+This closes the pre-audit privileged pathname-read window without changing create-
+only publication, accepted binary identities, service/systemd state, credentials,
+payment/activation authority, or funds authority.
