@@ -25,7 +25,7 @@ const PARENT=path.join(ROOT,"tools/apollyon-training-activation-capability-contr
 const PARENT_PROOF=path.join(ROOT,"scripts/prove_apollyon_training_activation_capability_contract_v1.mjs");
 const PARENT_DOC=path.join(ROOT,"docs/security/apollyon-training-activation-capability-contract-v1.md");
 const EXPECTED_PARENT_BLOB="cdf72610b121ecb05edbcad89cdb6256ad1e4945";
-const EXPECTED_PARENT_PROOF_BLOB="3cd658baed9e744cf7b33ba2e192dc0558c9af43";
+const EXPECTED_PARENT_PROOF_BLOB="3399a147d5e6013bfb02c44baaf06c30ca798b40";
 const EXPECTED_PARENT_DOC_BLOB="fc834c8b296307fc6575e2cbc4cd8ba2e1516733";
 const gitBlob=(data)=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+data.length+"\0","ascii")).update(data).digest("hex");
@@ -35,7 +35,7 @@ assert.equal(gitBlob(fs.readFileSync(PARENT_PROOF)),EXPECTED_PARENT_PROOF_BLOB);
 assert.equal(gitBlob(fs.readFileSync(PARENT_DOC)),EXPECTED_PARENT_DOC_BLOB);
 assert.equal(
   APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.head,
-  "e7f2456c2fc5ac5d6938bf5e475897ec6a06d5ae",
+  "25ccc3043c1039cc85b2829472d985e67b2eb47f",
 );
 assert.equal(APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.capability_contract_blob,EXPECTED_PARENT_BLOB);
 assert.equal(APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.retired_activator_required,true);
