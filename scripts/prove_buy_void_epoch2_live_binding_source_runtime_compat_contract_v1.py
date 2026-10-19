@@ -31,7 +31,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "dd9d545c7ee408f9ee25185a4ec81f8f04ee9fb1",
+    RUNNER_V4: "8e3c588f9c7275dcb0e351d2785b5a923982f133",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -104,6 +104,7 @@ for required in (
     "v6._direct_source_bytes=no_source",
     "q._load_dependencies=load_dependencies",
     "v6._load_replacement=load_replacement",
+    "closure_path_contract_mismatch",
     "tracked_checkout_exact:true",
     "untracked_paths_enumerated:false",
     "untracked_paths_source_authority:false",
@@ -153,6 +154,7 @@ for mode in ("--self-test", "--plan"):
             "source_runtime_dependency_blob_equality_required=true",
             "root_qualification_dependency_closure_git_object_bound=true",
             "root_checkout_dependency_path_reads_forbidden=true",
+            "root_qualification_closure_path_contract_bound=true",
             "qualifier_closure_unprivileged_git_read_required=true",
             "untracked_paths_enumerated=false",
             "untracked_paths_source_authority=false",
@@ -172,6 +174,7 @@ for mode in ("--self-test", "--plan"):
             "runtime_source_dependency_blob_equality_required=true",
             "root_qualification_dependency_closure_git_object_bound=true",
             "root_checkout_dependency_path_reads_forbidden=true",
+            "root_qualification_closure_path_contract_bound=true",
             "untracked_paths_enumerated=false",
             "git_lazy_fetch_disabled=true",
             "git_transport_disabled=true",
@@ -258,6 +261,7 @@ print("runner_v4_qualifier_closure_git_object_bound=true")
 print("runner_v4_root_checkout_dependency_reads_forbidden=true")
 print("runner_v4_complete_dependency_closure_count=8")
 print("runner_v4_complete_dependency_closure_blobs_bound=true")
+print("runner_v4_closure_path_contract_bound=true")
 print("hosted_node_path_resolved_from_ci_environment=true")
 print("runner_v4_preserves_native_v3_policy_boundary=true")
 print("credential_native_preentry_policy_binding_preserved=true")
