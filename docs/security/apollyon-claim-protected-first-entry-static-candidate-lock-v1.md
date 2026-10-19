@@ -198,3 +198,21 @@ identity before any protected filesystem mutation.
 That successor remains separately reviewed and separately authorized.
 
 **PROTECT THE CORE.**
+
+## Flattened-CI historical workflow binding
+
+The combined candidate/lock/archive PR intentionally changes the **current**
+candidate workflow's path scope so the three source layers can be reviewed in
+one direct PR. That CI-only edit must not rewrite the historical evidence that
+accepted the #3482 artifact.
+
+Accordingly, the lock continues to bind the original #3482 workflow blob
+`e4251199373f4290b873d818b5a07447232eb663`, but authenticates that workflow
+from the exact historical `PARENT_HEAD` Git tree. The candidate tool, proof,
+and security document remain byte-identical in the current working tree and
+retain descriptor-bound visible-file authentication.
+
+This distinction prevents a flattened CI workflow from being falsely presented
+as the workflow that produced the already-recorded historical artifact/report
+digests.
+
