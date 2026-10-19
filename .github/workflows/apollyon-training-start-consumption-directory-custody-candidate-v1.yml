@@ -57,12 +57,13 @@ jobs:
           set -euo pipefail
           parent=caf363e7ab1e7de21f6ba44e4eaa8c7cdb5980e1
           stacked_parent=c619a9112a096240b530bc7b626f6c5a23579aad
+          cleanup_parent=8ff987b7fe14630107a0a32a1d0831d271a78330
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
           case "$EVENT_NAME" in
             pull_request)
-              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$stacked_parent"; }
+              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$stacked_parent" || test "$PR_BASE" = "$cleanup_parent"; }
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected-usage.txt"
               actual="$RUNNER_TEMP/actual-usage.txt"
@@ -88,6 +89,19 @@ jobs:
                   'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
                   | LC_ALL=C sort > "$expected"
               fi
+              if [ "$PR_BASE" = "$cleanup_parent" ]; then
+                printf '%s\n' \
+                  '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+                  '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
+                  '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
+                  'docs/security/apollyon-training-start-consumption-protected-writer-v1.md' \
+                  'docs/security/apollyon-training-start-store-revalidation-request-v1.md' \
+                  'scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs' \
+                  'scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs' \
+                  'tools/apollyon-training-start-consumption-protected-writer-v1.mjs' \
+                  'tools/apollyon-training-start-store-revalidation-request-v1.mjs' \
+                  | LC_ALL=C sort > "$expected"
+              fi
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- \
                 | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
@@ -109,8 +123,8 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 42408e7a65e3565a8a98cb4e23985c3ca76045bc
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 9d29c972331e175306ef216ca9b9b3924a0e5734
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 2ff40dd73dcc91b617f02c81572eed0f8b512565
-          test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 66b76ea9201f870672c0bc1c3df207b3c95cf68a
-          test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 051209be6307f9b0784aa6c428f0c4d5b202b7f9
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = ee1570b561c6c78e114114d66cdbf190c58b091e
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 772c8f59bb75730651cb5579016904994b974c1f
 
           git diff --check "$base" "$HEAD_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
