@@ -1022,3 +1022,35 @@ Separate installed Xiphos qualification remains required before any production
 claim mutation can be considered.
 
 **PROTECT THE CORE.**
+
+## October 19 — inert generation-record input boundary (child hardening)
+
+The public core API accepts a caller-supplied
+`expected_store_generation_record` in both `publishClaim` and
+`observeAuthorizationWinner`. The prior validator called `structuredClone`
+before inspecting the nested record's own property descriptors; native Node
+`structuredClone` **invokes enumerable accessor getters**. This was an input
+execution surface even when subsequent validation would reject the record.
+The separate native one-use session already captures primitive record
+fields, but direct callers of the reusable core did not have that boundary.
+
+The child repair first snapshots the record through the existing exact own
+data-descriptor preflight, rejecting inherited classes, active/revoked Proxies,
+accessors, hidden/symbol/unknown keys and missing fields without invoking them.
+It then refuses nonprimitive field values and strings longer than 256 characters
+*before* the original generation semantics, content-addressing and lease checks.
+No valid canonical V2 generation record changes meaning. No callback, syscall,
+store lease or mutation can precede rejection of these malformed inputs.
+
+The disposable proof exercises **both** public core operations with injected
+getters, coercion objects, active/revoked Proxies, hidden/symbol keys, and large
+strings; it requires zero getter/trap invocations, zero additional lease
+acquisitions, no mutating filesystem calls, and identical fixture-store state.
+This child also updates exact source/proof/workflow blob pins and accepts
+either the original eight-path #3357 PR base or the four-path hardening child
+base without relaxing the tracked-path closure check.
+
+This is source-only defense-in-depth. It **does not** prove installed protected
+root origin, privilege/role admission, Xiphos host revalidation, training
+authorization, claim publication authority, signing, or funds movement.
+Keep Draft pending exact-head CI and separate review.
