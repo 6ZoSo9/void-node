@@ -94,8 +94,10 @@ jobs:
                   '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
                   '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
                   '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
+                  'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
                   'docs/security/apollyon-training-start-consumption-protected-writer-v1.md' \
                   'docs/security/apollyon-training-start-store-revalidation-request-v1.md' \
+                  'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
                   'scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs' \
                   'scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs' \
                   'tools/apollyon-training-start-consumption-protected-writer-v1.mjs' \
@@ -121,8 +123,8 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 42408e7a65e3565a8a98cb4e23985c3ca76045bc
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 9d29c972331e175306ef216ca9b9b3924a0e5734
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 2ff40dd73dcc91b617f02c81572eed0f8b512565
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = a22985eb9bfede24d4d4443dea00f5fd15dd74f5
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = ef7e5fb87be3e3c394a2a3911dc285be72352d60
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = ee1570b561c6c78e114114d66cdbf190c58b091e
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 772c8f59bb75730651cb5579016904994b974c1f
 
