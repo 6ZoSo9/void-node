@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-isolation-") as td:
     sentinel = temp / "checkout-json-executed"
     script.write_bytes(TARGET.read_bytes())
     (temp / "json.py").write_text(
-        "open(" + repr(str(sentinel)) + ", 'w').write('executed')\\n",
+        "open(" + repr(str(sentinel)) + ", 'w').write('executed')\n",
         encoding="utf-8",
     )
     denied = subprocess.run(
