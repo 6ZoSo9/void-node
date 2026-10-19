@@ -144,29 +144,113 @@ function sanitizedGitEnvironment() {
   };
 }
 
-function trustedExecutable(candidate, leaf) {
-  const resolved = fs.realpathSync(candidate);
-  const stat = fs.lstatSync(resolved, { bigint: true });
-  const mode = stat.mode & 0o7777n;
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.uid !== 0n ||
-      (mode & 0o022n) !== 0n || path.basename(resolved) !== leaf) {
-    throw new Error("epoch2_sealed_trusted_executable_invalid:" + leaf);
+function trustedExecutableAncestorCustody(resolved, leaf) {
+  const root = path.parse(resolved).root;
+  const parts = path.relative(root, path.dirname(resolved))
+    .split(path.sep).filter(Boolean);
+  let current = root;
+  const inspectDirectory = (candidate) => {
+    const st = fs.lstatSync(candidate, { bigint: true });
+    const mode = st.mode & 0o7777n;
+    if (!st.isDirectory() || st.isSymbolicLink() ||
+        st.uid !== 0n || st.gid !== 0n || (mode & 0o022n) !== 0n) {
+      throw new Error("epoch2_sealed_trusted_executable_ancestor_invalid:" + leaf);
+    }
+    requireRuntimeNonwritable(
+      candidate,
+      "epoch2_sealed_trusted_executable_ancestor_" + leaf,
+    );
+  };
+  inspectDirectory(root);
+  for (const part of parts) {
+    current = path.join(current, part);
+    inspectDirectory(current);
   }
-  return resolved;
 }
 
-const GIT = trustedExecutable("/usr/bin/git", "git");
-const SYSTEMCTL = trustedExecutable("/usr/bin/systemctl", "systemctl");
+function revalidateTrustedExecutable(tool) {
+  trustedExecutableAncestorCustody(tool.real, tool.leaf);
+  const retained = fs.fstatSync(tool.fd, { bigint: true });
+  const visible = fs.lstatSync(tool.real, { bigint: true });
+  const mode = visible.mode & 0o7777n;
+  if (!visible.isFile() || visible.isSymbolicLink() ||
+      visible.uid !== 0n || visible.gid !== 0n || visible.nlink !== 1n ||
+      (mode & 0o022n) !== 0n || (mode & 0o111n) === 0n ||
+      !statIdentitySame(tool.opened, retained) ||
+      !statIdentitySame(retained, visible)) {
+    throw new Error("epoch2_sealed_trusted_executable_generation_changed:" + tool.leaf);
+  }
+  requireRuntimeNonwritable(
+    tool.real,
+    "epoch2_sealed_trusted_executable_leaf_" + tool.leaf,
+  );
+}
+
+function trustedExecutable(candidate, leaf) {
+  const resolved = fs.realpathSync(candidate);
+  if (path.basename(resolved) !== leaf &&
+      path.basename(candidate) !== leaf) {
+    throw new Error("epoch2_sealed_trusted_executable_leaf_invalid:" + leaf);
+  }
+  trustedExecutableAncestorCustody(resolved, leaf);
+  const before = fs.lstatSync(resolved, { bigint: true });
+  const mode = before.mode & 0o7777n;
+  if (!before.isFile() || before.isSymbolicLink() ||
+      before.uid !== 0n || before.gid !== 0n || before.nlink !== 1n ||
+      (mode & 0o022n) !== 0n || (mode & 0o111n) === 0n) {
+    throw new Error("epoch2_sealed_trusted_executable_invalid:" + leaf);
+  }
+  requireRuntimeNonwritable(
+    resolved,
+    "epoch2_sealed_trusted_executable_leaf_" + leaf,
+  );
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (!Number.isInteger(noFollow) || noFollow === 0) {
+    throw new Error("epoch2_sealed_trusted_executable_nofollow_unavailable");
+  }
+  const fd = fs.openSync(resolved, fs.constants.O_RDONLY | noFollow);
+  let success = false;
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    if (!statIdentitySame(before, opened)) {
+      throw new Error("epoch2_sealed_trusted_executable_rebound:" + leaf);
+    }
+    const tool = { fd, real: resolved, leaf, opened };
+    revalidateTrustedExecutable(tool);
+    success = true;
+    return tool;
+  } finally {
+    if (!success) fs.closeSync(fd);
+  }
+}
+
+function execTrustedExecutable(tool, args, options = {}) {
+  revalidateTrustedExecutable(tool);
+  const childFd = 3;
+  let result;
+  try {
+    result = execFileSync("/proc/self/fd/" + String(childFd), args, {
+      ...options,
+      stdio: ["ignore", "pipe", "ignore", tool.fd],
+    });
+  } finally {
+    revalidateTrustedExecutable(tool);
+  }
+  return result;
+}
+
+const GIT_TOOL = trustedExecutable("/usr/bin/git", "git");
+const SYSTEMCTL_TOOL =
+  trustedExecutable("/usr/bin/systemctl", "systemctl");
 
 function git(root, args) {
-  return execFileSync(GIT, [
+  return execTrustedExecutable(GIT_TOOL, [
     "-C", root,
     "-c", "core.fsmonitor=false",
     "-c", "core.hooksPath=/dev/null",
     ...args,
   ], {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
     timeout: 10_000,
     maxBuffer: 256 * 1024,
     env: sanitizedGitEnvironment(),
@@ -652,7 +736,7 @@ function canonicalUserBusEnvironment() {
 
 function observeLiveSystemd() {
   const userBus = canonicalUserBusEnvironment();
-  const show = execFileSync(SYSTEMCTL, [
+  const show = execTrustedExecutable(SYSTEMCTL_TOOL, [
     "--user", "show", SERVICE, "--no-pager",
     "-p", "ActiveState",
     "-p", "SubState",
@@ -1123,8 +1207,68 @@ function buildChallenge(source, observation) {
   }
 }
 
+function trustedExecutableSelfTest() {
+  const gitVersion = execTrustedExecutable(GIT_TOOL, ["--version"], {
+    encoding: "utf8",
+    timeout: 10_000,
+    maxBuffer: 64 * 1024,
+    env: sanitizedGitEnvironment(),
+  });
+  if (!String(gitVersion).startsWith("git version ")) {
+    throw new Error("epoch2_sealed_retained_git_self_test_failed");
+  }
+  const systemctlVersion = execTrustedExecutable(SYSTEMCTL_TOOL, ["--version"], {
+    encoding: "utf8",
+    timeout: 10_000,
+    maxBuffer: 64 * 1024,
+    env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
+  });
+  if (!String(systemctlVersion).startsWith("systemd ")) {
+    throw new Error("epoch2_sealed_retained_systemctl_self_test_failed");
+  }
+  let reboundHeld = false;
+  try {
+    revalidateTrustedExecutable({
+      ...GIT_TOOL,
+      real: SYSTEMCTL_TOOL.real,
+    });
+  } catch (error) {
+    reboundHeld =
+      String(error?.message || "").includes("trusted_executable_generation_changed");
+  }
+  if (!reboundHeld) {
+    throw new Error("epoch2_sealed_trusted_executable_rebind_adversary_failed");
+  }
+  let writableAncestorHeld = false;
+  const fixture = "/tmp/void-sealed-v3-trusted-executable-self-test";
+  try {
+    fs.writeFileSync(fixture, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    trustedExecutable(fixture, path.basename(fixture));
+  } catch {
+    writableAncestorHeld = true;
+  } finally {
+    try { fs.unlinkSync(fixture); } catch {}
+  }
+  if (!writableAncestorHeld) {
+    throw new Error("epoch2_sealed_writable_ancestor_adversary_failed");
+  }
+  console.log(MARKER + "_SELF_TEST_GREEN");
+  console.log("trusted_git_retained_descriptor_execution=true");
+  console.log("trusted_systemctl_retained_descriptor_execution=true");
+  console.log("trusted_executable_path_rebind_rejected=true");
+  console.log("trusted_executable_writable_ancestor_rejected=true");
+  console.log("credential_content_read=false");
+  console.log("signing_performed=false");
+  console.log("transaction_constructed=false");
+  console.log("funds_movement=false");
+}
+
 async function main() {
   const argv = process.argv.slice(2);
+  if (argv.length === 1 && argv[0] === "--self-test") {
+    trustedExecutableSelfTest();
+    return;
+  }
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(
       "Source-only V3 invocation uses one pinned current-source Git object on stdin " +
@@ -1214,8 +1358,13 @@ async function main() {
     process.execPath,
     path.basename(fs.realpathSync(process.execPath)),
   );
-  if (process.execPath !== trustedNode) {
-    throw new Error("epoch2_sealed_node_execution_context_invalid");
+  try {
+    if (fs.realpathSync(process.execPath) !== trustedNode.real) {
+      throw new Error("epoch2_sealed_node_execution_context_invalid");
+    }
+    revalidateTrustedExecutable(trustedNode);
+  } finally {
+    fs.closeSync(trustedNode.fd);
   }
   const before = observeLiveSystemd();
   if (before.process_source_commit !== source.head ||
@@ -1307,9 +1456,12 @@ async function main() {
       immutable_fulfiller_identity_proven: true,
       active_signing_capability_proven: true,
       runtime_source_acl_nonwritability_verified: true,
-      runtime_source_descriptor_reads_bound: true,
-      runtime_source_generation_retained_through_signing: true,
+      runtime_source_bounded_descriptor_reads_per_census: true,
+      runtime_source_acl_barrier_and_pre_post_census_stable: true,
       runtime_source_revalidated_after_final_observation: true,
+      trusted_tool_ancestor_nonwritability_verified: true,
+      trusted_tool_retained_descriptor_execution: true,
+      trusted_tool_generation_revalidated: true,
       runtime_source_revalidated_immediately_before_evidence: true,
       privileged_first_entry_authenticated: false,
       credential_generation_retained_through_signing: true,
@@ -1360,6 +1512,8 @@ async function main() {
   }
   if (operationError !== null) throw operationError;
   sourceCustody.revalidate();
+  revalidateTrustedExecutable(GIT_TOOL);
+  revalidateTrustedExecutable(SYSTEMCTL_TOOL);
   console.log(JSON.stringify(output, null, 2));
 }
 
