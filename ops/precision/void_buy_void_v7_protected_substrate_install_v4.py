@@ -51,7 +51,7 @@ MATERIALIZER_BLOB = "474614da950db72082fb95a5174405ce8caf2513"
 PREDECESSOR_INSTALLER_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v3.py"
 PREDECESSOR_INSTALLER_BLOB = "4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"
-QUALIFIER_BLOB = "2132ed4f545364347e27bd77adc3ab447c0df397"
+QUALIFIER_BLOB = "f5c2fbbb838e95dca40b4a5b514a1861cab9da68"
 
 SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 SOURCE_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
