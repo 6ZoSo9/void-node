@@ -51,15 +51,15 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
-            b03a62fd2399908a0d2107e4263377279e62899e
+            cdf72610b121ecb05edbcad89cdb6256ad1e4945
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
-            2231d477f842973eb63efde223a1fbaaaa737043
+            3cd658baed9e744cf7b33ba2e192dc0558c9af43
           test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
-            c1682ea2638202d4610f73beb3347fbc8cba2490
+            fc834c8b296307fc6575e2cbc4cd8ba2e1516733
 
           external_consumption_ref=refs/heads/ren/apollyon-training-start-consumption-contract-v1-20261016
-          external_consumption_head=fdf47e77cd12eee38efe741edb02fa2fd39135e2
-          external_consumption_blob=60987b860fb7159d88f4f601b76878e7d8ccca92
+          external_consumption_head=bdadfcc6854d6f4e1804347e51b940e897a8da9f
+          external_consumption_blob=42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3
 
           GIT_TERMINAL_PROMPT=0 git fetch \
             --no-tags \
