@@ -17,6 +17,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_AUTHORITY_V1 =
     protected_host_adapter_required: true,
     authorization_one_time_claim_required: true,
     authorization_claim_post_rollback_revalidation_required: true,
+    evidence_transcript_digest_binding_required: true,
     direct_host_filesystem_api_present: false,
     direct_process_api_present: false,
     direct_network_api_present: false,
@@ -439,10 +440,32 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
      claimAfter.claim_id!==claim.claim_id)
     fail("authorization_claim_not_persistent");
 
+  const evidenceTranscript=Object.freeze({
+    marker:"VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_EVIDENCE_TRANSCRIPT_V1",
+    version:1,
+    authorization,
+    challenge_id:challengeId,
+    authorization_claim_id:claim.claim_id,
+    before,
+    authorization_claim:claim,
+    journal_append:append,
+    high_water:high,
+    durability_reopen:reopened,
+    external_witness:witness,
+    second_control_approval:approval,
+    controlled_rollback:rollback,
+    post_rollback:after,
+    stale_replay:stale,
+    terminal_reobservation:terminal,
+    authorization_claim_revalidation:claimAfter,
+  });
+  const controllerEvidenceSha256=sha256(canonical(evidenceTranscript));
+
   const origin=exactResult(callSync(caps.authenticate_evidence_origin,
     Object.freeze({challenge_id:challengeId,operation_id:authorization.operation_id,
       authorization_id:authorization.authorization_id,
-      authorization_claim_id:claim.claim_id}),
+      authorization_claim_id:claim.claim_id,
+      evidence_sha256:controllerEvidenceSha256}),
     "evidence_origin"),
     ["authenticated","challenge_id","operation_id","authorization_claim_id","origin_id","evidence_sha256"],
     "evidence_origin");
@@ -452,6 +475,8 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     fail("evidence_origin_not_authenticated");
   string(origin.origin_id,ORIGIN,"evidence_origin_id_invalid");
   string(origin.evidence_sha256,SHA,"evidence_origin_sha_invalid");
+  if(origin.evidence_sha256!==controllerEvidenceSha256)
+    fail("evidence_origin_digest_mismatch");
 
   return Object.freeze({
     marker:VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_CANDIDATE_V1,
@@ -491,6 +516,9 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV1(inp
     storage_policy_reobservation_contract_validated:true,
     allocation_ledger_unchanged_contract_validated:true,
     customer_request_state_unchanged_contract_validated:true,
+    controller_evidence_sha256:controllerEvidenceSha256,
+    evidence_transcript_digest_binding_required:true,
+    evidence_origin_digest_matches_controller_transcript:true,
     evidence_origin_capability_report_validated:true,
     authorization_claim_bound_to_evidence_origin:true,
     evidence_origin_authenticated:false,
