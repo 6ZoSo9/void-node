@@ -136,7 +136,7 @@ Runner V4 advanced again after exact-head review found two remaining source defe
 2. authenticated in-memory root modules still received `__file__` paths under the user-owned canonical checkout.
 
 The repaired Runner V4 blob is now
-`7967778824f22baca976a59df75f9f808ebebfe2`.
+`4e84b6eb77c284ecf7d85b609cec4d1cf130c7a7`.
 
 The repair now requires one immutable source/runtime dependency set containing all
 eight qualifier-closure entries plus the sealed probe. Every entry must equal its
@@ -156,3 +156,19 @@ and must be rederived only after fresh exact-head proof.
 
 No Precision host run, credential/private-key access, signing, transaction,
 payment/activation, service mutation, or funds movement is authorized.
+
+
+## Runtime-release sealed-probe repair
+
+Exact review of the main-based integration found that historical sealed-v2 still derives its reviewed source root from `process.cwd()` and requires that Git checkout to equal the runtime expected head. Running it from the mutable canonical source checkout would therefore HOLD once source main advances beyond the installed runtime.
+
+Runner V4 now separates those roots explicitly:
+
+- outer source compatibility is observed against canonical `/home/zoso/dev/void-node`;
+- every outer Git command pins exact `--git-dir` and `--work-tree`, preventing local `core.worktree` redirection;
+- the sealed credential probe runs as runtime UID with cwd fixed to `/opt/void-node-live/releases/4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`;
+- `/`, `/opt`, `/opt/void-node-live`, its `releases` directory and the exact runtime release root must all resolve canonically and remain root:root, direct directories, non-group/world-writable before the probe;
+- the historical sealed probe retains its own exact Git HEAD/tree/branch/tracked-authority-file checks against runtime head `4c80887...`;
+- current source ancestry/dependency checks still bracket the full sensitive sequence.
+
+This source repair does not run the probe, access credential/key material, sign, transact, accept payments, mutate services, activate presale/WC, or move funds.
