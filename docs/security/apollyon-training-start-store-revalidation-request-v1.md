@@ -206,4 +206,3 @@ The request is rebound to writer blob `473b4148e6bcb755bb8bf7c6af890150a9f43efe`
 cleanup uncertainty if an owned duplicate of the caller directory must be
 discarded after failed validation. This does not promote the writer or request
 to protected-store authority.
-
