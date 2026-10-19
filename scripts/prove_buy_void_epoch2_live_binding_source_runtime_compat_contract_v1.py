@@ -32,7 +32,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "3686f9211a45276bd53c2731f734e02bb6b7265e",
+    RUNNER_V4: "fb5e4ac3be007671154bd7349dabf63698750788",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -153,6 +153,8 @@ for required in (
     'runtime_release_root_custody_required=true',
     'retained_setpriv_descriptor_execution_required=true',
     'retained_python_descriptor_execution_required=true',
+    'retained_git_descriptor_execution_required=true',
+    'retained_node_descriptor_execution_required=true',
     'root_tool_ancestor_custody_required=true',
     'root_tool_terminal_generation_revalidation_required=true',
     'const SEALED_BLOB="8c6bc4f41afd4d98ecfef59ac707de9f826d5e76";',
@@ -203,6 +205,8 @@ for mode in ("--self-test", "--plan"):
             "git_prompt_and_askpass_disabled=true",
             "retained_setpriv_descriptor_execution=true",
             "retained_python_descriptor_execution=true",
+            "retained_git_descriptor_execution=true",
+            "retained_node_descriptor_execution=true",
             "trusted_root_tool_path_rebind_rejected=true",
             "trusted_root_tool_writable_ancestor_rejected=true",
         ):
@@ -228,6 +232,8 @@ for mode in ("--self-test", "--plan"):
             "nontransaction_signature=false",
             "retained_setpriv_descriptor_execution_required=true",
             "retained_python_descriptor_execution_required=true",
+            "retained_git_descriptor_execution_required=true",
+            "retained_node_descriptor_execution_required=true",
         ):
             assert line in lines, line
 
@@ -358,6 +364,8 @@ print("runner_v4_sealed_probe_runtime_release_cwd=true")
 print("runner_v4_runtime_release_root_custody_required=true")
 print("runner_v4_retained_setpriv_descriptor_execution=true")
 print("runner_v4_retained_python_descriptor_execution=true")
+print("runner_v4_retained_git_descriptor_execution=true")
+print("runner_v4_retained_node_descriptor_execution=true")
 print("runner_v4_trusted_root_tool_rebind_adversary=true")
 print("sealed_v3_retained_trusted_tools_green=true")
 print("sealed_v3_acl_barrier_pre_post_census_semantics=true")
