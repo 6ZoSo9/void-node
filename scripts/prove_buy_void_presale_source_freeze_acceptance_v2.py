@@ -34,7 +34,7 @@ FREEZE_PROOF_BLOB = "884fa63bf5c2386e6a01beea6265f6d7b9d48a72"
 FREEZE_DOC_REL = "docs/architecture/buy-void-presale-source-freeze-candidate-v2.md"
 FREEZE_DOC_BLOB = "e0862b321d7af50ea1ca06d9c4eb45a462b42446"
 FREEZE_WORKFLOW_REL = ".github/workflows/buy-void-presale-source-freeze-candidate-v2.yml"
-FREEZE_WORKFLOW_BLOB = "eeea03077bc445575f0828084532c6cf46f3619d"
+FREEZE_WORKFLOW_BLOB = "342e6f0fefc6a9b110efe2fc7710f99498e80364"
 
 SUCCESSOR_HEAD = "d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5"
 SUCCESSOR_REL = "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
