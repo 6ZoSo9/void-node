@@ -234,6 +234,36 @@ function run(command,args,options={}){
   return result;
 }
 
+function requireRuntimeUidNonwritable(candidate,label){
+  if(typeof process.geteuid!=="function"||process.geteuid()!==0){
+    return;
+  }
+  const script=[
+    "import fs from 'node:fs';",
+    "const p=process.argv[1];",
+    "try{fs.accessSync(p,fs.constants.W_OK);process.exit(3);}",
+    "catch(error){",
+    " if(error&&(error.code==='EACCES'||error.code==='EPERM'))process.exit(0);",
+    " process.exit(4);",
+    "}",
+  ].join("");
+  const result=spawnSync("/proc/self/exe",[
+    "--input-type=module","-e",script,candidate,
+  ],{
+    uid:RUNTIME_UID,
+    gid:RUNTIME_GID,
+    cwd:"/",
+    env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+    encoding:"utf8",
+    stdio:["ignore","pipe","pipe"],
+    timeout:10_000,
+    maxBuffer:64*1024,
+  });
+  if(result.error||result.status!==0||result.stdout!==""||result.stderr!==""){
+    throw new Error("trusted_executable_runtime_uid_writable:"+label);
+  }
+}
+
 function requireRootOwnedExecutableAncestors(real,label){
   const root=path.parse(real).root;
   const parts=path.relative(root,path.dirname(real))
@@ -246,6 +276,7 @@ function requireRootOwnedExecutableAncestors(real,label){
        st.uid!==0n||st.gid!==0n||(mode&0o022n)!==0n){
       throw new Error("trusted_executable_ancestor_invalid:"+label);
     }
+    requireRuntimeUidNonwritable(candidate,label+"_ancestor");
   };
   inspect(root);
   for(const part of parts){
@@ -271,6 +302,7 @@ function revalidateRetainedTrustedExecutable(tool){
      !sameTrustedExecutableGeneration(retained,visible)){
     throw new Error("trusted_executable_generation_changed:"+tool.label);
   }
+  requireRuntimeUidNonwritable(tool.real,tool.label+"_leaf");
 }
 
 function openRetainedTrustedExecutable(file,label){
@@ -1383,12 +1415,14 @@ function plan(){
   console.log("retained_node_descriptor_binding_contract=true");
   console.log("trusted_root_tool_path_rebind_rejected=true");
   console.log("trusted_root_tool_writable_ancestor_rejected=true");
+  console.log("runtime_uid_effective_tool_nonwritability_contract=true");
   console.log("runtime_release="+RUNTIME_RELEASE);
   console.log("retained_setpriv_descriptor_execution_required=true");
   console.log("retained_python_descriptor_execution_required=true");
   console.log("retained_git_descriptor_execution_required=true");
   console.log("retained_node_descriptor_execution_required=true");
   console.log("root_tool_ancestor_custody_required=true");
+  console.log("runtime_uid_effective_tool_nonwritability_required=true");
   console.log("root_tool_terminal_generation_revalidation_required=true");
   console.log("protected_native_entry_accepted_by_this_pr=false");
   console.log("protected_native_entry_install_authorized=false");
