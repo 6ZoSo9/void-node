@@ -275,6 +275,13 @@ function closeExistingReadFds(dataFd,pathFd){
     );
   }
 }
+function closeOwnedTerminalFd(fd,code){
+  if(fd<0)return;
+  try{fs.closeSync(fd);}
+  catch(error){
+    throw new Error(code,{cause:error});
+  }
+}
 function readExactFinal(directoryFd,record,directoryIdentity){
   const leaf=apollyonTrainingStartConsumptionSlotLeafV1(record);
   const finalPath=path.join(directoryProcPath(directoryFd),leaf);
@@ -431,7 +438,10 @@ export function classifyApollyonTrainingStartConsumptionProtectedSlotV1(input){
   try{
     return readExactFinal(owned.fd,record,owned.identity);
   }finally{
-    fs.closeSync(owned.fd);
+    closeOwnedTerminalFd(
+      owned.fd,
+      "apollyon_training_start_writer_owned_directory_close_uncertain",
+    );
   }
 }
 export function publishApollyonTrainingStartConsumptionProtectedV1(input){
@@ -496,9 +506,15 @@ export function publishApollyonTrainingStartConsumptionProtectedV1(input){
       }
       return createdReceipt(record);
     }finally{
-      fs.closeSync(fd);
+      closeOwnedTerminalFd(
+        fd,
+        "apollyon_training_start_writer_created_record_close_uncertain",
+      );
     }
   }finally{
-    fs.closeSync(owned.fd);
+    closeOwnedTerminalFd(
+      owned.fd,
+      "apollyon_training_start_writer_owned_directory_close_uncertain",
+    );
   }
 }
