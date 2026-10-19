@@ -125,3 +125,26 @@ It performs no filesystem, network, service, socket, key, signing, wallet, trans
 ## Next gate
 
 The future claim-store implementation must compose this contract with the accepted request/provenance lineage before any durable claim writer can be considered.
+
+## Untrusted JavaScript input preflight (October 19, 2026)
+
+All public authorization-slot shape APIs now reject caller-controlled JavaScript
+objects before cloning, canonicalization, regular-expression coercion, sorting,
+or nested-record traversal can execute caller code.
+
+Ordinary objects are admitted only after an exact own-key and descriptor
+snapshot proves a plain/null-prototype object whose required fields are
+enumerable own **data** properties. Accessors, hidden/symbol/unknown keys,
+non-plain objects, active/revoked Proxies and non-primitive scalar fields fail
+closed without invoking getters or Proxy traps.
+
+Slot-record arrays are likewise admitted from a dense ordinary Array only after
+its exact index descriptors and length descriptor are proven. Array element
+accessors, sparse/extra/symbol keys and Proxy arrays fail before any element is
+read. Each detached element is then passed through the same hardened slot-record
+validator before ordering or migration commitment calculation.
+
+This changes only rejection/preflight behavior. Valid slot IDs, slot-record
+content addresses, deterministic slot-set commitments, migration semantics and
+all deliberate non-authority flags remain unchanged.
+

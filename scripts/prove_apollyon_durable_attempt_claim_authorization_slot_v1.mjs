@@ -38,7 +38,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8",
+    "25629371f6da164e12fecfc08c5f26815418e3a8",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "87019ae1245a2054407dd47835b0b7a891d4d9a2",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -305,6 +305,156 @@ assert.throws(
   /set_duplicate_authorization/u,
 );
 
+// Rejected caller-controlled objects must be inert before any clone,
+// canonicalization, regular-expression coercion or nested-record traversal.
+function accessorCase(material,key,run,pattern){
+  let calls=0;
+  const input={...material};
+  Object.defineProperty(input,key,{
+    enumerable:true,
+    configurable:true,
+    get(){
+      calls+=1;
+      throw new Error("caller_getter_executed");
+    },
+  });
+  assert.throws(()=>run(input),pattern);
+  assert.equal(calls,0,key+" accessor executed");
+}
+function proxyCase(material,run,pattern){
+  let traps=0;
+  const handler=Object.fromEntries(
+    ["get","getPrototypeOf","ownKeys","getOwnPropertyDescriptor","has"].map(
+      name=>[name,()=>{traps+=1;throw new Error("caller_proxy_trap_executed");}],
+    ),
+  );
+  assert.throws(()=>run(new Proxy(material,handler)),pattern);
+  assert.equal(traps,0,"active Proxy trap executed");
+  const pair=Proxy.revocable(material,handler);
+  pair.revoke();
+  assert.throws(()=>run(pair.proxy),pattern);
+  assert.equal(traps,0,"revoked Proxy trap executed");
+}
+accessorCase(
+  {authorization_id:AUTH_A,attempt_limit:1,automatic_retry_authorized:false},
+  "authorization_id",
+  deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1,
+  /id_input_invalid/u,
+);
+proxyCase(
+  {authorization_id:AUTH_A,attempt_limit:1,automatic_retry_authorized:false},
+  deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1,
+  /id_input_invalid/u,
+);
+{
+  let coercions=0;
+  const hostile={
+    [Symbol.toPrimitive](){
+      coercions+=1;
+      throw new Error("caller_coercion_executed");
+    },
+  };
+  assert.throws(
+    ()=>deriveApollyonDurableAttemptClaimAuthorizationSlotIdV1({
+      authorization_id:hostile,attempt_limit:1,automatic_retry_authorized:false,
+    }),
+    /id_input_invalid/u,
+  );
+  assert.equal(coercions,0);
+}
+accessorCase(
+  {
+    store_policy_id:ACCEPTED_STORE_POLICY_ID,
+    authorization_id:AUTH_A,
+    store_contract_id:"apollyon_claim_store_contract_v2:"+"3".repeat(64),
+    store_generation_id:"apollyon_claim_store_generation_v2:"+"4".repeat(64),
+    terminal_receipt_id:"apollyon_terminal_receipt_v2:"+"5".repeat(64),
+    claim_record_id:"apollyon_attempt_claim_record_v2:"+"6".repeat(64),
+    claim_record_sha256:"7".repeat(64),
+    publish_request_sha256:"8".repeat(64),
+    attempt_limit:1,
+    automatic_retry_authorized:false,
+  },
+  "claim_record_id",
+  qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
+  /record_input_invalid/u,
+);
+accessorCase(
+  first,
+  "claim_record_id",
+  validateApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
+  /record_invalid/u,
+);
+{
+  let nestedCalls=0;
+  const hostile={...first};
+  Object.defineProperty(hostile,"claim_record_id",{
+    enumerable:true,
+    get(){nestedCalls+=1;throw new Error("nested_record_getter_executed");},
+  });
+  assert.throws(
+    ()=>classifyApollyonDurableAttemptClaimAuthorizationSlotRecoveryV1({
+      authorization_slot_id:first.authorization_slot_id,
+      expected_slot_record:hostile,
+      observed_slot_record:null,
+    }),
+    /record_invalid/u,
+  );
+  assert.equal(nestedCalls,0);
+}
+{
+  let arrayGetterCalls=0;
+  const records=[first];
+  Object.defineProperty(records,"0",{
+    enumerable:true,
+    get(){arrayGetterCalls+=1;throw new Error("slot_array_getter_executed");},
+  });
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1({
+      authorization_slot_records:records,
+    }),
+    /set_invalid/u,
+  );
+  assert.equal(arrayGetterCalls,0);
+}
+proxyCase(
+  {authorization_slot_records:[first]},
+  qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1,
+  /set_input_invalid/u,
+);
+{
+  let migrationGetterCalls=0;
+  const hostileOld={...first};
+  Object.defineProperty(hostileOld,"claim_record_sha256",{
+    enumerable:true,
+    get(){migrationGetterCalls+=1;throw new Error("migration_record_getter_executed");},
+  });
+  assert.throws(
+    ()=>qualifyApollyonDurableAttemptClaimAuthorizationSlotMigrationV1({
+      old_store_generation_id:"apollyon_claim_store_generation_v2:"+"1".repeat(64),
+      new_store_generation_id:"apollyon_claim_store_generation_v2:"+"2".repeat(64),
+      parent_store_continuity_receipt_id:
+        "apollyon_claim_store_continuity_v2:"+"3".repeat(64),
+      old_authorization_slot_records:[hostileOld],
+      new_authorization_slot_records:[first],
+    }),
+    /record_invalid/u,
+  );
+  assert.equal(migrationGetterCalls,0);
+}
+proxyCase(
+  {
+    old_store_generation_id:"apollyon_claim_store_generation_v2:"+"1".repeat(64),
+    new_store_generation_id:"apollyon_claim_store_generation_v2:"+"2".repeat(64),
+    parent_store_continuity_receipt_id:
+      "apollyon_claim_store_continuity_v2:"+"3".repeat(64),
+    old_authorization_slot_records:[first],
+    new_authorization_slot_records:[first],
+  },
+  qualifyApollyonDurableAttemptClaimAuthorizationSlotMigrationV1,
+  /migration_input_invalid/u,
+);
+
 const contract=qualifyApollyonDurableAttemptClaimAuthorizationSlotContractV1();
 assert.equal(
   contract.status,
@@ -461,4 +611,9 @@ console.log("migration_authorization_slot_set_commitment_proven=true");
 console.log("migration_slot_drop_or_rewrite_rejected=true");
 console.log("authorization_slot_publication_performed=false");
 console.log("durable_attempt_claim_performed=false");
+console.log("caller_accessors_rejected_before_read=true");
+console.log("proxy_inputs_rejected_before_reflection=true");
+console.log("caller_coercion_not_invoked=true");
+console.log("nested_slot_record_accessors_not_invoked=true");
+console.log("slot_array_accessors_not_invoked=true");
 console.log("training_execution=false");
