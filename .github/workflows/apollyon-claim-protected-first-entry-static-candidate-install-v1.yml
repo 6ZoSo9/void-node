@@ -39,12 +39,12 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
-          git merge-base --is-ancestor ab7864323b8a924e6c9b5b488c228ff32819bc38 "$EXACT_HEAD"
+          git merge-base --is-ancestor 34bcf8ae71bdae6b64b0475776fd0910b212bb48 "$EXACT_HEAD"
           printf '%s\n' \
-            '2d328245a4850f90ee33a15750e3ba9db00515ad ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
-            '2c0f909a9df8df3a24411a52e9ac4196738e03e7 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
-            '588b2477d876f46d48c85bae46ce2924b6f6357e scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
-            '5f08d00bc3ab32e17f6cceec0e0d7819ef2ac0e4 docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+            '7462e0e90fa8ec068bd82039c9c07a3359c0d6de ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+            '5d116c59ef905789aa9498275353c5bc493949f6 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            'f4007803bea7ddc029e04390c594f0827e8eeb3f scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            '0b7161cfa35817180b10f32e70e430bc18836cfb docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
             | while read -r blob path; do
                 test "$(git hash-object "$path")" = "$blob"
                 test "$(git rev-parse "HEAD:$path")" = "$blob"
@@ -90,6 +90,7 @@ jobs:
             'parent_dependency_held_regular_admission=true' \
             'parent_dependency_visible_replacement_not_data_opened=true' \
             'archive_close_failure_machine_readable_hold=true' \
+            'rejected_admission_double_close_fault_safe=true' \
             'parent_source_close_failure_machine_readable_hold=true' \
             'parent_dependency_close_failure_machine_readable_hold=true' \
             'changed_tar_digest_rejected=true' \
@@ -123,5 +124,5 @@ jobs:
             git merge-base --is-ancestor "$PR_BASE" HEAD
             git diff --check "$PR_BASE" HEAD
           else
-            git diff --check ab7864323b8a924e6c9b5b488c228ff32819bc38 HEAD
+            git diff --check 34bcf8ae71bdae6b64b0475776fd0910b212bb48 HEAD
           fi

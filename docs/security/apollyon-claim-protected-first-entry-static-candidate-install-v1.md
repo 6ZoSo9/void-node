@@ -6,8 +6,8 @@ Status: **read-only candidate archive admission**. This source does not install,
 
 ## Exact predecessor
 
-- Candidate acceptance lock: #3494 head `ab7864323b8a924e6c9b5b488c228ff32819bc38`.
-- Accepted lock source: `ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py`, Git blob `2d328245a4850f90ee33a15750e3ba9db00515ad`.
+- Candidate acceptance lock: #3494 head `34bcf8ae71bdae6b64b0475776fd0910b212bb48`.
+- Accepted lock source: `ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py`, Git blob `7462e0e90fa8ec068bd82039c9c07a3359c0d6de`.
 - Historical static candidate derivation: #3482 head `bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c`.
 - Accepted candidate ID: `apollyon_claim_protected_first_entry_static_candidate_v1:81613bf7887ef287f6aa7cbb4a1bbe8ed0f180981fb8fe9538f6f0ab122855d9`.
 
@@ -61,9 +61,23 @@ and authenticated parent-dependency reader are normalized to distinct
 machine-readable HOLD reasons. Both the data descriptor and its O_PATH custody
 descriptor are attempted exactly once even when one close reports uncertainty;
 the proof injects real closes followed by synthetic errors to cover that
-boundary.
+boundary. In the held-inode *admission* helper, this guarantee also applies
+when its primary generation/metadata check rejects after the data-open:
+an uncertain data-descriptor close cannot skip closing the O_PATH descriptor.
+The dedicated regression forces a real close followed by EIO, checks both
+descriptors are closed exactly once and requires no leaked handles. Cleanup
+uncertainty remains a machine-readable HOLD; it is never retried.
 
 A successful read-only receipt is content-addressed and records `status=exact_archive_verified_install_blocked`, `archive_verified=true`, `binary_identity_verified=true`, and `protected_install_authorized=false`. It **does not** prove protected installed source origin, root custody of the target path, Xiphos host state, or installer readiness.
+
+## October 19 current-parent reconciliation
+
+This Draft is merge-forwarded onto current accepted-lock parent #3494
+`34bcf8ae71bdae6b64b0475776fd0910b212bb48`, which introduces its own held-O_PATH-inode admission for
+reviewed parent-source reads. The archive-admission child preserves that parent
+exactly while retaining its own isolated admission reader as defense-in-depth.
+Only the original four child paths are changed relative to the new parent;
+accepted candidate/archive/ELF digests and authority remain unchanged.
 
 ## Hosted adversaries
 

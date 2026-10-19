@@ -36,9 +36,9 @@ from typing import Any
 
 MARKER = "VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1"
 ROOT = Path(__file__).resolve().parents[2]
-PARENT_HEAD = "ab7864323b8a924e6c9b5b488c228ff32819bc38"
+PARENT_HEAD = "34bcf8ae71bdae6b64b0475776fd0910b212bb48"
 PARENT_REL = "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
-PARENT_BLOB = "2d328245a4850f90ee33a15750e3ba9db00515ad"
+PARENT_BLOB = "7462e0e90fa8ec068bd82039c9c07a3359c0d6de"
 ACCEPTED_CANDIDATE_HEAD = "bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c"
 ACCEPTED_BINARY = "apollyon-claim-protected-first-entry-static-v1"
 ACCEPTED_INSTALL_LEAF = (
@@ -179,22 +179,16 @@ def _admit_regular_read_fd(
             hold(changed_reason)
         return path_fd, data_fd, opened
     except Hold:
-        if data_fd >= 0:
-            _close_fd(data_fd, unavailable_reason)
-        if path_fd >= 0:
-            _close_fd(path_fd, unavailable_reason)
+        # Even if one close reports uncertainty, attempt the other exactly once.
+        # Never retry an indeterminate close; a cleanup error remains a HOLD.
+        _close_read_fds(
+            data_fd, path_fd, unavailable_reason, unavailable_reason,
+        )
         raise
     except OSError as exc:
-        if data_fd >= 0:
-            try:
-                os.close(data_fd)
-            except OSError:
-                pass
-        if path_fd >= 0:
-            try:
-                os.close(path_fd)
-            except OSError:
-                pass
+        _close_read_fds(
+            data_fd, path_fd, unavailable_reason, unavailable_reason,
+        )
         raise Hold(unavailable_reason) from exc
 
 

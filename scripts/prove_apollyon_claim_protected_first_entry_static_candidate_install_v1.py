@@ -15,7 +15,7 @@ import errno
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
-SOURCE_BLOB = "2c0f909a9df8df3a24411a52e9ac4196738e03e7"
+SOURCE_BLOB = "5d116c59ef905789aa9498275353c5bc493949f6"
 
 
 def git_blob(raw: bytes) -> str:
@@ -258,6 +258,67 @@ with tempfile.TemporaryDirectory(prefix="apollyon-parent-dependency-close-failur
     finally:
         mod.os.close = real_close
 
+# A rejected read may encounter an uncertain close on the data descriptor.
+# It must still attempt to close the retained O_PATH descriptor exactly once.
+# This fixture causes post-data-open generation drift, performs the real data
+# close, raises EIO, and proves the other descriptor cannot leak.
+with tempfile.TemporaryDirectory(prefix="apollyon-admission-double-close-") as td:
+    candidate = Path(td) / "admitted-candidate"
+    candidate.write_bytes(b"accepted-shape-but-not-a-real-archive")
+    real_open = os.open
+    real_close = os.close
+    real_same = mod._same_file
+    captured: dict[str, int] = {}
+    closed: list[int] = []
+    compared = [0]
+    baseline = sorted(os.listdir("/proc/self/fd"))
+
+    def observed_open(pathname: object, flags: int, *args: object, **kwargs: object) -> int:
+        fd = real_open(pathname, flags, *args, **kwargs)
+        name = os.fspath(pathname)
+        if name == os.fspath(candidate) and flags & os.O_PATH:
+            captured["path"] = fd
+        elif name.startswith("/proc/self/fd/"):
+            captured["data"] = fd
+        return fd
+
+    def drift_after_reopen(left: os.stat_result, right: os.stat_result) -> bool:
+        compared[0] += 1
+        if compared[0] == 3:
+            return False
+        return real_same(left, right)
+
+    def uncertain_data_close(fd: int) -> None:
+        closed.append(fd)
+        real_close(fd)
+        if fd == captured.get("data"):
+            raise OSError(errno.EIO, "synthetic data close uncertainty")
+
+    mod.os.open = observed_open
+    mod.os.close = uncertain_data_close
+    mod._same_file = drift_after_reopen
+    try:
+        try:
+            mod._admit_regular_read_fd(
+                candidate, 1024,
+                metadata_reason="archive_file_metadata_invalid",
+                unavailable_reason="archive_file_unavailable",
+                changed_reason="archive_file_changed",
+            )
+        except mod.Hold as exc:
+            assert str(exc) == "archive_file_unavailable", str(exc)
+        else:
+            raise AssertionError("rejected post-open generation was admitted")
+    finally:
+        mod.os.open = real_open
+        mod.os.close = real_close
+        mod._same_file = real_same
+    assert compared[0] == 3, "post-data-open drift adversary not exercised"
+    assert set(captured) == {"path", "data"}, "both custody descriptors required"
+    assert closed.count(captured["data"]) == 1, "uncertain data close retried"
+    assert closed.count(captured["path"]) == 1, "path descriptor close skipped"
+    assert sorted(os.listdir("/proc/self/fd")) == baseline, "rejected read leaked fd"
+
 source_text = TARGET.read_text(encoding="utf-8")
 assert source_text.index("module.stable_file = lambda") < source_text.index(
     "lock = module.derive_lock()"
@@ -433,8 +494,8 @@ else:
 
 source = TARGET.read_text(encoding="utf-8")
 for required in (
-    'PARENT_HEAD = "ab7864323b8a924e6c9b5b488c228ff32819bc38"',
-    'PARENT_BLOB = "2d328245a4850f90ee33a15750e3ba9db00515ad"',
+    'PARENT_HEAD = "34bcf8ae71bdae6b64b0475776fd0910b212bb48"',
+    'PARENT_BLOB = "7462e0e90fa8ec068bd82039c9c07a3359c0d6de"',
     "_require_isolated_python()",
     "def load_accepted_parent_lock()",
     "git_blob(raw) != PARENT_BLOB",
@@ -446,6 +507,7 @@ for required in (
     '"/proc/self/fd/" + str(path_fd)',
     "def _close_fd(fd: int, reason: str)",
     "def _close_read_fds(",
+    "Even if one close reports uncertainty",
     '"accepted_parent_dependency_close_failed"',
     '"accepted_parent_source_close_failed"',
     '"archive_file_close_failed"',
@@ -486,6 +548,7 @@ print("parent_dependency_descriptor_custody=true")
 print("parent_dependency_held_regular_admission=true")
 print("parent_dependency_visible_replacement_not_data_opened=true")
 print("archive_close_failure_machine_readable_hold=true")
+print("rejected_admission_double_close_fault_safe=true")
 print("parent_source_close_failure_machine_readable_hold=true")
 print("parent_dependency_close_failure_machine_readable_hold=true")
 print("read_only_tar_validation=true")

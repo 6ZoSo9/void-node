@@ -221,6 +221,24 @@ def _close_fd(fd: int, relative: str) -> None:
         raise LockError("parent_source_close_failed:" + relative) from exc
 
 
+def _close_read_fds(data_fd: int, path_fd: int, relative: str) -> None:
+    first: LockError | None = None
+    for fd, prefix in (
+        (data_fd, "parent_source_close_failed:"),
+        (path_fd, "parent_source_path_close_failed:"),
+    ):
+        if fd < 0:
+            continue
+        try:
+            os.close(fd)
+        except OSError as exc:
+            if first is None:
+                first = LockError(prefix + relative)
+                first.__cause__ = exc
+    if first is not None:
+        raise first
+
+
 def stable_file(relative: str, expected_blob: str) -> bytes:
     if (
         not isinstance(relative, str)
@@ -230,6 +248,8 @@ def stable_file(relative: str, expected_blob: str) -> bytes:
     ):
         hold("parent_source_path_invalid:" + str(relative))
     path = ROOT / relative
+    path_fd = -1
+    fd = -1
     try:
         before = path.lstat()
         if (
@@ -240,18 +260,60 @@ def stable_file(relative: str, expected_blob: str) -> bytes:
             or before.st_size > MAX_SOURCE_BYTES
         ):
             hold("parent_source_metadata_invalid:" + relative)
-        fd = os.open(
+        o_path = getattr(os, "O_PATH", None)
+        if o_path is None:
+            hold("parent_source_path_descriptor_unavailable:" + relative)
+        path_fd = os.open(
             path,
-            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+            o_path | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
+        admitted = os.fstat(path_fd)
+        visible = path.lstat()
+        if (
+            not _same_file(before, admitted)
+            or not _same_file(admitted, visible)
+        ):
+            hold("parent_source_generation_changed:" + relative)
+        if (
+            not stat.S_ISREG(admitted.st_mode)
+            or stat.S_ISLNK(admitted.st_mode)
+            or admitted.st_nlink != 1
+            or admitted.st_size < 1
+            or admitted.st_size > MAX_SOURCE_BYTES
+        ):
+            hold("parent_source_metadata_invalid:" + relative)
+        fd = os.open(
+            "/proc/self/fd/" + str(path_fd),
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK,
+        )
+        opened = os.fstat(fd)
+        held_after = os.fstat(path_fd)
+        visible_after = path.lstat()
+        if (
+            not _same_file(admitted, held_after)
+            or not _same_file(held_after, opened)
+            or not _same_file(opened, visible_after)
+        ):
+            hold("parent_source_generation_changed:" + relative)
+    except LockError:
+        if fd >= 0 or path_fd >= 0:
+            _close_read_fds(fd, path_fd, relative)
+        raise
     except OSError as exc:
+        if fd >= 0:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        if path_fd >= 0:
+            try:
+                os.close(path_fd)
+            except OSError:
+                pass
         raise LockError("parent_source_unavailable:" + relative) from exc
     try:
-        opened = os.fstat(fd)
-        if not _same_file(before, opened):
-            hold("parent_source_generation_changed:" + relative)
         chunks: list[bytes] = []
-        remaining = before.st_size
+        remaining = opened.st_size
         while remaining:
             chunk = os.read(fd, min(65536, remaining))
             if not chunk:
@@ -261,15 +323,20 @@ def stable_file(relative: str, expected_blob: str) -> bytes:
         if os.read(fd, 1) != b"":
             hold("parent_source_grew:" + relative)
         after = os.fstat(fd)
+        held_final = os.fstat(path_fd)
         visible = path.lstat()
-        if not _same_file(opened, after) or not _same_file(after, visible):
+        if (
+            not _same_file(opened, after)
+            or not _same_file(after, held_final)
+            or not _same_file(held_final, visible)
+        ):
             hold("parent_source_generation_changed:" + relative)
         raw = b"".join(chunks)
     except OSError as exc:
         raise LockError("parent_source_read_failed:" + relative) from exc
     finally:
-        _close_fd(fd, relative)
-    if len(raw) != before.st_size or git_blob(raw) != expected_blob:
+        _close_read_fds(fd, path_fd, relative)
+    if len(raw) != opened.st_size or git_blob(raw) != expected_blob:
         hold("parent_source_blob_invalid:" + relative)
     if git("rev-parse", "HEAD:" + relative) != expected_blob:
         hold("parent_source_not_exact_head:" + relative)
