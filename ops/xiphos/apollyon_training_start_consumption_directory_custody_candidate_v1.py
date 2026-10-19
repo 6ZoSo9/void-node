@@ -108,6 +108,15 @@ def root_fixture_path(raw: Path) -> tuple[str, list[str]]:
         or candidate != os.path.abspath(candidate)
     ):
         hold("fixture_root_path_invalid")
+    # A pathname that merely differs from FIXED_ROOT is not a disposable
+    # fixture. Deny unrelated host roots before the first os.open/stat.
+    # This is a test-namespace restriction, NOT proof of host mount custody.
+    if (
+        len(parts) < 4
+        or parts[1] != "tmp"
+        or not parts[2].startswith("apollyon-")
+    ):
+        hold("fixture_root_outside_disposable_namespace")
     return candidate, parts[1:]
 
 
