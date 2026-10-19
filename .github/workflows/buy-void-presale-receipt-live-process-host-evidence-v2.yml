@@ -107,9 +107,9 @@ jobs:
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = b151f83cdfa452755a2d750243d92384bb41956c
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 608b601bfbcb917859205a69f91683301f74211e
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md)" = 98754485b2007a50a1dad4434d9de0a7c8979d92
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = b8e26062111ce5e04ce04de4a318b635f5963118
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_receipt_live_process_host_evidence_v2.ts)" = 962fdcf5eaadac1ed5b288012643a302d99c3912
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-receipt-live-process-host-evidence-v2.md)" = d2ef287ad7719cb1179f79c570fda7a6fb79d3d5
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts)" = ba69d46ffa6f7d178de447b469b578fa8e87ea3b
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts)" = d47a6f99870f385c1bc938adbef74535b78eba1f
@@ -160,6 +160,7 @@ jobs:
             'no_new_privileges_required=true' \
             'inheritable_permitted_effective_bounding_ambient_caps_cleared=true' \
             'setpriv_descriptor_execution_required=true' \
+            'setpriv_parent_visible_fd_execution_required=true' \
             'systemctl_descriptor_execution_required=true' \
             'runtime_executable_acl_nonwritability_required=true' \
             'runtime_executable_acl_audit_uses_current_node_exe=true' \
