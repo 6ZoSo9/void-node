@@ -142,3 +142,28 @@ Activation-capability issuance and training remain forbidden.
 ## Prior revoked-Proxy error-normalization rebind (historical)
 
 This generation is rebound to #3526 `e496f4391b2b4e9be006695fcd8845669059a48f`, whose public slot/candidate/requirements preflights reject active and revoked Proxy inputs through their exact namespaced schema errors before `Array.isArray`. The protected reader semantics in this child are otherwise unchanged; complete protected origin and capability issuance remain false.
+
+## Rejected-child descriptor cleanup (October 19, 2026)
+
+The subsequent draft repair over #3531 preserves the same read-only origin
+contract and negative activation-authority fields.
+
+In the original `open_root` traversal, metadata or POSIX ACL rejection
+after `os.open(component, ...)` closed the retained **parent** but could
+leave the newly opened **child** descriptor live. A repeatedly invoked reader
+could accumulate descriptors on adversarial root metadata, despite returning
+HOLD each time.
+
+Every newly opened child now remains under exception cleanup until its
+metadata, ACL and visible-binding checks succeed. After validation, ownership
+transfers to `current` **before** the previous parent is closed; an
+indeterminate parent-close failure then reaches the existing outer cleanup.
+A failed close is not retried because descriptor ownership is uncertain.
+
+The disposable proof repeats wrong-root-mode and injected root-ACL HOLDs five
+times and requires the complete `/proc/self/fd` descriptor set to remain
+unchanged. It does not touch the installed Xiphos protected store.
+
+This section supersedes only the historical claim below that the October 18
+rebind changed no reader logic. Complete protected origin, capability issuance,
+training, signing, transactions and funds authority remain **false**.
