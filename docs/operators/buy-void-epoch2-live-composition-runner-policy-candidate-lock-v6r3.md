@@ -94,3 +94,31 @@ Next gate:
 `void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan`.
 
 PROTECT THE CORE.
+
+
+## Exact-PR-head hosted provenance successor
+
+The prior accepted lock `voidbuye2runnerpollock6r3_decff2ebef64d6e8eb332a1ff5d363906c08322c8949bff9e9abdce48088522d` is superseded because its cited hosted
+compatibility/candidate workflows did not themselves require an explicit pull-request
+head checkout. The candidate content identity is unchanged, but hosted provenance is
+reissued from a generation whose workflow first checks out and asserts exact PR head
+`f237c2c31b0551f8291524dd2bc46796605cc469`.
+
+Exact successor evidence:
+
+```text
+candidate_head=f237c2c31b0551f8291524dd2bc46796605cc469
+compatibility_run=39305661304
+compatibility_job=118241935894
+candidate_run=39305661383
+candidate_job=118241936839
+candidate_identity_job=118242178056
+candidate_id=voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d
+candidate_workflow_blob=eacf6ee3c203e65a412ef057a5fe6fc2104fa682
+compatibility_workflow_blob=402267212f3280e54c204a124ccb26c332821f97
+successor_lock_id=voidbuye2runnerpollock6r3_bdd3e0b6fe28f2a6873920cdb1436914183e817c02b4d4ac9da130e3ec14b365
+```
+
+The superseded lock gains no historical install authority. All protected-install,
+live-execution, credential/key/signing, transaction/payment, activation/treasury,
+funds, and production-host-evidence authority remain false.
