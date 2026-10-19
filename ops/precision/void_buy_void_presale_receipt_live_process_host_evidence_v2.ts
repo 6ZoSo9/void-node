@@ -234,11 +234,11 @@ function revalidateReviewedSource(
   }
 }
 
-function resolveReviewedGraphImport(importerRelative: string, specifier: string): string {
+function resolveReviewedGraphImport(\n  importerRelative: string,\n  specifier: string,\n  pins: Readonly<Record<string, string>>,\n): string {
   if (!specifier.startsWith(".")) fail("lane1_v2_parent_graph_nonlocal_import_forbidden");
   let resolved = path.posix.normalize(path.posix.join(path.posix.dirname(importerRelative), specifier));
   if (resolved.endsWith(".js")) resolved = resolved.slice(0, -3) + ".ts";
-  if (path.posix.isAbsolute(resolved) || resolved === ".." || resolved.startsWith("../") || !Object.hasOwn(PARENT_MODULE_GRAPH_PINS, resolved)) {
+  if (path.posix.isAbsolute(resolved) || resolved === ".." || resolved.startsWith("../") || !Object.hasOwn(pins, resolved)) {
     fail("lane1_v2_parent_graph_import_outside_reviewed_closure");
   }
   return resolved;
@@ -282,7 +282,7 @@ function authenticatedTypeScriptDataUrl(
       if (!PARENT_MODULE_GRAPH_BUILTINS.has(specifier)) fail("lane1_v2_parent_graph_builtin_not_reviewed");
       continue;
     }
-    const childRelative = resolveReviewedGraphImport(relative, specifier);
+    const childRelative = resolveReviewedGraphImport(relative, specifier, pins);
     const childUrl = authenticatedTypeScriptDataUrl(graphRoot, childRelative, pins, sources, cache, building);
     source = replaceReviewedImport(source, specifier, childUrl);
   }

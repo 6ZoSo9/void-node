@@ -28,7 +28,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TARGET_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts";
-const TARGET_BLOB = "fd2dd3ebeebb898d657cc338f17570b0a5784770";
+const TARGET_BLOB = "c7cd9f3738461f4fe3bb1c45e6d54943b8c4d281";
 const PARENT_SOURCE_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
 const PARENT_PROOF_REL =
