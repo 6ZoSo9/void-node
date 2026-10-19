@@ -129,7 +129,7 @@ eight-file writer + protected-store revalidation-request layer.
 The protected-writer implementation remains byte-identical at
 `a08927b7b16884a9bf0c28328047afdab49649ea`. Its current proof binds
 #3333 consumption source `f557d92e89f3502ee6ac1243411cd43191ec1f37`,
-authorization-slot source `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`, and claim-service
+authorization-slot source `25629371f6da164e12fecfc08c5f26815418e3a8`, and claim-service
 candidate `87019ae1245a2054407dd47835b0b7a891d4d9a2`.
 
 The revalidation-request source is rebound to those same current consumption
@@ -221,3 +221,12 @@ The revalidation request remains source-only and performs no filesystem IO or
 writer invocation. Its role is to ensure a future host bridge can reclassify the
 exact slot under the same protected store generation before taking any next
 action.
+
+## October 19 current authorization-slot generation rebind
+
+The direct #3351 ancestry now carries authorization-slot source
+`25629371f6da164e12fecfc08c5f26815418e3a8`. The writer/revalidation
+focused proofs are rebound to that exact source generation. No writer runtime
+logic, path policy, publication semantics, or authority field changed in this
+rebind. Protected host origin, current store/winner/claim verification,
+writer invocation, release/training and funds authority remain unproven.
