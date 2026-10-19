@@ -85,3 +85,27 @@ Therefore the historical candidate
 The checked-in lock currently has no active `lock_id`, no current candidate ID,
 and all candidate/install/live authority false. It is a fail-closed barrier while
 the repaired candidate is re-derived.
+
+
+## Repaired accepted generation
+
+The superseded barrier has now been replaced by accepted repaired evidence:
+
+```text
+candidate_head=6bad5e7bea8db683b53622387923c493370b8e64
+compatibility_run=39272638928
+compatibility_job=118128683759
+candidate_run=39272637721
+candidate_job=118128679712
+candidate_id=voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d
+runner_git_blob_sha1=62029fafa7073ab3768fec01f2147a7f4eefce2b
+runner_sha256=0f87747439b82887033295cf04022c9a2a491c726f8d6acad8b0efc2e8dcdc71
+runner_bytes=51684
+lock_id=voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202
+```
+
+This generation accepts runtime-observed current-source compatibility rather than
+a fixed current-source SHA. The historical candidate and lock remain explicitly
+superseded with no install authority.
+
+Acceptance still does **not** authorize protected installation or live execution.
