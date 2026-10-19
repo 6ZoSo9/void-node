@@ -31,7 +31,8 @@ source=TARGET.read_text()
 tree=ast.parse(source)
 for name in (
     "source_snapshot","snapshot_host_file","build_policy","verify_generation",
-    "verify_v4_predecessor","classify_state","collect_plan","source_plan",
+    "verify_v4_predecessor","classify_state","_collect_plan_with_observers",
+    "collect_plan","source_plan",
     "self_test","emit_plan",
 ):
     assert any(isinstance(node,ast.FunctionDef) and node.name==name for node in tree.body),name
@@ -40,6 +41,20 @@ for required in (
     'LOCK_ID="voidbuye2runnerpollock6r3_bdd3e0b6fe28f2a6873920cdb1436914183e817c02b4d4ac9da130e3ec14b365"',
     'CANDIDATE_ID="voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d"',
     'RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
+    'QUALIFIER_REPLACEMENT_BLOB="98f8b9fda89e33c50e19008268d97655aad54e6d"',
+    'V6_QUALIFIER_BLOB="83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc"',
+    'V6_REPLACEMENT_BLOB="f81d9fbead60593258d17dbb8720e1efc867b20f"',
+    'CREDENTIAL_LOCK_V3R_BLOB="c4870f3178aebc9a0bb6557562f663b8480cfefa"',
+    'CREDENTIAL_LOCK_V2_BLOB="b73415ce8fc95ff2d49cbde97a15d701ad5b7937"',
+    'V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748"',
+    'V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6"',
+    'SOURCE_RUNTIME_DEPENDENCY_SPECS=(',
+    '"runtime_source_dependency_count":len(SOURCE_RUNTIME_DEPENDENCY_SPECS)',
+    '"runtime_source_complete_dependency_set_bound":True',
+    '"source_terminal_revalidated":True',
+    'source_after=source_snapshot_fn()',
+    'if source_after!=source_before:',
+    'raise PlanError("source_generation_changed_during_plan")',
     'NEW_RUNNER_SHA256="a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029"',
     'PREDECESSOR_V6R2_ROOT=',
     '"full_root_stage_required":True',
@@ -82,6 +97,10 @@ for mode in ("--self-test","--source-plan"):
             "native_v3_identity_reused=true",
             "runner_v4_identity_bound=true",
             "policy_node_identity_host_derived=true",
+            "runtime_source_complete_dependency_set_bound=true",
+            "runtime_source_dependency_count=9",
+            "terminal_source_revalidation_required=true",
+            "late_source_drift_rejected=true",
             "full_root_atomic_exchange_required=true",
             "v6r2_predecessor_retention_required=true",
             "filesystem_write=false",
@@ -97,6 +116,9 @@ for mode in ("--self-test","--source-plan"):
             "accepted_candidate_id="+CANDIDATE_ID,
             "runtime_head="+RUNTIME_HEAD,
             "native_reused=true",
+            "runtime_source_dependency_count=9",
+            "runtime_source_complete_dependency_set_bound=true",
+            "terminal_source_revalidation_required=true",
             "atomic_root_exchange_required=true",
             "filesystem_write=false",
             "credential_access=false",
@@ -118,6 +140,10 @@ print("accepted_runner_blob_bound=true")
 print("nonexecuting_plan_only=true")
 print("no_apply_mode=true")
 print("runtime_policy_head_preserved=true")
+print("runtime_source_complete_dependency_set_bound=true")
+print("runtime_source_dependency_count=9")
+print("terminal_source_revalidation_required=true")
+print("late_source_drift_rejected=true")
 print("full_root_atomic_exchange_required=true")
 print("v6r2_predecessor_retention_required=true")
 print("filesystem_write=false")
