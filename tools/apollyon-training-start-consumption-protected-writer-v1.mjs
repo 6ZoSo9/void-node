@@ -507,16 +507,18 @@ export function publishApollyonTrainingStartConsumptionProtectedV1(input){
       }
       return createdReceipt(record);
     }finally{
-      closeOwnedTerminalFd(
-        fd,
-        "apollyon_training_start_writer_created_record_close_uncertain",
-      );
+      // Attribute created-close uncertainty only to this close invocation,
+      // not an earlier thrown error's potentially hostile message accessor.
+      try{
+        closeOwnedTerminalFd(
+          fd,
+          "apollyon_training_start_writer_created_record_close_uncertain",
+        );
+      }catch(closeError){
+        createdCloseUncertainty=closeError;
+        throw closeError;
+      }
     }
-  }catch(error){
-    if(error?.message==="apollyon_training_start_writer_created_record_close_uncertain"){
-      createdCloseUncertainty=error;
-    }
-    throw error;
   }finally{
     try{
       closeOwnedTerminalFd(

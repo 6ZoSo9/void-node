@@ -107,9 +107,9 @@ those host checks and issues no ability to consume a training-start slot.
 Current dependencies pinned by the disposable proof:
 
 - protected writer Git blob:
-  `ee1570b561c6c78e114114d66cdbf190c58b091e`
+  `76f5a6bcbc9854a1133cd1324eb862cb50102c0e`
 - fixed protected-store request Git blob:
-  `772c8f59bb75730651cb5579016904994b974c1f`
+  `079576db7f880872f2d4dea8e7759bd536161516`
 
 No installed Xiphos state, service, private key, wallet, transaction,
 funds movement or trainer start is requested or permitted.
@@ -120,11 +120,21 @@ funds movement or trainer start is requested or permitted.
 ## Current close-hardened writer generation
 
 The fixture is now pinned to protected writer
-`ee1570b561c6c78e114114d66cdbf190c58b091e` and revalidation-request source
-`772c8f59bb75730651cb5579016904994b974c1f`.
+`76f5a6bcbc9854a1133cd1324eb862cb50102c0e` and revalidation-request source
+`079576db7f880872f2d4dea8e7759bd536161516`.
 
 Those parent sources classify terminal created-record and owned-directory close
 uncertainty after a durable publication. This fixture still does not call the
 writer and still cannot prove production directory origin; the pin only ensures
 that any future protected-host bridge is built on the current close-hardened
 source generation.
+
+## October 19 — writer diagnostic source rebind
+
+The fixture observer remains byte-identical at source blob
+`42408e7a65e3565a8a98cb4e23985c3ca76045bc`. The writer and request
+are rebound to the corrected source generations `76f5a6bcbc9854a1133cd1324eb862cb50102c0e` and
+`079576db7f880872f2d4dea8e7759bd536161516`. This source-only PR does **not** include the separate
+#3552 disposable-root lexical confinement or default-POSIX-ACL checks; those
+must be merged into one new exact source/CI generation before either branch
+is promoted. Fixture observation never grants Xiphos or trainer authority.

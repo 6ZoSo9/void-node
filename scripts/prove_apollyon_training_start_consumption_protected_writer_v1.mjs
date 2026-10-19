@@ -40,7 +40,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-    "ee1570b561c6c78e114114d66cdbf190c58b091e",
+    "76f5a6bcbc9854a1133cd1324eb862cb50102c0e",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "f557d92e89f3502ee6ac1243411cd43191ec1f37",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
@@ -585,6 +585,96 @@ for(const method of ["classify","publish"]){
   }finally{
     fs.openSync=originalOpen;
     fs.closeSync=originalClose;
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+
+// Only an actual created-FD close error may count as created-close uncertainty.
+// An earlier matching-message error or arbitrary error message accessor must
+// not trigger the dual-terminal-close AggregateError.
+for(const shape of ["spoofed-created-close-message","hostile-message-accessor"]){
+  const root=newRoot();
+  const fd=openRoot(root);
+  const final=path.join(root,leaf1);
+  const baseline=fs.readdirSync("/proc/self/fd").sort();
+  const originalOpen=fs.openSync;
+  const originalClose=fs.closeSync;
+  const originalFsync=fs.fsyncSync;
+  const ownedDirectoryPath="/proc/self/fd/"+String(fd);
+  let createdFd=-1,ownedFd=-1;
+  let spoofInjected=false,directoryErrorInjected=false;
+  let createdCloseAttempts=0,ownedCloseAttempts=0,messageGetters=0;
+  fs.openSync=function trackSpoofedFailureOpens(target,flags,...args){
+    const opened=originalOpen.call(fs,target,flags,...args);
+    if(String(target)===ownedDirectoryPath&&typeof flags==="number"&&
+       (flags&Number(fs.constants.O_DIRECTORY||0))!==0)ownedFd=opened;
+    if(String(target).endsWith("/"+leaf1)&&typeof flags==="number"&&
+       (flags&fs.constants.O_CREAT)!==0&&
+       (flags&fs.constants.O_EXCL)!==0)createdFd=opened;
+    return opened;
+  };
+  fs.fsyncSync=function injectEarlierFailure(target,...args){
+    if(target===ownedFd&&!spoofInjected){
+      spoofInjected=true;
+      if(shape==="spoofed-created-close-message"){
+        throw new Error("apollyon_training_start_writer_created_record_close_uncertain");
+      }
+      const malicious=new Error("earlier_directory_fsync_failure");
+      Object.defineProperty(malicious,"message",{
+        configurable:true,
+        get(){
+          messageGetters+=1;
+          throw new Error("thrown error accessor executed");
+        },
+      });
+      throw malicious;
+    }
+    return originalFsync.call(fs,target,...args);
+  };
+  fs.closeSync=function trackActualTerminalClose(target){
+    if(target===createdFd){
+      createdCloseAttempts+=1;
+      return originalClose.call(fs,target);
+    }
+    if(target===ownedFd){
+      ownedCloseAttempts+=1;
+      const result=originalClose.call(fs,target);
+      directoryErrorInjected=true;
+      const fault=new Error("injected EIO after actual directory close");
+      fault.code="EIO";
+      throw fault;
+    }
+    return originalClose.call(fs,target);
+  };
+  try{
+    assert.throws(
+      ()=>publishApollyonTrainingStartConsumptionProtectedV1({
+        directory_fd:fd,consumption_record:record1,
+      }),
+      error=>{
+        assert.ok(!(error instanceof AggregateError),
+          shape+": unrelated exception claimed both terminal closes");
+        assert.equal(error.message,
+          "apollyon_training_start_writer_owned_directory_close_uncertain");
+        assert.equal(error.cause?.code,"EIO");
+        return true;
+      },
+    );
+    assert.equal(spoofInjected,true,shape+": earlier failure not reached");
+    assert.equal(directoryErrorInjected,true,shape+": directory close not exercised");
+    assert.ok(createdFd>=0&&ownedFd>=0);
+    assert.equal(createdCloseAttempts,1,shape+": created FD closed more than once");
+    assert.equal(ownedCloseAttempts,1,shape+": owned FD closed more than once");
+    assert.equal(messageGetters,0,shape+": thrown message getter executed");
+    assert.deepEqual(fs.readdirSync("/proc/self/fd").sort(),baseline);
+    assert.deepEqual(fs.readFileSync(final),canonicalBytes(record1),
+      shape+": durable one-time record bytes changed");
+  }finally{
+    fs.openSync=originalOpen;
+    fs.closeSync=originalClose;
+    fs.fsyncSync=originalFsync;
     fs.closeSync(fd);
     fs.rmSync(root,{recursive:true,force:true});
   }
@@ -1153,6 +1243,7 @@ console.log("owned_directory_rejection_close_uncertainty_safe=true");
 console.log("terminal_owned_directory_close_uncertainty_safe=true");
 console.log("created_record_terminal_close_uncertainty_safe=true");
 console.log("dual_terminal_close_errors_preserved=true");
+console.log("terminal_close_provenance_not_spoofable=true");
 console.log("existing_slot_dual_fd_close_fault_safe=true");
 console.log("existing_slot_visible_path_race_fixture_exercised=true");
 console.log("protected_consumption_store_origin_proven=false");

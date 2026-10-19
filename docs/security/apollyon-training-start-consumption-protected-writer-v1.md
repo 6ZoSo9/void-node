@@ -177,7 +177,7 @@ and grow a valid regular file at its first read. They require zero visible-path
 data opens, a maximum read request of 64 KiB + 1, and fail-closed rejection.
 
 Current repaired writer blob:
-`ee1570b561c6c78e114114d66cdbf190c58b091e`.
+`76f5a6bcbc9854a1133cd1324eb862cb50102c0e`.
 
 ## October 19 — both existing-slot read descriptors close on uncertainty
 
@@ -278,7 +278,24 @@ errors, unchanged FD census and unchanged canonical one-time final record.
 Individual close failure outcomes and successful publication are unchanged.
 
 Current corrected writer blob:
-`ee1570b561c6c78e114114d66cdbf190c58b091e`.
+`76f5a6bcbc9854a1133cd1324eb862cb50102c0e`.
 
 All protected store origin, writer invocation, trainer release/training,
 credential, signing, wallet, transaction and funds authority remain **false**.
+
+## October 19 — terminal-close diagnostic provenance (source only)
+
+Only the **inner created-record descriptor close call** may set the private
+`createdCloseUncertainty` evidence. A separate earlier metadata/fsync/write
+failure cannot be promoted to that state by matching a thrown error's message,
+and no getter on an untrusted earlier error is accessed during cleanup.
+
+Two disposable adversaries report an earlier (a) matching-message failure and
+(b) malicious own `message` getter, followed by successful created-record
+closure and an EIO **after the real owned-directory close**. Both must return
+only `apollyon_training_start_writer_owned_directory_close_uncertain`, never
+the dual-terminal AggregateError; zero getters execute, each FD closes once,
+and durable record bytes and process FD census remain unchanged. The earlier
+both-real-close-EIO positive fixture remains mandatory. The source still
+cannot establish protected Xiphos directory provenance or authorize release,
+training, credentials, keys, transactions or funds.
