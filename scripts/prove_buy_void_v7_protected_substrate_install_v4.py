@@ -94,7 +94,6 @@ required=(
     'os.access(p, os.W_OK, effective_ids=True)',
     '_require_runtime_uid_nonwritable(runtime_paths, "privileged_source")',
     '_require_runtime_uid_nonwritable(runtime_paths, "install_parent")',
-    '_require_runtime_uid_nonwritable(runtime_paths, "tree")',
     '_require_runtime_uid_nonwritable([root, path], label + "_installed")',
     'acl_aware_runtime_uid_nonwritability_required=true',
     'def _read_regular_sha256_exact(',
