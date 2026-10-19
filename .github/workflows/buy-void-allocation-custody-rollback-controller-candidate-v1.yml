@@ -54,9 +54,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json)" = 5face2022dc2cbc573e32e99f88623f381a8a174
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = eef7c4e1db7401ba82fda96aa1e8da40c1981b7d
           test "$(git rev-parse HEAD:src/economic)" = 71c67e62a2b21a98f3f5135ee6aa56e0ef97d262
-          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = be88c888d8619c7a3f0f2107e8baa89b4882e430
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 3c048ac1c2d683bb4ab03a17b4dfdda7ed92f9f0
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = 443619762ee3423ed1f8bbade5e20f5e1e2d1fe5
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs)" = 269e5f716989269697c86bccbce0373762b8d1b3
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs)" = 316e192d816420d154be8aac4afeb23c7a3e9823
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md)" = 2d662eb261807a6426f61c7e9cfb923c27201410
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -96,6 +96,8 @@ jobs:
             'allocation_ledger_unchanged_required=true' \
             'customer_request_state_unchanged_required=true' \
             'evidence_origin_authentication_required=true' \
+            'controller_evidence_digest_bound_to_origin=true' \
+            'mismatched_evidence_origin_digest_rejected=true' \
             'evidence_origin_authenticated=false' \
             'injected_capabilities_authenticated=false' \
             'all_capabilities_preflighted_before_invocation=true' \
