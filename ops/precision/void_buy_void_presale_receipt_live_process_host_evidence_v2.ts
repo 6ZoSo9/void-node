@@ -234,7 +234,11 @@ function revalidateReviewedSource(
   }
 }
 
-function resolveReviewedGraphImport(\n  importerRelative: string,\n  specifier: string,\n  pins: Readonly<Record<string, string>>,\n): string {
+function resolveReviewedGraphImport(
+  importerRelative: string,
+  specifier: string,
+  pins: Readonly<Record<string, string>>,
+): string {
   if (!specifier.startsWith(".")) fail("lane1_v2_parent_graph_nonlocal_import_forbidden");
   let resolved = path.posix.normalize(path.posix.join(path.posix.dirname(importerRelative), specifier));
   if (resolved.endsWith(".js")) resolved = resolved.slice(0, -3) + ".ts";
