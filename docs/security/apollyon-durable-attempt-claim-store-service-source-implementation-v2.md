@@ -58,7 +58,7 @@ Important exact source generations:
   `3feed7f71fb6941f8feccf393f151fa9e973d7a4`.
 
 The Linux composition uses the same implementation core, now at Git blob
-`2569d6f15fd8c1ed059173ba19056979f3be7e23`. Its source is
+`65a11b36cfe7408b7718b6827b260ea52d5048b4`. Its source is
 `tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs`, blob
 `f485b9e6fc29eab549ebba07e1b49f24c7659092`. The Linux lease blob is unchanged. The core changes in this rebind only in its
 four immutable upstream source-generation pins. The bridge links these exact accepted #3309 sources,
