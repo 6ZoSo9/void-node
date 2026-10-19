@@ -4,6 +4,24 @@ Marker: \`VOID_APOLLYON_TRAINING_START_RELEASE_RELEASER_INTEGRATION_V1\`.
 
 Status: **source/test/CI integration candidate only**.
 
+## Flattened native release chain
+
+This PR now directly targets #3351 at
+`9e1da5dbb1ae12114a26506fbf1c6bc56780b98f` and contains the complete
+12-file native release closure formerly split across #3381, #3397 and this
+releaser integration.
+
+The consolidated focused workflow requires exactly those 12 files against the
+direct base, re-runs the #3351 release-binding proof, the native trainer
+candidate proof and the same-pipe generation proof, then executes the releaser
+continuity integration. The native/releaser protocol bytes and negative
+authority are unchanged by this review-stack consolidation.
+
+Protected releaser origin, production writer exclusivity, protected
+consumption/winner provenance, actual trainer release, training, credentials,
+transactions and funds authority remain false/unproven.
+
+
 ## Purpose
 
 Accepted #3381 proves the trainer-side native release gate, and accepted #3397
