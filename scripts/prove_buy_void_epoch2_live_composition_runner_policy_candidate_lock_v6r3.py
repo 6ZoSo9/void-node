@@ -22,16 +22,16 @@ V6R2_LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-l
 
 MARKER="VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3"
 LOCK_PREFIX="voidbuye2runnerpollock6r3_"
-LOCK_ID="voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d"
-RUNNER_BLOB="62029fafa7073ab3768fec01f2147a7f4eefce2b"
-RUNNER_SHA256="0f87747439b82887033295cf04022c9a2a491c726f8d6acad8b0efc2e8dcdc71"
-RUNNER_BYTES=51684
-CANDIDATE_BLOB="cecca32b8c9de8105e92abea915bd142813eb429"
+LOCK_ID="voidbuye2runnerpollock6r3_261c86ebce21170cf95479f7817e8a5689cb8438286a189bb239019a035adb5e"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_9c00c1601412e8d3873c42c37000a6886580c992355822496eee57b55528f60b"
+RUNNER_BLOB="8e3c588f9c7275dcb0e351d2785b5a923982f133"
+RUNNER_SHA256="730effadd9b95ec43d609759239ce43ab61e9e118c6c897cd0e13faa37a0e7f4"
+RUNNER_BYTES=61692
+CANDIDATE_BLOB="943b13ed325d97db01cb848f078e255248b12138"
 CANDIDATE_WORKFLOW_BLOB="0e2f3c7dbbebdaa6c7120699aad35890646dc954"
 COMPAT_CONTRACT_BLOB="cb82a71cf83348f3709719cb1c8b44f3f687eabb"
-COMPAT_PROOF_BLOB="528a5785814c2a89e9d692ee681090b1f19e9b11"
-COMPAT_WORKFLOW_BLOB="7d2952394ec219f39e5d18dc96143685a6062d45"
+COMPAT_PROOF_BLOB="9f19d59700159405e5c9de3e261da05d7a0e832d"
+COMPAT_WORKFLOW_BLOB="88d4fcbedfdccb6e33ea733beb2033571e45f876"
 V6R2_LOCK_BLOB="bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 NATIVE_SHA256="85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8"
 NATIVE_BYTES=726976
@@ -81,17 +81,17 @@ lock=json.loads(exact_file(LOCK,256*1024))
 assert lock["schema"]=="void_buy_void_epoch2_live_composition_runner_policy_candidate_lock_v6r3"
 assert lock["marker"]==MARKER
 assert lock["version"]==2
-assert lock["candidate_head"]=="539075ad44f5fef150c7fbfdb4ca6e8115a7b682"
+assert lock["candidate_head"]=="8adfab987d759260dc826ab6ae473c35131223e8"
 assert lock["compatibility_hosted_evidence"]=={
     "workflow":"Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1",
-    "run_id":39275749198,
-    "job_id":118139485564,
+    "run_id":39286886878,
+    "job_id":118176008215,
     "conclusion":"success",
 }
 assert lock["candidate_hosted_evidence"]=={
     "workflow":"Buy VOID Epoch-2 live-composition runner policy candidate V6R3",
-    "run_id":39275748113,
-    "job_id":118139481605,
+    "run_id":39286886430,
+    "job_id":118176008157,
     "conclusion":"success",
 }
 r=lock["candidate_report"]
@@ -124,6 +124,15 @@ assert r["source_head_must_not_replace_policy_runtime_head"] is True
 for key in ("candidate_accepted","runner_identity_accepted","native_reuse_identity_accepted","policy_template_accepted"):
     assert lock[key] is True,key
 assert lock["native_binary_rebuild_required"] is False
+assert lock["superseded_candidate_ids"]==[
+    "voidbuye2runnerpolcand6r3_eee91de4d93ea4ab3068621659a8420255772b49f25556f3d93cbd67d3059c0a",
+    "voidbuye2runnerpolcand6r3_7efa1fbe6ea7d457fa8ea0ae59e5b528010957aa914a05b456b8c5443b5c0c6d",
+]
+assert lock["superseded_lock_ids"]==[
+    "voidbuye2runnerpollock6r3_4d55eadc456d48aed2e77df8a4897c0756b173761e7a10b0f1b53b24dd4d50a2",
+    "voidbuye2runnerpollock6r3_00b9bdf79f89a3c16cb1d1330e182bec748da4cf20367c3b50882b6728548202",
+    "voidbuye2runnerpollock6r3_20603b85f690336180fd024c3ae632e01025e511cf893b04055967cdd0a59d67",
+]
 assert lock["superseded_install_authority"] is False
 for key in (
     "protected_install_authorized","live_execution_authorized","credential_access_authorized",
