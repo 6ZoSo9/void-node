@@ -16,18 +16,18 @@ V6R2_LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-l
 
 MARKER="VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3_MAIN_INTEGRATION"
 LOCK_PREFIX="voidbuye2runnerpollock6r3_"
-LOCK_ID="voidbuye2runnerpollock6r3_e65f2b3a34ce06a34bd2cc1e2f91e877fa3c6d67621fd02a191b1aae374a3a21"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_c2d5d08f412be224ad0f05745b5ce3e03dafb5a55d807632ae2b3ec6fb59c6b1"
+LOCK_ID="voidbuye2runnerpollock6r3_7d7410e17650b6112c2f238ea8b59b7510711d8bb4300434ce439332a93aebaf"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_e8fd215f560d8bc0d33f36057967e03a3f3cd6bf90230a776c307e32271c3020"
 EXPECTED={
- CANDIDATE:"6bf1b8ce0cc49a83817453046990895f9ff1ff59",
+ CANDIDATE:"2a20d4eecace7fe01508fbceaa6a137df44c0743",
  CANDIDATE_WORKFLOW:"a0ddc4b6b070b77cc546c5c4beb02fdb3696672c",
- RUNNER:"2f17fd716f266fc1e12144799879d949983cc807",
+ RUNNER:"9e4a87c7f1fda092f16dcd859241cced41960fb8",
  COMPAT_CONTRACT:"daedec8934ae0488c26650920497b1a08b117a25",
- COMPAT_PROOF:"95319ab4ccdf2e637c9d7d949c88aa92cce46c60",
+ COMPAT_PROOF:"ff93b8c84406dfe8762bdc2215f611f9683fcdfa",
  COMPAT_WORKFLOW:"676fc24e89d67d1592e2ab1813b345f0ef1135db",
  V6R2_LOCK:"bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b",
 }
-RUNNER_SHA256="1685536b4717963dc35459695e80f13841e330ed278b88b6a5004134aab2a030"
+RUNNER_SHA256="a98c845855a8774d3a60835dabe2f1ec1c2d2e129134fdfc963f0f8cecfddd27"
 RUNNER_BYTES=82972
 NATIVE_SHA256="85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
@@ -55,17 +55,17 @@ assert lock["version"]==6
 assert lock["repository"]=="6ZoSo9/void-node"
 assert lock["integration_pr"]==3546
 assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
-assert lock["integration_head"]=="613156021f2bea1f14b2ef6f5f281e476138ec70"
-assert lock["integration_tree"]=="e8dab55d99b0a2c6d846221e83825ef595e504b4"
+assert lock["integration_head"]=="bb1cac1c5e4be10a32024251147d5a09418a426c"
+assert lock["integration_tree"]=="eaf33b0ad00f4479dad4ec1e6300a6bce34bd7b0"
 assert lock["stacked_source_head_superseded_for_current_authority"]=="cb8554553dcc97e4abb5a9f8f15a26a487773fb5"
 assert lock["compatibility_hosted_evidence"]=={
  "workflow":"Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1",
- "run_id":39339962805,"job_id":118358769619,"conclusion":"success",
+ "run_id":39343280964,"job_id":118369732520,"conclusion":"success",
 }
 assert lock["candidate_hosted_evidence"]=={
  "workflow":"Buy VOID Epoch-2 live-composition runner policy candidate V6R3",
- "run_id":39339961945,"job_id":118358767699,
- "identity_job_id":118359008105,"conclusion":"success",
+ "run_id":39343280275,"job_id":118369730178,
+ "identity_job_id":118369847695,"conclusion":"success",
 }
 r=lock["candidate_report"]
 assert r["candidate_id"]==CANDIDATE_ID
@@ -100,6 +100,8 @@ for k in ("candidate_accepted","runner_identity_accepted","native_reuse_identity
  assert lock[k] is True
 for k in ("protected_install_authorized","live_execution_authorized","credential_access_authorized","private_key_access_authorized","signing_authorized","transaction_authorized","rpc_call_authorized","payment_acceptance_authorized","public_presale_activation_authorized","wc_void_market_activation_authorized","treasury_liquidity_action_authorized","funds_movement_authorized","production_host_evidence_authority"):
  assert lock[k] is False,k
+assert "voidbuye2runnerpollock6r3_e65f2b3a34ce06a34bd2cc1e2f91e877fa3c6d67621fd02a191b1aae374a3a21" in lock["superseded_lock_ids"]
+assert "voidbuye2runnerpolcand6r3_c2d5d08f412be224ad0f05745b5ce3e03dafb5a55d807632ae2b3ec6fb59c6b1" in lock["superseded_candidate_ids"]
 assert lock["superseded_install_authority"] is False
 assert "voidbuye2runnerpollock6r3_bdd3e0b6fe28f2a6873920cdb1436914183e817c02b4d4ac9da130e3ec14b365" in lock["superseded_lock_ids"]
 assert "voidbuye2runnerpollock6r3_1c5c5b31abd01aa6cf3f080b2cf666980f18a6a2daf22700127fd6d84951f74c" in lock["superseded_lock_ids"]
