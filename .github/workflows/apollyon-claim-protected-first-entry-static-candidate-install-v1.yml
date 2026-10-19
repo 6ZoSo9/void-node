@@ -1,0 +1,244 @@
+name: Apollyon protected first-entry static lock and archive admission v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml"
+      - "docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
+      - ".github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml"
+      - "docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
+      - ".github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml"
+      - "docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_v1.py"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_v1.c"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_v1.h"
+      - "scripts/apollyon_claim_protected_first_entry_v1_selftest.c"
+      - "docs/security/apollyon-claim-protected-first-entry-v1.md"
+      - "ops/xiphos/apollyon_claim_no_exec_lock_v1.c"
+      - "ops/xiphos/apollyon_claim_no_exec_lock_v1.h"
+      - "ops/xiphos/apollyon_claim_self_observed_lock_v1.c"
+      - "ops/xiphos/apollyon_claim_self_observed_lock_v1.h"
+      - "ops/xiphos/apollyon_claim_no_clone_lock_v1.c"
+      - "ops/xiphos/apollyon_claim_no_clone_lock_v1.h"
+      - "ops/xiphos/apollyon_claim_task_singleton_guard_v1.c"
+      - "ops/xiphos/apollyon_claim_task_singleton_guard_v1.h"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml"
+      - "docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
+      - ".github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml"
+      - "docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
+      - ".github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml"
+      - "docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_v1.py"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_v1.c"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_v1.h"
+      - "scripts/apollyon_claim_protected_first_entry_v1_selftest.c"
+      - "docs/security/apollyon-claim-protected-first-entry-v1.md"
+      - "ops/xiphos/apollyon_claim_no_exec_lock_v1.c"
+      - "ops/xiphos/apollyon_claim_no_exec_lock_v1.h"
+      - "ops/xiphos/apollyon_claim_self_observed_lock_v1.c"
+      - "ops/xiphos/apollyon_claim_self_observed_lock_v1.h"
+      - "ops/xiphos/apollyon_claim_no_clone_lock_v1.c"
+      - "ops/xiphos/apollyon_claim_no_clone_lock_v1.h"
+      - "ops/xiphos/apollyon_claim_task_singleton_guard_v1.c"
+      - "ops/xiphos/apollyon_claim_task_singleton_guard_v1.h"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact reviewed source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind flattened lock and archive generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          accepted_parent=e357073c5d7932f924c077a73349e9050dfb78eb
+          review_base=aa0a04644c0c2d43e34c46df7cafc510de04d695
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          git merge-base --is-ancestor "$accepted_parent" "$EXACT_HEAD"
+          git merge-base --is-ancestor "$review_base" "$EXACT_HEAD"
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = 8eab5515fbe844e930aed97db4195b8ef86c42ef
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = ff857fb066b2dce16d7cb1234e16bea42a0af6a4
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = 66978e327037854927ee7811cd15671c148e5968
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml)" = aa2204ba4d358565ebb19f9ccaa5a6eec236140d
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = 4425034fc89bafbf0b9c5e481db0a5ec8f416aeb
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = cba656f693d42bb80b5e28716fd00a6540fdd8c6
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md)" = 99a92b88e1b5c7521241e4a9f69bef01281c8c7c
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 99a1823f4b8349b6f65f210c59e1dbce4a4578f0
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 2f518fb95e4fc6ff55a4a41d60f085a5f9576b60
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = d3c27cbf63249695d45e47b3dc0ff98f75a961bb
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = c4edcf6f9c0c19d5df5c8f325855e472b9ce694c
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-v1.yml)" = 570e74ca063bfc8e508598740118beaeaf3c23a5
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE" = "$review_base"
+              base="$PR_BASE"
+              expected="$RUNNER_TEMP/expected.txt"
+              actual="$RUNNER_TEMP/actual.txt"
+              printf '%s\n' \
+                '.github/workflows/apollyon-claim-no-clone-lock-v1.yml' \
+                '.github/workflows/apollyon-claim-no-exec-lock-v1.yml' \
+                '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
+                '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
+                '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
+                '.github/workflows/apollyon-claim-protected-first-entry-v1.yml' \
+                '.github/workflows/apollyon-claim-self-observed-lock-v1.yml' \
+                '.github/workflows/apollyon-claim-task-singleton-guard-v1.yml' \
+                'docs/security/apollyon-claim-no-clone-lock-v1.md' \
+                'docs/security/apollyon-claim-no-exec-lock-v1.md' \
+                'docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+                'docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
+                'docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
+                'docs/security/apollyon-claim-protected-first-entry-v1.md' \
+                'docs/security/apollyon-claim-self-observed-lock-v1.md' \
+                'docs/security/apollyon-claim-task-singleton-guard-v1.md' \
+                'ops/xiphos/apollyon_claim_no_clone_lock_v1.c' \
+                'ops/xiphos/apollyon_claim_no_clone_lock_v1.h' \
+                'ops/xiphos/apollyon_claim_no_exec_lock_v1.c' \
+                'ops/xiphos/apollyon_claim_no_exec_lock_v1.h' \
+                'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+                'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+                'ops/xiphos/apollyon_claim_protected_first_entry_v1.c' \
+                'ops/xiphos/apollyon_claim_protected_first_entry_v1.h' \
+                'ops/xiphos/apollyon_claim_self_observed_lock_v1.c' \
+                'ops/xiphos/apollyon_claim_self_observed_lock_v1.h' \
+                'ops/xiphos/apollyon_claim_task_singleton_guard_v1.c' \
+                'ops/xiphos/apollyon_claim_task_singleton_guard_v1.h' \
+                'scripts/apollyon_claim_no_clone_lock_v1_selftest.c' \
+                'scripts/apollyon_claim_no_exec_lock_v1_selftest.c' \
+                'scripts/apollyon_claim_protected_first_entry_v1_selftest.c' \
+                'scripts/apollyon_claim_self_observed_lock_v1_selftest.c' \
+                'scripts/apollyon_claim_task_singleton_guard_v1_selftest.c' \
+                'scripts/prove_apollyon_claim_no_clone_lock_v1.py' \
+                'scripts/prove_apollyon_claim_no_exec_lock_v1.py' \
+                'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+                'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+                'scripts/prove_apollyon_claim_protected_first_entry_v1.py' \
+                'scripts/prove_apollyon_claim_self_observed_lock_v1.py' \
+                'scripts/prove_apollyon_claim_task_singleton_guard_v1.py' \
+                | LC_ALL=C sort > "$expected"
+              git diff --no-renames --name-only "$base" "$EXACT_HEAD" -- | LC_ALL=C sort > "$actual"
+              diff -u "$expected" "$actual"
+              ;;
+            push)
+              base="$PUSH_BEFORE"
+              test -n "$base"
+              test "$base" != 0000000000000000000000000000000000000000
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git diff --check "$base" "$EXACT_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Reprove accepted static candidate lock
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py",
+              "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("lock_source_syntax_green=true")
+          PY
+          out="$RUNNER_TEMP/apollyon-static-lock-proof.log"
+          python3 -I -B scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py | tee "$out"
+          grep -Fx 'VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_LOCK_V1_PROOF_GREEN' "$out"
+          grep -Fx 'parent_source_opath_admission=true' "$out"
+          grep -Fx 'historical_parent_workflow_git_object_bound=true' "$out"
+          grep -Fx 'candidate_accepted=true' "$out"
+          grep -Fx 'binary_identity_accepted=true' "$out"
+          grep -Fx 'protected_install_authorized=false' "$out"
+          grep -Fx 'training_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Execute read-only archive admission adversaries
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for path in (
+              "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py",
+              "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py",
+          ):
+              compile(Path(path).read_bytes(), path, "exec")
+          print("source_syntax_green=true")
+          PY
+
+          python3 -I -B ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py --self-test \
+            > "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
+          grep -Fx 'host_installation=false' "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
+          grep -Fx 'training_execution_authorized=false' "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
+          grep -Fx 'descriptor_close_failures_machine_readable=true' "$RUNNER_TEMP/apollyon-install-handoff-self-test.log"
+
+          out="$RUNNER_TEMP/apollyon-install-handoff-proof.log"
+          python3 -I -B scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py > "$out"
+          grep -Fx 'VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1_PROOF_GREEN' "$out"
+          for marker in \
+            'accepted_parent_lock_bound=true' \
+            'descriptor_safe_parent_lock_generation_bound=true' \
+            'archive_held_regular_admission=true' \
+            'archive_visible_replacement_not_data_opened=true' \
+            'parent_held_regular_admission=true' \
+            'parent_visible_replacement_not_data_opened=true' \
+            'parent_dependency_descriptor_custody=true' \
+            'rejected_admission_double_close_fault_safe=true' \
+            'changed_tar_digest_rejected=true' \
+            'wrong_elf_mode_rejected=true' \
+            'archive_not_extracted=true' \
+            'host_installation=false' \
+            'protected_install_authorized=false' \
+            'training_execution_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
