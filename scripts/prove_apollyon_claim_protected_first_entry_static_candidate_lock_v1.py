@@ -14,7 +14,7 @@ TARGET_REL = (
     "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "7462e0e90fa8ec068bd82039c9c07a3359c0d6de"
+TARGET_BLOB = "8eab5515fbe844e930aed97db4195b8ef86c42ef"
 
 EXPECTED_PARENT_HEAD = "bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c"
 EXPECTED_CANDIDATE_ID = (
@@ -491,6 +491,8 @@ for required in (
     '"2f518fb95e4fc6ff55a4a41d60f085a5f9576b60"',
     '"d3c27cbf63249695d45e47b3dc0ff98f75a961bb"',
     '"e4251199373f4290b873d818b5a07447232eb663"',
+    'def historical_parent_blob(relative: str, expected_blob: str) -> str:',
+    'historical_parent_blob(relative, expected)',
     EXPECTED_CANDIDATE_ID.split(":", 1)[1],
     EXPECTED_REPORT_CANONICAL_SHA256,
     EXPECTED_REPORT_RAW_SHA256,
@@ -557,6 +559,7 @@ print("parent_source_symlink_fifo_rejected=true")
 print("parent_source_replacement_race_rejected=true")
 print("parent_source_growth_rejected=true")
 print("parent_source_close_failure_machine_readable=true")
+print("historical_parent_workflow_git_object_bound=true")
 print("historical_parent_candidate_rederived=false")
 print("accepted_parent_evidence_identity_bound=true")
 print("accepted_parent_report_digest_bound=true")
