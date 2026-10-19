@@ -410,6 +410,7 @@ for(const method of ["classify","publish"]){
   const directoryPath="/proc/self/fd/"+String(fd);
   let ownedFd=-1;
   let ownedCloseAttempts=0;
+  let ownedCloseInjected=false;
   fs.openSync=function observedOpen(target,flags,...args){
     const opened=originalOpen.call(fs,target,flags,...args);
     if(String(target)===directoryPath&&typeof flags==="number"&&
@@ -419,7 +420,8 @@ for(const method of ["classify","publish"]){
     return opened;
   };
   fs.closeSync=function injectedOwnedTerminalClose(target){
-    if(target===ownedFd){
+    if(target===ownedFd&&!ownedCloseInjected){
+      ownedCloseInjected=true;
       ownedCloseAttempts+=1;
       const result=originalClose.call(fs,target);
       const fault=new Error("simulated EIO after real terminal owned-directory close");
@@ -464,6 +466,7 @@ for(const method of ["classify","publish"]){
   const originalClose=fs.closeSync;
   let createdFd=-1;
   let createdCloseAttempts=0;
+  let createdCloseInjected=false;
   fs.openSync=function observedCreate(target,flags,...args){
     const opened=originalOpen.call(fs,target,flags,...args);
     if(
@@ -475,7 +478,8 @@ for(const method of ["classify","publish"]){
     return opened;
   };
   fs.closeSync=function injectedCreatedTerminalClose(target){
-    if(target===createdFd){
+    if(target===createdFd&&!createdCloseInjected){
+      createdCloseInjected=true;
       createdCloseAttempts+=1;
       const result=originalClose.call(fs,target);
       const fault=new Error("simulated EIO after real created-record close");
