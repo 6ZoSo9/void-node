@@ -70,21 +70,39 @@ jobs:
               printf '%s\n' \
                 $'A\t.github/workflows/apollyon-claim-no-clone-lock-v1.yml' \
                 $'A\t.github/workflows/apollyon-claim-no-exec-lock-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-protected-first-entry-v1.yml' \
                 $'A\t.github/workflows/apollyon-claim-self-observed-lock-v1.yml' \
                 $'A\tdocs/security/apollyon-claim-no-clone-lock-v1.md' \
                 $'A\tdocs/security/apollyon-claim-no-exec-lock-v1.md' \
+                $'A\tdocs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+                $'A\tdocs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
+                $'A\tdocs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
+                $'A\tdocs/security/apollyon-claim-protected-first-entry-v1.md' \
                 $'A\tdocs/security/apollyon-claim-self-observed-lock-v1.md' \
                 $'A\tops/xiphos/apollyon_claim_no_clone_lock_v1.c' \
                 $'A\tops/xiphos/apollyon_claim_no_clone_lock_v1.h' \
                 $'A\tops/xiphos/apollyon_claim_no_exec_lock_v1.c' \
                 $'A\tops/xiphos/apollyon_claim_no_exec_lock_v1.h' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_v1.c' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_v1.h' \
                 $'A\tops/xiphos/apollyon_claim_self_observed_lock_v1.c' \
                 $'A\tops/xiphos/apollyon_claim_self_observed_lock_v1.h' \
                 $'A\tscripts/apollyon_claim_no_clone_lock_v1_selftest.c' \
                 $'A\tscripts/apollyon_claim_no_exec_lock_v1_selftest.c' \
+                $'A\tscripts/apollyon_claim_protected_first_entry_v1_selftest.c' \
                 $'A\tscripts/apollyon_claim_self_observed_lock_v1_selftest.c' \
                 $'A\tscripts/prove_apollyon_claim_no_clone_lock_v1.py' \
                 $'A\tscripts/prove_apollyon_claim_no_exec_lock_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_protected_first_entry_v1.py' \
                 $'A\tscripts/prove_apollyon_claim_self_observed_lock_v1.py' \
                 | LC_ALL=C sort > "$expected"
               cmp "$expected" "$actual"

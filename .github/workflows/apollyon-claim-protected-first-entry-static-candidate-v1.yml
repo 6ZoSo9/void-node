@@ -70,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           accepted_parent=e357073c5d7932f924c077a73349e9050dfb78eb
-          review_base=5b664b154e551f42446585c7dc7efa6ede778182
+          review_base=491e1a5772a4a2c85e73111814ea1c43692d341d
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$accepted_parent" "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$review_base" "$EXPECTED_HEAD"
@@ -80,24 +80,42 @@ jobs:
             expected="$RUNNER_TEMP/expected.txt"
             actual="$RUNNER_TEMP/actual.txt"
             printf '%s\n' \
-              '.github/workflows/apollyon-claim-protected-first-entry-v1.yml' \
-              '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
-              '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
+              '.github/workflows/apollyon-claim-no-clone-lock-v1.yml' \
+              '.github/workflows/apollyon-claim-no-exec-lock-v1.yml' \
               '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
-              'docs/security/apollyon-claim-protected-first-entry-v1.md' \
-              'docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
-              'docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
+              '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
+              '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
+              '.github/workflows/apollyon-claim-protected-first-entry-v1.yml' \
+              '.github/workflows/apollyon-claim-self-observed-lock-v1.yml' \
+              'docs/security/apollyon-claim-no-clone-lock-v1.md' \
+              'docs/security/apollyon-claim-no-exec-lock-v1.md' \
               'docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+              'docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
+              'docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
+              'docs/security/apollyon-claim-protected-first-entry-v1.md' \
+              'docs/security/apollyon-claim-self-observed-lock-v1.md' \
+              'ops/xiphos/apollyon_claim_no_clone_lock_v1.c' \
+              'ops/xiphos/apollyon_claim_no_clone_lock_v1.h' \
+              'ops/xiphos/apollyon_claim_no_exec_lock_v1.c' \
+              'ops/xiphos/apollyon_claim_no_exec_lock_v1.h' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
               'ops/xiphos/apollyon_claim_protected_first_entry_v1.c' \
               'ops/xiphos/apollyon_claim_protected_first_entry_v1.h' \
-              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
-              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
-              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+              'ops/xiphos/apollyon_claim_self_observed_lock_v1.c' \
+              'ops/xiphos/apollyon_claim_self_observed_lock_v1.h' \
+              'scripts/apollyon_claim_no_clone_lock_v1_selftest.c' \
+              'scripts/apollyon_claim_no_exec_lock_v1_selftest.c' \
               'scripts/apollyon_claim_protected_first_entry_v1_selftest.c' \
-              'scripts/prove_apollyon_claim_protected_first_entry_v1.py' \
-              'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
-              'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+              'scripts/apollyon_claim_self_observed_lock_v1_selftest.c' \
+              'scripts/prove_apollyon_claim_no_clone_lock_v1.py' \
+              'scripts/prove_apollyon_claim_no_exec_lock_v1.py' \
               'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+              'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+              'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+              'scripts/prove_apollyon_claim_protected_first_entry_v1.py' \
+              'scripts/prove_apollyon_claim_self_observed_lock_v1.py' \
               | LC_ALL=C sort > "$expected"
             git diff --no-renames --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | LC_ALL=C sort > "$actual"
             test -s "$actual"
