@@ -4,10 +4,28 @@ Marker: `VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_NATIVE_PEER_GUARD_INTEGRATION_V2`
 
 Status: **pure source/test integration contract; no runtime implementation or host action**.
 
+
+## Current-parent lineage reconciliation
+
+The native guard parent #3300 was merge-forwarded non-force onto current #3291
+while preserving the compiled Linux C primitive byte-identically. This
+integration child must therefore reference the current handoff and native-guard
+proof generation, rather than a historical exact-head certificate. Complete Git
+tree comparison from this child's historical #3300 base to its updated parent
+found 350 changed paths, with zero overlap against the four files owned here.
+
+The integration's source/proof bindings now name the exact #3291 handoff blob
+`3feed7f71fb6941f8feccf393f151fa9e973d7a4`, unchanged native C blob
+`defd863de841a1f1460e10985d1990ba1a382f70`, and current
+native-guard proof blob `45421969be31286f295c0daba6c36a4e4698010e`.
+The integration state machine remains source-only; this rebind is not
+installed process-role qualification, a privileged handoff or claim authority.
+Descendants must prove their own current-parent provenance before promotion.
+
 ## Purpose
 
 Accepted #3291 defines the privileged revalidator / publisher / claim-service
-provenance state machine. Accepted #3300 current generation `cf1181f22657948107c10dd70c28ec652160af32` proves a bounded set of Linux kernel
+provenance state machine. Accepted #3300 current generation `0c2235b5236e435bf41bb5678cc215362b02ba8e` proves a bounded set of Linux kernel
 primitives in a self-test-only native candidate.
 
 This gate binds those two sources without pretending the native self-test is
@@ -16,11 +34,11 @@ already a claim-service implementation or Xiphos host qualification.
 ## Exact inputs
 
 - parent #3291 revalidation-handoff source blob:
-  `5d913eb08d79c76ed926d8b88be05b12f475abd5`;
+  `3feed7f71fb6941f8feccf393f151fa9e973d7a4`;
 - #3300 native peer-guard source blob:
   `defd863de841a1f1460e10985d1990ba1a382f70`;
 - #3300 focused proof blob:
-  `4cf08f60a604496ea7087167f0ef6a744182aad4`.
+  `45421969be31286f295c0daba6c36a4e4698010e`.
 
 The hosted proof recompiles and executes the exact native self-test again.
 
