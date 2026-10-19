@@ -32,7 +32,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "8c9786e8a53fe341691cec28b2238abe6c1a3935",
+    RUNNER_V4: "b64815188b46fbae57881dd63a3d8a33266bde54",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -42,7 +42,7 @@ EXPECTED = {
     LOCK_V2: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
     LOCK_V6: "772945b639d138284fc18cc312f7b9115b10c748",
     PARSER_V4: "223a8acf32f8c7961d61222b83c0db17075f86c6",
-    SEALED_V3: "411272e54ab8599213c29d550fe55e1823da0c8b",
+    SEALED_V3: "f5ae61a95e4bc8f908109cafb38e40807fc7c2e8",
 }
 
 def git_blob(raw: bytes) -> str:
@@ -151,23 +151,21 @@ for required in (
     'canonical_git_dir_worktree_pinned=true',
     'sealed_probe_runtime_release_cwd_required=true',
     'runtime_release_root_custody_required=true',
-    'retained_setpriv_descriptor_execution_required=true',
-    'retained_python_descriptor_execution_required=true',
+    'retained_setpriv_generation_revalidated_path_execution_required=true',
+    'retained_python_generation_revalidated_path_execution_required=true',
     'retained_git_descriptor_execution_required=true',
     'retained_node_descriptor_execution_required=true',
     'root_tool_ancestor_custody_required=true',
     'runtime_uid_effective_tool_nonwritability_required=true',
     'root_tool_terminal_generation_revalidation_required=true',
     "function requireRuntimeUidNonwritable(candidate,label){",
-    'const SEALED_BLOB="411272e54ab8599213c29d550fe55e1823da0c8b";',
+    'const SEALED_BLOB="f5ae61a95e4bc8f908109cafb38e40807fc7c2e8";',
     "function openRetainedTrustedExecutable(file,label){",
     "function runRetainedTrustedExecutable(tool,args,options={}){",
-    'const executable="/proc/self/fd/"+String(tool.fd);',
-    'stdio[tool.fd]=tool.fd;',
-    'const setprivExecutable="/proc/self/fd/"+String(tools.setpriv.fd);',
-    'stdio[tools.setpriv.fd]=tools.setpriv.fd;',
-    'stdio[commandTool.fd]=commandTool.fd;',
-    'const commandExecutable="/proc/self/fd/"+String(commandTool.fd);',
+    'const executable=tool.real;',
+    'const setprivExecutable=tools.setpriv.real;',
+    '"/proc/self/fd/"+String(commandChildFd)',
+    'stdio:["pipe","pipe","pipe","ignore",commandTool.fd]',
 ):
     assert required in runner_v4, required
 
@@ -211,8 +209,8 @@ for mode in ("--self-test", "--plan"):
             "git_lazy_fetch_disabled=true",
             "git_transport_disabled=true",
             "git_prompt_and_askpass_disabled=true",
-            "retained_setpriv_descriptor_execution=true",
-            "retained_python_descriptor_execution=true",
+            "retained_setpriv_generation_revalidated_path_execution=true",
+            "retained_python_generation_revalidated_path_execution=true",
             "retained_git_descriptor_execution=true",
             "retained_node_descriptor_binding_contract=true",
             "trusted_root_tool_path_rebind_rejected=true",
@@ -239,8 +237,8 @@ for mode in ("--self-test", "--plan"):
             "git_prompt_and_askpass_disabled=true",
             "credential_content_access=false",
             "nontransaction_signature=false",
-            "retained_setpriv_descriptor_execution_required=true",
-            "retained_python_descriptor_execution_required=true",
+            "retained_setpriv_generation_revalidated_path_execution_required=true",
+            "retained_python_generation_revalidated_path_execution_required=true",
             "retained_git_descriptor_execution_required=true",
             "retained_node_descriptor_execution_required=true",
         ):
@@ -252,14 +250,14 @@ for required in (
     "function trustedExecutableAncestorCustody(resolved, leaf) {",
     "function revalidateTrustedExecutable(tool) {",
     "function execTrustedExecutable(tool, args, options = {}) {",
-    'const executable = "/proc/self/fd/" + String(tool.fd);',
-    'stdio[tool.fd] = tool.fd;',
+    'const executable = tool.real;',
+    'stdio: ["ignore", "pipe", "ignore"]',
     'const GIT_TOOL = trustedExecutable("/usr/bin/git", "git");',
     'trustedExecutable("/usr/bin/systemctl", "systemctl");',
     "runtime_source_bounded_descriptor_reads_per_census: true",
     "runtime_source_acl_barrier_and_pre_post_census_stable: true",
     "trusted_tool_ancestor_nonwritability_verified: true",
-    "trusted_tool_retained_descriptor_execution: true",
+    "trusted_tool_retained_generation_revalidated_path_execution: true",
     "trusted_tool_generation_revalidated: true",
     "trusted_executable_path_rebind_rejected=true",
     "trusted_executable_writable_ancestor_rejected=true",
@@ -281,8 +279,8 @@ assert sealed_self.returncode == 0, (sealed_self.stdout, sealed_self.stderr)
 assert sealed_self.stderr == "", sealed_self.stderr
 for line in (
     "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SEALED_V3_SELF_TEST_GREEN",
-    "trusted_git_retained_descriptor_execution=true",
-    "trusted_systemctl_retained_descriptor_execution=true",
+    "trusted_git_retained_generation_revalidated_path_execution=true",
+    "trusted_systemctl_retained_generation_revalidated_path_execution=true",
     "trusted_executable_path_rebind_rejected=true",
     "trusted_executable_writable_ancestor_rejected=true",
     "credential_content_read=false",
@@ -373,15 +371,15 @@ print("runner_v4_git_prompt_and_askpass_disabled=true")
 print("runner_v4_canonical_git_dir_worktree_pinned=true")
 print("runner_v4_sealed_probe_runtime_release_cwd=true")
 print("runner_v4_runtime_release_root_custody_required=true")
-print("runner_v4_retained_setpriv_descriptor_execution=true")
-print("runner_v4_retained_python_descriptor_execution=true")
+print("runner_v4_retained_setpriv_generation_revalidated_path_execution=true")
+print("runner_v4_retained_python_generation_revalidated_path_execution=true")
 print("runner_v4_retained_git_descriptor_execution=true")
 print("runner_v4_retained_node_descriptor_binding_contract=true")
 print("runner_v4_trusted_root_tool_rebind_adversary=true")
 print("runner_v4_runtime_uid_effective_tool_nonwritability=true")
 print("sealed_v3_retained_trusted_tools_green=true")
-print("runner_v4_same_fd_retained_exec_bound=true")
-print("sealed_v3_same_fd_retained_exec_bound=true")
+print("runner_v4_acl_sealed_root_path_exec_bound=true")
+print("sealed_v3_acl_sealed_tool_path_exec_bound=true")
 print("retained_target_child_self_fd_exec_bound=true")
 print("sealed_v3_acl_barrier_pre_post_census_semantics=true")
 print("runner_v4_qualifier_closure_git_object_bound=true")
