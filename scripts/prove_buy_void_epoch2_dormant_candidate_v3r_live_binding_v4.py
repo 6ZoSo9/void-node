@@ -12,10 +12,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
 PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
 
-BINDER_BLOB = "f5cf208d8a0c12a72ed885fec286563092d23a0e"
-BINDER_SHA256 = "6ee053d50d99096a6f6617ff8fec6968cb6f1ba8623825c0ae25d3d245ea08a3"
-BINDER_BYTES = 38416
-PREENTRY_BLOB = "afe6dbc8d4e2b80117500ac961e99a0c80a78f60"
+BINDER_BLOB = "c15ad6eb1b8d70e3df5fd802d4de4443f9566ada"
+BINDER_SHA256 = "a35c76d19a92a2d5625b4c67b9235c2972b68f43083297c221fe73b6117b8187"
+BINDER_BYTES = 43225
+PREENTRY_BLOB = "c89955b821f2cce97289c92acbb31160a32d0b5d"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 CANDIDATE_REL = "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
@@ -76,6 +76,9 @@ for forbidden in (
     'void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py',
     'source_runtime_added_path_count:15',
     ');\\n  console.log(',
+    'NEXT_ACTIfunction',
+    'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V3";',
+    '/^voide2livecomp3_',
 ):
     assert forbidden not in binder, forbidden
 
@@ -106,6 +109,15 @@ for required in (
     'source_generation_changed_across_sensitive_sequence',
     'binder_preentry_source_head_not_current',
     'voide2candbind3r4_',
+    'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V4',
+    'AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V4_GREEN_SOURCE_RUNTIME_COMPATIBILITY_EXACT',
+    '/^voide2livecomp4_[0-9a-f]{64}$/u',
+    'source_checkout_head:compatibility.source_head',
+    'source_checkout_tree:compatibility.source_tree',
+    'child_runner_v4_receipt_bound:true',
+    'child_runner_v4_source_checkout_bound:true',
+    'const child=runNativeLive(runtimeHead,before);',
+    'runner_v4_child_source_checkout_drift_rejected=true',
 ):
     assert required in binder, required
 
@@ -118,7 +130,7 @@ for required in (
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4',
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
-    '#define BINDER_BYTES 38416U',
+    '#define BINDER_BYTES 43225U',
     'void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs',
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4',
     '(char*)"--source-head",source_head',
@@ -172,6 +184,9 @@ for mode in ("--self-test", "--plan"):
             "source_runtime_dependency_count=9",
             "source_runtime_complete_dependency_set_bound=true",
             "historical_compat_v3_source_authority=false",
+            "runner_v4_child_receipt_required=true",
+            "runner_v4_child_source_checkout_crosscheck=true",
+            "runner_v4_child_source_checkout_drift_rejected=true",
             "transaction=false",
             "public_presale_activation=false",
             "funds_movement=false",
@@ -190,6 +205,8 @@ for mode in ("--self-test", "--plan"):
             "untracked_paths_enumerated=false",
             "untracked_paths_source_authority=false",
             "historical_compat_v3_source_authority=false",
+            "runner_v4_child_receipt_required=true",
+            "runner_v4_child_source_checkout_crosscheck_required=true",
             "credential_content_access=false",
             "signing=false",
             "transaction=false",
@@ -253,6 +270,9 @@ print("source_runtime_graft_only_ancestry_rejected=true")
 print("source_runtime_dependency_count=9")
 print("source_runtime_complete_dependency_set_bound=true")
 print("historical_compat_v3_source_authority=false")
+print("runner_v4_child_receipt_required=true")
+print("runner_v4_child_source_checkout_crosscheck_bound=true")
+print("runner_v4_child_source_checkout_drift_rejected=true")
 print("native_preentry_binds_exact_binder_bytes=true")
 print("host_execution=false")
 print("credential_access=false")
