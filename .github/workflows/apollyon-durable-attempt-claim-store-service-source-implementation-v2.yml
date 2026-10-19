@@ -121,20 +121,20 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            eaca329759e640a258d015448ca377d5de17aa29
+            2d72a28e9daaeabcab58975a6f362c438c720592
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             445480e625e01e44be8722709d56d5a6541099e2
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            712913aec99d952021797dd40eeb27182bca9a94
+            db0ceaf1913224dd5272ab521633b00210b8969c
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            c7fc8f4c8e58ebb2e162a5b6b1f244bde5b79576
+            4ddf7889788e12fae6193b82af3e71e1a9f313cb
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
             864f90e46510403b30f558f1ccd8719be88f1180
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            db877270d3d0a1b9269ddd9ac820070192b6b382
+            c791265fb7733226e869751211384fa678fb6403
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
@@ -215,6 +215,7 @@ jobs:
             'publisher_input_copy_override_not_invoked=true' \
             'publisher_caller_buffer_intrinsic_slots_no_getters=true' \
             'publisher_and_core_intrinsic_request_bounds_enforced=true' \
+            'publisher_shared_backing_rejected_before_transaction=true' \
             'publisher_later_copy_override_not_invoked=true' \
             'request_size_rejected_before_private_copy=true' \
             'operation_keyset_rejected_before_descriptor_capture=true' \
