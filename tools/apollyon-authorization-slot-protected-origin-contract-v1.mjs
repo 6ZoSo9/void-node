@@ -214,10 +214,7 @@ function contentAddress(prefix,value){
 }
 
 function preflightSlotRecord(input){
-  if(!input||typeof input!=="object"||Array.isArray(input)){
-    fail("apollyon_authorization_slot_origin_v1_slot_invalid");
-  }
-  if(utilTypes.isProxy(input)){
+  if(!input||typeof input!=="object"||utilTypes.isProxy(input)||Array.isArray(input)){
     fail("apollyon_authorization_slot_origin_v1_slot_invalid");
   }
   const proto=Object.getPrototypeOf(input);
@@ -337,10 +334,7 @@ function validateCandidateMaterial(value){
 }
 
 function preflightRequirements(input){
-  if(!input||typeof input!=="object"||Array.isArray(input)){
-    fail("apollyon_authorization_slot_origin_v1_requirements_invalid");
-  }
-  if(utilTypes.isProxy(input)){
+  if(!input||typeof input!=="object"||utilTypes.isProxy(input)||Array.isArray(input)){
     fail("apollyon_authorization_slot_origin_v1_requirements_invalid");
   }
   const proto=Object.getPrototypeOf(input);
@@ -377,10 +371,7 @@ function preflightRequirements(input){
 }
 
 function preflightCandidate(input){
-  if(!input||typeof input!=="object"||Array.isArray(input)){
-    fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
-  }
-  if(utilTypes.isProxy(input)){
+  if(!input||typeof input!=="object"||utilTypes.isProxy(input)||Array.isArray(input)){
     fail("apollyon_authorization_slot_origin_v1_candidate_invalid");
   }
   const proto=Object.getPrototypeOf(input);

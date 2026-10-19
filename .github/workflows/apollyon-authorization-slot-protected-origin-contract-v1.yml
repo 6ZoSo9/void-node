@@ -38,11 +38,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
 
           test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = \
-            04ade367f7fbfa5915b29648ff051f08b56c306d
+            cc168ce3c5db261bb7f929810a39536728ad60da
           test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = \
-            8f7019dfaa111ffc088b367d77a9e3573a40edb3
+            70dac31e912b83c1b8762b9678311a587a8a1c21
           test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = \
-            a355914d13b5c3a656595b2ad5e8c1c9a3701598
+            f5c2cb60d10ad84f4d1538a574485ea115b982f1
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
             93582c324ca85aeff56eb61f82b32f1e4c18dfe9
@@ -90,6 +90,9 @@ jobs:
           grep -Fx 'slot_accessor_rejected_before_read=true' /tmp/apollyon-authorization-slot-origin-proof.txt
           grep -Fx 'candidate_accessor_rejected_before_read=true' /tmp/apollyon-authorization-slot-origin-proof.txt
           grep -Fx 'requirements_accessor_rejected_before_read=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'slot_revoked_proxy_namespaced_rejection=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'candidate_revoked_proxy_namespaced_rejection=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'requirements_revoked_proxy_namespaced_rejection=true' /tmp/apollyon-authorization-slot-origin-proof.txt
           grep -Fx 'regex_coercion_rejected=true' /tmp/apollyon-authorization-slot-origin-proof.txt
           grep -Fx 'activation_capability_issuance_authorized=false' /tmp/apollyon-authorization-slot-origin-proof.txt
           grep -Fx 'activation_capability_issuance_performed=false' /tmp/apollyon-authorization-slot-origin-proof.txt

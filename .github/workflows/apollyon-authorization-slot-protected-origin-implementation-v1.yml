@@ -31,7 +31,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=0aee45290fe2af7b5990d470ca4ecd177bb9429b
+          STACK_PARENT=e496f4391b2b4e9be006695fcd8845669059a48f
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
@@ -46,10 +46,10 @@ jobs:
           git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = eda79f44e924e8577115e0d5b60167c0e078a1d6
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = f35aef220e9374ae800507756b00257d9c5f4883
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 2677d888b0716c197d33e5ae033775dcfcb9ada2
-          test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 04ade367f7fbfa5915b29648ff051f08b56c306d
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 2d8f430450925babeef5c20e643ac65785321fc8
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 511e79b39ee4bce92bef99161a190178d6aec283
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = b7c28fd2feeb01dad10e42711b2ae4c4494be1fe
+          test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = cc168ce3c5db261bb7f929810a39536728ad60da
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = 93582c324ca85aeff56eb61f82b32f1e4c18dfe9
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
 

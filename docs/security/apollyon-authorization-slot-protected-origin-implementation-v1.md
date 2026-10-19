@@ -7,7 +7,7 @@ Status: **source/read-only implementation candidate; complete protected origin r
 ## Parent and scope
 
 Parent: #3526 exact head
-`0aee45290fe2af7b5990d470ca4ecd177bb9429b`.
+`e496f4391b2b4e9be006695fcd8845669059a48f`.
 
 This child implements the fixed protected-slot reader/reread boundary named by
 the #3526 contract. It does not issue an activation capability.
@@ -118,3 +118,8 @@ No protected store, service, capability, training, credential, transaction or
 funds action occurs.
 
 **PROTECT THE CORE.**
+
+
+## Parent error-normalization rebind
+
+This generation is rebound to #3526 `e496f4391b2b4e9be006695fcd8845669059a48f`, whose public slot/candidate/requirements preflights reject active and revoked Proxy inputs through their exact namespaced schema errors before `Array.isArray`. The protected reader semantics in this child are otherwise unchanged; complete protected origin and capability issuance remain false.

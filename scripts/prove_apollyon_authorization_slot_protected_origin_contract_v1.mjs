@@ -23,7 +23,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs";
-const SOURCE_BLOB="04ade367f7fbfa5915b29648ff051f08b56c306d";
+const SOURCE_BLOB="cc168ce3c5db261bb7f929810a39536728ad60da";
 const PARENT_SLOT_BLOB="93582c324ca85aeff56eb61f82b32f1e4c18dfe9";
 const CANONICALIZER_BLOB="f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 const PARENT_SERVICE_CANDIDATE_BLOB=
@@ -56,6 +56,11 @@ function readdressCandidate(value){
 }
 function expectRejected(fn,pattern){
   assert.throws(fn,pattern);
+}
+function revokedProxy(target){
+  const {proxy,revoke}=Proxy.revocable(target,{});
+  revoke();
+  return proxy;
 }
 function reflectionTrapProxy(target){
   let trapCalls=0;
@@ -206,6 +211,14 @@ for(const [key,value] of [
   );
   assert.equal(hostile.trapCalls(),0);
 }
+for(const target of [slotRecord,[]]){
+  expectRejected(
+    ()=>buildApollyonAuthorizationSlotProtectedOriginCandidateV1(
+      revokedProxy(target),
+    ),
+    /slot_invalid/u,
+  );
+}
 
 {
   const bad=oversizedKeySet(slotRecord);
@@ -292,6 +305,14 @@ for(const [key,value] of [
   );
   assert.equal(hostile.trapCalls(),0);
 }
+for(const target of [candidate,[]]){
+  expectRejected(
+    ()=>qualifyApollyonAuthorizationSlotProtectedOriginCandidateV1(
+      revokedProxy(target),
+    ),
+    /candidate_invalid/u,
+  );
+}
 {
   const bad=oversizedKeySet(candidate);
   expectRejectedBeforeOversizedSort(
@@ -308,6 +329,14 @@ for(const [key,value] of [
     /requirements_invalid/u,
   );
   assert.equal(hostile.trapCalls(),0);
+}
+for(const target of [candidate.requirements,[]]){
+  const bad=structuredClone(candidate);
+  bad.requirements=revokedProxy(target);
+  expectRejected(
+    ()=>qualifyApollyonAuthorizationSlotProtectedOriginCandidateV1(bad),
+    /requirements_invalid/u,
+  );
 }
 
 {
@@ -475,6 +504,9 @@ console.log("symbol_keys_rejected=true");
 console.log("slot_proxy_rejected_before_reflection=true");
 console.log("candidate_proxy_rejected_before_reflection=true");
 console.log("requirements_proxy_rejected_before_reflection=true");
+console.log("slot_revoked_proxy_namespaced_rejection=true");
+console.log("candidate_revoked_proxy_namespaced_rejection=true");
+console.log("requirements_revoked_proxy_namespaced_rejection=true");
 console.log("proxy_reflection_traps_not_invoked=true");
 console.log("oversized_keyset_rejected_before_sort=true");
 console.log("embedded_slot_bindings_revalidated=true");

@@ -149,6 +149,9 @@ Hosted proof must establish:
 - unknown non-enumerable properties and symbol keys are rejected;
 - slot, candidate, and nested-requirements Proxy inputs are rejected before reflection with zero trap invocations;
 - oversized top-level key sets are rejected before attacker-controlled key sorting;
+- active and revoked Proxy inputs are rejected by namespaced schema errors before
+  `Array.isArray` or other reflection can leak an engine exception, including
+  slot, candidate and nested requirements inputs;
 - no filesystem, network, child-process, systemd or service implementation exists;
 - claim publication, capability issuance, #3333 consumption, admission, release,
   training, keys, transactions and funds remain false.
