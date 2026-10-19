@@ -149,9 +149,13 @@ child:
 
 Only after that effective-access barrier passes are the existing
 `O_NOFOLLOW|O_NONBLOCK` retained executable leases opened. The descriptors
-remain the execution authority: fd 3 is the exact retained `setpriv`
-generation and fd 4 is the exact retained `systemctl` generation. Both are
-revalidated against their visible paths after the child exits.
+remain the execution authority. `setpriv` is launched from its **parent-visible
+retained descriptor pathname** `/proc/self/fd/<setpriv-parent-fd>`, avoiding
+the non-portable assumption that child fd 3 already exists when the spawn
+executable is resolved. The exact retained `systemctl` descriptor is mapped to
+child fd 4 so the already-running setpriv process can exec `/proc/self/fd/4`
+after dropping identity. Both retained generations are revalidated against their
+visible paths after the child exits.
 
 This closes the named-ACL variant of the executable substitution boundary. A
 runtime-writable executable leaf or ancestor HOLDS before any root
