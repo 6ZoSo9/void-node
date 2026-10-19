@@ -74,13 +74,12 @@ jobs:
         run: |
           set -euo pipefail
           parent=1b60642d980b76c13130d5124d83a22c2c01ec30
-          hardening_parent=f9bef920c66c3499a19b731ddd5827a2d8fab5a0
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
           case "$EVENT_NAME" in
             pull_request)
-              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$hardening_parent"; }
+              test "$PR_BASE" = "$parent"
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
@@ -94,9 +93,6 @@ jobs:
                 'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
                 'tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs' \
                 | LC_ALL=C sort > "$expected"
-              if [ "$PR_BASE" = "$hardening_parent" ]; then
-                printf '%s\n' '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' 'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' 'scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs' 'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' 'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' | LC_ALL=C sort > "$expected"
-              fi
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
               ;;
@@ -121,7 +117,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
             c0609c59d6c96adcdf81ff860b4fb72e2520462d
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            a8602df8900cc880ff783d29116615c391f9bd39
+            5692160d28afac872f6197cf649846f148da708a
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
