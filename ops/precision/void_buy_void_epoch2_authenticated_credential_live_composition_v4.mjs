@@ -46,7 +46,7 @@ const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
 const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
 const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
 const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
-const SEALED_BLOB="8c6bc4f41afd4d98ecfef59ac707de9f826d5e76";
+const SEALED_BLOB="0626f9ef9c4291e35e0b0e471320cb086234a0f6";
 const SEALED_RUNTIME_PREDECESSOR_BLOB=
   "14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
@@ -344,10 +344,10 @@ function closeRetainedTrustedExecutable(tool){
 
 function runRetainedTrustedExecutable(tool,args,options={}){
   revalidateRetainedTrustedExecutable(tool);
-  const childFd=3;
+  const executable="/proc/self/fd/"+String(tool.fd);
   const beforeSpawn=options.beforeSpawn;
   if(typeof beforeSpawn==="function")beforeSpawn();
-  const result=spawnSync("/proc/self/fd/"+String(childFd),args,{
+  const result=spawnSync(executable,args,{
     cwd:options.cwd??ROOT,
     env:options.env??cleanRootEnv(),
     encoding:"utf8",
@@ -604,9 +604,9 @@ function runAsRuntimeUser(command,args,options={}){
     throw new Error("runtime_user_command_not_retained");
   }
   tools.revalidate();
-  const setprivChildFd=3;
   const commandChildFd=4;
-  const result=spawnSync("/proc/self/fd/"+String(setprivChildFd),[
+  const setprivExecutable="/proc/self/fd/"+String(tools.setpriv.fd);
+  const result=spawnSync(setprivExecutable,[
     "--no-new-privs",
     "--reuid="+String(RUNTIME_UID),
     "--regid="+String(RUNTIME_GID),
@@ -1765,7 +1765,7 @@ function selfTest(){
     if(sp.status!==0||String(sp.stderr||"")!==""){
       throw new Error("retained_setpriv_self_test_failed");
     }
-    const gitViaSetpriv=spawnSync("/proc/self/fd/3",[
+    const gitViaSetpriv=spawnSync("/proc/self/fd/"+String(selfSetpriv.fd),[
       "--no-new-privs",
       "/proc/self/fd/4",
       "--version",
