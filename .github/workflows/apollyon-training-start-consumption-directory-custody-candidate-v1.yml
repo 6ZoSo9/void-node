@@ -120,7 +120,7 @@ jobs:
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = f8062b282ef71e6b345e5ea1ffbad138b3694489
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 94e32845336234e36ff0d3771a7d96cdec638ec6
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 5d462ec8afd49312cdce5e60855130010240b59e
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = d11bedeeb5f91e4a977161b3c9d54f675dc7a0e8
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 66b76ea9201f870672c0bc1c3df207b3c95cf68a
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 051209be6307f9b0784aa6c428f0c4d5b202b7f9
 
