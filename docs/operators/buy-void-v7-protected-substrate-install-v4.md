@@ -105,3 +105,23 @@ after publication.
 This prevents an unprivileged stage-name swap from substituting attacker-controlled
 content between staging and create-only publication. No additional host authority is
 granted.
+
+
+## Candidate special-file race repair
+
+The installer accepts externally materialized native and selector candidate paths.
+A regular-file `lstat()` followed by a blocking pathname open can otherwise race:
+the candidate can be replaced by a FIFO or other special file before `open()`,
+causing a plan/apply to hang before the retained-FD identity checks run.
+
+Installer V4 now opens candidate paths with
+`O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK`. Immediately after open and before
+any read, the retained FD must still be a direct regular file, have exactly one
+link, and have the exact accepted byte size. The retained FD generation comparison
+also includes mode and link count before and after the read, and the visible path
+must remain the same exact generation.
+
+The source self-test explicitly proves that regular/single-link/exact-size metadata
+is accepted while FIFO, multi-link, and wrong-size metadata are rejected before
+candidate bytes are consumed. This repair grants no new install/payment/activation
+authority.

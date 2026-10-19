@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="952e59ad3de6892091bc70f5cb1c281f5f5f5526"
+assert gblob(INS)=="3e30b0d4a32ec65456245f1875934bd356d6d75a"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -64,6 +64,12 @@ required=(
     'install_parent_descriptor_generation_changed',
     'install_parent_root_owned_0755_required=true',
     'install_parent_descriptor_identity_required=true',
+    'def candidate_fd_metadata_valid(',
+    'os.O_NOFOLLOW | os.O_NONBLOCK',
+    '_candidate_opened_type_invalid',
+    'candidate_open_nonblocking_required=true',
+    'candidate_retained_fd_regular_single_link_required=true',
+    'candidate_fifo_or_special_file_rejected_before_read=true',
 )
 for needle in required:
     assert needle in src, needle
@@ -105,6 +111,9 @@ cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--self-test"],stdout=subpr
 assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_SELF_TEST_GREEN" in cp.stdout.splitlines()
 assert "immutable_source_release_root_mode_0555_required=true" in cp.stdout.splitlines()
 assert "protected_source_root_mode_0755_required=true" in cp.stdout.splitlines()
+assert "candidate_open_nonblocking_required=true" in cp.stdout.splitlines()
+assert "candidate_retained_fd_regular_single_link_required=true" in cp.stdout.splitlines()
+assert "candidate_fifo_or_special_file_rejected_before_read=true" in cp.stdout.splitlines()
 
 cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--source-plan"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr==""
@@ -140,6 +149,9 @@ print("tree_group_world_write_rejection_preserved=true")
 print("strict_internal_symlink_containment_preserved=true")
 print("install_parent_root_owned_0755_bound=true")
 print("install_parent_descriptor_identity_bound=true")
+print("candidate_open_nonblocking_bound=true")
+print("candidate_retained_fd_regular_single_link_bound=true")
+print("candidate_fifo_or_special_file_rejected_before_read=true")
 print("accepted_native_selector_identity_preserved=true")
 print("create_only_publication_preserved=true")
 print("operation_bound_plan_v4_required=true")

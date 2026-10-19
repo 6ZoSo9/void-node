@@ -294,16 +294,21 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                 raise InstallError("tree_node_kind_invalid:" + relative)
     return h.hexdigest(), nodes, total
 
+def candidate_fd_metadata_valid(mode: int, nlink: int, size: int, expected_bytes: int) -> bool:
+    return stat.S_ISREG(mode) and nlink == 1 and size == expected_bytes
+
 def read_candidate(path: pathlib.Path, expected_sha: str, expected_bytes: int, label: str) -> bytes:
     if not path.is_absolute() or path.resolve(strict=False) != path:
         raise InstallError(label + "_candidate_path_not_normalized_absolute")
     before = path.lstat()
     if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or before.st_nlink != 1 or before.st_size != expected_bytes:
         raise InstallError(label + "_candidate_metadata_invalid")
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         opened = os.fstat(fd)
-        if (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns) != (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns):
+        if not candidate_fd_metadata_valid(opened.st_mode, opened.st_nlink, opened.st_size, expected_bytes):
+            raise InstallError(label + "_candidate_opened_type_invalid")
+        if (opened.st_dev, opened.st_ino, opened.st_mode, opened.st_nlink, opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns) != (before.st_dev, before.st_ino, before.st_mode, before.st_nlink, before.st_size, before.st_mtime_ns, before.st_ctime_ns):
             raise InstallError(label + "_candidate_rebound")
         raw = bytearray()
         while len(raw) < expected_bytes:
@@ -314,9 +319,11 @@ def read_candidate(path: pathlib.Path, expected_sha: str, expected_bytes: int, l
         if os.read(fd, 1):
             raise InstallError(label + "_candidate_grew")
         after, visible = os.fstat(fd), path.lstat()
-        if (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns) != (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns):
+        if not candidate_fd_metadata_valid(after.st_mode, after.st_nlink, after.st_size, expected_bytes):
+            raise InstallError(label + "_candidate_type_changed")
+        if (after.st_dev, after.st_ino, after.st_mode, after.st_nlink, after.st_size, after.st_mtime_ns, after.st_ctime_ns) != (opened.st_dev, opened.st_ino, opened.st_mode, opened.st_nlink, opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns):
             raise InstallError(label + "_candidate_changed")
-        if (visible.st_dev, visible.st_ino, visible.st_size, visible.st_mtime_ns, visible.st_ctime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+        if (visible.st_dev, visible.st_ino, visible.st_mode, visible.st_nlink, visible.st_size, visible.st_mtime_ns, visible.st_ctime_ns) != (after.st_dev, after.st_ino, after.st_mode, after.st_nlink, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
             raise InstallError(label + "_candidate_visible_changed")
     finally:
         os.close(fd)
@@ -574,6 +581,13 @@ def self_test() -> None:
     print("immutable_source_release_root_mode_0555_required=true")
     print("protected_source_root_mode_0755_required=true")
     assert SOURCE_RELEASE_ROOT_MODE == 0o555 and PROTECTED_SOURCE_ROOT_MODE == 0o755
+    assert candidate_fd_metadata_valid(stat.S_IFREG | 0o600, 1, 7, 7)
+    assert not candidate_fd_metadata_valid(stat.S_IFIFO | 0o600, 1, 7, 7)
+    assert not candidate_fd_metadata_valid(stat.S_IFREG | 0o600, 2, 7, 7)
+    assert not candidate_fd_metadata_valid(stat.S_IFREG | 0o600, 1, 8, 7)
+    print("candidate_open_nonblocking_required=true")
+    print("candidate_retained_fd_regular_single_link_required=true")
+    print("candidate_fifo_or_special_file_rejected_before_read=true")
     assert QUALIFIER_REL.endswith("_installed_qualification_v3.py") and len(QUALIFIER_BLOB) == 40
     print("installed_qualifier_v3_bound=true")
     print("partial_publication_truthful=true"); print("no_rollback_after_publication=true")
