@@ -26,12 +26,13 @@ LOCK_V3R = ROOT / "ops/security/buy-void-user-manager-credential-query-elf-lock-
 LOCK_V2 = ROOT / "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
 LOCK_V6 = ROOT / "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
 PARSER_V4 = ROOT / "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
+SEALED_V3 = ROOT / "scripts/void_buy_void_epoch2_credential_attestation_sealed_v3.mjs"
 
 EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "340a0cf0eec589a44f20d44143e353ea25250973",
+    RUNNER_V4: "3686f9211a45276bd53c2731f734e02bb6b7265e",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -41,6 +42,7 @@ EXPECTED = {
     LOCK_V2: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
     LOCK_V6: "772945b639d138284fc18cc312f7b9115b10c748",
     PARSER_V4: "223a8acf32f8c7961d61222b83c0db17075f86c6",
+    SEALED_V3: "8c6bc4f41afd4d98ecfef59ac707de9f826d5e76",
 }
 
 def git_blob(raw: bytes) -> str:
@@ -149,6 +151,13 @@ for required in (
     'canonical_git_dir_worktree_pinned=true',
     'sealed_probe_runtime_release_cwd_required=true',
     'runtime_release_root_custody_required=true',
+    'retained_setpriv_descriptor_execution_required=true',
+    'retained_python_descriptor_execution_required=true',
+    'root_tool_ancestor_custody_required=true',
+    'root_tool_terminal_generation_revalidation_required=true',
+    'const SEALED_BLOB="8c6bc4f41afd4d98ecfef59ac707de9f826d5e76";',
+    "function openRetainedTrustedExecutable(file,label){",
+    "function runRetainedTrustedExecutable(tool,args,options={}){",
 ):
     assert required in runner_v4, required
 
@@ -192,6 +201,10 @@ for mode in ("--self-test", "--plan"):
             "git_lazy_fetch_disabled=true",
             "git_transport_disabled=true",
             "git_prompt_and_askpass_disabled=true",
+            "retained_setpriv_descriptor_execution=true",
+            "retained_python_descriptor_execution=true",
+            "trusted_root_tool_path_rebind_rejected=true",
+            "trusted_root_tool_writable_ancestor_rejected=true",
         ):
             assert line in lines, line
     else:
@@ -213,8 +226,54 @@ for mode in ("--self-test", "--plan"):
             "git_prompt_and_askpass_disabled=true",
             "credential_content_access=false",
             "nontransaction_signature=false",
+            "retained_setpriv_descriptor_execution_required=true",
+            "retained_python_descriptor_execution_required=true",
         ):
             assert line in lines, line
+
+
+sealed_v3 = SEALED_V3.read_text()
+for required in (
+    "function trustedExecutableAncestorCustody(resolved, leaf) {",
+    "function revalidateTrustedExecutable(tool) {",
+    "function execTrustedExecutable(tool, args, options = {}) {",
+    'const GIT_TOOL = trustedExecutable("/usr/bin/git", "git");',
+    'trustedExecutable("/usr/bin/systemctl", "systemctl");',
+    "runtime_source_bounded_descriptor_reads_per_census: true",
+    "runtime_source_acl_barrier_and_pre_post_census_stable: true",
+    "trusted_tool_ancestor_nonwritability_verified: true",
+    "trusted_tool_retained_descriptor_execution: true",
+    "trusted_tool_generation_revalidated: true",
+    "trusted_executable_path_rebind_rejected=true",
+    "trusted_executable_writable_ancestor_rejected=true",
+):
+    assert required in sealed_v3, required
+assert "runtime_source_generation_retained_through_signing: true" not in sealed_v3
+assert "runtime_source_descriptor_reads_bound: true" not in sealed_v3
+sealed_self = subprocess.run(
+    [node, str(SEALED_V3), "--self-test"],
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=30,
+    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LANG": "C", "LC_ALL": "C"},
+)
+assert sealed_self.returncode == 0, (sealed_self.stdout, sealed_self.stderr)
+assert sealed_self.stderr == "", sealed_self.stderr
+for line in (
+    "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SEALED_V3_SELF_TEST_GREEN",
+    "trusted_git_retained_descriptor_execution=true",
+    "trusted_systemctl_retained_descriptor_execution=true",
+    "trusted_executable_path_rebind_rejected=true",
+    "trusted_executable_writable_ancestor_rejected=true",
+    "credential_content_read=false",
+    "signing_performed=false",
+    "transaction_constructed=false",
+    "funds_movement=false",
+):
+    assert line in set(sealed_self.stdout.splitlines()), line
 
 live_native = LIVE_NATIVE.read_text()
 assert "if (strcmp(requested_head, policy.expected_head) != 0)" in live_native
@@ -297,6 +356,11 @@ print("runner_v4_git_prompt_and_askpass_disabled=true")
 print("runner_v4_canonical_git_dir_worktree_pinned=true")
 print("runner_v4_sealed_probe_runtime_release_cwd=true")
 print("runner_v4_runtime_release_root_custody_required=true")
+print("runner_v4_retained_setpriv_descriptor_execution=true")
+print("runner_v4_retained_python_descriptor_execution=true")
+print("runner_v4_trusted_root_tool_rebind_adversary=true")
+print("sealed_v3_retained_trusted_tools_green=true")
+print("sealed_v3_acl_barrier_pre_post_census_semantics=true")
 print("runner_v4_qualifier_closure_git_object_bound=true")
 print("runner_v4_complete_source_runtime_dependency_set_bound=true")
 print("runner_v4_nested_source_runtime_dependency_drift_rejected=true")
