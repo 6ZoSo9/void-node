@@ -1,0 +1,82 @@
+name: VOID Buy VOID V7 materializer v2 install v3
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v7-materializer-v2-install-v3.yml"
+      - "docs/operators/buy-void-v7-materializer-v2-install-v3.md"
+      - "scripts/materialize_buy_void_v7_protected_substrate_v2.py"
+      - "ops/precision/void_buy_void_v7_protected_substrate_install_v3.py"
+      - "scripts/prove_buy_void_v7_materializer_v2_install_v3.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-v7-materializer-v2-install-v3.yml"
+      - "docs/operators/buy-void-v7-materializer-v2-install-v3.md"
+      - "scripts/materialize_buy_void_v7_protected_substrate_v2.py"
+      - "ops/precision/void_buy_void_v7_protected_substrate_install_v3.py"
+      - "scripts/prove_buy_void_v7_materializer_v2_install_v3.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact repair scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            workflow_dispatch) base="fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de" ;;
+            *) exit 1 ;;
+          esac
+          test "$base" = "fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de"
+          git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-v7-materializer-v2-install-v3.yml' \
+            'docs/operators/buy-void-v7-materializer-v2-install-v3.md' \
+            'scripts/materialize_buy_void_v7_protected_substrate_v2.py' \
+            'ops/precision/void_buy_void_v7_protected_substrate_install_v3.py' \
+            'scripts/prove_buy_void_v7_materializer_v2_install_v3.py' \
+            | sort > "$expected"
+          git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+          test "$(git rev-parse HEAD:scripts/materialize_buy_void_v7_protected_substrate_v2.py)" = "e31a97227abaa27b18fc1be321b83f35b707cb90"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v3.py)" = "1fe567bcd67003d0f1affd5cb0d2034f840e1f6e"
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Non-operational source proof
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/materialize_buy_void_v7_protected_substrate_v2.py --self-test
+          python3 -I -B scripts/materialize_buy_void_v7_protected_substrate_v2.py --source-plan
+          python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_install_v3.py --self-test
+          python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_install_v3.py --source-plan
+          python3 -I -B scripts/prove_buy_void_v7_materializer_v2_install_v3.py | tee "$RUNNER_TEMP/proof.log"
+          grep -Fx 'VOID_BUY_VOID_V7_MATERIALIZER_V2_INSTALL_V3_PROOF_GREEN' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'native_strip_forbidden=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'installer_v3_binds_materializer_v2=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'accepted_v1_lock_install_authority=false' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'transaction=false' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/proof.log"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
