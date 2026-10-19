@@ -8,6 +8,14 @@ on:
       - "docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md"
       - ".github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml"
       - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
+      - "scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
+      - "docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md"
+      - ".github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml"
+      - "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
   workflow_dispatch:
 
 permissions:
@@ -34,9 +42,9 @@ jobs:
           git merge-base --is-ancestor ab7864323b8a924e6c9b5b488c228ff32819bc38 "$EXACT_HEAD"
           printf '%s\n' \
             '2d328245a4850f90ee33a15750e3ba9db00515ad ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
-            '03814bcb8e3c14edfbb97cf50436eec6b2e86913 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
-            '1550defa3e6c7fed4fd489db5361e5fd9be9e41f scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
-            '12a3118985c70e16d6b815721aa00da23a80b821 docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+            '2c0f909a9df8df3a24411a52e9ac4196738e03e7 ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            '588b2477d876f46d48c85bae46ce2924b6f6357e scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+            '5f08d00bc3ab32e17f6cceec0e0d7819ef2ac0e4 docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
             | while read -r blob path; do
                 test "$(git hash-object "$path")" = "$blob"
                 test "$(git rev-parse "HEAD:$path")" = "$blob"
@@ -74,10 +82,13 @@ jobs:
             'synthetic_positive_fixture_verified=true' \
             'synthetic_fixture_not_accepted_by_production_lock=true' \
             'parent_failure_machine_readable_hold=true' \
-            'archive_preopen_fifo_swap_rejected_without_blocking=true' \
-            'parent_preopen_fifo_swap_rejected_without_blocking=true' \
+            'archive_held_regular_admission=true' \
+            'archive_visible_replacement_not_data_opened=true' \
+            'parent_held_regular_admission=true' \
+            'parent_visible_replacement_not_data_opened=true' \
             'parent_dependency_descriptor_custody=true' \
-            'parent_dependency_fifo_swap_rejected_without_blocking=true' \
+            'parent_dependency_held_regular_admission=true' \
+            'parent_dependency_visible_replacement_not_data_opened=true' \
             'archive_close_failure_machine_readable_hold=true' \
             'parent_source_close_failure_machine_readable_hold=true' \
             'parent_dependency_close_failure_machine_readable_hold=true' \
