@@ -116,4 +116,3 @@ evidence from its historical Git tree while allowing the current flattened
 candidate workflow to carry a broader CI-only path scope. The accepted candidate
 ID, binary identity, historical artifact digests and negative install/training
 authority are unchanged.
-
