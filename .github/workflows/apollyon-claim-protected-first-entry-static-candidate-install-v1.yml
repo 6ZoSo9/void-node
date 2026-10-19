@@ -85,14 +85,16 @@ jobs:
           EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=e357073c5d7932f924c077a73349e9050dfb78eb
+          accepted_parent=e357073c5d7932f924c077a73349e9050dfb78eb
+          review_base=2df0817b5fc3456c68f32063fb28dda5bdc8ec44
           test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
-          git merge-base --is-ancestor "$parent" "$EXACT_HEAD"
+          git merge-base --is-ancestor "$accepted_parent" "$EXACT_HEAD"
+          git merge-base --is-ancestor "$review_base" "$EXACT_HEAD"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = 8eab5515fbe844e930aed97db4195b8ef86c42ef
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = ff857fb066b2dce16d7cb1234e16bea42a0af6a4
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = 66978e327037854927ee7811cd15671c148e5968
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml)" = bfcf8d3a602f27b2002800804642711b2ae9a5f5
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml)" = 4ed7064c77b341737eff31cac090fd89e12b59c8
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = 4425034fc89bafbf0b9c5e481db0a5ec8f416aeb
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = cba656f693d42bb80b5e28716fd00a6540fdd8c6
@@ -101,24 +103,31 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 99a1823f4b8349b6f65f210c59e1dbce4a4578f0
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 2f518fb95e4fc6ff55a4a41d60f085a5f9576b60
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = d3c27cbf63249695d45e47b3dc0ff98f75a961bb
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = 02a4825ef3d58bb41e7ceb9692f820ae5da83ef3
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = 7cff2326c48190e79402590d708c3296b31892aa
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-v1.yml)" = fc8a073a1c435042ea7dfdb3b16516c200eacbaa
 
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "$parent"
+              test "$PR_BASE" = "$review_base"
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
               printf '%s\n' \
+                '.github/workflows/apollyon-claim-protected-first-entry-v1.yml' \
                 '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
                 '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
                 '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
+                'docs/security/apollyon-claim-protected-first-entry-v1.md' \
                 'docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
                 'docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
                 'docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+                'ops/xiphos/apollyon_claim_protected_first_entry_v1.c' \
+                'ops/xiphos/apollyon_claim_protected_first_entry_v1.h' \
                 'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
                 'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
                 'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                'scripts/apollyon_claim_protected_first_entry_v1_selftest.c' \
+                'scripts/prove_apollyon_claim_protected_first_entry_v1.py' \
                 'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
                 'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
                 'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
