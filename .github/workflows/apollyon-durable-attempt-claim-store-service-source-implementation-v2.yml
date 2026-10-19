@@ -111,20 +111,20 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            07013ab562c3e3cd7093d63f0a4507a6870d22b9
+            e539f089b94cb2245e0267817dd74a37cacf423b
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            c0609c59d6c96adcdf81ff860b4fb72e2520462d
+            e6522fdac3a572aeed3fe62afdfab3dcb1d453d9
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            5692160d28afac872f6197cf649846f148da708a
+            4e80fdd403a9f81f0939d7b7962588aadc57e424
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
             3a46492c841047431f2086f5e8c37a51c20ff2a4
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            4b5e01d53af3458b8ac969a0bf17c4c6353c9ed4
+            7e974c0d05c5e532419bc81005176235d4c9c6db
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
@@ -209,6 +209,11 @@ jobs:
             'generation_nested_graph_rejected_before_clone=true' \
             'authorization_slot_nested_graph_rejected_before_clone=true' \
             'forbidden_native_promises_rejected_without_observation=true' \
+            'trusted_revalidator_callback_source_required=true' \
+            'trusted_revalidator_callback_source_proven=false' \
+            'unhandled_rejected_promise_containment_required=true' \
+            'unhandled_rejected_promise_containment_proven=false' \
+            'unhandled_rejected_promise_requires_host_containment=true' \
             'promise_constructor_getters_not_invoked=true' \
             'revalidator_thrown_values_not_stringified=true' \
             'generation_drift_before_mutation_rejected=true' \
