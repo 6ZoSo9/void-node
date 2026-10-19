@@ -6,18 +6,18 @@ Status: **read-only candidate archive admission**. This source does not install,
 
 ## Exact predecessor
 
-- Candidate acceptance lock: #3494 head `389531f38cf8aa822987fee4e52ccad3758eada0`.
-- Accepted lock source: `ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py`, Git blob `60308199258475936596e38398b00fda553bd5be`.
+- Candidate acceptance lock: #3494 head `ab7864323b8a924e6c9b5b488c228ff32819bc38`.
+- Accepted lock source: `ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py`, Git blob `2d328245a4850f90ee33a15750e3ba9db00515ad`.
 - Historical static candidate derivation: #3482 head `bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c`.
-- Accepted candidate ID: `apollyon_claim_protected_first_entry_static_candidate_v1:2a1fde88ced23606a3e0b6b10bb1205217915b36a0332ee89b5ec81181b32e23`.
+- Accepted candidate ID: `apollyon_claim_protected_first_entry_static_candidate_v1:81613bf7887ef287f6aa7cbb4a1bbe8ed0f180981fb8fe9538f6f0ab122855d9`.
 
-The accepted lock source is read and authenticated as a fixed Git blob, then compiled from exactly those retained bytes under Python isolated startup. Before its derivation or validation runs, this verifier replaces the historical lock module's pathname-reopening `stable_file()` helper with a retained `O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK` descriptor reader that revalidates exact visible/FD generation, Git blob and `HEAD:path` identity. This prevents the immutable parent logic from reintroducing a mutable checkout symlink/FIFO race through its four dependency reads. Parent compilation/derivation/revalidation errors are translated into the machine-readable negative-authority `HOLD=accepted_parent_lock_revalidation_failed` contract. The existing parent derivation and validation still reprove repository ancestry, parent blobs, candidate acceptance, and negative install/training authority. No caller-supplied lock is accepted by the public CLI.
+The accepted lock source is read and authenticated as a fixed Git blob, then compiled from exactly those retained bytes under Python isolated startup. The current #3494 lock already authenticates its dependency files through retained `O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK` descriptors with exact-size/EOF and visible-generation revalidation. This verifier keeps its own equivalent `stable_file()` override as defense-in-depth, so the archive-admission gate still owns and proves the dependency-read boundary independently of later parent refactors. Parent compilation/derivation/revalidation errors are translated into the machine-readable negative-authority `HOLD=accepted_parent_lock_revalidation_failed` contract. The parent derivation and validation still reprove repository ancestry, exact parent blobs, candidate acceptance, and negative install/training authority. No caller-supplied lock is accepted by the public CLI.
 
 ## Archived candidate identity
 
 The one accepted **uncompressed USTAR archive** has SHA-256:
 
-`ca21d9f28b66c408f857ee00480a63585080025a6a76a84efca472e188390944`.
+`89c3edf89d15f9e263d8d8dd603dd7b068a7eb64380c59852e1000e614a0607a`.
 
 It must contain exactly four regular members, with no symlinks, hardlink aliases, directories, extended headers, or extra names:
 
@@ -40,8 +40,8 @@ Binary acceptance requires:
 
 The accepted historical candidate report is also bound to:
 
-- canonical report SHA-256: `8e96b53161b0b5447e5b02499537803ffd680b5f01d6520ec1653fee52c75649`;
-- raw report SHA-256: `dffdd2ce32fcf9dee765f8a6d17b455e100022012c7cd17d9cec1f5d436b484a`.
+- canonical report SHA-256: `6696b52bc43c451af576814d452c827ad89644a14803cab9d24affabb82c189c`;
+- raw report SHA-256: `4bb7a70116da4021a9975f6e8c15c666ba32f5c62d3cedf4a618b22aecf76731`.
 
 No live recompile or dependence on a mutable hosted GCC/readelf image is performed.
 
