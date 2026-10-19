@@ -46,7 +46,7 @@ SUCCESSOR_ID = (
 SUCCESSOR_PROOF_REL = "scripts/prove_buy_void_presale_current_source_enforcement_successor_v1.mjs"
 SUCCESSOR_PROOF_BLOB = "6777b900a61d979355671ebee502c4b7ebb6b5dd"
 SUCCESSOR_WORKFLOW_REL = ".github/workflows/buy-void-presale-current-source-enforcement-successor-v1.yml"
-SUCCESSOR_WORKFLOW_BLOB = "4f2c36b201cb7030c3ed0075400b65e01c8090fb"
+SUCCESSOR_WORKFLOW_BLOB = "8d5d24d60b13b6659d056c15bbd9af36ab696b86"
 
 CANDIDATE_REL = "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
 CANDIDATE_BLOB = "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718"

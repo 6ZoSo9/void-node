@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "scripts/void_buy_void_presale_source_freeze_host_install_qualification_v2.py"
-TARGET_BLOB = "64e6e5733f1f85da342f8c2da9c5e2c5e5e41a09"
+TARGET_BLOB = "289ab127625375d5ddf5a61357d3407ee21be78c"
 CENSUS_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3.py"
 CENSUS_BLOB = "d8ea2966d81e43c273d3692f5778143259431f08"
 CENSUS_PROOF_REL = "scripts/void_buy_void_precision_source_freeze_host_metadata_census_v3_proof.py"
@@ -21,7 +21,7 @@ CENSUS_PROOF_BLOB = "9dd55390b75bb6c6075efb053b0491b23a52fe60"
 CENSUS_DOC_REL = "docs/operators/buy-void-precision-source-freeze-host-metadata-census-v3.md"
 CENSUS_DOC_BLOB = "1e7927cfcace8e5823985bff88bb13a9db6c87cc"
 CENSUS_WORKFLOW_REL = ".github/workflows/buy-void-precision-source-freeze-host-metadata-census-v3.yml"
-CENSUS_WORKFLOW_BLOB = "20106d90410490dc4e82055c871f90654cd5d0b0"
+CENSUS_WORKFLOW_BLOB = "e32f5c58953cb09a43ba151cce2112fdea5f66ce"
 ACCEPTANCE_REL = "ops/security/buy-void-presale-source-freeze-acceptance-v2.json"
 ACCEPTANCE_BLOB = "174d536807f03fd7b6ff44820d4e378c7055150e"
 SUCCESSOR_REL = "ops/security/buy-void-presale-current-source-enforcement-successor-v1.json"
