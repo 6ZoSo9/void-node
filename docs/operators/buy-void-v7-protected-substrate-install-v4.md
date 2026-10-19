@@ -233,12 +233,14 @@ or funds authority.
 The root-capable installer does not read reviewed tree file contents until effective
 runtime-identity non-writability is established.
 
-For each source/protected/staging tree, V4 now uses a two-pass contract:
+For each source/protected/staging tree, V4 now uses a guarded two-pass contract:
 
-1. enumerate and validate metadata only; no regular-file contents are opened;
-2. require effective UID/GID 1000 non-writability of the tree root and every
-   directory that can mutate descendant directory entries;
-3. revalidate the complete metadata generation;
+1. require effective UID/GID 1000 non-writability and generation stability of the
+   tree root before the first directory enumeration;
+2. enumerate metadata only; before any discovered directory is queued for later
+   descent, require that directory to be runtime-nonwritable and generation-stable;
+3. after enumeration, repeat the aggregate directory non-writability and complete
+   metadata-generation checks;
 4. require effective runtime non-writability of every regular file;
 5. revalidate the complete metadata generation again; and
 6. hash regular files only through retained
