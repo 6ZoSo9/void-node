@@ -31,7 +31,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TARGET_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts";
-const TARGET_BLOB = "b151f83cdfa452755a2d750243d92384bb41956c";
+const TARGET_BLOB = "b8e26062111ce5e04ce04de4a318b635f5963118";
 const PARENT_SOURCE_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
 const PARENT_PROOF_REL =
@@ -148,7 +148,7 @@ for (const required of [
   '"--ambient-caps=-all"',
   '"--bounding-set=-all"',
   '"/proc/self/fd/4"',
-  '"/proc/self/fd/3"',
+  'const setprivExecutable = "/proc/self/fd/" + String(setpriv.fd);',
   'stdio: ["ignore", "pipe", "pipe", setpriv.fd, systemctl.fd]',
   "childProcess.spawnSync = patched",
   "childProcess.spawnSync = original",
@@ -507,7 +507,11 @@ try {
   assert.equal(aclArgs[1], "-e");
   assert.equal(aclArgs.includes("/usr/bin/setpriv"), true);
   assert.equal(aclArgs.includes("/usr/bin/systemctl"), true);
-  assert.equal(calls[1]!.command, "/proc/self/fd/3");
+  assert.equal(typeof calls[1]!.command, "string");
+  assert.match(
+    calls[1]!.command as string,
+    /^\/proc\/self\/fd\/[0-9]+$/u,
+  );
   const droppedArgs = calls[1]!.args as string[];
   assert.deepEqual(droppedArgs.slice(0, 8), [
     "--reuid=1000",
@@ -530,6 +534,10 @@ try {
   assert.deepEqual(droppedOptions.stdio.slice(0, 3), ["ignore", "pipe", "pipe"]);
   assert.equal(typeof droppedOptions.stdio[3], "number");
   assert.equal(typeof droppedOptions.stdio[4], "number");
+  assert.equal(
+    calls[1]!.command,
+    "/proc/self/fd/" + String(droppedOptions.stdio[3]),
+  );
   assert.deepEqual(droppedOptions.env, EXPECTED_ENV);
   assert.equal(calls[2]!.command, "/bin/echo");
   assert.deepEqual(calls[2]!.args, ["ok"]);
@@ -585,6 +593,7 @@ console.log("supplementary_groups_cleared=true");
 console.log("no_new_privileges_required=true");
 console.log("inheritable_permitted_effective_bounding_ambient_caps_cleared=true");
 console.log("setpriv_descriptor_execution_required=true");
+console.log("setpriv_parent_visible_fd_execution_required=true");
 console.log("systemctl_descriptor_execution_required=true");
 console.log("runtime_executable_acl_nonwritability_required=true");
 console.log("runtime_executable_acl_audit_uses_current_node_exe=true");
