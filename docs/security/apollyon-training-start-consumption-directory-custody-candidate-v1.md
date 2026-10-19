@@ -128,3 +128,33 @@ uncertainty after a durable publication. This fixture still does not call the
 writer and still cannot prove production directory origin; the pin only ensures
 that any future protected-host bridge is built on the current close-hardened
 source generation.
+
+## Fixture namespace guard (October 19)
+
+The source-only library function is importable, so disabling the CLI's
+`--live-read` option is **not sufficient** to ensure that callers cannot
+inspect arbitrary host paths. Before this repair, any absolute root outside
+the single forbidden production-root prefix passed lexical admission and
+could reach retained-FD traversal if its directory metadata matched.
+The receipt still said `fixture_only=true`, which overstated the path
+admission boundary.
+
+`root_fixture_path()` now permits only synthetic disposable roots under
+`/tmp/apollyon-*/<fixture-root>`. This lexical requirement is enforced
+**before the first open or stat**, and the fixed production root remains
+denied separately. The proof injects a handler that rejects any host FD open,
+then checks unrelated private roots in `/var/tmp`, `/tmp`, `/home` and
+`/opt` all return `fixture_root_outside_disposable_namespace` without
+entering traversal. Ordinary positive and adversarial disposable fixtures
+retain their descriptor checks and negative authority.
+
+A test-like pathname is **not** cryptographic or mount-namespace proof that
+a path is synthetic. A privileged bind mount could still defeat purely
+lexical scoping. Consequently this defense is strictly a source-level
+restriction on the fixture API, not a future installed Xiphos reader, and no
+writer directory descriptor is ever returned. The CLI `--live-read` remains
+unconditionally disabled. Protected origin, current generation, winner,
+claim, terminal, consumption, release, training, credentials and funds
+authority all remain false/unperformed.
+
+**PROTECT THE CORE.**
