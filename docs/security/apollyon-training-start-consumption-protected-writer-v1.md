@@ -177,4 +177,31 @@ and grow a valid regular file at its first read. They require zero visible-path
 data opens, a maximum read request of 64 KiB + 1, and fail-closed rejection.
 
 Current repaired writer blob:
-`2165f85ead2a5997c600520e25274943d21e6704`.
+`d32f1c5761fa5b95f28c2b2edd1253ca9b28f034`.
+
+## October 19 — both existing-slot read descriptors close on uncertainty
+
+The existing-slot reader already admits the visible record through a retained
+`O_PATH` descriptor, then opens a nonblocking, size-bounded data descriptor
+from that held inode. Before this repair, the `finally` block closed the data
+descriptor before the `O_PATH` descriptor. An error from the first
+`closeSync` skipped the second close entirely, potentially accumulating
+retained inode descriptors across rejected reads. A failed close does not
+establish whether the kernel released that FD.
+
+`closeExistingReadFds` now independently attempts both owned descriptor
+closes **once each**, records the first error as the cause, and raises
+`apollyon_training_start_writer_existing_read_close_uncertain` if either
+close fails. No ambiguous close is retried and no positive
+`already_consumed` or `created_durable` result escapes cleanup
+uncertainty.
+
+Disposable tests simulate EIO **after a real kernel close** for the data FD,
+path FD, and both FDs. They check that each close was attempted exactly once,
+that read-only classification and existing-slot publication fail closed,
+that the full FD set is unchanged, and that stored bytes/filenames are
+unchanged. They do not simulate every possible kernel close failure.
+
+This is a source-only resource-ownership repair. Protected directory origin,
+current store/winner/claim admission, consumed-slot publication authority,
+trainer release, training, credentials, keys and funds authority remain false.
