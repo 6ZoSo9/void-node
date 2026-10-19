@@ -141,3 +141,18 @@ This consolidation does not prove protected-store origin, current store
 generation/winner/claim rereads, writer invocation authority, consumption
 publication, trainer release, training, credential/key access, transactions or
 funds movement.
+
+## October 19 — bound to prevalidated protected writer
+
+The historical #3385 revalidation request already snapshots its own
+caller-provided record descriptors before validating or deriving the request.
+The protected *writer* it references has now been hardened to require that
+same inert-data boundary for both direct publish and read-only classify entry
+points, and the exported slot-leaf helper. This child updates the request's
+exact writer Git-blob dependency so the request cannot silently bind an older
+getter-executing writer. The request's content-derived ID naturally changes
+with the pinned writer source; record, path and policy semantics do not.
+
+Composite proof must re-run the hardened writer regressions first, then the
+pure request contract, with exact source Git-blob pins and no granted protected
+host writer/admission/training authority. **PROTECT THE CORE.**
