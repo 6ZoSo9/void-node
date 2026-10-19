@@ -109,8 +109,10 @@ jobs:
                   '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
                   '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
                   '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
+                  'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
                   'docs/security/apollyon-training-start-consumption-protected-writer-v1.md' \
                   'docs/security/apollyon-training-start-store-revalidation-request-v1.md' \
+                  'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
                   'scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs' \
                   'scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs' \
                   'tools/apollyon-training-start-consumption-protected-writer-v1.mjs' \
