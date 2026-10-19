@@ -251,7 +251,7 @@ finally:
 assert calls[0] == 0
 expect_hold(
     lambda: mod.observe_fixture_only(Path("relative")),
-    "fixture_owner_identity_invalid" if False else "fixture_root_must_be_absolute",
+    "fixture_root_must_be_absolute",
 )
 
 # Non-isolated startup may find checkout-local modules. The first source code
