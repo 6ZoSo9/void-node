@@ -109,7 +109,11 @@ jobs:
         run: |
           set -euo pipefail
           node --check ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.mjs
-          python3 -I -B -m py_compile scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.py
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.py")
+          compile(p.read_text(encoding="utf-8"), str(p), "exec")
+          PY
           cc -std=c11 -O2 -Wall -Wextra -Werror -fsyntax-only \
             ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v3.c
 
