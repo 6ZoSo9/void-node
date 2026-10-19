@@ -15,7 +15,7 @@ import errno
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
-SOURCE_BLOB = "8e66a5ad125d89180b6ae4159c22e481db49fdc8"
+SOURCE_BLOB = "03814bcb8e3c14edfbb97cf50436eec6b2e86913"
 
 
 def git_blob(raw: bytes) -> str:
@@ -413,6 +413,8 @@ else:
 
 source = TARGET.read_text(encoding="utf-8")
 for required in (
+    'PARENT_HEAD = "ab7864323b8a924e6c9b5b488c228ff32819bc38"',
+    'PARENT_BLOB = "2d328245a4850f90ee33a15750e3ba9db00515ad"',
     "_require_isolated_python()",
     "def load_accepted_parent_lock()",
     "git_blob(raw) != PARENT_BLOB",
@@ -452,6 +454,7 @@ for forbidden in (
 
 print("VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1_PROOF_GREEN")
 print("accepted_parent_lock_bound=true")
+print("descriptor_safe_parent_lock_generation_bound=true")
 print("parent_failure_machine_readable_hold=true")
 print("archive_preopen_fifo_swap_rejected_without_blocking=true")
 print("parent_preopen_fifo_swap_rejected_without_blocking=true")
