@@ -93,6 +93,7 @@ with tempfile.TemporaryDirectory(prefix="apollyon-lock-parent-read-") as td:
     blob = git_blob(payload)
     module.ROOT = temp_root
     module.git = lambda *args: blob
+    fixture.write_bytes(payload)
 
     opened_flags: list[int] = []
 
