@@ -639,6 +639,9 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
     ):
         raise InstallError("tree_root_metadata_invalid:" + os.fspath(root))
     root_identity = _metadata_identity(rst)
+    _require_runtime_uid_nonwritable([root], "tree_root_pre_descent")
+    if _metadata_identity(root.lstat()) != root_identity:
+        raise InstallError("tree_root_generation_changed_before_descent")
     nodes, total = 0, 0
     records: list[
         tuple[
@@ -667,6 +670,9 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                 raise InstallError("tree_node_writable:" + relative)
             identity = _metadata_identity(st)
             if stat.S_ISDIR(st.st_mode):
+                _require_runtime_uid_nonwritable([child], "tree_directory_pre_descent")
+                if _metadata_identity(child.lstat()) != identity:
+                    raise InstallError("tree_directory_generation_changed_before_descent:" + relative)
                 runtime_directories.append(child)
                 records.append((child, relative, "D", mode, identity, None))
                 pending.append((child, rel / entry.name))
@@ -1049,6 +1055,8 @@ def self_test() -> None:
     print("candidate_retained_fd_regular_single_link_required=true")
     print("candidate_fifo_or_special_file_rejected_before_read=true")
     print("tree_metadata_pass_precedes_acl_audit=true")
+    print("tree_root_acl_audit_precedes_first_scandir=true")
+    print("tree_directory_acl_audit_precedes_descent=true")
     print("tree_directory_acl_audit_precedes_regular_file_reads=true")
     print("tree_regular_acl_audit_precedes_regular_file_reads=true")
     print("tree_regular_descriptor_nofollow_nonblocking_required=true")
