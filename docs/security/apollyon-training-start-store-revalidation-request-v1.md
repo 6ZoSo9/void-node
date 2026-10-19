@@ -160,7 +160,7 @@ host writer/admission/training authority. **PROTECT THE CORE.**
 ## October 19 — bound to held-inode/bounded-read writer
 
 The request is now pinned to writer blob
-`2165f85ead2a5997c600520e25274943d21e6704`. That writer admits an existing
+`d32f1c5761fa5b95f28c2b2edd1253ca9b28f034`. That writer admits an existing
 slot inode with O_PATH before data-open, reopens only the retained inode with
 O_NONBLOCK, and bounds the actual FD read to 64 KiB + 1.
 
@@ -185,3 +185,17 @@ request.
 This consolidation does not prove protected-store origin, current
 winner/store/claim rereads, writer invocation authority, consumption
 publication, trainer release/training, credentials, transactions or funds.
+
+## October 19 — existing-slot dual descriptor close safety
+
+This direct child of the consolidated #3545 writer/request stack retains the
+current flattened #3351 source ancestry and binds the request to the writer
+that attempts both held-inode `O_PATH` and data descriptor closes exactly
+once, even when the first close reports failure. An ambiguous close forces
+a negative HOLD; it cannot return an `already_consumed` success.
+
+The composite workflow re-runs the writer's synthetic post-close EIO
+regressions before requalifying the pure store request, and binds the writer's
+updated exact Git-blob identity. This source-only contract cannot prove
+privileged directory origin, current protected winner/claim/store rereads,
+writer admission, consumption publication, training, signing or funds activity.
