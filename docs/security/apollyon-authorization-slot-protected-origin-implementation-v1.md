@@ -7,7 +7,7 @@ Status: **source/read-only implementation candidate; complete protected origin r
 ## Parent and scope
 
 Parent: #3526 exact head
-`e496f4391b2b4e9be006695fcd8845669059a48f`.
+`7487dd794feb765e6d72b04ea98e23a442800a89`.
 
 This child implements the fixed protected-slot reader/reread boundary named by
 the #3526 contract. It does not issue an activation capability.
@@ -120,6 +120,25 @@ funds action occurs.
 **PROTECT THE CORE.**
 
 
-## Parent error-normalization rebind
+## Current contract-origin parent (October 18, 2026)
+
+The current source-only parent is #3526 at
+`7487dd794feb765e6d72b04ea98e23a442800a89`, with the protected-origin
+contract Git blob `833876baf077b9616d08ee9b13b2657a0818dcc5` and underlying
+authorization-slot source `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`.
+A full untruncated prior/current parent tree comparison yielded 362 changed
+paths and **zero overlap** with this child's four ADD-only files. The accepted
+historical direct parent `e496f4391b2b4e9be006695fcd8845669059a48f`
+remains preserved in first-parent history.
+
+The Python reader changes only those three immutable source-generation pins.
+It retains its fixed root, nonblocking no-follow opens, ACL and path validation,
+descriptor-held rereads, and final visible name and directory generation
+checks. Disposable proofs use the current pins; no Xiphos protected state is
+observed. Parent contract validity, read-only slot shape and stable inode
+observation still do not prove complete claim-service protected origin.
+Activation-capability issuance and training remain forbidden.
+
+## Prior revoked-Proxy error-normalization rebind (historical)
 
 This generation is rebound to #3526 `e496f4391b2b4e9be006695fcd8845669059a48f`, whose public slot/candidate/requirements preflights reject active and revoked Proxy inputs through their exact namespaced schema errors before `Array.isArray`. The protected reader semantics in this child are otherwise unchanged; complete protected origin and capability issuance remain false.

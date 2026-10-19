@@ -23,11 +23,11 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs";
-const SOURCE_BLOB="cc168ce3c5db261bb7f929810a39536728ad60da";
-const PARENT_SLOT_BLOB="93582c324ca85aeff56eb61f82b32f1e4c18dfe9";
+const SOURCE_BLOB="833876baf077b9616d08ee9b13b2657a0818dcc5";
+const PARENT_SLOT_BLOB="c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8";
 const CANONICALIZER_BLOB="f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 const PARENT_SERVICE_CANDIDATE_BLOB=
-  "d67ef39c4cd034844fb0862e180de46ed4cd0c88";
+  "87019ae1245a2054407dd47835b0b7a891d4d9a2";
 
 function read(relative){
   return fs.readFileSync(path.join(ROOT,relative));
@@ -112,7 +112,7 @@ const exact=Object.freeze({
 for(const [relative,expected] of Object.entries(exact)){
   assert.equal(gitBlob(read(relative)),expected,relative);
 }
-assert.equal(PARENT_HEAD,"4e7d433a4141b4a7cad7fb001d0800dccb1b5ec2");
+assert.equal(PARENT_HEAD,"1b60642d980b76c13130d5124d83a22c2c01ec30");
 assert.equal(PARENT_AUTHORIZATION_SLOT_BLOB_SHA1,PARENT_SLOT_BLOB);
 assert.equal(CANONICALIZER_V1_BLOB_SHA1,CANONICALIZER_BLOB);
 

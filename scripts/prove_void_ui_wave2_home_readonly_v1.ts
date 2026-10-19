@@ -159,6 +159,54 @@ for (const marker of [
   }
 }
 
+const clearStart = homeLive.indexOf(
+  "const clearHomeEvidence = (stateLabel, shellMeta) => {"
+);
+const loadingStart = homeLive.indexOf("const setLoading = () => {");
+const errorStart = homeLive.indexOf("const setError = (message) => {");
+const snapshotStart = homeLive.indexOf("const applySnapshot = (snapshot) => {");
+
+if (
+  clearStart < 0 ||
+  loadingStart <= clearStart ||
+  errorStart <= loadingStart ||
+  snapshotStart <= errorStart
+) {
+  fail("Home stale-evidence clearing functions are missing or out of order");
+}
+
+const clearHomeEvidenceText = homeLive.slice(clearStart, loadingStart);
+for (const marker of [
+  "setText('[data-home-void-balance]', '—')",
+  "setText('[data-home-spendable-wc]', '—')",
+  "setText('[data-home-production-wc]', '—')",
+  "setText('[data-home-peers-value]', '—')",
+  "setText('[data-home-head-value]', '—')",
+  "setText('[data-home-mesh-value]', 'HOLD')",
+  "setText('[data-network-context-meta]', shellMeta)",
+  "setText('[data-node-footer-meta]', shellMeta)",
+  "'[data-home-last-updated]'",
+  "headerDot.className = 'status-dot status-dot--warning'",
+]) {
+  if (!clearHomeEvidenceText.includes(marker)) {
+    fail(`Home stale-evidence clear marker missing: ${marker}`);
+  }
+}
+
+const loadingText = homeLive.slice(loadingStart, errorStart);
+if (!loadingText.includes(
+  "clearHomeEvidence('CHECKING', 'Loading fresh state')"
+)) {
+  fail("Home loading state does not clear prior evidence");
+}
+
+const errorText = homeLive.slice(errorStart, snapshotStart);
+if (!errorText.includes(
+  "clearHomeEvidence('UNAVAILABLE', 'Live state unavailable')"
+)) {
+  fail("Home error state does not clear prior evidence");
+}
+
 const fetchCount = homeLive.split("fetch(").length - 1;
 if (fetchCount !== 1) {
   fail(`expected exactly one frontend fetch call, found ${fetchCount}`);
@@ -436,4 +484,5 @@ for (const marker of [
 }
 console.log("home_service_and_mesh_readiness_separated=true");
 console.log("native_p2p_baseline_uses_greater_or_equal=true");
+console.log("home_stale_evidence_cleared_on_load_and_error=true");
 console.log("VOID_UI_WAVE2_HOME_READONLY_V1_GREEN");

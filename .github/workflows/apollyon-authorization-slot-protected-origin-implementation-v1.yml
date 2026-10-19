@@ -31,7 +31,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=e496f4391b2b4e9be006695fcd8845669059a48f
+          STACK_PARENT=7487dd794feb765e6d72b04ea98e23a442800a89
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
@@ -46,11 +46,11 @@ jobs:
           git diff --no-renames --name-only "$STACK_PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 2d8f430450925babeef5c20e643ac65785321fc8
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 511e79b39ee4bce92bef99161a190178d6aec283
-          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = b7c28fd2feeb01dad10e42711b2ae4c4494be1fe
-          test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = cc168ce3c5db261bb7f929810a39536728ad60da
-          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = 93582c324ca85aeff56eb61f82b32f1e4c18dfe9
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = ab484c751014973be91cf4c34e8477bad944ef60
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = e810744155ae50f6c49f509ec84dff3eb99bbdde
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = 260e854bd53314a79b72dfea2e1257b9fe38b128
+          test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 833876baf077b9616d08ee9b13b2657a0818dcc5
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
 
           git diff --check "$STACK_PARENT" "$EXPECTED_HEAD"
