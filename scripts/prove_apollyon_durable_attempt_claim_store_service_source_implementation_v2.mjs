@@ -902,7 +902,7 @@ function requireFixedLeaseHelperCall(executable,args,options){
   const raw=Buffer.from(known.requestBytes);
   let getterCalls=0;
   let callerCopyCalls=0;
-  for(const field of ["length","byteLength"]){
+  for(const field of ["length","byteLength","buffer","constructor"]){
     Object.defineProperty(raw,field,{
       configurable:true,
       get(){getterCalls+=1;assert.fail("caller Buffer "+field+" accessor invoked");},
@@ -924,7 +924,7 @@ function requireFixedLeaseHelperCall(executable,args,options){
   try{
     const bundle=requestBundle(claimRecord(f.generation));
     const supplied=Buffer.from(bundle.requestBytes);
-    for(const field of ["length","byteLength"]){
+    for(const field of ["length","byteLength","buffer","constructor"]){
       Object.defineProperty(supplied,field,{
         configurable:true,
         get(){getterCalls+=1;assert.fail("core caller Buffer "+field+" getter invoked");},
@@ -986,7 +986,7 @@ function requireFixedLeaseHelperCall(executable,args,options){
   // bounds or trick the allocator into allocating a falsely small request.
   const oversized=Buffer.alloc(65537,0x61);
   let getters=0;
-  for(const field of ["length","byteLength"]){
+  for(const field of ["length","byteLength","buffer","constructor"]){
     Object.defineProperty(oversized,field,{
       configurable:true,
       get(){getters+=1;assert.fail("oversized Buffer "+field+" getter invoked");},
