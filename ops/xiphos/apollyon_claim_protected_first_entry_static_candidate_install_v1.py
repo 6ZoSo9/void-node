@@ -100,6 +100,84 @@ def _same_file(a: os.stat_result, b: os.stat_result) -> bool:
     )
 
 
+def _admit_regular_read_fd(
+    path: Path,
+    max_bytes: int,
+    *,
+    metadata_reason: str,
+    unavailable_reason: str,
+    changed_reason: str,
+) -> tuple[int, int, os.stat_result]:
+    """Admit a held regular inode before any data-open can occur."""
+    path_fd = -1
+    data_fd = -1
+    try:
+        before = path.lstat()
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or stat.S_ISLNK(before.st_mode)
+            or before.st_nlink != 1
+            or not 0 < before.st_size <= max_bytes
+        ):
+            hold(metadata_reason)
+        o_path = getattr(os, "O_PATH", None)
+        if o_path is None:
+            hold(unavailable_reason)
+        path_fd = os.open(
+            path,
+            o_path | os.O_CLOEXEC | os.O_NOFOLLOW,
+        )
+        admitted = os.fstat(path_fd)
+        visible = path.lstat()
+        if (
+            not _same_file(before, admitted)
+            or not _same_file(admitted, visible)
+        ):
+            hold(changed_reason)
+        if (
+            not stat.S_ISREG(admitted.st_mode)
+            or stat.S_ISLNK(admitted.st_mode)
+            or admitted.st_nlink != 1
+            or not 0 < admitted.st_size <= max_bytes
+        ):
+            hold(metadata_reason)
+
+        # Reopen only the already-admitted held inode. A replacement at the
+        # original pathname can no longer become the object data-opened here.
+        data_fd = os.open(
+            "/proc/self/fd/" + str(path_fd),
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK,
+        )
+        opened = os.fstat(data_fd)
+        held_after = os.fstat(path_fd)
+        visible_after = path.lstat()
+        if (
+            not _same_file(admitted, held_after)
+            or not _same_file(held_after, opened)
+            or not _same_file(opened, visible_after)
+        ):
+            hold(changed_reason)
+        return path_fd, data_fd, opened
+    except Hold:
+        if data_fd >= 0:
+            _close_fd(data_fd, unavailable_reason)
+        if path_fd >= 0:
+            _close_fd(path_fd, unavailable_reason)
+        raise
+    except OSError as exc:
+        if data_fd >= 0:
+            try:
+                os.close(data_fd)
+            except OSError:
+                pass
+        if path_fd >= 0:
+            try:
+                os.close(path_fd)
+            except OSError:
+                pass
+        raise Hold(unavailable_reason) from exc
+
+
 def _read_parent_dependency_source(
     parent_module: types.ModuleType,
     relative: str,
@@ -115,27 +193,16 @@ def _read_parent_dependency_source(
         hold("accepted_parent_dependency_path_invalid")
     root = Path(parent_module.ROOT)
     path = root / relative
+    path_fd, fd, opened = _admit_regular_read_fd(
+        path,
+        int(parent_module.MAX_SOURCE_BYTES),
+        metadata_reason="accepted_parent_dependency_metadata_invalid",
+        unavailable_reason="accepted_parent_dependency_unavailable",
+        changed_reason="accepted_parent_dependency_changed",
+    )
     try:
-        before = path.lstat()
-        if (
-            not stat.S_ISREG(before.st_mode)
-            or stat.S_ISLNK(before.st_mode)
-            or before.st_nlink != 1
-            or not 0 < before.st_size <= int(parent_module.MAX_SOURCE_BYTES)
-        ):
-            hold("accepted_parent_dependency_metadata_invalid")
-        fd = os.open(
-            path,
-            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
-        )
-    except OSError as exc:
-        raise Hold("accepted_parent_dependency_unavailable") from exc
-    try:
-        opened = os.fstat(fd)
-        if not _same_file(before, opened):
-            hold("accepted_parent_dependency_changed")
         chunks: list[bytes] = []
-        remaining = before.st_size
+        remaining = opened.st_size
         while remaining:
             chunk = os.read(fd, min(65536, remaining))
             if not chunk:
@@ -145,14 +212,16 @@ def _read_parent_dependency_source(
         if os.read(fd, 1) != b"":
             hold("accepted_parent_dependency_grew")
         after = os.fstat(fd)
+        held_after = os.fstat(path_fd)
         visible = path.lstat()
         if (
             not _same_file(opened, after)
-            or not _same_file(after, visible)
+            or not _same_file(after, held_after)
+            or not _same_file(held_after, visible)
         ):
             hold("accepted_parent_dependency_changed")
         raw = b"".join(chunks)
-        if len(raw) != before.st_size or git_blob(raw) != expected_blob:
+        if len(raw) != opened.st_size or git_blob(raw) != expected_blob:
             hold("accepted_parent_dependency_blob_invalid")
         if parent_module.git("rev-parse", "HEAD:" + relative) != expected_blob:
             hold("accepted_parent_dependency_not_exact_head")
@@ -161,36 +230,29 @@ def _read_parent_dependency_source(
         raise Hold("accepted_parent_dependency_read_failed") from exc
     finally:
         _close_fd(fd, "accepted_parent_dependency_close_failed")
+        _close_fd(path_fd, "accepted_parent_dependency_path_close_failed")
 
 
 def load_accepted_parent_lock() -> dict[str, Any]:
     """Execute only verified accepted parent source bytes, never import checkout."""
     target = ROOT / PARENT_REL
+    path_fd, fd, opened = _admit_regular_read_fd(
+        target,
+        MAX_SOURCE_BYTES,
+        metadata_reason="accepted_parent_source_metadata_invalid",
+        unavailable_reason="accepted_parent_source_unavailable",
+        changed_reason="accepted_parent_source_drift",
+    )
     try:
-        before = target.lstat()
-        if (
-            not stat.S_ISREG(before.st_mode)
-            or stat.S_ISLNK(before.st_mode)
-            or before.st_nlink != 1
-            or not 0 < before.st_size <= MAX_SOURCE_BYTES
-        ):
-            hold("accepted_parent_source_metadata_invalid")
-        fd = os.open(
-            target, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
-        )
-    except OSError as exc:
-        raise Hold("accepted_parent_source_unavailable") from exc
-    try:
-        opened = os.fstat(fd)
-        if not _same_file(before, opened):
-            hold("accepted_parent_source_drift")
-        raw = os.read(fd, before.st_size + 1)
+        raw = os.read(fd, opened.st_size + 1)
         after = os.fstat(fd)
+        held_after = os.fstat(path_fd)
         visible = target.lstat()
         if (
-            len(raw) != before.st_size
+            len(raw) != opened.st_size
             or not _same_file(opened, after)
-            or not _same_file(after, visible)
+            or not _same_file(after, held_after)
+            or not _same_file(held_after, visible)
             or git_blob(raw) != PARENT_BLOB
         ):
             hold("accepted_parent_source_drift")
@@ -198,6 +260,7 @@ def load_accepted_parent_lock() -> dict[str, Any]:
         raise Hold("accepted_parent_source_read_failed") from exc
     finally:
         _close_fd(fd, "accepted_parent_source_close_failed")
+        _close_fd(path_fd, "accepted_parent_source_path_close_failed")
 
     # The module is compiled from the exact retained bytes, not reopened by name.
     module = types.ModuleType("accepted_apollyon_first_entry_lock")
@@ -233,26 +296,16 @@ def read_untrusted_tar(path: Path) -> bytes:
     """Bounded, identity-stable, symlink-free read, without writing or extracting."""
     if not path.is_absolute() or Path(os.path.realpath(path)) != path:
         hold("archive_path_not_direct_absolute")
+    path_fd, fd, opened = _admit_regular_read_fd(
+        path,
+        MAX_ARCHIVE_BYTES,
+        metadata_reason="archive_file_metadata_invalid",
+        unavailable_reason="archive_file_unavailable",
+        changed_reason="archive_file_changed",
+    )
     try:
-        before = path.lstat()
-        if (
-            not stat.S_ISREG(before.st_mode)
-            or stat.S_ISLNK(before.st_mode)
-            or before.st_nlink != 1
-            or not 0 < before.st_size <= MAX_ARCHIVE_BYTES
-        ):
-            hold("archive_file_metadata_invalid")
-        fd = os.open(
-            path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
-        )
-    except OSError as exc:
-        raise Hold("archive_file_unavailable") from exc
-    try:
-        opened = os.fstat(fd)
-        if not _same_file(before, opened):
-            hold("archive_file_changed")
         pieces: list[bytes] = []
-        remaining = before.st_size
+        remaining = opened.st_size
         while remaining:
             raw = os.read(fd, min(65536, remaining))
             if not raw:
@@ -260,14 +313,20 @@ def read_untrusted_tar(path: Path) -> bytes:
             pieces.append(raw)
             remaining -= len(raw)
         after = os.fstat(fd)
+        held_after = os.fstat(path_fd)
         visible = path.lstat()
-        if not _same_file(opened, after) or not _same_file(after, visible):
+        if (
+            not _same_file(opened, after)
+            or not _same_file(after, held_after)
+            or not _same_file(held_after, visible)
+        ):
             hold("archive_file_changed")
         return b"".join(pieces)
     except OSError as exc:
         raise Hold("archive_file_read_failed") from exc
     finally:
         _close_fd(fd, "archive_file_close_failed")
+        _close_fd(path_fd, "archive_file_path_close_failed")
 
 
 def verify_archive_bytes(raw: bytes, lock: dict[str, Any]) -> dict[str, Any]:
