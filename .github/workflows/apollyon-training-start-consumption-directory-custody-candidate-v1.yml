@@ -57,12 +57,14 @@ jobs:
           set -euo pipefail
           parent=caf363e7ab1e7de21f6ba44e4eaa8c7cdb5980e1
           stacked_parent=c619a9112a096240b530bc7b626f6c5a23579aad
+          fixture_scope_parent=8ff987b7fe14630107a0a32a1d0831d271a78330
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
           case "$EVENT_NAME" in
             pull_request)
-              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$stacked_parent"; }
+              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$stacked_parent" || \
+                test "$PR_BASE" = "$fixture_scope_parent"; }
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected-usage.txt"
               actual="$RUNNER_TEMP/actual-usage.txt"
@@ -80,7 +82,7 @@ jobs:
                 'tools/apollyon-training-start-consumption-protected-writer-v1.mjs' \
                 'tools/apollyon-training-start-store-revalidation-request-v1.mjs' \
                 | LC_ALL=C sort > "$expected"
-              if [ "$PR_BASE" = "$stacked_parent" ]; then
+              if [ "$PR_BASE" = "$stacked_parent" ] || [ "$PR_BASE" = "$fixture_scope_parent" ]; then
                 printf '%s\n' \
                   '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
                   'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
@@ -106,9 +108,9 @@ jobs:
               ;;
           esac
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 42408e7a65e3565a8a98cb4e23985c3ca76045bc
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 9d29c972331e175306ef216ca9b9b3924a0e5734
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 2ff40dd73dcc91b617f02c81572eed0f8b512565
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = fcc75c61d1f687541d6a208aefd6c6fce17c3225
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = 93b9caf1b044a106da960d425b42a6531960e476
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = d84da2b7a509c4ab9f06765f5e111733e3f1da08
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 66b76ea9201f870672c0bc1c3df207b3c95cf68a
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 051209be6307f9b0784aa6c428f0c4d5b202b7f9
 
@@ -145,6 +147,7 @@ jobs:
             'isolated_python_preimport_guard=true' \
             'live_host_entrypoint_disabled=true' \
             'production_path_not_opened=true' \
+            'non_disposable_fixture_roots_rejected_before_io=true' \
             'protected_store_origin_proven=false' \
             'current_store_generation_revalidation_performed=false' \
             'writer_invocation_authorized=false' \
