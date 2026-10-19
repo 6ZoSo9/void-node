@@ -76,6 +76,10 @@ export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTA
     slot_before_claim_order_implemented:true,
     injected_exclusive_transaction_required:true,
     injected_prepublication_revalidator_required:true,
+    trusted_revalidator_callback_source_required:true,
+    trusted_revalidator_callback_source_proven:false,
+    unhandled_rejected_promise_containment_required:true,
+    unhandled_rejected_promise_containment_proven:false,
     caller_supplied_exclusive_transaction_is_host_proof:false,
     caller_supplied_revalidator_is_host_proof:false,
     native_peer_runtime_integration_present:false,
@@ -898,6 +902,9 @@ function callRevalidator(config,stage,context){
   if(types.isPromise(result)){
     // A Promise is forbidden by this synchronous boundary. Reject it by
     // internal type only; do not attach handlers or trigger species lookup.
+    // This in-process core does NOT contain an already-rejected Promise's
+    // unhandled-rejection outcome. Installed composition must prove callback
+    // provenance and failure-domain containment separately.
     fail("apollyon_claim_store_impl_v2_async_revalidator_forbidden");
   }
   return validateRevalidationReceipt(
