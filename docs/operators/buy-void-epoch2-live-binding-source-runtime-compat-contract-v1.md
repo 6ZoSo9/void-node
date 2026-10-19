@@ -34,7 +34,7 @@ The outer dormant native preentry V2 additionally requires the requested head to
 The repair must preserve two independently authenticated identities:
 
 - **runtime head**: `4c80887...`, used for installed V6R2 policy/native/runner qualification, sealed credential/process evidence, and the credential live-composition sensitive sequence;
-- **source head**: `0ada7fde...`, used for canonical source checkout identity and source/runtime compatibility evidence.
+- **current source head**: observed from local `main` at runtime, required to descend from `4c80887...`, with zero tracked checkout drift and exact runtime/source identity for the credential qualifier and sealed probe.
 
 Required implementation order:
 
@@ -82,11 +82,12 @@ The first required successor is now present in this Draft as:
 This V4 source is **not installed** and grants no live authority. It preserves the existing installed native preentry V3 fixed-path/policy boundary and V3 confirmation token, but replaces the runner's historical single-head checkout requirement with an exact source/runtime compatibility check:
 
 - runtime head is fixed to `4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`;
-- source head is fixed to `0ada7fde0d90c3946b10693f4621cbd690bfcde6`;
-- source tree is fixed to `9e930fba9aacfafb5b163767302786cd7f31c81e`;
-- runtime→source delta must be exactly the reviewed 15 ADD-only paths;
+- runtime head remains fixed to `4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`;
+- current source HEAD/tree are observed from local `main` during the sensitive sequence;
+- current source HEAD must descend from the runtime head using local Git objects only;
 - tracked checkout drift is rejected while unrelated untracked paths remain non-authoritative;
-- credential-qualification and sealed-probe Git blobs must be identical at runtime and source heads;
+- credential-qualification and sealed-probe Git blobs must be identical at runtime and the observed current source head;
+- the observed source compatibility snapshot must remain byte-for-byte stable before/after the sensitive sequence;
 - all live Git observation runs with global/system config disabled, replacement objects disabled, lazy fetch disabled, prompts/askpass disabled, and all Git transports denied; missing objects HOLD locally rather than contacting a remote;
 - the sensitive sequence continues to use the runtime head authenticated by the installed native preentry.
 
@@ -108,3 +109,20 @@ policy identity.
 The workflow also pins `actions/checkout` to the repository-reviewed immutable
 commit and disables persisted checkout credentials. These are CI provenance
 controls only; they grant no live authority.
+
+
+## October 19 self-invalidating-head repair
+
+The first Runner V4 draft compile-bound `SOURCE_HEAD=0ada7fde...`. That was
+correct for the observed Precision baseline but incorrect for an installable
+long-lived runner: merging the source PR would itself advance `main` and make
+that fixed source-head predicate fail.
+
+Current Runner V4 removes fixed current-source HEAD/tree constants. It preserves
+the fixed runtime/policy head and instead requires local source ancestry, clean
+tracked state, exact runtime/current dependency blob equality, disabled Git
+transport/lazy fetch, and a stable source snapshot across the sensitive window.
+
+The earlier Runner V4 candidate/lock generation is superseded by this source
+repair and has no installation authority. Candidate/lock evidence must be
+re-derived from the repaired Runner V4 blob.
