@@ -30,7 +30,7 @@ SOURCE_COMMIT = "05614762b1b4638e05e539fd7d20cbf670e1570b"
 SOURCE_TREE = "4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e"
 
 FREEZE_PROOF_REL = "scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
-FREEZE_PROOF_BLOB = "668eab35bca38b8ed90b1e11f75647f80b677436"
+FREEZE_PROOF_BLOB = "884fa63bf5c2386e6a01beea6265f6d7b9d48a72"
 FREEZE_DOC_REL = "docs/architecture/buy-void-presale-source-freeze-candidate-v2.md"
 FREEZE_DOC_BLOB = "e0862b321d7af50ea1ca06d9c4eb45a462b42446"
 FREEZE_WORKFLOW_REL = ".github/workflows/buy-void-presale-source-freeze-candidate-v2.yml"
