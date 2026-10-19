@@ -111,13 +111,13 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            2569d6f15fd8c1ed059173ba19056979f3be7e23
+            65a11b36cfe7408b7718b6827b260ea52d5048b4
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            294bf048022a39c0bdd737c1901a56ac392dabfe
+            132008baec5d977abf5bfb992d657e53eed763ff
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            6fcd77972c3e1c6aa8304284d75fda84f5062c09
+            4e9ee358f60144abf2479de38db10cf0f49542ae
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
