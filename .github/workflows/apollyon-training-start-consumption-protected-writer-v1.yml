@@ -106,6 +106,7 @@ jobs:
                 | LC_ALL=C sort > "$expected"
               if [ "$PR_BASE" = "8ff987b7fe14630107a0a32a1d0831d271a78330" ]; then
                 printf '%s\n' \
+                  '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
                   '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
                   '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
                   'docs/security/apollyon-training-start-consumption-protected-writer-v1.md' \
