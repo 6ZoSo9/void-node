@@ -63,9 +63,9 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
-    "be9347a157c7e220aa65cf3dad1c8b7781904277",
+    "3edccf081b85d5cf1b2ce84d53d046c82e447593",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-    "473b4148e6bcb755bb8bf7c6af890150a9f43efe",
+    "66b76ea9201f870672c0bc1c3df207b3c95cf68a",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
