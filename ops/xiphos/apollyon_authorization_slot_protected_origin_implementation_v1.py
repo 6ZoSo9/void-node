@@ -15,7 +15,7 @@ from typing import Any
 MARKER = "VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1"
 TARGET_HOST = "Xiphos"
 
-PARENT_HEAD = "7487dd794feb765e6d72b04ea98e23a442800a89"
+PARENT_HEAD = "db8c56d7ebe73e0646355bc6fcb4a5141ef7422f"
 PARENT_CONTRACT_BLOB_SHA1 = "833876baf077b9616d08ee9b13b2657a0818dcc5"
 PARENT_SLOT_BLOB_SHA1 = "c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8"
 CANONICALIZER_V1_BLOB_SHA1 = "f97fafb0148527ae3a954e2752faef8c7fc9e88e"
@@ -72,6 +72,11 @@ READ_FLAGS = (
     os.O_RDONLY
     | getattr(os, "O_CLOEXEC", 0)
     | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_NONBLOCK", 0)
+)
+HELD_READ_FLAGS = (
+    os.O_RDONLY
+    | getattr(os, "O_CLOEXEC", 0)
     | getattr(os, "O_NONBLOCK", 0)
 )
 
@@ -417,85 +422,128 @@ def read_exact_slot(
         before = os.stat(leaf, dir_fd=directory_fd, follow_symlinks=False)
         if stat.S_ISLNK(before.st_mode):
             hold("slot_file_symlink_forbidden")
-        fd = os.open(leaf, READ_FLAGS, dir_fd=directory_fd)
+        o_path = getattr(os, "O_PATH", None)
+        if o_path is None:
+            hold("slot_file_path_descriptor_unavailable")
+        path_fd = os.open(
+            leaf,
+            o_path | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=directory_fd,
+        )
         try:
-            opened = os.fstat(fd)
-            visible = os.stat(leaf, dir_fd=directory_fd, follow_symlinks=False)
-            if identity(before) != identity(opened) or identity(opened) != identity(visible):
-                hold("slot_file_identity_drift")
+            admitted = os.fstat(path_fd)
+            admitted_visible = os.stat(
+                leaf,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+            if (
+                identity(before) != identity(admitted)
+                or identity(admitted) != identity(admitted_visible)
+            ):
+                hold("slot_file_admission_identity_drift")
             require_file(
-                opened,
+                admitted,
                 uid=claim_uid,
                 gid=claim_gid,
                 label="slot_file",
             )
-            require_no_posix_acl(fd, "slot_file")
 
-            first = os.pread(fd, MAX_SLOT_RECORD_BYTES + 1, 0)
-            if len(first) != opened.st_size:
-                hold("slot_file_read_size_drift")
-            record = parse_slot_record(first)
-            if record["authorization_slot_id"] != authorization_slot_id:
-                hold("slot_file_slot_id_mismatch")
+            # Only after the held inode is proven to be the exact regular slot
+            # generation may a data-open occur. /proc/self/fd/<path_fd> names
+            # the retained inode, not whatever now occupies the slot pathname.
+            fd = os.open("/proc/self/fd/" + str(path_fd), HELD_READ_FLAGS)
+            try:
+                opened = os.fstat(fd)
+                path_opened = os.fstat(path_fd)
+                visible = os.stat(
+                    leaf,
+                    dir_fd=directory_fd,
+                    follow_symlinks=False,
+                )
+                if (
+                    identity(admitted) != identity(path_opened)
+                    or identity(path_opened) != identity(opened)
+                    or identity(opened) != identity(visible)
+                ):
+                    hold("slot_file_identity_drift")
+                require_file(
+                    opened,
+                    uid=claim_uid,
+                    gid=claim_gid,
+                    label="slot_file",
+                )
+                require_no_posix_acl(fd, "slot_file")
 
-            opened_after = os.fstat(fd)
-            visible_after = os.stat(
-                leaf,
-                dir_fd=directory_fd,
-                follow_symlinks=False,
-            )
-            directory_after = os.fstat(directory_fd)
-            directory_visible_after = os.stat(
-                SLOT_DIRECTORY_LEAF,
-                dir_fd=root_fd,
-                follow_symlinks=False,
-            )
-            root_after = os.fstat(root_fd)
-            if (
-                identity(opened) != identity(opened_after)
-                or identity(opened_after) != identity(visible_after)
-                or identity(directory_opened) != identity(directory_after)
-                or identity(directory_after) != identity(directory_visible_after)
-                or identity(root_stamp) != identity(root_after)
-            ):
-                hold("protected_slot_generation_changed")
+                first = os.pread(fd, MAX_SLOT_RECORD_BYTES + 1, 0)
+                if len(first) != opened.st_size:
+                    hold("slot_file_read_size_drift")
+                record = parse_slot_record(first)
+                if record["authorization_slot_id"] != authorization_slot_id:
+                    hold("slot_file_slot_id_mismatch")
 
-            second = os.pread(fd, MAX_SLOT_RECORD_BYTES + 1, 0)
-            if second != first:
-                hold("slot_file_reread_mismatch")
+                opened_after = os.fstat(fd)
+                visible_after = os.stat(
+                    leaf,
+                    dir_fd=directory_fd,
+                    follow_symlinks=False,
+                )
+                directory_after = os.fstat(directory_fd)
+                directory_visible_after = os.stat(
+                    SLOT_DIRECTORY_LEAF,
+                    dir_fd=root_fd,
+                    follow_symlinks=False,
+                )
+                root_after = os.fstat(root_fd)
+                if (
+                    identity(admitted) != identity(os.fstat(path_fd))
+                    or identity(opened) != identity(opened_after)
+                    or identity(opened_after) != identity(visible_after)
+                    or identity(directory_opened) != identity(directory_after)
+                    or identity(directory_after) != identity(directory_visible_after)
+                    or identity(root_stamp) != identity(root_after)
+                ):
+                    hold("protected_slot_generation_changed")
 
-            final_fd = os.fstat(fd)
-            final_visible = os.stat(
-                leaf,
-                dir_fd=directory_fd,
-                follow_symlinks=False,
-            )
-            final_directory = os.fstat(directory_fd)
-            final_directory_visible = os.stat(
-                SLOT_DIRECTORY_LEAF,
-                dir_fd=root_fd,
-                follow_symlinks=False,
-            )
-            final_root = os.fstat(root_fd)
-            if (
-                identity(opened) != identity(final_fd)
-                or identity(final_fd) != identity(final_visible)
-                or identity(directory_opened) != identity(final_directory)
-                or identity(final_directory) != identity(final_directory_visible)
-                or identity(root_stamp) != identity(final_root)
-            ):
-                hold("protected_slot_generation_changed_after_reread")
+                second = os.pread(fd, MAX_SLOT_RECORD_BYTES + 1, 0)
+                if second != first:
+                    hold("slot_file_reread_mismatch")
 
-            return {
-                "record": record,
-                "record_sha256": sha256(first),
-                "slot_directory_identity": identity_receipt(directory_opened),
-                "slot_file_identity": identity_receipt(opened),
-                "slot_file_leaf": leaf,
-                "canonical_bytes": first,
-            }
+                final_fd = os.fstat(fd)
+                final_visible = os.stat(
+                    leaf,
+                    dir_fd=directory_fd,
+                    follow_symlinks=False,
+                )
+                final_directory = os.fstat(directory_fd)
+                final_directory_visible = os.stat(
+                    SLOT_DIRECTORY_LEAF,
+                    dir_fd=root_fd,
+                    follow_symlinks=False,
+                )
+                final_root = os.fstat(root_fd)
+                if (
+                    identity(admitted) != identity(os.fstat(path_fd))
+                    or identity(opened) != identity(final_fd)
+                    or identity(final_fd) != identity(final_visible)
+                    or identity(directory_opened) != identity(final_directory)
+                    or identity(final_directory) != identity(final_directory_visible)
+                    or identity(root_stamp) != identity(final_root)
+                ):
+                    hold("protected_slot_generation_changed_after_reread")
+
+                return {
+                    "record": record,
+                    "record_sha256": sha256(first),
+                    "slot_directory_identity": identity_receipt(directory_opened),
+                    "slot_file_identity": identity_receipt(opened),
+                    "slot_file_leaf": leaf,
+                    "canonical_bytes": first,
+                }
+            finally:
+                os.close(fd)
         finally:
-            os.close(fd)
+            os.close(path_fd)
     finally:
         os.close(directory_fd)
 
@@ -662,6 +710,8 @@ def self_test() -> None:
     print("fixed_authorization_slot_directory=true")
     print("descriptor_relative_slot_read_implemented=true")
     print("slot_leaf_nonblocking_nofollow_open=true")
+    print("slot_leaf_opath_admission_required=true")
+    print("slot_data_open_from_held_regular_inode=true")
     print("final_visible_generation_revalidation_required=true")
     print("visible_slot_directory_revalidation_required=true")
     print("host_io_errors_normalized_to_hold=true")
