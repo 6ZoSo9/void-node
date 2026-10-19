@@ -32,7 +32,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "fb5e4ac3be007671154bd7349dabf63698750788",
+    RUNNER_V4: "2ab17b76af8e1d545e4bf48d6383c29d5f815d38",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -206,7 +206,7 @@ for mode in ("--self-test", "--plan"):
             "retained_setpriv_descriptor_execution=true",
             "retained_python_descriptor_execution=true",
             "retained_git_descriptor_execution=true",
-            "retained_node_descriptor_execution=true",
+            "retained_node_descriptor_binding_contract=true",
             "trusted_root_tool_path_rebind_rejected=true",
             "trusted_root_tool_writable_ancestor_rejected=true",
         ):
@@ -365,7 +365,7 @@ print("runner_v4_runtime_release_root_custody_required=true")
 print("runner_v4_retained_setpriv_descriptor_execution=true")
 print("runner_v4_retained_python_descriptor_execution=true")
 print("runner_v4_retained_git_descriptor_execution=true")
-print("runner_v4_retained_node_descriptor_execution=true")
+print("runner_v4_retained_node_descriptor_binding_contract=true")
 print("runner_v4_trusted_root_tool_rebind_adversary=true")
 print("sealed_v3_retained_trusted_tools_green=true")
 print("sealed_v3_acl_barrier_pre_post_census_semantics=true")
