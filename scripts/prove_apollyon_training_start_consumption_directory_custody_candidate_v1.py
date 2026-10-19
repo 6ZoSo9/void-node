@@ -250,7 +250,7 @@ finally:
     mod.os.open = real_open
 assert calls[0] == 0
 expect_hold(
-    lambda: mod.observe_fixture_only(Path("relative")),
+    lambda: mod.observe_fixture_only(Path("relative"), uid=uid, gid=gid),
     "fixture_root_must_be_absolute",
 )
 
