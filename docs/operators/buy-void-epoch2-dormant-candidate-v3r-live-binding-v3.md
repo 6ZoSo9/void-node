@@ -94,10 +94,10 @@ The V3 native preentry preserves the V2 native-first boundary and additionally:
 The V3 preentry binds exact V3 binder identity:
 
 - Git blob:
-  `bf45a1d4aea6c788d9baa5e481491aedab621e38`;
-- bytes: `39086`;
+  `f33a670181d7b6a870a8fecefa76b9ec10a769db`;
+- bytes: `39250`;
 - SHA-256:
-  `ed493ca65805f5e6549569a2d02d4e3d7e7178436c6a266fc89cceea69b1d30f`.
+  `717c413afffd51ade4ac690f73e19f3f824c805142f4438b15f1e35009945bef`.
 
 The sensitive failure-truth boundary is preserved. Before binder-source release,
 credential/private-key/signing authority is false. After release begins, a
@@ -111,7 +111,10 @@ The V3 binder no longer executes the historical installed qualifier directly
 against the source HEAD.
 
 A future protected V3 installation must place the exact compatibility V3/V2/V1
-sources in the V3 protected root. The binder descriptor-loads the V3 source,
+sources under the nested protected subtree
+`compat/ops/precision/` inside the V3 root. That depth is required so the V3
+Python import-isolation guard never collapses its materialized source root to
+`/`. The binder descriptor-loads the V3 source,
 requires exact byte count and Git blob, and executes those verified bytes under
 isolated Python.
 
@@ -130,6 +133,7 @@ That V3 source independently binds exact V2 and V1 dependencies and requires:
 - source tree `9e930fba...`;
 - exactly fifteen reviewed ADD-only source paths;
 - current tracked source and index authenticity;
+- unrelated untracked paths are not enumerated and are not source authority;
 - runtime/source equality for every delegated installed-runtime dependency;
 - no canonical checkout rewind or mutation;
 - no installed-policy mutation.
