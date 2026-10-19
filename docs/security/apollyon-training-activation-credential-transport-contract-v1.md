@@ -4,6 +4,19 @@ Marker: `VOID_APOLLYON_TRAINING_ACTIVATION_CREDENTIAL_TRANSPORT_CONTRACT_V1`
 
 Status: **source/test/CI only**. No protected capability issuance, bearer-secret delivery, installed service alteration, training start, or protected consumption.
 
+## Flattened capability + transport PR generation
+
+This PR now directly targets the current retired-activation parent #3480 at
+`d00ca0141db62d752be7ddc6e7d9618e0475d897`. Its parent-relative source
+scope is the complete eight-file activation layer: the four capability-contract
+files plus the four transport-contract files.
+
+The focused workflow re-proves the capability contract before the transport
+contract and watches the capability runtime-dependency paths that previously
+belonged to the separate #3525 workflow. This consolidation changes review
+stacking only; the capability remains unissued and the transport remains
+non-authoritative.
+
 ## Purpose
 
 Accepted #3480 removes all reviewed Apollyon training-service activation paths. Accepted #3525 defines an *unissued* capability candidate bound to the existing #3333 authorization-wide training-start slot. This child freezes what a **future** protected per-invocation bearer-delivery channel must prove before an activation system may be considered.
