@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="e539f089b94cb2245e0267817dd74a37cacf423b";
+const TARGET_BLOB="4a1d9de919d683374ed4ac10bf6557e0a50835bd";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
@@ -279,7 +279,9 @@ for(const required of [
   "fs.linkSync(pendingPath,finalPath)",
   "apollyon_claim_store_impl_v2_orphan_claim_without_slot",
   "MAX_PUBLISH_REQUEST_BYTES=65536",
-  "input.length>MAX_PUBLISH_REQUEST_BYTES",
+  "length>MAX_PUBLISH_REQUEST_BYTES",
+  "BYTE_LENGTH_GETTER",
+  "SET_TYPED_ARRAY",
   "function exactPrimitiveRecordInput",
   "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_KEYS_V1",
   '"before_slot_publication"',
@@ -886,6 +888,91 @@ function requireFixedLeaseHelperCall(executable,args,options){
     assert.equal(sha256(forward.exact_request_bytes),expectedSha);
   }finally{Buffer.prototype.copy=originalPrototypeCopy;}
   assert.equal(laterPrototypeCopyCalls,0);
+}
+
+
+{
+  // Even a real, non-Proxy Buffer can define hostile *own* length getters.
+  // Both public entrypoints must use TypedArray internal slots, not those
+  // getters or the caller's Buffer.copy override, before snapshotting bytes.
+  const known=requestBundle(claimRecord(generationRecord("a".repeat(64))));
+  const raw=Buffer.from(known.requestBytes);
+  let getterCalls=0;
+  let callerCopyCalls=0;
+  for(const field of ["length","byteLength"]){
+    Object.defineProperty(raw,field,{
+      configurable:true,
+      get(){getterCalls+=1;assert.fail("caller Buffer "+field+" accessor invoked");},
+    });
+  }
+  raw.copy=function hostileCopy(){
+    callerCopyCalls+=1;
+    assert.fail("caller Buffer.copy override invoked");
+  };
+  const forward=prepareApollyonDurableAttemptClaimPublisherForwardV2(raw);
+  assert.equal(
+    forward.exact_request_bytes.toString("hex"),
+    known.requestBytes.toString("hex"),
+  );
+  assert.equal(getterCalls,0);
+  assert.equal(callerCopyCalls,0);
+
+  const f=fixture();
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const supplied=Buffer.from(bundle.requestBytes);
+    for(const field of ["length","byteLength"]){
+      Object.defineProperty(supplied,field,{
+        configurable:true,
+        get(){getterCalls+=1;assert.fail("core caller Buffer "+field+" getter invoked");},
+      });
+    }
+    supplied.copy=function hostileCoreCopy(){
+      callerCopyCalls+=1;assert.fail("core caller Buffer.copy override invoked");
+    };
+    const created=f.core.publishClaim({
+      ...publishInput(bundle,f.generation),
+      request_bytes:supplied,
+    });
+    assert.equal(created.success_response.durability_proven,true);
+    assert.equal(created.success_response.outcome,"created_durable");
+    assert.equal(f.txCount(),1);
+    assert.equal(f.releaseCount(),1);
+    assert.equal(getterCalls,0);
+    assert.equal(callerCopyCalls,0);
+  }finally{f.cleanup();}
+}
+
+{
+  // A caller-defined tiny apparent length cannot defeat intrinsic upper
+  // bounds or trick the allocator into allocating a falsely small request.
+  const oversized=Buffer.alloc(65537,0x61);
+  let getters=0;
+  for(const field of ["length","byteLength"]){
+    Object.defineProperty(oversized,field,{
+      configurable:true,
+      get(){getters+=1;assert.fail("oversized Buffer "+field+" getter invoked");},
+    });
+  }
+  expectError(
+    ()=>prepareApollyonDurableAttemptClaimPublisherForwardV2(oversized),
+    "apollyon_claim_store_impl_v2_publisher_input_invalid",
+  );
+  const f=fixture();
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const before=storeSnapshot(f.root);
+    expectError(
+      ()=>f.core.publishClaim({
+        ...publishInput(bundle,f.generation),
+        request_bytes:oversized,
+      }),
+      "apollyon_claim_store_impl_v2_request_bytes_invalid",
+    );
+    assert.equal(f.txCount(),0,"intrinsically oversized bytes must fail before transaction lease");
+    assert.deepEqual(storeSnapshot(f.root),before);
+    assert.equal(getters,0);
+  }finally{f.cleanup();}
 }
 
 {
@@ -2565,6 +2652,42 @@ for(const kind of ["slot","claim"]){
 }
 
 {
+  // Async/generator declarations are categorically incompatible with the
+  // synchronous transaction-lease and revalidator provider contract.
+  const f=fixture();
+  const before=storeSnapshot(f.root);
+  const originalStat=fs.fstatSync;
+  let calls=0;
+  let statCalls=0;
+  try{
+    const candidates=[
+      async function rejectedAsyncProvider(){calls+=1;return Promise.reject(Error("should not run"));},
+      function* rejectedGeneratorProvider(){calls+=1;yield 1;},
+      async function* rejectedAsyncGeneratorProvider(){calls+=1;yield 1;},
+    ];
+    fs.fstatSync=(...args)=>{statCalls+=1;return originalStat(...args);};
+    for(const key of ["acquireExclusiveStoreTransaction","revalidate"]){
+      for(const provider of candidates){
+        expectError(
+          ()=>createApollyonDurableAttemptClaimStoreServiceCoreV2({
+            ...f.config,[key]:provider,
+          }),
+          "apollyon_claim_store_impl_v2_config_invalid",
+        );
+      }
+    }
+    assert.equal(calls,0,"declared async or generator provider must never run");
+    assert.equal(statCalls,0,"declared async providers rejected before store metadata IO");
+    assert.equal(f.txCount(),0,"declared async providers cannot acquire any lease");
+    assert.equal(f.releaseCount(),0);
+  }finally{fs.fstatSync=originalStat;}
+  try{
+    assert.deepEqual(storeSnapshot(f.root),before,"invalid providers cannot modify store");
+    requireStoreUnchanged(f);
+  }finally{f.cleanup();}
+}
+
+{
   const f=fixture();
   const originalStat=fs.fstatSync;
   let coercions=0;
@@ -3112,6 +3235,8 @@ console.log("primary_failure_preserved_with_all_cleanup_diagnostics=true");
 console.log("descriptor_close_failures_are_not_retried=true");
 console.log("publisher_forward_private_bytes_survive_all_mutation=true");
 console.log("publisher_input_copy_override_not_invoked=true");
+console.log("publisher_caller_buffer_intrinsic_slots_no_getters=true");
+console.log("publisher_and_core_intrinsic_request_bounds_enforced=true");
 console.log("publisher_later_copy_override_not_invoked=true");
 console.log("request_size_rejected_before_private_copy=true");
 console.log("operation_keyset_rejected_before_descriptor_capture=true");
@@ -3128,6 +3253,7 @@ console.log("revalidator_thrown_values_not_stringified=true");
 console.log("generation_drift_before_mutation_rejected=true");
 console.log("orphan_claim_without_slot_rejected=true");
 console.log("async_revalidator_rejected_before_mutation=true");
+console.log("declared_async_generator_providers_rejected_before_root_io=true");
 console.log("revalidation_receipt_accessors_then_getters_and_proxy_traps_never_invoked=true");
 console.log("bounded_generation_strings_rejected_before_transaction_lease=true");
 console.log("async_transaction_acquisition_rejected_before_core_mutation=true");
