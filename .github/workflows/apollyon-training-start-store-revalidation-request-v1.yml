@@ -1,5 +1,6 @@
 name: Apollyon training-start protected store revalidation request v1
 
+# Flattened direct-base qualification under #3548; source semantics unchanged.
 on:
   pull_request:
     paths:
