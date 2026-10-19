@@ -15,20 +15,23 @@ import {
   PARENT_SCHEMA,
   PARENT_SOURCE_GIT_BLOB_SHA1,
   PARENT_MODULE_GRAPH_PINS,
+  RUNTIME_EXECUTABLE_ACL_AUDIT_MARKER,
   SCHEMA,
   VERSION,
   testOnlyAuthenticatedModuleGraphV2,
   testOnlyExecuteAuthenticatedTypeScriptGraphV2,
+  testOnlyBuildRuntimeExecutableAclAuditV2,
   testOnlyBuildRuntimeUserSystemctlInvocationV2,
   testOnlyOpenExecutableLeaseV2,
   testOnlyReadExactReviewedSourceV2,
+  testOnlyRequireRuntimeExecutableAclAuditV2,
   testOnlyWithRuntimeUserSystemctlIdentityDropV2,
 } from "../ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TARGET_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v2.ts";
-const TARGET_BLOB = "96b1ffafcc938619d36385111265177841555ec2";
+const TARGET_BLOB = "b151f83cdfa452755a2d750243d92384bb41956c";
 const PARENT_SOURCE_REL =
   "ops/precision/void_buy_void_presale_receipt_live_process_host_evidence_v1.ts";
 const PARENT_PROOF_REL =
@@ -129,6 +132,11 @@ for (const required of [
   'const SETPRIV = "/usr/bin/setpriv"',
   "function openExecutableLease(",
   "function revalidateExecutableLease(",
+  "testOnlyBuildRuntimeExecutableAclAuditV2",
+  "testOnlyRequireRuntimeExecutableAclAuditV2",
+  'command: "/proc/self/exe"',
+  "process.setgroups([])",
+  "fs.accessSync(candidate,fs.constants.W_OK)",
   "O_NONBLOCK",
   "testOnlyReadExactReviewedSourceV2",
   "testOnlyOpenExecutableLeaseV2",
@@ -164,6 +172,7 @@ for (const required of [
   "user_systemd_query_capability_sets_cleared: true",
   "user_systemd_query_setpriv_descriptor_bound: true",
   "user_systemd_query_systemctl_descriptor_bound: true",
+  "user_systemd_query_executable_acl_runtime_nonwritability_verified: true",
   "systemd_working_directory_root_custody_verified: true",
   "systemd_working_directory_canonicalized:",
   "function canonicalizeWorkingDirectory(",
@@ -261,6 +270,47 @@ assert.deepEqual(built.setpriv_args, [
   ...EXPECTED_ARGS,
 ]);
 assert.deepEqual(built.child_options, EXPECTED_OPTIONS);
+
+const aclBuilt = testOnlyBuildRuntimeExecutableAclAuditV2({
+  runtime_uid: 1000,
+  runtime_gid: 1000,
+  executables: ["/usr/bin/setpriv", "/usr/bin/systemctl"],
+});
+assert.equal(aclBuilt.command, "/proc/self/exe");
+assert.equal(aclBuilt.audit_paths.includes("/usr/bin/setpriv"), true);
+assert.equal(aclBuilt.audit_paths.includes("/usr/bin/systemctl"), true);
+assert.equal(aclBuilt.audit_paths.includes("/usr/bin"), true);
+assert.equal(aclBuilt.audit_paths.includes("/usr"), true);
+assert.equal(aclBuilt.audit_paths.includes("/"), true);
+assert.equal(aclBuilt.args[0], "--input-type=module");
+assert.equal(aclBuilt.args[1], "-e");
+assert.equal(String(aclBuilt.args[2]).includes("process.setgroups([])"), true);
+assert.equal(
+  String(aclBuilt.args[2]).includes("fs.accessSync(candidate,fs.constants.W_OK)"),
+  true,
+);
+assert.equal(aclBuilt.args.includes("1000"), true);
+
+const runtimeWritableSpawn = ((..._raw: unknown[]) => ({
+  pid: 4200,
+  output: [null, "", ""],
+  stdout: "",
+  stderr: "runtime_writable",
+  status: 94,
+  signal: null,
+  error: undefined,
+})) as unknown as typeof childProcess.spawnSync;
+expectReject(
+  () => testOnlyRequireRuntimeExecutableAclAuditV2(
+    {
+      runtime_uid: 1000,
+      runtime_gid: 1000,
+      executables: ["/usr/bin/setpriv", "/usr/bin/systemctl"],
+    },
+    runtimeWritableSpawn,
+  ),
+  "lane1_v2_executable_runtime_acl_audit_failed",
+);
 
 function expectReject(action: () => unknown, prefix: string): void {
   assert.throws(action, (error: unknown) => {
@@ -390,6 +440,17 @@ const realSpawnSync = childProcess.spawnSync;
 const calls: SpawnCall[] = [];
 const fakeSpawnSync = ((...raw: unknown[]) => {
   calls.push(Object.freeze({ command: raw[0], args: raw[1], options: raw[2] }));
+  if (raw[0] === "/proc/self/exe") {
+    return {
+      pid: 4241,
+      output: [null, RUNTIME_EXECUTABLE_ACL_AUDIT_MARKER + "\n", ""],
+      stdout: RUNTIME_EXECUTABLE_ACL_AUDIT_MARKER + "\n",
+      stderr: "",
+      status: 0,
+      signal: null,
+      error: undefined,
+    };
+  }
   return {
     pid: 4242,
     output: [null, "", ""],
@@ -427,6 +488,10 @@ try {
   );
   assert.equal(adapted.audit.systemd_query_count, 1);
   assert.equal(adapted.audit.working_directory_custody_verified_count, 1);
+  assert.equal(
+    adapted.audit.executable_acl_runtime_nonwritability_verified_count >= 5,
+    true,
+  );
   assert.equal(adapted.audit.working_directory_canonicalized_count, 1);
   const adaptedValue = adapted.value as Readonly<{
     user: Readonly<{ stdout: string }>;
@@ -435,9 +500,15 @@ try {
     adaptedValue.user.stdout.includes("WorkingDirectory=/usr/bin\n"),
     true,
   );
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0]!.command, "/proc/self/fd/3");
-  const droppedArgs = calls[0]!.args as string[];
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0]!.command, "/proc/self/exe");
+  const aclArgs = calls[0]!.args as string[];
+  assert.equal(aclArgs[0], "--input-type=module");
+  assert.equal(aclArgs[1], "-e");
+  assert.equal(aclArgs.includes("/usr/bin/setpriv"), true);
+  assert.equal(aclArgs.includes("/usr/bin/systemctl"), true);
+  assert.equal(calls[1]!.command, "/proc/self/fd/3");
+  const droppedArgs = calls[1]!.args as string[];
   assert.deepEqual(droppedArgs.slice(0, 8), [
     "--reuid=1000",
     "--regid=1000",
@@ -449,7 +520,7 @@ try {
     "/proc/self/fd/4",
   ]);
   assert.deepEqual(droppedArgs.slice(8), EXPECTED_ARGS);
-  const droppedOptions = calls[0]!.options as Readonly<{
+  const droppedOptions = calls[1]!.options as Readonly<{
     cwd: string;
     stdio: readonly unknown[];
     env: NodeJS.ProcessEnv;
@@ -460,8 +531,8 @@ try {
   assert.equal(typeof droppedOptions.stdio[3], "number");
   assert.equal(typeof droppedOptions.stdio[4], "number");
   assert.deepEqual(droppedOptions.env, EXPECTED_ENV);
-  assert.equal(calls[1]!.command, "/bin/echo");
-  assert.deepEqual(calls[1]!.args, ["ok"]);
+  assert.equal(calls[2]!.command, "/bin/echo");
+  assert.deepEqual(calls[2]!.args, ["ok"]);
   assert.equal(childProcess.spawnSync, fakeSpawnSync);
 
   let throwObserved = false;
@@ -515,6 +586,9 @@ console.log("no_new_privileges_required=true");
 console.log("inheritable_permitted_effective_bounding_ambient_caps_cleared=true");
 console.log("setpriv_descriptor_execution_required=true");
 console.log("systemctl_descriptor_execution_required=true");
+console.log("runtime_executable_acl_nonwritability_required=true");
+console.log("runtime_executable_acl_audit_uses_current_node_exe=true");
+console.log("runtime_writable_executable_rejected=true");
 console.log("builtin_spawn_sync_patch_reaches_named_import=true");
 console.log("builtin_spawn_sync_patch_restored_after_success=true");
 console.log("builtin_spawn_sync_patch_restored_after_failure=true");
