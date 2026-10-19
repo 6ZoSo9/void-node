@@ -1322,4 +1322,3 @@ This closes only the source-level input-amplification boundary. Trusted callback
 origin, already-rejected Promise failure-domain containment, installed protected
 Xiphos origin, production claim publication, training, credentials, transactions
 and funds authority remain unproven.
-
