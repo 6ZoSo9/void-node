@@ -98,10 +98,10 @@ historical compatibility V3 output.
 ## Exact source identities
 
 ```text
-binder_git_blob=e93f917307ff12350a34395c6f87307232886ff9
-binder_sha256=4c0f505403ca6cb0a788726d8daa1853acb39f13c1eb1c4943cc299bc8080dd5
-binder_bytes=43375
-native_preentry_git_blob=026c59a1d7c389bcdf1a552de4828b7c1764743b
+binder_git_blob=b51a5bf1de438af97e69ed0be3612779e5359b3b
+binder_sha256=391728ce72e3803d231198ba991ebfdf8dfd4c4f86b56cb9e92ba2f1da472b15
+binder_bytes=43554
+native_preentry_git_blob=92b476f395348e5ac447404906b01c53dfb4cefc
 dormant_candidate_git_blob=e569c9211e01f14c7c00dd1c5041d4dfb0817609
 runtime_dependency_count=9
 ```
