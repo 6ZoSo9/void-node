@@ -1577,7 +1577,19 @@ function selfTest(){
     }
     if(args[0]==="branch"&&args[1]==="--show-current")return "main\n";
     if(args[0]==="status")return "";
-    if(args[0]==="merge-base")return "";
+    if(args[0]==="cat-file"&&args[1]==="-t")return "commit\n";
+    if(args[0]==="cat-file"&&args[1]==="-p"){
+      if(args[2]===driftSourceHead){
+        return "tree "+driftSourceTree+"\nparent "+RUNTIME_HEAD+
+          "\nauthor test <test@example.invalid> 0 +0000"+
+          "\ncommitter test <test@example.invalid> 0 +0000\n\nsource\n";
+      }
+      if(args[2]===RUNTIME_HEAD){
+        return "tree "+driftSourceTree+
+          "\nauthor test <test@example.invalid> 0 +0000"+
+          "\ncommitter test <test@example.invalid> 0 +0000\n\nruntime\n";
+      }
+    }
     if(args[0]==="rev-parse"&&args.length===2){
       const spec=args[1];
       for(const [_label,relative,blob] of SOURCE_RUNTIME_DEPENDENCY_SPECS){
