@@ -74,12 +74,13 @@ jobs:
         run: |
           set -euo pipefail
           parent=4a4db086ae00c8dbfb362d254c466d02287de070
+          hardening_parent=f2621046cb8660bbab007c3c1895ef521797ba56
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git merge-base --is-ancestor "$parent" "$HEAD_SHA"
 
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = "$parent"
+              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$hardening_parent"; }
               base="$PR_BASE"
               expected="$RUNNER_TEMP/expected.txt"
               actual="$RUNNER_TEMP/actual.txt"
@@ -93,6 +94,15 @@ jobs:
                 'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
                 'tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs' \
                 | LC_ALL=C sort > "$expected"
+              if [ "$PR_BASE" = "$hardening_parent" ]; then
+                printf '%s\n' \
+                  '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \
+                  'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \
+                  'scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs' \
+                  'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \
+                  'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
+                  | LC_ALL=C sort > "$expected"
+              fi
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"
               ;;
@@ -111,20 +121,20 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            e539f089b94cb2245e0267817dd74a37cacf423b
+            4a1d9de919d683374ed4ac10bf6557e0a50835bd
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            e6522fdac3a572aeed3fe62afdfab3dcb1d453d9
+            489c886dc55007f3b99251378eea85ef8d7ae26c
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            fd7bbc0f29b32a38dbf6a4f7e2f0b078d6c02b5b
+            dd82b55d3ccef047b609bd72bc51d86bd74cccf9
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
             864f90e46510403b30f558f1ccd8719be88f1180
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
-            f5d10e750d5abc38e94a330ddf6b08381b07bd37
+            00c3b1482107ea158cf7498a7ee5ac89a522fb3c
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
             ecc262686cdc388d08775c735c68430e737e40d5
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
@@ -203,6 +213,8 @@ jobs:
             'descriptor_close_failures_are_not_retried=true' \
             'publisher_forward_private_bytes_survive_all_mutation=true' \
             'publisher_input_copy_override_not_invoked=true' \
+            'publisher_caller_buffer_intrinsic_slots_no_getters=true' \
+            'publisher_and_core_intrinsic_request_bounds_enforced=true' \
             'publisher_later_copy_override_not_invoked=true' \
             'request_size_rejected_before_private_copy=true' \
             'operation_keyset_rejected_before_descriptor_capture=true' \
@@ -219,6 +231,7 @@ jobs:
             'generation_drift_before_mutation_rejected=true' \
             'orphan_claim_without_slot_rejected=true' \
             'async_revalidator_rejected_before_mutation=true' \
+            'declared_async_generator_providers_rejected_before_root_io=true' \
             'revalidation_receipt_accessors_then_getters_and_proxy_traps_never_invoked=true' \
             'bounded_generation_strings_rejected_before_transaction_lease=true' \
             'async_transaction_acquisition_rejected_before_core_mutation=true' \
