@@ -60,7 +60,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = 1cf0588999bd3c32349d021977eeac267550521e
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = 24bbe5bdb192df80da2b919732318553d0e0729b
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = 9660fe2b34c9d2589c6ff0ca3ac86188a4c1215e
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-epoch2-installed-generation-host-evidence-v3.md)" = 22dee60bb68bb7eace109d4dc8edfc97846a86fb
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = ef9307452caaa9a946419a9dbc4139eef2322180
