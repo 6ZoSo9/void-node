@@ -1553,10 +1553,15 @@ async function sessionAdapterCases(plan,bridge){
         assert.ok(elapsed>=4500&&elapsed<7500,"session request/challenge requires EOF within its total deadline");
       }
       if(plan.case==="session_request_rights")assert.ok(errorMessages(failure).includes("APOLLYON_NATIVE_REQUEST_FRAME"));
-      if(plan.case==="session_challenge_rights")assert.ok(errorMessages(failure).some(message=>
-        message.includes("apollyon_claim_store_impl_v2_revalidation_failed:before_slot_publication:")&&
-        message.includes("Peer frame contains truncated or unsupported ancillary input")),
-      errorMessages(failure).join("\n"));
+      if(plan.case==="session_challenge_rights"){
+        const messages=errorMessages(failure);
+        assert.ok(messages.includes(
+          "apollyon_claim_store_impl_v2_revalidation_failed:before_slot_publication"
+        ),messages.join("\n"));
+        assert.ok(messages.some(message=>
+          message.includes("Peer frame contains truncated or unsupported ancillary input")),
+        messages.join("\n"));
+      }
       const late=["session_publisher_after_slot","session_control_before_ack","session_publisher_cleanup",
         "session_ack_shutdown","session_callback_tojson","session_ack_partial","session_ack_after_send_close"];
       const slotExpected=late.includes(plan.case);
