@@ -7,7 +7,7 @@ Status: **source/read-only implementation candidate; complete protected origin r
 ## Parent and scope
 
 Parent: #3526 exact head
-`7487dd794feb765e6d72b04ea98e23a442800a89`.
+`db8c56d7ebe73e0646355bc6fcb4a5141ef7422f`.
 
 This child implements the fixed protected-slot reader/reread boundary named by
 the #3526 contract. It does not issue an activation capability.
@@ -27,10 +27,15 @@ must expose no POSIX access/default ACL. The final claim root and slot directory
 must be exact mode 0700 and owned by the expected claim identity, also without
 POSIX ACLs.
 
-The slot leaf is derived only from the validated authorization-slot ID. It is
-opened read-only with `O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK`; a racing FIFO cannot
-block the privileged reader. The leaf must be regular, mode 0600, link count 1,
-owned by the expected claim identity, bounded to 64 KiB, and have no POSIX ACL.
+The slot leaf is derived only from the validated authorization-slot ID. The
+reader first acquires the visible leaf with Linux `O_PATH|O_NOFOLLOW|O_CLOEXEC`
+and proves that held inode is the exact regular mode-0600, single-link generation
+owned by the expected claim identity and bounded to 64 KiB. Only after that
+admission does it data-open `/proc/self/fd/<held-fd>` with
+`O_RDONLY|O_CLOEXEC|O_NONBLOCK`. The data-open therefore targets the retained
+already-admitted regular inode, never a pathname replacement such as a FIFO or
+device node. The reopened descriptor must match the held and still-visible
+generation and expose no POSIX ACL.
 
 ## Descriptor-stable reread
 
@@ -112,7 +117,10 @@ Adversaries cover wrong root/slot/file modes, hard links, symlinks, FIFO
 substitution, missing slot paths, noncanonical and recursively nested JSON,
 slot-ID/content-address drift, same-byte visible slot replacement after the first
 read, visible slot-directory replacement while the old directory remains retained,
-and same-byte visible slot replacement after the second reread.
+same-byte visible slot replacement after the second reread, and a visible
+regular-to-FIFO replacement immediately before data-open. That last fixture
+requires the data-open target to be only the retained `/proc/self/fd/<held-fd>`
+inode and proves zero data-open attempt on the replacement pathname.
 
 No protected store, service, capability, training, credential, transaction or
 funds action occurs.
@@ -123,7 +131,7 @@ funds action occurs.
 ## Current contract-origin parent (October 18, 2026)
 
 The current source-only parent is #3526 at
-`7487dd794feb765e6d72b04ea98e23a442800a89`, with the protected-origin
+`db8c56d7ebe73e0646355bc6fcb4a5141ef7422f`, with the protected-origin
 contract Git blob `833876baf077b9616d08ee9b13b2657a0818dcc5` and underlying
 authorization-slot source `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`.
 A full untruncated prior/current parent tree comparison yielded 362 changed
@@ -131,8 +139,9 @@ paths and **zero overlap** with this child's four ADD-only files. The accepted
 historical direct parent `e496f4391b2b4e9be006695fcd8845669059a48f`
 remains preserved in first-parent history.
 
-The Python reader changes only those three immutable source-generation pins.
-It retains its fixed root, nonblocking no-follow opens, ACL and path validation,
+The current Python reader also repairs the privileged leaf-open boundary: it
+uses O_PATH admission before any data-open and then reopens only the held,
+already-proven regular inode. It retains its fixed root, ACL/path validation,
 descriptor-held rereads, and final visible name and directory generation
 checks. Disposable proofs use the current pins; no Xiphos protected state is
 observed. Parent contract validity, read-only slot shape and stable inode
