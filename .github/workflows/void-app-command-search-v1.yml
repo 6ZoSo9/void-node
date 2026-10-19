@@ -1,0 +1,50 @@
+name: VOID app command search proof v1
+
+on:
+  pull_request:
+    paths:
+      - "public/void-app-wave1-v1/index.html"
+      - "public/void-app-wave1-v1/assets/js/app.js"
+      - "public/void-app-wave1-v1/assets/css/components.css"
+      - "scripts/prove_void_ui_wave1_repository_foundation_v1.ts"
+      - "docs/public/void-ui-wave1-foundation-v1/source-manifest.json"
+      - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
+      - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
+      - "docs/public/void-ui-wave4-earn-readonly-v1/source-manifest.json"
+      - ".github/workflows/void-app-command-search-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "public/void-app-wave1-v1/index.html"
+      - "public/void-app-wave1-v1/assets/js/app.js"
+      - "public/void-app-wave1-v1/assets/css/components.css"
+      - "scripts/prove_void_ui_wave1_repository_foundation_v1.ts"
+      - "docs/public/void-ui-wave1-foundation-v1/source-manifest.json"
+      - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
+      - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
+      - "docs/public/void-ui-wave4-earn-readonly-v1/source-manifest.json"
+      - ".github/workflows/void-app-command-search-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: node --check public/void-app-wave1-v1/assets/js/app.js
+      - run: npx tsx scripts/prove_void_ui_wave1_repository_foundation_v1.ts
+      - run: git diff --check

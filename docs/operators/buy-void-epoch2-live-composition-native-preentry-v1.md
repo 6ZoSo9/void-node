@@ -79,9 +79,10 @@ runner, and Node generations. The retained runner FD must still identify the
 same visible root-owned runner.
 
 The same parent/process/installed-generation proof is revalidated again after
-the credential/signing sequence and before receipt output. A caller-visible
-marker plus a valid runner FD is therefore insufficient to claim native
-provenance.
+the credential/signing sequence and before receipt output. The focused proof
+binds this exact source order: initial native gate, sensitive sequence, final
+native-parent revalidation, then receipt output. A caller-visible marker plus a
+valid runner FD is therefore insufficient to claim native provenance.
 
 ## Policy format
 
@@ -159,10 +160,100 @@ root_javascript_started=false
 
 No Node process or credential child is reached.
 
-The root fixture also installs a synthetic exact policy and fixed runner. A
-real native /dev/null invocation must clear the new parent-proof gates and
-reach the later expected checkout HOLD, proving that the native-parent channel
-is usable.
+The root fixture also installs a synthetic exact policy and fixed runner. It
+preflights the real fixed `/usr/bin/setpriv` under the runner's root-owned,
+non-group/world-writable executable boundary. The fixture first proves that an
+absent fixed `/home/zoso/dev/void-node` checkout cwd fails closed, then creates
+the fixed checkout parents only inside a namespace-local `/home` overlay.
+The host's real `/home/zoso`, `/home/zoso/dev`, ownership and permission
+metadata are never created, chowned or chmodded by this proof.
+
+The proof never normalizes or rewrites the host's real `/opt` or `/home`.
+The outer unprivileged process asks fixed `/usr/bin/mktemp` through
+passwordless sudo to create the disposable bootstrap root as root from the
+start, then changes only that disposable root to exact mode 0755 so the later
+unprivileged child can traverse it. The root remains root-owned and
+non-group/world-writable. Fixed `/usr/bin/install` then places the selected
+harness Node there as a root-owned, non-group/world-writable executable. The
+delegated child independently revalidates exact bootstrap mode 0755 plus both
+bootstrap-root and harness custody. The root is removed with fixed `/usr/bin/rm` on every later
+success/failure path. This prevents a same-UID process from replacing the
+bootstrap backing generation while the privileged fixture is assembled.
+
+The proof then invokes fixed `/usr/bin/unshare --mount --fork` through
+passwordless sudo.
+
+Inside that new mount namespace, the root bootstrap first makes mount
+propagation private, bind-mounts the exact hosted checkout to a read-only mirror
+under the disposable bootstrap root, then bind-mounts separate root-owned
+mode-0755 disposable directories onto namespace-local `/opt` and `/home`.
+Only after both overlays are active does it drop back to the original runtime
+UID/GID with `/usr/bin/setpriv`, change cwd to the read-only checkout mirror,
+construct a closed environment, and re-execute the same proof source. Protected
+fixture installation and fixed checkout-parent creation therefore occur only
+inside the private namespace. The namespace disappears with the child; the host
+`/opt` and `/home` inode/ownership/mode/content state remains unchanged.
+
+No `GITHUB_ACTIONS`, `CI`, `RUNNER_TEMP`, or other caller-controlled
+hosted marker grants fixture authority. The internal delegated-child marker is
+also insufficient by itself. Before skipping outer namespace creation, the
+child must independently prove kernel/process state from genuine procfs: its
+parent has process name `unshare`, all four UID slots are root, and its fixed
+launch argv begins `/usr/bin/unshare --mount --fork /usr/bin/bash`. Before
+entering `unshare`, the outer proof records its own authenticated mount-namespace
+inode; the delegated child must prove its namespace inode differs from that
+exact outer generation. The delegated bootstrap root is an exact root-owned mode-0755
+`/tmp/void-e2-private-opt-v1-*` generation supplied by the root namespace
+bootstrap; namespace-local `/opt` and `/home` match that bootstrap's
+disposable backing directory generations; and the checkout mirror is the
+expected read-only mount. Mount topology is asymmetric:
+visible `/opt` and `/home` must be distinct namespace-local bind mounts,
+while their bootstrap backing directories and the bootstrap root remain on the
+ordinary bootstrap mount. The proof does **not** use `/proc/*/mountinfo` or
+`/proc/*/fdinfo` as topology authority.
+
+Instead, the outer root bootstrap compiles one tiny reviewed helper directly
+into the root-owned bootstrap directory. The delegated child verifies that
+helper's root ownership, non-writable executable mode, single-link shape and
+SHA-256. For each trusted directory the proof opens the directory
+`O_NOFOLLOW|O_DIRECTORY`, retains that exact descriptor, passes it explicitly
+as child fd 3, and the helper obtains the mount identity with
+`statx(3, "", AT_EMPTY_PATH, STATX_MNT_ID, ...)`. It also obtains filesystem
+type with `fstatfs(3,...)` and read-only state with `fstatvfs(3,...)`.
+
+The retained directory generation is revalidated after the helper returns.
+`/opt` and `/home` must have mount IDs distinct from their backing
+directories; ordinary backing directories must share the bootstrap mount ID;
+the private merged `/usr/bin` must be overlayfs and the visible `/usr/bin`
+must be a distinct bind mount over it; upper/work directories must remain on
+the bootstrap mount; and the checkout mirror must be a distinct read-only
+mount. A substituted genuine procfs leaf from another process therefore has no
+role in the authorization decision. A caller that merely exports the internal
+marker fails before protected fixture writes.
+
+Missing/failed unshare, mount, overlay support, install, setpriv, sudo, parent
+provenance, mount identity, or read-only checkout state fails the proof closed.
+The hosted image does not need a real host `/usr/bin/node`. Inside the private
+mount namespace only, the proof creates a private overlay-backed `/usr/bin`
+whose lower layer is the existing host directory and whose private upper layer
+contains one root-owned copy of the selected setup-node executable at
+`/usr/bin/node`. The delegated proof is executed with that namespace-local
+`/usr/bin/node`, never with the earlier bootstrap-source pathname. The proof
+requires namespace-local `/usr/bin` to be an explicit mount, requires the
+merged backing to be an `overlay` mount while its upper/work directories are
+non-mountpoints, requires the root-owned bootstrap Node copy and the installed
+overlay Node to match the original selected hosted Node SHA-256, and requires
+the fixed Node inode to match the overlay backing generation.
+
+No host `/usr/bin` entry is created, replaced, chmodded, chowned, removed, or
+mounted over outside the child namespace. The private mount namespace is
+synthetic proof infrastructure only and does not weaken the production native
+ancestry predicate.
+
+A real native `/dev/null` invocation must clear the parent-proof gates,
+execute the real runtime-user transition, and reach the later expected Git
+checkout HOLD. An ambiguous spawn ENOENT is not accepted as positive-lineage
+evidence.
 
 A separate forged direct-root-Node adversary supplies the correct native marker,
 a valid retained runner FD, and a syntactically valid forged proof record. It
