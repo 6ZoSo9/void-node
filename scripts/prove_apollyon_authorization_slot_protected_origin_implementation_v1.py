@@ -12,7 +12,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
-SOURCE_BLOB = "4410c373a3b0baf24d764fdb8033369851e57ee4"
+SOURCE_BLOB = "cc1cbf5b6c665a1fde14126de51e698badc631c1"
 
 PARENT_CONTRACT = ROOT / "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
 PARENT_CONTRACT_BLOB = "833876baf077b9616d08ee9b13b2657a0818dcc5"
@@ -151,6 +151,53 @@ with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-root-mode-") 
         ),
         "claim_root_metadata_invalid",
     )
+
+# A rejected root must not leak its opened child FD across repeated failures.
+# The source is a potential reusable reader, not just a one-shot CLI.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-root-fd-") as td:
+    root, _, _ = create_fixture(Path(td), record)
+    root.chmod(0o750)
+    before_fds = sorted(os.listdir("/proc/self/fd"))
+    for _ in range(5):
+        expect_hold(
+            lambda: mod.observe_protected_slot(
+                root_path=root,
+                claim_uid=uid,
+                claim_gid=gid,
+                authorization_slot_id=str(record["authorization_slot_id"]),
+                require_trusted_ancestors=False,
+            ),
+            "claim_root_metadata_invalid",
+        )
+    assert sorted(os.listdir("/proc/self/fd")) == before_fds, "rejected root leaked FD"
+
+# A rejected root ACL check happens after the child FD is opened too.
+with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-acl-fd-") as td:
+    root, _, _ = create_fixture(Path(td), record)
+    original_acl = mod.require_no_posix_acl
+
+    def reject_root_acl(fd: int, label: str) -> None:
+        if label == "claim_root":
+            raise mod.Hold("claim_root_extended_acl_present")
+        original_acl(fd, label)
+
+    before_fds = sorted(os.listdir("/proc/self/fd"))
+    mod.require_no_posix_acl = reject_root_acl
+    try:
+        for _ in range(5):
+            expect_hold(
+                lambda: mod.observe_protected_slot(
+                    root_path=root,
+                    claim_uid=uid,
+                    claim_gid=gid,
+                    authorization_slot_id=str(record["authorization_slot_id"]),
+                    require_trusted_ancestors=False,
+                ),
+                "claim_root_extended_acl_present",
+            )
+    finally:
+        mod.require_no_posix_acl = original_acl
+    assert sorted(os.listdir("/proc/self/fd")) == before_fds, "ACL rejection leaked FD"
 
 # Slot directory must remain private.
 with tempfile.TemporaryDirectory(prefix="void-apollyon-slot-origin-dir-mode-") as td:
@@ -507,6 +554,7 @@ print("same_bytes_path_replacement_rejected=true")
 print("post_second_reread_path_replacement_rejected=true")
 print("visible_slot_directory_replacement_rejected=true")
 print("host_io_errors_normalized_to_hold=true")
+print("rejected_root_descriptor_cleanup_verified=true")
 print("slot_fifo_nonblocking_rejected=true")
 print("slot_opath_admission_precedes_data_open=true")
 print("slot_data_open_uses_held_regular_inode=true")
