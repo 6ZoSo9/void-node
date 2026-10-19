@@ -209,6 +209,7 @@ with tempfile.TemporaryDirectory(
         "single_thread_writer_continuity_fixture=true",
         "trainer_exec_stop_synchronization=true",
         "frame_budget_starts_after_releaser_proof=true",
+        "creat_procfd_reopen_blocked=true",
         "protected_releaser_origin_proven=false",
         "writer_exclusivity_host_proven=false",
         "trainer_release_authorized=false",
@@ -279,6 +280,7 @@ print("trainer_exec_stop_synchronization=true")
 print("frame_budget_starts_after_releaser_proof=true")
 print("frame_and_eof_buffered_before_trainer_resume=true")
 print("late_writer_escape_syscalls_blocked=true")
+print("creat_procfd_reopen_blocked=true")
 print("extra_releaser_thread_rejected=true")
 print("child_retained_writer_rejected=true")
 print("wrong_trainer_pipe_rejected=true")

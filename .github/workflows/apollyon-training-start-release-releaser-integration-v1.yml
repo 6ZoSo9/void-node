@@ -83,11 +83,11 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_releaser_integration_v1.c)" = \
-            55ab6d566cfe692d7fcf032dc5569f2ea7c2e0a0
+            4431e82ff430547c0fcd18da589f648288012d91
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_releaser_integration_v1.py)" = \
-            7ced1ee13b3a63892e03efaec41b7a4115c49efb
+            2f22dda89fd5abcf23fd9f22e05c742a5627bab3
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-releaser-integration-v1.md)" = \
-            da600c5b4f75ca8fc933f913262de3e6a850f3a6
+            9919e56522b89274b3f3bdb40cca8003b202fec6
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_release_pipe_pair_generation_v1.c)" = \
             93390eefd1e72e70af7206e9982c8eaa5e042149
@@ -147,6 +147,7 @@ jobs:
             'frame_budget_starts_after_releaser_proof=true' \
             'frame_and_eof_buffered_before_trainer_resume=true' \
             'late_writer_escape_syscalls_blocked=true' \
+            'creat_procfd_reopen_blocked=true' \
             'extra_releaser_thread_rejected=true' \
             'child_retained_writer_rejected=true' \
             'wrong_trainer_pipe_rejected=true' \

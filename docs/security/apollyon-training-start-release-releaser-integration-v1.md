@@ -72,7 +72,8 @@ The filter denies:
 - clone / clone3 / fork / vfork;
 - dup / dup2 / dup3;
 - fcntl-based duplication;
-- open / openat / openat2, preventing /proc/self/fd or /dev/fd reopen duplication;
+- open / openat / openat2 plus the distinct creat syscall, preventing
+  /proc/self/fd or /dev/fd reopen duplication through either interface;
 - socket / socketpair;
 - sendmsg / sendmmsg SCM_RIGHTS transfer;
 - pidfd_getfd;
@@ -91,7 +92,8 @@ the exec event**. Only after frame+EOF are already buffered does the parent
 timeout therefore includes neither releaser proof latency nor a scheduler gap
 between resume and frame publication.
 
-The releaser then proves representative late duplication/reopen/socket attempts
+The releaser then proves representative late duplication/reopen/socket attempts,
+including a direct creat(2) reopen of the release writer through /proc/self/fd,
 return EPERM before it resumes the trainer and writes the frame.
 
 ## Adversarial fixtures

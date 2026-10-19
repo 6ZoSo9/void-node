@@ -455,6 +455,10 @@ static int install_writer_continuity_filter(void) {
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_openat2,0,1),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
 #endif
+#ifdef __NR_creat
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_creat,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+#endif
 #ifdef __NR_socket
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_socket,0,1),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
@@ -970,6 +974,16 @@ static int fixture_run(
         return 136;
     }
 
+#ifdef __NR_creat
+    errno=0;
+    int creat_duplicate=(int)syscall(__NR_creat,reopen_path,0600);
+    if(creat_duplicate>=0 || errno!=EPERM) {
+        if(creat_duplicate>=0) (void)close(creat_duplicate);
+        cleanup_child(child);
+        return 144;
+    }
+#endif
+
     errno=0;
     if(
         socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0)>=0 ||
@@ -1022,6 +1036,7 @@ static int fixture_run(
     puts("frame_and_eof_buffered_before_trainer_resume=true");
     puts("writer_continuity_filter_installed=true");
     puts("late_clone_dup_open_socket_fdpass_blocked=true");
+    puts("creat_procfd_reopen_blocked=true");
     puts("exact_frame_written_and_sole_writer_closed=true");
     puts("trainer_gate_exit_zero=true");
     puts("protected_releaser_origin_proven=false");
@@ -1093,6 +1108,7 @@ int main(int argc,char **argv) {
     puts("single_thread_writer_continuity_fixture=true");
     puts("trainer_exec_stop_synchronization=true");
     puts("frame_budget_starts_after_releaser_proof=true");
+    puts("creat_procfd_reopen_blocked=true");
     puts("protected_releaser_origin_proven=false");
     puts("writer_exclusivity_host_proven=false");
     puts("trainer_release_authorized=false");
