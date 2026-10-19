@@ -69,24 +69,32 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          parent=e357073c5d7932f924c077a73349e9050dfb78eb
+          accepted_parent=e357073c5d7932f924c077a73349e9050dfb78eb
+          review_base=2df0817b5fc3456c68f32063fb28dda5bdc8ec44
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$accepted_parent" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$review_base" "$EXPECTED_HEAD"
 
           if [ "$EVENT_NAME" = pull_request ]; then
-            test "$PR_BASE" = "$parent"
+            test "$PR_BASE" = "$review_base"
             expected="$RUNNER_TEMP/expected.txt"
             actual="$RUNNER_TEMP/actual.txt"
             printf '%s\n' \
+              '.github/workflows/apollyon-claim-protected-first-entry-v1.yml' \
               '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
               '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
               '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
+              'docs/security/apollyon-claim-protected-first-entry-v1.md' \
               'docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
               'docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
               'docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_v1.c' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_v1.h' \
               'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
               'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
               'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+              'scripts/apollyon_claim_protected_first_entry_v1_selftest.c' \
+              'scripts/prove_apollyon_claim_protected_first_entry_v1.py' \
               'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
               'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
               'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
@@ -99,7 +107,7 @@ jobs:
             base="$PUSH_BEFORE"
             test -n "$base"
             test "$base" != 0000000000000000000000000000000000000000
-            git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+            git merge-base --is-ancestor "$accepted_parent" "$EXPECTED_HEAD"
           elif [ "$EVENT_NAME" = workflow_dispatch ]; then
             base="$(git rev-parse HEAD^)"
           else
