@@ -82,6 +82,7 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          # Fresh direct-base qualification after #3548 flattening.
           test "$(git rev-parse HEAD)" = "$HEAD"
           case "$EVENT_NAME" in
             pull_request)
