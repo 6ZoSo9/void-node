@@ -15,9 +15,12 @@ The accepted native preentry V3 binary is intentionally reused unchanged:
 - native bytes: `726976`;
 - accepted V6R2 lock: `voidbuye2nativecandlock6r2_ab95f15c8f2731adf6bfd97dfd5467495c90bdb5ee267948efc6a522be74b417`.
 
-The new candidate binds Runner V4 exact source blob
-`46da5a2df6ccace675ae6f572b11ba011b41efc8`, executes only its inert
-`--self-test` and `--plan`, and derives a content-addressed candidate report.
+The candidate is being re-derived against repaired Runner V4. The prior Runner
+V4 blob `46da5a2d...` and candidate ID are superseded and carry no install
+authority. The repaired runner no longer compile-binds a transient current
+source HEAD; it observes current `main` at runtime and requires local ancestry,
+clean tracked state, exact dependency-blob equality, and no untracked-path
+authority.
 
 ## Policy boundary
 
@@ -65,3 +68,15 @@ Next gate after exact-head candidate evidence:
 `void_buy_void_epoch2_live_composition_runner_policy_candidate_lock_v6r3`.
 
 PROTECT THE CORE.
+
+
+## Superseded candidate generation
+
+Historical candidate
+`voidbuye2runnerpolcand6r3_eee91de4...` was derived from Runner V4 blob
+`46da5a2d...`. The subsequent self-invalidating-head repair changed Runner V4
+to blob `4d50bec847c697bac75e40121173b4840eeab879`.
+
+Therefore the historical candidate and lock are superseded. Re-derive the
+candidate and then re-address the lock before any upgrade-plan source may claim
+an accepted V6R3 generation.
