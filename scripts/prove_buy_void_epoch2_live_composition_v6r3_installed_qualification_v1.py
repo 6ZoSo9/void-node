@@ -27,10 +27,10 @@ for required in (
     "run_native_self_test(executor,middle",
     "predecessor_v6r2_retained",
     "predecessor_v4_retained",
-    "runner_execution=False",
-    "credential_access=False",
-    "transaction=False",
-    "funds_movement=False",
+    '"runner_execution":False',
+    '"credential_access":False',
+    '"transaction":False',
+    '"funds_movement":False',
 ):
     assert required in source,required
 assert any(isinstance(n,ast.FunctionDef) and n.name=="collect" for n in tree.body)
