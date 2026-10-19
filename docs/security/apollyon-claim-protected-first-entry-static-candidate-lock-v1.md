@@ -73,18 +73,27 @@ Current parent evidence is no longer read through the historical
 source/proof/doc/workflow read now:
 
 - rejects absolute/parent-traversal relative names;
-- validates a direct regular single-link bounded leaf before opening;
-- opens once with `O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK`;
-- requires pre-open and opened descriptor generations to match;
+- validates a direct regular single-link bounded leaf;
+- acquires that visible generation first with
+  `O_PATH|O_CLOEXEC|O_NOFOLLOW`;
+- proves the held inode still matches the visible regular generation before any
+  data-open;
+- data-opens only `/proc/self/fd/<held-fd>` with
+  `O_RDONLY|O_CLOEXEC|O_NONBLOCK`, so a later pathname replacement cannot
+  become the object being read;
 - reads exactly the authenticated size and requires immediate EOF;
-- revalidates the retained descriptor and visible leaf generation after reading;
+- revalidates the data descriptor, O_PATH custody descriptor and visible leaf
+  generation after reading;
 - verifies the exact Git blob and current-head Git object identity; and
-- treats descriptor close uncertainty as a machine-readable failure.
+- attempts both retained descriptor closes exactly once, reporting close
+  uncertainty through the machine-readable lock error contract.
 
-The focused proof executes stable, traversal, symlink, FIFO, inode-replacement,
-growth-after-open and real-close-failure fixtures. This closes the source-read
-race that the downstream archive-admission gate previously had to compensate
-for locally.
+The focused proof executes stable, traversal, symlink, FIFO, held-inode
+replacement, growth-after-open and real-close-failure fixtures. Its replacement
+fixture swaps the visible regular source to a FIFO immediately before the
+`/proc/self/fd/<held-fd>` data-open and requires zero data-open attempts on the
+replacement pathname. This closes the source-read race at the lock layer rather
+than relying on the downstream archive-admission gate to compensate for it.
 
 ## Accepted identity
 
