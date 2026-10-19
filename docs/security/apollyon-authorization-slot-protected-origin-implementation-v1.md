@@ -4,6 +4,20 @@ Marker: `VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1`.
 
 Status: **source/read-only implementation candidate; complete protected origin remains unproven**.
 
+## Flattened current source generation (October 19, 2026)
+
+This PR now directly targets the current #3526 protected-origin contract at
+`db8c56d7ebe73e0646355bc6fcb4a5141ef7422f`. The resulting parent-relative
+scope is exactly these four added implementation/proof/document/workflow files;
+there is no longer a separate #3531 source dependency.
+
+The flattened generation preserves all earlier reader hardening in one source:
+held-inode `O_PATH` admission before data-open, visible-generation rereads,
+rejected-child descriptor cleanup, and the pre-import isolated-Python guard.
+This consolidation changes PR ancestry only; it does not widen authority or
+establish claim-service-only writer provenance, protected origin, capability
+issuance, or training authority.
+
 ## Parent and scope
 
 Parent: #3526 exact head
