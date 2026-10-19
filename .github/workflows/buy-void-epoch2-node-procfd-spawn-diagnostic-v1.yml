@@ -1,0 +1,42 @@
+name: Buy VOID Epoch-2 Node procfd spawn diagnostic v1
+on:
+  pull_request:
+    paths:
+      - "scripts/diagnose_buy_void_epoch2_node_procfd_exec_v1.mjs"
+      - ".github/workflows/buy-void-epoch2-node-procfd-spawn-diagnostic-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Node ${{ matrix.node }} procfd execution diagnostic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check immutable scope and forbid checkout drift
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Unprivileged Node procfd diagnostics (no production authority)
+        run: |
+          set -euo pipefail
+          node --check scripts/diagnose_buy_void_epoch2_node_procfd_exec_v1.mjs
+          node scripts/diagnose_buy_void_epoch2_node_procfd_exec_v1.mjs --self-test
+          node scripts/diagnose_buy_void_epoch2_node_procfd_exec_v1.mjs --run
