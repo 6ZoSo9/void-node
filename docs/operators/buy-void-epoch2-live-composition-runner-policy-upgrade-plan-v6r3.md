@@ -10,13 +10,13 @@ mode in this generation.
 ```text
 integration_pr=3546
 main_base=0ada7fde0d90c3946b10693f4621cbd690bfcde6
-candidate_id=voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d
-accepted_lock_id=voidbuye2runnerpollock6r3_1c5c5b31abd01aa6cf3f080b2cf666980f18a6a2daf22700127fd6d84951f74c
-accepted_lock_blob=c527f317be6fdb2502e9c93ca43618d68f4a6b8e
-planner_blob=29ee3e6048a60d5d7368d66c871fe3ee3a561c45
-runner_git_blob=7967778824f22baca976a59df75f9f808ebebfe2
-runner_sha256=a548ff17e37fc37d041a42faeaaf79645f843616e654700dafbf20ea652a0029
-runner_bytes=64960
+candidate_id=voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f
+accepted_lock_id=voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7
+accepted_lock_blob=daab812f9925364ad89ff3bd59fdd18b9c98d553
+planner_blob=b9e69cab21b3031f0fb8000c0970a4cb99163d74
+runner_git_blob=4e84b6eb77c284ecf7d85b609cec4d1cf130c7a7
+runner_sha256=88e51377e473d4f0352f949f87ab5566078c85dddb1ab3e8e1bbb9908bfba19b
+runner_bytes=66548
 runtime_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
 ```
 
@@ -67,3 +67,27 @@ No Precision host plan is authorized merely by this source publication. No prote
 install or live binding follows automatically.
 
 PROTECT THE CORE.
+
+
+## Runtime-release Runner repair rebind
+
+This non-executing plan is now bound to the repaired Runner V4 generation that:
+
+- pins the canonical Git dir/worktree for current-source observation;
+- keeps Git lazy fetch, transport and prompts disabled;
+- executes the historical sealed-v2 probe from the exact protected runtime release `/opt/void-node-live/releases/4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`;
+- keeps runtime policy head `4c80887...` distinct from the advancing source checkout.
+
+Current accepted source identities:
+
+```text
+candidate_id=voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f
+accepted_lock_id=voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7
+accepted_lock_blob=daab812f9925364ad89ff3bd59fdd18b9c98d553
+runner_git_blob=4e84b6eb77c284ecf7d85b609cec4d1cf130c7a7
+runner_sha256=88e51377e473d4f0352f949f87ab5566078c85dddb1ab3e8e1bbb9908bfba19b
+runner_bytes=66548
+planner_blob=b9e69cab21b3031f0fb8000c0970a4cb99163d74
+```
+
+The planner remains read-only and has no apply mode.
