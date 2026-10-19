@@ -111,13 +111,13 @@ jobs:
           esac
 
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
-            75dab134b8444ca79af6505f738bfcbdb924662c
+            2569d6f15fd8c1ed059173ba19056979f3be7e23
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
             f485b9e6fc29eab549ebba07e1b49f24c7659092
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
-            7b4d5cdb5049521b4ad105822095fcc48bb8a649
+            294bf048022a39c0bdd737c1901a56ac392dabfe
           test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
-            d88b1bde3a76cb732a9ff1580a73c117e69f7d01
+            6fcd77972c3e1c6aa8304284d75fda84f5062c09
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
             96df365a812c645e6210ea5728c8f38851019d50
@@ -204,6 +204,10 @@ jobs:
             'publisher_forward_private_bytes_survive_all_mutation=true' \
             'publisher_input_copy_override_not_invoked=true' \
             'publisher_later_copy_override_not_invoked=true' \
+            'request_size_rejected_before_private_copy=true' \
+            'operation_keyset_rejected_before_descriptor_capture=true' \
+            'generation_nested_graph_rejected_before_clone=true' \
+            'authorization_slot_nested_graph_rejected_before_clone=true' \
             'native_promise_rejections_handled_without_caller_then=true' \
             'generation_drift_before_mutation_rejected=true' \
             'orphan_claim_without_slot_rejected=true' \
