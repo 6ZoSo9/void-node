@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="75dab134b8444ca79af6505f738bfcbdb924662c";
+const TARGET_BLOB="2569d6f15fd8c1ed059173ba19056979f3be7e23";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
@@ -274,6 +274,10 @@ for(const required of [
   "fs.fsyncSync(pendingFd)",
   "fs.linkSync(pendingPath,finalPath)",
   "apollyon_claim_store_impl_v2_orphan_claim_without_slot",
+  "MAX_PUBLISH_REQUEST_BYTES=65536",
+  "input.length>MAX_PUBLISH_REQUEST_BYTES",
+  "function exactPrimitiveRecordInput",
+  "VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_KEYS_V1",
   '"before_slot_publication"',
   '"after_slot_before_claim"',
   '"before_success_ack"',
@@ -871,6 +875,122 @@ function requireFixedLeaseHelperCall(executable,args,options){
     assert.equal(sha256(forward.exact_request_bytes),expectedSha);
   }finally{Buffer.prototype.copy=originalPrototypeCopy;}
   assert.equal(laterPrototypeCopyCalls,0);
+}
+
+{
+  const oversized=Buffer.alloc(65537,0x61);
+  expectError(
+    ()=>prepareApollyonDurableAttemptClaimPublisherForwardV2(oversized),
+    "apollyon_claim_store_impl_v2_publisher_input_invalid",
+  );
+  const f=fixture();
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const beforeTx=f.txCount();
+    expectError(
+      ()=>f.core.publishClaim({
+        ...publishInput(bundle,f.generation),
+        request_bytes:oversized,
+      }),
+      "apollyon_claim_store_impl_v2_request_bytes_invalid",
+    );
+    assert.equal(f.txCount(),beforeTx);
+    requireStoreUnchanged(f);
+  }finally{f.cleanup();}
+}
+
+{
+  const f=fixture();
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const oversizedInput=publishInput(bundle,f.generation);
+    for(let index=0;index<4096;index++)oversizedInput["extra_"+index]=index;
+    const originalDescriptors=Object.getOwnPropertyDescriptors;
+    let targetDescriptorCalls=0;
+    Object.getOwnPropertyDescriptors=function guardedDescriptors(value){
+      if(value===oversizedInput){
+        targetDescriptorCalls+=1;
+        assert.fail("oversized operation input reached descriptor capture");
+      }
+      return originalDescriptors(value);
+    };
+    try{
+      expectError(
+        ()=>f.core.publishClaim(oversizedInput),
+        "apollyon_claim_store_impl_v2_publish_input_invalid",
+      );
+    }finally{
+      Object.getOwnPropertyDescriptors=originalDescriptors;
+    }
+    assert.equal(targetDescriptorCalls,0);
+    assert.equal(f.txCount(),0);
+    requireStoreUnchanged(f);
+  }finally{f.cleanup();}
+}
+
+{
+  const f=fixture();
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const nestedMarker={deep:"x".repeat(200000)};
+    const badGeneration={...f.generation,marker:nestedMarker};
+    const originalStructuredClone=globalThis.structuredClone;
+    let targetedClones=0;
+    globalThis.structuredClone=function guardedStructuredClone(value,...args){
+      if(value&&typeof value==="object"&&value.marker===nestedMarker){
+        targetedClones+=1;
+        assert.fail("nested generation reached structuredClone");
+      }
+      return Reflect.apply(originalStructuredClone,globalThis,[value,...args]);
+    };
+    try{
+      expectError(
+        ()=>f.core.publishClaim(publishInput(bundle,badGeneration)),
+        "apollyon_claim_store_impl_v2_generation_invalid",
+      );
+      expectError(
+        ()=>f.core.observeAuthorizationWinner(observationInput(bundle,badGeneration)),
+        "apollyon_claim_store_impl_v2_generation_invalid",
+      );
+    }finally{
+      globalThis.structuredClone=originalStructuredClone;
+    }
+    assert.equal(targetedClones,0);
+    assert.equal(f.txCount(),0);
+    requireStoreUnchanged(f);
+  }finally{f.cleanup();}
+}
+
+{
+  const f=fixture();
+  try{
+    const bundle=requestBundle(claimRecord(f.generation));
+    const nestedMarker={deep:"y".repeat(200000)};
+    const badSlot={...bundle.slot,marker:nestedMarker};
+    const originalStructuredClone=globalThis.structuredClone;
+    let targetedClones=0;
+    globalThis.structuredClone=function guardedStructuredClone(value,...args){
+      if(value&&typeof value==="object"&&value.marker===nestedMarker){
+        targetedClones+=1;
+        assert.fail("nested authorization slot reached structuredClone");
+      }
+      return Reflect.apply(originalStructuredClone,globalThis,[value,...args]);
+    };
+    try{
+      expectError(
+        ()=>f.core.publishClaim({
+          ...publishInput(bundle,f.generation),
+          authorization_slot_record:badSlot,
+        }),
+        "apollyon_claim_store_impl_v2_publish_input_invalid",
+      );
+    }finally{
+      globalThis.structuredClone=originalStructuredClone;
+    }
+    assert.equal(targetedClones,0);
+    assert.equal(f.txCount(),0);
+    requireStoreUnchanged(f);
+  }finally{f.cleanup();}
 }
 
 {
@@ -2800,6 +2920,10 @@ console.log("descriptor_close_failures_are_not_retried=true");
 console.log("publisher_forward_private_bytes_survive_all_mutation=true");
 console.log("publisher_input_copy_override_not_invoked=true");
 console.log("publisher_later_copy_override_not_invoked=true");
+console.log("request_size_rejected_before_private_copy=true");
+console.log("operation_keyset_rejected_before_descriptor_capture=true");
+console.log("generation_nested_graph_rejected_before_clone=true");
+console.log("authorization_slot_nested_graph_rejected_before_clone=true");
 console.log("native_promise_rejections_handled_without_caller_then=true");
 console.log("generation_drift_before_mutation_rejected=true");
 console.log("orphan_claim_without_slot_rejected=true");
