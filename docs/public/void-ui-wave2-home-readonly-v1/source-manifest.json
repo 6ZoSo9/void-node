@@ -57,7 +57,7 @@
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
-    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "2d7cec49403b485878ee61d7232b730d0b79cd2e15bd8b31051843e00164163b",
+    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "c8e3d604f0dd0edeb09af14a94635a4f1d5b5d39fd846ce40228922635464ad4",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "c3280ee022e07dbb8a9c8fa35156563358a786477b9c3e28a0ecc3b1706813d1"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
@@ -147,5 +147,6 @@
   "command_search_filter_refresh_date": "2026-10-15",
   "wallet_account_attribution_refresh_date": "2026-10-15",
   "wallet_status_account_attribution_refresh_date": "2026-10-15",
-  "home_stale_evidence_clear_refresh_date": "2026-10-15"
+  "home_stale_evidence_clear_refresh_date": "2026-10-15",
+  "wallet_loopback_peer_coherence_refresh_date": "2026-10-16"
 }
