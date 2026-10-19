@@ -139,7 +139,7 @@ for mode in ("--self-test","--source-plan"):
             assert line in lines,line
 
 lock=json.loads(LOCK.read_bytes())
-assert lock["version"]==5
+assert lock["version"]==6
 assert lock["integration_pr"]==3546
 assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
 assert lock["integration_head"]=="a82f93fd11ecc76990cb73c844ec90b9503e8b9a"
