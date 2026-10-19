@@ -72,23 +72,27 @@ Binder V4 then:
 1. proves current source compatibility;
 2. requires the caller-provided source head to equal the observed canonical source head;
 3. authenticates the exact dormant candidate V4 Git object from that source generation;
-4. executes the existing fixed V3 native live-composition entry with the runtime policy head only;
-5. validates the authenticated credential/live receipt produced by that installed runtime path;
-6. repeats the complete current-source compatibility proof;
-7. requires the pre/post source snapshots to be identical;
-8. revalidates the native parent proof;
-9. emits a V4 candidate-binding receipt.
+4. executes the existing fixed V3 native first-entry path with the runtime policy head only;
+5. requires that native path to dispatch the post-#3546 Runner V4 generation and validates a
+   `voide2livecomp4_...` receipt;
+6. cross-checks the child Runner V4 receipt's observed current-source HEAD/tree against
+   the Binder's pre-sensitive source snapshot;
+7. repeats the complete current-source compatibility proof;
+8. requires the pre/post source snapshots to be identical;
+9. revalidates the native parent proof;
+10. emits a V4 candidate-binding receipt.
 
-The installed native/runner receipt is runtime evidence. Current-source compatibility is
-a separate proof. V4 does not revive or reinterpret historical compatibility V3 output.
+The installed native/Runner V4 receipt is runtime evidence. Current-source compatibility is
+a separate proof, and the two are cross-bound by the child's observed source HEAD/tree.
+A Runner V3 receipt is rejected. V4 does not revive or reinterpret historical compatibility V3 output.
 
 ## Exact source identities
 
 ```text
-binder_git_blob=f5cf208d8a0c12a72ed885fec286563092d23a0e
-binder_sha256=6ee053d50d99096a6f6617ff8fec6968cb6f1ba8623825c0ae25d3d245ea08a3
-binder_bytes=38416
-native_preentry_git_blob=afe6dbc8d4e2b80117500ac961e99a0c80a78f60
+binder_git_blob=c15ad6eb1b8d70e3df5fd802d4de4443f9566ada
+binder_sha256=a35c76d19a92a2d5625b4c67b9235c2972b68f43083297c221fe73b6117b8187
+binder_bytes=43225
+native_preentry_git_blob=c89955b821f2cce97289c92acbb31160a32d0b5d
 dormant_candidate_git_blob=e569c9211e01f14c7c00dd1c5041d4dfb0817609
 runtime_dependency_count=9
 ```
