@@ -14,7 +14,7 @@ SOURCE = ROOT / "ops/xiphos/apollyon_training_start_release_releaser_integration
 TRAINER = ROOT / "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
 PIPE_PAIR = ROOT / "ops/xiphos/apollyon_release_pipe_pair_generation_v1.c"
 
-SOURCE_BLOB = "55ab6d566cfe692d7fcf032dc5569f2ea7c2e0a0"
+SOURCE_BLOB = "4431e82ff430547c0fcd18da589f648288012d91"
 TRAINER_BLOB = "265e1c73a6df9ae7fc0ec6a7e0ce474da3145b36"
 PIPE_PAIR_BLOB = "93390eefd1e72e70af7206e9982c8eaa5e042149"
 
@@ -84,6 +84,7 @@ for required in (
     "__NR_dup",
     "__NR_fcntl",
     "__NR_openat",
+    "__NR_creat",
     "__NR_socket",
     "__NR_sendmsg",
     "__NR_pidfd_getfd",
