@@ -84,6 +84,8 @@ const HEX64=/^[0-9a-f]{64}$/u;
 const SEALED_ID=/^voide2sealed2_[0-9a-f]{64}$/u;
 
 const RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb";
+const RUNTIME_RELEASE="/opt/void-node-live/releases/"+RUNTIME_HEAD;
+const CANONICAL_GIT_DIR=ROOT+"/.git";
 const SOURCE_COMPATIBILITY_KEYS=Object.freeze([
   "runtime_head","source_head","source_tree",
   "source_runtime_ancestry_bound","source_runtime_dependency_blob_equality",
@@ -412,9 +414,15 @@ function runAsRuntimeUser(command,args,options={}){
 
 function git(args){
   const r=runAsRuntimeUser(GIT,[
+    "--git-dir="+CANONICAL_GIT_DIR,
+    "--work-tree="+ROOT,
+    "-c","core.worktree="+ROOT,
+    "-c","core.fileMode=true",
     "-c","core.fsmonitor=false",
     "-c","core.hooksPath=/dev/null",
     "-c","core.untrackedCache=false",
+    "-c","core.sparseCheckout=false",
+    "-c","core.sparseCheckoutCone=false",
     "-c","submodule.recurse=false",
     ...args,
   ],{env:cleanGitEnv(),timeout:15_000});
@@ -907,7 +915,35 @@ function validateSealedRecord(record,expectedHead){
   }
 }
 
+function requireTrustedRuntimeRelease(){
+  const components=[
+    "/",
+    "/opt",
+    "/opt/void-node-live",
+    "/opt/void-node-live/releases",
+    RUNTIME_RELEASE,
+  ];
+  for(const candidate of components){
+    let real;
+    try{real=fs.realpathSync(candidate);}
+    catch{throw new Error("runtime_release_path_unavailable");}
+    if(real!==candidate){
+      throw new Error("runtime_release_path_not_canonical");
+    }
+    let st;
+    try{st=fs.lstatSync(candidate,{bigint:true});}
+    catch{throw new Error("runtime_release_path_unavailable");}
+    const mode=st.mode&0o7777n;
+    if(!st.isDirectory()||st.isSymbolicLink()||
+       st.uid!==0n||st.gid!==0n||(mode&0o022n)!==0n){
+      throw new Error("runtime_release_path_untrusted");
+    }
+  }
+  return RUNTIME_RELEASE;
+}
+
 function runSealedProbe(expectedHead){
+  const runtimeRelease=requireTrustedRuntimeRelease();
   const source=gitObject(expectedHead,SEALED_REL,SEALED_BLOB);
   try{
     const r=runAsRuntimeUser(NODE,[
@@ -919,6 +955,7 @@ function runSealedProbe(expectedHead){
       "--expected-head",
       expectedHead,
     ],{
+      cwd:runtimeRelease,
       env:cleanGitEnv(),
       input:source,
       timeout:45_000,
@@ -1067,6 +1104,10 @@ function plan(){
   console.log("git_lazy_fetch_disabled=true");
   console.log("git_transport_disabled=true");
   console.log("git_prompt_and_askpass_disabled=true");
+  console.log("canonical_git_dir_worktree_pinned=true");
+  console.log("sealed_probe_runtime_release_cwd_required=true");
+  console.log("runtime_release_root_custody_required=true");
+  console.log("runtime_release="+RUNTIME_RELEASE);
   console.log("protected_native_entry_accepted_by_this_pr=false");
   console.log("protected_native_entry_install_authorized=false");
   console.log("live_execution_authorized=false");
@@ -1537,6 +1578,9 @@ function selfTest(){
   console.log("git_lazy_fetch_disabled=true");
   console.log("git_transport_disabled=true");
   console.log("git_prompt_and_askpass_disabled=true");
+  console.log("canonical_git_dir_worktree_pinned=true");
+  console.log("sealed_probe_runtime_release_cwd_required=true");
+  console.log("runtime_release_root_custody_required=true");
   console.log("sealed_child_credential_content_access=true");
   console.log("nontransaction_signature_only=true");
   console.log("transaction=false");
