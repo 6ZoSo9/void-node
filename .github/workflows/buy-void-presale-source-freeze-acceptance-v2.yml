@@ -38,7 +38,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          STACK_PARENT=d29a6663b9fb1f2a1a1c64d911c7f888c33b70e5
+          STACK_PARENT=698b1b4a2b8390acaf5e8e867235e87b844aa00d
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
 
