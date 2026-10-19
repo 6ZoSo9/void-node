@@ -9,7 +9,7 @@ export const VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1 =
   "VOID_APOLLYON_TRAINING_ACTIVATION_GENERATION_BINDING_V1";
 
 export const APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1 = Object.freeze({
-  parent_head:"81b553a0cd3ab5f75db3d282ffec6a0e536e2977",
+  parent_head:"d00ca0141db62d752be7ddc6e7d9618e0475d897",
   training_start_consumption_contract_head:
     "bdadfcc6854d6f4e1804347e51b940e897a8da9f",
   training_start_consumption_contract_blob_sha1:
