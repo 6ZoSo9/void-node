@@ -69,6 +69,7 @@ jobs:
           esac
           test "$SCOPE_BASE" != 0000000000000000000000000000000000000000
           git merge-base --is-ancestor "$SCOPE_BASE" "$EXPECTED_HEAD"
+          printf 'VOID_PRESALE_FREEZE_SCOPE_BASE=%s\n' "$SCOPE_BASE" >> "$GITHUB_ENV"
           test "$(git rev-parse "$FREEZE_ANCHOR^{tree}")" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
           git merge-base --is-ancestor "$FREEZE_ANCHOR" "$EXPECTED_HEAD"
 
@@ -84,7 +85,7 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 668eab35bca38b8ed90b1e11f75647f80b677436
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 884fa63bf5c2386e6a01beea6265f6d7b9d48a72
           test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-candidate-v2.md)" = e0862b321d7af50ea1ca06d9c4eb45a462b42446
 
           test "$(git rev-parse HEAD:.github/workflows/buy-void-current-presale-source-tuple-v3.yml)" = e7d73fb5cea73164909c99c5d8585acd48822155
