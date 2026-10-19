@@ -15,11 +15,11 @@ runtime / installed policy head:
 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
 
 canonical source main:
-44f7cf576cdc4460397677a27af2f587a33d424d
+fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de
 ```
 
 A read-only Precision diagnostic proved that the source advance is exactly the
-six ADD-only files merged by PR #3532, while the installed live release and the
+ten ADD-only files merged by PR #3532, while the installed live release and the
 Epoch-2 protected policy remain intentionally bound to the earlier runtime head.
 
 Changing the installed qualifier's `expected_head` to the newer source head would
@@ -57,8 +57,8 @@ Runtime generation:
 Permitted canonical source generation:
 
 ```text
-head=44f7cf576cdc4460397677a27af2f587a33d424d
-tree=24208ee96995ca784234ac8281eb40abaec5735d
+head=fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de
+tree=8cf585e4e32f085520b5f3536101e082f284f9e7
 ```
 
 The newer source tree must equal the complete runtime tree plus exactly these six
@@ -128,10 +128,10 @@ A future GREEN V3 receipt states, among other inherited evidence:
 
 ```text
 runtime_expected_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
-source_checkout_head=44f7cf576cdc4460397677a27af2f587a33d424d
-source_checkout_tree=24208ee96995ca784234ac8281eb40abaec5735d
+source_checkout_head=fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de
+source_checkout_tree=8cf585e4e32f085520b5f3536101e082f284f9e7
 source_runtime_add_only_compatibility_exact=true
-source_runtime_added_path_count=6
+source_runtime_added_path_count=10
 main_source_advance_runtime_non_authority=true
 canonical_checkout_rewind_performed=false
 canonical_checkout_mutation_performed=false
@@ -191,3 +191,16 @@ never followed by a retry of the consumed numeric FD. Hosted proof exercises rea
 close-then-error adversaries for final descriptors and ancestor traversal. V3 also
 uses the inherited lexical+resolved `sys.path` containment model, including rejection
 of a lexical checkout descendant that symlinks to an outside import directory.
+
+
+## Second source-only main advance
+
+After this V3 generation was first published, `main` advanced from
+`44f7cf576cdc4460397677a27af2f587a33d424d` to
+`fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de` by merging #3534.
+
+That delta is exactly four additional ADD-only V7 protected-substrate installer V2
+source/CI files. Combined with the prior #3532 six-file source-only advance, V3 now
+requires the current source tree to equal runtime head
+`4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb` plus exactly ten reviewed additions.
+No arbitrary future additions are accepted.

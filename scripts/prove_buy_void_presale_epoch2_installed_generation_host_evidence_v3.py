@@ -53,8 +53,8 @@ compile(source, TARGET_REL, "exec", dont_inherit=True)
 
 for required in (
     'RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
-    'SOURCE_HEAD = "44f7cf576cdc4460397677a27af2f587a33d424d"',
-    'SOURCE_TREE = "24208ee96995ca784234ac8281eb40abaec5735d"',
+    'SOURCE_HEAD = "fa3cda59b8ea00f1bff9a936179ba0ef94d9d0de"',
+    'SOURCE_TREE = "8cf585e4e32f085520b5f3536101e082f284f9e7"',
     'V2_GIT_BLOB_SHA1 = "a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2"',
     "source_checkout_lexical = Path(os.path.abspath(__file__)).parents[2]",
     "fixed_checkout_resolved = FIXED_CHECKOUT.resolve(strict=False)",
@@ -110,7 +110,7 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 assert module.VERSION == 3
 assert module.V2_GIT_BLOB_SHA1 == V2_BLOB
-assert len(module.ALLOWED_ADD_ONLY) == 6
+assert len(module.ALLOWED_ADD_ONLY) == 10
 
 # V3 must reject both lexical and resolved checkout import roots. A lexical path
 # beneath the fixed checkout remains forbidden even if a symlink resolves out.
@@ -446,6 +446,7 @@ print("exact_v2_proof_blob_bound=true")
 print("exact_v1_source_blob_bound=true")
 print("runtime_head_and_source_head_distinct=true")
 print("source_runtime_exact_add_only_allowlist_required=true")
+print("source_runtime_ten_add_only_allowlist_bound=true")
 print("source_runtime_base_path_identity_preserved=true")
 print("unexpected_added_path_rejected=true")
 print("tracked_worktree_byte_drift_rejected=true")
