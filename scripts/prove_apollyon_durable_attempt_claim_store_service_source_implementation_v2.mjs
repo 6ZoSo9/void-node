@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="07013ab562c3e3cd7093d63f0a4507a6870d22b9";
+const TARGET_BLOB="e539f089b94cb2245e0267817dd74a37cacf423b";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
@@ -263,6 +263,10 @@ for(const required of [
   'claim_directory:"claims-v2"',
   'pending_directory:".pending-v2"',
   'training_start_consumption_directory:"training-start-consumption-v1"',
+  "trusted_revalidator_callback_source_required:true",
+  "trusted_revalidator_callback_source_proven:false",
+  "unhandled_rejected_promise_containment_required:true",
+  "unhandled_rejected_promise_containment_proven:false",
   "caller_supplied_exclusive_transaction_is_host_proof:false",
   "caller_supplied_revalidator_is_host_proof:false",
   "non_root_claim_identity_required:true",
@@ -3007,6 +3011,30 @@ for(const operation of ["publishClaim","observeAuthorizationWinner"]){
   }
 }
 
+{
+  // Rejecting a native Promise without touching .then/species is getter-safe,
+  // but an already-rejected Promise remains an availability concern for the
+  // containing Node process. Prove the host-containment requirement in a
+  // disposable child rather than observing the Promise inside this core.
+  const child=spawnSync(process.execPath,["-e",String.raw`
+    const {types}=require("node:util");
+    const rejected=Promise.reject(new Error("fixture_unhandled_rejection"));
+    try{
+      if(types.isPromise(rejected))throw new Error("blocked");
+    }catch(error){
+      console.log("caught:"+error.message);
+    }
+    setTimeout(()=>console.log("survived"),30);
+  `],{
+    encoding:"utf8",
+    timeout:5000,
+    env:{PATH:process.env.PATH??"/usr/bin:/bin",LANG:"C",LC_ALL:"C"},
+  });
+  assert.notEqual(child.status,0,"unhandled rejected Promise unexpectedly contained");
+  assert.match(child.stdout,/caught:blocked/u);
+  assert.doesNotMatch(child.stdout,/survived/u);
+}
+
 for(const [key,value] of Object.entries(
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_AUTHORITY_V2
 )){
@@ -3038,6 +3066,8 @@ for(const [key,value] of Object.entries(
     "slot_before_claim_order_implemented",
     "injected_exclusive_transaction_required",
     "injected_prepublication_revalidator_required",
+    "trusted_revalidator_callback_source_required",
+    "unhandled_rejected_promise_containment_required",
   ].includes(key)){
     assert.equal(value,true,key);
   }else{
@@ -3088,6 +3118,11 @@ console.log("operation_keyset_rejected_before_descriptor_capture=true");
 console.log("generation_nested_graph_rejected_before_clone=true");
 console.log("authorization_slot_nested_graph_rejected_before_clone=true");
 console.log("forbidden_native_promises_rejected_without_observation=true");
+console.log("trusted_revalidator_callback_source_required=true");
+console.log("trusted_revalidator_callback_source_proven=false");
+console.log("unhandled_rejected_promise_containment_required=true");
+console.log("unhandled_rejected_promise_containment_proven=false");
+console.log("unhandled_rejected_promise_requires_host_containment=true");
 console.log("promise_constructor_getters_not_invoked=true");
 console.log("revalidator_thrown_values_not_stringified=true");
 console.log("generation_drift_before_mutation_rejected=true");
