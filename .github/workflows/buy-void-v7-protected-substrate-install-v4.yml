@@ -56,7 +56,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py)" = "56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py)" = "2132ed4f545364347e27bd77adc3ab447c0df397"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "a1a3a60ae55696bb7ffa46934d38b189e3558ee3"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v4.py)" = "85039b48837b009b2fb5ccca2c3072558f70370d"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v4.py)" = "5b518b23c5e6208756f802f76ef48425528c304b"
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v4.md)" = "65ae2f955d0970ebba045437b89bc8bcaa24a356"
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
