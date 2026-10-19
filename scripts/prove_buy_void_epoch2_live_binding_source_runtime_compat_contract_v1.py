@@ -11,17 +11,36 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py"
+COMPAT = ROOT / "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
 BINDER_PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
 RUNNER = ROOT / "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
 RUNNER_V4 = ROOT / "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 LIVE_NATIVE = ROOT / "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+QUALIFIER = ROOT / "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
+QUALIFIER_REPLACEMENT = ROOT / "ops/precision/void_buy_void_user_manager_credential_query_protected_replace_v3r.py"
+V6_QUALIFIER = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
+V6_REPLACEMENT = ROOT / "ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py"
+LOCK_V3R = ROOT / "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json"
+LOCK_V2 = ROOT / "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
+LOCK_V6 = ROOT / "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
+PARSER_V4 = ROOT / "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
 
 EXPECTED = {
+    COMPAT: "5c24b4a807c9d01ca357372aca042bb8d81b6b92",
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
+    RUNNER_V4: "7967778824f22baca976a59df75f9f808ebebfe2",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
+    QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
+    QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
+    V6_QUALIFIER: "83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc",
+    V6_REPLACEMENT: "f81d9fbead60593258d17dbb8720e1efc867b20f",
+    LOCK_V3R: "c4870f3178aebc9a0bb6557562f663b8480cfefa",
+    LOCK_V2: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
+    LOCK_V6: "772945b639d138284fc18cc312f7b9115b10c748",
+    PARSER_V4: "223a8acf32f8c7961d61222b83c0db17075f86c6",
 }
 
 def git_blob(raw: bytes) -> str:
@@ -38,18 +57,16 @@ compile(target_raw, str(TARGET), "exec", dont_inherit=True, optimize=0)
 tree = ast.parse(target_raw.decode("utf-8"))
 assert any(isinstance(n, ast.FunctionDef) and n.name == "build_plan" for n in tree.body)
 
-target_source = target_raw.decode("utf-8")
+compat = COMPAT.read_text()
 for required in (
-    'COMPAT_V3_REL = "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"',
-    'COMPAT_V3_BLOB = "f9e3b1f5501a56e7ce1a191f12507186e79c28d4"',
-    'SOURCE_BASELINE_HEAD = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"',
-    'SOURCE_BASELINE_TREE = "9e930fba9aacfafb5b163767302786cd7f31c81e"',
-    "current_source_head_runtime_observed_required",
-    "source_runtime_ancestry_bound_required",
-    "tracked_source_checkout_exact_required",
-    "runtime_source_dependency_blob_equality_required",
+    'RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
+    'SOURCE_HEAD = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"',
+    'SOURCE_TREE = "9e930fba9aacfafb5b163767302786cd7f31c81e"',
+    "source_runtime_fifteen_add_only_compatibility_required=true",
+    "canonical_checkout_rewind_performed=false",
+    "canonical_checkout_mutation_performed=false",
 ):
-    assert required in target_source, required
+    assert required in compat, required
 
 binder = BINDER.read_text()
 assert "function requireExactCheckout(expectedHead){" in binder
@@ -74,11 +91,24 @@ for required in (
     'VOID_BUY_VOID_EPOCH2_AUTHENTICATED_CREDENTIAL_LIVE_COMPOSITION_V4',
     'const RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb";',
     "function validateSourceCompatibility(value,expectedHead){",
-    "function requireSourceRuntimeCompatibility(expectedHead){",
-    'git(["status","--porcelain=v1","--untracked-files=no"])',
-    'git(["merge-base","--is-ancestor",RUNTIME_HEAD,sourceHead])',
+    "function requireSourceRuntimeCompatibility(expectedHead,gitFn=git){",
+    'gitFn(["status","--porcelain=v1","--untracked-files=no"])',
+    'gitFn(["merge-base","--is-ancestor",RUNTIME_HEAD,sourceHead])',
     "source_runtime_ancestry_bound:true",
     "source_runtime_dependency_blob_equality:true",
+    "function qualificationClosure(expectedHead,gitObjectFn=gitObject){",
+    "const QUALIFIER_CLOSURE_SPECS=Object.freeze([",
+    "const SOURCE_RUNTIME_DEPENDENCY_SPECS=Object.freeze([",
+    'const AUTHENTICATED_CLOSURE_ROOT="/__void_authenticated_qualifier_closure_v1__";',
+    "requireAuthenticatedClosureNamespaceAbsent",
+    "nested_source_runtime_dependency_drift_not_rejected",
+    "root_checkout_source_read_forbidden",
+    "root_checkout_lock_read_forbidden",
+    "q._direct_source_bytes=no_source",
+    "v6._direct_source_bytes=no_source",
+    "q._load_dependencies=load_dependencies",
+    "v6._load_replacement=load_replacement",
+    "closure_path_contract_mismatch",
     "tracked_checkout_exact:true",
     "untracked_paths_enumerated:false",
     "untracked_paths_source_authority:false",
@@ -126,6 +156,15 @@ for mode in ("--self-test", "--plan"):
             "source_runtime_ancestry_required=true",
             "tracked_source_checkout_exact_required=true",
             "source_runtime_dependency_blob_equality_required=true",
+            "source_runtime_complete_dependency_set_bound=true",
+            "nested_source_runtime_dependency_drift_rejected=true",
+            "authenticated_closure_synthetic_namespace=true",
+            "authenticated_closure_namespace_absent_required=true",
+            "root_qualification_user_checkout_file_namespace=false",
+            "root_qualification_dependency_closure_git_object_bound=true",
+            "root_checkout_dependency_path_reads_forbidden=true",
+            "root_qualification_closure_path_contract_bound=true",
+            "qualifier_closure_unprivileged_git_read_required=true",
             "untracked_paths_enumerated=false",
             "untracked_paths_source_authority=false",
             "git_lazy_fetch_disabled=true",
@@ -142,6 +181,9 @@ for mode in ("--self-test", "--plan"):
             "source_runtime_ancestry_required=true",
             "tracked_source_checkout_exact_required=true",
             "runtime_source_dependency_blob_equality_required=true",
+            "root_qualification_dependency_closure_git_object_bound=true",
+            "root_checkout_dependency_path_reads_forbidden=true",
+            "root_qualification_closure_path_contract_bound=true",
             "untracked_paths_enumerated=false",
             "git_lazy_fetch_disabled=true",
             "git_transport_disabled=true",
@@ -209,7 +251,7 @@ assert body["live_native_v3_binary_replacement_required_for_runner_compat"] is F
 assert len(body["required_successors"]) == 4
 
 print("VOID_BUY_VOID_EPOCH2_LIVE_BINDING_SOURCE_RUNTIME_COMPAT_CONTRACT_V1_PROOF_GREEN")
-print("historical_compat_v3_identity_recorded=true")
+print("exact_compat_v3_blob_bound=true")
 print("exact_binder_v2_blob_bound=true")
 print("exact_binder_preentry_v2_blob_bound=true")
 print("exact_runner_v3_blob_bound=true")
@@ -224,6 +266,15 @@ print("runner_v4_source_snapshot_stable_across_sensitive_sequence=true")
 print("runner_v4_git_lazy_fetch_disabled=true")
 print("runner_v4_git_transport_disabled=true")
 print("runner_v4_git_prompt_and_askpass_disabled=true")
+print("runner_v4_qualifier_closure_git_object_bound=true")
+print("runner_v4_complete_source_runtime_dependency_set_bound=true")
+print("runner_v4_nested_source_runtime_dependency_drift_rejected=true")
+print("runner_v4_authenticated_closure_synthetic_namespace=true")
+print("runner_v4_user_checkout_root_module_namespace_forbidden=true")
+print("runner_v4_root_checkout_dependency_reads_forbidden=true")
+print("runner_v4_complete_dependency_closure_count=8")
+print("runner_v4_complete_dependency_closure_blobs_bound=true")
+print("runner_v4_closure_path_contract_bound=true")
 print("hosted_node_path_resolved_from_ci_environment=true")
 print("runner_v4_preserves_native_v3_policy_boundary=true")
 print("credential_native_preentry_policy_binding_preserved=true")

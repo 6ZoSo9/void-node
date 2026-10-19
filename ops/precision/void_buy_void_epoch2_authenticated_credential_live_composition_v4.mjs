@@ -25,6 +25,25 @@ const QUALIFIER_REL=
 const SEALED_REL=
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v2.mjs";
 const QUALIFIER_BLOB="74c69fe8a95ed5f361a39971618f43f7c768c865";
+const QUALIFIER_REPLACEMENT_REL=
+  "ops/precision/void_buy_void_user_manager_credential_query_protected_replace_v3r.py";
+const QUALIFIER_REPLACEMENT_BLOB="98f8b9fda89e33c50e19008268d97655aad54e6d";
+const V6_QUALIFIER_REL=
+  "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py";
+const V6_QUALIFIER_BLOB="83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc";
+const V6_REPLACEMENT_REL=
+  "ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py";
+const V6_REPLACEMENT_BLOB="f81d9fbead60593258d17dbb8720e1efc867b20f";
+const CREDENTIAL_LOCK_V3R_REL=
+  "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json";
+const CREDENTIAL_LOCK_V3R_BLOB="c4870f3178aebc9a0bb6557562f663b8480cfefa";
+const CREDENTIAL_LOCK_V2_REL=
+  "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json";
+const CREDENTIAL_LOCK_V2_BLOB="b73415ce8fc95ff2d49cbde97a15d701ad5b7937";
+const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
+const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
+const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
+const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
 const SEALED_BLOB="14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
   "probeBuyVoidEpoch2InstalledCredentialSigningCapabilitySealedV2";
@@ -71,6 +90,21 @@ const SOURCE_COMPATIBILITY_KEYS=Object.freeze([
   "tracked_checkout_exact","untracked_paths_enumerated",
   "untracked_paths_source_authority",
 ]);
+const QUALIFIER_CLOSURE_SPECS=Object.freeze([
+  Object.freeze(["qualifier",QUALIFIER_REL,QUALIFIER_BLOB]),
+  Object.freeze(["replacement_v3r",QUALIFIER_REPLACEMENT_REL,QUALIFIER_REPLACEMENT_BLOB]),
+  Object.freeze(["qualifier_v6",V6_QUALIFIER_REL,V6_QUALIFIER_BLOB]),
+  Object.freeze(["replacement_v6",V6_REPLACEMENT_REL,V6_REPLACEMENT_BLOB]),
+  Object.freeze(["lock_v3r",CREDENTIAL_LOCK_V3R_REL,CREDENTIAL_LOCK_V3R_BLOB]),
+  Object.freeze(["lock_v2",CREDENTIAL_LOCK_V2_REL,CREDENTIAL_LOCK_V2_BLOB]),
+  Object.freeze(["lock_v6",V6_LOCK_REL,V6_LOCK_BLOB]),
+  Object.freeze(["parser_v4",V4_PARSER_REL,V4_PARSER_BLOB]),
+]);
+const SOURCE_RUNTIME_DEPENDENCY_SPECS=Object.freeze([
+  ...QUALIFIER_CLOSURE_SPECS,
+  Object.freeze(["sealed_v2",SEALED_REL,SEALED_BLOB]),
+]);
+const AUTHENTICATED_CLOSURE_ROOT="/__void_authenticated_qualifier_closure_v1__";
 const QUALIFICATION_KEYS=Object.freeze([
   "marker","version","read_only","root_execution_required",
   "credential_lock_id","credential_v3r_generation_verified",
@@ -406,31 +440,28 @@ function validateSourceCompatibility(value,expectedHead){
   }
 }
 
-function requireSourceRuntimeCompatibility(expectedHead){
+function requireSourceRuntimeCompatibility(expectedHead,gitFn=git){
   if(expectedHead!==RUNTIME_HEAD){
     throw new Error("runtime_expected_head_mismatch");
   }
-  const sourceHead=git(["rev-parse","--verify","HEAD"]).trim();
-  const sourceTree=git(["rev-parse","--verify","HEAD^{tree}"]).trim();
+  const sourceHead=gitFn(["rev-parse","--verify","HEAD"]).trim();
+  const sourceTree=gitFn(["rev-parse","--verify","HEAD^{tree}"]).trim();
   if(!SHA40.test(sourceHead)||!SHA40.test(sourceTree)){
     throw new Error("source_generation_identity_invalid");
   }
-  if(git(["branch","--show-current"]).trim()!=="main"){
+  if(gitFn(["branch","--show-current"]).trim()!=="main"){
     throw new Error("branch_not_main");
   }
-  if(git(["status","--porcelain=v1","--untracked-files=no"])!==""){
+  if(gitFn(["status","--porcelain=v1","--untracked-files=no"])!==""){
     throw new Error("tracked_checkout_not_exact");
   }
   // Runtime-sensitive authority may only move forward along the actual source
   // ancestry. This is a local-object query; network transport remains disabled.
-  git(["merge-base","--is-ancestor",RUNTIME_HEAD,sourceHead]);
+  gitFn(["merge-base","--is-ancestor",RUNTIME_HEAD,sourceHead]);
 
-  for(const [relative,expectedBlob] of [
-    [QUALIFIER_REL,QUALIFIER_BLOB],
-    [SEALED_REL,SEALED_BLOB],
-  ]){
-    const runtimeBlob=git(["rev-parse",RUNTIME_HEAD+":"+relative]).trim();
-    const sourceBlob=git(["rev-parse",sourceHead+":"+relative]).trim();
+  for(const [_label,relative,expectedBlob] of SOURCE_RUNTIME_DEPENDENCY_SPECS){
+    const runtimeBlob=gitFn(["rev-parse",RUNTIME_HEAD+":"+relative]).trim();
+    const sourceBlob=gitFn(["rev-parse",sourceHead+":"+relative]).trim();
     if(runtimeBlob!==expectedBlob||sourceBlob!==expectedBlob){
       throw new Error("source_runtime_dependency_blob_mismatch:"+relative);
     }
@@ -658,36 +689,167 @@ export function qualificationProcessFailure(result){
   return new Error("credential_qualification_failed:"+String(status));
 }
 
-function pythonBootstrap(source){
-  const absolute=path.join(ROOT,QUALIFIER_REL);
-  const encoded=source.toString("base64");
+function qualificationClosure(expectedHead,gitObjectFn=gitObject){
+  const closure={};
+  try{
+    for(const [label,relative,blob] of QUALIFIER_CLOSURE_SPECS){
+      closure[label]=gitObjectFn(expectedHead,relative,blob);
+    }
+    return closure;
+  }catch(error){
+    for(const value of Object.values(closure)){
+      if(Buffer.isBuffer(value))value.fill(0);
+    }
+    throw error;
+  }
+}
+
+function requireAuthenticatedClosureNamespaceAbsent(){
+  try{
+    fs.lstatSync(AUTHENTICATED_CLOSURE_ROOT);
+  }catch(error){
+    if(error?.code==="ENOENT")return;
+    throw new Error("authenticated_closure_namespace_check_failed");
+  }
+  throw new Error("authenticated_closure_namespace_present");
+}
+
+function pythonBootstrap(closure){
+  const encoded={};
+  for(const [key,value] of Object.entries(closure)){
+    encoded[key]=value.toString("base64");
+  }
+  const expected={
+    qualifier:QUALIFIER_BLOB,
+    replacement_v3r:QUALIFIER_REPLACEMENT_BLOB,
+    qualifier_v6:V6_QUALIFIER_BLOB,
+    replacement_v6:V6_REPLACEMENT_BLOB,
+    lock_v3r:CREDENTIAL_LOCK_V3R_BLOB,
+    lock_v2:CREDENTIAL_LOCK_V2_BLOB,
+    lock_v6:V6_LOCK_BLOB,
+    parser_v4:V4_PARSER_BLOB,
+  };
+  const paths={
+    qualifier:path.posix.join(AUTHENTICATED_CLOSURE_ROOT,QUALIFIER_REL),
+    replacement_v3r:path.posix.join(AUTHENTICATED_CLOSURE_ROOT,QUALIFIER_REPLACEMENT_REL),
+    qualifier_v6:path.posix.join(AUTHENTICATED_CLOSURE_ROOT,V6_QUALIFIER_REL),
+    replacement_v6:path.posix.join(AUTHENTICATED_CLOSURE_ROOT,V6_REPLACEMENT_REL),
+    lock_v3r:path.posix.join(AUTHENTICATED_CLOSURE_ROOT,CREDENTIAL_LOCK_V3R_REL),
+    lock_v2:path.posix.join(AUTHENTICATED_CLOSURE_ROOT,CREDENTIAL_LOCK_V2_REL),
+    lock_v6:path.posix.join(AUTHENTICATED_CLOSURE_ROOT,V6_LOCK_REL),
+    parser_v4:path.posix.join(AUTHENTICATED_CLOSURE_ROOT,V4_PARSER_REL),
+  };
   return [
-    "import base64,sys",
-    "source=base64.b64decode("+JSON.stringify(encoded)+")",
-    "path="+JSON.stringify(absolute),
-    "sys.argv=[path,'--run']",
-    "scope={'__name__':'__main__','__file__':path,'__package__':''}",
-    "exec(compile(source,path,'exec',dont_inherit=True),scope)",
+    "import base64,hashlib,sys,types",
+    "payload="+JSON.stringify(encoded),
+    "expected="+JSON.stringify(expected),
+    "paths="+JSON.stringify(paths),
+    "raw={k:base64.b64decode(v) for k,v in payload.items()}",
+    "def git_blob(data):",
+    " return hashlib.sha1(b'blob '+str(len(data)).encode('ascii')+b'\\0'+data).hexdigest()",
+    "for key,want in expected.items():",
+    " if git_blob(raw[key])!=want: raise RuntimeError('closure_blob_mismatch:'+key)",
+    "def module_from(label,name):",
+    " m=types.ModuleType(name)",
+    " m.__file__=paths[label]",
+    " m.__package__=''",
+    " exec(compile(raw[label],paths[label],'exec',dont_inherit=True),m.__dict__)",
+    " return m",
+    "def make_v3_replacement():",
+    " m=module_from('replacement_v3r','void_buy_void_user_manager_credential_query_protected_replace_v3r_exact')",
+    " if str(m.LOCK_PATH)!=paths['lock_v3r'] or str(m.V2_LOCK_PATH)!=paths['lock_v2']: raise m.ReplaceError('closure_path_contract_mismatch')",
+    " def repo_bytes(p):",
+    "  p=str(p)",
+    "  if p==paths['lock_v3r']: return raw['lock_v3r']",
+    "  if p==paths['lock_v2']: return raw['lock_v2']",
+    "  raise m.ReplaceError('root_checkout_lock_read_forbidden')",
+    " m._direct_repo_bytes=repo_bytes",
+    " return m",
+    "def make_v6_replacement():",
+    " m=module_from('replacement_v6','void_buy_void_user_manager_query_protected_replace_v6_exact')",
+    " if str(m.LOCK_PATH)!=paths['lock_v6']: raise m.ReplaceError('closure_path_contract_mismatch')",
+    " def repo_bytes(p):",
+    "  if str(p)==paths['lock_v6']: return raw['lock_v6']",
+    "  raise m.ReplaceError('root_checkout_lock_read_forbidden')",
+    " m._direct_repo_bytes=repo_bytes",
+    " return m",
+    "def make_v6_qualifier():",
+    " v6=module_from('qualifier_v6','void_buy_void_user_manager_query_live_qualification_v6_exact')",
+    " if str(v6.REPLACE_SOURCE)!=paths['replacement_v6'] or str(v6.V4_PARSER_SOURCE)!=paths['parser_v4']: raise v6.QualificationError('closure_path_contract_mismatch')",
+    " def no_source(_p): raise v6.QualificationError('root_checkout_source_read_forbidden')",
+    " v6._direct_source_bytes=no_source",
+    " def load_replacement():",
+    "  if git_blob(raw['replacement_v6'])!=v6.REPLACE_SOURCE_GIT_BLOB_SHA1: raise v6.QualificationError('replacement_source_blob_mismatch')",
+    "  if git_blob(raw['parser_v4'])!=v6.V4_PARSER_GIT_BLOB_SHA1: raise v6.QualificationError('v4_parser_source_blob_mismatch')",
+    "  m=make_v6_replacement()",
+    "  lock=m.accepted_lock()",
+    "  if m.GREEN_STATE!='V6_GREEN_WITH_V1_V2_PREDECESSORS': raise v6.QualificationError('replacement_green_state_contract_mismatch')",
+    "  if lock.get('lock_id')!='voidbuyumqelflock6_3627a98945579452b01c79b4d114c54d858122496f2b20a20ddfd7fae6b0307c': raise v6.QualificationError('corrected_v6_lock_id_mismatch')",
+    "  return m",
+    " v6._load_replacement=load_replacement",
+    " return v6",
+    "q=module_from('qualifier','void_buy_void_user_manager_credential_query_installed_qualification_v3r_exact')",
+    "if str(q.REPLACEMENT_SOURCE)!=paths['replacement_v3r'] or str(q.V6_QUALIFIER_SOURCE)!=paths['qualifier_v6']: raise q.QualificationError('closure_path_contract_mismatch')",
+    "def no_source(_p): raise q.QualificationError('root_checkout_source_read_forbidden')",
+    "q._direct_source_bytes=no_source",
+    "def load_dependencies():",
+    " if git_blob(raw['replacement_v3r'])!=q.REPLACEMENT_SOURCE_GIT_BLOB_SHA1: raise q.QualificationError('replacement_source_blob_mismatch')",
+    " replacement=make_v3_replacement()",
+    " lock=replacement.accepted_lock()",
+    " if lock.get('lock_id')!=q.LOCK_ID: raise q.QualificationError('credential_v3r_lock_id_mismatch')",
+    " if replacement.LOCK_ID!=q.LOCK_ID: raise q.QualificationError('replacement_lock_id_mismatch')",
+    " if replacement.V3_QUERY_SHA256!='d60e5719a4d785dbfaca90074ed3313ef9e0cae84c3f933af44d7faf84763923': raise q.QualificationError('replacement_v3_query_identity_mismatch')",
+    " if git_blob(raw['qualifier_v6'])!=q.V6_QUALIFIER_SOURCE_GIT_BLOB_SHA1: raise q.QualificationError('v6_qualifier_source_blob_mismatch')",
+    " return replacement,make_v6_qualifier()",
+    "q._load_dependencies=load_dependencies",
+    "sys.argv=[paths['qualifier'],'--run']",
+    "try:",
+    " rc=q.main()",
+    "except q.QualificationError as exc:",
+    " print(q.MARKER)",
+    " print('status=HOLD')",
+    " print('reason='+str(exc))",
+    " print('query_execution_state=unknown_or_partial')",
+    " print('credential_contents_read=false')",
+    " print('host_mutation=false')",
+    " print('filesystem_write=false')",
+    " print('service_mutation=false')",
+    " print('systemd_mutation=false')",
+    " print('payment_acceptance=false')",
+    " print('public_presale_activation=false')",
+    " print('wc_void_market_activation=false')",
+    " print('transaction=false')",
+    " print('funds_movement=false')",
+    " print('production_host_evidence_authority=false')",
+    " rc=2",
+    "raise SystemExit(rc)",
     "",
   ].join("\n");
 }
 
 function runQualification(expectedHead){
-  const source=gitObject(expectedHead,QUALIFIER_REL,QUALIFIER_BLOB);
+  const closure=qualificationClosure(expectedHead);
   try{
-    const bootstrap=pythonBootstrap(source);
+    requireAuthenticatedClosureNamespaceAbsent();
+    const bootstrap=pythonBootstrap(closure);
+    if(bootstrap.includes(ROOT)){
+      throw new Error("authenticated_closure_bootstrap_user_checkout_path");
+    }
     const r=run(PYTHON,["-I","-B","-"],{
       env:cleanRootEnv(),
       input:bootstrap,
       timeout:60_000,
     });
+    requireAuthenticatedClosureNamespaceAbsent();
     if(r.status!==0)throw qualificationProcessFailure(r);
     if(r.stderr!=="")throw new Error("credential_qualification_unexpected_stderr");
     const parsed=parseQualificationStdout(r.stdout);
     validateQualification(parsed);
     return parsed;
   }finally{
-    source.fill(0);
+    for(const value of Object.values(closure)){
+      if(Buffer.isBuffer(value))value.fill(0);
+    }
   }
 }
 
@@ -896,6 +1058,10 @@ function plan(){
   console.log("source_runtime_ancestry_required=true");
   console.log("tracked_source_checkout_exact_required=true");
   console.log("runtime_source_dependency_blob_equality_required=true");
+  console.log("root_qualification_dependency_closure_git_object_bound=true");
+  console.log("root_checkout_dependency_path_reads_forbidden=true");
+  console.log("root_qualification_closure_path_contract_bound=true");
+  console.log("qualifier_closure_unprivileged_git_read_required=true");
   console.log("untracked_paths_enumerated=false");
   console.log("untracked_paths_source_authority=false");
   console.log("git_lazy_fetch_disabled=true");
@@ -1237,6 +1403,104 @@ function selfTest(){
     }
   }
 
+  const closureCalls=[];
+  const testClosure=qualificationClosure(
+    "1".repeat(40),
+    (head,relative,blob)=>{
+      closureCalls.push([head,relative,blob]);
+      return Buffer.from(blob,"ascii");
+    },
+  );
+  if(closureCalls.length!==QUALIFIER_CLOSURE_SPECS.length||
+     closureCalls.length!==8||
+     Object.keys(testClosure).sort().join(",")!==
+       QUALIFIER_CLOSURE_SPECS.map((row)=>row[0]).sort().join(",")){
+    throw new Error("qualification_closure_self_test_failed");
+  }
+  for(let i=0;i<QUALIFIER_CLOSURE_SPECS.length;i++){
+    const [label,relative,blob]=QUALIFIER_CLOSURE_SPECS[i];
+    const [headGot,relativeGot,blobGot]=closureCalls[i];
+    if(headGot!=="1".repeat(40)||relativeGot!==relative||blobGot!==blob||
+       testClosure[label].toString("ascii")!==blob){
+      throw new Error("qualification_closure_identity_self_test_failed:"+label);
+    }
+  }
+  requireAuthenticatedClosureNamespaceAbsent();
+  const bootstrapProbe=pythonBootstrap(testClosure);
+  if(!bootstrapProbe.includes(AUTHENTICATED_CLOSURE_ROOT)||
+     bootstrapProbe.includes(ROOT)){
+    throw new Error("qualification_bootstrap_namespace_self_test_failed");
+  }
+  let syntheticReadHeld=false;
+  try{
+    fs.readFileSync(
+      path.posix.join(AUTHENTICATED_CLOSURE_ROOT,QUALIFIER_REL),
+    );
+  }catch(error){
+    syntheticReadHeld=error?.code==="ENOENT";
+  }
+  if(!syntheticReadHeld){
+    throw new Error("qualification_bootstrap_namespace_read_self_test_failed");
+  }
+  for(const required of [
+    "root_checkout_source_read_forbidden",
+    "root_checkout_lock_read_forbidden",
+    "q._direct_source_bytes=no_source",
+    "v6._direct_source_bytes=no_source",
+    "m._direct_repo_bytes=repo_bytes",
+    "q._load_dependencies=load_dependencies",
+    "v6._load_replacement=load_replacement",
+    "closure_path_contract_mismatch",
+  ]){
+    if(!bootstrapProbe.includes(required)){
+      throw new Error("qualification_bootstrap_guard_self_test_failed:"+required);
+    }
+  }
+  if(bootstrapProbe.includes("'__name__':'__main__'")||
+     bootstrapProbe.includes("path.read_bytes()")){
+    throw new Error("qualification_bootstrap_unsafe_path_self_test_failed");
+  }
+  for(const value of Object.values(testClosure))value.fill(0);
+
+  if(SOURCE_RUNTIME_DEPENDENCY_SPECS.length!==9){
+    throw new Error("source_runtime_dependency_set_cardinality_invalid");
+  }
+  const driftSourceHead="8".repeat(40);
+  const driftSourceTree="9".repeat(40);
+  const driftRelative=V6_QUALIFIER_REL;
+  let driftHeld=false;
+  const driftGit=(args)=>{
+    if(args[0]==="rev-parse"&&args[1]==="--verify"&&args[2]==="HEAD"){
+      return driftSourceHead+"\n";
+    }
+    if(args[0]==="rev-parse"&&args[1]==="--verify"&&args[2]==="HEAD^{tree}"){
+      return driftSourceTree+"\n";
+    }
+    if(args[0]==="branch"&&args[1]==="--show-current")return "main\n";
+    if(args[0]==="status")return "";
+    if(args[0]==="merge-base")return "";
+    if(args[0]==="rev-parse"&&args.length===2){
+      const spec=args[1];
+      for(const [_label,relative,blob] of SOURCE_RUNTIME_DEPENDENCY_SPECS){
+        if(spec===RUNTIME_HEAD+":"+relative)return blob+"\n";
+        if(spec===driftSourceHead+":"+relative){
+          if(relative===driftRelative)return "0".repeat(40)+"\n";
+          return blob+"\n";
+        }
+      }
+    }
+    throw new Error("source_runtime_dependency_drift_fixture_query");
+  };
+  try{
+    requireSourceRuntimeCompatibility(RUNTIME_HEAD,driftGit);
+  }catch(error){
+    driftHeld=String(error?.message||error)===
+      "source_runtime_dependency_blob_mismatch:"+driftRelative;
+  }
+  if(!driftHeld){
+    throw new Error("nested_source_runtime_dependency_drift_not_rejected");
+  }
+
   console.log(MARKER+"_SELF_TEST_GREEN");
   console.log("native_preentry_required_for_live=true");
   console.log("native_parent_retained_for_child_lifetime=true");
@@ -1259,6 +1523,15 @@ function selfTest(){
   console.log("source_runtime_ancestry_required=true");
   console.log("tracked_source_checkout_exact_required=true");
   console.log("source_runtime_dependency_blob_equality_required=true");
+  console.log("source_runtime_complete_dependency_set_bound=true");
+  console.log("nested_source_runtime_dependency_drift_rejected=true");
+  console.log("root_qualification_dependency_closure_git_object_bound=true");
+  console.log("authenticated_closure_synthetic_namespace=true");
+  console.log("authenticated_closure_namespace_absent_required=true");
+  console.log("root_qualification_user_checkout_file_namespace=false");
+  console.log("root_checkout_dependency_path_reads_forbidden=true");
+  console.log("root_qualification_closure_path_contract_bound=true");
+  console.log("qualifier_closure_unprivileged_git_read_required=true");
   console.log("untracked_paths_enumerated=false");
   console.log("untracked_paths_source_authority=false");
   console.log("git_lazy_fetch_disabled=true");

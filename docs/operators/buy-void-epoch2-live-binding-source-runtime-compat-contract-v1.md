@@ -126,3 +126,33 @@ transport/lazy fetch, and a stable source snapshot across the sensitive window.
 The earlier Runner V4 candidate/lock generation is superseded by this source
 repair and has no installation authority. Candidate/lock evidence must be
 re-derived from the repaired Runner V4 blob.
+
+
+## October 19 privileged-read provenance and namespace repair
+
+Runner V4 advanced again after exact-head review found two remaining source defects:
+
+1. source/runtime dependency equality covered only the top qualifier and sealed probe while root execution consumed the full eight-file qualifier closure;
+2. authenticated in-memory root modules still received `__file__` paths under the user-owned canonical checkout.
+
+The repaired Runner V4 blob is now
+`7967778824f22baca976a59df75f9f808ebebfe2`.
+
+The repair now requires one immutable source/runtime dependency set containing all
+eight qualifier-closure entries plus the sealed probe. Every entry must equal its
+reviewed blob at both runtime head and current source head before root Python may
+start. A nested-current-source drift adversary must HOLD.
+
+Root module `__file__` values now live only beneath the fixed synthetic namespace
+`/__void_authenticated_qualifier_closure_v1__`. Runner V4 requires that namespace
+to have no filesystem entry (including dangling symlinks) before and after the
+root child. The bootstrap contains no canonical user-checkout closure path. All
+known content readers remain in-memory overrides, so any missed/future pathname
+read fails closed instead of entering `/home/zoso/dev/void-node`.
+
+This source advance supersedes the currently published V6R3 candidate/lock/plan
+identities. Those artifacts retain **no authority for this repaired Runner V4**
+and must be rederived only after fresh exact-head proof.
+
+No Precision host run, credential/private-key access, signing, transaction,
+payment/activation, service mutation, or funds movement is authorized.
