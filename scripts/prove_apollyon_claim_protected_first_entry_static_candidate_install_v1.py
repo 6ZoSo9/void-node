@@ -15,7 +15,7 @@ import errno
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py"
-SOURCE_BLOB = "03814bcb8e3c14edfbb97cf50436eec6b2e86913"
+SOURCE_BLOB = "2c0f909a9df8df3a24411a52e9ac4196738e03e7"
 
 
 def git_blob(raw: bytes) -> str:
@@ -57,74 +57,89 @@ assert real_lock["authority"]["training_execution_authorized"] is False
 assert real_lock["binary"]["bytes"] == 808472
 assert real_lock["binary"]["expected_install_mode"] == "0555"
 
-# A regular pathname replaced with a FIFO after lstat must never block at open.
-# The production readers use O_NONBLOCK so the retained descriptor can be
-# fstat-rejected immediately.
-with tempfile.TemporaryDirectory(prefix="apollyon-archive-open-race-") as td:
+# The three readers must admit a regular inode with O_PATH before any data-open.
+# Replace each visible pathname with a FIFO immediately before the /proc/self/fd
+# reopen and prove the FIFO pathname is never the object data-opened.
+with tempfile.TemporaryDirectory(prefix="apollyon-archive-held-open-race-") as td:
     archive_path = Path(td) / "candidate.tar"
     archive_path.write_bytes(b"X" * 512)
     real_open = os.open
+    data_targets: list[str] = []
+    pathname_data_opens = [0]
+    replaced = [False]
 
-    def archive_raced_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
-        if Path(os.fspath(path)) == archive_path:
-            assert flags & os.O_NOFOLLOW
-            assert flags & os.O_NONBLOCK
+    def archive_held_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
+        text_path = os.fspath(path)
+        o_path = getattr(os, "O_PATH", 0)
+        if Path(text_path) == archive_path and not (flags & o_path):
+            pathname_data_opens[0] += 1
+        if text_path.startswith("/proc/self/fd/") and not replaced[0]:
             archive_path.unlink()
             os.mkfifo(archive_path, 0o600)
+            replaced[0] = True
+            data_targets.append(text_path)
         return real_open(path, flags, *args, **kwargs)
 
-    mod.os.open = archive_raced_open
+    mod.os.open = archive_held_open
     try:
         try:
             mod.read_untrusted_tar(archive_path)
         except mod.Hold as exc:
             assert str(exc) == "archive_file_changed"
         else:
-            raise AssertionError("archive FIFO pre-open race admitted")
+            raise AssertionError("archive visible replacement admitted")
     finally:
         mod.os.open = real_open
+    assert replaced[0] is True
+    assert pathname_data_opens[0] == 0
+    assert len(data_targets) == 1
 
-with tempfile.TemporaryDirectory(prefix="apollyon-parent-open-race-") as td:
+with tempfile.TemporaryDirectory(prefix="apollyon-parent-held-open-race-") as td:
     original_root = mod.ROOT
     temp_root = Path(td)
     parent_path = temp_root / mod.PARENT_REL
     parent_path.parent.mkdir(parents=True)
     parent_path.write_bytes(b"synthetic-parent-source")
     real_open = os.open
+    pathname_data_opens = [0]
+    replaced = [False]
 
-    def parent_raced_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
-        if Path(os.fspath(path)) == parent_path:
-            assert flags & os.O_NOFOLLOW
-            assert flags & os.O_NONBLOCK
+    def parent_held_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
+        text_path = os.fspath(path)
+        o_path = getattr(os, "O_PATH", 0)
+        if Path(text_path) == parent_path and not (flags & o_path):
+            pathname_data_opens[0] += 1
+        if text_path.startswith("/proc/self/fd/") and not replaced[0]:
             parent_path.unlink()
             os.mkfifo(parent_path, 0o600)
+            replaced[0] = True
         return real_open(path, flags, *args, **kwargs)
 
     mod.ROOT = temp_root
-    mod.os.open = parent_raced_open
+    mod.os.open = parent_held_open
     try:
         try:
             mod.load_accepted_parent_lock()
         except mod.Hold as exc:
             assert str(exc) == "accepted_parent_source_drift"
         else:
-            raise AssertionError("parent source FIFO pre-open race admitted")
+            raise AssertionError("parent visible replacement admitted")
     finally:
         mod.os.open = real_open
         mod.ROOT = original_root
+    assert replaced[0] is True
+    assert pathname_data_opens[0] == 0
 
-# The exact authenticated #3494 module historically reopens its four candidate
-# dependencies through Path.read_bytes(). The wrapper must replace that helper
-# before derive/validate. Exercise the replacement directly with a pre-open
-# FIFO substitution; no Git call may be reached after descriptor drift.
-with tempfile.TemporaryDirectory(prefix="apollyon-parent-dependency-race-") as td:
+# The wrapper also owns the accepted parent's dependency-read boundary.
+with tempfile.TemporaryDirectory(prefix="apollyon-parent-dependency-held-open-race-") as td:
     temp_root = Path(td)
     relative = "candidate/source.py"
     dependency_path = temp_root / relative
     dependency_path.parent.mkdir(parents=True)
     dependency_path.write_bytes(b"synthetic-dependency-source")
     real_open = os.open
-    git_called = False
+    pathname_data_opens = [0]
+    replaced = [False]
 
     class SyntheticParent:
         ROOT = temp_root
@@ -137,20 +152,23 @@ with tempfile.TemporaryDirectory(prefix="apollyon-parent-dependency-race-") as t
 
     nonlocal_git_marker = [False]
 
-    def dependency_raced_open(
+    def dependency_held_open(
         path: object,
         flags: int,
         *args: object,
         **kwargs: object,
     ) -> int:
-        if Path(os.fspath(path)) == dependency_path:
-            assert flags & os.O_NOFOLLOW
-            assert flags & os.O_NONBLOCK
+        text_path = os.fspath(path)
+        o_path = getattr(os, "O_PATH", 0)
+        if Path(text_path) == dependency_path and not (flags & o_path):
+            pathname_data_opens[0] += 1
+        if text_path.startswith("/proc/self/fd/") and not replaced[0]:
             dependency_path.unlink()
             os.mkfifo(dependency_path, 0o600)
+            replaced[0] = True
         return real_open(path, flags, *args, **kwargs)
 
-    mod.os.open = dependency_raced_open
+    mod.os.open = dependency_held_open
     try:
         try:
             mod._read_parent_dependency_source(
@@ -161,10 +179,12 @@ with tempfile.TemporaryDirectory(prefix="apollyon-parent-dependency-race-") as t
         except mod.Hold as exc:
             assert str(exc) == "accepted_parent_dependency_changed"
         else:
-            raise AssertionError("parent dependency FIFO pre-open race admitted")
+            raise AssertionError("parent dependency visible replacement admitted")
         assert nonlocal_git_marker[0] is False
     finally:
         mod.os.open = real_open
+    assert replaced[0] is True
+    assert pathname_data_opens[0] == 0
 
 # Descriptor close uncertainty must remain inside the machine-readable Hold
 # contract. The fixture performs the real close first, then reports a synthetic
@@ -422,8 +442,10 @@ for required in (
     "def _read_parent_dependency_source(",
     "module.stable_file = lambda",
     "def read_untrusted_tar(path: Path)",
-    "os.O_NOFOLLOW | os.O_NONBLOCK",
+    "def _admit_regular_read_fd(",
+    '"/proc/self/fd/" + str(path_fd)',
     "def _close_fd(fd: int, reason: str)",
+    "def _close_read_fds(",
     '"accepted_parent_dependency_close_failed"',
     '"accepted_parent_source_close_failed"',
     '"archive_file_close_failed"',
@@ -435,7 +457,7 @@ for required in (
     "protected_install_authorized\": False",
 ):
     assert required in source, required
-assert source.count("os.O_NONBLOCK") == 3
+assert source.count("os.O_NONBLOCK") == 1
 
 for forbidden in (
     "os.rename(",
@@ -456,10 +478,13 @@ print("VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_INSTALL_V1_PRO
 print("accepted_parent_lock_bound=true")
 print("descriptor_safe_parent_lock_generation_bound=true")
 print("parent_failure_machine_readable_hold=true")
-print("archive_preopen_fifo_swap_rejected_without_blocking=true")
-print("parent_preopen_fifo_swap_rejected_without_blocking=true")
+print("archive_held_regular_admission=true")
+print("archive_visible_replacement_not_data_opened=true")
+print("parent_held_regular_admission=true")
+print("parent_visible_replacement_not_data_opened=true")
 print("parent_dependency_descriptor_custody=true")
-print("parent_dependency_fifo_swap_rejected_without_blocking=true")
+print("parent_dependency_held_regular_admission=true")
+print("parent_dependency_visible_replacement_not_data_opened=true")
 print("archive_close_failure_machine_readable_hold=true")
 print("parent_source_close_failure_machine_readable_hold=true")
 print("parent_dependency_close_failure_machine_readable_hold=true")
