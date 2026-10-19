@@ -32,7 +32,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "32c47e26a3a8a1829011f05f50b723ca92864fe0",
+    RUNNER_V4: "cf2b6fcbfa6ba1cd83556a93ecbe63d6e6728953",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -42,7 +42,7 @@ EXPECTED = {
     LOCK_V2: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
     LOCK_V6: "772945b639d138284fc18cc312f7b9115b10c748",
     PARSER_V4: "223a8acf32f8c7961d61222b83c0db17075f86c6",
-    SEALED_V3: "e08c3e17a9cdb3e70440327ca587e6d5418f30ca",
+    SEALED_V3: "6eaf10258e9e84a8835afb70758d24bd9982d56b",
 }
 
 def git_blob(raw: bytes) -> str:
@@ -159,12 +159,15 @@ for required in (
     'runtime_uid_effective_tool_nonwritability_required=true',
     'root_tool_terminal_generation_revalidation_required=true',
     "function requireRuntimeUidNonwritable(candidate,label){",
-    'const SEALED_BLOB="e08c3e17a9cdb3e70440327ca587e6d5418f30ca";',
+    'const SEALED_BLOB="6eaf10258e9e84a8835afb70758d24bd9982d56b";',
     "function openRetainedTrustedExecutable(file,label){",
     "function runRetainedTrustedExecutable(tool,args,options={}){",
-    'const executable="/proc/"+String(process.pid)+"/fd/"+String(tool.fd);',
-    'const setprivExecutable="/proc/"+String(process.pid)+"/fd/"+String(tools.setpriv.fd);',
-    '"/proc/self/fd/"+String(commandChildFd)',
+    'const executable="/proc/self/fd/"+String(tool.fd);',
+    'stdio[tool.fd]=tool.fd;',
+    'const setprivExecutable="/proc/self/fd/"+String(tools.setpriv.fd);',
+    'stdio[tools.setpriv.fd]=tools.setpriv.fd;',
+    'stdio[commandTool.fd]=commandTool.fd;',
+    'const commandExecutable="/proc/self/fd/"+String(commandTool.fd);',
 ):
     assert required in runner_v4, required
 
@@ -249,7 +252,8 @@ for required in (
     "function trustedExecutableAncestorCustody(resolved, leaf) {",
     "function revalidateTrustedExecutable(tool) {",
     "function execTrustedExecutable(tool, args, options = {}) {",
-    'const executable = "/proc/" + String(process.pid) + "/fd/" + String(tool.fd);',
+    'const executable = "/proc/self/fd/" + String(tool.fd);',
+    'stdio[tool.fd] = tool.fd;',
     'const GIT_TOOL = trustedExecutable("/usr/bin/git", "git");',
     'trustedExecutable("/usr/bin/systemctl", "systemctl");',
     "runtime_source_bounded_descriptor_reads_per_census: true",
@@ -376,8 +380,8 @@ print("runner_v4_retained_node_descriptor_binding_contract=true")
 print("runner_v4_trusted_root_tool_rebind_adversary=true")
 print("runner_v4_runtime_uid_effective_tool_nonwritability=true")
 print("sealed_v3_retained_trusted_tools_green=true")
-print("runner_v4_parent_procfd_first_exec_bound=true")
-print("sealed_v3_parent_procfd_first_exec_bound=true")
+print("runner_v4_same_fd_retained_exec_bound=true")
+print("sealed_v3_same_fd_retained_exec_bound=true")
 print("retained_target_child_self_fd_exec_bound=true")
 print("sealed_v3_acl_barrier_pre_post_census_semantics=true")
 print("runner_v4_qualifier_closure_git_object_bound=true")
