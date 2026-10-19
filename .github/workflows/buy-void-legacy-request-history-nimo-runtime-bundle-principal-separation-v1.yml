@@ -1,0 +1,89 @@
+name: VOID Nimo runtime bundle principal separation v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-legacy-request-history-nimo-runtime-bundle-principal-separation-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_principal_separation_v1.mjs"
+      - "docs/operators/buy-void-legacy-request-history-nimo-runtime-bundle-principal-separation-v1.md"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-runtime-bundle-principal-separation-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-legacy-request-history-nimo-runtime-bundle-principal-separation-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_principal_separation_v1.mjs"
+      - "docs/operators/buy-void-legacy-request-history-nimo-runtime-bundle-principal-separation-v1.md"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-runtime-bundle-principal-separation-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: principal separation / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove principal separation contract
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-legacy-request-history-nimo-runtime-bundle-principal-separation-v1.mjs
+          node --check scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_principal_separation_v1.mjs
+          proof="$RUNNER_TEMP/nimo-runtime-bundle-principal-separation-v1.txt"
+          node scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_principal_separation_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_BUY_LEGACY_REQUEST_HISTORY_NIMO_RUNTIME_BUNDLE_PRINCIPAL_SEPARATION_V1_GREEN' "$proof"
+          grep -Fx 'trusted_supervisor_required=true' "$proof"
+          grep -Fx 'outer_runner_same_uid_hostile_exclusion_claimed=false' "$proof"
+          grep -Fx 'builder_principal_distinct_required=true' "$proof"
+          grep -Fx 'builder_no_new_privs_required=true' "$proof"
+          grep -Fx 'builder_sudo_or_login_authority=false' "$proof"
+          grep -Fx 'builder_preexisting_processes_zero_required=true' "$proof"
+          grep -Fx 'builder_continuous_uid_exclusivity_required=true' "$proof"
+          grep -Fx 'postbuild_builder_uid_processes_zero_required=true' "$proof"
+          grep -Fx 'runtime_output_candidate_observation_while_builder_live=false' "$proof"
+          grep -Fx 'runtime_output_custody_after_builder_terminal_required=true' "$proof"
+          grep -Fx 'output_generation_revalidation_before_candidate_observation=true' "$proof"
+          grep -Fx 'supervisor_first_entry_proven=false' "$proof"
+          grep -Fx 'v3_candidate_derivation_authorized=false' "$proof"
+          grep -Fx 'runtime_bundle_candidate_accepted=false' "$proof"
+          grep -Fx 'nimo_contact=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"

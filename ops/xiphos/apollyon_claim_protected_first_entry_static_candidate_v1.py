@@ -14,9 +14,9 @@ from typing import Any
 MARKER = "VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_V1"
 ROOT = Path(__file__).resolve().parents[2]
 SELF_REL = "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py"
-PARENT_HEAD = "a149fe2fbac4cb8bb11ed049dfb12a1d0110bfae"
+PARENT_HEAD = "e357073c5d7932f924c077a73349e9050dfb78eb"
 PREDECESSOR_PROOF_REL = "scripts/prove_apollyon_claim_protected_first_entry_v1.py"
-PREDECESSOR_PROOF_BLOB = "598c195252a17b7e4839763387c1970ea13c3b45"
+PREDECESSOR_PROOF_BLOB = "8348bba0a6a8b6c30ffdcc3a12658f20e99b8592"
 FIXED_SELF = (
     "/opt/void-apollyon-claim-protected-first-entry-v1/bin/"
     "apollyon_claim_protected_first_entry_v1"
@@ -30,7 +30,7 @@ PINNED = {
     "scripts/apollyon_claim_protected_first_entry_v1_selftest.c":
         "cd6d969cb9578ac32620be60822ff743803146ab",
     "docs/security/apollyon-claim-protected-first-entry-v1.md":
-        "c806bb973660be2cc5631fc18552944453d4cbc4",
+        "73aa87efd722bb23188fd52ea49abe525f9ec59e",
     "ops/xiphos/apollyon_claim_no_exec_lock_v1.c":
         "475b0e06605a64ba885c027d2163e87ab0fa0cfa",
     "ops/xiphos/apollyon_claim_no_exec_lock_v1.h":

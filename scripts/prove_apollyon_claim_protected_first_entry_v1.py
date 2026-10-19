@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-PARENT_HEAD = "8b8c128889276f942402928325b2342b24ca6b98"
+PARENT_HEAD = "2df0817b5fc3456c68f32063fb28dda5bdc8ec44"
 PROOF = "scripts/prove_apollyon_claim_protected_first_entry_v1.py"
 WORKFLOW = ".github/workflows/apollyon-claim-protected-first-entry-v1.yml"
 
@@ -24,7 +24,7 @@ PINNED = {
     "scripts/apollyon_claim_protected_first_entry_v1_selftest.c":
         "cd6d969cb9578ac32620be60822ff743803146ab",
     "docs/security/apollyon-claim-protected-first-entry-v1.md":
-        "c806bb973660be2cc5631fc18552944453d4cbc4",
+        "73aa87efd722bb23188fd52ea49abe525f9ec59e",
     "ops/xiphos/apollyon_claim_no_exec_lock_v1.c":
         "475b0e06605a64ba885c027d2163e87ab0fa0cfa",
     "ops/xiphos/apollyon_claim_no_exec_lock_v1.h":
