@@ -259,27 +259,29 @@ def open_root(
                         hold("claim_root_ancestor_custody_invalid")
                     require_no_posix_acl(child, "claim_root_ancestor")
             except BaseException:
-                # A rejected child never becomes caller-owned. Close it once
-                # before propagating the original HOLD/error; do not retry an
-                # uncertain close result.
+                # The child is still ours on rejection. Never silently lose
+                # close uncertainty or retry an FD whose ownership is unknown.
                 try:
                     os.close(child)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    raise Hold("claim_root_rejected_child_close_uncertain") from exc
                 raise
 
             # Transfer ownership before closing the old parent. If that close
             # fails, the outer cleanup still owns the validated child.
             previous = current
             current = child
-            os.close(previous)
+            try:
+                os.close(previous)
+            except OSError as exc:
+                raise Hold("claim_root_prior_parent_close_uncertain") from exc
 
         return current, os.fstat(current)
     except BaseException:
         try:
             os.close(current)
-        except OSError:
-            pass
+        except OSError as exc:
+            raise Hold("claim_root_traversal_close_uncertain") from exc
         raise
 
 
