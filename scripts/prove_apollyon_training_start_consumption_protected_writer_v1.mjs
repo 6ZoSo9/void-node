@@ -327,6 +327,73 @@ assert.equal(leaf1.includes(record1.authorization_id),false);
   }
 }
 
+// Rejection after duplicating the caller directory must not swallow
+// cleanup uncertainty on the module-owned duplicate.
+for(const method of ["classify","publish"]){
+  const root=newRoot();
+  const fd=openRoot(root);
+  const fdsBefore=fs.readdirSync("/proc/self/fd").sort();
+  const originalOpen=fs.openSync;
+  const originalClose=fs.closeSync;
+  const originalFstat=fs.fstatSync;
+  const directoryPath="/proc/self/fd/"+String(fd);
+  let ownedFd=-1;
+  let callerFstats=0;
+  let ownedCloseAttempts=0;
+  fs.openSync=function observedDirectoryOpen(target,flags,...args){
+    const opened=originalOpen.call(fs,target,flags,...args);
+    if(String(target)===directoryPath&&typeof flags==="number"&&
+       (flags&Number(fs.constants.O_DIRECTORY||0))!==0){
+      ownedFd=opened;
+    }
+    return opened;
+  };
+  fs.fstatSync=function injectedDirectoryRevalidation(target,...args){
+    if(target===fd){
+      callerFstats+=1;
+      if(callerFstats===2){
+        const fault=new Error("simulated caller directory revalidation failure");
+        fault.code="ESTALE";
+        throw fault;
+      }
+    }
+    return originalFstat.call(fs,target,...args);
+  };
+  fs.closeSync=function injectedOwnedClose(target){
+    if(target===ownedFd){
+      ownedCloseAttempts+=1;
+      const result=originalClose.call(fs,target);
+      const fault=new Error("simulated EIO after real owned-directory close");
+      fault.code="EIO";
+      throw fault;
+    }
+    return originalClose.call(fs,target);
+  };
+  try{
+    const run=method==="publish"
+      ?()=>publishApollyonTrainingStartConsumptionProtectedV1({
+        directory_fd:fd,consumption_record:record1,
+      })
+      :()=>classifyApollyonTrainingStartConsumptionProtectedSlotV1({
+        directory_fd:fd,expected_consumption_record:record1,
+      });
+    assert.throws(run,error=>{
+      assert.match(String(error.message),/owned_directory_close_uncertain/u);
+      assert.equal(error.cause?.code,"EIO");
+      return true;
+    });
+    assert.ok(ownedFd>=0,"owned directory descriptor was acquired");
+    assert.equal(ownedCloseAttempts,1,"owned directory close attempted exactly once");
+  }finally{
+    fs.openSync=originalOpen;
+    fs.closeSync=originalClose;
+    fs.fstatSync=originalFstat;
+    assert.deepEqual(fs.readdirSync("/proc/self/fd").sort(),fdsBefore);
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
 // A failed data close must never prevent the retained O_PATH descriptor
 // from being closed. Inject EIO *after* a real close and require both closes.
 for(const scenario of [
@@ -881,6 +948,7 @@ console.log("existing_slot_held_inode_admission=true");
 console.log("existing_slot_fifo_substitution_nonblocking=true");
 console.log("existing_slot_bounded_fd_read=true");
 console.log("existing_slot_growth_beyond_max_rejected=true");
+console.log("owned_directory_rejection_close_uncertainty_safe=true");
 console.log("existing_slot_dual_fd_close_fault_safe=true");
 console.log("existing_slot_visible_path_race_fixture_exercised=true");
 console.log("protected_consumption_store_origin_proven=false");

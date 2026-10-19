@@ -207,7 +207,13 @@ function openOwnedDirectoryFd(directoryFd){
     return Object.freeze({fd:ownedFd,identity:owned});
   }catch(error){
     if(ownedFd>=0){
-      try{fs.closeSync(ownedFd);}catch(closeError){void closeError;}
+      try{fs.closeSync(ownedFd);}
+      catch(closeError){
+        throw new Error(
+          "apollyon_training_start_writer_owned_directory_close_uncertain",
+          {cause:closeError},
+        );
+      }
     }
     throw error;
   }

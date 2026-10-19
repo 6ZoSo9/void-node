@@ -177,7 +177,7 @@ and grow a valid regular file at its first read. They require zero visible-path
 data opens, a maximum read request of 64 KiB + 1, and fail-closed rejection.
 
 Current repaired writer blob:
-`d32f1c5761fa5b95f28c2b2edd1253ca9b28f034`.
+`473b4148e6bcb755bb8bf7c6af890150a9f43efe`.
 
 ## October 19 — both existing-slot read descriptors close on uncertainty
 
@@ -205,3 +205,20 @@ unchanged. They do not simulate every possible kernel close failure.
 This is a source-only resource-ownership repair. Protected directory origin,
 current store/winner/claim admission, consumed-slot publication authority,
 trainer release, training, credentials, keys and funds authority remain false.
+
+## October 19 — duplicated directory rejection cleanup uncertainty
+
+If validation rejects after the caller-retained directory FD has been
+duplicated, a close failure on that module-owned duplicate is now surfaced as
+`apollyon_training_start_writer_owned_directory_close_uncertain`.
+The close is attempted exactly once; ambiguous cleanup is never retried or
+silently discarded.
+
+Disposable proof forces the post-duplication caller-directory revalidation to
+fail, then injects EIO after a real kernel close of the owned duplicate. Both
+public writer entrypoints must fail closed, attempt that close exactly once,
+and leave the process FD set unchanged.
+
+This remains source-only cleanup hardening and grants no protected-store,
+publication, trainer, training, credential, transaction, or funds authority.
+

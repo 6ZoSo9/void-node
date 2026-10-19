@@ -160,7 +160,7 @@ host writer/admission/training authority. **PROTECT THE CORE.**
 ## October 19 — bound to held-inode/bounded-read writer
 
 The request is now pinned to writer blob
-`d32f1c5761fa5b95f28c2b2edd1253ca9b28f034`. That writer admits an existing
+`473b4148e6bcb755bb8bf7c6af890150a9f43efe`. That writer admits an existing
 slot inode with O_PATH before data-open, reopens only the retained inode with
 O_NONBLOCK, and bounds the actual FD read to 64 KiB + 1.
 
@@ -199,3 +199,11 @@ regressions before requalifying the pure store request, and binds the writer's
 updated exact Git-blob identity. This source-only contract cannot prove
 privileged directory origin, current protected winner/claim/store rereads,
 writer admission, consumption publication, training, signing or funds activity.
+
+## October 19 — writer owned-directory cleanup binding
+
+The request is rebound to writer blob `473b4148e6bcb755bb8bf7c6af890150a9f43efe`, which now surfaces
+cleanup uncertainty if an owned duplicate of the caller directory must be
+discarded after failed validation. This does not promote the writer or request
+to protected-store authority.
+

@@ -65,6 +65,7 @@ jobs:
           grep -Fx 'existing_slot_fifo_substitution_nonblocking=true' "$out"
           grep -Fx 'existing_slot_bounded_fd_read=true' "$out"
           grep -Fx 'existing_slot_growth_beyond_max_rejected=true' "$out"
+          grep -Fx 'owned_directory_rejection_close_uncertainty_safe=true' "$out"
           grep -Fx 'existing_slot_dual_fd_close_fault_safe=true' "$out"
           grep -Fx 'existing_slot_visible_path_race_fixture_exercised=true' "$out"
           grep -Fx 'training_execution=false' "$out"
