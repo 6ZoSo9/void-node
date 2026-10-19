@@ -59,13 +59,13 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-training-start-release-binding-v1.mjs)" = \
             a7e4a69b9561fe441a0a1ab7476c6329e2cea3a8
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_binding_v1.mjs)" = \
-            a9a7c85a9bb48996ecce056ad47f2b7dc3d65d28
+            8e47c22048a2f196c1f8dbaf38b1796c6e1d1994
           test "$(git rev-parse HEAD:.github/workflows/apollyon-training-start-release-binding-v1.yml)" = \
-            c577da33e31b2c32d8a01e42105c7ced8cab0b4f
+            47c35993020a2b480df18928beff7780642bd5aa
 
           case "$EVENT_NAME" in
             pull_request)
-              test "$PR_BASE" = 9e1da5dbb1ae12114a26506fbf1c6bc56780b98f
+              test "$PR_BASE" = 5507b4a6cb847a459eaefb055989390be1bbd942
               git merge-base --is-ancestor "$PR_BASE" "$HEAD"
               expected="$RUNNER_TEMP/expected-scope.txt"
               actual="$RUNNER_TEMP/actual-scope.txt"
