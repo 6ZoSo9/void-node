@@ -169,3 +169,20 @@ adversaries before qualifying this pure request. This remains a source-only
 dependency rebind; protected-store origin, current winner/store/claim rereads,
 writer invocation authority, consumption publication and training remain
 false/unperformed.
+
+## October 19 — flattened hardened writer/request generation
+
+This PR now targets #3351 directly at
+`9e1da5dbb1ae12114a26506fbf1c6bc56780b98f` and owns exactly the eight
+writer/request files. It subsumes the historical #3377 protected writer and
+#3385 writer+request stack while preserving their negative authority.
+
+The composite workflow requires this exact eight-file direct scope, re-runs the
+hardened writer proof (including getter/proxy, FIFO substitution and bounded
+growth adversaries), then proves the immutable protected-store revalidation
+request.
+
+This consolidation does not prove protected-store origin, current
+winner/store/claim rereads, writer invocation authority, consumption
+publication, trainer release/training, credentials, transactions or funds.
+
