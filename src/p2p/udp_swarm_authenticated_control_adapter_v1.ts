@@ -16,6 +16,7 @@ import {
   type VoidUdpSwarmUpgradeRejectV1,
 } from "./udp_swarm_control_v1.js";
 import { VoidUdpSwarmRelayBridgeV1 } from "./udp_swarm_relay_bridge_v1.js";
+import { VoidP2pClientTransientClockV1 } from "./client_transient_clock_v1.js";
 
 const ID_RE = /^[0-9a-f]{32}$/;
 export const VOID_P2P_UDP_SWARM_CONTROL_ADAPTER_PENDING_TTL_MS_V1 = 10_000;
@@ -107,6 +108,7 @@ type ActiveRouteV1 = {
   ticket_id: string;
   expires_at_ms: number;
   offer_received: boolean;
+  clock_generation: number;
 };
 
 type StartedRelayStreamCheckV1 = (
@@ -114,13 +116,6 @@ type StartedRelayStreamCheckV1 = (
   peerNodeId: string,
   streamId: string,
 ) => boolean;
-
-function safeNow(raw: number): number {
-  if (!Number.isSafeInteger(raw) || raw < 0) {
-    throw new Error("UDP swarm authenticated control adapter clock is invalid");
-  }
-  return raw;
-}
 
 function requireId(raw: string, label: string): string {
   if (!ID_RE.test(raw)) {
@@ -157,6 +152,7 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
   private readonly pendingRequests = new Map<string, PendingRequestV1>();
   private readonly activeRoutes = new Map<string, ActiveRouteV1>();
   private readonly ticketSessions = new Map<string, string>();
+  private readonly clientClock = new VoidP2pClientTransientClockV1();
 
   constructor(private readonly options: {
     localNodeId: string;
@@ -190,7 +186,7 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
     request_id: string;
     control_delivery: VoidUdpSwarmControlDeliveryV1;
   }> {
-    const nowMs = safeNow(input.nowMs ?? Date.now());
+    const nowMs = this.sweep(input.nowMs ?? Date.now());
     const relayNodeId = requireId(input.relayNodeId, "relay node ID");
     const targetNodeId = requireId(input.targetNodeId, "target node ID");
     const streamId = requireId(input.streamId, "relay stream ID");
@@ -202,7 +198,6 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
       throw new Error("UDP swarm authenticated control adapter upgrade endpoints are invalid");
     }
 
-    this.sweep(nowMs);
     if (!this.options.isStartedRelayClientStream(relayNodeId, targetNodeId, streamId)) {
       throw new Error("UDP swarm authenticated control adapter requires a started local relay stream");
     }
@@ -257,9 +252,8 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
     direct_upgrade_offer?: VoidUdpSwarmDirectUpgradeOfferActionV1;
     relay_reject?: VoidUdpSwarmUpgradeRejectV1;
   }> {
-    const nowMs = safeNow(input.nowMs ?? Date.now());
+    const nowMs = this.sweep(input.nowMs ?? Date.now());
     const fromNodeId = requireId(input.fromNodeId, "authenticated sender node ID");
-    this.sweep(nowMs);
 
     const message = normalizeVoidUdpSwarmControlMessageV1(
       input.message,
@@ -331,6 +325,7 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
         ticket_id: message.ticket_id,
         expires_at_ms: message.expires_at_ms,
         offer_received: false,
+        clock_generation: this.clientClock.generation,
       };
       this.activeRoutes.set(route.session_id, route);
       this.ticketSessions.set(route.ticket_id, route.session_id);
@@ -481,12 +476,11 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
     observation: VoidUdpRendezvousObservationV1;
     control_deliveries: readonly VoidUdpSwarmControlDeliveryV1[];
   }> {
-    const nowMs = safeNow(input.nowMs ?? Date.now());
+    const nowMs = this.sweep(input.nowMs ?? Date.now());
     const bridge = this.options.relayBridge;
     if (!bridge) {
       throw new Error("UDP swarm authenticated control adapter relay bridge is unavailable");
     }
-    this.sweep(nowMs);
     const observed = bridge.observeRelayUdpProbe({
       packet: input.packet,
       remoteAddress: input.remoteAddress,
@@ -504,6 +498,13 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
     });
   }
 
+  activeRouteAuthorityV1(sessionId: string): Readonly<ActiveRouteV1> | undefined {
+    this.sweep();
+    const route = this.activeRoutes.get(sessionId);
+    if (!route) return;
+    return Object.freeze({ ...route });
+  }
+
   removeAuthenticatedPeer(nodeId: string): void {
     if (!ID_RE.test(nodeId)) return;
     this.options.relayBridge?.removeAuthenticatedPeer(nodeId);
@@ -519,8 +520,15 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
     }
   }
 
-  sweep(nowMs = Date.now()): void {
-    const now = safeNow(nowMs);
+  sweep(nowMs = Date.now()): number {
+    const clock = this.clientClock.observe(nowMs);
+    const now = clock.now_ms;
+    if (clock.regressed) {
+      this.pendingRequests.clear();
+      for (const sessionId of [...this.activeRoutes.keys()]) {
+        this.removeRoute(sessionId);
+      }
+    }
     this.options.relayBridge?.sweep(now);
     for (const [requestId, pending] of this.pendingRequests) {
       if (now - pending.requested_at_ms > VOID_P2P_UDP_SWARM_CONTROL_ADAPTER_PENDING_TTL_MS_V1) {
@@ -539,11 +547,11 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
         this.removeRoute(route.session_id);
       }
     }
+    return now;
   }
 
   snapshot(nowMs = Date.now()): VoidUdpSwarmAuthenticatedControlAdapterSnapshotV1 {
-    const now = safeNow(nowMs);
-    this.sweep(now);
+    this.sweep(nowMs);
     const pendingRequests = [...this.pendingRequests.values()]
       .map((entry) => Object.freeze({
         request_id: entry.request_id,
