@@ -21,13 +21,13 @@ FIXED_GIT=Path("/usr/bin/git")
 FIXED_NODE=Path("/usr/bin/node")
 
 LOCK_REL="ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json"
-LOCK_BLOB="7b113cb2547ed60a8e42a55cf4ad48e193cda89a"
-LOCK_ID="voidbuye2runnerpollock6r3_e65f2b3a34ce06a34bd2cc1e2f91e877fa3c6d67621fd02a191b1aae374a3a21"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_c2d5d08f412be224ad0f05745b5ce3e03dafb5a55d807632ae2b3ec6fb59c6b1"
+LOCK_BLOB="4cc5f59fd50b6bfac532d057f361af8f819adfc0"
+LOCK_ID="voidbuye2runnerpollock6r3_7d7410e17650b6112c2f238ea8b59b7510711d8bb4300434ce439332a93aebaf"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_e8fd215f560d8bc0d33f36057967e03a3f3cd6bf90230a776c307e32271c3020"
 
 RUNNER_REL="ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
-RUNNER_BLOB="2f17fd716f266fc1e12144799879d949983cc807"
-NEW_RUNNER_SHA256="1685536b4717963dc35459695e80f13841e330ed278b88b6a5004134aab2a030"
+RUNNER_BLOB="9e4a87c7f1fda092f16dcd859241cced41960fb8"
+NEW_RUNNER_SHA256="a98c845855a8774d3a60835dabe2f1ec1c2d2e129134fdfc963f0f8cecfddd27"
 NEW_RUNNER_BYTES=82_972
 
 QUALIFIER_REL="ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
