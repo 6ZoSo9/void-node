@@ -17,6 +17,14 @@ BINDER_PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v
 RUNNER = ROOT / "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
 RUNNER_V4 = ROOT / "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 LIVE_NATIVE = ROOT / "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+QUALIFIER = ROOT / "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
+QUALIFIER_REPLACEMENT = ROOT / "ops/precision/void_buy_void_user_manager_credential_query_protected_replace_v3r.py"
+V6_QUALIFIER = ROOT / "ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py"
+V6_REPLACEMENT = ROOT / "ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py"
+LOCK_V3R = ROOT / "ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json"
+LOCK_V2 = ROOT / "ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json"
+LOCK_V6 = ROOT / "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
+PARSER_V4 = ROOT / "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
 
 EXPECTED = {
     COMPAT: "f9e3b1f5501a56e7ce1a191f12507186e79c28d4",
@@ -25,6 +33,14 @@ EXPECTED = {
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
     RUNNER_V4: "dd9d545c7ee408f9ee25185a4ec81f8f04ee9fb1",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
+    QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
+    QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
+    V6_QUALIFIER: "83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc",
+    V6_REPLACEMENT: "f81d9fbead60593258d17dbb8720e1efc867b20f",
+    LOCK_V3R: "c4870f3178aebc9a0bb6557562f663b8480cfefa",
+    LOCK_V2: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
+    LOCK_V6: "772945b639d138284fc18cc312f7b9115b10c748",
+    PARSER_V4: "223a8acf32f8c7961d61222b83c0db17075f86c6",
 }
 
 def git_blob(raw: bytes) -> str:
@@ -241,6 +257,7 @@ print("runner_v4_git_prompt_and_askpass_disabled=true")
 print("runner_v4_qualifier_closure_git_object_bound=true")
 print("runner_v4_root_checkout_dependency_reads_forbidden=true")
 print("runner_v4_complete_dependency_closure_count=8")
+print("runner_v4_complete_dependency_closure_blobs_bound=true")
 print("hosted_node_path_resolved_from_ci_environment=true")
 print("runner_v4_preserves_native_v3_policy_boundary=true")
 print("credential_native_preentry_policy_binding_preserved=true")
