@@ -19,7 +19,7 @@ RUNTIME_POLICY_SHA256 = "746cfbe2f031868fff3a75f8307986f25c62460085f41a4827e7127
 SOURCE_HEAD_POLICY_SHA256 = "e2abc327cca40f0233eb344609f1db01f790c35af443e86afa1f69a6b671ae06"
 
 COMPAT_V3_REL = "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"
-COMPAT_V3_BLOB = "f9e3b1f5501a56e7ce1a191f12507186e79c28d4"
+COMPAT_V3_BLOB = "5c24b4a807c9d01ca357372aca042bb8d81b6b92"
 BINDER_V2_REL = "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
 BINDER_V2_BLOB = "9c29eb4716077e459b9154f39d0f30cf2e56729f"
 BINDER_PREENTRY_V2_REL = "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
