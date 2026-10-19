@@ -1,0 +1,55 @@
+name: Buy VOID Epoch-2 native installed qualification v4
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v4.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v4.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v4.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v4.py"
+      - "docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v4.md"
+      - ".github/workflows/buy-void-epoch2-live-composition-native-installed-qualification-v4.yml"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Preserve historical V4 qualifier on repaired upgrader
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v4.py)" =             "767e088d1383a8cecf4d5daa7bf6779f368db56e"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_native_installed_qualification_v4.py)" =             "34367fa59f9e09878bb74077b09b08d5c736310e"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-native-installed-qualification-v4.md)" =             "83179adb27081bbdfee0ab0f4eb1ff44a09929d1"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" =             "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
+          echo VOID_BUY_VOID_EPOCH2_NATIVE_INSTALLED_QUALIFICATION_V4_HISTORICAL_PRESERVED
+          echo historical_qualifier_source_frozen=true
+          echo historical_proof_frozen=true
+          echo repaired_upgrader_successor_recognized=true
+          echo current_positive_qualification=false
+          echo next_action=USE_VERSIONED_V5_INSTALLED_QUALIFICATION
+          echo credential_access=false
+          echo signing=false
+          echo transaction=false
+          echo payment_acceptance=false
+          echo public_presale_activation=false
+          echo wc_void_market_activation=false
+          echo funds_movement=false
+
+      - run: git diff --check

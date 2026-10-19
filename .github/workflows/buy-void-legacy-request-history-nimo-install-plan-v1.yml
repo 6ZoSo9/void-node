@@ -1,0 +1,150 @@
+name: Buy VOID legacy-history Nimo install plan v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_install_plan_v1.mjs"
+      - "docs/operators/buy-void-legacy-request-history-nimo-install-plan-v1.md"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-install-plan-v1.yml"
+      - "tools/void-buy-legacy-request-history-nimo-forced-command-v1.mjs"
+      - "tools/void-buy-legacy-request-history-nimo-transport-envelope-v1.mjs"
+      - "tools/void-buy-legacy-request-history-external-witness-v1.mjs"
+      - "tools/void-buy-legacy-request-history-sovereign-authorization-v1.mjs"
+      - "tools/void-buy-legacy-request-history-disposition-v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/security/void_sovereign_emergency_control_v1.ts"
+      - "src/security/void_alignment_layer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_install_plan_v1.mjs"
+      - "docs/operators/buy-void-legacy-request-history-nimo-install-plan-v1.md"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-install-plan-v1.yml"
+      - "tools/void-buy-legacy-request-history-nimo-forced-command-v1.mjs"
+      - "tools/void-buy-legacy-request-history-nimo-transport-envelope-v1.mjs"
+      - "tools/void-buy-legacy-request-history-external-witness-v1.mjs"
+      - "tools/void-buy-legacy-request-history-sovereign-authorization-v1.mjs"
+      - "tools/void-buy-legacy-request-history-disposition-v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/security/void_sovereign_emergency_control_v1.ts"
+      - "src/security/void_alignment_layer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-legacy-history-nimo-install-plan-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove source-only install plan
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs
+          node --check scripts/prove_void_buy_legacy_request_history_nimo_install_plan_v1.mjs
+          node scripts/prove_void_buy_legacy_request_history_nimo_install_plan_v1.mjs
+          node tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs --self-test
+          node tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs --plan \
+            > "$RUNNER_TEMP/legacy-history-nimo-install-plan-${{ matrix.node }}.json"
+          node -e '
+            const fs=require("fs");
+            const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            if(p.status!=="HOLD_SOURCE_ONLY_INSTALLATION_PLAN")process.exit(1);
+            if(p.authority.live_nimo_installed!==false)process.exit(1);
+            if(p.authority.authorized_keys_mutation_authorized!==false)process.exit(1);
+            if(p.authority.public_presale_activation!==false)process.exit(1);
+            if(p.authority.funds_movement!==false)process.exit(1);
+          ' "$RUNNER_TEMP/legacy-history-nimo-install-plan-${{ matrix.node }}.json"
+
+      - name: Mutation modes fail closed
+        run: |
+          set -euo pipefail
+          for mode in --apply --install --run --write-authorized-keys; do
+            if node tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs "$mode" \
+              >"$RUNNER_TEMP/mutation.out" 2>"$RUNNER_TEMP/mutation.err"; then
+              echo "mutation mode unexpectedly succeeded: $mode" >&2
+              exit 1
+            fi
+            grep -Fx 'HOLD=source_only_installation_plan_no_mutation_mode' \
+              "$RUNNER_TEMP/mutation.err"
+            grep -Fx 'live_nimo_installed=false' "$RUNNER_TEMP/mutation.err"
+            grep -Fx 'authorized_keys_mutation_authorized=false' "$RUNNER_TEMP/mutation.err"
+            grep -Fx 'funds_movement=false' "$RUNNER_TEMP/mutation.err"
+            test ! -s "$RUNNER_TEMP/mutation.out"
+          done
+
+      - name: Diff hygiene
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          PUSH_BEFORE_SHA: ${{ github.event.before || '' }}
+        run: |
+          set -euo pipefail
+          HEAD="$(git rev-parse HEAD)"
+          BASE="$PR_BASE_SHA"
+          if [ -z "$BASE" ]; then
+            BASE="$PUSH_BEFORE_SHA"
+          fi
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git cat-file -e "$BASE^{commit}"
+          DIFF_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$DIFF_BASE"
+          git cat-file -e "$DIFF_BASE^{commit}"
+          git merge-base --is-ancestor "$DIFF_BASE" "$HEAD"
+          git diff --check "$DIFF_BASE" "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

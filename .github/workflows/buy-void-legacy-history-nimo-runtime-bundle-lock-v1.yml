@@ -1,0 +1,99 @@
+name: VOID Buy legacy-history Nimo runtime bundle lock v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-legacy-history-nimo-runtime-bundle-lock-v1.json"
+      - "scripts/prove_void_buy_legacy_history_nimo_runtime_bundle_lock_v1.mjs"
+      - "docs/operators/buy-void-legacy-history-nimo-runtime-bundle-lock-v1.md"
+      - ".github/workflows/buy-void-legacy-history-nimo-runtime-bundle-lock-v1.yml"
+      - "tools/void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_candidate_v1.mjs"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-runtime-bundle-candidate-v1.yml"
+      - "tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/security/buy-void-legacy-history-nimo-runtime-bundle-lock-v1.json"
+      - "scripts/prove_void_buy_legacy_history_nimo_runtime_bundle_lock_v1.mjs"
+      - "docs/operators/buy-void-legacy-history-nimo-runtime-bundle-lock-v1.md"
+      - ".github/workflows/buy-void-legacy-history-nimo-runtime-bundle-lock-v1.yml"
+      - "tools/void-buy-legacy-request-history-nimo-runtime-bundle-candidate-v1.mjs"
+      - "scripts/prove_void_buy_legacy_request_history_nimo_runtime_bundle_candidate_v1.mjs"
+      - ".github/workflows/buy-void-legacy-request-history-nimo-runtime-bundle-candidate-v1.yml"
+      - "tools/void-buy-legacy-request-history-nimo-install-plan-v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked compiler
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Compile exact reviewed source
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+
+      - name: Prove exact runtime-bundle lock
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_buy_legacy_history_nimo_runtime_bundle_lock_v1.mjs
+          out="$RUNNER_TEMP/legacy-history-nimo-runtime-bundle-lock-${{ matrix.node }}.log"
+          node scripts/prove_void_buy_legacy_history_nimo_runtime_bundle_lock_v1.mjs |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_LEGACY_HISTORY_NIMO_RUNTIME_BUNDLE_LOCK_V1_PROOF_GREEN"
+            "candidate_id=voidblrhnrb1_f68df654aee9f534a0cecee80444c55ec70ef8cd1914b9eef4e09f6020b438e4"
+            "candidate_bytes=12369"
+            "candidate_sha256=b082a0262cf7db5d49f000642913ddcd2914c59c5faae7878005cfa30e2981c7"
+            "lock_id=voidblrhnrblock1_9b48f82fdc5dce5cf7baa792d2b999333aecfc33b76991ddfb6081dc3700f863"
+            "three_node_byte_identity_verified=true"
+            "actual_runtime_bytes_rederived=true"
+            "actual_compiler_bytes_rederived=true"
+            "resealed_candidate_sha_tamper_rejected=true"
+            "candidate_accepted=true"
+            "runtime_bundle_lock_created=true"
+            "protected_runtime_install_authorized=false"
+            "live_nimo_installed=false"
+            "authorized_keys_mutation_authorized=false"
+            "external_transport_authenticated=false"
+            "witness_read_performed=false"
+            "witness_append_performed=false"
+            "sovereign_signing=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
