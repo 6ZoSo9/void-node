@@ -8,7 +8,7 @@ Status: **source/test-only native candidate**. No Xiphos installation, service, 
 
 Accepted native trainer reader #3381 binds its inherited FD3 to one anonymous read-only Linux pipe generation. It deliberately cannot show that a future releaser owns the matching write end. This candidate supplies a concrete kernel-level construction/cross-process **same-pipe identity proof** for later integration without treating matching inodes or a frame as release authority.
 
-Exact parent: #3381 head `8fcfd9330e2e92e8fdc018f35c14f179b9779152`. The parent native candidate and its proof remain unchanged.
+Exact parent: #3381 head `458e8d3e8e7b52c1963788b9d09b7e4ea2294f45`. The parent native candidate and its proof remain unchanged.
 
 ## Kernel evidence
 
@@ -61,3 +61,15 @@ The hosted proof pins the exact source and upstream #3381 C blob, builds three d
 This source candidate grants **no** Xiphos account, group, systemd, socket, claim-store, authorization, trainer-release, training, private-key, signing, wallet, transaction or funds authority.
 
 PROTECT THE CORE.
+
+## October 19 current-parent reconciliation
+
+This generation is a non-force merge-forward over current #3381
+`458e8d3e8e7b52c1963788b9d09b7e4ea2294f45`. The #3397 native same-pipe C source remains byte-identical
+at `93390eefd1e72e70af7206e9982c8eaa5e042149`; only the focused proof and
+documentation bind the current #3381 native C generation
+`7ce2475cb50d6527b526479892e5d662792ce84b`.
+
+Writer exclusivity, protected releaser origin, trainer/releaser lineage,
+protected-store provenance, trainer release, training, credentials,
+transactions, and funds authority remain false/unproven.

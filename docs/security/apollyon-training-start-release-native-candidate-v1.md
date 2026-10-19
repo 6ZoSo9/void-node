@@ -11,11 +11,11 @@ runtime authority.
 ## Exact parent
 
 This candidate is stacked on accepted #3351 exact head
-`66d16e8af59c844192f1bb1362c2044a35e8c603`.
+`9e1da5dbb1ae12114a26506fbf1c6bc56780b98f`.
 
 It binds exact #3351 release-binding source Git blob:
 
-`01757cbd80c12561218ac4ba0a29e9675e42adec`.
+`a7e4a69b9561fe441a0a1ab7476c6329e2cea3a8`.
 
 The parent contract remains authoritative for the 64-byte release-frame domain,
 trainer/releaser policy requirements, unique authorization→claim winner lineage,
@@ -216,3 +216,14 @@ protected consumption publication, trainer release, training/model execution,
 key/signing/wallet access, transaction, or funds action is authorized.
 
 PROTECT THE CORE.
+
+## October 19 current-parent reconciliation
+
+This generation is a non-force merge-forward over current #3351
+`9e1da5dbb1ae12114a26506fbf1c6bc56780b98f`. The native release protocol and C control flow are unchanged;
+the C source changes only its exact parent release-binding Git-blob identity.
+The proof and workflow bind the current #3351 source/proof generation.
+
+Protected release-channel origin, releaser writer exclusivity, trainer/releaser
+lineage, actual trainer release, training execution, credentials, transactions,
+and funds authority remain false/unperformed.

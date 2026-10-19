@@ -19,6 +19,7 @@ def _require_isolated_python_startup()->None:
 _require_isolated_python_startup()
 
 import argparse
+from collections import deque
 import hashlib
 import json
 import os
@@ -341,10 +342,12 @@ def raw_commit_ancestry_contains(
 )->bool:
     if not GIT40_RE.fullmatch(descendant) or not GIT40_RE.fullmatch(ancestor):
         hold("source_git_commit_invalid")
-    pending=[descendant]
+    # Breadth-first review prevents an unrelated deep merge parent from starving
+    # a nearby reviewed ancestor. The same strict commit-object cap still applies.
+    pending=deque([descendant])
     seen:set[str]=set()
     while pending:
-        commit=pending.pop()
+        commit=pending.popleft()
         if commit in seen:
             continue
         seen.add(commit)
