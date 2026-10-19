@@ -26,7 +26,7 @@ V4 preserves V3 and binds it as the exact predecessor:
 - predecessor V3 installer blob: `4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38`;
 - materializer V2 blob: `474614da950db72082fb95a5174405ce8caf2513`;
 - historical installed qualifier V2 blob: `56a7ca798553766af525d9fb1ccbe58b70fe9c1d`;
-- installed qualifier V3 blob: `2132ed4f545364347e27bd77adc3ab447c0df397`.
+- installed qualifier V3 blob: `ea3c31180810ea4efe4341683742827dcf6ac5ac`.
 
 The mode contract is role-specific:
 
@@ -306,3 +306,29 @@ or funds movement.
 
 
 The hosted source proof also performs a disposable visible-path swap: it retains an executable descriptor, replaces the visible pathname with an attacker script, and proves descriptor-path execution still runs the originally retained generation while the visible inode drift is detectable. This regression is non-privileged and source/CI-only.
+
+
+## Qualifier trusted-tool and custody-script descriptor execution
+
+A current-head manual review found that installed qualifier V3 still executed
+`/usr/bin/git` and `/usr/bin/node` by pathname after binding itself to runtime
+UID/GID 1000. Root-owned mode bits alone do not prove those tools are immutable to
+that identity because named POSIX ACLs can grant write access. The reviewed custody
+JavaScript was also hashed and later reopened by pathname.
+
+Qualifier V3 now closes all three boundaries while remaining unprivileged/read-only:
+
+- Git and Node resolve beneath root-owned, non-symlink, non-group/world-writable
+  ancestor chains and every leaf/ancestor must be non-writable to the exact
+  UID/GID 1000, empty-supplementary-group runtime identity;
+- each tool is opened with `O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC`, hashed from the
+  retained descriptor, executed through `/proc/self/fd/<n>`, and revalidated by
+  retained FD, visible pathname, ancestor generation, and SHA-256 after execution;
+- `canonical-producer-source-custody-v1.cjs` is likewise retained on a
+  no-follow/nonblocking descriptor, Git-blob authenticated from those exact bytes,
+  supplied to retained Node as `/proc/self/fd/<script-fd>`, and revalidated after
+  the custody observation.
+
+A runtime-writable trusted-tool or custody-script path therefore HOLDs before
+installed-generation authority. This repair grants no service/systemd, credential,
+signing, transaction/payment/activation, treasury/liquidity, or funds authority.

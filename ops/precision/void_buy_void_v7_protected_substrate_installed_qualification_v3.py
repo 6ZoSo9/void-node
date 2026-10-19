@@ -27,6 +27,8 @@ PROTECTED_SOURCE_ROOT_MODE = 0o755
 RUNTIME_UID = 1000
 RUNTIME_GID = 1000
 RUNTIME_SUPPLEMENTARY_GROUPS: tuple[int, ...] = ()
+FIXED_GIT = pathlib.Path("/usr/bin/git")
+FIXED_NODE = pathlib.Path("/usr/bin/node")
 PREDECESSOR_QUALIFIER_BLOB = "56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V3"
 MAX_NODES = 250000
@@ -72,6 +74,154 @@ def git_blob_sha1(raw: bytes) -> str:
     h.update(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw)
     return h.hexdigest()
 
+def _lease_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int, int, int, int]:
+    return (
+        st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink,
+        st.st_size, st.st_mtime_ns, st.st_ctime_ns,
+    )
+
+def _runtime_trusted_ancestor_snapshot(
+    path: pathlib.Path, label: str
+) -> tuple[pathlib.Path, tuple[tuple[str, int, int, int, int, int, int], ...]]:
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise E(label + "_path_unavailable") from exc
+    if not resolved.is_absolute():
+        raise E(label + "_path_not_absolute")
+    current = resolved.parent
+    rows: list[tuple[str, int, int, int, int, int, int]] = []
+    while True:
+        st = os.lstat(current)
+        mode = stat.S_IMODE(st.st_mode)
+        if (
+            not stat.S_ISDIR(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or mode & 0o022
+            or os.access(current, os.W_OK, effective_ids=True)
+        ):
+            raise E(label + "_ancestor_custody_invalid:" + str(current))
+        rows.append((str(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink))
+        if current == current.parent:
+            break
+        current = current.parent
+    return resolved, tuple(rows)
+
+def _read_lease_fd(fd: int, max_bytes: int, label: str) -> bytes:
+    os.lseek(fd, 0, os.SEEK_SET)
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        part = os.read(fd, min(1024 * 1024, max_bytes + 1 - total))
+        if not part:
+            break
+        chunks.append(part)
+        total += len(part)
+        if total > max_bytes:
+            raise E(label + "_size_limit")
+    os.lseek(fd, 0, os.SEEK_SET)
+    return b"".join(chunks)
+
+def _open_runtime_lease(
+    path: pathlib.Path,
+    label: str,
+    *,
+    require_executable: bool,
+    max_bytes: int = 512 * 1024 * 1024,
+) -> tuple[
+    int,
+    pathlib.Path,
+    tuple[int, int, int, int, int, int, int, int, int],
+    tuple[tuple[str, int, int, int, int, int, int], ...],
+    str,
+]:
+    resolved, ancestors = _runtime_trusted_ancestor_snapshot(path, label)
+    before = os.lstat(resolved)
+    mode = stat.S_IMODE(before.st_mode)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_uid != 0
+        or before.st_gid != 0
+        or before.st_nlink != 1
+        or mode & 0o022
+        or os.access(resolved, os.W_OK, effective_ids=True)
+        or (require_executable and mode & 0o111 == 0)
+    ):
+        raise E(label + "_leaf_custody_invalid")
+    fd = os.open(resolved, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        opened = os.fstat(fd)
+        identity = _lease_identity(opened)
+        if identity != _lease_identity(before):
+            raise E(label + "_open_generation_mismatch")
+        raw = _read_lease_fd(fd, max_bytes, label)
+        if _lease_identity(os.fstat(fd)) != identity or _lease_identity(os.lstat(resolved)) != identity:
+            raise E(label + "_generation_changed_during_hash")
+        resolved2, ancestors2 = _runtime_trusted_ancestor_snapshot(resolved, label)
+        if resolved2 != resolved or ancestors2 != ancestors:
+            raise E(label + "_ancestor_generation_changed")
+        return fd, resolved, identity, ancestors, hashlib.sha256(raw).hexdigest()
+    except BaseException:
+        os.close(fd)
+        raise
+
+def _revalidate_runtime_lease(
+    fd: int,
+    resolved: pathlib.Path,
+    identity: tuple[int, int, int, int, int, int, int, int, int],
+    ancestors: tuple[tuple[str, int, int, int, int, int, int], ...],
+    digest: str,
+    label: str,
+    *,
+    max_bytes: int = 512 * 1024 * 1024,
+) -> None:
+    if _lease_identity(os.fstat(fd)) != identity:
+        raise E(label + "_retained_generation_changed")
+    if _lease_identity(os.lstat(resolved)) != identity:
+        raise E(label + "_visible_generation_changed")
+    resolved2, ancestors2 = _runtime_trusted_ancestor_snapshot(resolved, label)
+    if resolved2 != resolved or ancestors2 != ancestors:
+        raise E(label + "_ancestor_generation_changed")
+    if hashlib.sha256(_read_lease_fd(fd, max_bytes, label)).hexdigest() != digest:
+        raise E(label + "_retained_sha256_changed")
+
+def _run_runtime_tool(
+    tool: pathlib.Path,
+    args: list[str],
+    *,
+    label: str,
+    stdin_data: bytes | None = None,
+    text: bool,
+    timeout: int,
+    env: dict[str, str],
+    extra_fds: tuple[int, ...] = (),
+) -> subprocess.CompletedProcess:
+    fd = -1
+    try:
+        fd, resolved, identity, ancestors, digest = _open_runtime_lease(
+            tool, label, require_executable=True
+        )
+        cp = subprocess.run(
+            [f"/proc/self/fd/{fd}", *args],
+            input=stdin_data,
+            stdin=None if stdin_data is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=text,
+            env=env,
+            timeout=timeout,
+            check=False,
+            pass_fds=(fd, *extra_fds),
+        )
+        _revalidate_runtime_lease(fd, resolved, identity, ancestors, digest, label)
+        return cp
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
 def git_text(root: pathlib.Path, *args: str) -> str:
     env = {
         "PATH": "/usr/bin:/bin",
@@ -91,9 +241,9 @@ def git_text(root: pathlib.Path, *args: str) -> str:
         "GIT_ALLOW_PROTOCOL": "",
         "GIT_PAGER": "",
     }
-    cp = subprocess.run(
+    cp = _run_runtime_tool(
+        FIXED_GIT,
         [
-            "/usr/bin/git",
             "-c", "safe.directory=" + str(root),
             "-c", "core.hooksPath=/dev/null",
             "-c", "core.fsmonitor=false",
@@ -103,15 +253,12 @@ def git_text(root: pathlib.Path, *args: str) -> str:
             "-C", str(root),
             *args,
         ],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        label="git",
         text=True,
-        env=env,
         timeout=30,
-        check=False,
+        env=env,
     )
-    if cp.returncode != 0:
+    if cp.returncode != 0 or cp.stderr != "":
         raise E("git_observation_failed:" + (args[0] if args else "unknown"))
     return cp.stdout.strip()
 
@@ -130,22 +277,60 @@ def require_exact_release_generation() -> None:
         raise E("source_release_path_invalid")
     require_clean_main_generation(SOURCE_RELEASE, "source_release")
     custody = SOURCE_RELEASE / CUSTODY_REL
-    if git_blob_sha1(custody.read_bytes()) != CUSTODY_GIT_BLOB_SHA1:
-        raise E("source_release_custody_checker_blob_mismatch")
+    script_fd = -1
+    try:
+        script_fd, script_path, script_identity, script_ancestors, script_sha = _open_runtime_lease(
+            custody, "custody_script", require_executable=False, max_bytes=2 * 1024 * 1024
+        )
+        raw = _read_lease_fd(script_fd, 2 * 1024 * 1024, "custody_script")
+        if git_blob_sha1(raw) != CUSTODY_GIT_BLOB_SHA1:
+            raise E("source_release_custody_checker_blob_mismatch")
+        _revalidate_runtime_lease(
+            script_fd, script_path, script_identity, script_ancestors, script_sha,
+            "custody_script", max_bytes=2 * 1024 * 1024,
+        )
+    finally:
+        if script_fd >= 0:
+            os.close(script_fd)
 
 def run_known_good_custody(target: pathlib.Path) -> str:
     custody = SOURCE_RELEASE / CUSTODY_REL
     env = {"PATH":"/usr/bin:/bin","HOME":"/nonexistent","LANG":"C","LC_ALL":"C","TZ":"UTC"}
-    cp = subprocess.run(
-        ["/usr/bin/node", str(custody), str(target)],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=env,
-        timeout=120,
-        check=False,
-    )
+    script_fd = node_fd = -1
+    try:
+        script_fd, script_path, script_identity, script_ancestors, script_sha = _open_runtime_lease(
+            custody, "custody_script", require_executable=False, max_bytes=2 * 1024 * 1024
+        )
+        if git_blob_sha1(_read_lease_fd(script_fd, 2 * 1024 * 1024, "custody_script")) != CUSTODY_GIT_BLOB_SHA1:
+            raise E("source_release_custody_checker_blob_mismatch")
+        node_fd, node_path, node_identity, node_ancestors, node_sha = _open_runtime_lease(
+            FIXED_NODE, "node", require_executable=True
+        )
+        cp = subprocess.run(
+            [
+                f"/proc/self/fd/{node_fd}",
+                f"/proc/self/fd/{script_fd}",
+                str(target),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+            timeout=120,
+            check=False,
+            pass_fds=(node_fd, script_fd),
+        )
+        _revalidate_runtime_lease(node_fd, node_path, node_identity, node_ancestors, node_sha, "node")
+        _revalidate_runtime_lease(
+            script_fd, script_path, script_identity, script_ancestors, script_sha,
+            "custody_script", max_bytes=2 * 1024 * 1024,
+        )
+    finally:
+        if node_fd >= 0:
+            os.close(node_fd)
+        if script_fd >= 0:
+            os.close(script_fd)
     if cp.returncode != 0:
         raise E("canonical_source_custody_hold:" + (cp.stderr or cp.stdout).strip()[:240])
     line = cp.stdout.strip()
@@ -435,6 +620,10 @@ def qualify() -> None:
     print("runtime_uid=1000")
     print("runtime_gid=1000")
     print("runtime_supplementary_groups_empty=true")
+    print("qualifier_git_trusted_descriptor_execution=true")
+    print("qualifier_node_trusted_descriptor_execution=true")
+    print("qualifier_custody_script_retained_descriptor=true")
+    print("trusted_tool_runtime_acl_nonwritability_verified=true")
     print("installed_generation_evidence_authority=true")
     print("privileged_execution_authorized=false")
     print("receipt_publication_authorized=false")
@@ -486,6 +675,9 @@ def self_test() -> None:
     print("binary_acl_aware_runtime_nonwritability_required=true")
     print("runtime_uid_gid_1000_required=true")
     print("runtime_supplementary_groups_empty_required=true")
+    print("qualifier_trusted_tool_descriptor_execution_required=true")
+    print("qualifier_trusted_tool_runtime_acl_custody_required=true")
+    print("qualifier_custody_script_descriptor_retention_required=true")
     print("wrong_runtime_uid_gid_rejected=true")
     print("supplementary_group_state_rejected=true")
     print("host_mutation=false")

@@ -16,11 +16,11 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="e3bea1ce627a7f70f450f89c3c0b0ebb29f92203"
+assert gblob(INS)=="5677075f98ef9639840704d36296834a027ec026"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
-assert gblob(QUAL)=="f5c2fbbb838e95dca40b4a5b514a1861cab9da68"
+assert gblob(QUAL)=="ea3c31180810ea4efe4341683742827dcf6ac5ac"
 assert gblob(PRED_QUAL)=="56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
 
 src=INS.read_text("utf-8")
@@ -51,7 +51,7 @@ required=(
     'SEPARATELY_AUTHORIZE_V7_PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4',
     'PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4_GREEN',
     'QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"',
-    'QUALIFIER_BLOB = "f5c2fbbb838e95dca40b4a5b514a1861cab9da68"',
+    'QUALIFIER_BLOB = "ea3c31180810ea4efe4341683742827dcf6ac5ac"',
     '"installed_qualifier": {"path": QUALIFIER_REL, "blob": QUALIFIER_BLOB}',
     'RUN_INSTALLED_QUALIFICATION_V3',
     'installed_qualifier_v3_bound=true',
@@ -185,6 +185,16 @@ qrequired=(
     'wrong_runtime_uid_gid_rejected=true',
     'supplementary_group_state_rejected=true',
     'runtime_identity_required=1000:1000',
+    'FIXED_GIT = pathlib.Path("/usr/bin/git")',
+    'FIXED_NODE = pathlib.Path("/usr/bin/node")',
+    'def _open_runtime_lease(',
+    'os.O_NOFOLLOW | os.O_NONBLOCK',
+    '[f"/proc/self/fd/{fd}", *args]',
+    'pass_fds=(node_fd, script_fd)',
+    'qualifier_git_trusted_descriptor_execution=true',
+    'qualifier_node_trusted_descriptor_execution=true',
+    'qualifier_custody_script_retained_descriptor=true',
+    'trusted_tool_runtime_acl_nonwritability_verified=true',
     'runtime_supplementary_groups_required=empty',
 )
 for needle in qrequired:
@@ -303,6 +313,9 @@ assert "source_release_root_mode_required=0555" in cp.stdout.splitlines()
 assert "protected_source_root_mode_required=0755" in cp.stdout.splitlines()
 assert "runtime_identity_required=1000:1000" in cp.stdout.splitlines()
 assert "runtime_supplementary_groups_required=empty" in cp.stdout.splitlines()
+assert "qualifier_trusted_tool_descriptor_execution_required=true" in cp.stdout.splitlines()
+assert "qualifier_trusted_tool_runtime_acl_custody_required=true" in cp.stdout.splitlines()
+assert "qualifier_custody_script_descriptor_retention_required=true" in cp.stdout.splitlines()
 
 print(MARKER+"_GREEN")
 print("precision_observed_source_release_root_mode_0555_bound=true")
@@ -313,6 +326,9 @@ print("qualifier_swapped_root_modes_rejected=true")
 print("qualifier_binary_root_ancestor_custody_bound=true")
 print("qualifier_binary_descriptor_execution_bound=true")
 print("qualifier_binary_post_execution_revalidation_bound=true")
+print("qualifier_git_node_descriptor_execution_bound=true")
+print("qualifier_custody_script_descriptor_retention_bound=true")
+print("qualifier_trusted_tool_runtime_acl_custody_bound=true")
 print("source_release_chmod_or_chown_forbidden=true")
 print("tree_child_root_ownership_preserved=true")
 print("tree_group_world_write_rejection_preserved=true")
