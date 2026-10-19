@@ -31,7 +31,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          EXPECTED_PARENT: 6a7205490d331c2e71f5548541c03a235e3a7cfe
+          EXPECTED_PARENT: 66e87783bb16fa20870d428e9530aaee92cf5c1a
           RUNTIME_HEAD: 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
           SOURCE_HEAD: 0ada7fde0d90c3946b10693f4621cbd690bfcde6
           SOURCE_TREE: 9e930fba9aacfafb5b163767302786cd7f31c81e
