@@ -932,6 +932,16 @@ function requireFixedLeaseHelperCall(executable,args,options){
     const bundle=requestBundle(claimRecord(f.generation));
     const shared=Buffer.from(new SharedArrayBuffer(bundle.requestBytes.length));
     bundle.requestBytes.copy(shared);
+    let sharedGetterCalls=0;
+    for(const key of ["length","byteLength","buffer","constructor"]){
+      Object.defineProperty(shared,key,{
+        configurable:true,
+        get(){
+          sharedGetterCalls+=1;
+          assert.fail("shared-backed caller "+key+" getter invoked");
+        },
+      });
+    }
     const before=storeSnapshot(f.root);
     expectError(
       ()=>prepareApollyonDurableAttemptClaimPublisherForwardV2(shared),
@@ -944,6 +954,7 @@ function requireFixedLeaseHelperCall(executable,args,options){
       "apollyon_claim_store_impl_v2_request_bytes_invalid",
     );
     assert.equal(f.txCount(),0,"shared-backed bytes did not enter store lease");
+    assert.equal(sharedGetterCalls,0,"shared backing was rejected without caller getter");
     assert.deepEqual(storeSnapshot(f.root),before);
   }finally{f.cleanup();}
 }
@@ -3215,6 +3226,7 @@ console.log("publisher_later_copy_override_not_invoked=true");
 console.log("request_size_rejected_before_private_copy=true");
 console.log("caller_buffer_intrinsic_byte_length_and_copy_no_getters=true");
 console.log("shared_request_buffer_rejected_before_transaction=true");
+console.log("shared_request_own_accessors_rejected_without_invocation=true");
 console.log("declared_async_generator_core_providers_rejected_before_io=true");
 console.log("operation_keyset_rejected_before_descriptor_capture=true");
 console.log("generation_nested_graph_rejected_before_clone=true");
