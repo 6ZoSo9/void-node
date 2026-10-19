@@ -39,7 +39,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-    "a08927b7b16884a9bf0c28328047afdab49649ea",
+    "09380e0d75a1a9e668684fac143a334d556afdfd",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
@@ -449,23 +449,94 @@ assert.equal(leaf1.includes(record1.authorization_id),false);
 }
 
 {
+  // Each public operation must reject caller-owned executable objects BEFORE
+  // cloning, reflection-heavy copying, opening an owned FD or writing a slot.
   const root=newRoot();
   const fd=openRoot(root);
+  let getters=0;
+  let traps=0;
+  const rawRecord={...record1};
+  Object.defineProperty(rawRecord,"authorization_id",{
+    enumerable:true,get(){getters+=1;throw Error("nested getter executed");},
+  });
+  const trapRecord=new Proxy({...record1},{
+    get(){traps+=1;throw Error("proxy get executed");},
+    ownKeys(){traps+=1;throw Error("proxy ownKeys executed");},
+    getPrototypeOf(){traps+=1;throw Error("proxy prototype executed");},
+    getOwnPropertyDescriptor(){traps+=1;throw Error("proxy descriptor executed");},
+  });
+  const revoked=Proxy.revocable({...record1},{});revoked.revoke();
+  const hidden={...record1};
+  Object.defineProperty(hidden,"hidden_value",{value:1,enumerable:false});
+  const symbol={...record1,[Symbol("hidden")]:true};
+  const longString={...record1,claim_record_id:"x".repeat(100000)};
+  const nested={...record1,claim_record_id:{
+    [Symbol.toPrimitive](){getters+=1;throw Error("coercion executed");},
+  }};
+  const inflated={...record1};
+  for(let i=0;i<4096;i++)inflated["extra_"+i]=i;
+  const badRecords=[rawRecord,trapRecord,revoked.proxy,hidden,symbol,
+    longString,nested,inflated];
+  const before=fs.readdirSync(root);
+  const origClone=globalThis.structuredClone;
+  let callerClone=0;
   try{
-    let reads=0;
-    const inputWithGetter={
-      directory_fd:fd,
-      get consumption_record(){reads+=1;return record1;},
-    };
-    const result=publishApollyonTrainingStartConsumptionProtectedV1(
-      inputWithGetter,
-    );
-    assert.equal(result.status,"training_start_consumption_created_durable");
-    assert.equal(reads,1);
+    for(const [method,recordKey] of [
+      [publishApollyonTrainingStartConsumptionProtectedV1,"consumption_record"],
+      [classifyApollyonTrainingStartConsumptionProtectedSlotV1,
+        "expected_consumption_record"],
+    ]){
+      const outerGetter={directory_fd:fd};
+      Object.defineProperty(outerGetter,recordKey,{
+        enumerable:true,get(){getters+=1;throw Error("outer getter executed");},
+      });
+      const externalProxy=new Proxy({directory_fd:fd,[recordKey]:record1},{
+        get(){traps+=1;throw Error("outer proxy get executed");},
+        ownKeys(){traps+=1;throw Error("outer proxy ownKeys executed");},
+      });
+      const inputVariants=[
+        outerGetter,externalProxy,
+        {...{directory_fd:fd,[recordKey]:record1},extra_field:true},
+      ];
+      const hiddenOuter={directory_fd:fd,[recordKey]:record1};
+      Object.defineProperty(hiddenOuter,"secret",{value:1,enumerable:false});
+      inputVariants.push(hiddenOuter);
+      const wrongFd={directory_fd:{
+        [Symbol.toPrimitive](){getters+=1;throw Error("FD coercion executed");},
+      },[recordKey]:record1};
+      inputVariants.push(wrongFd);
+      for(const rawInput of inputVariants){
+        globalThis.structuredClone=(value,...args)=>{
+          if(value===rawInput){callerClone+=1;throw Error("cloned caller input");}
+          return origClone(value,...args);
+        };
+        assert.throws(()=>method(rawInput),
+          /apollyon_training_start_writer_(?:input|directory_fd)_invalid/u);
+      }
+      for(const badRecord of badRecords){
+        const rawInput={directory_fd:fd,[recordKey]:badRecord};
+        globalThis.structuredClone=(value,...args)=>{
+          if(value===rawInput||value===badRecord){
+            callerClone+=1;throw Error("cloned caller record");
+          }
+          return origClone(value,...args);
+        };
+        assert.throws(()=>method(rawInput),
+          /apollyon_training_start_writer_consumption_record_input_invalid/u);
+      }
+    }
+    assert.throws(()=>apollyonTrainingStartConsumptionSlotLeafV1(rawRecord),
+      /apollyon_training_start_writer_consumption_record_input_invalid/u);
   }finally{
+    globalThis.structuredClone=origClone;
     fs.closeSync(fd);
+    assert.deepEqual(fs.readdirSync(root),before,
+      "invalid caller inputs must not publish or alter store files");
     fs.rmSync(root,{recursive:true,force:true});
   }
+  assert.equal(getters,0,"user getter or coercion was invoked");
+  assert.equal(traps,0,"user Proxy trap was invoked");
+  assert.equal(callerClone,0,"caller-owned object reached structuredClone");
 }
 
 {
@@ -544,7 +615,10 @@ const writerSource=fs.readFileSync(
   "utf8",
 );
 for(const required of [
-  "structuredClone(input)",
+  "captureExactOwnData",
+  "captureConsumptionRecord",
+  "captureWriterInput",
+  "utilTypes.isProxy",
   "openOwnedDirectoryFd",
   "O_EXCL",
   "O_NOFOLLOW",
@@ -572,6 +646,8 @@ for(const forbidden of [
     "writer gained forbidden capability: "+forbidden,
   );
 }
+
+assert.equal(writerSource.includes("structuredClone(input)"),false);
 
 const workflow=fs.readFileSync(WORKFLOW,"utf8");
 const expectedTriggerPaths=[
@@ -642,6 +718,8 @@ console.log("hardlink_existing_slot_rejected=true");
 console.log("partial_existing_slot_fail_closed=true");
 console.log("oversized_existing_slot_rejected_before_read=true");
 console.log("caller_selected_leaf_supported=false");
+console.log("caller_accessors_proxies_and_nested_objects_rejected_before_clone=true");
+console.log("caller_input_preflight_prevents_untrusted_writer_mutation=true");
 console.log("protected_consumption_store_origin_proven=false");
 console.log("unique_authorization_claim_slot_revalidation_performed=false");
 console.log("trainer_release=false");
