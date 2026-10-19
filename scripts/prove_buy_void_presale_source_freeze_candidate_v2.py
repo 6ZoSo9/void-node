@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import stat
@@ -15,6 +16,8 @@ MARKER = "VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_CANDIDATE_V2"
 
 ANCHOR = "05614762b1b4638e05e539fd7d20cbf670e1570b"
 ANCHOR_TREE = "4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e"
+SCOPE_BASE_ENV = "VOID_PRESALE_FREEZE_SCOPE_BASE"
+HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
 MANIFEST_REL = "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
 MANIFEST_BLOB = "ca9c42e2d3ab4c50ac54badadb9efde6180ad241"
@@ -177,10 +180,16 @@ def verify_scope() -> None:
         git("rev-parse", ANCHOR + "^{tree}") == ANCHOR_TREE,
         "freeze_anchor_tree_changed",
     )
+    scope_base = os.environ.get(SCOPE_BASE_ENV, "").strip()
+    require(HEX40.fullmatch(scope_base) is not None, "freeze_scope_base_required")
+    require(
+        git("merge-base", scope_base, head) == scope_base,
+        "freeze_scope_base_missing",
+    )
     rows = tuple(
         line
         for line in git(
-            "diff", "--no-renames", "--name-status", ANCHOR, head, "--"
+            "diff", "--no-renames", "--name-status", scope_base, head, "--"
         ).splitlines()
         if line
     )
