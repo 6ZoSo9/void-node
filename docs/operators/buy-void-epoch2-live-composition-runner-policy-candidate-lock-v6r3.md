@@ -71,3 +71,17 @@ Next gate:
 `void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan`.
 
 PROTECT THE CORE.
+
+
+## Superseded-generation barrier
+
+Runner V4 source repair changed its exact Git blob from
+`46da5a2d...` to `4d50bec847c697bac75e40121173b4840eeab879`.
+
+Therefore the historical candidate
+`voidbuye2runnerpolcand6r3_eee91de4...` and historical lock
+`voidbuye2runnerpollock6r3_4d55eadc...` are explicitly superseded.
+
+The checked-in lock currently has no active `lock_id`, no current candidate ID,
+and all candidate/install/live authority false. It is a fail-closed barrier while
+the repaired candidate is re-derived.
