@@ -21,14 +21,14 @@ FIXED_GIT=Path("/usr/bin/git")
 FIXED_NODE=Path("/usr/bin/node")
 
 LOCK_REL="ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json"
-LOCK_BLOB="daab812f9925364ad89ff3bd59fdd18b9c98d553"
-LOCK_ID="voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f"
+LOCK_BLOB="1201d727080b999a253d9223aee8d961f204c2db"
+LOCK_ID="voidbuye2runnerpollock6r3_7dd8db2619e9c02ef8120e6d5e4e716946b991787dea7128fb51ed63290e4af7"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_8ffc05fc997f4dc19a3174ca588b812afd126565235361bb6048170701ba1af1"
 
 RUNNER_REL="ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
-RUNNER_BLOB="4e84b6eb77c284ecf7d85b609cec4d1cf130c7a7"
-NEW_RUNNER_SHA256="88e51377e473d4f0352f949f87ab5566078c85dddb1ab3e8e1bbb9908bfba19b"
-NEW_RUNNER_BYTES=66_548
+RUNNER_BLOB="340a0cf0eec589a44f20d44143e353ea25250973"
+NEW_RUNNER_SHA256="c5976f6b96a5c29807fb188d0ede4f0fe812512f199a083272df2e1a7acb4953"
+NEW_RUNNER_BYTES=70_767
 
 QUALIFIER_REL="ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py"
 QUALIFIER_BLOB="74c69fe8a95ed5f361a39971618f43f7c768c865"
@@ -280,6 +280,9 @@ def source_snapshot()->dict[str,Any]:
         or lock_value.get("runner_identity_accepted") is not True
         or lock_value.get("native_reuse_identity_accepted") is not True
         or lock_value.get("policy_template_accepted") is not True
+        or lock_value.get("candidate_report",{}).get("source_compatibility",{}).get("actual_object_ancestry_required") is not True
+        or lock_value.get("candidate_report",{}).get("source_compatibility",{}).get("revision_walk_metadata_authority") is not False
+        or lock_value.get("candidate_report",{}).get("source_compatibility",{}).get("graft_ancestry_authority") is not False
         or lock_value.get("protected_install_authorized") is not False
         or lock_value.get("live_execution_authorized") is not False
     ):
@@ -299,6 +302,7 @@ def source_snapshot()->dict[str,Any]:
         "tree":tree,
         "branch":branch,
         "runtime_head_ancestor":True,
+        "runtime_head_actual_object_ancestor":True,
         "tracked_checkout_exact":True,
         "runtime_source_dependency_blob_equality":True,
         "runtime_source_dependency_count":len(SOURCE_RUNTIME_DEPENDENCY_SPECS),
