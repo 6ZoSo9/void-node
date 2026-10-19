@@ -5,10 +5,18 @@ Marker:
 
 Status: **source/test integration of the durable core, Linux transaction lease, inherited publisher-pipe reader, retained native peer checks and one-use paired socket/challenge session. Installed service and privileged host qualification remain unproven**.
 
+## October 19 current #3357 caller-preflight rebind
+
+- Current direct parent: #3357 `62c2bbfd7ca1a871159d036b2cd1391f2d728df5`.
+- Current authorization-slot source blob: `25629371f6da164e12fecfc08c5f26815418e3a8`.
+- The claim-store core/proofs are rebound to that exact parent generation; the parent change is confined to #3357's four owned authorization-slot files and is disjoint from this PR's eight owned claim-store/native-session files.
+- Getter-free request copying and synchronous-provider preflight remain unchanged.
+- Protected installed origin, trusted callback source, unhandled-rejection containment, production claim publication, training, credentials, transactions and funds remain false/unproven.
+
 ## Flattened current generation (October 19, 2026)
 
 This PR now directly targets #3357 at
-`1b60642d980b76c13130d5124d83a22c2c01ec30` and contains the complete
+`62c2bbfd7ca1a871159d036b2cd1391f2d728df5` and contains the complete
 former #3488 eight-file claim-store/native-session implementation plus the
 subsequent generation-input and callback-boundary hardening. The direct diff is
 exactly those eight added files and zero behind.
@@ -53,7 +61,7 @@ Base: accepted #3357 exact head
 Important exact source generations:
 
 - authorization-slot V1:
-  `c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8`;
+  `25629371f6da164e12fecfc08c5f26815418e3a8`;
 - exact request envelope V2:
   `339916ce4a6216af9a73476ad5b78e2d7a300f73`;
 - protected store contract V2:

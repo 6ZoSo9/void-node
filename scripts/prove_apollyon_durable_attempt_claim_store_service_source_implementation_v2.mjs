@@ -33,7 +33,7 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TARGET_REL=
   "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs";
-const TARGET_BLOB="4a1d9de919d683374ed4ac10bf6557e0a50835bd";
+const TARGET_BLOB="eaca329759e640a258d015448ca377d5de17aa29";
 const LEASE_REL="tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs";
 const LEASE_BLOB="f485b9e6fc29eab549ebba07e1b49f24c7659092";
 
@@ -41,7 +41,7 @@ const PINNED=Object.freeze({
   [TARGET_REL]:TARGET_BLOB,
   [LEASE_REL]:LEASE_BLOB,
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "c2ff992a09fe916a5016b5a6c4ceced4ab1d2fa8",
+    "25629371f6da164e12fecfc08c5f26815418e3a8",
   "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs":
     "339916ce4a6216af9a73476ad5b78e2d7a300f73",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
