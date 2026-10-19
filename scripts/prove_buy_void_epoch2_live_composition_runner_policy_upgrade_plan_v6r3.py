@@ -40,8 +40,8 @@ for name in (
     assert any(isinstance(node,ast.FunctionDef) and node.name==name for node in tree.body),name
 
 for required in (
-    'LOCK_ID="voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7"',
-    'CANDIDATE_ID="voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f"',
+    'LOCK_ID="voidbuye2runnerpollock6r3_7dd8db2619e9c02ef8120e6d5e4e716946b991787dea7128fb51ed63290e4af7"',
+    'CANDIDATE_ID="voidbuye2runnerpolcand6r3_8ffc05fc997f4dc19a3174ca588b812afd126565235361bb6048170701ba1af1"',
     'RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
     'QUALIFIER_REPLACEMENT_BLOB="98f8b9fda89e33c50e19008268d97655aad54e6d"',
     'V6_QUALIFIER_BLOB="83bfd3f3baf5c9d2a9e21852b0f752f27d7749bc"',
@@ -106,7 +106,6 @@ for mode in ("--self-test","--source-plan"):
             "runner_v4_identity_bound=true",
             "policy_node_identity_host_derived=true",
             "runtime_source_complete_dependency_set_bound=true",
-            "source_runtime_actual_object_ancestry_required=true",
             "source_runtime_actual_object_ancestry_required=true",
             "source_runtime_graft_ancestry_rejected=true",
             "runtime_source_dependency_count=9",
