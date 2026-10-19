@@ -61,3 +61,40 @@ Next source gate:
 `void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan`.
 
 PROTECT THE CORE.
+
+
+## Raw-object ancestry repair generation
+
+Accepted candidate:
+
+```text
+candidate_id=voidbuye2runnerpolcand6r3_8ffc05fc997f4dc19a3174ca588b812afd126565235361bb6048170701ba1af1
+runner_git_blob=340a0cf0eec589a44f20d44143e353ea25250973
+runner_sha256=c5976f6b96a5c29807fb188d0ede4f0fe812512f199a083272df2e1a7acb4953
+runner_bytes=70767
+```
+
+Exact-hosted evidence:
+
+```text
+compatibility_run=39319410007
+compatibility_job=118289245313
+candidate_run=39319409757
+candidate_job=118289244127
+candidate_identity_job=118289452867
+```
+
+Accepted lock:
+
+```text
+lock_id=voidbuye2runnerpollock6r3_7dd8db2619e9c02ef8120e6d5e4e716946b991787dea7128fb51ed63290e4af7
+```
+
+This generation replaces revision-walk ancestry authority with bounded traversal of
+raw commit parent headers. Git grafts/replacement-style revision metadata are not
+ancestry authority. The known-vulnerable lock
+`voidbuye2runnerpollock6r3_7cce6937...` is explicitly superseded with no install
+authority.
+
+No protected install, live execution, credential/key/signing, transaction/payment,
+activation, or funds authority is granted by this lock.
