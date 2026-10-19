@@ -86,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           accepted_parent=e357073c5d7932f924c077a73349e9050dfb78eb
-          review_base=491e1a5772a4a2c85e73111814ea1c43692d341d
+          review_base=aa0a04644c0c2d43e34c46df7cafc510de04d695
           test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
           git merge-base --is-ancestor "$accepted_parent" "$EXACT_HEAD"
           git merge-base --is-ancestor "$review_base" "$EXACT_HEAD"
@@ -94,7 +94,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = 8eab5515fbe844e930aed97db4195b8ef86c42ef
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py)" = ff857fb066b2dce16d7cb1234e16bea42a0af6a4
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md)" = 66978e327037854927ee7811cd15671c148e5968
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml)" = 1232ed44fe44b79d27e9da4949ba0cbc8c3e429e
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml)" = aa2204ba4d358565ebb19f9ccaa5a6eec236140d
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = 4425034fc89bafbf0b9c5e481db0a5ec8f416aeb
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py)" = cba656f693d42bb80b5e28716fd00a6540fdd8c6
@@ -103,8 +103,8 @@ jobs:
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 99a1823f4b8349b6f65f210c59e1dbce4a4578f0
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 2f518fb95e4fc6ff55a4a41d60f085a5f9576b60
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md)" = d3c27cbf63249695d45e47b3dc0ff98f75a961bb
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = 5814e9ece8fe2f8dee6539a1e066f3717b97108a
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-v1.yml)" = 84fef8fc28e8414fdd5e446ebb6b46773eb60016
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml)" = c4edcf6f9c0c19d5df5c8f325855e472b9ce694c
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-claim-protected-first-entry-v1.yml)" = 570e74ca063bfc8e508598740118beaeaf3c23a5
 
           case "$EVENT_NAME" in
             pull_request)
@@ -120,6 +120,7 @@ jobs:
                 '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
                 '.github/workflows/apollyon-claim-protected-first-entry-v1.yml' \
                 '.github/workflows/apollyon-claim-self-observed-lock-v1.yml' \
+                '.github/workflows/apollyon-claim-task-singleton-guard-v1.yml' \
                 'docs/security/apollyon-claim-no-clone-lock-v1.md' \
                 'docs/security/apollyon-claim-no-exec-lock-v1.md' \
                 'docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
@@ -127,6 +128,7 @@ jobs:
                 'docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
                 'docs/security/apollyon-claim-protected-first-entry-v1.md' \
                 'docs/security/apollyon-claim-self-observed-lock-v1.md' \
+                'docs/security/apollyon-claim-task-singleton-guard-v1.md' \
                 'ops/xiphos/apollyon_claim_no_clone_lock_v1.c' \
                 'ops/xiphos/apollyon_claim_no_clone_lock_v1.h' \
                 'ops/xiphos/apollyon_claim_no_exec_lock_v1.c' \
@@ -138,10 +140,13 @@ jobs:
                 'ops/xiphos/apollyon_claim_protected_first_entry_v1.h' \
                 'ops/xiphos/apollyon_claim_self_observed_lock_v1.c' \
                 'ops/xiphos/apollyon_claim_self_observed_lock_v1.h' \
+                'ops/xiphos/apollyon_claim_task_singleton_guard_v1.c' \
+                'ops/xiphos/apollyon_claim_task_singleton_guard_v1.h' \
                 'scripts/apollyon_claim_no_clone_lock_v1_selftest.c' \
                 'scripts/apollyon_claim_no_exec_lock_v1_selftest.c' \
                 'scripts/apollyon_claim_protected_first_entry_v1_selftest.c' \
                 'scripts/apollyon_claim_self_observed_lock_v1_selftest.c' \
+                'scripts/apollyon_claim_task_singleton_guard_v1_selftest.c' \
                 'scripts/prove_apollyon_claim_no_clone_lock_v1.py' \
                 'scripts/prove_apollyon_claim_no_exec_lock_v1.py' \
                 'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
@@ -149,6 +154,7 @@ jobs:
                 'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
                 'scripts/prove_apollyon_claim_protected_first_entry_v1.py' \
                 'scripts/prove_apollyon_claim_self_observed_lock_v1.py' \
+                'scripts/prove_apollyon_claim_task_singleton_guard_v1.py' \
                 | LC_ALL=C sort > "$expected"
               git diff --no-renames --name-only "$base" "$EXACT_HEAD" -- | LC_ALL=C sort > "$actual"
               diff -u "$expected" "$actual"

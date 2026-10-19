@@ -52,6 +52,7 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          review_base=aa0a04644c0c2d43e34c46df7cafc510de04d695
           test "$(git rev-parse HEAD)" = "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_task_singleton_guard_v1.c)" = b507d8d5bff32b39be998482efe3c0e8b729cefe
@@ -64,19 +65,56 @@ jobs:
           test "$(git rev-parse HEAD:scripts/apollyon_durable_attempt_claim_native_process_identity_v2_selftest.c)" = fae7e024425e1c32cfe2ae7b896825ef9de6d4ce
           case "$EVENT_NAME" in
             pull_request)
-              test -n "$PR_BASE"
+              test "$PR_BASE" = "$review_base"
               BASE="$PR_BASE"
               git merge-base --is-ancestor "$BASE" "$HEAD"
               actual="$RUNNER_TEMP/apollyon-singleton-actual.txt"
               expected="$RUNNER_TEMP/apollyon-singleton-expected.txt"
               git diff --name-status "$BASE" "$HEAD" | LC_ALL=C sort > "$actual"
               printf '%s\n' \
+                $'A\t.github/workflows/apollyon-claim-no-clone-lock-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-no-exec-lock-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-protected-first-entry-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-self-observed-lock-v1.yml' \
+                $'A\t.github/workflows/apollyon-claim-task-singleton-guard-v1.yml' \
+                $'A\tdocs/security/apollyon-claim-no-clone-lock-v1.md' \
+                $'A\tdocs/security/apollyon-claim-no-exec-lock-v1.md' \
+                $'A\tdocs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
+                $'A\tdocs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
+                $'A\tdocs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
+                $'A\tdocs/security/apollyon-claim-protected-first-entry-v1.md' \
+                $'A\tdocs/security/apollyon-claim-self-observed-lock-v1.md' \
+                $'A\tdocs/security/apollyon-claim-task-singleton-guard-v1.md' \
+                $'A\tops/xiphos/apollyon_claim_no_clone_lock_v1.c' \
+                $'A\tops/xiphos/apollyon_claim_no_clone_lock_v1.h' \
+                $'A\tops/xiphos/apollyon_claim_no_exec_lock_v1.c' \
+                $'A\tops/xiphos/apollyon_claim_no_exec_lock_v1.h' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_v1.c' \
+                $'A\tops/xiphos/apollyon_claim_protected_first_entry_v1.h' \
+                $'A\tops/xiphos/apollyon_claim_self_observed_lock_v1.c' \
+                $'A\tops/xiphos/apollyon_claim_self_observed_lock_v1.h' \
                 $'A\tops/xiphos/apollyon_claim_task_singleton_guard_v1.c' \
                 $'A\tops/xiphos/apollyon_claim_task_singleton_guard_v1.h' \
+                $'A\tscripts/apollyon_claim_no_clone_lock_v1_selftest.c' \
+                $'A\tscripts/apollyon_claim_no_exec_lock_v1_selftest.c' \
+                $'A\tscripts/apollyon_claim_protected_first_entry_v1_selftest.c' \
+                $'A\tscripts/apollyon_claim_self_observed_lock_v1_selftest.c' \
                 $'A\tscripts/apollyon_claim_task_singleton_guard_v1_selftest.c' \
+                $'A\tscripts/prove_apollyon_claim_no_clone_lock_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_no_exec_lock_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_protected_first_entry_v1.py' \
+                $'A\tscripts/prove_apollyon_claim_self_observed_lock_v1.py' \
                 $'A\tscripts/prove_apollyon_claim_task_singleton_guard_v1.py' \
-                $'A\tdocs/security/apollyon-claim-task-singleton-guard-v1.md' \
-                $'A\t.github/workflows/apollyon-claim-task-singleton-guard-v1.yml' | LC_ALL=C sort > "$expected"
+                | LC_ALL=C sort > "$expected"
               cmp "$expected" "$actual"
               ;;
             push)
