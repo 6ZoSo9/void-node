@@ -162,6 +162,9 @@ for required in (
     'const SEALED_BLOB="e08c3e17a9cdb3e70440327ca587e6d5418f30ca";',
     "function openRetainedTrustedExecutable(file,label){",
     "function runRetainedTrustedExecutable(tool,args,options={}){",
+    'const executable="/proc/"+String(process.pid)+"/fd/"+String(tool.fd);',
+    'const setprivExecutable="/proc/"+String(process.pid)+"/fd/"+String(tools.setpriv.fd);',
+    '"/proc/self/fd/"+String(commandChildFd)',
 ):
     assert required in runner_v4, required
 
@@ -246,6 +249,7 @@ for required in (
     "function trustedExecutableAncestorCustody(resolved, leaf) {",
     "function revalidateTrustedExecutable(tool) {",
     "function execTrustedExecutable(tool, args, options = {}) {",
+    'const executable = "/proc/" + String(process.pid) + "/fd/" + String(tool.fd);',
     'const GIT_TOOL = trustedExecutable("/usr/bin/git", "git");',
     'trustedExecutable("/usr/bin/systemctl", "systemctl");',
     "runtime_source_bounded_descriptor_reads_per_census: true",
@@ -372,6 +376,9 @@ print("runner_v4_retained_node_descriptor_binding_contract=true")
 print("runner_v4_trusted_root_tool_rebind_adversary=true")
 print("runner_v4_runtime_uid_effective_tool_nonwritability=true")
 print("sealed_v3_retained_trusted_tools_green=true")
+print("runner_v4_parent_procfd_first_exec_bound=true")
+print("sealed_v3_parent_procfd_first_exec_bound=true")
+print("retained_target_child_self_fd_exec_bound=true")
 print("sealed_v3_acl_barrier_pre_post_census_semantics=true")
 print("runner_v4_qualifier_closure_git_object_bound=true")
 print("runner_v4_complete_source_runtime_dependency_set_bound=true")
