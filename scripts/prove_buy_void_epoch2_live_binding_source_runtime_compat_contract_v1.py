@@ -11,7 +11,8 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py"
-COMPAT = ROOT / "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"
+COMPAT_REL = "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"
+COMPAT_BLOB = "5c24b4a807c9d01ca357372aca042bb8d81b6b92"
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs"
 BINDER_PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c"
 RUNNER = ROOT / "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
@@ -27,7 +28,6 @@ LOCK_V6 = ROOT / "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
 PARSER_V4 = ROOT / "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
 
 EXPECTED = {
-    COMPAT: "5c24b4a807c9d01ca357372aca042bb8d81b6b92",
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
@@ -57,16 +57,17 @@ compile(target_raw, str(TARGET), "exec", dont_inherit=True, optimize=0)
 tree = ast.parse(target_raw.decode("utf-8"))
 assert any(isinstance(n, ast.FunctionDef) and n.name == "build_plan" for n in tree.body)
 
-compat = COMPAT.read_text()
+target_text = TARGET.read_text()
 for required in (
-    'RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
-    'SOURCE_HEAD = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"',
-    'SOURCE_TREE = "9e930fba9aacfafb5b163767302786cd7f31c81e"',
-    "source_runtime_fifteen_add_only_compatibility_required=true",
-    "canonical_checkout_rewind_performed=false",
-    "canonical_checkout_mutation_performed=false",
+    'COMPAT_V3_REL = "' + COMPAT_REL + '"',
+    'COMPAT_V3_BLOB = "' + COMPAT_BLOB + '"',
+    '"current_source_head_runtime_observed_required": True',
+    '"source_runtime_ancestry_bound_required": True',
+    '"tracked_source_checkout_exact_required": True',
+    '"runtime_source_dependency_blob_equality_required": True',
 ):
-    assert required in compat, required
+    assert required in target_text, required
+assert not (ROOT / COMPAT_REL).exists(), "historical_compat_source_unexpectedly_materialized"
 
 binder = BINDER.read_text()
 assert "function requireExactCheckout(expectedHead){" in binder
@@ -251,7 +252,8 @@ assert body["live_native_v3_binary_replacement_required_for_runner_compat"] is F
 assert len(body["required_successors"]) == 4
 
 print("VOID_BUY_VOID_EPOCH2_LIVE_BINDING_SOURCE_RUNTIME_COMPAT_CONTRACT_V1_PROOF_GREEN")
-print("exact_compat_v3_blob_bound=true")
+print("historical_compat_v3_identity_recorded=true")
+print("historical_compat_v3_materialization_required=false")
 print("exact_binder_v2_blob_bound=true")
 print("exact_binder_preentry_v2_blob_bound=true")
 print("exact_runner_v3_blob_bound=true")
