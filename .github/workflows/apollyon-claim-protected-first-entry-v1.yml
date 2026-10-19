@@ -73,13 +73,25 @@ jobs:
             actual="$RUNNER_TEMP/actual.txt"
             printf '%s\n' \
               '.github/workflows/apollyon-claim-protected-first-entry-v1.yml' \
+              '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-v1.yml' \
+              '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-lock-v1.yml' \
+              '.github/workflows/apollyon-claim-protected-first-entry-static-candidate-install-v1.yml' \
               'docs/security/apollyon-claim-protected-first-entry-v1.md' \
+              'docs/security/apollyon-claim-protected-first-entry-static-candidate-v1.md' \
+              'docs/security/apollyon-claim-protected-first-entry-static-candidate-lock-v1.md' \
+              'docs/security/apollyon-claim-protected-first-entry-static-candidate-install-v1.md' \
               'ops/xiphos/apollyon_claim_protected_first_entry_v1.c' \
               'ops/xiphos/apollyon_claim_protected_first_entry_v1.h' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+              'ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
               'scripts/apollyon_claim_protected_first_entry_v1_selftest.c' \
               'scripts/prove_apollyon_claim_protected_first_entry_v1.py' \
-              | sort > "$expected"
-            git diff --name-only "$parent" "$EXPECTED_HEAD" -- | sort > "$actual"
+              'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v1.py' \
+              'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_lock_v1.py' \
+              'scripts/prove_apollyon_claim_protected_first_entry_static_candidate_install_v1.py' \
+              | LC_ALL=C sort > "$expected"
+            git diff --no-renames --name-only "$parent" "$EXPECTED_HEAD" -- | LC_ALL=C sort > "$actual"
             diff -u "$expected" "$actual"
           elif [ "$EVENT_NAME" = push ]; then
             test -n "$PUSH_BEFORE"
