@@ -32,7 +32,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "2f17fd716f266fc1e12144799879d949983cc807",
+    RUNNER_V4: "11a147d565bd0ee3ff48c4e3cb75d608b59e87b1",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -42,7 +42,7 @@ EXPECTED = {
     LOCK_V2: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
     LOCK_V6: "772945b639d138284fc18cc312f7b9115b10c748",
     PARSER_V4: "223a8acf32f8c7961d61222b83c0db17075f86c6",
-    SEALED_V3: "f5ae61a95e4bc8f908109cafb38e40807fc7c2e8",
+    SEALED_V3: "ad19417c7d25bfab532af3ea92f4a627d4cc857a",
 }
 
 def git_blob(raw: bytes) -> str:
@@ -159,7 +159,7 @@ for required in (
     'runtime_uid_effective_tool_nonwritability_required=true',
     'root_tool_terminal_generation_revalidation_required=true',
     "function requireRuntimeUidNonwritable(candidate,label){",
-    'const SEALED_BLOB="f5ae61a95e4bc8f908109cafb38e40807fc7c2e8";',
+    'const SEALED_BLOB="ad19417c7d25bfab532af3ea92f4a627d4cc857a";',
     "function openRetainedTrustedExecutable(file,label){",
     "function runRetainedTrustedExecutable(tool,args,options={}){",
     'const executable=tool.real;',
@@ -276,6 +276,8 @@ for line in (
     "trusted_systemctl_retained_generation_revalidated_path_execution=true",
     "trusted_executable_path_rebind_rejected=true",
     "trusted_executable_writable_ancestor_rejected=true",
+    "credential_regular_to_fifo_race_rejected=true",
+    "credential_open_nonblocking_required=true",
     "credential_content_read=false",
     "signing_performed=false",
     "transaction_constructed=false",
