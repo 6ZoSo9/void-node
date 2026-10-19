@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
+import os
 from pathlib import Path
+import tempfile
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,7 +14,7 @@ TARGET_REL = (
     "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_lock_v1.py"
 )
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "60308199258475936596e38398b00fda553bd5be"
+TARGET_BLOB = "2d328245a4850f90ee33a15750e3ba9db00515ad"
 
 EXPECTED_PARENT_HEAD = "bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c"
 EXPECTED_CANDIDATE_ID = (
@@ -66,6 +69,118 @@ exec(
     ),
     module.__dict__,
 )
+
+
+def expect_source_hold(fn, reason: str) -> None:
+    try:
+        fn()
+    except module.LockError as exc:
+        assert str(exc) == reason, (str(exc), reason)
+    else:
+        raise AssertionError("parent source read unexpectedly accepted: " + reason)
+
+
+original_root = module.ROOT
+original_git = module.git
+original_open = module.os.open
+original_read = module.os.read
+original_close = module.os.close
+with tempfile.TemporaryDirectory(prefix="apollyon-lock-parent-read-") as td:
+    temp_root = Path(td)
+    relative = "parent.py"
+    fixture = temp_root / relative
+    payload = b"# exact parent fixture\n"
+    blob = git_blob(payload)
+    module.ROOT = temp_root
+    module.git = lambda *args: blob
+
+    opened_flags: list[int] = []
+
+    def tracking_open(path, flags, *args, **kwargs):
+        opened_flags.append(flags)
+        return original_open(path, flags, *args, **kwargs)
+
+    module.os.open = tracking_open
+    assert module.stable_file(relative, blob) == payload
+    assert opened_flags
+    required_flags = os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+    assert opened_flags[-1] & required_flags == required_flags
+    module.os.open = original_open
+
+    expect_source_hold(
+        lambda: module.stable_file("../escape", blob),
+        "parent_source_path_invalid:../escape",
+    )
+
+    fixture.unlink()
+    target = temp_root / "target.py"
+    target.write_bytes(payload)
+    fixture.symlink_to(target)
+    expect_source_hold(
+        lambda: module.stable_file(relative, blob),
+        "parent_source_metadata_invalid:" + relative,
+    )
+
+    fixture.unlink()
+    os.mkfifo(fixture)
+    expect_source_hold(
+        lambda: module.stable_file(relative, blob),
+        "parent_source_metadata_invalid:" + relative,
+    )
+
+    fixture.unlink()
+    fixture.write_bytes(payload)
+
+    def replacing_open(path, flags, *args, **kwargs):
+        replacement = temp_root / "replacement.py"
+        replacement.write_bytes(payload)
+        os.replace(replacement, fixture)
+        return original_open(path, flags, *args, **kwargs)
+
+    module.os.open = replacing_open
+    expect_source_hold(
+        lambda: module.stable_file(relative, blob),
+        "parent_source_generation_changed:" + relative,
+    )
+    module.os.open = original_open
+
+    fixture.write_bytes(payload)
+    first_read = True
+
+    def growing_read(fd, count):
+        nonlocal_marker = growing_read.__dict__
+        data = original_read(fd, count)
+        if not nonlocal_marker.get("grown", False):
+            nonlocal_marker["grown"] = True
+            with fixture.open("ab") as stream:
+                stream.write(b"x")
+        return data
+
+    module.os.read = growing_read
+    expect_source_hold(
+        lambda: module.stable_file(relative, blob),
+        "parent_source_grew:" + relative,
+    )
+    module.os.read = original_read
+
+    fixture.write_bytes(payload)
+
+    def close_then_error(fd):
+        original_close(fd)
+        raise OSError(errno.EIO, "synthetic close failure")
+
+    module.os.close = close_then_error
+    expect_source_hold(
+        lambda: module.stable_file(relative, blob),
+        "parent_source_close_failed:" + relative,
+    )
+    module.os.close = original_close
+
+module.ROOT = original_root
+module.git = original_git
+module.os.open = original_open
+module.os.read = original_read
+module.os.close = original_close
 
 # Acceptance must be independent of the mutable hosted compiler/linker image.
 # The only child process allowed during lock derivation is local read-only git
@@ -413,6 +528,11 @@ print(
     "VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_LOCK_V1_PROOF_GREEN"
 )
 print("lock_source_blob_bound=true")
+print("parent_source_descriptor_bound=true")
+print("parent_source_symlink_fifo_rejected=true")
+print("parent_source_replacement_race_rejected=true")
+print("parent_source_growth_rejected=true")
+print("parent_source_close_failure_machine_readable=true")
 print("historical_parent_candidate_rederived=false")
 print("accepted_parent_evidence_identity_bound=true")
 print("accepted_parent_report_digest_bound=true")
