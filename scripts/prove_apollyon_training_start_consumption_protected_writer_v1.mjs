@@ -39,7 +39,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
-    "09380e0d75a1a9e668684fac143a334d556afdfd",
+    "2165f85ead2a5997c600520e25274943d21e6704",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3",
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
@@ -321,6 +321,85 @@ assert.equal(leaf1.includes(record1.authorization_id),false);
     );
     assert.equal(fs.lstatSync(final).size,64*1024+1);
   }finally{
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  // Race a regular existing slot into a FIFO exactly at the visible-path open
+  // seam. The implementation must use O_PATH admission rather than a blocking
+  // data open of the raced pathname.
+  const root=newRoot();
+  const fd=openRoot(root);
+  const final=path.join(root,leaf1);
+  fs.writeFileSync(final,canonicalBytes(record1),{mode:0o600});
+  fs.chmodSync(final,0o600);
+  const originalOpenSync=fs.openSync;
+  const O_PATH=Number(fs.constants.O_PATH??0o10000000);
+  let substituted=false;
+  let visibleDataOpenAttempts=0;
+  fs.openSync=function(target,flags,...args){
+    if(String(target)===final&&typeof flags==="number"){
+      if(!substituted){
+        assert.notEqual(flags&O_PATH,0,"existing slot must be O_PATH-admitted first");
+        fs.unlinkSync(final);
+        fs.mkfifoSync(final,0o600);
+        substituted=true;
+      }else if((flags&O_PATH)===0){
+        visibleDataOpenAttempts+=1;
+      }
+    }
+    return originalOpenSync.call(fs,target,flags,...args);
+  };
+  try{
+    assert.throws(
+      ()=>classifyApollyonTrainingStartConsumptionProtectedSlotV1({
+        directory_fd:fd,
+        expected_consumption_record:record1,
+      }),
+      /final_identity_drift|final_metadata_invalid/u,
+    );
+    assert.equal(substituted,true);
+    assert.equal(visibleDataOpenAttempts,0);
+  }finally{
+    fs.openSync=originalOpenSync;
+    fs.closeSync(fd);
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  // Grow a valid slot after admission but before its first FD read. The source
+  // must request no more than MAX+1 bytes and fail closed.
+  const root=newRoot();
+  const fd=openRoot(root);
+  const final=path.join(root,leaf1);
+  fs.writeFileSync(final,canonicalBytes(record1),{mode:0o600});
+  fs.chmodSync(final,0o600);
+  const originalReadSync=fs.readSync;
+  let grew=false;
+  let maxRequested=0;
+  fs.readSync=function(targetFd,buffer,offset,length,position){
+    maxRequested=Math.max(maxRequested,length);
+    if(!grew){
+      grew=true;
+      fs.appendFileSync(final,Buffer.alloc(64*1024,0x78));
+    }
+    return originalReadSync.call(fs,targetFd,buffer,offset,length,position);
+  };
+  try{
+    assert.throws(
+      ()=>classifyApollyonTrainingStartConsumptionProtectedSlotV1({
+        directory_fd:fd,
+        expected_consumption_record:record1,
+      }),
+      /existing_record_size_invalid|final_identity_drift/u,
+    );
+    assert.equal(grew,true);
+    assert.ok(maxRequested<=64*1024+1,maxRequested);
+  }finally{
+    fs.readSync=originalReadSync;
     fs.closeSync(fd);
     fs.rmSync(root,{recursive:true,force:true});
   }
@@ -648,6 +727,10 @@ for(const forbidden of [
 }
 
 assert.equal(writerSource.includes("structuredClone(input)"),false);
+assert.equal(writerSource.includes("O_PATH"),true);
+assert.equal(writerSource.includes("O_NONBLOCK"),true);
+assert.equal(writerSource.includes("readBoundedExistingFinal"),true);
+assert.equal(writerSource.includes("fs.readFileSync(fd)"),false);
 
 const workflow=fs.readFileSync(WORKFLOW,"utf8");
 const expectedTriggerPaths=[
@@ -720,6 +803,10 @@ console.log("oversized_existing_slot_rejected_before_read=true");
 console.log("caller_selected_leaf_supported=false");
 console.log("caller_accessors_proxies_and_nested_objects_rejected_before_clone=true");
 console.log("caller_input_preflight_prevents_untrusted_writer_mutation=true");
+console.log("existing_slot_held_inode_admission=true");
+console.log("existing_slot_fifo_substitution_nonblocking=true");
+console.log("existing_slot_bounded_fd_read=true");
+console.log("existing_slot_growth_beyond_max_rejected=true");
 console.log("protected_consumption_store_origin_proven=false");
 console.log("unique_authorization_claim_slot_revalidation_performed=false");
 console.log("trainer_release=false");
