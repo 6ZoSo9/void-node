@@ -92,3 +92,15 @@ A distinct reviewed and explicitly authorized host installer must still revalida
 This read-only gate does **not** provide that installer and does not grant host action. No account/group/service/systemd action, durable claim, trainer release, training/model/weight execution, key, signing, wallet, transaction or funds authority is enabled.
 
 **PROTECT THE CORE.**
+
+## Flattened static lock + archive admission PR generation
+
+This PR now directly targets #3482 at
+`bf8bfed5b5a4b08a7ebe80139987366b8f4eb94c`. Its direct source scope is
+the complete eight-file static-admission layer: four accepted-candidate lock
+files plus four read-only archive-admission files.
+
+The focused workflow re-proves the static candidate acceptance lock before
+running archive adversaries and watches the lock's complete protected-first-entry
+dependency closure. This is review-stack consolidation only: the archive is not
+installed or executed, and Xiphos/install/training authority remains false.
