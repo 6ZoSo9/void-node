@@ -58,7 +58,7 @@ Important exact source generations:
   `3feed7f71fb6941f8feccf393f151fa9e973d7a4`.
 
 The Linux composition uses the same implementation core, now at Git blob
-`75dab134b8444ca79af6505f738bfcbdb924662c`. Its source is
+`2569d6f15fd8c1ed059173ba19056979f3be7e23`. Its source is
 `tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs`, blob
 `f485b9e6fc29eab549ebba07e1b49f24c7659092`. The Linux lease blob is unchanged. The core changes in this rebind only in its
 four immutable upstream source-generation pins. The bridge links these exact accepted #3309 sources,
@@ -194,11 +194,32 @@ protected installed path. The Linux composition below supplies same-inode
 advisory exclusion for participants using its lock, without proving that all
 host writers and migrations participate.
 
+## Prevalidation and bounded caller inputs
+
+The public source APIs now reject malformed or oversized caller-controlled
+material before performing avoidable private allocation or structured cloning:
+
+- publisher/request buffers must be between 3 and 65,536 bytes before the core
+  allocates its private copy;
+- operation/config own-key cardinality and allowlists are checked with
+  `Reflect.ownKeys` before a full descriptor map is captured;
+- store-generation records are snapshotted as exact primitive data records
+  before the local validator performs content-address calculations; and
+- authorization-slot records are snapshotted against the exact parent key
+  schema as primitive data before the parent slot validator is invoked.
+
+These checks do not replace the accepted semantic validators. They constrain
+the caller-controlled envelope first, then pass the bounded primitive snapshot
+to the existing canonical/content-addressed validation. The focused proof
+requires oversized request bytes, a 4,096-extra-key operation object, a nested
+generation field, and a nested slot field to fail before transaction
+acquisition or the targeted descriptor/structured-clone operation.
+
 ## Exact publisher forwarding
 
 `prepareApollyonDurableAttemptClaimPublisherForwardV2()` accepts only a Buffer containing the exact canonical #3285 request frame.
 
-It copies the exact frame into privately owned, unpooled storage before validation.
+It first enforces the accepted 3..65,536-byte request bound, then copies the exact frame into privately owned, unpooled storage before semantic validation.
 The frozen result retains the original digest and a deeply frozen parsed request.
 Every access to `exact_request_bytes` returns a new, unpooled Buffer containing
 the validated frame. Changing the input, a previous returned copy, or that copy's
