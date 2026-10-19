@@ -1,0 +1,149 @@
+name: Buy VOID Epoch-2 dormant candidate V3R live binding v3
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.mjs"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v3.c"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.py"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v3.md"
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v3.yml"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.mjs"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v3.c"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.py"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v3.md"
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v3.yml"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py"
+      - "ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact V3 two-head generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          parent=7ca15a8dffdd83aa9c3f991e6ad8b1ccd5efea23
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected-scope.txt"
+          actual="$RUNNER_TEMP/actual-scope.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v3.yml' \
+            'docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v3.md' \
+            'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v3.c' \
+            'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.mjs' \
+            'scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.py' \
+            | sort > "$expected"
+          git diff --name-only "$parent" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.mjs)" = \
+            "bf45a1d4aea6c788d9baa5e481491aedab621e38"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v3.c)" = \
+            "95131a524a42d4e0bf548af8ffd2cc6dc04974e2"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.py)" = \
+            "1989b5574866ac691e6c0d0975285019b67ce172"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v3.md)" = \
+            "c5874dc4d7130a481318051e5e3f8ddacad8cac8"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py)" = \
+            "f9e3b1f5501a56e7ce1a191f12507186e79c28d4"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v2.py)" = \
+            "a00fe6b094e97eb5c8bcf0eeb630d0d39e3498e2"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v1.py)" = \
+            "6b2bf387bff5e5cd6ada048fd5c8fe4d28d66577"
+          test "$(git rev-parse HEAD:ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json)" = \
+            "e569c9211e01f14c7c00dd1c5041d4dfb0817609"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_installed_qualification_v5.py)" = \
+            "a04c2e7665294cdd142426e9eb01ee27c5292b8d"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = \
+            "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs)" = \
+            "499df9b94b5b89354837570da0c7e47ec280025d"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c)" = \
+            "5021727f1def1ec11f870d735cab65acc1701a5e"
+
+          git diff --check "$parent" "$EXPECTED_HEAD"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.mjs
+          python3 -I -B -m py_compile scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.py
+          cc -std=c11 -O2 -Wall -Wextra -Werror -fsyntax-only \
+            ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v3.c
+
+      - name: Prove source/runtime split binding
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e2-v3r-dormant-binding-v3-proof.log"
+          NODE="$(command -v node)" CC="$(command -v cc)" \
+            python3 -I -B scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v3.py |
+            tee "$out"
+          markers=(
+            "VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V3_PROOF_GREEN"
+            "binder_blob_bound=true"
+            "native_preentry_blob_bound=true"
+            "compat_v3_v2_v1_blobs_bound=true"
+            "source_runtime_two_head_contract=true"
+            "source_head_candidate_authentication_bound=true"
+            "runtime_head_policy_qualification_bound=true"
+            "runtime_native_receives_runtime_policy_head_only=true"
+            "binder_parent_proof_binds_source_and_runtime_heads=true"
+            "native_first_entry_preserved=true"
+            "direct_worktree_live_rejected=true"
+            "stdin_without_native_parent_rejected=true"
+            "pre_source_sensitive_authority_false=true"
+            "post_source_sensitive_authority_unproven=true"
+            "customer_safe_to_pay=false"
+            "transaction=false"
+            "payment_acceptance=false"
+            "public_presale_activation=false"
+            "wc_void_market_activation=false"
+            "funds_movement=false"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
