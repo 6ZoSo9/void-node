@@ -122,3 +122,39 @@ a runtime-writable ancestor being swapped concurrently. Any future protected
 host execution requires separate root/ACL custody, retained directory-FD
 observation, and terminal generation binding. Production host mode remains
 hard-disabled and all authority flags remain false.
+
+## Missing ancestor cancellation cannot create a symlink target
+
+A further fixture-only case was found in the hop-walking resolver:
+`link -> missing-parent/../existing-file`. Although `existing-file` is a
+real regular file, the Linux kernel cannot traverse the nonexistent parent,
+so this symlink is **dangling** (the target returns `ENOENT`). Merely
+folding `..` after a missing hop and then `lstat`-ing the resulting
+existing file would misreport `resolved_exists=true` and attach that
+file's hash to a link whose target cannot be reached.
+
+The resolver now returns both the contained lexical destination and the
+first missing component. Attempting to cancel a missing component via `..`
+is a structured `Hold("symlink_missing_component_parent_reentry:...")`,
+never a present-target report. For an ordinary contained dangling link,
+`resolved_exists=false` is emitted without probing a lexically rejoined
+existing file. The first missing component is rechecked at the terminal
+boundary so materialization during the census also fails closed.
+
+The synthetic self-test constructs both a missing-parent reentry link
+(which must HOLD) and a conventional contained dangling link (which must
+remain explicitly absent). No protected host paths are inspected.
+
+```text
+source_git_blob=3a21cc20a49147a97dc9266ec8ff52d509cf2ef7
+proof_git_blob=9152c925f73fb2b0c6b9bf442100b46760d1e2ec
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+```
+
+This is a **manifest-evidence correctness** repair only. The future live
+source-authenticated host observer must separately enforce root/ACL custody,
+retained directory descriptors and terminal generation identity. Independent
+review remains outstanding; no host plan, installer, credential, payment,
+public presale/WC activation or funds action is authorized.
