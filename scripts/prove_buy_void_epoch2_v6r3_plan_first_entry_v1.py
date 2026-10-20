@@ -174,7 +174,8 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         "runtime_dumpable_disabled_before_python=true",
         "planner_retained_descriptor_required=true",
         "python_retained_descriptor_fexecve_required=true",
-        "isolated_python_required=true",\n        "python_site_import_disabled=true",
+        "isolated_python_required=true",
+        "python_site_import_disabled=true",
         "caller_stdin_python_source_authority=false",
         "filesystem_write=false",
         "credential_access=false",
@@ -359,7 +360,8 @@ print("planner_sha256_and_size_bound_before_python=true")
 print("planner_retained_fd_execution=true")
 print("python_root_owned_generation_policy_bound=true")
 print("python_retained_fd_fexecve=true")
-print("isolated_python_i_b_s=true")\nprint("python_site_import_disabled=true")
+print("isolated_python_i_b_s=true")
+print("python_site_import_disabled=true")
 print("caller_stdin_python_source_rejected=true")
 print("hostile_pythonpath_not_imported=true")
 print("same_size_planner_substitution_rejected_before_python=true")
