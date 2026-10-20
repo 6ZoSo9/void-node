@@ -17,7 +17,7 @@ LOCK_ID="voidbuye2runnerpollock6r3_0633e059bfdfb1209b80b090adacddae61795ca610a6b
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_0a3bfc00032b0feeb253fb0f295b4dacc1e3e66af35013676351ed11e3c119e1"
 LOCK_BLOB="d28ebbd3fe1d89a1940b039af64e10a6cb96065e"
 RUNNER_BLOB="2fa028824d71a22f4d228cdb7fcda738bce7b409"
-PLAN_BLOB="9eeadd69546cf0eb5793a744b273319bec757d39"
+PLAN_BLOB="fb12d0f8f96382094ae904b6bfe1d1b29c24b365"
 RUNNER_SHA256="9b8497c813fc3899b745736da01929380b5f28f988f70790def1e0a98b35a261"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
@@ -37,6 +37,7 @@ for name in (
     "collect_plan","source_plan",
     "require_plan_identity","_directory_chain","_revalidate_chain",
     "_trusted_file_before","_revalidate_trusted_file","_open_verified_root_fd",
+    "require_protected_leaf_nonwritable",
     "self_test","emit_plan",
 ):
     assert any(isinstance(node,ast.FunctionDef) and node.name==name for node in tree.body),name
@@ -105,6 +106,9 @@ for required in (
     'trusted_git_first_exec_retained_fd_required=true',
     '"retained_first_exec_lock_bound":True',
     'host_plan_exact_runtime_uid_gid_required=true',
+    'protected_leaf_runtime_acl_nonwritability_required=true',
+    'protected_leaf_acl_write_rejected=true',
+    'protected_leaf_acl_unavailable_rejected=true',
 ):
     assert required in source,required
 assert "--apply" not in source
@@ -117,6 +121,8 @@ assert "os.listdir(root)" not in source
 assert "os.listdir(PREDECESSOR_V4_ROOT)" not in source
 assert 'str(FIXED_GIT),' not in source[source.index('def git('):source.index('MAX_ACTUAL_ANCESTRY_COMMITS')]
 assert source.count('os.listdir(root_fd)')==2
+assert source.count('require_protected_leaf_nonwritable(root_fd,name,')==2
+assert 'name,os.W_OK,dir_fd=root_fd,effective_ids=True,' in source
 assert source.count('_revalidate_chain(chain)')>=4
 assert 'fd=os.open(name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=root_fd)' in source
 assert 'fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK)' in source
@@ -150,6 +156,7 @@ for mode in ("--self-test","--source-plan"):
             "late_source_drift_rejected=true",
             "full_root_atomic_exchange_required=true",
             "host_plan_exact_runtime_uid_gid_required=true",
+            "protected_leaf_runtime_acl_nonwritability_required=true",
             "host_node_and_state_terminal_revalidation_required=true",
             "protected_ancestor_acl_custody_required=true",
             "protected_directory_listing_fd_bound=true",
@@ -157,6 +164,9 @@ for mode in ("--self-test","--source-plan"):
             "host_node_nonblocking_fd_required=true",
             "writable_ancestor_rejected=true",
             "trusted_git_procfd_first_exec_fixture_green=true",
+            "protected_leaf_runtime_acl_nonwritability_required=true",
+            "protected_leaf_acl_write_rejected=true",
+            "protected_leaf_acl_unavailable_rejected=true",
             "host_node_terminal_drift_rejected=true",
             "protected_state_terminal_drift_rejected=true",
             "v6r2_predecessor_retention_required=true",
@@ -182,6 +192,7 @@ for mode in ("--self-test","--source-plan"):
             "protected_directory_listing_fd_bound=true",
             "trusted_git_first_exec_retained_fd_required=true",
             "host_plan_exact_runtime_uid_gid_required=true",
+            "protected_leaf_runtime_acl_nonwritability_required=true",
             "host_node_and_state_terminal_revalidation_required=true",
             "filesystem_write=false",
             "credential_access=false",
@@ -235,6 +246,7 @@ print("protected_ancestor_acl_custody_required=true")
 print("protected_directory_listing_fd_bound=true")
 print("trusted_git_first_exec_retained_fd_required=true")
 print("host_plan_exact_runtime_uid_gid_required=true")
+print("protected_leaf_runtime_acl_nonwritability_bound=true")
 print("host_node_and_state_terminal_revalidation_required=true")
 print("filesystem_write=false")
 print("credential_access=false")
