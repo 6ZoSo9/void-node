@@ -132,6 +132,12 @@ for required in (
     "setresuid((uid_t)REQUIRED_UID",
     "PR_SET_DUMPABLE",
     "revalidate_fixed_generation(",
+    "memfd_create(",
+    "MFD_ALLOW_SEALING",
+    "F_ADD_SEALS",
+    "F_SEAL_WRITE",
+    "planner_sealed_snapshot_invalid",
+    "python_sealed_snapshot_invalid",
     "O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK",
     '"/proc/self/fd/3"',
     "fexecve(python_fd,child_argv,child_env);",
@@ -174,6 +180,9 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         "permanent_uid_gid_drop_before_python=true",
         "runtime_dumpable_disabled_before_python=true",
         "planner_retained_descriptor_required=true",
+        "planner_sealed_memfd_execution=true",
+        "python_sealed_memfd_fexecve=true",
+        "sealed_memfd_write_rejected=true",
         "python_retained_descriptor_fexecve_required=true",
         "isolated_python_required=true",
         "python_site_import_disabled=true",
@@ -386,6 +395,10 @@ print("protected_generations_revalidated_after_uid_drop=true")
 print("planner_root_owned_fixed_path_required=true")
 print("planner_sha256_and_size_bound_before_python=true")
 print("planner_retained_fd_execution=true")
+print("planner_sealed_memfd_execution=true")
+print("python_sealed_memfd_fexecve=true")
+print("sealed_memfd_write_rejected=true")
+print("authenticated_original_paths_not_execution_authority_after_snapshot=true")
 print("python_root_owned_generation_policy_bound=true")
 print("python_retained_fd_fexecve=true")
 print("isolated_python_i_b_s=true")
