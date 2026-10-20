@@ -91,6 +91,8 @@ jobs:
             'root_static_first_entry_required=true' \
             'standard_fds_reserved_before_trusted_opens=true' \
             'mapped_planner_fd3_revalidated=true' \
+            'inherited_fds_ge5_closed_and_censused=true' \
+            'devnull_stdin_descriptor_revalidated=true' \
             'closed_stdin_first_entry_green=true' \
             'runtime_uid_gid_1000_required=true' \
             'permanent_uid_gid_drop_before_python=true' \
