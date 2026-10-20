@@ -13,14 +13,14 @@ from pathlib import Path
 
 MARKER = "VOID_BUY_VOID_EPOCH2_V6R3_PYTHON_RUNTIME_CLOSURE_FRESHNESS_GATE_V1"
 PREFIX = "voidbuye2v6r3pyclosurefreshness1_"
-GATE_ID = "voidbuye2v6r3pyclosurefreshness1_28fafff8e9cb508c9de7db9b32fcb7bc23766ad2eb9ecb86621aeba429d6bc11"
+GATE_ID = "voidbuye2v6r3pyclosurefreshness1_66f0fc4c608ab2874e75620e0e4037c9a672369fbd460b12a35a0b0600398a66"
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v1.json"
 UPSTREAM = ROOT / "ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v1.json"
 BINARY_LOCK = ROOT / "ops/security/buy-void-epoch2-v6r3-plan-first-entry-binary-candidate-lock-v1.json"
-UPSTREAM_BLOB = "d3f1deeaf82c49c11353cebbb4c72466be9d2472"
+UPSTREAM_BLOB = "c70dfd9da29c75b348a3619f6df7329381e939cf"
 BINARY_LOCK_BLOB = "66bf48fd6477e0335b1eea6e2b7e8a7f297f8c57"
-UPSTREAM_ID = "voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5"
+UPSTREAM_ID = "voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f"
 BINARY_LOCK_ID = "voidbuye2v6r3planfirstentrybinlock1_f6b452bb75542809454a0b68bae2f0049a4f2af6329e0b13075de1491bbbbc61"
 
 def canonical(value: object) -> bytes:
@@ -47,6 +47,16 @@ def verify_source_contract() -> None:
     upper = json.loads(UPSTREAM.read_bytes())
     lock = json.loads(BINARY_LOCK.read_bytes())
     assert upper["contract_id"] == UPSTREAM_ID
+    assert p["closure_contract_head"] == "c674df2fb523803f27b7ae886f4a043ffffde27e"
+    process=upper["runtime_process"]
+    assert process["post_exec_dumpability_verified"] is False
+    assert process["post_exec_dumpability_accepted"] is False
+    diagnostic=process["post_exec_dumpability_diagnostic_evidence"]
+    assert diagnostic["head"]=="bc59170b211c3bd2490446b0e1cd045b5d9d5925"
+    assert diagnostic["script_git_blob_sha1"]=="a946e81549fe12f61b61d17cad76a7eda40501ff"
+    assert diagnostic["workflow_git_blob_sha1"]=="e27aa4a81fbfe4ae122db5fa5cf906fbe1848e28"
+    assert diagnostic["run_id"]==39360364319 and diagnostic["job_id"]==118424883505
+    assert diagnostic["pre_fexecve_dumpable"]==0 and diagnostic["post_fexecve_dumpable"]==1
     assert lock["lock_id"] == BINARY_LOCK_ID
     p = value["parent"]
     assert p["closure_contract_git_blob_sha1"] == UPSTREAM_BLOB
@@ -54,10 +64,21 @@ def verify_source_contract() -> None:
     assert p["closure_contract_id"] == UPSTREAM_ID
     assert p["native_first_entry_lock_id"] == BINARY_LOCK_ID
     gate = value["mandatory_live_gate"]
+    false_gate_fields={
+        "installed_enforcement_source_proven",
+        "installed_post_exec_dumpability_enforcement_source_proven",
+        "host_manifest_accepted",
+        "host_plan_authorized",
+    }
     for name, allowed in gate.items():
-        assert allowed is (name not in (
-            "installed_enforcement_source_proven", "host_manifest_accepted", "host_plan_authorized"
-        )), name
+        assert allowed is (name not in false_gate_fields), name
+    for required in (
+        "parent_post_exec_dumpability_diagnostic_evidence_bound",
+        "pre_exec_freshness_not_post_exec_process_authority",
+        "post_exec_dumpability_protection_or_isolation_required",
+        "post_exec_dumpability_must_be_observed_before_host_plan_authority",
+    ):
+        assert gate[required] is True,required
     a = dict(value["authority"])
     assert a.pop("source_contract_only") is True
     assert all(entry is False for entry in a.values())
@@ -156,6 +177,7 @@ def synthetic_test() -> None:
     print("synthetic_adversary_count=" + str(len(adversaries)))
     print("host_census_performed=false")
     print("live_enforcement_proven=false")
+    print("post_exec_dumpability_not_proven_by_freshness_gate=true")
     print("host_plan_authorized=false")
     print("funds_movement=false")
 
@@ -170,6 +192,10 @@ def source_plan() -> None:
     print("protected_install_authorized=false")
     print("first_exec_live_runtime_revalidation_required=true")
     print("accepted_host_report_not_live_execution_authority=true")
+    print("parent_dumpability_diagnostic_evidence_bound=true")
+    print("pre_exec_freshness_not_post_exec_process_authority=true")
+    print("post_exec_dumpability_protection_or_isolation_required=true")
+    print("installed_post_exec_dumpability_enforcement_source_proven=false")
     print("credential_access=false")
     print("signing=false")
     print("transaction=false")
