@@ -43,7 +43,7 @@ For the future host `--plan` path, the launcher requires:
   the host's canonical `/usr/bin/python3` target by realpath, SHA-256 and byte length;
 - retained planner descriptor inherited as `/proc/self/fd/3`;
 - retained Python ELF entered with `fexecve()`;
-- isolated Python `-I -B`;
+- isolated Python `-I -B -S`, with `site` import disabled;
 - caller stdin replaced with `/dev/null`;
 - a newly constructed loader/Python environment;
 - `PR_SET_NO_NEW_PRIVS` before Python entry.
