@@ -168,3 +168,42 @@ explicitly superseded. Historical identities are not relabeled.
 No protected install, live credential execution, signing, transaction/payment,
 activation, service mutation, treasury/liquidity action, or funds movement is
 authorized by this lock.
+
+## Retained-first-exec successor generation
+
+Fresh exact hosted source evidence from Draft #3566:
+
+```text
+source_evidence_head=8729f4ca54543228ee99d5a50afc6a394c77bb28
+compatibility_run=39350531700
+compatibility_job=118393389094
+candidate_run=39350532312
+candidate_job=118393391136
+candidate_identity_job=118393699442
+
+candidate_id=voidbuye2runnerpolcand6r3_0a3bfc00032b0feeb253fb0f295b4dacc1e3e66af35013676351ed11e3c119e1
+runner_git_blob=2fa028824d71a22f4d228cdb7fcda738bce7b409
+runner_sha256=9b8497c813fc3899b745736da01929380b5f28f988f70790def1e0a98b35a261
+runner_bytes=84928
+sealed_v3_git_blob=ad19417c7d25bfab532af3ea92f4a627d4cc857a
+lock_id=voidbuye2runnerpollock6r3_0633e059bfdfb1209b80b090adacddae61795ca610a6bf7f79059cc997148f52
+```
+
+This V8 lock accepts the source-only Runner generation that preserves the current
+nonblocking sealed-V3 identity while retaining exact setpriv/Python/Git/Node executable
+generations through first exec. The protected setpriv boundary and root Python execution
+now use inherited `/proc/self/fd/<n>` images rather than reopening an authenticated
+pathname. The compatibility proof also binds portable cwd semantics and distinguishes a
+missing cwd `ENOENT` from procfd executable failure.
+
+The source evidence commit SHA transitively binds its Git tree; the V8 lock records that
+commit-object binding instead of duplicating a separately copied tree SHA.
+
+The prior nonblocking candidate `aaa50e1b...`, the stale in-branch lock
+`dea4081e...`, and the corrected sibling lock `72ecfe7a...` are explicitly
+superseded and have no install authority.
+
+This remains an accepted **source identity only**. No Precision install, service mutation,
+credential/private-key access, signing, transaction/payment action, presale/WC activation,
+treasury/liquidity action, or funds movement is authorized.
+
