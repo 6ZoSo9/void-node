@@ -394,7 +394,7 @@ def fixture_self_test()->None:
         dangling=py/"dangling-contained"
         dangling.symlink_to("nonexistent-tree/nonexistent-leaf.py")
         dangling_manifest=collect_tree(root,"/fixture")
-        assert dangling_manifest["objects"]["/fixture/python/dangling-contained"]["resolved_exists"] is False
+        assert dangling_manifest["/fixture/python/dangling-contained"]["resolved_exists"] is False
         dangling.unlink()
 
         # Cyclic paths must terminate with a bounded explicit HOLD.
