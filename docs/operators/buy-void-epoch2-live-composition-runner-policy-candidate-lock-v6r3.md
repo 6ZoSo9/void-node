@@ -206,4 +206,3 @@ superseded and have no install authority.
 This remains an accepted **source identity only**. No Precision install, service mutation,
 credential/private-key access, signing, transaction/payment action, presale/WC activation,
 treasury/liquidity action, or funds movement is authorized.
-
