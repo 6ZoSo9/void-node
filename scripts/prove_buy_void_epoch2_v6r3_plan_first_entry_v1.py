@@ -16,6 +16,14 @@ def _require_isolated_python() -> None:
 
 _require_isolated_python()
 
+_args = sys.argv[1:]
+if _args == []:
+    FIXTURE_MODE = False
+elif _args == ["--isolated-disposable-fixture"]:
+    FIXTURE_MODE = True
+else:
+    raise SystemExit("usage: prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py [--isolated-disposable-fixture]")
+
 import hashlib
 import os
 from pathlib import Path
@@ -119,7 +127,7 @@ assert git_blob(planner_raw) == PLANNER_GIT_BLOB
 source_raw = stable_bytes(SOURCE, MAX_SOURCE_BYTES)
 source = source_raw.decode("utf-8", "strict")
 for required in (
-    '#define FIXED_ROOT "/opt/void-buy-void-epoch2-v6r3-plan-first-entry-v1"',
+    '#define VOID_E2_V6R3_PLAN_FIRST_ENTRY_ROOT "/opt/void-buy-void-epoch2-v6r3-plan-first-entry-v1"',
     '#define FIXED_PYTHON_LINK "/usr/bin/python3"',
     '#define PLANNER_GIT_BLOB "' + PLANNER_GIT_BLOB + '"',
     '#define PLANNER_SHA256 "' + PLANNER_SHA256 + '"',
@@ -132,6 +140,10 @@ for required in (
     "setresuid((uid_t)REQUIRED_UID",
     "PR_SET_DUMPABLE",
     "revalidate_fixed_generation(",
+    "reserve_standard_fds();",
+    "standard_fds_reserved_before_trusted_opens=true",
+    "planner_child_fd_identity_invalid",
+    "python_child_fd_identity_invalid",
     "memfd_create(",
     "MFD_ALLOW_SEALING",
     "F_ADD_SEALS",
@@ -176,6 +188,8 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         "planner_sha256=" + PLANNER_SHA256,
         "planner_bytes=49025",
         "root_static_first_entry_required=true",
+        "standard_fds_reserved_before_trusted_opens=true",
+        "mapped_planner_fd3_revalidated=true",
         "runtime_uid_gid_1000_required=true",
         "permanent_uid_gid_drop_before_python=true",
         "runtime_dumpable_disabled_before_python=true",
@@ -194,6 +208,17 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         "funds_movement=false",
     ):
         assert line in self_lines, line
+
+    if not FIXTURE_MODE:
+        print(MARKER + "_SOURCE_CHECK_GREEN")
+        print("privileged_fixture_executed=false")
+        print("protected_install_authorized=false")
+        print("host_plan_authorized=false")
+        print("credential_access=false")
+        print("signing=false")
+        print("transaction=false")
+        print("funds_movement=false")
+        raise SystemExit(0)
 
     cp = run([SUDO, "-n", "true"])
     require_success(cp, "passwordless_sudo_required")
