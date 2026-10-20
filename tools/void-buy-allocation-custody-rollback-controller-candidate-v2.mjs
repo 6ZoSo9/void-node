@@ -310,15 +310,16 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
     before.policy_fingerprint_sha256!==authorization.expected_policy_fingerprint_sha256||
     before.policy_generation!==authorization.expected_policy_generation
   )fail("authorization_policy_observation_mismatch");
-  // The noncustomer challenge must start from a coherent journal/high-water
-  // checkpoint, not from an already-stale or under-protected journal.
-  // Different SHA domains are intentional; compare only sequence indices.
-  if(before.journal_sequence!==before.high_water_sequence)
-    fail("initial_journal_high_water_checkpoint_mismatch");
   if(before.journal_sequence>=MAX_SAFE)fail("journal_sequence_headroom_exhausted");
   if(before.high_water_sequence>=MAX_SAFE)fail("high_water_sequence_headroom_exhausted");
   if(before.external_witness_sequence>=MAX_SAFE)
     fail("external_witness_sequence_headroom_exhausted");
+  // The noncustomer challenge must start from a coherent journal/high-water
+  // checkpoint, not from an already-stale or under-protected journal.
+  // Preserve the distinct numeric headroom HOLDs before this comparison.
+  // Different SHA domains are intentional; compare only sequence indices.
+  if(before.journal_sequence!==before.high_water_sequence)
+    fail("initial_journal_high_water_checkpoint_mismatch");
 
   const claim=exactResult(callSync(caps.claim_operation_authorization_once,
     Object.freeze({
