@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v1.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v1.json"
 
-SOURCE_BLOB="4278edfc818a019a4f1bb02944bfd6c2c0eb0b33"
+SOURCE_BLOB="94b5bd837e72c095897b41bf0e9a9e27d8bfb840"
 CONTRACT_BLOB="c70dfd9da29c75b348a3619f6df7329381e939cf"
 FRESHNESS_BLOB="9657fff243e44135e1f992b1ef5b8e0d977b8b65"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f"
@@ -85,6 +85,10 @@ for required in (
     'raise Hold("declared_absence_materialized:"',
     'raise Hold("unaccepted_runtime_file_access")',
     'raise Hold("terminal_manifest_changed")',
+    'raise Hold("directory_generation_changed_during_inventory:"',
+    'raise Hold("symlink_generation_changed_after_resolution:"',
+    'raise Hold("symlink_target_outside_inventory_root:"',
+    'raise Hold("symlink_resolved_special_file_forbidden:"',
     '"post_exec_dumpability_verified":False',
     '"post_exec_dumpability_accepted":False',
     'print("host_execution_enabled=false")',
