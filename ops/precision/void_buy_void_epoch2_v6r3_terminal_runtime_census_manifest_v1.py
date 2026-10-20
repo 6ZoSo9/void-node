@@ -82,7 +82,9 @@ def directory_record(path:Path)->dict[str,object]:
         raise Hold("directory_metadata_invalid:"+os.fspath(path))
     return {"kind":"directory",**_meta(st)}
 
-def _contained_resolve(path:Path,real_root:Path,display_path:str)->Path:
+def _contained_resolve(
+    path:Path,real_root:Path,display_path:str,
+)->tuple[Path,Path|None]:
     """Resolve each symlink hop inside the inventory root, never just the end.
 
     A final realpath/relative_to check falsely accepts root/link ->
@@ -97,24 +99,28 @@ def _contained_resolve(path:Path,real_root:Path,display_path:str)->Path:
     pending=deque(relative.parts)
     current=real_root
     hops=0
-    missing=False
+    missing_component:Path|None=None
     while pending:
         part=pending.popleft()
         if part in ("","."):
             continue
         if part=="..":
+            # On Linux, a missing segment cannot be erased by a later "..":
+            # nonexistent/../real remains ENOENT, not the real leaf.
+            if missing_component is not None:
+                raise Hold("symlink_missing_component_parent_reentry:"+display_path)
             if current==real_root:
                 raise Hold("symlink_target_outside_inventory_root:"+display_path)
             current=current.parent
             continue
         next_path=current/part
-        if missing:
+        if missing_component is not None:
             current=next_path
             continue
         try:
             st=next_path.lstat()
         except FileNotFoundError:
-            missing=True
+            missing_component=next_path
             current=next_path
             continue
         if stat.S_ISLNK(st.st_mode):
@@ -138,7 +144,7 @@ def _contained_resolve(path:Path,real_root:Path,display_path:str)->Path:
             if pending and not stat.S_ISDIR(st.st_mode):
                 raise Hold("symlink_intermediate_not_directory:"+display_path)
             current=next_path
-    return current
+    return current,missing_component
 
 
 def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->dict[str,object]:
@@ -149,7 +155,7 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
     after=path.lstat()
     if not _same_generation(before,after):
         raise Hold("symlink_generation_changed:"+os.fspath(path))
-    resolved=_contained_resolve(path,real_root,display_path)
+    resolved,missing_component=_contained_resolve(path,real_root,display_path)
     record={"kind":"symlink",**_meta(before),"target_text":text}
     try:
         resolved.relative_to(real_root)
@@ -161,24 +167,47 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
         raise Hold("symlink_target_outside_inventory_root:"+display_path)
     rel=resolved.relative_to(real_root).as_posix()
     record["resolved_display_path"]=display_root if rel=="." else display_root.rstrip("/")+"/"+rel
-    try:
-        rst=resolved.lstat()
-    except FileNotFoundError:
-        record["resolved_exists"]=False
+    if missing_component is not None:
+        # The first absent path is authoritative for this resolution:
+        # never check a lexically folded final path and misreport it present.
+        # An unexpectedly materialized missing segment invalidates the
+        # entire observation instead of converting a dangling link to GREEN.
+        try:
+            missing_component.lstat()
+        except FileNotFoundError:
+            record["resolved_exists"]=False
+        except OSError as exc:
+            raise Hold("symlink_missing_component_observation_failed:"+display_path) from exc
+        else:
+            raise Hold("symlink_missing_component_materialized:"+display_path)
     else:
-        record["resolved_exists"]=True
-        record["resolved_kind"]=(
-            "regular" if stat.S_ISREG(rst.st_mode) else
-            "directory" if stat.S_ISDIR(rst.st_mode) else
-            "symlink" if stat.S_ISLNK(rst.st_mode) else "special"
-        )
-        if record["resolved_kind"]=="special":
-            raise Hold("symlink_resolved_special_file_forbidden:"+display_path)
-        if stat.S_ISREG(rst.st_mode):
-            record["resolved_sha256"]=stable_regular(resolved)["sha256"]
+        try:
+            rst=resolved.lstat()
+        except FileNotFoundError:
+            record["resolved_exists"]=False
+        else:
+            record["resolved_exists"]=True
+            record["resolved_kind"]=(
+                "regular" if stat.S_ISREG(rst.st_mode) else
+                "directory" if stat.S_ISDIR(rst.st_mode) else
+                "symlink" if stat.S_ISLNK(rst.st_mode) else "special"
+            )
+            if record["resolved_kind"]=="special":
+                raise Hold("symlink_resolved_special_file_forbidden:"+display_path)
+            if stat.S_ISREG(rst.st_mode):
+                record["resolved_sha256"]=stable_regular(resolved)["sha256"]
     terminal=path.lstat()
     if not _same_generation(before,terminal):
         raise Hold("symlink_generation_changed_after_resolution:"+display_path)
+    if missing_component is not None:
+        try:
+            missing_component.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise Hold("symlink_missing_component_terminal_failed:"+display_path) from exc
+        else:
+            raise Hold("symlink_missing_component_materialized:"+display_path)
     return record
 
 def _display(display_root:str,rel:Path)->str:
@@ -266,7 +295,16 @@ def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,o
         or real_root.resolve()!=real_root):
         raise Hold("absence_inventory_root_not_canonical")
     target=real_root/rel
-    resolved=_contained_resolve(target,real_root,display_path)
+    resolved,missing_component=_contained_resolve(target,real_root,display_path)
+    if missing_component is not None:
+        try:
+            missing_component.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise Hold("absence_first_missing_observation_failed:"+display_path) from exc
+        else:
+            raise Hold("absence_first_missing_component_materialized:"+display_path)
     if resolved!=target:
         # Even an internal alias would make nearest-parent provenance
         # ambiguous; a future host adapter must qualify it separately.
@@ -420,6 +458,27 @@ def fixture_self_test()->None:
             raise AssertionError("outside_intermediate_symlink_hop_accepted")
         pivot.unlink()
 
+        # Linux ENOENT cannot be canceled by lexical "missing/../safe".
+        # The old scanner returned /root/python/hashlib.py and incorrectly
+        # claimed a dangling link was a present authenticated regular leaf.
+        missing_reentry=py/"missing-parent-reentry"
+        missing_reentry.symlink_to("absent-intermediate/../hashlib.py")
+        assert not missing_reentry.exists()
+        try:
+            collect_tree(root,"/fixture")
+        except Hold as exc:
+            assert "symlink_missing_component_parent_reentry" in str(exc)
+        else:
+            raise AssertionError("missing_component_reentry_reported_existing_leaf")
+        missing_reentry.unlink()
+
+        # A conventional dangling symlink stays explicit absent evidence.
+        dangling=py/"dangling-contained"
+        dangling.symlink_to("nonexistent-tree/nonexistent-leaf.py")
+        dangling_manifest=collect_tree(root,"/fixture")
+        assert dangling_manifest["/fixture/python/dangling-contained"]["resolved_exists"] is False
+        dangling.unlink()
+
         # Cyclic paths must terminate with a bounded explicit HOLD.
         loop=py/"cyclic-link";loop.symlink_to("cyclic-link")
         try:
@@ -515,6 +574,8 @@ def fixture_self_test()->None:
     print("absence_parent_symlink_alias_rejected=true")
     print("sys_path_must_be_inventoried_or_explicitly_absent=true")
     print("noncanonical_manifest_paths_rejected=true")
+    print("symlink_missing_component_parent_reentry_rejected=true")
+    print("contained_dangling_symlink_remains_absent=true")
     print("discovered_entry_budget_includes_queued_directories=true")
     print("scandir_consumption_bounded_before_sort=true")
     print("over_budget_synthetic_scandir_rejected=true")
