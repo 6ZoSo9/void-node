@@ -1,8 +1,10 @@
 #define _GNU_SOURCE
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
 #include <limits.h>
+#include <linux/close_range.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,6 +13,7 @@
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <unistd.h>
@@ -34,7 +37,6 @@
 #define CHILD_PYTHON_FD 4
 #define MAX_POLICY_BYTES 4096U
 #define MAX_PYTHON_BYTES (512U * 1024U * 1024U)
-#define CLOSE_FD_CAP 65536L
 
 typedef struct {
     char python_realpath[PATH_MAX];
@@ -414,8 +416,34 @@ static void require_python_link(const char *expected_realpath){
 }
 
 static void close_unneeded(int keep_a,int keep_b){
-    long maxfd=sysconf(_SC_OPEN_MAX);if(maxfd<0||maxfd>CLOSE_FD_CAP)maxfd=CLOSE_FD_CAP;
-    for(int fd=5;fd<maxfd;fd++){if(fd==keep_a||fd==keep_b)continue;close(fd);}
+    if(keep_a!=CHILD_PLANNER_FD||keep_b!=CHILD_PYTHON_FD){
+        hold("close_range_keep_contract_invalid");
+    }
+    if(syscall(SYS_close_range,5U,UINT_MAX,CLOSE_RANGE_UNSHARE)!=0){
+        hold("close_range_unshare_failed");
+    }
+}
+
+static void assert_no_unneeded_fds(void){
+    DIR *dir=opendir("/proc/self/fd");
+    if(!dir)hold("inherited_fd_census_failed");
+    const int census_fd=dirfd(dir);
+    errno=0;
+    for(;;){
+        struct dirent *entry=readdir(dir);
+        if(!entry)break;
+        char *end=NULL;
+        const long value=strtol(entry->d_name,&end,10);
+        if(end==entry->d_name||*end!='\0')continue;
+        if(value<=CHILD_PYTHON_FD||value==census_fd)continue;
+        closedir(dir);
+        hold("inherited_fd_survived_close_range");
+    }
+    if(errno!=0){
+        closedir(dir);
+        hold("inherited_fd_census_failed");
+    }
+    if(closedir(dir)!=0)hold("inherited_fd_census_close_failed");
 }
 
 static void require_devnull_descriptor(int fd,const char *reason){
@@ -574,15 +602,20 @@ int main(int argc,char **argv){
     python_fd=python_exec_fd;
 
     int nullfd=open("/dev/null",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
-    if(nullfd<0||dup2(nullfd,STDIN_FILENO)<0){
-        if(nullfd>=0){
-            close(nullfd);
-        }
+    if(nullfd<0){
+        close(planner_fd);
+        close(python_fd);
+        hold("devnull_stdin_install_failed");
+    }
+    require_devnull_descriptor(nullfd,"devnull_stdin_descriptor_invalid");
+    if(dup2(nullfd,STDIN_FILENO)<0){
+        close(nullfd);
         close(planner_fd);
         close(python_fd);
         hold("devnull_stdin_install_failed");
     }
     close(nullfd);
+    require_devnull_descriptor(STDIN_FILENO,"devnull_stdin_descriptor_invalid");
 
     if(python_fd==CHILD_PLANNER_FD&&planner_fd!=CHILD_PLANNER_FD){
         const int moved=fcntl(python_fd,F_DUPFD_CLOEXEC,5);
@@ -603,6 +636,7 @@ int main(int argc,char **argv){
     int pyflags=fcntl(python_fd,F_GETFD);
     if(pyflags<0||fcntl(python_fd,F_SETFD,pyflags|FD_CLOEXEC)<0)hold("python_cloexec_failed");
     close_unneeded(CHILD_PLANNER_FD,CHILD_PYTHON_FD);
+    assert_no_unneeded_fds();
 
     char *const child_argv[]={
         policy.python_realpath,"-I","-B","-S","/proc/self/fd/3","--plan",NULL
