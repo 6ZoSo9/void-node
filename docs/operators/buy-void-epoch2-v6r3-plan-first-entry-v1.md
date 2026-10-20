@@ -63,14 +63,17 @@ Hosted CI:
 4. invokes the real launcher through its fixed path as root, requiring the launcher itself
    to perform the irreversible drop to numeric UID/GID `1000:1000` before Python;
 5. supplies caller stdin Python and hostile `PYTHONPATH`, requiring neither to execute;
-6. requires the authenticated planner marker to appear, proving Python reached the exact
+6. requires the exact planner to clear both its root and exact-UID/GID guards and then
+   HOLD at the later hosted-only `git_failed:rev-parse` boundary, proving Python entered
+   the planner as UID/GID `1000:1000`;
+7. requires the authenticated planner marker to appear, proving Python reached the exact
    retained planner bytes;
-7. replaces the planner with a same-size modified root-owned file and requires rejection
+8. replaces the planner with a same-size modified root-owned file and requires rejection
    at `planner_identity_invalid` **before Python starts**;
-8. invokes the launcher from a wrong path and requires rejection before Python;
-9. invokes the correct fixed launcher directly as UID/GID `1000:1000` and requires
+9. invokes the launcher from a wrong path and requires rejection before Python;
+10. invokes the correct fixed launcher directly as UID/GID `1000:1000` and requires
    `root_static_first_entry_required` before Python;
-10. supplies hostile `LD_PRELOAD` to the real fixed static launcher and requires it not
+11. supplies hostile `LD_PRELOAD` to the real fixed static launcher and requires it not
     to propagate to the Python child.
 
 The fixture is deleted at the end of the hosted proof.
