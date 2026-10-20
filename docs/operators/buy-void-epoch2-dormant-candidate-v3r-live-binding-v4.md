@@ -32,11 +32,11 @@ No fixture accesses the protected installation directory or credentials.
 ```text
 parent_pr=3640
 parent_head=d44a2a57abf80d41eac605cbe8518f0dc7b673b7
-binder_js_blob=6571c401af4f83c59dd5c47491247fd1d5cda01a
-binder_js_sha256=d83353349564fd54a826a96baa3c81a6741764754ff68d3f40bb54eeb1568e01
-binder_js_bytes=66508
-native_preentry_c_blob=87d05f03ecb0bd6f3d3bce7a0b18d66cf87fc9c8
-binder_source_proof_blob=674d41e1939996e059c870e41ab73f9888ff262d
+binder_js_blob=d2d648b144d3b406ff845a597fa4b9f54167b6bc
+binder_js_sha256=c447151d7bc4d1b3ffc5e9c8d58b92e8f041e3aa6c0c5747d6da621471e28207
+binder_js_bytes=66650
+native_preentry_c_blob=704f3726600690605303d9083976225f4913b446
+binder_source_proof_blob=3321e8a0cf05ab2272951b34aef8185fef3caf0d
 installed_binder_terminal_fd_digest_checked=true
 privileged_live_execution=false
 credential_access=false
@@ -61,6 +61,12 @@ receipt claim is made.
 **HOLD:** Draft/unmerged. No protected host `--run`, installation,
 service changes, private keys, wallet, signing, RPC, transaction/payment,
 public presale/WC activation, treasury/liquidity or funds movement.
+The temporary self-test cleanup now closes its own descriptor and removes
+only its own disposable file/directory; no raw empty catches remain. This
+refinement changes the exact accepted source and C/native proof bytes, so
+only the above current-generation pins are valid. Repo-wide tracked-empty-
+catch CI must be evaluated on the newly pinned exact head.
+
 Tor renewal is managed in the other chat.
 
 PROTECT THE CORE.
