@@ -44,6 +44,7 @@ jobs:
           python3 -I -B -S scripts/prove_buy_void_epoch2_v6r3_postexec_dumpability_v1.py --self-test | tee "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
           grep -Fx 'pre_fexecve_dumpable=0' "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
           grep -Fx 'post_fexecve_dumpable=1' "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
+          grep -Fx 'sealed_memfd_python_fexecve_fixture=true' "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
           grep -Fx 'runtime_dumpability_accepted=false' "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
           grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
       - name: Diff hygiene
