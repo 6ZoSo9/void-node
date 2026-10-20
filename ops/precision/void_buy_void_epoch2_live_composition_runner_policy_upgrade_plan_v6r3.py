@@ -804,6 +804,25 @@ def self_test()->None:
         raise AssertionError("protected_state_terminal_drift_not_rejected")
     print("protected_state_terminal_drift_rejected=true")
 
+    # Fixture-only ACL adversary: force effective W_OK on a root-owned ancestor.
+    # The real host filesystem is not modified by this self-test.
+    saved_access=os.access
+    def synthetic_acl_write(current,mode,*,effective_ids=False):
+        if str(current)=="/usr" and mode==os.W_OK and effective_ids:
+            return True
+        return saved_access(current,mode,effective_ids=effective_ids)
+    os.access=synthetic_acl_write
+    try:
+        try:
+            trusted_host_ancestors(Path("/usr/bin/void-v6r3-inert-fixture"),"fixture_acl")
+        except PlanError as exc:
+            assert str(exc)=="fixture_acl_ancestor_not_custodied:/usr"
+        else:
+            raise AssertionError("host_ancestor_acl_writable_fixture_accepted")
+    finally:
+        os.access=saved_access
+    print("host_ancestor_acl_writability_adversary_rejected=true")
+
     drift_calls=0
     def drifting_source():
         nonlocal drift_calls
